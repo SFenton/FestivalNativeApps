@@ -5,7 +5,7 @@
     xmlns:controls="using:Festival.App.Controls">
     <!--
         The one leaderboard row (operator batch 7.7; web entryRow + LeaderboardEntry / RankingEntry): its own frosted
-        48 epx row with a 12 epx radius, 4 epx apart in a list (no card around the rows). Columns, left to right:
+        48 epx row with a 12 epx radius, 4 epx apart in a list (no card around the rows), except on full boards (below). Columns, left to right:
         rank · name (scrolls when it doesn't fit) · season or songs label · score or rating (+ Bayesian) · accuracy badge · stars · in-card chevron.
         Which columns show and their widths come from one per-section plan (Festival.Core LeaderboardColumnLayout, issue
         #37), measured over every row of the section and its pinned row, so columns line up vertically like the web; a
@@ -14,6 +14,9 @@
         (empty account ID) is not hit-testable or tabbable and its peer is Text with no Invoke (issue #63). The selected player's row is purpleHighlight with a purple border and
         bold rank and name. The surface is a Border behind a transparent Button, so hover/press add a white tint on top
         of the frosted fill instead of replacing it.
+        On a full board (GroupedRows, issue #543, owner-approved variant) the rows touch and each draws its slice of one
+        grouped card: rounded top on the first row, rounded bottom on the last, side strokes between, and the Separator
+        hairline above every row but the first and those beside the selected row, which keeps its full purple outline.
     -->
     <Grid>
         <!-- Pinned rows float over scrolling rows: an opaque backplate stands in for the web's backdrop blur (no per-frame blur). -->
@@ -21,6 +24,9 @@
                 Background="{ThemeResource FSTFloatingBackplateBrush}" />
         <Border x:Name="Surface" CornerRadius="12" BorderThickness="1" IsHitTestVisible="False"
                 Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}" />
+        <!-- Grouped card hairline between rows (Search rows card's FSTRowSeparatorBrush; GrayText under a contrast theme). -->
+        <Border x:Name="Separator" Height="1" Margin="12,0" VerticalAlignment="Top" IsHitTestVisible="False" Visibility="Collapsed"
+                Background="{ThemeResource FSTRowSeparatorBrush}" AutomationProperties.AccessibilityView="Raw" />
         <controls:LeaderboardRowButton x:Name="RowButton" Click="OnClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                 VerticalAlignment="Stretch" Padding="12,0" MinHeight="48" CornerRadius="12" BorderThickness="0"
                 Background="Transparent" SizeChanged="OnSizeChanged">

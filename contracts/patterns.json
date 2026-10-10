@@ -669,6 +669,10 @@
           {
             "path": "windows/Festival.App/Controls/ViewAllCard.cs",
             "symbol": "ViewAllCard"
+          },
+          {
+            "path": "windows/Festival.App/Controls/GroupedRows.cs",
+            "symbol": "GroupedRows"
           }
         ]
       },
@@ -778,7 +782,8 @@
         "drawer",
         "hamburger",
         "page title",
-        "navigation title"
+        "navigation title",
+        "search drawer"
       ],
       "web": [
         {
@@ -855,6 +860,14 @@
           {
             "path": "apple/Sources/FestivalUI/App/Shell/SidebarMenu.swift",
             "symbol": "SidebarMenu"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/Chrome/SearchDrawerTransitionFill.swift",
+            "symbol": "SearchDrawerTransitionFill"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongsBottomFilterField.swift",
+            "symbol": "SongsSystemFilterField"
           }
         ],
         "android": [
@@ -965,6 +978,16 @@
           "regex": "\\.accessibilitySortPriority\\(",
           "allow": [],
           "message": "Shell chrome reads in hierarchy order; the order journeys cannot see a sort priority (page-tools-and-nav-chrome R17, #394)."
+        },
+        {
+          "id": "apple-search-drawer-fill",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.navigationBarDrawer\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
+            "apple/Sources/FestivalUI/Features/Profile/ProfileSelectionSheet.swift"
+          ],
+          "message": "A pushing page's search drawer goes through SongsSystemFilterField so SearchDrawerTransitionFill draws its capsule during push and pop (page-tools-and-nav-chrome R19); the Profile sheet never pushes."
         }
       ],
       "related": {
@@ -1001,7 +1024,8 @@
         351,
         363,
         394,
-        534
+        534,
+        544
       ]
     },
     {
@@ -1241,6 +1265,7 @@
         "season column",
         "multi-row card",
         "trailing pane",
+        "grouped card",
         "one card",
         "grouped rows"
       ],
@@ -1451,6 +1476,14 @@
           {
             "path": "windows/Festival.Core/Domain/RankingSpotlight.cs",
             "symbol": "RankingSpotlight"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/GroupedRowSlice.cs",
+            "symbol": "GroupedRowSlice"
+          },
+          {
+            "path": "windows/Festival.App/Controls/GroupedRows.cs",
+            "symbol": "GroupedRows"
           }
         ]
       },

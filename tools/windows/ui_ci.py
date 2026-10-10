@@ -174,6 +174,10 @@ RUNS: tuple[Run, ...] = (
     # keyboard Settings replay with Esc focus return, demo frame clear of the title. At 225% the guide body scrolls.
     Run("first-run-demos", "a11y-first-run-demos.json"),
     Run("first-run-demos-text-225", "a11y-first-run-demos.json", sizes="compact", mode="text-225"),
+    # Full boards as one grouped card (issue #543): song board, Full Rankings, Band Rankings and the song band board rows
+    # touch (0 epx), each stays one 40+ epx Button stop in visual order, rows -> pinned row -> pager, Up/Down and Tab.
+    Run("grouped-boards", "a11y-grouped-boards.json", tabs=0),
+    Run("grouped-boards-text-225", "a11y-grouped-boards.json", sizes="compact", mode="text-225", tabs=0),
     # Settings' Experimental Ranks toggle (issue #541): enabled, off by default, named and Space-toggled; turning it on
     # shows "Rank by: Total Score, button" (40 epx) on Leaderboards and off hides it again; with it off a saved or
     # deep-linked experimental metric leaves no Rank By on Leaderboards, Full Rankings or Band Rankings.
