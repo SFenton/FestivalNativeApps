@@ -17,7 +17,7 @@ Live Duos, Trios and Quads (1,816,766 ranked Duos), with SFentonX selected. Capt
 
 | Configuration | Result |
 |---|---|
-| FST_Phone portrait / landscape, font 1.0 / 2.0 | **Bug, fixed:** rows passed visibly between and under the floating pager and stayed in touch and TalkBack. Fixed with the footer fade. Font 2.0 stacks rows (rank, roster, score, songs) without clipping. The title ellipsizes at 2.0 (`Duos Leader…`): this is the standard single-line M3 top app bar, accepted as in #103. Paging 1 → 2 and Rank By (FC Rate) work. |
+| FST_Phone portrait / landscape, font 1.0 / 2.0 | **Bug, fixed:** rows passed visibly between and under the floating pager and stayed in touch and TalkBack. Fixed with the footer fade. Font 2.0 stacks rows (rank, roster, score, songs) without clipping. The title ellipsized at 2.0 (`Duos Leader…`), the standard single-line M3 top app bar accepted in #103; since #597 it scrolls as a one-line marquee instead (page-tools-and-nav-chrome R21). Paging 1 → 2 and Rank By (FC Rate) work. |
 | FST_Tablet landscape / portrait, font 2.0 | OK: drawer in landscape, rail in portrait, full names on one line, pager centered under the fade. At 2.0 the rows stack. |
 | FST_Resizable phone · foldable · tablet · desktop, desktop font 2.0 | OK: bottom bar → rail → drawer, fade at every width. |
 | FST_Book_Fold folded / half / unfolded, half font 2.0 | **Half-open bug, fixed:** in the 261 dp list pane, names disappeared. Rows now stack with full rosters, and the population and pager sit in the trailing pane. Folded and unfolded rows are unchanged. Half-open at font 2.0 stays one column with stacked rows: `rememberHingeSplit` drops the split under large text and TalkBack by design (`rememberSingleColumn`). |
@@ -28,7 +28,9 @@ Live Duos, Trios and Quads (1,816,766 ranked Duos), with SFentonX selected. Capt
 | Robolectric `BandRankingsUiTest` (phone, row layout, large text) | Covers loading → rows, paging and band-size/Rank By switches, initial failure with Retry, inline failure after a page change, empty page, one-line versus stacked rows by pane width, and large text. |
 | Connected `BandRankingsJourneyTest` (ATF) | Passes on FST_Phone and FST_Book_Fold (half) with no ATF errors. It covers reading order (title → population → rows → pager), the band-size and Rank By menus, paging, and opening a band. Coverage gate: logic 98.0%, UI 94.1%. |
 
-**Deliberate deviations from the web or M3:** the pager always shows (web hides it on a single page; the pinned footer keeps page context). Rank By follows Settings → Experimental Ranks like the web. There is no band-combo filter or selected-band footer, because Android has no selected-band identity. Population text uses the primary text role. The empty copy is "No ranked bands yet.". The app is dark-only.
+**Pager (issue #575, [load-transition](../../patterns/load-transition.md) R4):** the shared `RankingsPager` is hidden until a loaded board has given its page count (`pageCount` starts `null`, never a placeholder "1 / 1") and for a one-page board (web `hasPagination = !!data && totalPages > 1`). Page changes and band-size or Rank By reloads keep it in place with the last known count until the new board commits. Test: `BandRankingsUiTest` (no pager on the first load or an empty board).
+
+**Deliberate deviations from the web or M3:** Rank By follows Settings → Experimental Ranks like the web. There is no band-combo filter or selected-band footer, because Android has no selected-band identity. Population text uses the primary text role. The empty copy is "No ranked bands yet.". The app is dark-only.
 
 ## IDs
 

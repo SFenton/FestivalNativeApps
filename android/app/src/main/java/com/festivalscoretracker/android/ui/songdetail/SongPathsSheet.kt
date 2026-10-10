@@ -1,16 +1,11 @@
 package com.festivalscoretracker.android.ui.songdetail
 
 import android.graphics.BitmapFactory
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.Ease
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.RowScope
@@ -86,10 +81,13 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -112,6 +110,7 @@ import com.festivalscoretracker.android.presentation.songs.PathSwapPhase
 import com.festivalscoretracker.android.presentation.songs.PathSwapTiming
 import com.festivalscoretracker.android.presentation.songs.SongPathsState
 import com.festivalscoretracker.android.presentation.songs.SongPathsViewModel
+import com.festivalscoretracker.android.ui.common.AccordionReveal
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
@@ -184,10 +183,32 @@ fun SongPathsSheet(
             val wide = usesPathGrid(maxWidth.value, density.fontScale)
             Column(Modifier.fillMaxHeight().padding(horizontal = 16.dp).padding(bottom = 12.dp)) {
                 if (wide && state.load is PathLoad.Text) Box(Modifier.graphicsLayer { alpha = contentAlpha }) { PathTableHeader(columns) }
-                // Polite live region: "Loading <chart> path", then what loaded (web swap has no announcement).
-                Box(Modifier.size(1.dp).testTag("fst.paths.status").semantics { contentDescription = state.status; liveRegion = LiveRegionMode.Polite })
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    Box(Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
+                    // One status node (load-transition R2, #506): the polite live region ("Loading <chart> path",
+                    // then what loaded; web swap has no announcement) that hosts the spinner, so TalkBack meets
+                    // one named, indeterminate busy indicator instead of a name beside an unnamed "In progress".
+                    // First in tree order so TalkBack reads it before the content; centred over the empty area while
+                    // the spinner shows, otherwise in the content's 1 dp top inset so no content node covers it
+                    // (Compose drops fully covered nodes from the tree, and with them the live region's announcement).
+                    Box(
+                        Modifier.align(if (state.spinnerVisible) Alignment.Center else Alignment.TopStart).testTag("fst.paths.status").semantics(mergeDescendants = true) {
+                            contentDescription = state.status
+                            liveRegion = LiveRegionMode.Polite
+                            if (state.spinnerVisible) progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
+                        },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (state.spinnerVisible) {
+                            // The indicator's own progress semantics merge into a separate node; the status
+                            // node carries the indeterminate progress instead.
+                            Box(Modifier.clearAndSetSemantics { testTag = "fst.paths.loading" }) {
+                                FestivalLoading(null, Modifier.graphicsLayer { alpha = spinnerAlpha }, size = 32.dp)
+                            }
+                        } else {
+                            Spacer(Modifier.size(1.dp))
+                        }
+                    }
+                    Box(Modifier.fillMaxSize().padding(top = 1.dp).graphicsLayer { alpha = contentAlpha }) {
                         val shown = state.shown
                         when (val load = state.load) {
                             PathLoad.Loading -> Unit
@@ -199,11 +220,6 @@ fun SongPathsSheet(
                             is PathLoad.Failed -> ServiceStatusInline(load.issue, "Path unavailable", null, viewModel::retry, Modifier.testTag("fst.paths.error"))
                             is PathLoad.Image -> PathImage(load, "${shown.instrument.label} ${shown.difficulty.label} CHOpt path")
                             is PathLoad.Text -> Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) { PathTable(load.data, columns, wide, rowsRevealed) }
-                        }
-                    }
-                    if (state.spinnerVisible) {
-                        Box(Modifier.fillMaxSize().graphicsLayer { alpha = spinnerAlpha }, contentAlignment = Alignment.Center) {
-                            FestivalLoading(null, Modifier.testTag("fst.paths.loading"), size = 32.dp)
                         }
                     }
                 }
@@ -248,8 +264,8 @@ internal fun usesPathGrid(widthDp: Float, fontScale: Float): Boolean =
 
 /**
  * Web mobile controls: a row of three frosted buttons (instrument icon, difficulty,
- * view icon) with chevrons; tapping one opens its panel above the row, tapping it
- * (or the current choice) again closes it.
+ * view icon) with chevrons; tapping one opens its panel above the row (the shared
+ * [AccordionReveal], issue #561), tapping it (or the current choice) again closes it.
  */
 @Composable
 private fun PathControls(
@@ -263,7 +279,7 @@ private fun PathControls(
 ) {
     fun toggle(target: PathPanel) = onPanel(if (panel == target) null else target)
     Column(Modifier.fillMaxWidth().padding(top = 8.dp).testTag("fst.paths.selectors")) {
-        AnimatedVisibility(visible = panel == PathPanel.Instrument, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+        AccordionReveal(panel == PathPanel.Instrument) {
             InstrumentSelector(
                 instruments = viewModel.instruments,
                 selected = instrument,
@@ -274,12 +290,12 @@ private fun PathControls(
                 modifier = Modifier.padding(bottom = 12.dp),
             )
         }
-        AnimatedVisibility(visible = panel == PathPanel.Difficulty, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+        AccordionReveal(panel == PathPanel.Difficulty) {
             OptionGrid(PathDifficulty.entries, difficulty, { it.label }, "fst.paths.difficulty") { choice ->
                 if (choice == difficulty) onPanel(null) else viewModel.selectDifficulty(choice)
             }
         }
-        AnimatedVisibility(visible = panel == PathPanel.Display, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+        AccordionReveal(panel == PathPanel.Display) {
             OptionGrid(PathDisplayMode.entries, display, { it.label }, "fst.paths.display") { choice ->
                 if (choice == display) onPanel(null) else viewModel.selectDisplay(choice)
             }

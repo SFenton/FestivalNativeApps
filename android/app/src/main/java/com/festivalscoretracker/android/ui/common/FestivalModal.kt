@@ -247,12 +247,15 @@ fun FestivalModalBody(modifier: Modifier = Modifier, content: @Composable Column
  * slides the sheet away (instantly under Reduce
  * Motion) before [onDismissRequest]; swipe down, a scrim tap and back call it directly.
  *
+ * Every sheet opens fully expanded (modal-shell R13, issue #586): its content height, up to
+ * the window below the status bar, with no half-height stop. A partially expanded sheet hid
+ * Quick Links rows, Profiles and Find Rival below the screen until dragged up.
+ *
  * @param title Header and pane title.
  * @param closeTag Close button test tag.
  * @param onDismissRequest Called once the sheet is closed in any way.
  * @param modifier Sheet modifier (test tags, extra semantics).
  * @param titleTag Optional heading test tag.
- * @param skipPartiallyExpanded Open fully expanded (default) or allow the half-height stop.
  * @param headerActions Extra header actions placed before Close.
  * @param content Sheet body below the header.
  */
@@ -264,11 +267,10 @@ fun FestivalModalSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     titleTag: String? = null,
-    skipPartiallyExpanded: Boolean = true,
     headerActions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = skipPartiallyExpanded)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
     val close: () -> Unit = {
@@ -287,7 +289,7 @@ fun FestivalModalSheet(
             containerColor = BrandTokens.cardBackground,
             modifier = Modifier.festivalSheetTop().festivalSheetHingeSide().popupTestTags().then(modifier).semantics { paneTitle = title }
                 .fadeInRushOnScroll(fadeIn),
-            // Material's handle is 32 dp wide; once the sheet can collapse it is a 48 dp touch target.
+            // Material's handle is 32 dp wide; its Dismiss action makes it a 48 dp touch target.
             dragHandle = { BottomSheetDefaults.DragHandle(Modifier.minimumInteractiveComponentSize()) },
         ) {
             FestivalModalHeader(title, closeTag, close, titleTag = titleTag, actions = headerActions)
@@ -461,8 +463,10 @@ internal fun HingeSideDialogLayout(
 
 /**
  * Shared confirmation / notice alert: Material's `AlertDialog` on the card colour with a
- * text confirm button and a text dismiss button (the platform's standard way to close an
- * alert, together with back and an outside tap).
+ * text confirm button and, for a choice, a text dismiss button (the platform's standard way
+ * to close an alert, together with back and an outside tap). A notice that only needs
+ * acknowledging (e.g. the feedback form's "Report Sent", #565) omits [dismissLabel] and shows
+ * the single confirm action.
  *
  * @param title Alert title.
  * @param text Body.
@@ -470,8 +474,8 @@ internal fun HingeSideDialogLayout(
  * @param confirmLabel Confirm button text.
  * @param confirmTag Confirm button test tag.
  * @param onConfirm Confirm action (callers close the alert).
- * @param dismissLabel Dismiss button text.
- * @param dismissTag Dismiss button test tag.
+ * @param dismissLabel Dismiss button text, or null for a single-action notice.
+ * @param dismissTag Dismiss button test tag (required with [dismissLabel]).
  * @param onDismissRequest Back, an outside tap, or (by default) the dismiss button.
  * @param onDismissButton Dismiss button action when it differs from [onDismissRequest].
  * @param textTag Optional body test tag.
@@ -485,9 +489,9 @@ fun FestivalAlertDialog(
     confirmLabel: String,
     confirmTag: String,
     onConfirm: () -> Unit,
-    dismissLabel: String,
-    dismissTag: String,
     onDismissRequest: () -> Unit,
+    dismissLabel: String? = null,
+    dismissTag: String? = null,
     onDismissButton: () -> Unit = onDismissRequest,
     textTag: String? = null,
     destructive: Boolean = false,
@@ -504,7 +508,11 @@ fun FestivalAlertDialog(
                     modifier = Modifier.testTag(confirmTag),
                 ) { Text(confirmLabel) }
             },
-            dismissButton = { TextButton(onClick = onDismissButton, modifier = Modifier.testTag(dismissTag)) { Text(dismissLabel) } },
+            dismissButton = dismissLabel?.let { label ->
+                {
+                    TextButton(onClick = onDismissButton, modifier = if (dismissTag != null) Modifier.testTag(dismissTag) else Modifier) { Text(label) }
+                }
+            },
             containerColor = BrandTokens.cardBackground,
             modifier = Modifier.popupTestTags().testTag(tag),
         )

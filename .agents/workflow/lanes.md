@@ -24,6 +24,7 @@ Debug launch extras: `FST_DEBUG_DRAWER`, `FST_DEBUG_SHEET=profile`, `FST_DEBUG_P
 ## Rules
 
 - **Never call `simctl` directly** while lanes run; `tools/ios_sim.py` holds `~/.fst-sim.lock`. One product simulator at a time per host; never touch other projects' devices ([simulators](../platforms/apple/simulators.md)).
+- **Never `git stash`** in a worktree: `refs/stash` is one stack shared by every worktree, so concurrent workers pop each other's entries (repeated 2026-10-09 by the #562/#403/#565 Apple workers during a baseline test run). For a before/after or baseline run use `git diff -- <paths> > /tmp/x.patch && git apply -R /tmp/x.patch`, run, then `git apply /tmp/x.patch`, or a throwaway detached `git worktree add` ([windows-relay](windows-relay.md) has the recovery steps).
 - Commit small cohesive commits ending with the `Co-Authored-By` trailer; on rebase conflicts keep both sides' intent and never delete another lane's new files.
 - Final report: SHAs landed, screenshots taken, open issues, seam changes needed. The orchestrator updates PROGRESS.md.
 - PR auto-merge only when the PR author is exactly `SFenton`.

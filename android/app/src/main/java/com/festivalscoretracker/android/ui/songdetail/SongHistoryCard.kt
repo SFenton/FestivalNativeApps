@@ -1,16 +1,11 @@
 package com.festivalscoretracker.android.ui.songdetail
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -81,11 +76,13 @@ import com.festivalscoretracker.android.core.songs.SongHistoryChart
 import com.festivalscoretracker.android.core.songs.SongHistoryPaging
 import com.festivalscoretracker.android.core.songs.SongHistoryPoint
 import com.festivalscoretracker.android.core.songs.SongHistorySwap
+import com.festivalscoretracker.android.ui.common.AccordionRevealOf
 import com.festivalscoretracker.android.ui.common.GraphCardList
 import com.festivalscoretracker.android.ui.common.ChartBandLabels
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
+import com.festivalscoretracker.android.ui.design.InstrumentSelectorLook
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
 import com.festivalscoretracker.android.ui.leaderboards.FrostedPagerButton
@@ -110,9 +107,11 @@ import kotlin.math.max
  * are more than five. Switching chart fades the graph out and the new chart's back in
  * ([SongHistorySwap]; instant with reduced motion) while the card keeps its height: the
  * pager row stays reserved when any chart pages and the height is held during the swap.
- * The best scores below the card run the web GraphCard list sequence ([GraphCardList]:
- * old rows out, 300 ms height ease, new rows in), so the page content under them glides
- * rather than jumps; View All follows the selection at once, as on the web (issue #169).
+ * The best scores sit in the same card under the graph (issue #588, grouped rows with
+ * hairlines like the preview cards) and run the web GraphCard list sequence ([GraphCardList]:
+ * old rows out, 300 ms height ease, new rows in), so the card and the page under it glide
+ * rather than jump; View All Scores ends the card and follows the selection at once, as on
+ * the web (issue #169).
  *
  * @param entries This song's history rows (every chart, invalid scores already dropped).
  * @param visible Settings-visible charted instruments.
@@ -169,9 +168,14 @@ fun SongHistoryCard(
     val pinned = with(LocalDensity.current) { pin.value.toDp() }
     Column(modifier.fillMaxWidth().testTag("fst.song-detail.history")) {
         SectionHeader("Score History")
-        GlassCard(Modifier.fillMaxWidth().heightIn(min = pinned).testTag("fst.song-detail.history.card")) {
+        // Issue #588: one card for the selector, chart, best scores and View All Scores, like the
+        // instrument and band preview cards (and Apple's grouped Score History, #381/#382).
+        GlassCard(Modifier.fillMaxWidth().testTag("fst.song-detail.history.card")) {
+        Column {
+        // The graph section keeps its size through a chart swap; the rows below resize on their own.
+        Box(Modifier.fillMaxWidth().heightIn(min = pinned).testTag("fst.song-detail.history.graph")) {
             Column(
-                Modifier.padding(horizontal = 12.dp, vertical = 12.dp).onSizeChanged { natural = it.height },
+                Modifier.fillMaxWidth().onSizeChanged { natural = it.height }.padding(horizontal = 12.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 InstrumentSelector(
@@ -180,6 +184,7 @@ fun SongHistoryCard(
                     onSelect = { next -> if (next != null) chosen = next },
                     required = true,
                     keyboard = keyboard,
+                    look = InstrumentSelectorLook.Graph,
                     tag = "fst.song-detail.history.instrument",
                 )
                 Text(
@@ -201,27 +206,48 @@ fun SongHistoryCard(
         val selectedPoints = remember(entries, selected) { SongHistoryChart.points(entries, selected) }
         val top = remember(selectedPoints) { SongHistoryChart.top(selectedPoints) }
         // Issue #62: the list shows seasons only when its rows are at least 520 dp wide (web QUERY_SHOW_SEASON).
-        BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
             val width = maxWidth.value
-            GraphCardList(top, identity = { it.dateKey to it.score }, modifier = Modifier.fillMaxWidth().testTag("fst.song-detail.history.top")) { point, index ->
-                HistoryRow(
-                    point,
-                    best = index == 0,
-                    tag = "fst.song-detail.history.top.$index",
-                    showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryList, width, point.season),
-                )
+            // Grouped rows: a hairline above each row (the first separates the graph), fading with its row.
+            GraphCardList(top, identity = { it.dateKey to it.score }, modifier = Modifier.fillMaxWidth().testTag("fst.song-detail.history.top"), spacing = 0.dp) { point, index ->
+                Column {
+                    RowSeparator()
+                    HistoryRow(
+                        point,
+                        best = index == 0,
+                        tag = "fst.song-detail.history.top.$index",
+                        showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryList, width, point.season),
+                        grouped = true,
+                    )
+                }
             }
         }
         if (selectedPoints.size > SongHistoryChart.TOP_COUNT) {
+            // `view-all-cta` R1: the shared purple button ends the card, inset like the preview cards'.
+            // R4: label-first spoken name with the selected chart's card, e.g. "View All Scores, Lead Score History".
             ViewFullLeaderboardButton(
                 onClick = { onViewAll(selected) },
                 label = "View All Scores",
                 testTag = "fst.song-detail.history.view-all",
-                modifier = Modifier.padding(top = 8.dp),
+                cardName = scoreHistoryCardName(selected),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             )
+        } else {
+            Spacer(Modifier.height(4.dp))
+        }
+        }
         }
     }
 }
+
+/**
+ * The Score History card's name for View All Scores' spoken label (`view-all-cta` R4, as
+ * Apple's `PurpleActionName.spoken("View All Scores", card: "<chart> Score History")`).
+ *
+ * @param chart Selected chart.
+ * @return For example "Lead Score History".
+ */
+internal fun scoreHistoryCardName(chart: Instrument): String = "${chart.label} Score History"
 
 /**
  * Release the swap's height pin: ease from the held height to the new content height,
@@ -337,19 +363,14 @@ internal fun HistoryChart(
                 )
             }
             Legend(page)
-            AnimatedVisibility(
-                visible = showDetail && paging.selected != null,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut(),
-            ) {
-                paging.selected?.let { points.getOrNull(it) }?.let {
-                    HistoryRow(
-                        it,
-                        best = false,
-                        tag = detailTag,
-                        showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryDetail, Float.NaN, it.season),
-                    )
-                }
+            // The detail row keeps the last bar while it fades out and collapses.
+            AccordionRevealOf(paging.selected?.takeIf { showDetail }?.let { points.getOrNull(it) }) {
+                HistoryRow(
+                    it,
+                    best = false,
+                    tag = detailTag,
+                    showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryDetail, Float.NaN, it.season),
+                )
             }
             if (paging.needsPaging) {
                 Pager(paging) { paging = it }
@@ -399,28 +420,38 @@ private fun Pager(paging: SongHistoryPaging, onChange: (SongHistoryPaging) -> Un
 }
 
 /**
- * One score card (web score list card): date, season, score and accuracy; the best
+ * One score row (web score list card): date, season, score and accuracy; the best
  * score is purple-highlighted and bold like a selected leaderboard row.
  *
  * @param point The score.
  * @param best Whether this is the best score (highlighted).
  * @param tag Test tag.
  * @param showSeason Whether to show the season pill and read it to TalkBack ([ScoreRowSeasonPolicy]).
+ * @param grouped Whether the row sits in a card with other rows (Song Detail's Score History card,
+ *   issue #588): it drops its own card and the best row takes the preview cards' selected-row
+ *   highlight ([selectedRowHighlight]); otherwise it is its own frosted card (the tapped bar's detail).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String, showSeason: Boolean) {
+internal fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String, showSeason: Boolean, grouped: Boolean = false) {
     val season = point.season?.takeIf { showSeason }
     val shape = RoundedCornerShape(12.dp)
     val date = longDate(point.dateKey)
     val accuracy = "${ScoreFormatting.accuracy(point.accuracyPercent * 10_000)}%"
     val score = NumberFormat.getIntegerInstance().format(point.score)
-    val modifier = Modifier
-        .fillMaxWidth()
+    val surface = if (grouped) {
+        Modifier.fillMaxWidth().selectedRowHighlight(best)
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(if (best) PurpleHighlight else BrandTokens.surfaceFrosted)
+            .border(1.dp, if (best) PurpleHighlightBorder else BrandTokens.glassBorder, shape)
+    }
+    // Grouped rows keep 12 dp from the card's edge: the highlight's inset plus the row's own padding.
+    val inset = if (grouped) SCORE_ROW_PADDING else 12.dp
+    val modifier = surface
         .heightIn(min = 48.dp)
-        .clip(shape)
-        .background(if (best) PurpleHighlight else BrandTokens.surfaceFrosted)
-        .border(1.dp, if (best) PurpleHighlightBorder else BrandTokens.glassBorder, shape)
         .testTag(tag)
         // One stop that reads the summary once (not the summary and then each child text).
         .clearAndSetSemantics {
@@ -430,7 +461,7 @@ internal fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String, sho
     if (isLargeText()) {
         // Large text: the date on its own line and the values flowing under it, so the date
         // never ends in an ellipsis and the accuracy pill never breaks "100%" (like StackedScoreRow).
-        Column(modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(modifier.padding(horizontal = inset, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(date, color = BrandTokens.textPrimary, fontWeight = dateWeight)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                 season?.let { SeasonPill(it) }
@@ -439,7 +470,7 @@ internal fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String, sho
             }
         }
     } else {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = modifier.padding(horizontal = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = modifier.padding(horizontal = inset)) {
             Text(date, color = BrandTokens.textPrimary, fontWeight = dateWeight, modifier = Modifier.weight(1f), maxLines = 1)
             season?.let { SeasonPill(it) }
             Text(score, color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold)

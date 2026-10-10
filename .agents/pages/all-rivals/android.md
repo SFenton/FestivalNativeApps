@@ -6,10 +6,11 @@
 - Common Rivals intersects every chart's full list. Charts without rivals are ignored, as their web 404 leaves no data. A chart whose read fails (e.g. a live 503) is left out, like the hub's Common card (`loadCommonLists`); the page fails only when every chart fails. A leaderboard list shows "Your rank: #N · Total Score"; combos list their charts.
 - Rows (above, then below) push Rival Detail with the same scope, in the adaptive grid (1–2 columns, split at a separating hinge). States: loading, shared service status (freeze countdown), empty, no player.
 
-## Header (decision, issue #108)
+## Header (decisions, issues #108, #557)
 
 - The top app bar alone carries the title ("Lead Rivals", "Common Rivals", the combo name). M3 `top-app-bar.md`: "Use when: Every screen needs a title and optional actions", with the title in Title Large. Repeating it as a content heading read it twice to TalkBack and cost a row on phones. Player Bands uses the same `title = null` pattern.
-- An optional subtitle row (`fst.all-rivals.subtitle`, `bodyLarge`, secondary text, 28 dp instrument icon for a single chart) carries the rank line or the chart list. It keeps the full combo chart list when the bar truncates the title (Passport folded).
+- A single-chart list (song or leaderboard rivals) leads the bar title with the chart's icon (`FestivalScreen(titleIcon)`, `fst.all-rivals.title-icon.<wireId>`; 28 dp at 1.0× text, growing with the font, decorative), like Instrument Leaderboards and the web `AllRivalsPage` header ([page-tools-and-nav-chrome](../../patterns/page-tools-and-nav-chrome.md) R18, #557). Common and combo lists have no icon. The bar is pinned, so its one title size serves both the top of the list and after scrolling.
+- An optional subtitle row (`fst.all-rivals.subtitle`, `bodyLarge`, secondary text, no icon since #557) carries the rank line or the chart list. It keeps the full combo chart list when the bar truncates the title (Passport folded).
 
 ## Validation (issue #108, live service, SFentonX)
 
@@ -31,4 +32,4 @@
 
 ## Tests
 
-`AllRivalsUiTest` (Robolectric: leaderboard rank line and accessible rows, single chart without header and anonymous rows, Common with a failed chart, combo chart list, loading → rows, every chart failing → status → Retry, empty, unresolvable combo, wide two-column grid), `RivalRowUiTest.wrappedPillsGrowTheCardAtLargeText` (fails on the old `IntrinsicSize.Min` row; shared with issue #107), `RivalsViewModelTest.commonRivalsLeavesOutFailedChartsAndFailsOnlyWhenEveryChartFails`. Connected: `RivalsDeviceJourneyTest.allRivalsListFitsAndOpensDetail` on FST_Phone and FST_Book_Fold half-open.
+`AllRivalsUiTest` (Robolectric: leaderboard rank line and accessible rows, single chart without header and anonymous rows, chart icon leading the bar title and scaling at 2.0× (#557), Common and combo without it, Common with a failed chart, combo chart list, loading → rows, every chart failing → status → Retry, empty, unresolvable combo, wide two-column grid), `RivalRowUiTest.wrappedPillsGrowTheCardAtLargeText` (fails on the old `IntrinsicSize.Min` row; shared with issue #107), `RivalsViewModelTest.commonRivalsLeavesOutFailedChartsAndFailsOnlyWhenEveryChartFails`. Connected: `RivalsDeviceJourneyTest.allRivalsListFitsAndOpensDetail` on FST_Phone and FST_Book_Fold half-open; `journeys/AllRivalsTitleIconAccessibilityJourneyTest` (ATF; icon in the bar left of the title and within its line at 100% and 200% text, title read once, Back → title → rank line → rows; Common without icon).

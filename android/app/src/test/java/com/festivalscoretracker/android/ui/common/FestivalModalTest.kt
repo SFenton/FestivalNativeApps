@@ -11,7 +11,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.runBlocking
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.material3.adaptive.HingeInfo
 import androidx.compose.material3.adaptive.Posture
 import androidx.compose.runtime.CompositionLocalProvider
@@ -99,6 +104,51 @@ class FestivalModalTest {
         rule.onNodeWithText("Reset").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(1, reset)
         rule.onNodeWithTag("t.close").assertIsDisplayed()
+    }
+
+    /** Builds a sheet body taller than the window, the case Material opens at half height. */
+    @Composable
+    private fun TallBody() {
+        Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+            repeat(40) { Box(Modifier.fillMaxWidth().height(48.dp)) { Text("Row $it") } }
+        }
+    }
+
+    private val expandable = SemanticsMatcher.keyIsDefined(SemanticsActions.Expand)
+
+    /**
+     * Issue #586 (`modal-shell` R13): a sheet taller than the window opens fully expanded with no
+     * half-height stop, so nothing offers Expand and its header sits at the top of the window.
+     */
+    @Test
+    fun tallSheetOpensFullyExpanded() {
+        rule.setContent {
+            FestivalTheme {
+                FestivalModalSheet(title = "Quick Links", closeTag = "q.close", onDismissRequest = {}, titleTag = "q.title") {
+                    TallBody()
+                }
+            }
+        }
+        settle()
+        rule.onAllNodes(expandable, useUnmergedTree = true).assertCountEquals(0)
+        val top = rule.onNodeWithTag("q.title", useUnmergedTree = true).getUnclippedBoundsInRoot().top
+        assertTrue("title at $top should be near the window top, not at half height", top < 200.dp)
+    }
+
+    /** Control for [tallSheetOpensFullyExpanded]: Material's half-height stop is detectable. */
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Test
+    fun materialHalfHeightStopOffersExpand() {
+        rule.setContent {
+            FestivalTheme {
+                ModalBottomSheet(
+                    onDismissRequest = {},
+                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
+                ) { TallBody() }
+            }
+        }
+        settle()
+        rule.onAllNodes(expandable, useUnmergedTree = true).assertCountEquals(1)
     }
 
     @Test

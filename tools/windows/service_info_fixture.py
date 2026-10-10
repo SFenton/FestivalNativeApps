@@ -11,7 +11,8 @@ State               ``/api/service-info`` answer → card
                     at once → "Loading" · Loading with the spinner, state row only, then "Waiting for the Next
                     Update". The hold outlasts the app's 3 s request timeout, so the page lengthens it with the
                     Debug/automation ``FST_DEBUG_SERVICE_INFO_TIMEOUT_MS`` hook (opening Settings, scrolling to
-                    the card, the checks and an Axe scan take ~4 s). Loading only precedes the first read after
+                    the card, the checks and an Axe scan take ~4 s locally, over 18 s on a hosted runner at
+                    225% text). Loading only precedes the first read after
                     Settings opens, so the page starts on Songs and opens Settings itself.
 ``idle``            Idle worker → "Waiting for the Next Update" · Idle, publication row
 ``discovery``       Band discovery, 24.8% of 5,000 accounts, attempts → bar, attempt line, spoken percent/units
@@ -19,7 +20,12 @@ State               ``/api/service-info`` answer → card
                     the card keeps 1,310 for the lower reads and shows 1,400 on the fourth (never backwards), and
                     Narrator hears 1,310 and 1,400 once each. The sequence counts reads per fixture service, so its
                     journey page runs at one size and mode, starts on Songs and opens Settings after listening.
-``indeterminate``   Updating with no known total → empty track, no attempt line, "Total not yet known" spoken
+``indeterminate``   Updating with no known total → the bar sweeps (a still, empty track under reduced motion; issue
+                    #556), no attempt line, "Total not yet known" spoken
+``switching``       Reads 5 s apart go unknown total → the same phase at 40 of 100 (40.0%) → Computing Rankings with
+                    no known total, :data:`SWITCHING_READS` reads each: the bar sweeps, fills, then sweeps again
+                    (issue #556). Read-counted like ``monotonic``, so its page runs at one size and mode, starts on
+                    Songs and opens Settings itself.
 ``failed``          Online worker, last update failed → "Last Leaderboard Update Failed" · Idle
 ``stopped``         Offline worker → "Leaderboard Updater Unavailable" · Stopped
 ``unpublished``     Idle, nothing published yet → "No successful publication yet"
@@ -57,9 +63,14 @@ ROUTE = "/api/service-info"
 #: first read sees it kept back; the last repeats.
 MONOTONIC_ATTEMPTS = ((1310, 70), (1200, 60), (1200, 60), (1400, 80))
 #: ``loading`` hold on the first read: long enough to check and scan Loading, and shorter than the page's
-#: ``FST_DEBUG_SERVICE_INFO_TIMEOUT_MS`` so the card shows Loading rather than "Failed to load data".
-LOADING_DELAY_SECONDS = 8.0
-STATES = ("loading", "idle", "discovery", "monotonic", "indeterminate", "failed", "stopped", "unpublished",
+#: ``FST_DEBUG_SERVICE_INFO_TIMEOUT_MS`` so the card shows Loading rather than "Failed to load data". The Axe scan
+#: of the Loading card took 18.2 s at 225% text on a hosted runner (master run 37930649400, issue #552), after an
+#: 8 s hold had already answered, so the hold leaves room for that.
+LOADING_DELAY_SECONDS = 30.0
+#: ``switching`` reads (5 s apart) per step, so each bar state lasts ~10 s: long enough to open Settings, reach the
+#: card and check it before the next step.
+SWITCHING_READS = 2
+STATES = ("loading", "idle", "discovery", "monotonic", "indeterminate", "switching", "failed", "stopped", "unpublished",
           "unavailable")
 
 
@@ -76,6 +87,23 @@ def _discovery(attempted: int, unavailable: int) -> dict:
     body = copy.deepcopy(mock_service.SERVICE_INFO_DISCOVERY)
     body["currentUpdate"]["attemptProgress"] = {
         "schemaVersion": 1, "attemptedThisPass": attempted, "retryableUnavailableThisPass": unavailable}
+    return body
+
+
+def _unknown_total(at: str = "2026-01-02T12:10:00Z") -> dict:
+    """Updating ``scrape.leaderboards`` with no known total and no attempt counts.
+
+    Args:
+        at: ``lastProgressAt`` (later reads of one operation need later times, or the card ignores them as stale).
+
+    Returns:
+        A fresh body.
+    """
+    body = copy.deepcopy(mock_service.SERVICE_INFO_DISCOVERY)
+    current = body["currentUpdate"]
+    current.update(phaseId="scrape.leaderboards", phase="Scrape", unitsKind="leaderboards", unitsCompleted=None,
+                   unitsTotal=None, unitsTotalFinal=False, phasePercent=None, lastProgressAt=at)
+    current.pop("attemptProgress")
     return body
 
 
@@ -100,11 +128,17 @@ def response(state: str, read: int) -> tuple[int, dict]:
     if state == "monotonic":
         return 200, _discovery(*MONOTONIC_ATTEMPTS[min(read, len(MONOTONIC_ATTEMPTS) - 1)])
     if state == "indeterminate":
-        body = copy.deepcopy(mock_service.SERVICE_INFO_DISCOVERY)
-        current = body["currentUpdate"]
-        current.update(phaseId="scrape.leaderboards", phase="Scrape", unitsKind="leaderboards", unitsCompleted=None,
-                       unitsTotal=None, unitsTotalFinal=False, phasePercent=None)
-        current.pop("attemptProgress")
+        return 200, _unknown_total()
+    if state == "switching":
+        if read < SWITCHING_READS:
+            return 200, _unknown_total()
+        if read < 2 * SWITCHING_READS:
+            body = _unknown_total(at="2026-01-02T12:10:05Z")
+            body["currentUpdate"].update(unitsCompleted=40, unitsTotal=100, unitsTotalFinal=True, phasePercent=40.0)
+            return 200, body
+        body = _unknown_total(at="2026-01-02T12:10:10Z")
+        body["currentUpdate"].update(phaseId="post.compute_rankings", phase="PostScrape", phaseOrdinal=6,
+                                     unitsKind="scopes")
         return 200, body
     if state == "failed":
         idle["currentUpdate"]["status"] = "failed"
@@ -135,7 +169,7 @@ def delay(state: str, read: int) -> float:
 
 
 class ServiceInfoState:
-    """Counts reads so ``monotonic`` can step through its sequence and ``loading`` holds only the first."""
+    """Counts reads so ``monotonic`` and ``switching`` can step through their sequences and ``loading`` holds only the first."""
 
     def __init__(self, state: str) -> None:
         """Remember the state.

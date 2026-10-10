@@ -226,13 +226,48 @@ func serviceInfoDiscoverySnapshot() throws -> SettingsServiceInfoModel.Phase {
     #expect(naRows.barPercent == nil)
 }
 
-/// Only an unknown total sweeps, and system or in-app Reduce Motion (passed combined) or the
-/// UI-test still override holds the track empty (issue #399, load-transition R6).
+/// Only an unknown total sweeps, and system or in-app Reduce Motion (passed combined), an
+/// inactive scene or hidden window, or the UI-test still override holds the track empty
+/// (issue #399, load-transition R6, #556).
 @Test func serviceProgressBarSweepsOnlyForUnknownTotalsWithMotion() {
-    #expect(ServiceProgressBar.sweeps(percent: nil, reduceMotion: false, still: false))
-    #expect(!ServiceProgressBar.sweeps(percent: nil, reduceMotion: true, still: false))
-    #expect(!ServiceProgressBar.sweeps(percent: nil, reduceMotion: false, still: true))
-    #expect(!ServiceProgressBar.sweeps(percent: 42, reduceMotion: false, still: false))
+    #expect(ServiceProgressBar.sweeps(percent: nil, reduceMotion: false, sceneActive: true, still: false))
+    #expect(!ServiceProgressBar.sweeps(percent: nil, reduceMotion: true, sceneActive: true, still: false))
+    #expect(!ServiceProgressBar.sweeps(percent: nil, reduceMotion: false, sceneActive: false, still: false))
+    #expect(!ServiceProgressBar.sweeps(percent: nil, reduceMotion: false, sceneActive: true, still: true))
+    #expect(!ServiceProgressBar.sweeps(percent: 42, reduceMotion: false, sceneActive: true, still: false))
+}
+
+/// The indeterminate segment plays the web keyframes (`translateX(-110%) → 165% → 300%` of
+/// a 38 % segment, `ease-in-out` per half, 1.25 s, infinite) on the render server, phased on
+/// the shared wall clock so re-adding it after a re-host resumes mid-sweep (issue #556).
+@Test func serviceProgressSweepAnimationFollowsTheWebKeyframes() throws {
+    let width: CGFloat = 300
+    let segment = width * 0.38
+    let date = Date(timeIntervalSinceReferenceDate: 1000.5)
+    let animation = ServiceProgressSweep.animation(trackWidth: width, mediaTime: 50, date: date)
+    #expect(animation.keyPath == "transform.translation.x")
+    let values = try #require(animation.values as? [NSNumber]).map(\.doubleValue)
+    #expect(values.count == 3)
+    for (value, expected) in zip(values, [-1.1 * segment, 1.65 * segment, 3.0 * segment]) {
+        #expect(abs(value - Double(expected)) < 1e-9)
+    }
+    #expect(values[0] + Double(segment) <= 0, "starts fully left of the track")
+    #expect(values[2] >= Double(width), "ends fully right of the track")
+    #expect(animation.keyTimes?.map(\.doubleValue) == [0, 0.5, 1])
+    let timing = try #require(animation.timingFunctions)
+    #expect(timing.count == 2)
+    for function in timing {
+        var c1: [Float] = [0, 0], c2: [Float] = [0, 0]
+        function.getControlPoint(at: 1, values: &c1)
+        function.getControlPoint(at: 2, values: &c2)
+        #expect(c1 == [0.42, 0] && c2 == [0.58, 1], "not CSS ease-in-out: \(c1) \(c2)")
+    }
+    #expect(animation.duration == 1.25)
+    #expect(animation.repeatCount == .infinity)
+    #expect(!animation.isRemovedOnCompletion)
+    // 1000.5 s is 0.5 s into a 1.25 s cycle (800 whole cycles), so it began 0.5 s ago.
+    #expect(abs(animation.beginTime - 49.5) < 1e-9)
+    #expect(ServiceProgressSweep.restingOffset(trackWidth: width) == -1.1 * segment)
 }
 
 // MARK: - Service Info model

@@ -107,6 +107,33 @@ class AllRivalsUiTest {
 
     private fun topBarTitle(text: String) = rule.onNode(hasText(text) and hasAnyAncestor(hasTestTag("fst.nav.top-bar")))
 
+    private fun bounds(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+
+    /**
+     * Asserts the chart's icon sits in the top app bar, left of the title, centred on it and no
+     * taller than its line, without a TalkBack label of its own (issue #557, like #294).
+     *
+     * @param instrument The list's chart.
+     */
+    private fun assertTitleIcon(instrument: Instrument) {
+        val tag = "fst.all-rivals.title-icon.${instrument.wireId}"
+        waitForTag(tag)
+        rule.onNode(hasTestTag(tag) and hasAnyAncestor(hasTestTag("fst.nav.top-bar")), useUnmergedTree = true).assertExists()
+        val node = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode()
+        assertEquals("the title already names the chart", null, node.config.getOrNull(SemanticsProperties.ContentDescription))
+        val icon = bounds(tag)
+        val title = bounds("fst.nav.title")
+        val tolerance = with(rule.density) { 2.dp.toPx() }
+        assertTrue("icon ${icon.right} before title ${title.left}", icon.right <= title.left)
+        assertTrue("icon ${icon.height} within title ${title.height}", icon.height <= title.height + tolerance)
+        assertEquals(title.center.y, icon.center.y, tolerance)
+        assertEquals("one chart icon on the page", 1, rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
+    private fun assertNoTitleIcon() {
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.title-icon", useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
     // endregion
 
     // region Scopes
@@ -119,6 +146,7 @@ class AllRivalsUiTest {
         assertEquals("the title is not repeated under the top app bar", 1, rule.onAllNodesWithText("Lead Rivals").fetchSemanticsNodes().size)
         rule.onNodeWithTag("fst.all-rivals.subtitle").assertIsDisplayed()
         rule.onNodeWithText("Your rank: #42 · Total Score", useUnmergedTree = true).assertIsDisplayed()
+        assertTitleIcon(Instrument.Lead)
         // One TalkBack stop per row: name, side, both counts, a button role and a named action.
         val row = rule.onNodeWithTag("fst.rivals.row.${ids[0]}").fetchSemanticsNode()
         assertEquals(
@@ -139,6 +167,10 @@ class AllRivalsUiTest {
         waitForTag("fst.all-rivals.list")
         topBarTitle("Lead Rivals").assertIsDisplayed()
         assertEquals(0, rule.onAllNodesWithTag("fst.all-rivals.subtitle").fetchSemanticsNodes().size)
+        assertTitleIcon(Instrument.Lead)
+        // The title's line (M3 Title Large, 28 sp) at font scale 1.0, as on Instrument Leaderboards.
+        assertEquals(28f, with(rule.density) { bounds("fst.all-rivals.title-icon.Solo_Guitar").height.toDp() }.value, 1f)
+        assertEquals("the title is not repeated under the top app bar", 1, rule.onAllNodesWithText("Lead Rivals").fetchSemanticsNodes().size)
         waitForTag("fst.rivals.row.anonymous")
         val anonymous = rule.onNodeWithTag("fst.rivals.row.anonymous").fetchSemanticsNode()
         assertEquals(null, anonymous.config.getOrNull(SemanticsProperties.Role))
@@ -153,6 +185,7 @@ class AllRivalsUiTest {
         waitForTag("fst.all-rivals.list")
         topBarTitle("Common Rivals").assertIsDisplayed()
         rule.onNodeWithText("Lead · Bass · Drums", useUnmergedTree = true).assertIsDisplayed()
+        assertNoTitleIcon()
         waitForTag("fst.rivals.row.${ids[0]}")
         waitForTag("fst.rivals.row.${ids[1]}")
         assertEquals(0, rule.onAllNodesWithTag("fst.service-status.retry").fetchSemanticsNodes().size)
@@ -165,6 +198,17 @@ class AllRivalsUiTest {
         topBarTitle("Lead + Bass Rivals").assertIsDisplayed()
         rule.onNodeWithTag("fst.all-rivals.subtitle").assertIsDisplayed()
         rule.onNodeWithText("Lead · Bass", useUnmergedTree = true).assertIsDisplayed()
+        assertNoTitleIcon()
+    }
+
+    /** Issue #557: at font scale 2.0 the chart icon grows with the bar title instead of staying 28 dp. */
+    @Test
+    @Config(fontScale = 2f)
+    fun titleIconScalesWithTheFont() {
+        launch(RivalScope.Leaderboard(Instrument.Bass))
+        waitForTag("fst.all-rivals.list")
+        assertTitleIcon(Instrument.Bass)
+        assertTrue(with(rule.density) { bounds("fst.all-rivals.title-icon.Solo_Bass").height.toDp() } > 36.dp)
     }
 
     // endregion
