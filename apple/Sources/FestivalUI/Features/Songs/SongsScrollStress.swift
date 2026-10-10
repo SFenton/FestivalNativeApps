@@ -46,6 +46,53 @@ enum SongsScrollStress {
         ProcessInfo.processInfo.environment[environmentKey] == "animated"
     }
 
+    /// Environment key that parks the List part-way up once (issue #560).
+    static let parkEnvironmentKey = "FST_DEBUG_SONGS_PARK_TOP"
+
+    /// A programmatic move of the List's content: `points` up, `delay` seconds after the
+    /// list appears, or once the file at `trigger` exists.
+    struct ParkRequest: Equatable {
+        let points: CGFloat
+        let delay: Double
+        /// An absolute file path whose creation starts the park instead of the delay, so
+        /// a UI test parks the List exactly when it is ready, however slow the host.
+        var trigger: String? = nil
+    }
+
+    /// The launch environment's park request, if any.
+    static var parkRequest: ParkRequest? {
+        ProcessInfo.processInfo.environment[parkEnvironmentKey].flatMap(parseParkRequest)
+    }
+
+    /// Parse `<points>[@<seconds>|@<absolute path>]` (default delay 3 s).
+    ///
+    /// - Parameter value: The environment value, e.g. `37`, `37@12` or `37@/tmp/park`.
+    /// - Returns: The request, or `nil` for a malformed or non-positive value.
+    static func parseParkRequest(_ value: String) -> ParkRequest? {
+        let parts = value.split(separator: "@", maxSplits: 1, omittingEmptySubsequences: false)
+        guard let points = Double(parts[0]), points.isFinite, points > 0 else { return nil }
+        if parts.count == 2, parts[1].hasPrefix("/") {
+            return ParkRequest(points: CGFloat(points), delay: 0, trigger: String(parts[1]))
+        }
+        let delay = parts.count == 2 ? Double(parts[1]) : 3
+        guard let delay, delay.isFinite, delay >= 0 else { return nil }
+        return ParkRequest(points: CGFloat(points), delay: delay)
+    }
+
+    /// Wait until `park` should move the List: its trigger file exists (polled every
+    /// 100 ms), or its delay has passed. Returns early when the task is cancelled.
+    ///
+    /// - Parameter park: The request.
+    static func waitForPark(_ park: ParkRequest) async {
+        guard let trigger = park.trigger else {
+            try? await Task.sleep(for: .seconds(park.delay))
+            return
+        }
+        while !Task.isCancelled, !FileManager.default.fileExists(atPath: trigger) {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+    }
+
     /// The list row where each section starts: every section is its title row plus its
     /// songs.
     ///

@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -23,6 +24,7 @@ import com.festivalscoretracker.android.core.nav.PlayerHistoryRoute
 import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.data.RequestGate
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
+import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
@@ -97,6 +99,9 @@ class ProfileUiTest {
         waitForTag("fst.profile.hint")
         rule.onNodeWithTag("fst.profile.search").performTextInput("syn")
         waitForTag("fst.profile.result.${Fixtures.ACCOUNT_A}")
+        // Issue #600: All searches players and bands together.
+        waitForTag("fst.profile.band.${BandFixtures.DUO_ID}")
+        assertEquals(1, transport.sent("/api/bands/search").size)
         tap("fst.profile.result.${Fixtures.ACCOUNT_A}")
 
         // A result views the player; nothing is selected yet.
@@ -144,6 +149,25 @@ class ProfileUiTest {
     }
 
     @Test
+    fun bandResultOpensTheBandPage() {
+        launch()
+        waitForTag("fst.songs.row.s-alpha")
+        tap("fst.nav.profile")
+        tap("fst.profile.scope.bands")
+        rule.onNodeWithTag("fst.profile.search").performTextInput("syn")
+        // A band can't be the selected profile yet: its result opens the Band page, like global search.
+        tap("fst.profile.band.${BandFixtures.DUO_ID}")
+        waitGone("fst.profile.sheet")
+        waitForTag("fst.band.screen")
+        // Reopening starts fresh on All (web SearchModal forgets on close).
+        rule.onNodeWithTag("fst.nav.back").performClick()
+        settle()
+        tap("fst.nav.profile")
+        waitForTag("fst.profile.hint")
+        rule.onNodeWithTag("fst.profile.scope.all").assertIsSelected()
+    }
+
+    @Test
     fun switchIsConfirmedAndBandsScopeExplains() {
         launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), route = PlayerRoute(Fixtures.ACCOUNT_B, "Other"), stillBackground = true))
         waitForTag("fst.player.select")
@@ -165,12 +189,20 @@ class ProfileUiTest {
     }
 
     @Test
-    fun selectedSheetBandsScopeExplainsAndDeselects() {
+    fun selectedSheetBandsScopeSearchesAndDeselects() {
         launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), opensProfileSheet = true, stillBackground = true))
         waitForTag("fst.profile.selected")
+        // Issue #600: Bands narrows to band results, which really search (no gate message).
         tap("fst.profile.scope.bands")
-        waitForTag("fst.profile.bands-unavailable")
-        assertEquals(0, transport.requests.count { it.url.contains("/api/bands") })
+        rule.onNodeWithTag("fst.profile.search").performTextInput("syn")
+        waitForTag("fst.profile.band.${BandFixtures.DUO_ID}")
+        assertEquals(0, rule.onAllNodesWithTag("fst.profile.result.${Fixtures.ACCOUNT_A}").fetchSemanticsNodes().size)
+        assertEquals(1, transport.sent("/api/bands/search").size)
+        transport.requests.forEach { request ->
+            RequestGate.validateKeyless(request)
+            assertTrue(request.headers.keys.none { it.lowercase().startsWith("x-fst-selected") })
+        }
+        tap("fst.profile.clear")
         tap("fst.profile.deselect")
         tap("fst.profile.deselect-confirm.ok")
         waitGone("fst.nav.tab.shop")
