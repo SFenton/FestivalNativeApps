@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Festival.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -83,7 +84,7 @@ public static class Accordion
             storyboard.Children.Clear();
         }
         if (body.RenderTransform is CompositeTransform slide) slide.TranslateY = 0;
-        var mover = new AccordionMover(root, clip, body, body, content);
+        var mover = new AccordionMover(root, clip, body, body, content, named: expander);
         expander.SetValue(MoverProperty, mover);
         mover.Set(expander.IsExpanded, animate: false);
     }
@@ -149,6 +150,7 @@ public static class Accordion
 /// <c>natural</c> element, <c>shown</c> is collapsed while closed, and <c>fade</c> fades in after the grow and out
 /// before the collapse (<see cref="AccordionMotion.Plan"/>). A toggle during a move starts from the reached height and
 /// opacity. When settled the clip has no fixed height, so content that changes while open lays out normally.
+/// With <c>--perf-log</c> every move is traced frame by frame for <c>tools/windows/accordion_journey.py</c>.
 /// </summary>
 public sealed class AccordionMover
 {
@@ -157,8 +159,13 @@ public sealed class AccordionMover
     private readonly UIElement shown;
     private readonly FrameworkElement natural;
     private readonly UIElement fade;
+    private readonly UIElement? named;
     private Storyboard? running;
+    private int startFrames;
     private bool open;
+
+    /// <summary>Rendered frames a move waits before it begins (the frame that lays the content out, then one more).</summary>
+    private const int StartFrames = 2;
 
     /// <summary>Creates a mover over the given parts.</summary>
     /// <param name="owner">Template root or control the parts belong to.</param>
@@ -166,13 +173,17 @@ public sealed class AccordionMover
     /// <param name="shown">Element collapsed while closed.</param>
     /// <param name="natural">Element whose measured height is the open height.</param>
     /// <param name="fade">Element whose opacity fades.</param>
-    public AccordionMover(object owner, FrameworkElement clip, UIElement shown, FrameworkElement natural, UIElement fade)
+    /// <param name="named">Element whose AutomationId or x:Name names the trace lines (default: the owner, else the
+    /// clip's parent).</param>
+    public AccordionMover(object owner, FrameworkElement clip, UIElement shown, FrameworkElement natural, UIElement fade,
+        UIElement? named = null)
     {
         this.owner = owner;
         this.clip = clip;
         this.shown = shown;
         this.natural = natural;
         this.fade = fade;
+        this.named = named;
         open = shown.Visibility == Visibility.Visible;
         var visual = ElementCompositionPreview.GetElementVisual(clip);
         visual.Clip ??= visual.Compositor.CreateInsetClip();
@@ -203,7 +214,7 @@ public sealed class AccordionMover
         var motion = animate && Motion.Allowed && clip.IsLoaded;
         if (!motion)
         {
-            Settle(value);
+            Settle(value, animated: false);
             return;
         }
         shown.Visibility = Visibility.Visible;
@@ -211,7 +222,7 @@ public sealed class AccordionMover
         var plan = AccordionMotion.Plan(value, AccordionMotion.Progress(height, openHeight), opacity, motionAllowed: true);
         if (plan.Total == TimeSpan.Zero)
         {
-            Settle(value);
+            Settle(value, animated: false);
             return;
         }
         clip.Height = height;
@@ -226,15 +237,38 @@ public sealed class AccordionMover
         {
             if (!ReferenceEquals(sender, running)) return;
             Stop();
-            Settle(value);
+            Settle(value, animated: true);
         };
         running = storyboard;
-        storyboard.Begin();
+        TraceMove(value, height, value ? openHeight : 0, opacity);
+        startFrames = StartFrames;
+        CompositionTarget.Rendering += OnStartFrame;
+    }
+
+    /// <summary>
+    /// Begins the move once the section's first frame at its starting height and opacity has rendered: showing new
+    /// content can stall the UI thread for its first layout (the Settings leeway slider took ~55 ms), and a storyboard
+    /// begun before that stall jumped most of the grow in one frame. Nothing visible changes while it waits.
+    /// </summary>
+    /// <param name="sender">Ignored.</param>
+    /// <param name="e">Ignored.</param>
+    private void OnStartFrame(object? sender, object e)
+    {
+        if (running is null)
+        {
+            CompositionTarget.Rendering -= OnStartFrame;
+            return;
+        }
+        if (--startFrames > 0) return;
+        CompositionTarget.Rendering -= OnStartFrame;
+        TraceBegin();
+        running.Begin();
     }
 
     /// <summary>Stops the running move, leaving the values it reached as local values.</summary>
     private void Stop()
     {
+        CompositionTarget.Rendering -= OnStartFrame;
         if (running is null) return;
         var reached = clip.Height;
         var opacity = fade.Opacity;
@@ -243,15 +277,18 @@ public sealed class AccordionMover
         storyboard.Stop();
         clip.Height = reached;
         fade.Opacity = opacity;
+        TraceFrames();
     }
 
     /// <summary>Puts the section in its final open or closed state with no fixed height.</summary>
     /// <param name="value">Open.</param>
-    private void Settle(bool value)
+    /// <param name="animated">Whether a move led here (traced as <c>animated=1</c>).</param>
+    private void Settle(bool value, bool animated)
     {
         clip.ClearValue(FrameworkElement.HeightProperty);
         fade.Opacity = value ? 1 : 0;
         shown.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
+        TraceSettle(value, animated);
     }
 
     /// <summary>The section's natural open height at the clip's current width.</summary>
@@ -285,5 +322,89 @@ public sealed class AccordionMover
         Storyboard.SetTargetProperty(animation, property);
         return animation;
     }
+
+    #region Trace
+    private List<string>? frames;
+    private long moveStart;
+    private string traceId = "?";
+
+    /// <summary>The trace name: the named element's (or owner's) AutomationId or x:Name, else the clip parent's.</summary>
+    private string TraceName
+    {
+        get
+        {
+            foreach (var candidate in new[] { named ?? owner as DependencyObject, VisualTreeHelper.GetParent(clip) })
+            {
+                if (candidate is not FrameworkElement element) continue;
+                var id = Microsoft.UI.Xaml.Automation.AutomationProperties.GetAutomationId(element);
+                if (string.IsNullOrEmpty(id)) id = element.Name;
+                if (!string.IsNullOrEmpty(id)) return id.Replace(' ', '_');
+            }
+            return "?";
+        }
+    }
+
+    /// <summary>
+    /// Starts tracing a move (<c>--perf-log</c> only): one <c>accordion-move</c> line now, then one
+    /// <c>accordion-frame</c> line per rendered frame until it stops (written together then, so tracing never costs a
+    /// frame a file write), so a journey can check that the height moves while the content is hidden and the opacity
+    /// moves at full height (load-transition R10).
+    /// </summary>
+    /// <param name="value">Opening.</param>
+    /// <param name="from">Starting height.</param>
+    /// <param name="to">Target height.</param>
+    /// <param name="opacity">Starting opacity.</param>
+    private void TraceMove(bool value, double from, double to, double opacity)
+    {
+        if (!PerfLog.Enabled) return;
+        moveStart = Stopwatch.GetTimestamp();
+        frames = [];
+        traceId = TraceName;
+        PerfLog.Write(FormattableString.Invariant(
+            $"accordion-move id={traceId} open={(value ? 1 : 0)} from={from:F1} to={to:F1} opacity={opacity:F3}"));
+        CompositionTarget.Rendering += OnTraceFrame;
+    }
+
+    /// <summary>Marks when the waiting move began (<c>accordion-begin</c>, <c>t</c> since the toggle).</summary>
+    private void TraceBegin()
+    {
+        if (frames is null) return;
+        frames.Add(FormattableString.Invariant(
+            $"accordion-begin id={traceId} t={Stopwatch.GetElapsedTime(moveStart).TotalMilliseconds:F0}"));
+    }
+
+    /// <summary>Records the clip's laid-out height and the content's opacity for one rendered frame.</summary>
+    /// <param name="sender">Ignored.</param>
+    /// <param name="e">Ignored.</param>
+    private void OnTraceFrame(object? sender, object e)
+    {
+        if (frames is null || running is null) return;
+        var t = Stopwatch.GetElapsedTime(moveStart).TotalMilliseconds;
+        frames.Add(FormattableString.Invariant(
+            $"accordion-frame id={traceId} t={t:F0} height={clip.ActualHeight:F1} opacity={fade.Opacity:F3}"));
+    }
+
+    /// <summary>Writes the stopped move's frames.</summary>
+    private void TraceFrames()
+    {
+        CompositionTarget.Rendering -= OnTraceFrame;
+        if (frames is null) return;
+        if (frames.Count > 0) PerfLog.Write(string.Join(Environment.NewLine, frames));
+        frames = null;
+    }
+
+    /// <summary>Writes where the section settled and whether a move led there (<c>--perf-log</c> only).</summary>
+    /// <param name="value">Open.</param>
+    /// <param name="animated">Whether a move led here.</param>
+    private void TraceSettle(bool value, bool animated)
+    {
+        TraceFrames();
+        if (!PerfLog.Enabled) return;
+        if (!animated) traceId = TraceName;
+        var t = animated ? Stopwatch.GetElapsedTime(moveStart).TotalMilliseconds : 0;
+        PerfLog.Write(FormattableString.Invariant(
+            $"accordion-settle id={traceId} open={(value ? 1 : 0)} animated={(animated ? 1 : 0)} motion={(Motion.Allowed ? 1 : 0)} t={t:F0}"));
+    }
+    #endregion
 }
 #endregion
