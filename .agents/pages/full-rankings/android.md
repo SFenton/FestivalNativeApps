@@ -15,7 +15,7 @@
 
 | Control | Where | Why |
 |---|---|---|
-| Instrument, Rank By | Screen actions: the shell's floating toolbar on compact windows (< 600 dp; global search stays in the top app bar), top app bar next to search on medium and wider | They change *what* the whole page shows (scope and sort), which Material 3 puts in top app bar actions and Fluent 2 in the page's command bar; the M3 Expressive floating toolbar is the compact home for page-contextual actions ([app-navigation](../../controls/app-navigation/android.md)). Anchoring them above the pager instead would stack pickers, the "your rank" card and the pager at the bottom — about a third of a phone viewport — and separate the scope from the title it changes |
+| Instrument, Rank By | Screen actions: the shell's floating toolbar at every window size (#576; global search stays in the top app bar) | They change *what* the whole page shows (scope and sort), which Material 3 puts in top app bar actions and Fluent 2 in the page's command bar; the M3 Expressive floating toolbar is the home for page-contextual actions ([app-navigation](../../controls/app-navigation/android.md)). Anchoring them above the pager instead would stack pickers, the "your rank" card and the pager at the bottom — about a third of a phone viewport — and separate the scope from the title it changes |
 | Pager, "your rank" card | Bottom-anchored over the rows, above the bottom bar / floating toolbar, on every width | Page-to-page navigation is repeated while reading, so it stays within thumb reach (M3 bottom-anchored controls; the web's floating paginator). The list reserves the anchored height as bottom padding, so the last row scrolls clear |
 
 ## Layout (`RankingsBoardScaffold`, shared with Band Rankings and the song leaderboard)
