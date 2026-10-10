@@ -9,9 +9,9 @@ This is the one registry of Windows accessibility journeys that gate pull reques
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
-with Animation effects off), the first-run song demos (issue #420), the Songs section push (issue #452) and the Paths
-swap (issue #430, also with Animation effects off) run at default
-and 225% text, and that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
+with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
+push (issue #452) and the Paths swap (issue #430, also with Animation effects off) run at default and 225% text, and
+that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -92,6 +92,10 @@ SHOP_FILTER_KEYBOARD = "kb-shop-filter"
 SONG_BOARD_FOOTER_FADE = ("footer-fade-song-leaderboard-rest,footer-fade-song-leaderboard-mid,footer-fade-song-leaderboard-end,"
                           "footer-fade-song-leaderboard-more-contrast,footer-fade-song-leaderboard-less-transparency")
 
+#: The canonical ``a11y.json`` header-flyout pages (issue #534: every app flyout is constrained to the window, so none
+#: may open a windowed ``PopupHost``; the file's other pages stay host matrix checks).
+POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-flyout,notifications-flyout"
+
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
 RUNS: tuple[Run, ...] = (
@@ -141,6 +145,10 @@ RUNS: tuple[Run, ...] = (
     # (scale-100/150 modes) stays in the host matrix.
     Run("quick-links-landing", "a11y-quick-links-landing.json", tabs=0),
     Run("quick-links-landing-text-225", "a11y-quick-links-landing.json", sizes="compact", mode="text-225", tabs=0),
+    # Header flyouts open in the app window (issue #534): Leaderboards and Full Rankings Rank By, Quick Links, the
+    # profile flyout and Notifications scan with no windowed PopupHost finding (windows-accessibility.md open item 8).
+    Run("popups", "a11y.json", only=POPUP_PAGES),
+    Run("popups-text-225", "a11y.json", sizes="compact", mode="text-225", only=POPUP_PAGES),
     # The Item Shop Filters flyout (issues #19, #428): heading, New / Available / Leaving Tomorrow switch phrases and
     # state, Filters applied, the song count and empty state, title -> switches -> Reset order, 40 epx Reset, text scaling.
     Run("shop-filter", "a11y-shop-filter.json"),

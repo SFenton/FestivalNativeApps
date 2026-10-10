@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -16,6 +17,7 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
     private QuickLinksViewModel? model;
     private bool suppressed;
     private bool chosen;
+    private string? pendingJump;
 
     /// <summary>Fluent's minimum touch target in epx, matching the <c>FSTMinTargetSize</c> resource.</summary>
     public const double MinTargetSize = 40;
@@ -35,6 +37,8 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
         Flyout = new MenuFlyout
         {
             Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.BottomEdgeAlignedRight,
+            // In-window (not a windowed PopupHost, which Axe flags; issue #534, windows-accessibility.md open item 8).
+            ShouldConstrainToRootBounds = true,
             // The presenter is the UIA Menu: Narrator reads its name on open (Axe requires one).
             MenuFlyoutPresenterStyle = new Style(typeof(MenuFlyoutPresenter))
             {
@@ -42,6 +46,7 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
             },
         };
         Flyout.Opening += (_, _) => Populate();
+        Flyout.Closed += OnFlyoutClosed;
     }
 
     /// <summary>The page's Quick Links model.</summary>
@@ -100,14 +105,38 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
         }
     }
 
-    /// <summary>Jumps once per menu opening (a pointer or keyboard pick both checks the item and clicks it).</summary>
+    /// <summary>
+    /// Jumps once per menu opening (a pointer or keyboard pick both checks the item and clicks it). The jump waits until
+    /// the menu has closed: closing restores keyboard focus to this button, and a restore that lands after the jump's
+    /// scroll brings the button back into view where it scrolls with the page (compact and medium layouts at large
+    /// text), which hands Quick Links back to the top section (#548: "current section Global Statistics" after a Drums
+    /// pick at 225% text).
+    /// </summary>
     /// <param name="id">Section ID.</param>
     private void Choose(string id)
     {
         if (chosen) return;
         chosen = true;
+        if (!Flyout.IsOpen)
+        {
+            model?.Jump(id);
+            return;
+        }
+        pendingJump = id;
         Flyout.Hide();
-        model?.Jump(id);
+    }
+
+    /// <summary>
+    /// Runs the picked jump after the menu's focus restore: Low priority runs it once the close (and the bring-into-view
+    /// that focus requests) has been processed, so the jump's scroll is the last one.
+    /// </summary>
+    /// <param name="sender">Menu.</param>
+    /// <param name="e">Unused.</param>
+    private void OnFlyoutClosed(object? sender, object e)
+    {
+        if (pendingJump is not { } id) return;
+        pendingJump = null;
+        if (!DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () => model?.Jump(id))) model?.Jump(id);
     }
 
     /// <summary>Tracks availability and the accessible name.</summary>

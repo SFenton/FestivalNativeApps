@@ -2,8 +2,9 @@
 
 A selector that matches nothing makes ``xcodebuild`` run no test, so a renamed journey would silently leave CI.
 The account-button reading-order journeys (``page-tools-and-nav-chrome`` R17, #394), the Songs section-title AX5
-journey (#91, #441), the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape) and the
-pinned caption-icon journeys (``song-header`` R4, #542) must stay listed.
+journey (#91, #441), the Songs section-push AX XXXL journey (#288, #452), the What's New AX5 journeys (#434:
+iPhone portrait, iPad portrait and landscape) and the pinned caption-icon journeys (``song-header`` R4, #542) must
+stay listed.
 """
 
 import re
@@ -104,6 +105,10 @@ class AppleCIJourneysTests(unittest.TestCase):
     def test_section_title_ax5_journey_runs_in_ci(self) -> None:
         # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.
         self.assertIn("SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5", self.journeys)
+
+    def test_section_push_ax5_journey_runs_in_ci(self) -> None:
+        # #288/#452: the only iOS Dynamic Type and audit evidence for the Songs section push.
+        self.assertIn("SongsChromeJourneyTests/testSectionPushIsAccessibleAtLargestText", self.journeys)
 
     def test_pinned_caption_icon_journeys_run_in_ci(self) -> None:
         for method in (
