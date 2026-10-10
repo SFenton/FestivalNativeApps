@@ -31,6 +31,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.testing.BucketHeaderFixtures
+import com.festivalscoretracker.android.testing.FakeTransport
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlinx.coroutines.runBlocking
@@ -54,7 +55,9 @@ import org.junit.runner.RunWith
  * one out, both ways, with the fade, at 200% text and with the hard cut each R7 setting forces on
  * its own (the app's Reduce Transparency, the app's Reduce Motion, the system's Remove
  * animations), both stay opaque headings that TalkBack reads once each, in order, and with the hard
- * cut no row shows behind the pinned title afterwards. Fixture-only
+ * cut no row shows behind the pinned title afterwards. The list end (issue #560): with short last
+ * sections the last push finishes, leaving one whole pinned heading, read first, ATF clean, at
+ * 100% and 200% text. Fixture-only
  * ([BucketHeaderFixtures]); `device.py test com.festivalscoretracker.android.journeys.SongsBucketHeaderAccessibilityJourneyTest --avd FST_Phone`.
  */
 @RunWith(AndroidJUnit4::class)
@@ -76,11 +79,16 @@ class SongsBucketHeaderAccessibilityJourneyTest {
      *   Contrast or Reduce Motion; scroll-edge R7), or null.
      * @return The app's settings store, to change a setting live.
      */
-    private fun launch(sort: String, fontScale: (() -> Float)? = null, hardEdge: String? = null): MemoryPreferences {
+    private fun launch(
+        sort: String,
+        fontScale: (() -> Float)? = null,
+        hardEdge: String? = null,
+        transport: FakeTransport = BucketHeaderFixtures.transport(),
+    ): MemoryPreferences {
         val preferences = mutablePreferencesOf(stringPreferencesKey(SettingsRegistry.SONG_SORT) to sort)
         if (hardEdge != null) preferences[booleanPreferencesKey(hardEdge)] = true
         val store = MemoryPreferences(preferences)
-        h.launch(DebugLaunch(stillBackground = true), BucketHeaderFixtures.transport(), store, fontScale)
+        h.launch(DebugLaunch(stillBackground = true), transport, store, fontScale)
         h.waitForTag("fst.songs.row.s-0")
         // From here readingOrder follows Compose's traversal links: TalkBack's order, not tree order.
         h.publishTalkBackTree()
@@ -434,6 +442,41 @@ class SongsBucketHeaderAccessibilityJourneyTest {
         assertTrue("$screen: restoring the setting brings the hard cut back (largest pixel change ${largestChange(hard, edgeBand())})", largestChange(hard, edgeBand()) < EDGE_SAME)
     }
 
+    /**
+     * Scrolls to the very end of the list as TalkBack's scroll-forward and a fling do, again once
+     * the end space has been measured (issue #560), and waits for TalkBack's tree.
+     */
+    private fun scrollToEnd() {
+        repeat(3) {
+            rule.onNodeWithTag(LIST).performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, END_SCROLL_PX) }
+            rule.waitForIdle()
+        }
+        awaitTalkBackRows()
+    }
+
+    /**
+     * The list's end rest (issue #560, section-headers R4/R5): exactly one header sits at the
+     * list's top edge, whole ([fullHeight] tall, not half pushed off) and opaque over no row, no
+     * other header is cut by the top edge, and the last row is fully shown above the list's end
+     * padding (reachable).
+     *
+     * @param what Failure label.
+     * @param fullHeight A header's resting height in px at the current text size.
+     * @param lastRow Tag of the list's last row.
+     */
+    private fun assertEndRestsWhole(what: String, fullHeight: Float, lastRow: String) {
+        val list = listBounds()
+        val slack = rule.density.density * 2
+        val atTop = headers().filter { it.boundsInRoot.top <= list.top + slack && it.boundsInRoot.bottom > list.top + slack }
+        assertEquals("$what: one header rests at the top edge: ${atTop.map { it.boundsInRoot }}", 1, atTop.size)
+        val pinned = atTop.single().boundsInRoot
+        assertEquals("$what: the pinned header is whole, not half pushed off", fullHeight, pinned.height, slack)
+        val row = rule.onNodeWithTag(lastRow, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertTrue("$what: the last row ($row) is fully shown above the end padding", row.bottom <= list.bottom - LIST_BOTTOM_PADDING_DP * rule.density.density + slack)
+        assertTrue("$what: the last row is below the pinned header", row.top >= pinned.bottom - slack)
+        assertPinnedHeaderBare("$what at the end")
+    }
+
     // endregion
 
     // region Journeys
@@ -584,6 +627,42 @@ class SongsBucketHeaderAccessibilityJourneyTest {
             restore = { shell("settings put global animator_duration_scale 0") },
         )
     }
+
+    /**
+     * The list end with short last sections (issue #560): on a phone the last scroll position
+     * falls inside the push of the second Duration header against the first. The list leaves room
+     * for that push to finish, so the second header rests whole at its pin line, the first has
+     * left, the last row is reachable, the headers stay headings read before their rows and ATF
+     * stays clean. Before the fix the first title rested half pushed off the top.
+     */
+    @Test
+    fun durationListEndRestsWithAWholePinnedHeading() {
+        h.enableAccessibilityChecks()
+        launch("Duration", transport = BucketHeaderFixtures.sectionsTransport(END_SECTIONS))
+        val first = "$HEADER_PREFIX$DURATION.1to2"
+        h.waitForTag(first)
+        val fullHeight = header(first).boundsInRoot.height
+        scrollToEnd()
+        assertEndRestsWhole("Duration end", fullHeight, END_LAST_ROW)
+        assertHeadersAreHeadings("Duration end")
+        assertHeadersLeadTheirRows("songs-duration-end", DURATION_TOKENS)
+        h.assertAccessible()
+    }
+
+    /** The same list end at 200% text (Year): taller headers still finish the last push, unclipped and in order. */
+    @Test
+    fun yearListEndRestsWithAWholePinnedHeadingAtDoubleText() {
+        h.enableAccessibilityChecks()
+        launch("Year", fontScale = { 2f }, transport = BucketHeaderFixtures.sectionsTransport(END_SECTIONS))
+        val first = "$HEADER_PREFIX$YEAR.1970"
+        h.waitForTag(first)
+        val fullHeight = header(first).boundsInRoot.height
+        scrollToEnd()
+        assertEndRestsWhole("Year 200% end", fullHeight, END_LAST_ROW)
+        assertHeadersAreHeadings("Year 200% end")
+        assertHeadersLeadTheirRows("songs-year-200-end", YEAR_TOKENS)
+        h.assertAccessible()
+    }
     // endregion
 
     private companion object {
@@ -621,5 +700,19 @@ class SongsBucketHeaderAccessibilityJourneyTest {
 
         /** Largest pixel luminance change in the band still counted as the same pixels. */
         const val EDGE_SAME = 0.02f
+
+        /**
+         * Songs per section for the list-end journeys ([BucketHeaderFixtures.sectionsTransport]):
+         * one full section, then three short ones, so on a phone (FST_Phone, CI's Pixel 6) the
+         * list's last scroll position falls mid-way through the second header's push against the
+         * first (issue #560; about 29 dp on FST_Phone, 20 dp on a Pixel 6).
+         */
+        val END_SECTIONS = listOf(10, 2, 2, 1)
+
+        /** Tag of the list's last row with [END_SECTIONS]. */
+        const val END_LAST_ROW = "${ROW_PREFIX}30"
+
+        /** A scroll far past any list's end, as a fling or TalkBack's scroll-forward reaches it. */
+        const val END_SCROLL_PX = 100_000f
     }
 }

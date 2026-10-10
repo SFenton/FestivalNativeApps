@@ -3,10 +3,15 @@ package com.festivalscoretracker.android.ui.songs
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -28,9 +33,11 @@ import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.songs.EdgeFade
 import com.festivalscoretracker.android.core.songs.EdgeFadeItem
 import com.festivalscoretracker.android.core.scrolledge.ScrollEdgeFade
+import com.festivalscoretracker.android.core.songs.PinnedHeaderEndSpace
 import com.festivalscoretracker.android.core.songs.SongHeaderEdgeFade
 import com.festivalscoretracker.android.ui.common.drawScrollEdgeRamp
 import com.festivalscoretracker.android.ui.common.rememberScrollEdgeHardEdge
+import kotlinx.coroutines.flow.filterNotNull
 
 // region Pinned section header edge fade
 
@@ -150,6 +157,52 @@ internal fun rememberPinnedHeaderRecorder(key: Any, layers: MutableMap<Any, Grap
 internal fun rememberPinnedHeaderReadOrder(key: Any, state: PinnedHeaderEdgeState): Modifier {
     val pinned by remember(key, state) { derivedStateOf { state.pinnedKey == key } }
     return if (pinned) Modifier.semantics { traversalIndex = PINNED_HEADER_TRAVERSAL_INDEX } else Modifier
+}
+
+/**
+ * Extra end padding that lets a sticky-header list finish its last section push (issue #560;
+ * section-headers R4/R5): without it, a list whose last scroll position falls inside a push rests
+ * with the pinned title half pushed off the top. Add the result to the list's end content padding.
+ * It is measured against [baseEndPadding], so it stays put once applied; it keeps its last value
+ * while the list's last item is off screen, and resets when [firstHeaderKey] changes (a new sort).
+ * It is saved with the list's saveable state: a list that comes back (Back from Song Detail, a
+ * configuration change) restores its scroll position against the same end padding, so the
+ * restored position is not clamped back into the unfinished push.
+ *
+ * @param listState The list's state.
+ * @param firstHeaderKey Key of the list's first header, or null when the list has no headers.
+ * @param spacing Gap between list items.
+ * @param baseEndPadding The list's end content padding without the extra space.
+ * @param isHeader Whether a list key is a sticky header's.
+ * @return Extra end padding ([PinnedHeaderEndSpace]).
+ */
+@Composable
+internal fun rememberPinnedHeaderEndSpace(
+    listState: LazyListState,
+    firstHeaderKey: Any?,
+    spacing: Dp,
+    baseEndPadding: Dp,
+    isHeader: (Any) -> Boolean,
+): Dp {
+    val density = LocalDensity.current
+    val spacingPx = with(density) { spacing.roundToPx() }
+    val basePx = with(density) { baseEndPadding.roundToPx() }
+    var extraPx by rememberSaveable(firstHeaderKey) { mutableIntStateOf(0) }
+    LaunchedEffect(listState, firstHeaderKey, spacingPx, basePx, isHeader) {
+        snapshotFlow {
+            val info = listState.layoutInfo
+            PinnedHeaderEndSpace.extra(
+                items = info.visibleItemsInfo.map { EdgeFadeItem(it.index, it.key, it.offset, it.size, isHeader(it.key)) },
+                viewportStart = info.viewportStartOffset,
+                viewportEnd = info.viewportEndOffset,
+                baseEndPadding = basePx,
+                spacing = spacingPx,
+                lastIndex = info.totalItemsCount - 1,
+                firstHeaderKey = firstHeaderKey,
+            )
+        }.filterNotNull().collect { extraPx = it }
+    }
+    return with(density) { extraPx.toDp() }
 }
 
 /** Traversal index of the pinned header among its list's items (which keep 0). */
