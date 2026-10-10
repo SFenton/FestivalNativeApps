@@ -20,6 +20,8 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.window.layout.FoldingFeature.Orientation
@@ -30,6 +32,7 @@ import androidx.window.testing.layout.WindowLayoutInfoPublisherRule
 import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
@@ -51,7 +54,10 @@ import org.junit.runner.RunWith
  *   Summary, Band Statistics) before the trailing pane (Band Rank History, Five Best Songs), so
  *   two side-by-side panes never interleave. Flat, the panes are equal and meet at the content
  *   midpoint. Half open, each pane keeps to its side of the hinge. Every section header is a
- *   heading and Rank By is a labelled 48 dp button.
+ *   heading and Rank By is a labelled 48 dp button. Rank By shows only with Experimental Ranks
+ *   on (`experimental-ranks` R1, #541), so that journey launches with the setting on; a second
+ *   one keeps the default (off) and checks Rank By is absent from the page and from TalkBack
+ *   while Band Statistics stays a heading clear of the hinge (#563).
  * - **Player Bands:** the subtitle and group picker are read before the cards, and the cards
  *   in visual row order. Flat, the grid is centred on the content area. Half open, the controls
  *    pane ends at the hinge and the cards start after it. The All and Duos segments are named
@@ -250,6 +256,18 @@ class BandFoldAccessibilityJourneyTest {
     private val leadingHeadings = listOf(MEMBERS to "Members", SUMMARY to "Band Summary", STATISTICS to "Band Statistics")
     private val trailingHeadings = listOf(HISTORY to "Band Rank History", SONGS to "Five Best Songs")
 
+    /** The duo's Band Detail route. */
+    private val bandRoute get() = DebugLaunch.parseRoute("band:${BandFixtures.DUO_ID}:Band_Duets:${BandFixtures.DUO_KEY}")
+
+    /**
+     * Preferences with Settings → Experimental Ranks [on]: Band Detail offers Rank By only then
+     * (`experimental-ranks` R1, #541).
+     *
+     * @param on Whether the setting is on.
+     * @return In-memory preferences for [JourneyHarness.launch].
+     */
+    private fun experimentalRanks(on: Boolean) = MemoryPreferences(mutablePreferencesOf(booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS) to on))
+
     /**
      * Band Detail's TalkBack order in the current layout: every leading-pane stop that is on
      * screen comes before every trailing-pane stop, and each pane's top stop is read.
@@ -274,13 +292,13 @@ class BandFoldAccessibilityJourneyTest {
      * Flat: two equal panes centred on the content area beside the rail; half open: the leading
      * pane ends at the hinge and the trailing one starts after it, with no header, chart or
      * button across it. Both read leading then trailing; 200% text drops to one column.
+     * Experimental Ranks is on so Rank By is on the page (#541).
      */
     @Test
     fun bandDetailPanesStayAccessibleFlatAndHalfOpen() {
         var scale by mutableFloatStateOf(1f)
-        val route = DebugLaunch.parseRoute("band:${BandFixtures.DUO_ID}:Band_Duets:${BandFixtures.DUO_KEY}")
         h.enableAccessibilityChecks()
-        h.launch(DebugLaunch(route = route, stillBackground = true), transport, fontScale = { scale })
+        h.launch(DebugLaunch(route = bandRoute, stillBackground = true), transport, experimentalRanks(on = true), fontScale = { scale })
         h.waitForTag(MEMBERS)
         h.publishTalkBackTree()
         val wide = expanded()
@@ -333,6 +351,39 @@ class BandFoldAccessibilityJourneyTest {
         val order = h.readingOrder("band-detail-200", fresh = true)
         val title = text(node(BAND_TITLE))
         assertTrue("200%: the title is not read before Members: $order", indexOf(order, title) in 0 until indexOf(order, "Members"))
+        h.assertAccessible()
+    }
+
+    /**
+     * Experimental Ranks off (the default): Band Detail has no Rank By, on the page or in
+     * TalkBack, flat and half open, and Band Statistics stays a heading clear of the hinge with
+     * the panes still read leading then trailing (`experimental-ranks` R1, #541, #563).
+     */
+    @Test
+    fun bandDetailHidesRankByWithoutExperimentalRanks() {
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(route = bandRoute, stillBackground = true), transport, experimentalRanks(on = false))
+        h.waitForTag(MEMBERS)
+        h.publishTalkBackTree()
+        val wide = expanded()
+
+        publish(State.FLAT) { if (wide) h.exists(LEADING) && h.exists(TRAILING) else h.exists(CONTENT) }
+        h.waitForTag(HISTORY)
+        h.awaitAccessibilityTree(present = MEMBERS)
+        assertHeading(STATISTICS, "Band Statistics", "flat, off")
+        assertFalse("flat, off: Rank By offered with Experimental Ranks off", h.exists(RANK_BY))
+        val order = h.readingOrder("band-detail-ranks-off", fresh = true)
+        assertTrue("flat, off: TalkBack reads Rank By with Experimental Ranks off: $order", order.none { it.startsWith("Rank by") })
+        assertBandDetailReadsLeadingThenTrailing("flat-ranks-off", wide)
+
+        if (wide) {
+            val fold = foldX()
+            publish(State.HALF_OPENED) { h.exists(LEADING) && kotlin.math.abs(bounds(LEADING).right - fold) <= with(rule.density) { 40.dp.toPx() } }
+            h.awaitAccessibilityTree(present = MEMBERS)
+            assertFalse("half open, off: Rank By offered with Experimental Ranks off", h.exists(RANK_BY))
+            assertOffTheHinge(fold, BAND_TITLE, MEMBERS, MEMBER, SUMMARY, STATISTICS, HISTORY, HISTORY_CHART, SONGS)
+            assertBandDetailReadsLeadingThenTrailing("half-open-ranks-off", twoPane = true)
+        }
         h.assertAccessible()
     }
 

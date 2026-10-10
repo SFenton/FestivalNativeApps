@@ -624,9 +624,11 @@ internal fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Flo
 
 /**
  * Item Shop list row: the shared Songs [SongRowCard] (glass surface, art, marquee title
- * and subtitle, red/gold outline pulse) with the New / Leaving Tomorrow badge under
- * the subtitle and the official Shop link (cart + chevron) as its own button. The row
- * opens Song Details when matched, else the official link; TalkBack reads its texts.
+ * and subtitle, red/gold outline pulse) with the Leaving Tomorrow badge under the
+ * subtitle and the official Shop link (cart + chevron) as its own button. New shows
+ * only the gold outline, like the web list (issue #562), and TalkBack hears it as the
+ * row's state ("…, New"). The row opens Song Details when matched, else the official
+ * link; TalkBack reads its texts.
  */
 @Composable
 internal fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit, modifier: Modifier = Modifier, titleTag: String? = null) {
@@ -636,11 +638,17 @@ internal fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
         subtitle = offer.subtitle,
         artUrl = artUrl,
         onClick = if (item.detailSongId != null) onDetail else onOfficial,
-        modifier = modifier.testTag("fst.shop.song.${offer.songId}"),
+        modifier = modifier
+            .then(if (item.highlight == ShopHighlight.New) Modifier.semantics { stateDescription = ShopHighlight.New.label } else Modifier)
+            .testTag("fst.shop.song.${offer.songId}"),
         titleTag = titleTag,
         outline = shopOutline(item.highlight),
         pulse = pulse,
-        details = { item.highlight?.let { ShopBadgeLabel(it, offer.songId, Modifier.padding(top = 4.dp)) } },
+        details = {
+            if (item.highlight == ShopHighlight.LeavingTomorrow) {
+                ShopBadgeLabel(ShopHighlight.LeavingTomorrow, offer.songId, Modifier.padding(top = 4.dp))
+            }
+        },
         end = {
             if (item.officialUrl != null) {
                 IconButton(
