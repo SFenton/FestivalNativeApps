@@ -53,10 +53,13 @@ struct BandRankingsScreen: View {
     /// - Parameters:
     ///   - session: Shared app session (API client, selected profile, caches).
     ///   - bandType: Band size key (`Band_Duets`, `Band_Trios`, `Band_Quad`).
-    init(session: FestivalSession, bandType: String) {
+    ///   - rankBy: Initial metric's raw value; unknown values fall back to Total Score.
+    ///   - page: Initial 1-based page (Band Detail's rank tiles open the band's page).
+    init(session: FestivalSession, bandType: String, rankBy: String = "totalscore", page: Int = 1) {
         self.session = session
         _bandType = State(initialValue: BandType(rawValue: bandType) ?? .duets)
-        _selectedRankBy = State(initialValue: .totalscore)
+        _selectedRankBy = State(initialValue: BandRankingMetric(rawValue: rankBy) ?? .totalscore)
+        _page = State(initialValue: max(1, page))
     }
 
     /// The metric in effect: Total Score while Settings › Experimental Ranks is off
@@ -231,7 +234,7 @@ struct BandRankingsScreen: View {
         do {
             let payload = try await session.bandRankings(
                 bandType: requested.bandType, rankBy: requested.rankBy,
-                page: requested.page, pageSize: 25
+                page: requested.page, pageSize: PlayerStatLinks.bandRankingsPageSize
             )
             try Task.checkCancellation()
             guard requested == requestKey else { return }

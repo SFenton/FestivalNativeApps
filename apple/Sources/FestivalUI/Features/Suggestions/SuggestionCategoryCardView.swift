@@ -45,6 +45,9 @@ struct SuggestionCategoryCardView: View {
                 }
             }
         }
+        // A container keeps the card's identifier off its rows, which carry their own
+        // `fst.suggestions.row.*` (an identifier on a plain stack replaced them; #403).
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.suggestions.category.\(category.key)")
     }
 }

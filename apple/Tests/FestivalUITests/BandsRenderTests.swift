@@ -161,6 +161,104 @@ private func settle(_ host: NSHostingView<some View>, iterations: Int = 20) asyn
     #expect(image.width > 0 && image.height > 0)
 }
 
+/// #555 accessibility: the rebuilt page reads its subtitle, then Members, Band Summary,
+/// Band Statistics, Band Rank History, Five Best and Five Worst Songs in web order; member
+/// cards and song rows are single labelled elements at least 44 pt tall; the chart reads
+/// as one titled element.
+@MainActor
+@Test(arguments: [DynamicTypeSize.large, .accessibility3])
+func bandDetailReadsSectionsInWebOrderWithLabelledTargets(typeSize: DynamicTypeSize) async throws {
+    let (session, _, _) = try await bandsFixtureSession()
+    let size = CGSize(width: 402, height: typeSize.isAccessibilitySize ? 5200 : 2000)
+    let host = nativeHostedView(
+        NavigationStack {
+            BandDetailScreen(
+                session: session, bandId: "fixture-band-1", name: "Band 1 Member A + Band 1 Member B",
+                bandType: "Band_Duets", teamKey: "fixture-team-1"
+            )
+        }
+        .dynamicTypeSize(typeSize)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: ["Five Worst Songs", "Fixture Pulse"])
+    let suffix = typeSize.isAccessibilitySize ? "-ax3" : ""
+    _ = try nativeHostedPNG(image, filename: "band-detail-a11y\(suffix).png", environment: "FST_BANDS_RENDER_OUT")
+
+    let tree = nativeHostedAccessibility(host)
+    let order = [
+        "fst.band.subtitle", "fst.band.members-section", "fst.band.summary-section",
+        "fst.band.statistics-section", "fst.band.history-section", "fst.band.best-songs",
+        "fst.band.worst-songs",
+    ]
+    let positions = order.map { tree.identifiers.firstIndex(of: $0) }
+    #expect(positions.allSatisfy { $0 != nil }, "missing sections: \(tree.identifiers)")
+    #expect(positions.compactMap { $0 } == positions.compactMap { $0 }.sorted(), "reading order: \(tree.identifiers)")
+    #expect(tree.contains("Duos • 29 appearances"))
+    #expect(tree.contains("View Band 1 Member A, Lead"))
+    #expect(tree.contains("Band rank history"))
+
+    for identifier in [
+        "fst.band.member.fixture-band-1-a", "fst.band.member.fixture-band-1-b",
+        "fst.band.song-row.fixture-pulse", "fst.band.song-row.fixture-ghost-song",
+    ] {
+        let frame = try #require(nativeHostedAccessibilityFrame(identifier, in: host), "\(identifier) unreachable")
+        #expect(frame.height >= 44, "\(identifier) is \(frame.height) pt tall")
+    }
+    let pulse = try #require(nativeHostedAccessibilityElement("fst.band.song-row.fixture-pulse", in: host))
+    #expect(nativeHostedAccessibilityString(pulse, "accessibilityLabel").hasPrefix("Fixture Pulse, Top 10%, rank 1 of 10"))
+}
+
+/// #555 review (pattern `experimental-ranks` R1/R3/R4): with Settings › Experimental
+/// Ranks off Band Statistics has Total Score Rank as its only rank tile; turning the
+/// setting on adds the Adjusted, Weighted and FC Rate rank tiles to the open page, and
+/// turning it off again removes them.
+@MainActor
+@Test func bandDetailExperimentalRankTilesFollowTheSettingLive() async throws {
+    let (session, _, _) = try await bandsFixtureSession()
+    let suite = "fst.tests.bands.experimental.\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suite))
+    defer { storage.removePersistentDomain(forName: suite) }
+    let size = CGSize(width: 402, height: 2400)
+    let host = nativeHostedView(
+        NavigationStack {
+            BandDetailScreen(
+                session: session, bandId: "fixture-band-1", name: "Band 1 Member A + Band 1 Member B",
+                bandType: "Band_Duets", teamKey: "fixture-team-1"
+            )
+        }
+        .defaultAppStorage(storage)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    _ = try await nativeHostedSettle(host, untilText: ["Band Statistics"])
+
+    let prefix = "\(BandDetailScreen.statIdentifierPrefix).statistics."
+    let experimental = ["adjusted-rank", "weighted-rank", "fc-rate-rank"].map { prefix + $0 }
+    func rankTiles() -> [String] {
+        nativeHostedAccessibility(host).identifiers.filter { $0.hasPrefix(prefix) && $0.hasSuffix("-rank") }
+    }
+    func waitFor(_ expected: [String]) async -> [String] {
+        for _ in 0..<40 {
+            if rankTiles() == expected { break }
+            await settle(host, iterations: 2)
+        }
+        return rankTiles()
+    }
+
+    let off = ["total-score-rank", "best-song-rank", "avg-rank"].map { prefix + $0 }
+    #expect(await waitFor(off) == off, "Experimental rank tiles show while the setting is off")
+    storage.set(true, forKey: ExperimentalRanks.storageKey)
+    let on = experimental + off
+    #expect(await waitFor(on) == on, "Turning the setting on does not add the experimental rank tiles")
+    storage.set(false, forKey: ExperimentalRanks.storageKey)
+    #expect(await waitFor(off) == off, "Turning the setting off does not remove the experimental rank tiles")
+}
+
 // MARK: - PlayerBandsScreen
 
 @MainActor

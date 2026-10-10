@@ -322,6 +322,12 @@
         <Setter Property="AutomationProperties.Name" Value="Options" />
     </Style>
 
+    <!-- Every Expander is an accordion with the sequenced motion (load-transition owner-approved accordion variant, issue
+         #561): the section grows, then its content fades in; closing fades the content out, then collapses. -->
+    <Style TargetType="Expander">
+        <Setter Property="controls:Accordion.Sequenced" Value="True" />
+    </Style>
+
     <!-- Menu items are targets too (page-tools-and-nav-chrome R10, issue #416): WinUI's keyboard/mouse padding
          (MenuFlyoutItemThemePaddingNarrow) left them 27 epx tall. The item template insets its hit-testable pill by
          MenuFlyoutItemMargin (4,2,4,2), so the item is FSTMinTargetSize plus that 2+2 epx for a 40 epx pill. Implicit
@@ -335,6 +341,18 @@
     </Style>
     <Style TargetType="RadioMenuFlyoutItem" BasedOn="{StaticResource DefaultRadioMenuFlyoutItemStyle}">
         <Setter Property="MinHeight" Value="{StaticResource FSTMenuItemMinHeight}" />
+    </Style>
+
+    <!-- Radio choices are targets too (page-tools-and-nav-chrome R10, issue #430): WinUI's template draws each RadioButton
+         32 epx tall (a fixed 32 epx circle row, no MinHeight) with an 8 epx RadioButtonsRowSpacing between them, so the
+         Paths Difficulty/Display, Sort By/Direction and Settings Path Default View choices were 32 epx targets. Each
+         RadioButton is at least FSTMinTargetSize tall (6 epx under the label, matching the template's 6 epx above it)
+         and the target absorbs the old row gap, so a one-line list keeps its 40 epx row pitch. Implicit styles match
+         the exact type; RadioButtons' generated items pick this one up. -->
+    <x:Double x:Key="RadioButtonsRowSpacing">0</x:Double>
+    <Style TargetType="RadioButton" BasedOn="{StaticResource DefaultRadioButtonStyle}">
+        <Setter Property="MinHeight" Value="{StaticResource FSTMinTargetSize}" />
+        <Setter Property="Padding" Value="8,6,0,6" />
     </Style>
 
     <!-- Every ProgressRing/ProgressBar is white (neutral) rather than accent-coloured, with no caption beside it. -->

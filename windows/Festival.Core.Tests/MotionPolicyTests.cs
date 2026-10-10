@@ -105,6 +105,68 @@ public sealed class MotionPolicyTests
         Assert.Equal(expected, MotionSwitch.Allowed(system, app, launch));
 
     [Fact]
+    public void Accordion_OpenGrowsThenFadesIn()
+    {
+        var plan = AccordionMotion.Plan(open: true, heightProgress: 0, opacity: 0, motionAllowed: true);
+        Assert.Equal(150, AccordionMotion.PhaseDuration.TotalMilliseconds);
+        Assert.Equal(new AccordionPhase(TimeSpan.Zero, TimeSpan.FromMilliseconds(150)), plan.Height);
+        Assert.Equal(new AccordionPhase(TimeSpan.FromMilliseconds(150), TimeSpan.FromMilliseconds(150)), plan.Fade);
+        Assert.Equal(300, plan.Total.TotalMilliseconds);
+        Assert.Equal((0.25f, 0.1f, 0.25f, 1f), AccordionMotion.Spline);
+    }
+
+    [Fact]
+    public void Accordion_CloseFadesOutThenCollapses()
+    {
+        var plan = AccordionMotion.Plan(open: false, heightProgress: 1, opacity: 1, motionAllowed: true);
+        Assert.Equal(new AccordionPhase(TimeSpan.Zero, TimeSpan.FromMilliseconds(150)), plan.Fade);
+        Assert.Equal(new AccordionPhase(TimeSpan.FromMilliseconds(150), TimeSpan.FromMilliseconds(150)), plan.Height);
+        Assert.Equal(300, plan.Total.TotalMilliseconds);
+    }
+
+    [Fact]
+    public void Accordion_InterruptedMoveRunsOnlyTheRest()
+    {
+        // Reopened while half faded out: the height is still full, so only the fade back in remains.
+        var reopen = AccordionMotion.Plan(open: true, heightProgress: 1, opacity: 0.5, motionAllowed: true);
+        Assert.Equal(TimeSpan.Zero, reopen.Height.Duration);
+        Assert.Equal(new AccordionPhase(TimeSpan.Zero, TimeSpan.FromMilliseconds(75)), reopen.Fade);
+
+        // Closed while still growing: nothing has faded in yet, so it collapses straight away from the reached height.
+        var close = AccordionMotion.Plan(open: false, heightProgress: 0.4, opacity: 0, motionAllowed: true);
+        Assert.Equal(TimeSpan.Zero, close.Fade.Duration);
+        Assert.Equal(new AccordionPhase(TimeSpan.Zero, TimeSpan.FromMilliseconds(60)), close.Height);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Accordion_IsInstantWithoutMotion(bool open)
+    {
+        var plan = AccordionMotion.Plan(open, heightProgress: open ? 0 : 1, opacity: open ? 0 : 1, motionAllowed: false);
+        Assert.Equal(TimeSpan.Zero, plan.Total);
+        Assert.Equal(TimeSpan.Zero, plan.Height.Duration);
+        Assert.Equal(TimeSpan.Zero, plan.Fade.Duration);
+    }
+
+    [Theory]
+    [InlineData(50, 100, 0.5)]
+    [InlineData(150, 100, 1)]
+    [InlineData(-5, 100, 0)]
+    [InlineData(10, 0, 1)]
+    [InlineData(double.NaN, 100, 1)]
+    public void Accordion_ProgressIsClampedFraction(double current, double open, double expected) =>
+        Assert.Equal(expected, AccordionMotion.Progress(current, open), 3);
+
+    [Fact]
+    public void Accordion_ClampsOutOfRangeInputs()
+    {
+        var plan = AccordionMotion.Plan(open: true, heightProgress: double.NaN, opacity: 2, motionAllowed: true);
+        Assert.Equal(150, plan.Height.Duration.TotalMilliseconds);
+        Assert.Equal(TimeSpan.Zero, plan.Fade.Duration);
+    }
+
+    [Fact]
     public void ShopPulse_WebColoursAndTiming()
     {
         Assert.Equal(3, ShopPulse.Cycle.TotalSeconds);

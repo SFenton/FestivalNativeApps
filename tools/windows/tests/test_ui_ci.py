@@ -292,6 +292,37 @@ class UiCiTests(unittest.TestCase):
         self.assertEqual({page["name"] for page in pages}, covered)
         self.assertIn("load-swap-full-rankings-motion-system", covered)
 
+    def test_paths_swap_runs_every_page(self):
+        # Issue #430 (#70): every Paths swap page (normal, 225% text, Reduce Motion, Animation effects off and the wide
+        # RadioButtons keyboard page) runs in windows-ui, Axe-scanned, at a size the page supports.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-swap.json"]
+        self.assertEqual({"normal", "text-225", "no-animations"}, {run.mode for run in runs})
+        self.assertTrue(all(run.scan and not run.only for run in runs))
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-swap.json").read_text(encoding="utf-8"))
+        covered = {(page["name"], run.mode) for run in runs for page in m.mode_pages(pages, run.mode)
+                   if m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({page["name"] for page in pages}, {name for name, _ in covered})
+        self.assertIn(("paths-swap", "text-225"), covered)
+        self.assertIn(("paths-swap-keyboard-wide", "text-225"), covered)
+        self.assertIn(("paths-swap-motion-system", "no-animations"), covered)
+        swap = next(page for page in pages if page["name"] == "paths-swap")["after_ready"]
+        for check in ("waitgone:id=fst.paths.image@3", "assertannounced:Loading Lead Hard path@5",
+                      "assertread:id=fst.paths.loading|Busy Loading path, ProgressRing",
+                      "assertstate:id=fst.paths.difficulty.compact|enabled=true",
+                      "assertannounced:Lead Hard path image loaded@5", "assertsize:id=fst.paths.zoom-in|40x40",
+                      "assertsize:id=fst.paths.zoom-out|40x40"):
+            self.assertIn(check, swap)
+        # Design review: the wide instrument circles and every Difficulty/Display radio are 40 epx targets, mid-swap
+        # and settled (page-tools-and-nav-chrome R10).
+        wide = next(page for page in pages if page["name"] == "paths-swap-keyboard-wide")["after_ready"]
+        loading = wide.index("waitfor:id=fst.paths.loading@3")
+        settled = wide.index("waitfor:name=Lead Hard CHOpt path@15")
+        for choice in ("Hard", "Expert"):
+            self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[loading:settled])
+        for choice in ("Easy", "Medium", "Hard", "Expert", "Image", "Text"):
+            self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[settled:])
+        self.assertIn("assertsize:id=fst.paths.instrument.Solo_Guitar|40x40", wide[settled:])
+
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)
         argv = run.argv(Path("C:/out"), "debug")

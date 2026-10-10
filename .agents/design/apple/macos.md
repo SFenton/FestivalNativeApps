@@ -67,7 +67,7 @@ Basis: menus › "Make sure a submenu remains available even when its items are 
 | Suggestions, Item Shop | One centred column ≤ 1400 pt; Shop 4-column art grid ≤ 2170 pt | Done |
 | Notifications, Search, Profile, What's New, first-run | Window sheets with Mac default sizes | Done (Notifications recaptured) |
 | Settings, Licenses | Settings window of six panes; Licenses inside About and from Help | Done |
-| Bands (`/bands`), Player Bands | Bands rows as Mac rows (were bordered push buttons); Player Bands pager pinned below the list (floated mid-list on every platform) | Captured. Band Detail captured live (reached by arrow keys from a Leaderboards band card, so it carries `bandType`/`teamKey`): Summary beside Statistics at regular column width |
+| Bands (`/bands`), Player Bands | Bands rows as Mac rows (were bordered push buttons); Player Bands pager pinned below the list (floated mid-list on every platform) | Captured. Band Detail captured live (reached by arrow keys from a Leaderboards band card, so it carries `bandType`/`teamKey`); since #555 Summary sits above Statistics as on the web and the other Apple platforms |
 
 Evidence: hosted `MacShellHostedTests` (sidebar states, footer Deselect, minimum size, on-demand split full width/open/narrow, Songs never splits), `MacPagesHostedTests` (column width class, Leaderboards two columns, Full Rankings splits on demand) and `MacSettingsPanesTests` (each pane's identifiers, pop-up choice); unit `MacNavigationTests`, `MacCopyTests`, `SongRowLayoutPolicyTests`; live window shots in `~/FestivalShowcase/native-mac/` (never committed).
 
