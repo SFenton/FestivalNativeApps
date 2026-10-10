@@ -5,8 +5,14 @@ import UIKit
 
 // MARK: - Search drawer transition fill
 
-/// Keeps a system navigation-bar drawer search field's capsule drawn while its page is
-/// pushed or popped (issue #544).
+/// Keeps a system navigation-bar drawer search field's capsule drawn at rest (issue #559)
+/// and while its page is pushed or popped (issue #544).
+///
+/// At rest it installs the field's ``SearchFieldBacking`` (design layer,
+/// ``SearchFieldBackingView``): regular Liquid Glass at every scroll position, or the
+/// opaque fallback under Reduce Transparency or Increase Contrast, so the field no longer
+/// switches from UIKit's flat top-edge fill to glass as the list scrolls. Only a field the
+/// system placed in the drawer (`searchBarPlacement == .stacked`) gets one.
 ///
 /// On iOS 26/27, a `.searchable` field in the navigation-bar drawer shows Liquid Glass
 /// once the list scrolls under the bar. During a navigation push or pop, UIKit hides the
@@ -16,13 +22,16 @@ import UIKit
 /// swipe showed no capsule at all. A plain SwiftUI `List` with the same drawer behaves the
 /// same way. At the top of the list the field uses a flat fill, which the portal does draw.
 ///
-/// While a push or pop of the field's own page is animating, and only when the content is
-/// scrolled under the bar, this gives the field the system search-field fill,
+/// While a push or pop of the field's own page is animating, and whenever the field shows
+/// glass (a glass backing, or the system glass once content is scrolled under the bar),
+/// this gives the field the system search-field fill,
 /// `tertiarySystemFill`. Apple documents that fill for "input fields, search bars". The
 /// portal can draw it, and the fill is removed when the transition finishes or is
-/// cancelled, so the settled field keeps its system glass. The modifier uses public UIKit
-/// API only, and it does nothing on macOS or outside a navigation transition.
+/// cancelled, so the settled field keeps its glass. The modifier uses public UIKit API
+/// only, and it does nothing on macOS.
 struct SearchDrawerTransitionFill: ViewModifier {
+    /// The field's resting backing (``FestivalGlassSettings/searchFieldBacking``).
+    let backing: SearchFieldBacking
     /// Whether the page's content is scrolled under the navigation bar now (the state in
     /// which the system field draws glass).
     let isContentUnderBar: @MainActor () -> Bool
@@ -30,7 +39,7 @@ struct SearchDrawerTransitionFill: ViewModifier {
     func body(content: Content) -> some View {
         #if os(iOS)
         content.background(
-            SearchDrawerTransitionBridge(isContentUnderBar: isContentUnderBar)
+            SearchDrawerTransitionBridge(backing: backing, isContentUnderBar: isContentUnderBar)
                 .frame(width: 0, height: 0)
                 .accessibilityHidden(true)
         )
@@ -76,20 +85,27 @@ extension SearchDrawerTransitionFill {
 /// A zero-size child view controller of the page that hears the page's appearance
 /// transitions, which start when a push or pop starts, interactive pops included.
 private struct SearchDrawerTransitionBridge: UIViewControllerRepresentable {
+    let backing: SearchFieldBacking
     let isContentUnderBar: @MainActor () -> Bool
 
     func makeUIViewController(context: Context) -> Controller {
         let controller = Controller()
+        controller.backing = backing
         controller.isContentUnderBar = isContentUnderBar
         return controller
     }
 
     func updateUIViewController(_ controller: Controller, context: Context) {
         controller.isContentUnderBar = isContentUnderBar
+        if controller.backing != backing {
+            controller.backing = backing
+            controller.installBacking()
+        }
     }
 
-    /// Fills the page's drawer field for the length of a push or pop.
+    /// Backs the page's drawer field at rest and fills it for the length of a push or pop.
     final class Controller: UIViewController {
+        var backing: SearchFieldBacking = .none
         var isContentUnderBar: (@MainActor () -> Bool)?
         /// The field filled for transitions still running, with how many are running.
         private weak var filledField: UISearchTextField?
@@ -108,10 +124,37 @@ private struct SearchDrawerTransitionBridge: UIViewControllerRepresentable {
             coverNavigationTransition(animated: animated)
         }
 
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            installBacking()
+        }
+
         override func viewWillDisappear(_ animated: Bool) {
             super.viewWillDisappear(animated)
             coverNavigationTransition(animated: animated)
         }
+
+        override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+            super.viewWillTransition(to: size, with: coordinator)
+            // A resized iPad window can move the field between the drawer and the toolbar.
+            coordinator.animate(alongsideTransition: nil) { [weak self] _ in
+                MainActor.assumeIsolated { self?.installBacking() }
+            }
+        }
+
+        /// Give the drawer field its resting backing, or remove it where the system placed
+        /// the field outside the drawer.
+        func installBacking() {
+            guard #available(iOS 26.0, *), let navigation = navigationController,
+                  let (item, field) = searchItem(in: navigation)
+            else { return }
+            guard !isTransitioning else { return }
+            let placed: SearchFieldBacking = item.searchBarPlacement == .stacked ? backing : .none
+            SearchFieldBackingView.apply(placed, to: field)
+        }
+
+        /// Whether a covered push or pop is still running.
+        private var isTransitioning: Bool { activeTransitions > 0 }
 
         /// Fill the field if a push or pop of this page is starting while the content is
         /// under the bar; remove the fill when that transition ends or is cancelled.
@@ -121,8 +164,8 @@ private struct SearchDrawerTransitionBridge: UIViewControllerRepresentable {
             guard animated, let navigation = navigationController,
                   let coordinator = navigation.transitionCoordinator,
                   Self.isNavigationTransition(coordinator, in: navigation),
-                  isContentUnderBar?() == true,
-                  let field = searchField(in: navigation)
+                  let (_, field) = searchItem(in: navigation),
+                  currentBacking(of: field).needsTransitionFill(contentUnderBar: isContentUnderBar?() == true)
             else { return }
             activeTransitions += 1
             filledField = field
@@ -136,8 +179,18 @@ private struct SearchDrawerTransitionBridge: UIViewControllerRepresentable {
         private func transitionEnded() {
             activeTransitions = max(0, activeTransitions - 1)
             guard activeTransitions == 0 else { return }
-            filledField?.backgroundColor = nil
+            if let field = filledField {
+                // A backed field keeps its fill cleared so UIKit's top-edge fill can't tint it.
+                field.backgroundColor = currentBacking(of: field) == .none ? nil : .clear
+            }
             filledField = nil
+            installBacking()
+        }
+
+        /// The backing a field draws now (none before iOS 26).
+        private func currentBacking(of field: UISearchTextField) -> SearchFieldBacking {
+            guard #available(iOS 26.0, *) else { return .none }
+            return SearchFieldBackingView.backing(of: field)
         }
 
         /// Whether a transition moves between two pages of one navigation stack (not a tab
@@ -156,20 +209,25 @@ private struct SearchDrawerTransitionBridge: UIViewControllerRepresentable {
             return from.navigationController === navigation && to.navigationController === navigation
         }
 
-        /// The drawer search field of this page: its navigation item's search controller,
-        /// as `.searchable` configures it.
+        /// The drawer search field of this page and the navigation item that owns it: the
+        /// item's search controller, as `.searchable` configures it.
         ///
         /// - Parameter navigation: This page's navigation controller.
-        /// - Returns: The search text field, or nil when the page has no search controller.
-        private func searchField(in navigation: UINavigationController) -> UISearchTextField? {
+        /// - Returns: The item and its search text field, or nil when the page has no search
+        ///   controller.
+        private func searchItem(
+            in navigation: UINavigationController
+        ) -> (UINavigationItem, UISearchTextField)? {
             var page: UIViewController = self
             while let parent = page.parent, parent !== navigation {
                 if let field = parent.navigationItem.searchController?.searchBar.searchTextField {
-                    return field
+                    return (parent.navigationItem, field)
                 }
                 page = parent
             }
-            return page.navigationItem.searchController?.searchBar.searchTextField
+            guard let field = page.navigationItem.searchController?.searchBar.searchTextField
+            else { return nil }
+            return (page.navigationItem, field)
         }
     }
 }
