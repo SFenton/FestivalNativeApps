@@ -574,7 +574,9 @@
       "key:down",
       "key:esc",
       "wait:0.5",
-      "assertfocus:id=fst.shell.notifications@3"
+      "assertfocus:id=fst.shell.notifications@3",
+      "focus:id=fst.songs.row.fixture-pulse",
+      "assertfocus:id=fst.songs.row.fixture-pulse"
     ]
   },
   {

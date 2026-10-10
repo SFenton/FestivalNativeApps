@@ -262,6 +262,17 @@ class MatrixTests(unittest.TestCase):
                                       "focus:id=fst.songs.row.fixture-pulse", "assertfocus:id=fst.songs.row.fixture-pulse"])
         self.assertNotIn("axe_allow", pages["kb-songs-order"])
 
+    def test_notifications_esc_ends_off_the_bell_tooltip(self):
+        import json
+        for name in ("a11y-keyboard.json", "a11y-notifications.json"):
+            pages = {p["name"]: p for p in json.loads((m.PAGES.parent / name).read_text(encoding="utf-8"))}
+            steps = pages["kb-notifications-esc"]["after_ready"]
+            # Esc returns focus to the bell, whose keyboard tooltip is a windowed WinUI popup (open item 8, #534).
+            self.assertEqual(steps[-2:], ["focus:id=fst.songs.row.fixture-pulse",
+                                          "assertfocus:id=fst.songs.row.fixture-pulse"], name)
+            self.assertIn("assertfocus:id=fst.shell.notifications@3", steps, name)
+            self.assertNotIn("axe_allow", pages["kb-notifications-esc"], name)
+
     def test_first_run_later_states(self):
         import json
         pages = {p["name"]: p for p in json.loads(m.PAGES.read_text(encoding="utf-8"))}
