@@ -98,6 +98,21 @@ object ProfileFixtures {
           {"songId":"s-alpha","instrument":"Solo_Bass","newScore":1,"newRank":1,"changedAt":"2024-01-02T00:00:00Z"}]}"""
 
     /**
+     * A score-history body with more than five Lead scores for `s-alpha`, so Song Detail's Score
+     * History card ends with View All Scores.
+     *
+     * @param account Account ID.
+     * @param lead Lead rows (dated January 1st onward).
+     * @return JSON with [lead] Lead rows and one Bass row.
+     */
+    fun longHistory(account: String = Fixtures.ACCOUNT_A, lead: Int = 7): String {
+        val rows = (1..lead).map { day ->
+            """{"songId":"s-alpha","instrument":"Solo_Guitar","newScore":${700000 + day * 1000},"newRank":9,"accuracy":${950000 + day * 1000},"isFullCombo":false,"stars":5,"season":40,"changedAt":"2024-01-%02dT00:00:00Z"}""".format(day)
+        } + """{"songId":"s-alpha","instrument":"Solo_Bass","newScore":1,"newRank":1,"changedAt":"2024-01-02T00:00:00Z"}"""
+        return """{"accountId":"$account","count":${rows.size},"history":[${rows.joinToString(",")}]}"""
+    }
+
+    /**
      * Register every profile route for [account] on a transport.
      *
      * @param transport Fake transport.
