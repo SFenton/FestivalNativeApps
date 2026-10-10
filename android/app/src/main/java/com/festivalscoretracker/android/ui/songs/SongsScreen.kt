@@ -427,6 +427,7 @@ private fun SongList(
                     SongRow(
                         row, artworkUrl(row.song.albumArt), selected = row.song.songId == selectedSongId, pulse = pulse, breathe = breathe,
                         onWarning = row.warning?.let { shown -> { onWarning(shown) } },
+                        modifier = rememberHiddenUnderPinnedHeader(headerEdge, row.song.songId),
                     ) { onSongClick(row.song) }
                 }
                 if (state.headers.isEmpty()) {

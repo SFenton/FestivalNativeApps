@@ -354,7 +354,19 @@ struct ReloadGateAccessibilityTests {
     /// - Returns: From the first to the last pixel row holding ink; 0 without ink.
     /// - Throws: An unavailable capture.
     static func inkHeight(_ hosted: Hosted, in rect: CGRect) throws -> CGFloat {
-        let image = try nativeHostedImage(hosted.host, in: rect)
+        try inkHeight(hosted.host, in: rect)
+    }
+
+    /// Height, in points, of the text ink (bright pixels) inside `rect` of `host`'s
+    /// capture; shared with `FadeInScopeAccessibilityTests`.
+    ///
+    /// - Parameters:
+    ///   - host: Any hosted page.
+    ///   - rect: An element's frame, in the host's top-left points.
+    /// - Returns: From the first to the last pixel row holding ink; 0 without ink.
+    /// - Throws: An unavailable capture.
+    static func inkHeight<Content: View>(_ host: NSHostingView<Content>, in rect: CGRect) throws -> CGFloat {
+        let image = try nativeHostedImage(host, in: rect)
         let width = image.width, height = image.height
         var bytes = [UInt8](repeating: 0, count: width * height * 4)
         let drawn = bytes.withUnsafeMutableBytes { buffer -> Bool in
