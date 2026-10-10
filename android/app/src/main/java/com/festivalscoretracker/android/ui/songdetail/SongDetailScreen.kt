@@ -237,12 +237,11 @@ fun SongDetailScreen(
             }
         }
     } else {
-        // Paths lives in the dock (floating toolbar on phones, top bar elsewhere), like the web.
+        // Paths lives in the dock (the shell's floating toolbar at every size, #576), like the web.
         FestivalScreen(
             title = if (headerGone && song != null) song.title else "",
             isRoot = false,
             scrolled = headerGone,
-            marqueeTitle = true,
             actions = {
                 if (song != null && contentShown && extras.pathInstruments.isNotEmpty()) {
                     IconButton(onClick = { onOpenPaths(song) }, modifier = Modifier.testTag("fst.song-detail.paths.open")) {

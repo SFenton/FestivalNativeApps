@@ -66,7 +66,7 @@ private class HitTargetHarness(val rule: AndroidComposeTestRule<ActivityScenario
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = prefs)
         rule.setContent { FestivalApp(container, debug) }
         probe.await("Songs rows") { probe.exists("fst.songs.row.s-1") }
-        probe.await("Quick Links or ⋮") { probe.exists("fst.quick-links.open") || probe.exists("fst.nav.overflow") }
+        probe.await("Quick Links") { probe.exists("fst.quick-links.open") }
         if (player != null) probe.await("the bell") { probe.exists("fst.shell.notifications") }
     }
 
@@ -161,7 +161,7 @@ class LargeTextShellHitTargetUiTest {
 
 // region Medium and expanded
 
-/** Medium window (rail): every tool in the top app bar. */
+/** Medium window (rail): page tools in the floating toolbar, Search, bell and Profile in the top app bar (#576). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w700dp-h1000dp-xhdpi")
 class MediumShellHitTargetUiTest {
@@ -171,14 +171,14 @@ class MediumShellHitTargetUiTest {
     private val h by lazy { HitTargetHarness(rule) }
 
     @Test
-    fun topBarButtonsHaveForgivingSeparateTargets() {
+    fun barAndToolbarButtonsHaveForgivingSeparateTargets() {
         h.launchSongs()
-        PAGE_TOOLS.forEach { assertTrue("$it in the top app bar", h.within("fst.nav.top-bar", it)) }
+        PAGE_TOOLS.forEach { assertTrue("$it in the floating toolbar", h.within("fst.nav.floating-toolbar", it)) }
         assertEquals(6 * 4 + 1, h.assertForgiving(SELECTED_TOOLS))
     }
 }
 
-/** Expanded window (list-detail): the list pane's top app bar. */
+/** Expanded window (list-detail): the floating toolbar over the list pane (#576). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
 class ExpandedShellHitTargetUiTest {
@@ -188,53 +188,33 @@ class ExpandedShellHitTargetUiTest {
     private val h by lazy { HitTargetHarness(rule) }
 
     @Test
-    fun topBarButtonsHaveForgivingSeparateTargets() {
+    fun barAndToolbarButtonsHaveForgivingSeparateTargets() {
         h.launchSongs()
-        PAGE_TOOLS.forEach { assertTrue("$it in the top app bar", h.within("fst.nav.top-bar", it)) }
+        PAGE_TOOLS.forEach { assertTrue("$it in the floating toolbar", h.within("fst.nav.floating-toolbar", it)) }
         assertEquals(6 * 4 + 1, h.assertForgiving(SELECTED_TOOLS))
     }
 }
 
 /**
- * Narrow list pane (phone landscape): ⋮ holds the page tools. ⋮, Search, bell and Profile keep
- * forgiving, separate targets, and so do the tools inside ⋮'s menu. Native graphics, so the title
- * measures real text and the tools really overflow.
+ * Narrow list pane (phone landscape): the page tools float over the list pane instead of moving
+ * behind ⋮ (#576), and every bar and toolbar button keeps a forgiving, separate target. Native
+ * graphics, so the title measures real text.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w923dp-h411dp-land-xxhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-class OverflowShellHitTargetUiTest {
+class LandscapePhoneShellHitTargetUiTest {
     @get:Rule
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     private val h by lazy { HitTargetHarness(rule) }
 
     @Test
-    fun overflowAndGlobalButtonsHaveForgivingSeparateTargetsAndSoDoTheMenuTools() {
+    fun barAndToolbarButtonsHaveForgivingSeparateTargets() {
         h.launchSongs()
-        assertTrue("page tools behind ⋮", h.probe.exists("fst.nav.overflow") && !h.probe.exists("fst.songs.sort.open"))
-        val tools = listOf(ShellHitTargets.OVERFLOW, ShellHitTargets.SEARCH, ShellHitTargets.BELL, ShellHitTargets.PROFILE_OPEN)
-        assertEquals(4 * 4 + 1, h.assertForgiving(tools))
-
-        h.probe.click("fst.nav.overflow")
-        h.probe.await("⋮ menu") { h.probe.exists("fst.nav.overflow-menu") }
-        rule.focusTopWindow()
-        PAGE_TOOLS.forEach { assertTrue("$it in ⋮", h.within("fst.nav.overflow-menu", it)) }
-        h.probe.assertTargets(PAGE_TOOLS)
-        h.probe.offCentre().forEach { offset ->
-            h.probe.await("Sort in ⋮") { h.probe.exists("fst.songs.sort.open") }
-            h.probe.touch("fst.songs.sort.open", offset)
-            h.probe.await("Sort from ⋮ at $offset") { h.probe.exists("fst.songs.sort.form") }
-            rule.focusTopWindow()
-            h.probe.click("fst.songs.sort.done")
-            h.probe.await("Sort to close") { !h.probe.exists("fst.songs.sort.form") }
-            rule.focusTopWindow()
-            h.probe.await("⋮ menu to close") { !h.probe.exists("fst.nav.overflow-menu") }
-            h.probe.click("fst.nav.overflow")
-            h.probe.await("⋮ menu") { h.probe.exists("fst.nav.overflow-menu") }
-            rule.focusTopWindow()
-        }
+        assertTrue("no ⋮", !h.probe.exists("fst.nav.overflow"))
+        PAGE_TOOLS.forEach { assertTrue("$it in the floating toolbar", h.within("fst.nav.floating-toolbar", it)) }
+        assertEquals(6 * 4 + 1, h.assertForgiving(SELECTED_TOOLS))
     }
 }
-
 // endregion
