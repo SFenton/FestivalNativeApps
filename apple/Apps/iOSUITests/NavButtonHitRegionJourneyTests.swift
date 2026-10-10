@@ -331,6 +331,147 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         try assertAccountReadingOrder(in: app, profileLabel: "Choose Profile", expectsBell: false)
     }
 
+    // MARK: - Pushed-page Profile (issue #437, for #85)
+
+    /// Issue #437 (for #85): on Song Details, the page #85 was reported on, Profile is one
+    /// labelled button and the navigation bar's last, rightmost button, read before the
+    /// page's own actions (Paths, Item Shop, Quick Links) and the bell; it keeps a 44 pt
+    /// tall hit region. Going back to Songs leaves exactly one Profile, still last.
+    @MainActor
+    func testProfileStaysTheLastBarButtonOnSongDetail() throws {
+        continueAfterFailure = false
+        let app = fixtureApp(profile: true)
+        app.launch()
+        try openSongDetail(in: app)
+        let order = try assertAccountReadingOrder(in: app, profileLabel: "Profile: Fixture Player 1", expectsBell: true)
+        XCTAssertFalse(order.navigationBar.contains("fst.shell.drawer.open"), "a pushed page shows the drawer \(order)")
+        // #85's case: the page has its own actions, and none of them follows Profile.
+        let actions = ["fst.song-detail.paths", "fst.song-detail.shop", "fst.quick-links.open"]
+        XCTAssertEqual(order.navigationBar.last, "fst.shell.profile", "\(order)")
+        XCTAssertTrue(
+            actions.contains { app.buttons[$0].exists }, "Song Details shows none of its page actions \(order)"
+        )
+        assertProfileTarget(in: app, monogram: true)
+        SongsUITestSupport.record(app, name: "pushed-profile-song-detail")
+
+        let back = app.navigationBars.buttons["BackButton"]
+        (back.exists ? back : app.navigationBars.buttons.element(boundBy: 0)).tap()
+        XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: FestivalApp.budget(10)))
+        let songs = try assertAccountReadingOrder(in: app, profileLabel: "Profile: Fixture Player 1", expectsBell: true)
+        XCTAssertEqual(songs.navigationBar, ["fst.shell.drawer.open", "fst.shell.profile"], "after Back \(songs)")
+    }
+
+    /// Issue #437 (for #85): pushed pages with their own page actions (Item Shop's Sort,
+    /// Filter and List/Grid; the player page's profile action) keep Profile as one
+    /// labelled button and the navigation bar's last, rightmost button, after Back.
+    @MainActor
+    func testProfileStaysTheLastBarButtonOnPushedPagesWithActions() throws {
+        continueAfterFailure = false
+        let pages: [(route: String, ready: String)] = [
+            ("shop", "fst.shop.sort"),
+            ("player:fixture-player-1", "fst.shell.notifications"),
+        ]
+        for page in pages {
+            let app = fixtureApp(profile: true, route: page.route)
+            app.launch()
+            XCTAssertTrue(
+                app.buttons[page.ready].waitForExistence(timeout: FestivalApp.budget(15)), "\(page.route) not ready"
+            )
+            XCTAssertTrue(app.navigationBars.buttons["fst.shell.profile"].waitForExistence(timeout: FestivalApp.budget(10)))
+            let order = try assertAccountReadingOrder(
+                in: app, profileLabel: "Profile: Fixture Player 1", expectsBell: true
+            )
+            XCTAssertFalse(order.navigationBar.contains("fst.shell.drawer.open"), "\(page.route) shows the drawer \(order)")
+            assertProfileTarget(in: app, monogram: true)
+            SongsUITestSupport.record(app, name: "pushed-profile-\(page.route.split(separator: ":")[0])")
+            app.terminate()
+        }
+    }
+
+    /// Issue #437 (for #85): anonymous, at the largest accessibility text size, Song
+    /// Details' Choose Profile is the navigation bar's one, last, rightmost Profile button
+    /// with no bell; it stays hittable with a 44 pt hit region (near-miss taps 20 pt off its
+    /// centre open profile selection) and a scoped accessibility audit of hit region, description, Dynamic Type
+    /// and clipping reports nothing on it. Bar buttons keep their size at large text and
+    /// offer the Large Content Viewer.
+    @MainActor
+    func testChooseProfileStaysLastOnSongDetailAtLargestTextSize() throws {
+        continueAfterFailure = false
+        let app = fixtureApp(profile: false)
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+        ]
+        app.launch()
+        try openSongDetail(in: app)
+        let order = try assertAccountReadingOrder(in: app, profileLabel: "Choose Profile", expectsBell: false)
+        XCTAssertEqual(order.navigationBar.last, "fst.shell.profile", "\(order)")
+        assertProfileTarget(in: app, monogram: false)
+        SongsUITestSupport.record(app, name: "pushed-choose-profile-song-detail-ax-xxxl")
+
+        try app.performAccessibilityAudit(
+            for: [.hitRegion, .sufficientElementDescription, .dynamicType, .textClipped]
+        ) { issue in
+            // Audit only Profile; Song Details has its own audit journeys.
+            issue.element?.identifier != "fst.shell.profile"
+        }
+        assertNearMissesOpen(app, "fst.shell.profile", opens: app.buttons["fst.profile.close"]) {
+            app.buttons["fst.profile.close"].tap()
+        }
+        let after = try assertAccountReadingOrder(in: app, profileLabel: "Choose Profile", expectsBell: false)
+        XCTAssertEqual(after.navigationBar.last, "fst.shell.profile", "after the sheet \(after)")
+    }
+
+    /// Open the first fully visible Songs row's Song Details and wait for its Profile.
+    @MainActor
+    private func openSongDetail(in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) throws {
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(15)), "no Songs rows",
+                      file: file, line: line)
+        let row = try XCTUnwrap(
+            rows.allElementsBoundByIndex.prefix(12).first { $0.isHittable && $0.frame.midY > app.frame.height * 0.3 },
+            "no hittable Songs row", file: file, line: line
+        )
+        row.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["fst.song-detail.hero-title"].waitForExistence(timeout: FestivalApp.budget(10)),
+            "Song Details did not open", file: file, line: line
+        )
+        XCTAssertTrue(
+            app.navigationBars.buttons["fst.shell.profile"].waitForExistence(timeout: FestivalApp.budget(10)),
+            "Song Details has no Profile", file: file, line: line
+        )
+        // Let the push and the page's toolbar items settle before reading the tree.
+        RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(1)))
+    }
+
+    /// Require Profile to be hittable and the bar's trailing-most element on screen.
+    ///
+    /// The selected-profile monogram fills a 44 pt tall circle; it draws past a narrower
+    /// layout rect (`MonogramMetrics.overhang`, #311), so its width is proven by near-miss
+    /// taps and the `.hitRegion` audit instead. Choose Profile is a system bar button: its
+    /// element is the 36 pt Liquid Glass circle and the bar extends its hit region, so its
+    /// 44 pt region is proven the same way (`testChooseProfileAndSuggestionsFilterAcceptNearMisses`).
+    ///
+    /// - Parameters:
+    ///   - app: The running app, settled on a page.
+    ///   - monogram: Whether a profile is selected, so Profile draws the 44 pt monogram.
+    @MainActor
+    private func assertProfileTarget(
+        in app: XCUIApplication, monogram: Bool, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        let profile = app.navigationBars.buttons["fst.shell.profile"]
+        XCTAssertTrue(profile.isHittable, "Profile not hittable", file: file, line: line)
+        if monogram {
+            XCTAssertGreaterThanOrEqual(profile.frame.height, 44, "Profile \(profile.frame)", file: file, line: line)
+        }
+        for button in app.navigationBars.buttons.allElementsBoundByIndex
+        where button.identifier != "fst.shell.profile" && button.frame.width > 0 {
+            XCTAssertLessThanOrEqual(button.frame.maxX, profile.frame.minX + 0.5,
+                                     "'\(button.identifier)' \(button.frame) is right of Profile \(profile.frame)",
+                                     file: file, line: line)
+        }
+    }
+
     /// Account buttons as read from the app's accessibility hierarchy.
     private struct AccountReadingOrder: CustomStringConvertible {
         /// Identifiers (or labels) of the navigation bar's buttons, in reading order.

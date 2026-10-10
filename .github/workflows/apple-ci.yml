@@ -97,6 +97,9 @@ jobs:
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
             NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
+            NavButtonHitRegionJourneyTests/testProfileStaysTheLastBarButtonOnSongDetail
+            NavButtonHitRegionJourneyTests/testProfileStaysTheLastBarButtonOnPushedPagesWithActions
+            NavButtonHitRegionJourneyTests/testChooseProfileStaysLastOnSongDetailAtLargestTextSize
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             RivalsJourneyTests/testAllRivalsTitleLeadsTheListAndPinsAfterScroll
             RivalsJourneyTests/testAllRivalsDuoVerticalBarKeepsSystemTitle
