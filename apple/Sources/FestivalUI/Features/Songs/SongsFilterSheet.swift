@@ -15,14 +15,16 @@ struct SongsFilterSheet: View {
   @State private var draftPlayerFilter: SongPlayerScoreFilter
   @State private var draftInstrument: Instrument?
   @State private var scoreSectionsExpanded: Bool
-  @State private var yearExpanded: Bool
-  @State private var durationExpanded: Bool
-  @State private var shopExpanded: Bool
-  @State private var doubleBassExpanded: Bool
-  @State private var seasonExpanded: Bool
-  @State private var percentileExpanded: Bool
-  @State private var starsExpanded: Bool
-  @State private var intensityExpanded: Bool
+  @State private var scoreSectionsAccordion: FestivalAccordionState<Bool>
+  @State private var bucketAccordion: FestivalAccordionState<Instrument>
+  @State private var yearAccordion: FestivalAccordionState<Bool>
+  @State private var durationAccordion: FestivalAccordionState<Bool>
+  @State private var shopAccordion: FestivalAccordionState<Bool>
+  @State private var doubleBassAccordion: FestivalAccordionState<Bool>
+  @State private var seasonAccordion: FestivalAccordionState<Bool>
+  @State private var percentileAccordion: FestivalAccordionState<Bool>
+  @State private var starsAccordion: FestivalAccordionState<Bool>
+  @State private var intensityAccordion: FestivalAccordionState<Bool>
   @State private var applyError: String?
   let appliedGeneral: SongGeneralFilter
   let appliedPlayerFilter: SongPlayerScoreFilter
@@ -89,17 +91,20 @@ struct SongsFilterSheet: View {
     _draftGeneral = State(initialValue: appliedGeneral)
     _draftPlayerFilter = State(initialValue: appliedPlayerFilter.scoped(to: visibleInstruments))
     _draftInstrument = State(initialValue: appliedInstrument)
-    _scoreSectionsExpanded = State(
-      initialValue: appliedPlayerFilter.scoped(to: visibleInstruments).isActive
+    let scoreSectionsOpen = appliedPlayerFilter.scoped(to: visibleInstruments).isActive
+    _scoreSectionsExpanded = State(initialValue: scoreSectionsOpen)
+    _scoreSectionsAccordion = State(
+      initialValue: FestivalAccordionState(expanded: selectedPlayer && scoreSectionsOpen)
     )
-    _yearExpanded = State(initialValue: appliedGeneral.restrictsYear)
-    _durationExpanded = State(initialValue: appliedGeneral.restrictsDuration)
-    _shopExpanded = State(initialValue: appliedGeneral.shop.isActive)
-    _doubleBassExpanded = State(initialValue: appliedGeneral.restrictsDoubleBass)
-    _seasonExpanded = State(initialValue: !appliedPlayerFilter.excluded(.season).isEmpty)
-    _percentileExpanded = State(initialValue: !appliedPlayerFilter.excluded(.percentile).isEmpty)
-    _starsExpanded = State(initialValue: !appliedPlayerFilter.excluded(.stars).isEmpty)
-    _intensityExpanded = State(initialValue: !appliedPlayerFilter.excluded(.intensity).isEmpty)
+    _bucketAccordion = State(initialValue: FestivalAccordionState(selectedPlayer ? appliedInstrument : nil))
+    _yearAccordion = State(initialValue: FestivalAccordionState(expanded: appliedGeneral.restrictsYear))
+    _durationAccordion = State(initialValue: FestivalAccordionState(expanded: appliedGeneral.restrictsDuration))
+    _shopAccordion = State(initialValue: FestivalAccordionState(expanded: appliedGeneral.shop.isActive))
+    _doubleBassAccordion = State(initialValue: FestivalAccordionState(expanded: appliedGeneral.restrictsDoubleBass))
+    _seasonAccordion = State(initialValue: FestivalAccordionState(expanded: !appliedPlayerFilter.excluded(.season).isEmpty))
+    _percentileAccordion = State(initialValue: FestivalAccordionState(expanded: !appliedPlayerFilter.excluded(.percentile).isEmpty))
+    _starsAccordion = State(initialValue: FestivalAccordionState(expanded: !appliedPlayerFilter.excluded(.stars).isEmpty))
+    _intensityAccordion = State(initialValue: FestivalAccordionState(expanded: !appliedPlayerFilter.excluded(.intensity).isEmpty))
   }
 
   /// Identity of the current choices, to commit on any change.
@@ -144,7 +149,7 @@ struct SongsFilterSheet: View {
               .accessibilityIdentifier("fst.songs.filter.score-sections")
             }
           }
-          if selectedPlayer && scoreSectionsExpanded {
+          FestivalAccordionContent(scoreSectionsAccordion) {
             Section("Player Scores") {
               Text(
                 "Score and full combo checks match any enabled chart; "
@@ -178,7 +183,7 @@ struct SongsFilterSheet: View {
             Section("Individual charts") {
               ForEach(Instrument.allCases.filter(visibleInstruments.contains)) {
                 chart in
-                DisclosureGroup {
+                FestivalDisclosureGroup {
                   ForEach(SongScoreFilterKind.allCases) { kind in
                     Toggle(
                       kind.label(for: chart),
@@ -218,7 +223,7 @@ struct SongsFilterSheet: View {
                 .foregroundStyle(FestivalText.primary)
             }
           }
-          if selectedPlayer && draftInstrument != nil {
+          FestivalAccordionContent(bucketAccordion) { _ in
             bucketSections
           }
           Section {
@@ -240,6 +245,12 @@ struct SongsFilterSheet: View {
           }
         }
         .accessibilityIdentifier("fst.songs.filter.form")
+        // Shared accordion motion (pattern `accordion`, #561) for the sections the score
+        // button and the instrument choice reveal; driven from the always-present Form.
+        .festivalAccordion(
+          $scoreSectionsAccordion, follows: selectedPlayer && scoreSectionsExpanded ? true : nil
+        )
+        .festivalAccordion($bucketAccordion, follows: selectedPlayer ? draftInstrument : nil)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .onChange(of: choiceKey) { _, _ in commit() }
@@ -265,17 +276,17 @@ struct SongsFilterSheet: View {
     }
     generalBucketSection(
       id: "year", title: "Year", hint: "Filter songs by their release decade.",
-      keys: availableDecades, expanded: $yearExpanded,
+      keys: availableDecades, expanded: $yearAccordion,
       label: SongGeneralFilter.decadeLabel, excluded: \.excludedDecades
     )
     generalBucketSection(
       id: "duration", title: "Duration", hint: "Filter songs by their duration.",
-      keys: availableDurations, expanded: $durationExpanded,
+      keys: availableDurations, expanded: $durationAccordion,
       label: SongGeneralFilter.durationLabel, excluded: \.excludedDurations
     )
     if showShop {
       Section {
-        DisclosureGroup(isExpanded: $shopExpanded) {
+        FestivalDisclosureGroup(state: $shopAccordion) {
           Toggle("Available in Item Shop", isOn: shopBinding(available: true))
             .accessibilityIdentifier("fst.songs.filter.shop-available")
           Toggle("Not Available in Item Shop", isOn: shopBinding(available: false))
@@ -295,7 +306,7 @@ struct SongsFilterSheet: View {
       }
     }
     Section {
-      DisclosureGroup(isExpanded: $doubleBassExpanded) {
+      FestivalDisclosureGroup(state: $doubleBassAccordion) {
         Toggle("Double Bass Support", isOn: $draftGeneral.doubleBassSupported)
           .accessibilityIdentifier("fst.songs.filter.double-bass.supported")
         Toggle("No Double Bass Support", isOn: $draftGeneral.doubleBassUnsupported)
@@ -323,12 +334,12 @@ struct SongsFilterSheet: View {
   ///   - excluded: The draft's excluded-key set for this accordion.
   /// - Returns: A Form section.
   private func generalBucketSection(
-    id: String, title: String, hint: String, keys: [Int], expanded: Binding<Bool>,
+    id: String, title: String, hint: String, keys: [Int], expanded: Binding<FestivalAccordionState<Bool>>,
     label: @escaping (Int) -> String,
     excluded: WritableKeyPath<SongGeneralFilter, Set<Int>>
   ) -> some View {
     Section {
-      DisclosureGroup(isExpanded: expanded) {
+      FestivalDisclosureGroup(state: expanded) {
         ForEach(keys, id: \.self) { key in
           Toggle(label(key), isOn: Binding(
             get: { !draftGeneral[keyPath: excluded].contains(key) },
@@ -347,7 +358,9 @@ struct SongsFilterSheet: View {
           .accessibilityIdentifier("fst.songs.filter.\(id)")
       }
     } header: {
-      if expanded.wrappedValue {
+      // Header actions are part of the accordion's content: they fade in after it opens
+      // and out before it closes.
+      FestivalAccordionContent(expanded.wrappedValue) {
         bulkActions(
           id: id, enabled: true,
           all: { draftGeneral[keyPath: excluded] = [] },
@@ -376,17 +389,17 @@ struct SongsFilterSheet: View {
     bucketSection(
       .season, title: "Season",
       hint: "Filter songs by the season your high score was achieved.",
-      keys: availableSeasons, expanded: $seasonExpanded
+      keys: availableSeasons, expanded: $seasonAccordion
     ) { Text(SongSeasonBucket.label($0)) }
     bucketSection(
       .percentile, title: "Percentile",
       hint: "Show or hide songs based on their leaderboard ranking bracket.",
-      keys: SongPercentileBucket.keys, expanded: $percentileExpanded
+      keys: SongPercentileBucket.keys, expanded: $percentileAccordion
     ) { Text(SongPercentileBucket.label($0)) }
     bucketSection(
       .stars, title: "Stars",
       hint: "Filter songs by the number of stars on your high score.",
-      keys: SongStarsBucket.keys, expanded: $starsExpanded
+      keys: SongStarsBucket.keys, expanded: $starsAccordion
     ) { key in
       if key == 0 {
         Text(SongStarsBucket.label(key))
@@ -397,7 +410,7 @@ struct SongsFilterSheet: View {
     bucketSection(
       .intensity, title: "Intensity",
       hint: "Filter songs by the chart's intensity.",
-      keys: SongIntensityBucket.keys, expanded: $intensityExpanded
+      keys: SongIntensityBucket.keys, expanded: $intensityAccordion
     ) { key in
       if key == 0 {
         Text(SongIntensityBucket.label(key))
@@ -419,10 +432,10 @@ struct SongsFilterSheet: View {
   /// - Returns: A Form section.
   private func bucketSection<Label: View>(
     _ kind: SongBucketKind, title: String, hint: String, keys: [Int],
-    expanded: Binding<Bool>, @ViewBuilder label: @escaping (Int) -> Label
+    expanded: Binding<FestivalAccordionState<Bool>>, @ViewBuilder label: @escaping (Int) -> Label
   ) -> some View {
     Section {
-      DisclosureGroup(isExpanded: expanded) {
+      FestivalDisclosureGroup(state: expanded) {
         ForEach(keys, id: \.self) { key in
           Toggle(isOn: bucketBinding(kind, key)) { label(key) }
             .accessibilityLabel(Self.spokenLabel(kind, key))
@@ -437,8 +450,8 @@ struct SongsFilterSheet: View {
       }
     } header: {
       // Platform pattern: trailing text actions in the section header, Clear in red
-      // (operator batch 7), shown while the accordion is open.
-      if expanded.wrappedValue {
+      // (operator batch 7), shown while the accordion is open and faded with its content.
+      FestivalAccordionContent(expanded.wrappedValue) {
         bulkActions(
           id: kind.rawValue, enabled: canEnableScores,
           all: { draftPlayerFilter = draftPlayerFilter.settingExcluded(kind, []) },

@@ -1974,6 +1974,96 @@
       ]
     },
     {
+      "id": "accordion",
+      "title": "Accordion",
+      "status": "current",
+      "doc": ".agents/patterns/accordion.md",
+      "summary": "Every in-place expand/collapse (filter-sheet disclosure groups, switch-revealed blocks, selector panels, Settings choice rows) opens the container first and then fades its content in, and fades the content out before collapsing (150 ms each, web QUICK_FADE_MS; owner #561). Steps are interruptible, Reduce Motion keeps only the fade, VoiceOver hears the new state at once and transparent content is hidden. One shared component per platform.",
+      "keywords": [
+        "accordion",
+        "disclosure",
+        "DisclosureGroup",
+        "expand",
+        "collapse",
+        "expander",
+        "reveal",
+        "fade in",
+        "fade out",
+        "Reduce Motion",
+        "filter sheet",
+        "choice row"
+      ],
+      "web": [
+        {
+          "path": "components/common/Accordion.tsx",
+          "symbol": "Accordion"
+        },
+        {
+          "path": "components/page/CollapseOnExit.tsx",
+          "symbol": "CollapseOnExit"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
+            "symbol": "AccordionChoreography"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
+            "symbol": "FestivalAccordionState"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
+            "symbol": "FestivalAccordionContent"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
+            "symbol": "FestivalDisclosureGroup"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsSheets.kt",
+            "symbol": "Accordion"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "load-transition",
+          "settings-value-row"
+        ],
+        "controls": [
+          "songs-filter",
+          "instrument-selector"
+        ],
+        "pages": [
+          "songs",
+          "suggestions",
+          "settings"
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-raw-disclosure-group",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "(?<![A-Za-z])DisclosureGroup\\s*[({]",
+          "allow": [
+            "apple/Sources/FestivalUI/Design/FestivalAccordion.swift"
+          ],
+          "debt": [],
+          "message": "Accordions share one motion: use FestivalDisclosureGroup (or FestivalAccordionState + festivalAccordion(_:follows:) + FestivalAccordionContent for a reveal) instead of a raw DisclosureGroup (accordion R1, R5)."
+        }
+      ],
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        20,
+        561
+      ]
+    },
+    {
       "id": "empty-error-states",
       "title": "Empty and error states",
       "status": "current",

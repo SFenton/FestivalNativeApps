@@ -12,6 +12,7 @@ import FestivalDesign
 struct SuggestionsFilterSheet: View {
     @State private var draft: SuggestionFilterSettings
     @State private var selectedInstrument: Instrument?
+    @State private var instrumentAccordion = FestivalAccordionState<Instrument>(nil)
     let visibleInstruments: [Instrument]
     let onChange: (SuggestionFilterSettings) -> Void
 
@@ -91,7 +92,11 @@ struct SuggestionsFilterSheet: View {
                             deferSelection: true, identifier: "fst.suggestions.filter.instrument-picker"
                         )
                         .padding(.vertical, 6)
-                        if let instrument = effectiveSelectedInstrument {
+                        // Shared accordion motion (pattern `accordion`, #561): the section
+                        // grows, then the chosen chart's toggles fade in; deselecting fades
+                        // them out, then it shrinks. Choosing another chart swaps in place.
+                        .festivalAccordion($instrumentAccordion, follows: effectiveSelectedInstrument)
+                        FestivalAccordionContent(instrumentAccordion) { instrument in
                             ForEach(SuggestionCategoryType.allCases) { type in
                                 Toggle(type.label, isOn: perInstrumentBinding(type, instrument))
                                     .accessibilityIdentifier(

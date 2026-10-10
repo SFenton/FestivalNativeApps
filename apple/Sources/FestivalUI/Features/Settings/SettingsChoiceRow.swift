@@ -7,8 +7,9 @@ import FestivalDesign
 /// description and the current value; expanding it in place reveals one checkmark row per option.
 ///
 /// Mirrors the web's inline radio rows (`SettingsPage.tsx` CHOpt Path Default View) and the
-/// app's own Filter sheet accordions. Built on the system `DisclosureGroup`, which Apple's HIG
-/// names as the iOS disclosure control, so choosing never navigates away from Settings.
+/// app's own Filter sheet accordions. Built on ``FestivalDisclosureGroup`` (the system
+/// `DisclosureGroup`, which Apple's HIG names as the iOS disclosure control, with the shared
+/// accordion motion, pattern `accordion`), so choosing never navigates away from Settings.
 struct SettingsChoiceRow<Value: Hashable & Identifiable>: View {
     let title: String
     let detail: String?
@@ -16,8 +17,7 @@ struct SettingsChoiceRow<Value: Hashable & Identifiable>: View {
     let label: (Value) -> String
     @Binding var selection: Value
     let identifier: String
-    let animation: Animation?
-    @State private var isExpanded: Bool
+    @State private var accordion: FestivalAccordionState<Bool>
     @Environment(\.settingsChoicesUsePopUpButtons) private var usesPopUpButton
 
     /// Create an inline single-choice accordion.
@@ -29,7 +29,6 @@ struct SettingsChoiceRow<Value: Hashable & Identifiable>: View {
     ///   - label: Visible and spoken name for a choice.
     ///   - selection: Persisted current choice; written immediately on tap.
     ///   - identifier: Accessibility identifier of the header; options append `.<id>`.
-    ///   - animation: Expand/collapse animation, `nil` under Reduce Motion.
     ///   - initiallyExpanded: Starting disclosure state (tests and snapshots).
     init(
         title: String,
@@ -38,7 +37,6 @@ struct SettingsChoiceRow<Value: Hashable & Identifiable>: View {
         label: @escaping (Value) -> String,
         selection: Binding<Value>,
         identifier: String,
-        animation: Animation? = .easeInOut(duration: 0.2),
         initiallyExpanded: Bool = false
     ) {
         self.title = title
@@ -47,8 +45,7 @@ struct SettingsChoiceRow<Value: Hashable & Identifiable>: View {
         self.label = label
         self._selection = selection
         self.identifier = identifier
-        self.animation = animation
-        self._isExpanded = State(initialValue: initiallyExpanded)
+        self._accordion = State(initialValue: FestivalAccordionState(expanded: initiallyExpanded))
     }
 
     var body: some View {
@@ -82,7 +79,7 @@ struct SettingsChoiceRow<Value: Hashable & Identifiable>: View {
 
     /// The inline accordion (iPhone, iPad).
     private var disclosure: some View {
-        DisclosureGroup(isExpanded: $isExpanded.animation(animation)) {
+        FestivalDisclosureGroup(state: $accordion) {
             VStack(spacing: 0) {
                 ForEach(options) { option in
                     optionRow(option)
@@ -104,7 +101,7 @@ struct SettingsChoiceRow<Value: Hashable & Identifiable>: View {
             .accessibilityLabel(title)
             .accessibilityValue(
                 SettingsChoiceAccessibility.value(
-                    selected: label(selection), isExpanded: isExpanded
+                    selected: label(selection), isExpanded: accordion.isExpanded
                 )
             )
             .accessibilityHint(detail ?? "")
