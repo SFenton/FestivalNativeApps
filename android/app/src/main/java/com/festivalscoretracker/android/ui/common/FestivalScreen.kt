@@ -65,6 +65,7 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.search.PxRect
 import com.festivalscoretracker.android.core.search.SearchPresentation
+import com.festivalscoretracker.android.core.shell.PxSpan
 import com.festivalscoretracker.android.ui.search.GlobalSearchEntry
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
@@ -83,8 +84,9 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @property bottomPadding Space reserved by the bottom bar / system navigation.
  * @property search Global search entry point (`.agents/controls/global-search/android.md`).
  * @property notifications Bell slot between search and the avatar, when notifications exist.
- * @property floatingToolbar Compact windows: the floating toolbar that takes screen actions and
- *   search ([FloatingToolbar]); null when actions belong in the top app bar.
+ * @property floatingToolbar The shell's floating toolbar that takes screen actions at every window
+ *   size ([FloatingToolbar], `page-tools-and-nav-chrome` R4, #576); null only outside the shell
+ *   (previews, isolated tests), where the actions fall back to the top app bar.
  */
 @Immutable
 data class ShellActions(
@@ -123,17 +125,17 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
 
 /**
  * Standard screen chrome: transparent top app bar over the shared backdrop, the
- * drawer button on tab roots, back on pushed screens, then screen actions (in the floating
- * toolbar on compact windows), global search, the notifications slot and the profile avatar
- * as the rightmost action.
+ * drawer button on tab roots, back on pushed screens, global search, the notifications slot and
+ * the profile avatar as the rightmost action; screen actions float in the shell's toolbar at
+ * every window size (`page-tools-and-nav-chrome` R4, owner-approved #576).
  *
  * @param title Title Case title.
  * @param isRoot Whether this is a tab root.
  * @param modifier Modifier.
  * @param actions Screen actions, placed before search and the avatar.
- * @param pinActions On compact windows, keep the floating toolbar holding [actions] on screen
- *   while the page scrolls instead of hiding it (Songs, Suggestions: issue #52).
- * @param actionsReadFirst On compact windows, TalkBack and keyboard focus reach the floating toolbar
+ * @param pinActions Keep the floating toolbar holding [actions] on screen while the page scrolls
+ *   instead of hiding it (Songs, Suggestions: issue #52).
+ * @param actionsReadFirst TalkBack and keyboard focus reach the floating toolbar
  *   holding [actions] right after the top app bar instead of after the content: an endless feed
  *   (Suggestions) never ends, so a toolbar read last is unreachable by swiping (issue #112); a
  *   ~700-row list (Songs) is effectively the same (issue #160).
@@ -194,11 +196,12 @@ fun FestivalScreen(
     LaunchedEffect(titleTruncated, pageActionsWidth, widthPx) {
         collapsedAtPx = TopBarActionFit.afterTitleLayout(titleTruncated, inlineActions, pageActionsWidth > 0, widthPx, collapsedAtPx)
     }
-    // Compact windows: page actions float over the bottom bar (web bottom dock); global search
-    // stays in the top app bar on every window size (operator 2026-09-28).
+    // Page actions float in the shell's toolbar at every window size (owner, #576), over this
+    // screen's pane; global search stays in the top app bar (operator 2026-09-28).
+    val pane = remember { mutableStateOf<PxSpan?>(null) }
     val toolbarReadsFirst = shell.floatingToolbar != null && actionsReadFirst
     if (shell.floatingToolbar != null) {
-        FloatingToolbarContent(pinned = pinActions, readFirst = actionsReadFirst) { actions() }
+        FloatingToolbarContent(pinned = pinActions, readFirst = actionsReadFirst, pane = pane) { actions() }
     }
     Scaffold(
         modifier = modifier
@@ -207,6 +210,8 @@ fun FestivalScreen(
                 val left = it.positionInWindow().x.toInt()
                 leftGapPx = left
                 rightGapPx = it.findRootCoordinates().size.width - left - it.size.width
+                val span = PxSpan(left, left + it.size.width)
+                if (pane.value != span) pane.value = span
             }
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = Color.Transparent,
@@ -279,6 +284,7 @@ fun FestivalScreen(
                     // Every page, pushed pages included (operator batch 7.12).
                     ProfileAvatarButton(shell.selectedPlayer, shell.profileChip)
                 }
+                // Outside the shell (previews, isolated tests) there is no toolbar to float in.
                 if (shell.floatingToolbar == null) {
                     AdaptiveTopBarActions(inlineActions, onPageWidth = { pageActionsWidth = it }, page = actions, global = global)
                 } else {

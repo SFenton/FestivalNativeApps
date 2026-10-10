@@ -1061,14 +1061,19 @@ class LeaderboardsExpandedUiTest : LeaderboardsHarness() {
     }
 
     @Test
-    fun expandedBoardsKeepThePagerAnchoredAndPickersInTheTopBar() {
+    fun expandedBoardsKeepThePagerAnchoredAndPickersInTheFloatingToolbar() {
         launch("fullRankings:Solo_Drums")
         waitForDescription("Page 1 of 3")
         assertTrue(exists("fst.full-rankings.bottom-bar"))
         assertFalse(exists("fst.full-rankings.supporting-pane"))
+        // Issue #576: page tools float at every window size; the top app bar keeps only global actions.
+        val inToolbar = rule.onAllNodes(
+            hasTestTag("fst.full-rankings.instrument-menu") and hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar")),
+        ).fetchSemanticsNodes()
+        assertTrue("the instrument picker is in the floating toolbar", inToolbar.isNotEmpty())
         val bar = node("fst.nav.top-bar").fetchSemanticsNode().boundsInRoot
         val picker = node("fst.full-rankings.instrument-menu").fetchSemanticsNode().boundsInRoot
-        assertTrue(picker.top >= bar.top && picker.bottom <= bar.bottom)
+        assertTrue("the picker $picker is below the top bar $bar", picker.top >= bar.bottom)
     }
 
     @Test

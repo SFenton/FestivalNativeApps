@@ -777,7 +777,7 @@
       "title": "Page tools and navigation chrome",
       "status": "current",
       "doc": ".agents/patterns/page-tools-and-nav-chrome.md",
-      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android compact floating toolbar or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363).",
+      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363).",
       "keywords": [
         "navigation",
         "page tools",
@@ -893,6 +893,10 @@
             "symbol": "FloatingToolbar"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/FloatingToolbarPlacement.kt",
+            "symbol": "FloatingToolbarPlacement"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/search/GlobalSearch.kt",
             "symbol": "GlobalSearchEntry"
           },
@@ -962,7 +966,7 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FloatingToolbar.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt"
           ],
-          "message": "The shell alone renders the compact floating toolbar (page-tools-and-nav-chrome R4, R6)."
+          "message": "The shell alone renders the floating toolbar, at every window size (page-tools-and-nav-chrome R4, R6)."
         },
         {
           "id": "windows-titlebar-content",
@@ -1043,7 +1047,8 @@
         394,
         534,
         544,
-        557
+        557,
+        576
       ]
     },
     {

@@ -60,11 +60,10 @@ import org.junit.runner.RunWith
  * 48 dp target. The `…AtDoubleFontScale` variants repeat the journeys at 200 % text: the inline
  * filter grows without clipping its placeholder and every pinned control stays on screen.
  *
- * The journey follows the window's placement of the page tools: the compact floating toolbar
- * (portrait phone), the top app bar (Suggestions on a landscape phone, `FST_Tablet`) or ⋮ on a
- * narrow list pane (Songs on a landscape phone, `FST_Book_Fold --posture half`), whose menu must
- * close after each tool's sheet or menu closes. The `…InLandscape` variants turn the phone, so the
- * `android-device` CI job (`@DeviceCi`, one portrait phone emulator) covers all three. Reading orders go to logcat
+ * The page tools float in the shell's toolbar at every window size (issue #576): portrait and
+ * landscape phones, `FST_Tablet` and `FST_Book_Fold --posture half`, where the toolbar stays on
+ * screen inside the list pane. The `…InLandscape` variants turn the phone, so the `android-device`
+ * CI job (`@DeviceCi`, one portrait phone emulator) covers both orientations. Reading orders go to logcat
  * `FST_A11Y`. Run with
  * `device.py test com.festivalscoretracker.android.journeys.PinnedPageControlsDeviceTest --avd …`.
  */
@@ -282,15 +281,16 @@ class PinnedPageControlsDeviceTest {
         "$screen | font ${scale ?: rule.activity.resources.configuration.fontScale} | w${rule.activity.resources.configuration.screenWidthDp}dp",
     )
 
-    /** Placement checks every journey shares: compact windows float the tools, short landscape windows don't. */
+    /**
+     * Placement checks every journey shares: every window floats the tools (issue #576), and the
+     * toolbar lies wholly on screen.
+     */
     private fun assertPlacement(placement: Placement, screen: String) {
-        val configuration = rule.activity.resources.configuration
         Log.i(JourneyHarness.READING_ORDER_TAG, "$screen | placement $placement")
-        if (configuration.screenWidthDp < 600) {
-            assertEquals("compact windows pin the tools in the floating toolbar", Placement.FloatingToolbar, placement)
-        } else {
-            assertTrue("regular windows keep the tools in the top app bar or ⋮", placement != Placement.FloatingToolbar)
-        }
+        assertEquals("every window pins the tools in the floating toolbar", Placement.FloatingToolbar, placement)
+        val root = rule.onRoot().fetchSemanticsNode().boundsInRoot
+        val toolbar = bounds("fst.nav.floating-toolbar")
+        assertTrue("toolbar $toolbar is on screen ($root)", toolbar.left >= root.left && toolbar.right <= root.right && toolbar.bottom <= root.bottom)
     }
 
     // endregion
