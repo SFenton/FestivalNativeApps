@@ -57,6 +57,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import journey_exe  # noqa: E402  (sibling module: --exe debug|release|aot)
+import ui_journey  # noqa: E402  (sibling tool; shares the fixture-list contract)
 import uiwin  # noqa: E402  (sibling tool; provides the lock, driver and step parser)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -278,10 +279,7 @@ def page_fixture(page: dict, default: Path = FIXTURE) -> tuple[Path, tuple[str, 
     Returns:
         Script path and flags; pages with equal results share one fixture service.
     """
-    flags = tuple(page.get("fixture", ()))
-    if flags and flags[0].endswith(".py"):
-        return REPO_ROOT / "tools" / "windows" / flags[0], flags[1:]
-    return default, flags
+    return ui_journey.journey_fixture(tuple(page.get("fixture", ())), default)  # type: ignore[return-value]  (default set)
 
 
 def summarize_focus(focus: list[dict]) -> dict:
