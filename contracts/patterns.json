@@ -1633,7 +1633,9 @@
         "graph card",
         "accordion",
         "expand",
-        "collapse"
+        "collapse",
+        "expander",
+        "disclosure"
       ],
       "web": [
         {
@@ -1822,6 +1824,18 @@
           {
             "path": "windows/Festival.Core/ViewModels/SongScoreHistoryViewModel.cs",
             "symbol": "ShowDetailSlot"
+          },
+          {
+            "path": "windows/Festival.App/Controls/Accordion.cs",
+            "symbol": "Accordion"
+          },
+          {
+            "path": "windows/Festival.App/Controls/Accordion.cs",
+            "symbol": "AccordionMover"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/MotionPolicy.cs",
+            "symbol": "AccordionMotion"
           }
         ]
       },
@@ -1951,6 +1965,17 @@
           ],
           "debt": [],
           "message": "Accordion-style reveals go through the shared AccordionReveal / AccordionRevealOf (height, then fade in; fade out, then collapse; instant under reduced motion), never a local expand/shrink transition (load-transition R10, #561)."
+        },
+        {
+          "id": "windows-accordion",
+          "glob": "windows/Festival.App/**/*.cs",
+          "regex": "new\\s+AccordionMover\\s*\\(",
+          "allow": [
+            "windows/Festival.App/Controls/Accordion.cs",
+            "windows/Festival.App/Controls/InstrumentSelector.xaml.cs"
+          ],
+          "debt": [],
+          "message": "Every Expander gets the shared accordion motion from the implicit Expander style (Accordion.Sequenced); a custom disclosure panel that drives its own AccordionMover must be listed so its grow-then-fade timing stays shared (load-transition R10, #561)."
         }
       ],
       "related": {
