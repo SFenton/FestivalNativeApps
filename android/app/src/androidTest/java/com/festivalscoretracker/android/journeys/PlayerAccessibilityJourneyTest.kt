@@ -111,8 +111,8 @@ class PlayerAccessibilityJourneyTest {
     /**
      * Opens Rival Detail's Quick Links (sheet on phones, menu when wide) and checks every
      * category row: it reads only its category name (the icon adds nothing to TalkBack), the
-     * rows read in page order, no node inside a row is an image or has its own label, and each
-     * row is a 48 dp target (pattern `quick-links` R6, R9).
+     * rows read in page order, no node inside a row is an image or has its own label, each row
+     * lays out exactly one sized icon, and each row is a 48 dp target (pattern `quick-links` R6, R9).
      *
      * @param scale Font scale.
      */
@@ -137,6 +137,10 @@ class PlayerAccessibilityJourneyTest {
             val inner = rule.onAllNodes(hasAnyAncestor(hasTestTag(tag)) and (SemanticsMatcher.keyIsDefined(SemanticsProperties.ContentDescription) or SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Image)), useUnmergedTree = true)
                 .fetchSemanticsNodes()
             assertTrue("$config: $key's icon is exposed to TalkBack: ${inner.map { it.config }}", inner.isEmpty())
+            // The row still lays out its one icon (the glyph itself is matched in RivalDetailQuickLinkIconsUiTest).
+            val icons = rule.onAllNodes(hasAnyAncestor(hasTestTag(tag)) and hasTestTag(ICON), useUnmergedTree = true).fetchSemanticsNodes()
+            assertEquals("$config: $key has ${icons.size} icons", 1, icons.size)
+            assertTrue("$config: $key's icon has no size: ${icons[0].size}", icons[0].size.width > 0 && icons[0].size.height > 0)
         }
         val stops = h.readingStops("rival-detail-quick-links-$config").filter { it.id?.startsWith(ROW_PREFIX) == true }
         val read = stops.map { it.id!!.removePrefix(ROW_PREFIX) }
@@ -169,6 +173,7 @@ class PlayerAccessibilityJourneyTest {
         const val SHEET = "fst.quick-links.sheet"
         const val MENU = "fst.quick-links.menu"
         const val ROW_PREFIX = "fst.quick-links.item.rival-category:"
+        const val ICON = "fst.quick-links.icon"
         const val CURRENT = "Current section"
     }
 }
