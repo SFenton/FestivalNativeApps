@@ -398,5 +398,99 @@
       "key:alt+left",
       "waitfor:id=fst.song-detail.title@15"
     ]
+  },
+  {
+    "name": "bp-a11y-surface-translucent",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "demo"],
+    "sizes": ["medium"],
+    "modes": ["normal"],
+    "tabs": 0,
+    "note": "Issue #426 (for #64), surface-materials R4 baseline: with transparency on, the band rows' FSTCardSurfaceBrush fill is translucent, never the opaque #121826 fallback.",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-row.Band_Duets.1@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.0|L6,M0!=#121826~1|C0,B4!=#121826~1",
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.1|L6,M0!=#121826~1|C0,B4!=#121826~1"
+    ]
+  },
+  {
+    "name": "bp-a11y-surface-no-transparency",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "demo"],
+    "sizes": ["medium", "wide"],
+    "modes": ["no-transparency"],
+    "tabs": 0,
+    "note": "Issue #426 (for #64), surface-materials R4: with Windows transparency effects off, each band row is the opaque #121826 card fill at four interior points with a 1 epx rim (left, top, bottom) distinct from both fill and page.",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-row.Band_Duets.1@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.0|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|bg:L-6,M0|L0,M0!=@fill~6|C0,T0!=@fill~6|C0,B1!=@fill~6|L0,M0!=@bg~6|C0,T0!=@bg~6|C0,B1!=@bg~6",
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.1|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|bg:L-6,M0|L0,M0!=@fill~6|C0,T0!=@fill~6|C0,B1!=@fill~6|L0,M0!=@bg~6|C0,T0!=@bg~6|C0,B1!=@bg~6",
+      "shot:{stem}.png"
+    ]
+  },
+  {
+    "name": "bp-a11y-surface-less-transparency",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "demo"],
+    "settings": {"lessTransparency": true},
+    "sizes": ["medium"],
+    "modes": ["normal"],
+    "tabs": 0,
+    "note": "Issue #426 (for #64), surface-materials R4: in-app Less Transparency gives the band rows the same opaque #121826 fill and visible rim as Windows transparency off.",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-row.Band_Duets.1@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.0|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|bg:L-6,M0|L0,M0!=@fill~6|C0,T0!=@fill~6|C0,B1!=@fill~6|L0,M0!=@bg~6|C0,T0!=@bg~6|C0,B1!=@bg~6",
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.1|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|bg:L-6,M0|L0,M0!=@fill~6|C0,T0!=@fill~6|C0,B1!=@fill~6|L0,M0!=@bg~6|C0,T0!=@bg~6|C0,B1!=@bg~6"
+    ]
+  },
+  {
+    "name": "bp-a11y-surface-more-contrast",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "demo"],
+    "settings": {"moreContrast": true},
+    "sizes": ["medium"],
+    "modes": ["normal"],
+    "tabs": 0,
+    "note": "Issue #426 (for #64), surface-materials R4: in-app Increase Contrast makes the band rows opaque #121826 with the 50% white rim.",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-row.Band_Duets.1@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.0|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|L0,M0=#84828A~40|C0,T0=#84828A~40|C0,B1=#84828A~40",
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.1|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|L0,M0=#84828A~40|C0,T0=#84828A~40|C0,B1=#84828A~40"
+    ]
+  },
+  {
+    "name": "bp-a11y-surface-app-contrast",
+    "route": "/songs/fixture-pulse",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "demo"],
+    "sizes": ["medium", "wide"],
+    "modes": ["app-contrast"],
+    "tabs": 0,
+    "note": "Issue #426 (for #64), surface-materials R4: in-app Increase Contrast + Less Transparency together keep the band rows opaque #121826 with the 50% white rim.",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-row.Band_Duets.1@20",
+      "wait:2"
+    ],
+    "after_ready": [
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.0|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|L0,M0=#84828A~40|C0,T0=#84828A~40|C0,B1=#84828A~40",
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.1|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|L0,M0=#84828A~40|C0,T0=#84828A~40|C0,B1=#84828A~40",
+      "shot:{stem}.png"
+    ]
   }
 ]
