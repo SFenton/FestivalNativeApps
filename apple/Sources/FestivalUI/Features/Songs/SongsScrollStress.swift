@@ -46,6 +46,34 @@ enum SongsScrollStress {
         ProcessInfo.processInfo.environment[environmentKey] == "animated"
     }
 
+    /// Environment key that parks the List part-way up once (issue #560).
+    static let parkEnvironmentKey = "FST_DEBUG_SONGS_PARK_TOP"
+
+    /// A programmatic move of the List's content: `points` up, `delay` seconds after the
+    /// list appears.
+    struct ParkRequest: Equatable {
+        let points: CGFloat
+        let delay: Double
+    }
+
+    /// The launch environment's park request, if any.
+    static var parkRequest: ParkRequest? {
+        ProcessInfo.processInfo.environment[parkEnvironmentKey].flatMap(parseParkRequest)
+    }
+
+    /// Parse `<points>[@<seconds>]` (default delay 3 s).
+    ///
+    /// - Parameter value: The environment value, e.g. `37` or `37@12`.
+    /// - Returns: The request, or `nil` for a malformed or non-positive value.
+    static func parseParkRequest(_ value: String) -> ParkRequest? {
+        let parts = value.split(separator: "@", omittingEmptySubsequences: false)
+        guard (1...2).contains(parts.count), let points = Double(parts[0]), points.isFinite,
+              points > 0 else { return nil }
+        let delay = parts.count == 2 ? Double(parts[1]) : 3
+        guard let delay, delay.isFinite, delay >= 0 else { return nil }
+        return ParkRequest(points: CGFloat(points), delay: delay)
+    }
+
     /// The list row where each section starts: every section is its title row plus its
     /// songs.
     ///

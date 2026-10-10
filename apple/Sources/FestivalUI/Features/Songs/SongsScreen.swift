@@ -1191,6 +1191,7 @@ struct SongsScreen: View, Equatable {
                     } : nil
                 ))
                 .modifier(ScrolledAwayTracker(
+                    nudger: scrollChrome.listNudger,
                     topInsetChanged: { [scrollChrome] inset, offsetY in
                         scrollChrome.setListTopInset(inset)
                         scrollChrome.noteExpandedTopInset(inset, offsetY: offsetY)
@@ -1254,6 +1255,14 @@ struct SongsScreen: View, Equatable {
             }
             .task {
                 #if DEBUG
+                // `FST_DEBUG_SONGS_PARK_TOP=<points>[@<seconds>]`: after a delay (3 s), move
+                // the List up programmatically, as a landing correction does; issue #560
+                // parks it part-way through the large title's collapse.
+                if let park = SongsScrollStress.parkRequest {
+                    try? await Task.sleep(for: .seconds(park.delay))
+                    guard !Task.isCancelled else { return }
+                    scrollChrome.listNudger.moveContent(by: -park.points)
+                }
                 // `FST_DEBUG_SONGS_SCROLL_STRESS=1`: replay a scroll stress pass in-app,
                 // without XCUITest's accessibility snapshots (issue #8 measurements).
                 guard SongsScrollStress.isRequested, let groups else { return }
@@ -1816,13 +1825,51 @@ private extension SongShopSectionKind {
 /// Reports whether a scroll view has moved away from its top (iOS 18+; always false
 /// before). ``ScrollAwayGate`` keeps the chrome this report moves from feeding back
 /// into it (issue #5).
+///
+/// Also finishes a large title's collapse when the List comes to rest part-way through
+/// it (``LargeTitleRest``, issue #560): UIKit snaps the title only when a drag ends, so a
+/// programmatic scroll could leave it half-way up behind the toolbar.
 private struct ScrolledAwayTracker: ViewModifier {
+    /// Moves the List to the nearer end of a part-way large-title collapse.
+    let nudger: ListScrollNudger
     /// Receives the List's top content inset and offset on every scroll geometry change.
     let topInsetChanged: (CGFloat, CGFloat) -> Void
     let changed: (Bool) -> Void
     @State private var gate = ScrollAwayGate()
     /// The last value sent to `changed`; nil until the first decision is reported.
     @State private var reported: Bool?
+    /// Rest checks; a reference so per-sample bookkeeping never re-renders the List.
+    @State private var rest = RestWatch()
+
+    /// The List's resting state for the large-title check (issue #560).
+    @MainActor
+    private final class RestWatch {
+        var decision = LargeTitleRest()
+        var latest: Sample?
+        var idle = true
+        var check: Task<Void, Never>?
+
+        /// Check the List once it has stopped moving for ``settleDelay``.
+        func schedule(_ nudger: ListScrollNudger) {
+            check?.cancel()
+            guard idle else { return }
+            check = Task { @MainActor [weak self, weak nudger] in
+                try? await Task.sleep(for: Self.settleDelay)
+                guard let self, let nudger, !Task.isCancelled, self.idle,
+                      let sample = self.latest,
+                      let target = self.decision.restingOffset(
+                        offsetY: sample.offsetY, topInset: sample.topInset
+                      ) else { return }
+                if nudger.settleLargeTitle(at: target) {
+                    MainThreadStallMonitor.count("songs.largeTitle.settle")
+                }
+            }
+        }
+
+        /// How long the List must be still before a rest check: longer than UIKit's
+        /// own snap and the landing corrections' rounds take to start.
+        static let settleDelay: Duration = .milliseconds(400)
+    }
 
     /// The geometry values the gate needs.
     private struct Sample: Equatable {
@@ -1844,6 +1891,12 @@ private struct ScrolledAwayTracker: ViewModifier {
                 // twice raises this peak above the expanded large title's inset.
                 MainThreadStallMonitor.peak("songs.topInset", Double(sample.topInset))
                 topInsetChanged(sample.topInset, sample.offsetY)
+                rest.decision.update(
+                    offsetY: sample.offsetY, topInset: sample.topInset,
+                    containerWidth: sample.width
+                )
+                rest.latest = sample
+                rest.schedule(nudger)
                 gate.update(
                     offsetY: sample.offsetY, topInset: sample.topInset,
                     containerWidth: sample.width
@@ -1852,6 +1905,10 @@ private struct ScrolledAwayTracker: ViewModifier {
                 if reported != nil { MainThreadStallMonitor.count("songs.scrolled.flip") }
                 reported = gate.isScrolled
                 changed(gate.isScrolled)
+            }
+            .onScrollPhaseChange { _, phase in
+                rest.idle = phase == .idle
+                rest.schedule(nudger)
             }
         } else {
             content
