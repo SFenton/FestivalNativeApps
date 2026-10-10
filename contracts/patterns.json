@@ -409,7 +409,7 @@
       "title": "Section headers",
       "status": "current",
       "doc": ".agents/patterns/section-headers.md",
-      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap.",
+      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap, and the list end lets the last push finish.",
       "keywords": [
         "section header",
         "section title",
@@ -479,6 +479,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt",
             "symbol": "SongsScreen"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/PinnedHeaderEdgeFade.kt",
+            "symbol": "rememberPinnedHeaderEndSpace"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FoldLane.kt",
@@ -596,7 +600,8 @@
         321,
         343,
         348,
-        557
+        557,
+        560
       ]
     },
     {
