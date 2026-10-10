@@ -74,7 +74,8 @@
             </StackPanel>
         </Grid>
 
-        <!-- One frosted row per entry, 4 epx apart (web entryRow list, operator batch 7.7); the rows end at the floating
+        <!-- The page's entries as one grouped card (GroupedRows: touching row slices with hairlines; issue #543,
+             owner-approved native variant of the web's separate entryRow cards); the rows end at the floating
              footer (BoardFooter) through the bottom-chrome ramp (BoardFooterFade, issue #308). The wrapper is the fade
              source because the load swap animates the ScrollViewer's own visual. -->
         <Grid x:Name="BoardFadeSource" Grid.Row="1" Grid.RowSpan="3">
@@ -83,10 +84,10 @@
                           AutomationProperties.AutomationId="fst.full-rankings.list">
                 <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" Margin="0,4,0,0" VerticalAlignment="Top"
                                ElementPrepared="OnRowPrepared"
-                               controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52"
+                               controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48" controls:GroupedRows.IsEnabled="True"
                                ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
                     <ItemsRepeater.Layout>
-                        <StackLayout Spacing="4" />
+                        <StackLayout Spacing="0" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:RankingRowViewModel">
