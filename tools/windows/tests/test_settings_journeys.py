@@ -89,6 +89,9 @@ class SettingsJourneyTests(unittest.TestCase):
         page = next(p for p in pages if p["name"] == "settings-version-stacked")
         self.assertEqual((page["sizes"], page["modes"]), (["compact"], ["text-225"]))
         steps = page["after_ready"]
+        # Issue #552: at 500 epx "0.1.0 · <sha7>" fits beside "Build Configuration" by about 1 epx for some hashes
+        # (CI, 24a45cf), so the page narrows the window to 440 epx, where no hash fits and the stacking check is strict.
+        self.assertEqual(steps[0], "resize:440x800")
         self.assertIn("assertname:id=fst.settings.app-version|* · *", steps)
         stacked = "assertbelow:id=fst.settings.app-version|name=App Version&class=TextBlock"
         following = "assertbelow:name=Build Configuration&class=TextBlock|id=fst.settings.app-version"
