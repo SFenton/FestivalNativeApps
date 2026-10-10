@@ -29,7 +29,7 @@ Cover what the change touches:
 | Target size | Interactive elements meet the platform minimum (Apple 44 pt, Android 48 dp, Windows 40 epx touch / keyboard reachable) |
 | Text scaling | At the largest size (Apple AX5, Android 200% font, Windows 225% text) text grows, isn't clipped, and actions stay reachable |
 | Motion, transparency, contrast | Reduce Motion / Reduce Transparency paths when the change animates or uses materials; rendered contrast for text over artwork |
-| Keyboard (macOS, iPad, Windows) | New actions are reachable and operable by keyboard |
+| Keyboard (macOS, iPad, Windows) | New actions are reachable and operable by keyboard. Apple: CI cannot give a SwiftUI button Tab focus (hosted macOS tests ignore a forced Full Keyboard Access flag; FKA does not turn on in the iPad simulator, #461), so a hosted test activates the control through AXPress and the control uses the shared focusable style (`festivalRowButtonStyle()`, `pinnedFooterControl`), held by a pattern guard; list arrow keys are hosted `NSWindow.sendEvent` tests (`MacKeyboardNavigationTests`) |
 
 Where to write them:
 
@@ -40,7 +40,7 @@ Where to write them:
 | Windows | A page/state in `tools/windows/journeys/a11y-*.json` for `a11y_matrix.py`, plus UIA name/order checks in the feature journey, registered as a `Run` in `tools/windows/ui_ci.py` `RUNS` (`normal` and `text-225` at least) so the `windows-ui` job runs it ([windows-accessibility.md](windows-accessibility.md), [windows.md](windows.md)) |
 | Web (scraper repo) | Testing Library/Playwright assertions by role and accessible name (`getByRole(..., { name })`), focus order and target size in the changed component's spec |
 
-Tests run in CI: Apple `apple-ci` (hosted tests, then the iPhone journeys in its `JOURNEYS` list, [CI journeys](apple/xcuitest.md#ci-journeys); a journey not listed never runs in CI), Android `android-device` (plus `android-fold` for journeys that need a half-open book fold, see [android.md](android.md#ci-fold-journeys)), Windows `windows-ui` (`.github/workflows/windows-ui.yml`, which runs each `a11y_matrix.py` journey listed in `tools/windows/ui_ci.py` `RUNS`; add yours there). A behavior that existing accessibility tests already pin down only needs those tests updated, not duplicated.
+Where they run: PR CI runs builds and unit tests only, so **workers run the device, UI and accessibility tests they add or touch locally before merging** and report them in `tests`. The full suites run on the weekly release branch ([release train](../workflow/release-machine.md#release-train)): Apple `apple-ci` (hosted tests, then the iPhone journeys in its `JOURNEYS` list, [CI journeys](apple/xcuitest.md#ci-journeys); a journey not listed never runs in CI), Android `android-device` (plus `android-fold` for journeys that need a half-open book fold, see [android.md](android.md#ci-fold-journeys)), Windows `windows-ui` (`.github/workflows/windows-ui.yml`, which runs each `a11y_matrix.py` journey listed in `tools/windows/ui_ci.py` `RUNS`; add yours there). A behavior that existing accessibility tests already pin down only needs those tests updated, not duplicated.
 
 ## Certification (per platform, per language) — two independent gates
 

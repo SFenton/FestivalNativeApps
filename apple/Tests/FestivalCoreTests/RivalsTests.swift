@@ -138,6 +138,28 @@ private func song(id: String, delta: Int) -> RivalSongComparison {
     #expect(RivalCategorization.categorize([]).isEmpty)
 }
 
+/// Every Rival Detail category has its own Quick Links symbol (#605), and an entry built
+/// from a category keeps the web ID and title.
+@Test func rivalCategoryQuickLinkSymbolsAreDistinctPerCategory() {
+    let symbols = RivalCategorization.keys.map(RivalCategorization.quickLinkSymbol(forKey:))
+    #expect(Set(symbols).count == RivalCategorization.keys.count)
+    #expect(!symbols.contains(RivalCategorization.fallbackQuickLinkSymbol))
+    #expect(RivalCategorization.quickLinkSymbol(forKey: "unknown") == RivalCategorization.fallbackQuickLinkSymbol)
+
+    let songs = [1, 2, 3, -1, -2, -30, -40, 5, 10, 20, 40, 60, 80].enumerated().map {
+        song(id: "s\($0.offset)", delta: $0.element)
+    }
+    let categories = RivalCategorization.categorize(songs)
+    #expect(categories.map(\.key) == RivalCategorization.keys)
+    for category in categories {
+        let section = category.quickLinkSection
+        #expect(section.id == "rival-category:\(category.key)")
+        #expect(section.title == category.title)
+        #expect(section.accessibilityTitle == category.title)
+        #expect(section.icon == .system(RivalCategorization.quickLinkSymbol(forKey: category.key)))
+    }
+}
+
 // MARK: - RivalScope debug-token round-tripping
 
 @Test func rivalScopeDebugTokenRoundTripsSongScope() {

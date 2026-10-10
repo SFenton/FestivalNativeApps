@@ -47,7 +47,7 @@ Classify the change:
 
 - Unit tests for new logic; a hosted snapshot or UI journey for visible behavior that would have caught the bug.
 - An **accessibility test** on every platform you changed UI on: labels/roles/state, reading order, target size and text scaling for the changed region, using that platform's mechanism ([accessibility tests with every change](../../testing/strategy.md#accessibility-tests-with-every-change)). Update existing ones when they already cover the behavior. Report the test names in the status file's `tests`. Exempt only logic, data or copy-only changes, with the reason in the PR.
-- Your new tests must run in CI (`apple-ci`, `android-device`, `windows-ui`): put them where those workflows pick them up.
+- **Run them locally before finishing.** PR CI runs only builds and unit tests (release train); device, UI and accessibility tests run in CI only on the weekly release branch. Run every device/UI/accessibility test you add or touch on your platform (simulator, emulator, UIA) and report each with its `result`. Put them where the release-branch suites pick them up (`apple-ci` journeys, `android-device`/`android-fold`, `windows-ui`).
 - `python3 tools/pattern_guard.py`, `python3 .agents/_tools/check_docs.py --fix`, plus your platform's build and tests.
 
 ## 6. Record rules, not history

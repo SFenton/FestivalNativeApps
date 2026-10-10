@@ -54,7 +54,7 @@ final class FeedbackMediaJourneyTests: XCTestCase {
         if isPad { WindowResize.fill(app) }
         // The Duo's inner display is 951 pt wide; folded (466 pt) it is a compact iPhone.
         let isUnfoldedDuo = isDuo && WindowResize.windowWidth(app) >= 900
-        openBugForm(in: app)
+        FeedbackJourney.openForm(in: app)
         let library = app.descendants(matching: .any)["fst.settings.feedback.library"]
         openPhotoLibrary(in: app)
 
@@ -63,7 +63,7 @@ final class FeedbackMediaJourneyTests: XCTestCase {
                            "A compact iPhone window opened the photo library beside the form")
             // The system picker is presented over the form (iPhone unchanged). It runs out of
             // process, so its own Close button is not in this app's tree: the app ends here.
-            XCTAssertTrue(waitUntil { !app.buttons["fst.settings.feedback.close"].isHittable },
+            XCTAssertTrue(FeedbackJourney.waitUntil { !app.buttons["fst.settings.feedback.close"].isHittable },
                           "The photo library was not presented over the compact form")
             return
         }
@@ -89,19 +89,19 @@ final class FeedbackMediaJourneyTests: XCTestCase {
         let remove = app.buttons["fst.settings.feedback.attachment.1.remove"]
         XCTAssertTrue(remove.waitForExistence(timeout: 5))
         remove.tap()
-        XCTAssertTrue(waitUntil { !self.attachment(2, in: app).exists }, "Removing an attachment kept two")
+        XCTAssertTrue(FeedbackJourney.waitUntil { !self.attachment(2, in: app).exists }, "Removing an attachment kept two")
         XCTAssertTrue(attachment(1, in: app).exists, "Removing one attachment dropped both")
-        XCTAssertTrue(waitUntil { !first.isSelected }, "Removing the attachment left its photo ticked")
+        XCTAssertTrue(FeedbackJourney.waitUntil { !first.isSelected }, "Removing the attachment left its photo ticked")
 
         let hide = app.buttons["fst.settings.feedback.library.hide"]
         XCTAssertTrue(hide.exists)
         hide.tap()
-        XCTAssertTrue(waitUntil { !library.exists }, "Hide left the library open")
+        XCTAssertTrue(FeedbackJourney.waitUntil { !library.exists }, "Hide left the library open")
         XCTAssertTrue(attachment(1, in: app).exists, "Hiding the library dropped the attachment")
-        XCTAssertTrue(waitUntil { title.frame.width > besideWidth + 100 },
+        XCTAssertTrue(FeedbackJourney.waitUntil { title.frame.width > besideWidth + 100 },
                       "The form did not take the sheet back (\(title.frame.width) ≤ \(besideWidth))")
 
-        cancelAndDiscard(in: app)
+        FeedbackJourney.cancelAndDiscard(in: app)
     }
 
     /// iPad: a photo dragged from Photos onto the Description box shows the drop
@@ -135,7 +135,7 @@ final class FeedbackMediaJourneyTests: XCTestCase {
         XCTAssertTrue(sideBySide(app, photosApp),
                       "App \(app.windows.firstMatch.frame) and Photos \(photosApp.windows.firstMatch.frame) are not side by side")
         app.activate()
-        openBugForm(in: app)
+        FeedbackJourney.openForm(in: app)
 
         let marker = app.descendants(matching: .any)["fst.settings.feedback.drop.shown"]
         XCTAssertTrue(marker.waitForExistence(timeout: 10), "Drop marker missing (Debug build?)")
@@ -158,23 +158,10 @@ final class FeedbackMediaJourneyTests: XCTestCase {
                       "The dropped photo was not attached")
         let shown = Int(marker.value as? String ?? "") ?? 0
         XCTAssertGreaterThanOrEqual(shown, 1, "No drop highlight showed during the drag")
-        cancelAndDiscard(in: app)
+        FeedbackJourney.cancelAndDiscard(in: app)
     }
 
     // MARK: - Helpers
-
-    /// The fixture app on the Settings tab.
-    ///
-    /// - Parameter extra: More launch environment.
-    /// - Returns: The configured, not-yet-launched app.
-    @MainActor
-    private func fixtureApp(_ extra: [String: String] = [:]) -> XCUIApplication {
-        FestivalApp.makeApp([
-            "FST_API_BASE_URL": Self.origin,
-            "FST_UI_TEST_CLEAR_PROFILE": "1",
-            "FST_DEBUG_TAB": "settings",
-        ].merging(extra) { _, new in new })
-    }
 
     /// Whether two apps' windows sit side by side without overlapping.
     @MainActor
@@ -187,26 +174,14 @@ final class FeedbackMediaJourneyTests: XCTestCase {
     /// Skip unless the fixture service answers.
     @MainActor
     private func requireFixture() throws {
-        let probe = expectation(description: "fixture probe")
-        nonisolated(unsafe) var reachable = false
-        URLSession.shared.dataTask(with: URL(string: "\(Self.origin)/api/features")!) { _, response, _ in
-            reachable = (response as? HTTPURLResponse)?.statusCode == 200
-            probe.fulfill()
-        }.resume()
-        wait(for: [probe], timeout: 5)
-        try XCTSkipUnless(reachable, "Start `mock_service.py --port 18373` from this revision")
+        try XCTSkipUnless(FeedbackJourney.fixtureReachable(origin: Self.origin),
+                          "Start `mock_service.py --port 18373` from this revision")
     }
 
-    /// Scroll Settings to Report an Issue and open the form.
-    ///
-    /// - Parameter app: The fixture app on Settings.
+    /// The fixture app on the Settings tab.
     @MainActor
-    private func openBugForm(in app: XCUIApplication) {
-        let report = app.buttons["fst.settings.feedback.bug"]
-        XCTAssertTrue(scrollTo(report, in: app), "Report an Issue missing from Settings")
-        report.tap()
-        XCTAssertTrue(app.textFields["fst.settings.feedback.field.title"].waitForExistence(timeout: 10),
-                      "The Report an Issue form did not open")
+    private func fixtureApp(_ extra: [String: String] = [:]) -> XCUIApplication {
+        FeedbackJourney.fixtureApp(origin: Self.origin, extra)
     }
 
     /// Attach Media › Photo Library.
@@ -215,25 +190,11 @@ final class FeedbackMediaJourneyTests: XCTestCase {
     @MainActor
     private func openPhotoLibrary(in app: XCUIApplication) {
         let attach = app.buttons["fst.settings.feedback.attach"]
-        XCTAssertTrue(scrollTo(attach, in: app), "Attach Media missing")
+        XCTAssertTrue(FeedbackJourney.scrollTo(attach, in: app), "Attach Media missing")
         attach.tap()
         let media = app.buttons["fst.settings.feedback.attach.media"]
         XCTAssertTrue(media.waitForExistence(timeout: 5), "Attach Media has no Photo Library item")
         media.tap()
-    }
-
-    /// Cancel the form, confirm the discard when asked, and require it closed.
-    ///
-    /// - Parameter app: The app with the form open.
-    @MainActor
-    private func cancelAndDiscard(in app: XCUIApplication) {
-        let close = app.buttons["fst.settings.feedback.close"]
-        XCTAssertTrue(close.waitForExistence(timeout: 5))
-        close.tap()
-        let discard = app.buttons["fst.settings.feedback.discard.confirm"]
-        if discard.waitForExistence(timeout: 5) { discard.firstMatch.tap() }
-        XCTAssertTrue(waitUntil { !app.textFields["fst.settings.feedback.field.title"].exists },
-                      "Cancel did not close the form")
     }
 
     /// The attachment thumbnail at a 1-based position.
@@ -242,41 +203,9 @@ final class FeedbackMediaJourneyTests: XCTestCase {
         app.buttons["fst.settings.feedback.attachment.\(position)"]
     }
 
-    /// Swipe up on the app's window until the element is hittable. Never `app.swipeUp()`:
-    /// in Split View the app element spans the screen, and its centre is the divider.
-    ///
-    /// - Returns: Whether it became hittable within 15 swipes.
-    @MainActor
-    private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
-        _ = element.waitForExistence(timeout: 15)
-        let page = app.windows.firstMatch
-        var attempts = 0
-        while !(element.exists && element.isHittable) && attempts < 12 {
-            page.swipeUp()
-            attempts += 1
-        }
-        // A compact window's tab bar covers the bottom of the page: bring the row above it.
-        while element.exists && element.frame.maxY > page.frame.maxY - 140 && attempts < 15 {
-            page.swipeUp()
-            attempts += 1
-        }
-        return element.exists && element.isHittable
-    }
-
     /// Tap the centre of an element XCUITest reports as not hittable.
     @MainActor
     private func tapCentre(of element: XCUIElement) {
         element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-    }
-
-    /// Poll a condition for up to `timeout` seconds.
-    @MainActor
-    private func waitUntil(timeout: TimeInterval = 10, _ condition: @escaping () -> Bool) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if condition() { return true }
-            Thread.sleep(forTimeInterval: 0.25)
-        }
-        return condition()
     }
 }

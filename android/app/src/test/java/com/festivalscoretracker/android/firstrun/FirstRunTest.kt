@@ -93,6 +93,18 @@ class FirstRunTest {
         assertFalse(FirstRunSlideEvaluator.isUnseen(wideNav, mapOf(compactNav.id to FirstRunSlideEvaluator.seenRecord(compactNav, now))))
     }
 
+    @Test
+    fun pageToolSlidesNameTheFloatingToolbarNotTheHeaderAndKeepTheirContentKeys() {
+        // Page tools float in the shell toolbar at every window size (#576).
+        val sort = FirstRunCatalog.playerHistory.first { it.id == "playerhistory-sort" }
+        val paths = FirstRunCatalog.songInfo.first { it.id == "songinfo-paths" }
+        assertTrue(sort.description.contains("in the toolbar"))
+        for (slide in listOf(sort, paths)) {
+            assertFalse(slide.id, slide.description.contains("header"))
+            assertEquals(slide.id, slide.contentKey)
+        }
+    }
+
     // endregion
 
     // region Slide selection

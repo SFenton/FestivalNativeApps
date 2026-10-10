@@ -31,6 +31,20 @@ public sealed partial class SongSortForm : UserControl
     {
         InitializeComponent();
         ApplyIds();
+        Root.GotFocus += OnRowGotFocus;
+    }
+
+    /// <summary>
+    /// Scrolls the newly focused row fully into the flyout's viewport (WCAG 2.4.11, issue #430). An arrow key inside a
+    /// <c>RadioButtons</c> group moves focus without scrolling the host flyout, so at 225% text the focused Descending
+    /// row stayed mostly below the fold.
+    /// </summary>
+    /// <param name="sender">The form's root panel.</param>
+    /// <param name="e">Focus event; <see cref="RoutedEventArgs.OriginalSource"/> is the focused control.</param>
+    private void OnRowGotFocus(object sender, RoutedEventArgs e)
+    {
+        if (e.OriginalSource is not UIElement focused) return;
+        DispatcherQueue.TryEnqueue(() => focused.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = false }));
     }
 
     /// <summary>Live sort draft.</summary>

@@ -1,6 +1,5 @@
 package com.festivalscoretracker.android.ui.settings
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
@@ -10,6 +9,7 @@ import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.settings.SettingsDetail
 import com.festivalscoretracker.android.core.settings.SettingsDetailText
 import com.festivalscoretracker.android.core.settings.SettingsPanes
+import com.festivalscoretracker.android.ui.common.AccordionReveal
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.shell.icon
 import androidx.compose.foundation.background
@@ -295,7 +295,7 @@ private fun AppSettingsSection(settings: AppSettings, vm: SettingsViewModel, onF
             "When enabled, the metadata display order on song rows is controlled separately from sort priority. When disabled, metadata follows sort priority order.",
             settings.enableVisualOrder, vm::setEnableVisualOrder, "fst.settings.enable-visual-order",
         )
-        AnimatedVisibility(settings.enableVisualOrder) {
+        AccordionReveal(settings.enableVisualOrder) {
             if (panes != null) {
                 SettingsDetail.SongRowOrder.let { DetailRow(it, songRowOrderSummary(settings), panes) }
             } else {
@@ -332,7 +332,7 @@ private fun AppSettingsSection(settings: AppSettings, vm: SettingsViewModel, onF
             "When enabled, the app will attempt to filter out invalid leaderboard values based on the maximum score derived from the CHOpt path.",
             settings.filterInvalidScores, vm::setFilterInvalidScores, "fst.settings.filter-invalid-scores",
         )
-        AnimatedVisibility(settings.filterInvalidScores) {
+        AccordionReveal(settings.filterInvalidScores) {
             if (panes != null) DetailRow(SettingsDetail.Leeway, ScoreLeeway.format(settings.leeway), panes) else LeewayControl(settings.leeway, vm::setLeeway)
         }
         Divider()
@@ -547,19 +547,19 @@ private fun FirstRunSection(onShow: (FirstRunPageKey) -> Unit) {
     }
 }
 
+/**
+ * Reset: the web's `resetRow`, a section header and the red Reset All Settings button with no
+ * card around them (#599), like the uncarded Licenses and Privacy Policy rows. It stays in the
+ * list in list/detail too.
+ */
 @Composable
 private fun ResetSection(onReset: () -> Unit) {
-    GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Reset Settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
-            Hint("Restore all settings to their default values.")
-            Button(
-                onClick = onReset,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = BrandTokens.textPrimary),
-                modifier = Modifier.fillMaxWidth().testTag("fst.settings.reset"),
-            ) { Text("Reset All Settings") }
-        }
-    }
+    Header("Reset Settings", "Restore all settings to their default values.")
+    Button(
+        onClick = onReset,
+        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = BrandTokens.textPrimary),
+        modifier = Modifier.fillMaxWidth().testTag("fst.settings.reset"),
+    ) { Text("Reset All Settings") }
 }
 
 // endregion

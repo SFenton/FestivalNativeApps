@@ -187,6 +187,20 @@ class EntranceRushTests(unittest.TestCase):
                 "fade-rush list=A start=0 rushed=0 kept=0 since=300 at=1300"]
         self.assertIn("1 were still pending", f.check_entrance_rush(events(*rows), "A")[0])
 
+    def test_a_row_played_again_is_one_pending_fade(self):
+        # #552 (master run 37937505898): a re-realized row logs fade-play again; its latest play replaces the first.
+        replayed = ["fade-arm list=A start=0 at=1000", "fade-play list=A index=9 delay=1250 motion=1 at=1000",
+                    "fade-play list=A index=9 delay=1250 motion=1 at=1050",
+                    "fade-rush list=A start=0 rushed=1 kept=0 since=300 at=1300"]
+        self.assertEqual([], f.check_entrance_rush(events(*replayed), "A"))
+        # Two distinct pending rows still need two rushed fades.
+        two = [*replayed[:2], replayed[2].replace("index=9", "index=10"), replayed[3]]
+        self.assertIn("started 1 fade(s) but 2 were still pending", f.check_entrance_rush(events(*two), "A")[0])
+        # A replay that already started by the rush leaves the row not pending.
+        started = [*replayed[:2], "fade-play list=A index=9 delay=0 motion=1 at=1100",
+                   replayed[3].replace("rushed=1", "rushed=0")]
+        self.assertEqual([], f.check_entrance_rush(events(*started), "A"))
+
     def test_a_fade_scheduled_after_the_rush_with_a_delay_fails(self):
         late = [*PAGE, *EARLY_RUSH, "fade-enter list=Scroller target=BandBoards delay=300 motion=1 at=1600",
                 "fade-play list=Scroller index=2 delay=250 motion=1 at=1600"]

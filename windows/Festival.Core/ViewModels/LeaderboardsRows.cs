@@ -460,6 +460,13 @@ public sealed partial class RankingsPagerViewModel(string idPrefix, Func<int, Ta
         Page = Math.Clamp(current, 1, TotalPages);
     }
 
+    /// <summary>
+    /// Forgets the page count when a switch (instrument, metric, band size) starts loading a different board: the pager
+    /// hides until <see cref="Update"/> commits that board's real count, never showing the old board's count or a
+    /// "1 / 1" placeholder (load-transition R4, issue #575). Page-only reloads don't call this.
+    /// </summary>
+    public void Reset() => Update(1, 1);
+
     /// <summary>Page 1.</summary>
     /// <returns>Move task.</returns>
     [RelayCommand(CanExecute = nameof(CanGoBack), AllowConcurrentExecutions = true)]

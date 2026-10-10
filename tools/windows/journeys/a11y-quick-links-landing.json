@@ -1,9 +1,6 @@
 [
   {
     "name": "qla-settings-menu",
-    "axe_allow": [
-      "framework-popup"
-    ],
     "route": "/settings",
     "fixture": [],
     "sizes": [
@@ -70,14 +67,13 @@
       "waitfor:id=fst.quick-links.item.accessibility@5",
       "key:esc",
       "waitgone:id=fst.quick-links.item.accessibility@5",
-      "assertfocus:id=fst.quick-links.open@3"
+      "assertfocus:id=fst.quick-links.open@3",
+      "focus:id=fst.settings.show-instrument-icons",
+      "assertfocus:id=fst.settings.show-instrument-icons@3"
     ]
   },
   {
     "name": "qla-leaderboards-menu",
-    "axe_allow": [
-      "framework-popup"
-    ],
     "route": "/leaderboards",
     "fixture": [],
     "sizes": [
@@ -121,7 +117,9 @@
       "waitfor:id=fst.quick-links.item.instrument:Solo_Drums@5",
       "key:esc",
       "waitgone:id=fst.quick-links.item.instrument:Solo_Drums@5",
-      "assertfocus:id=fst.quick-links.open@3"
+      "assertfocus:id=fst.quick-links.open@3",
+      "focus:id=fst.rankings.row.fixture-player-1",
+      "assertfocus:id=fst.rankings.row.fixture-player-1@3"
     ]
   },
   {

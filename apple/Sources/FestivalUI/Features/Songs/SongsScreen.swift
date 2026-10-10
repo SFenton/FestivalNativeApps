@@ -81,6 +81,7 @@ struct SongsScreen: View, Equatable {
     @AppStorage("fst.settings.disableShopHighlighting")
     private var disableShopHighlighting = false
     @AppStorage("fst.settings.filterInvalidScores") private var filterInvalidScores = false
+    @AppStorage("fst.settings.leeway") private var leeway = 1.0
     @AppStorage("fst.settings.showInstrumentIcons") private var showInstrumentIcons = true
     @AppStorage("fst.settings.metadataScore") private var metadataScore = true
     @AppStorage("fst.settings.metadataPercentage") private var metadataPercentage = true
@@ -266,10 +267,6 @@ struct SongsScreen: View, Equatable {
             return "Player score filters paused while their charts are hidden in Settings. "
                 + "Your choices are saved."
         }
-        if filterInvalidScores {
-            return "Player score filters paused while Filter Invalid Scores is enabled. "
-                + "Published raw scores cannot replace validated score variants."
-        }
         if !scoreFilterAvailable {
             return "Player score filters paused until selected scores and songs "
                 + "share the current publication. Showing songs without score filters."
@@ -278,10 +275,44 @@ struct SongsScreen: View, Equatable {
     }
 
     private var effectivePlayerScoreFilter: SongPlayerScoreFilter {
-        session.selectedPlayer != nil && playerScoreFilterPausedMessage == nil
-            ? (appliedPlayerScoreFilter?.scoped(to: visibleInstruments)
-                ?? SongPlayerScoreFilter())
-            : SongPlayerScoreFilter()
+        guard session.selectedPlayer != nil, playerScoreFilterPausedMessage == nil else {
+            return SongPlayerScoreFilter()
+        }
+        let scoped = appliedPlayerScoreFilter?.scoped(to: visibleInstruments)
+            ?? SongPlayerScoreFilter()
+        // Saved Over CHOpt Threshold checks are inert (and not "active") while Filter
+        // Invalid Scores is off, as on the web.
+        return invalidScoreLeeway == nil ? scoped.clearingOverThreshold : scoped
+    }
+
+    /// Settings › Filter Invalid Scores' leeway (rounded to the slider's 0.1 steps)
+    /// while it is on and a player is selected, else nil. Rows, filters, sorts and the
+    /// profile panel then use the player's effective scores (web `SongsPage`
+    /// `effectiveScores`); a band's scores have no substitution.
+    private var invalidScoreLeeway: Double? {
+        guard filterInvalidScores, session.selectedPlayer != nil, session.selectedBand == nil
+        else { return nil }
+        return (leeway * 10).rounded() / 10
+    }
+
+    /// Charts whose Over CHOpt Threshold filter keeps an invalid score raw (inert while
+    /// Filter Invalid Scores is off).
+    private var overThresholdCharts: Set<Instrument> {
+        invalidScoreLeeway == nil ? [] : effectivePlayerScoreFilter.overThreshold
+    }
+
+    /// The selected player's scores as Songs shows them: raw, or each chart's
+    /// effective score while Filter Invalid Scores is on.
+    ///
+    /// - Parameter songs: The catalogue (CHOpt maxima and population curves).
+    /// - Returns: Scores by song ID and chart.
+    private func playerScoreIndex(songs: [Song]) -> [String: [Instrument: PlayerScore]] {
+        guard let invalidScoreLeeway else { return session.selectedPlayerScores }
+        let songsById = Dictionary(songs.map { ($0.songId, $0) }, uniquingKeysWith: { first, _ in first })
+        return InvalidScorePolicy.resolve(
+            index: session.selectedPlayerScores, songsById: songsById,
+            leeway: invalidScoreLeeway, overThreshold: overThresholdCharts
+        )
     }
 
     private var hiddenPlayerScoreChecks: Bool {
@@ -431,9 +462,10 @@ struct SongsScreen: View, Equatable {
                         publicFiltered,
                         scoresBySong: session.hasCurrentPlayerScores(
                             forCatalogue: payload.observedPublicationId
-                        ) ? session.selectedPlayerScores : nil,
+                        ) ? playerScoreIndex(songs: payload.catalog.songs) : nil,
                         visibleInstruments: visibleInstruments,
-                        selectedInstrument: instrument
+                        selectedInstrument: instrument,
+                        overThresholdLeeway: invalidScoreLeeway
                     )
                     MainThreadStallMonitor.count("songs.sort")
                     return try SongCatalogSort.sorted(
@@ -554,8 +586,8 @@ struct SongsScreen: View, Equatable {
                     visibleInstruments: visibleInstruments,
                     selectedPlayer: session.selectedPlayer != nil,
                     scoreAvailable: scoreFilterAvailable,
-                    invalidScoreFilteringEnabled: filterInvalidScores,
-                    availableSeasons: SongSeasonBucket.keys(in: session.selectedPlayerScores)
+                    invalidScoreFilteringEnabled: invalidScoreLeeway != nil,
+                    availableSeasons: SongSeasonBucket.keys(in: playerScoreIndex(songs: catalogueSongs))
                 ) { general, player, instrumentChoice in
                     let playerData = try player.encoded()
                     try saveGeneralFilter(general)
@@ -815,10 +847,6 @@ struct SongsScreen: View, Equatable {
         // No instrument: normalized to Title on appear / change, not a pause. No player:
         // a deselect reverts it to Title (issue #359); any left over shows Title silently.
         guard instrument != nil, session.selectedPlayer != nil else { return nil }
-        if filterInvalidScores {
-            return "\(name) sort paused while Filter Invalid Scores is enabled. "
-                + "Published raw scores cannot replace validated score variants."
-        }
         if !scoreFilterAvailable {
             return "\(name) sort paused until selected scores and songs share the current "
                 + "publication. Showing title order; your preference is saved."
@@ -860,7 +888,7 @@ struct SongsScreen: View, Equatable {
         guard let instrument,
               session.hasCurrentPlayerScores(forCatalogue: payload.observedPublicationId)
         else { return nil }
-        return session.selectedPlayerScores.compactMapValues { $0[instrument] }
+        return playerScoreIndex(songs: payload.catalog.songs).compactMapValues { $0[instrument] }
     }
 
     /// Reset a player sort to Title A–Z once Songs shows every instrument.
@@ -1491,8 +1519,7 @@ struct SongsScreen: View, Equatable {
         #else
         SongProfilePanelPolicy.gridColumns(
             layout: deviceLayout,
-            hasSelectedProfile: session.selectedPlayer != nil || session.selectedBand != nil,
-            filterInvalidScores: session.selectedBand == nil && filterInvalidScores
+            hasSelectedProfile: session.selectedPlayer != nil || session.selectedBand != nil
         )
         #endif
     }
@@ -1629,7 +1656,8 @@ struct SongsScreen: View, Equatable {
             profileChart: chart,
             catalogueObservation: catalogueObservation,
             metadata: metadataVisibility,
-            filterInvalidScores: filterInvalidScores,
+            invalidScoreLeeway: invalidScoreLeeway,
+            overThresholdCharts: overThresholdCharts,
             showInstrumentIcons: showInstrumentIcons,
             visibleInstruments: visibleInstruments,
             currentSeason: currentSeason
@@ -1667,6 +1695,9 @@ struct SongsScreen: View, Equatable {
         // The Mac's `ListDetailLink` already marks its label selected.
         .listDetailSelectable(AppRoute.songDetail(song))
         #endif
+        // The invalid-score indicator's button follows the song link, outside it (inside,
+        // a tap would open the song instead), and precedes the profile cards.
+        .songInvalidScoreIndicator(songId: song.songId)
         // A wide row's profile cards follow the song link as their own VoiceOver stops
         // (`songs-profile-panel` R8); outside the link, which would collapse them.
         .songProfilePanelAccessibility(songId: song.songId)
@@ -2146,8 +2177,8 @@ struct SongsInlineSectionTitle: View {
 /// (issue #383, ``SwiftUI/View/pinnedHeaderEdgeFadeRowMask(edge:active:depthLimit:rowLimit:)``).
 /// Observes ``SongsScrollChrome`` here, so a scroll re-renders only this modifier, never
 /// the List (issue #8). At the top it observes only the scroll-away state
-/// (``SongsScrollChrome/rowFade(enabled:)``), so the expanding large title re-renders no
-/// row.
+/// (``SongsScrollChrome/rowEdge(enabled:)``), so the expanding large title re-renders no
+/// row; once scrolled, only rows near the bar read the moving depth limit (issue #553).
 private struct SectionBarRowFade: ViewModifier {
     let chrome: SongsScrollChrome
     /// False for a row with no section bar above it (no sections, or before iOS 26).
@@ -2155,9 +2186,11 @@ private struct SectionBarRowFade: ViewModifier {
 
     func body(content: Content) -> some View {
         if enabled {
-            let fade = chrome.rowFade(enabled: true)
+            let edge = chrome.rowEdge(enabled: true)
+            let chrome = chrome
             content.pinnedHeaderEdgeFadeRowMask(
-                edge: fade.edge, active: fade.active, depthLimit: fade.depthLimit,
+                edge: edge.edge, active: edge.active,
+                depthLimit: PinnedHeaderEdgeFade.RowMaskDepth { chrome.rowFadeLimit },
                 rowLimit: chrome.rowMaskLimit
             )
         } else {
