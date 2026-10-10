@@ -101,5 +101,63 @@
       "wait:0.5"
     ],
     "tabs": 0
+  },
+  {
+    "name": "instrument-selector-swap-compact",
+    "route": "/songs",
+    "env": {
+      "FST_DEBUG_CONTROL_LAB": "instrument-selector"
+    },
+    "sizes": [
+      "compact"
+    ],
+    "setup": [
+      "resize:medium",
+      "wait:1.5",
+      "scrollinto:id=fst.instrument-selector.auto.Solo_Bass@20",
+      "focus:id=fst.instrument-selector.auto.Solo_Bass",
+      "key:shift+tab",
+      "assertfocus:id=fst.instrument-selector.auto.Solo_Guitar@3",
+      "waitfor:name=Lead&class=ToolTip@5",
+      "resize:compact",
+      "wait:1.5"
+    ],
+    "ready": [
+      "waitfor:id=fst.instrument-selector.auto.compact@10"
+    ],
+    "after_ready": [
+      "waitgone:name=Lead&class=ToolTip@3",
+      "assertfocus:id=fst.instrument-selector.auto.compact@3"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "instrument-selector-swap-full",
+    "route": "/songs",
+    "env": {
+      "FST_DEBUG_CONTROL_LAB": "instrument-selector"
+    },
+    "sizes": [
+      "medium"
+    ],
+    "setup": [
+      "resize:compact",
+      "wait:1.5",
+      "scrollinto:id=fst.instrument-selector.auto.compact@20",
+      "focus:id=fst.instrument-selector.auto.previous",
+      "key:tab",
+      "assertfocus:id=fst.instrument-selector.auto.compact@3",
+      "waitfor:name=Lead&class=ToolTip@5",
+      "resize:medium",
+      "wait:1.5"
+    ],
+    "ready": [
+      "waitfor:id=fst.instrument-selector.auto.Solo_Bass@10"
+    ],
+    "after_ready": [
+      "waitgone:name=Lead&class=ToolTip@3",
+      "assertfocus:id=fst.instrument-selector.auto.Solo_Guitar@3"
+    ],
+    "tabs": 0
   }
 ]

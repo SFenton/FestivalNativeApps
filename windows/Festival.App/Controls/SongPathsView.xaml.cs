@@ -49,6 +49,9 @@ public sealed partial class SongPathsView : UserControl
         InstrumentPicker.Hidden = new HashSet<Instrument> { Instrument.Karaoke };
         InstrumentPicker.Instruments = viewModel.Instruments;
         SyncInstrument();
+        // The width swap collapses one selector set; its tooltips (the Instrument Selector circles') must close with it.
+        CollapsedToolTip.CloseWhenCollapsed(Selectors);
+        CollapsedToolTip.CloseWhenCollapsed(CompactSelectors);
         BuildHeader();
         viewModel.PropertyChanged += OnViewModelChanged;
         viewModel.AnimateSwaps = () => Motion.Allowed;
@@ -254,9 +257,43 @@ public sealed partial class SongPathsView : UserControl
     private void OnRootSizeChanged(object sender, SizeChangedEventArgs e)
     {
         var compact = e.NewSize.Width < CompactWidth;
+        // Focus on a picker follows the swap to its counterpart (programmatically, so it opens no keyboard tooltip)
+        // instead of falling to the chart (#571).
+        var replacement = compact ? WideToCompact() : CompactToWide();
         Selectors.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         CompactSelectors.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
+        if (replacement is not null) CollapsedToolTip.HandFocusWith(this, replacement);
     }
+
+    /// <summary>The compact picker that replaces the focused wide one, if focus is in the wide selectors.</summary>
+    /// <returns>Focuses the replacement, or <see langword="null"/>.</returns>
+    private Func<bool>? WideToCompact()
+    {
+        if (CollapsedToolTip.HasFocusWithin(InstrumentPicker)) return () => Programmatic(CompactInstrumentPicker);
+        if (CollapsedToolTip.HasFocusWithin(DifficultyPicker)) return () => Programmatic(CompactDifficultyPicker);
+        if (CollapsedToolTip.HasFocusWithin(DisplayPicker)) return () => Programmatic(CompactDisplayPicker);
+        return null;
+    }
+
+    /// <summary>The wide picker that replaces the focused compact one, if focus is in the compact selectors.</summary>
+    /// <returns>Focuses the replacement, or <see langword="null"/>.</returns>
+    private Func<bool>? CompactToWide()
+    {
+        if (CollapsedToolTip.HasFocusWithin(CompactInstrumentPicker)) return InstrumentPicker.FocusCurrent;
+        if (CollapsedToolTip.HasFocusWithin(CompactDifficultyPicker)) return () => Programmatic(SelectedOption(DifficultyPicker));
+        if (CollapsedToolTip.HasFocusWithin(CompactDisplayPicker)) return () => Programmatic(SelectedOption(DisplayPicker));
+        return null;
+    }
+
+    /// <summary>Focuses a replacement picker programmatically.</summary>
+    /// <param name="target">Picker, or <see langword="null"/> before it is realized.</param>
+    /// <returns>Whether it took focus.</returns>
+    private static bool Programmatic(Control? target) => target?.Focus(FocusState.Programmatic) == true;
+
+    /// <summary>The checked option of a wide picker (its focus stop), once realized.</summary>
+    /// <param name="picker">Difficulty or display picker.</param>
+    /// <returns>Radio button, or <see langword="null"/> before layout.</returns>
+    private static Control? SelectedOption(RadioButtons picker) => picker.ContainerFromIndex(Math.Max(picker.SelectedIndex, 0)) as Control;
 
     /// <summary>Compact box widths for their longest options (instrument, difficulty, display); measured once per sheet.</summary>
     private (double Instrument, double Difficulty, double Display)? compactWidths;
