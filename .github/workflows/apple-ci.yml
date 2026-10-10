@@ -98,6 +98,7 @@ jobs:
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
             NavButtonHitRegionJourneyTests/testAccountButtonsStaySeparateAndLabelledAtLargestTextSize
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
+            CompeteAccessibilityJourneyTests/testCompeteIsReadableAtAX5
             RivalsJourneyTests/testAllRivalsTitleLeadsTheListAndPinsAfterScroll
             RivalsJourneyTests/testAllRivalsDuoVerticalBarKeepsSystemTitle
             SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
