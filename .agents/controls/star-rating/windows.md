@@ -30,7 +30,7 @@
 | `minimum-one` | The 1-star floor: 1 draws one image; 0 (rank 4) and missing (rank 6) draw nothing and add no stars to the name | Journeys (rank 4/6 names end without stars) + Core `From_MissingOrInvalidDrawsNothing` |
 | `gold-average` | Profile instrument Avg Stars = 6 (`/player/fixture-player-1`, every score six stars) | `stars-gold-average`, `stars-gold-average-compact` ("Avg Stars: 5 gold stars", `gold-6`) |
 
-Run: `python tools/windows/ui_journey.py tools/windows/journeys/star-rating.json --fixture tools/windows/star_rating_fixture.py` (6 journeys: leaderboard compact/medium/wide/maximized, gold average medium/compact). The fixture wraps `mock_service.py` and rewrites `fixture-*` Lead leaderboards by rank and fixture-player-1's scores. A11y matrix pages: `journeys/a11y-star-rating.json` (`stars-gold-average-quick-links` reaches the Lead tiles at text 200%, where the virtualized section isn't realized until you jump or scroll to it).
+Run: `python tools/windows/ui_journey.py tools/windows/journeys/star-rating.json` (6 journeys: leaderboard compact/medium/wide/maximized, gold average medium/compact; each names `star_rating_fixture.py` in its `fixture` list, so CI runs it with no flag, issue #529). Row names follow [score-accuracy](../score-accuracy/windows.md): `season N` from 520 epx and `accuracy unavailable` for an FC-only row. The fixture wraps `mock_service.py` and rewrites `fixture-*` Lead leaderboards by rank and fixture-player-1's scores. A11y matrix pages: `journeys/a11y-star-rating.json` (`stars-gold-average-quick-links` reaches the Lead tiles at text 200%, where the virtualized section isn't realized until you jump or scroll to it).
 
 ## Validation (issue #221, 2026-10-04)
 

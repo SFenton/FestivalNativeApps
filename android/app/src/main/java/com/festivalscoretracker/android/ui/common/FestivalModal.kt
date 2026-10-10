@@ -461,8 +461,10 @@ internal fun HingeSideDialogLayout(
 
 /**
  * Shared confirmation / notice alert: Material's `AlertDialog` on the card colour with a
- * text confirm button and a text dismiss button (the platform's standard way to close an
- * alert, together with back and an outside tap).
+ * text confirm button and, for a choice, a text dismiss button (the platform's standard way
+ * to close an alert, together with back and an outside tap). A notice that only needs
+ * acknowledging (e.g. the feedback form's "Report Sent", #565) omits [dismissLabel] and shows
+ * the single confirm action.
  *
  * @param title Alert title.
  * @param text Body.
@@ -470,8 +472,8 @@ internal fun HingeSideDialogLayout(
  * @param confirmLabel Confirm button text.
  * @param confirmTag Confirm button test tag.
  * @param onConfirm Confirm action (callers close the alert).
- * @param dismissLabel Dismiss button text.
- * @param dismissTag Dismiss button test tag.
+ * @param dismissLabel Dismiss button text, or null for a single-action notice.
+ * @param dismissTag Dismiss button test tag (required with [dismissLabel]).
  * @param onDismissRequest Back, an outside tap, or (by default) the dismiss button.
  * @param onDismissButton Dismiss button action when it differs from [onDismissRequest].
  * @param textTag Optional body test tag.
@@ -485,9 +487,9 @@ fun FestivalAlertDialog(
     confirmLabel: String,
     confirmTag: String,
     onConfirm: () -> Unit,
-    dismissLabel: String,
-    dismissTag: String,
     onDismissRequest: () -> Unit,
+    dismissLabel: String? = null,
+    dismissTag: String? = null,
     onDismissButton: () -> Unit = onDismissRequest,
     textTag: String? = null,
     destructive: Boolean = false,
@@ -504,7 +506,11 @@ fun FestivalAlertDialog(
                     modifier = Modifier.testTag(confirmTag),
                 ) { Text(confirmLabel) }
             },
-            dismissButton = { TextButton(onClick = onDismissButton, modifier = Modifier.testTag(dismissTag)) { Text(dismissLabel) } },
+            dismissButton = dismissLabel?.let { label ->
+                {
+                    TextButton(onClick = onDismissButton, modifier = if (dismissTag != null) Modifier.testTag(dismissTag) else Modifier) { Text(label) }
+                }
+            },
             containerColor = BrandTokens.cardBackground,
             modifier = Modifier.popupTestTags().testTag(tag),
         )

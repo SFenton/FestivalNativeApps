@@ -250,7 +250,7 @@ struct SongDetailScreen: View {
     private var detailToolbar: some ToolbarContent {
         #if os(iOS)
         SongBarTitleToolbarItem(
-            song: song, session: session, caption: nil, isShown: heroTitleHidden,
+            song: song, session: session, caption: nil, captionInstrument: nil, isShown: heroTitleHidden,
             identifier: "fst.song-detail.pinned-title"
         )
         #endif

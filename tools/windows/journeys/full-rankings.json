@@ -121,6 +121,7 @@
     "name": "fr-rank-by-menu",
     "fixture": ["rankings_fixture.py"],
     "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "settings": {"experimentalRanks": true},
     "tabs": 0,
     "ready": [
       "waitfor:id=fst.full-rankings.list@20"

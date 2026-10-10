@@ -20,6 +20,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     private Instrument spotlightInstrument;
     private bool spotlightShown;
     private int version;
+    private RankingMetric requestedMetric;
     private List<AccountRankingEntry> entries = [];
 
     /// <summary>Creates the page model for a route.</summary>
@@ -31,7 +32,8 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         this.session = session;
         this.reader = reader ?? LeaderboardPreferences.DefaultReader(session);
         instrument = route.Instrument;
-        metric = RankingMetricInfo.Coerce(route.RankBy);
+        requestedMetric = RankingMetricInfo.Coerce(route.RankBy);
+        metric = requestedMetric.Gate(session.Settings.ExperimentalRanks);
         page = Math.Max(1, route.Page);
         Pager = new RankingsPagerViewModel("fst.full-rankings", GoToPageAsync);
         Status = new ServiceStatusViewModel("full-rankings", "Rankings unavailable", LoadAsync, session.Time);
@@ -65,8 +67,11 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     /// <summary>Whether load-swap motion is allowed; the app layer supplies <c>Motion.Allowed</c>.</summary>
     public Func<bool> AnimateLoadSwaps { get; set; } = () => false;
 
-    /// <summary>Metrics offered by Rank By.</summary>
-    public IReadOnlyList<RankingMetric> MetricOptions => RankingMetricInfo.All;
+    /// <summary>Metrics offered by Rank By (web <c>getEnabledRankingMetrics</c>).</summary>
+    public IReadOnlyList<RankingMetric> MetricOptions => RankingMetricInfo.Enabled(session.Settings.ExperimentalRanks);
+
+    /// <summary>Whether Rank By shows: only with Settings' Experimental Ranks on, as on the web.</summary>
+    public bool ShowRankBy => session.Settings.ExperimentalRanks;
 
     /// <summary>Instrument switcher options: Settings-visible charts, keeping the current one selectable.</summary>
     public List<Instrument> InstrumentOptions =>
@@ -140,7 +145,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     /// </summary>
     public bool ShowContent => State is LoadState.Loaded or LoadState.Empty;
 
-    /// <summary>Switches instrument (resets to page 1; the spotlight is rebuilt when the new board commits).</summary>
+    /// <summary>Switches instrument (resets to page 1 and hides the pager until the new board's count commits, #575; the spotlight is rebuilt when the new board commits).</summary>
     /// <param name="value">Instrument.</param>
     /// <returns>Load task.</returns>
     [RelayCommand]
@@ -149,6 +154,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         if (value == Instrument) return Task.CompletedTask;
         Instrument = value;
         Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 
@@ -158,9 +164,29 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     [RelayCommand]
     public Task SelectMetricAsync(RankingMetric value)
     {
+        value = value.Gate(session.Settings.ExperimentalRanks);
         if (value == Metric) return Task.CompletedTask;
+        requestedMetric = value;
         Metric = value;
         Page = 1;
+        Pager.Reset();
+        return LoadAsync();
+    }
+
+    /// <summary>
+    /// Re-applies Settings' Experimental Ranks to a cached page on revisit (web <c>coerceRankingMetric</c> on every
+    /// render): turning it off falls back to Total Score, turning it back on restores the route's metric.
+    /// </summary>
+    /// <returns>The reload (page 1) when the allowed metric changed, otherwise <see langword="null"/>.</returns>
+    public Task? SyncExperimentalRanks()
+    {
+        OnPropertyChanged(nameof(ShowRankBy));
+        OnPropertyChanged(nameof(MetricOptions));
+        var allowed = requestedMetric.Gate(session.Settings.ExperimentalRanks);
+        if (allowed == Metric) return null;
+        Metric = allowed;
+        Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 
@@ -286,6 +312,7 @@ public sealed partial class BandRankingsViewModel : ObservableObject
 {
     private readonly FestivalSession session;
     private int version;
+    private BandRankingMetric requestedMetric;
 
     /// <summary>Creates the page model for a route (unknown types fall back to Duos).</summary>
     /// <param name="session">Shared session.</param>
@@ -294,7 +321,8 @@ public sealed partial class BandRankingsViewModel : ObservableObject
     {
         this.session = session;
         bandType = BandTypeInfo.TryParse(route.BandType, out var parsed) ? parsed : BandType.Duets;
-        metric = LeaderboardPreferences.RankBy(session).ToBandMetric();
+        requestedMetric = RankingMetricInfo.Coerce(session.Settings.LeaderboardRankBy).ToBandMetric();
+        metric = requestedMetric.Gate(session.Settings.ExperimentalRanks);
         Pager = new RankingsPagerViewModel("fst.band-rankings", GoToPageAsync);
         Status = new ServiceStatusViewModel("band-rankings", "Rankings unavailable", LoadAsync, session.Time);
         LoadSwap = new LoadSwap(session.Time);
@@ -322,8 +350,11 @@ public sealed partial class BandRankingsViewModel : ObservableObject
     /// <summary>Band sizes.</summary>
     public IReadOnlyList<BandType> BandTypeOptions => BandTypeInfo.All;
 
-    /// <summary>Band metrics (no Max Score).</summary>
-    public IReadOnlyList<BandRankingMetric> MetricOptions => BandRankingMetricInfo.All;
+    /// <summary>Band metrics (no Max Score; web <c>getEnabledBandRankingMetrics</c>).</summary>
+    public IReadOnlyList<BandRankingMetric> MetricOptions => BandRankingMetricInfo.Enabled(session.Settings.ExperimentalRanks);
+
+    /// <summary>Whether Rank By shows: only with Settings' Experimental Ranks on, as on the web.</summary>
+    public bool ShowRankBy => session.Settings.ExperimentalRanks;
 
     /// <summary>Band size.</summary>
     [ObservableProperty]
@@ -399,6 +430,7 @@ public sealed partial class BandRankingsViewModel : ObservableObject
         if (value == BandType) return Task.CompletedTask;
         BandType = value;
         Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 
@@ -408,9 +440,29 @@ public sealed partial class BandRankingsViewModel : ObservableObject
     [RelayCommand]
     public Task SelectMetricAsync(BandRankingMetric value)
     {
+        value = value.Gate(session.Settings.ExperimentalRanks);
         if (value == Metric) return Task.CompletedTask;
+        requestedMetric = value;
         Metric = value;
         Page = 1;
+        Pager.Reset();
+        return LoadAsync();
+    }
+
+    /// <summary>
+    /// Re-applies Settings' Experimental Ranks to a cached page on revisit (web <c>coerceBandRankingMetric</c> on every
+    /// render): turning it off falls back to Total Score, turning it back on restores the chosen metric.
+    /// </summary>
+    /// <returns>The reload (page 1) when the allowed metric changed, otherwise <see langword="null"/>.</returns>
+    public Task? SyncExperimentalRanks()
+    {
+        OnPropertyChanged(nameof(ShowRankBy));
+        OnPropertyChanged(nameof(MetricOptions));
+        var allowed = requestedMetric.Gate(session.Settings.ExperimentalRanks);
+        if (allowed == Metric) return null;
+        Metric = allowed;
+        Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 

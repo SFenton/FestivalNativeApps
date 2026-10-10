@@ -58,4 +58,28 @@ public class SettingsServiceStateRowMarkupTests
         var code = File.ReadAllText(Path.Combine(AppRoot, "Controls", "SettingValueGrid.cs"));
         Assert.Contains("TitleWidth(Children[i])", code);
     }
+
+    /// <summary>
+    /// Issue #556: an unknown total sweeps (the bar binds <c>IsIndeterminate</c> to the motion-gated <c>SweepsBar</c>), the
+    /// purple track is a Border behind a transparent bar (Fluent's indeterminate template hides its own track), the bar stays
+    /// hidden from Narrator and reports its draw state for UI tests, and the page feeds the motion gate.
+    /// </summary>
+    [Fact]
+    public void PhaseBar_SweepsUnknownTotalsOverTheTrack()
+    {
+        var doc = XDocument.Load(Path.Combine(AppRoot, "Pages", "SettingsPage.xaml"));
+        var bar = doc.Descendants().Single(e => Attr(e, "AutomationProperties.AutomationId") == "fst.settings.service-info.bar");
+        Assert.Equal("ProgressBar", bar.Name.LocalName);
+        Assert.Equal("{x:Bind ViewModel.ServiceInfo.SweepsBar, Mode=OneWay}", Attr(bar, "IsIndeterminate"));
+        Assert.Equal("{x:Bind ViewModel.ServiceInfo.BarStatus, Mode=OneWay}", Attr(bar, "AutomationProperties.ItemStatus"));
+        Assert.Equal("Raw", Attr(bar, "AutomationProperties.AccessibilityView"));
+        Assert.Equal("Transparent", Attr(bar, "Background"));
+        var track = bar.Parent!;
+        Assert.Equal("Border", track.Name.LocalName);
+        Assert.Equal("{ThemeResource FSTProgressTrackBrush}", Attr(track, "Background"));
+        Assert.Equal("{x:Bind ViewModel.ServiceInfo.HasBar, Mode=OneWay}", Attr(track, "Visibility"));
+        var code = File.ReadAllText(Path.Combine(AppRoot, "Pages", "SettingsPage.xaml.cs"));
+        Assert.Contains("ServiceInfo.MotionAllowed = Motion.Allowed;", code);
+        Assert.Contains("ServiceInfo.Background = Motion.Paused;", code);
+    }
 }

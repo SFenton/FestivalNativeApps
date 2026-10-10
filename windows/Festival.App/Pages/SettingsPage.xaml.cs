@@ -52,7 +52,7 @@ public sealed partial class SettingsPage : Page
     {
         Motion.Changed -= OnMotionChanged;
         Motion.Changed += OnMotionChanged;
-        ViewModel.ServiceInfo.Background = Motion.Paused;
+        ApplyMotion();
         ViewModel.Activate();
     }
 
@@ -65,10 +65,20 @@ public sealed partial class SettingsPage : Page
         ViewModel.Deactivate();
     }
 
-    /// <summary>Window hidden/shown: switch the Service Info cadence.</summary>
+    /// <summary>Window hidden/shown or motion settings changed: switch the Service Info cadence and bar sweep.</summary>
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
-    private void OnMotionChanged(object? sender, EventArgs e) => ViewModel.ServiceInfo.Background = Motion.Paused;
+    private void OnMotionChanged(object? sender, EventArgs e) => ApplyMotion();
+
+    /// <summary>
+    /// Polls slower while the window is hidden, and lets an unknown-total bar sweep only while decorative motion may run
+    /// and the window is shown (<see cref="Motion.Allowed"/>, <see cref="Motion.Paused"/>; issue #556).
+    /// </summary>
+    private void ApplyMotion()
+    {
+        ViewModel.ServiceInfo.Background = Motion.Paused;
+        ViewModel.ServiceInfo.MotionAllowed = Motion.Allowed;
+    }
 
     /// <summary>
     /// Speaks a newly accepted Service Info attempt count (one polite UIA notification) from the attempt line, which has

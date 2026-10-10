@@ -371,7 +371,10 @@ public class ShopViewModelTests
         Assert.Equal(("fst.shop.external.x9", "fst.shop.song.x9"), (absent.ExternalAutomationId, absent.TileAutomationId));
         var beta = vm.Offers[1];
         Assert.True(beta.HasSongDetail);
-        Assert.True(beta.HasBadge);
+        // Issue #562: like the web, only Leaving Tomorrow gets a visible pill; New is the gold pulse and the spoken name.
+        Assert.True(absent.ShowsPill);
+        Assert.False(beta.ShowsPill);
+        Assert.Equal(("New", "Beta, Artist s2 · 2020, New"), (beta.BadgeText, beta.Announcement));
         Assert.Equal(new AppRoute.SongDetail("s2"), beta.DetailRoute);
         Assert.Equal((beta.Announcement, SongRowShopPulse.New), (beta.TileName, beta.Pulse));
         Assert.False(vm.HasSongDetailsIssue);
@@ -456,12 +459,15 @@ public class ShopViewModelTests
         Assert.False(failed.ShowEmpty);
         Assert.False(failed.CanToggleView);
 
-        body = SongsWire.Shop(SongsWire.Offer("s2", "Beta", isNew: true));
+        body = SongsWire.Shop(SongsWire.Offer("s2", "Beta", leaving: true));
         await vm.LoadAsync(force: true);
         Assert.Equal("1 song", vm.CountText);
         Assert.True(vm.CanToggleView);
+        Assert.True(vm.Offers[0].ShowsPill);
         session.UpdateSettings(s => s with { DisableShopHighlighting = true });
-        Assert.False(vm.Offers[0].HasBadge);
+        Assert.False(vm.Offers[0].ShowsPill);
+        Assert.Null(vm.Offers[0].Pulse);
+        Assert.Equal("", vm.Offers[0].BadgeText);
         var notified = new List<string?>();
         vm.PropertyChanged += (_, e) => notified.Add(e.PropertyName);
         session.UpdateSettings(s => s with { HideShop = true });

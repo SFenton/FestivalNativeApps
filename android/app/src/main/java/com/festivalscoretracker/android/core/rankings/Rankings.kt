@@ -397,6 +397,16 @@ object RankingPaging {
         val size = maxOf(1, pageSize)
         return if (total <= 0) 1 else (total - 1) / size + 1
     }
+
+    /**
+     * Whether a board draws its pager (web `hasPagination = !!data && totalPages > 1`;
+     * load-transition R4, issue #575): only once a loaded board has told the page count,
+     * and only when there is more than one page.
+     *
+     * @param totalPages The last loaded board's page count, or null before any has loaded.
+     * @return True when the pager shows.
+     */
+    fun showsPager(totalPages: Int?): Boolean = totalPages != null && totalPages > 1
 }
 
 // endregion

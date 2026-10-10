@@ -45,6 +45,9 @@ RANK_ROW = "Fixture Pulse · Lead. You climbed from #9 to #4 on Lead for Fixture
 TOTAL_ROW = "Total Score Improved. Your Tap Vocals total score increased to 1,234,567 points. Progress."
 # Rows of the rich feed, newest first.
 RICH_ROWS = ("rank", "fc", "fcrate", "total", "shop")
+#: Scenarios run with Settings' Experimental Ranks off (its default); the rest turn it on so the rich feed's FC Rate rank
+#: row shows (issue #541).
+EXPERIMENTAL_RANKS_OFF = {"experimental-ranks-off"}
 # Rows of the media feed (issue #272), newest first, and their Narrator names after "Unread. ".
 MEDIA_ROWS = ("grid", "first", "stars", "gold", "difficulty", "pb")
 MEDIA_NAMES = {
@@ -251,6 +254,21 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, list[str], set[str] | None]] = {
         ],
         None,
     ),
+    "experimental-ranks-off": (
+        # Issue #541 (web projectExperimentalRankNotification): with Settings' Experimental Ranks off the FC Rate rank
+        # row is hidden and not counted; the Total Score rank row and the rest stay.
+        PLAYER, "/songs",
+        [
+            "waitfor:id=fst.songs.row.fixture-pulse@30",
+            "assertstate:" + BELL + "|name=Notifications, 4 unread@15",
+            f"invoke:{BELL}",
+            "waitfor:id=fst.notifications.list@15",
+            *[f"waitfor:{ROW}fixture-notif-{row}" for row in RICH_ROWS if row != "fcrate"],
+            f"waitgone:{ROW}fixture-notif-fcrate",
+            "{shot:notifications-experimental-ranks-off}",
+        ],
+        None,
+    ),
     "failed-retry": (
         PLAYER, "/songs",
         [
@@ -386,6 +404,18 @@ def check(port: int, expectation: str) -> None:
         raise RuntimeError(f"fixture {key} is {seen}, expected {value}")
 
 
+def settings_for(name: str) -> dict:
+    """The throwaway ``settings.json`` for a scenario.
+
+    Args:
+        name: Scenario key.
+
+    Returns:
+        Settings with Experimental Ranks on, except in :data:`EXPERIMENTAL_RANKS_OFF`.
+    """
+    return {"version": 1, "experimentalRanks": name not in EXPERIMENTAL_RANKS_OFF}
+
+
 def run(name: str, port: int, shots: Path | None, size: str) -> None:
     """Launches, drives and closes one scenario with throwaway settings and app data.
 
@@ -404,7 +434,7 @@ def run(name: str, port: int, shots: Path | None, size: str) -> None:
         plan[0] = (None, plan[0][1])
     with tempfile.TemporaryDirectory() as folder:
         settings_path = Path(folder) / "settings.json"
-        settings_path.write_text(json.dumps({"version": 1}), encoding="utf-8")
+        settings_path.write_text(json.dumps(settings_for(name)), encoding="utf-8")
         args = ["launch", str(EXE), "--timeout", "60", "--wait", "1", "--preset", size,
                 "--extra", f"FST_SETTINGS_PATH={settings_path}",
                 "--extra", f"FST_DEBUG_DATA_DIR={Path(folder) / 'data'}",

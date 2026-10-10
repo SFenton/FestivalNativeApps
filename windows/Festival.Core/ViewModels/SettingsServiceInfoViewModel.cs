@@ -73,11 +73,21 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
 
     /// <summary>Whether the bar shows.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SweepsBar), nameof(BarStatus))]
     private bool hasBar;
 
     /// <summary>Whether the bar is indeterminate (total unknown).</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SweepsBar), nameof(BarStatus))]
     private bool isIndeterminate;
+
+    /// <summary>
+    /// Whether decorative motion may run (the page sets it from system Animation effects and in-app and launch Reduce
+    /// Motion); an unknown total sweeps only while it is <see langword="true"/> and the window is shown (<see cref="Background"/>).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SweepsBar), nameof(BarStatus))]
+    private bool motionAllowed = true;
 
     /// <summary>Bar value 0–100.</summary>
     [ObservableProperty]
@@ -108,6 +118,12 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
 
     /// <summary>Whether the small ring spins beside the state (loading or updating).</summary>
     public bool ShowsSpinner => ProcessState is ServiceProcessState.Loading or ServiceProcessState.Updating;
+
+    /// <summary>Whether the bar runs its indeterminate sweep (web <c>.progressIndeterminate</c>; issue #556).</summary>
+    public bool SweepsBar => ServiceBarStatus.Sweeps(HasBar, IsIndeterminate, MotionAllowed, !Background);
+
+    /// <summary>The bar's UIA ItemStatus for UI tests (<see cref="ServiceBarStatus"/>).</summary>
+    public string BarStatus => ServiceBarStatus.Resolve(HasBar, IsIndeterminate, MotionAllowed, !Background);
 
     /// <summary>Whether a phase row shows.</summary>
     public bool HasPhase => PhaseTitle is not null;
@@ -155,7 +171,10 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
         polling = null;
     }
 
-    /// <summary>Whether the window is hidden (slower cadence); wakes a pending wait so the new cadence applies.</summary>
+    /// <summary>
+    /// Whether the window is hidden (slower cadence, and an unknown-total bar holds still); wakes a pending wait so the
+    /// new cadence applies.
+    /// </summary>
     public bool Background
     {
         get => background;
@@ -163,6 +182,9 @@ public sealed partial class SettingsServiceInfoViewModel : ObservableObject
         {
             if (background == value) return;
             background = value;
+            OnPropertyChanged(nameof(Background));
+            OnPropertyChanged(nameof(SweepsBar));
+            OnPropertyChanged(nameof(BarStatus));
             if (!value) wait?.Cancel();
         }
     }

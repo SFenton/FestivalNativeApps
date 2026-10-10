@@ -73,6 +73,7 @@ public sealed partial class SuggestionsFilterDraft : ObservableObject
 {
     private readonly SuggestionsViewModel owner;
     private IReadOnlyList<Instrument> instruments = [];
+    private Instrument? detailInstrument;
 
     /// <summary>Creates the draft.</summary>
     /// <param name="owner">Page model that applies it.</param>
@@ -101,7 +102,11 @@ public sealed partial class SuggestionsFilterDraft : ObservableObject
     /// <summary>General per-type switches.</summary>
     public ObservableCollection<SuggestionFilterToggle> TypeToggles { get; } = [];
 
-    /// <summary>Per-type switches for <see cref="SelectedInstrument"/>.</summary>
+    /// <summary>
+    /// Per-type switches for <see cref="SelectedInstrument"/>. Deselecting keeps the last instrument's switches so the
+    /// closing accordion fades them out rather than an empty panel (load-transition R10, web <c>CollapseOnExit</c>
+    /// <c>lastChildrenRef</c>); <see cref="Begin"/> and a newly selected instrument rebuild them.
+    /// </summary>
     public ObservableCollection<SuggestionFilterToggle> InstrumentTypeToggles { get; } = [];
 
     /// <summary>Settings-visible charts offered by the Instrument Selector (refreshed by <see cref="Begin"/>).</summary>
@@ -134,8 +139,8 @@ public sealed partial class SuggestionsFilterDraft : ObservableObject
             TypeToggles.Add(new SuggestionFilterToggle(type.Label(), type.FilterDescription(), "",
                 $"fst.suggestions.filter.type.{type.Key()}", Draft.IsGlobalEnabled(type),
                 on => Draft = Draft.WithGlobalType(type, on, instruments)));
-        if (SelectedInstrument is null) RebuildInstrumentTypes();
-        else SelectedInstrument = null;
+        SelectedInstrument = null;
+        RebuildInstrumentTypes();
         IsLive = true;
     }
 
@@ -149,19 +154,23 @@ public sealed partial class SuggestionsFilterDraft : ObservableObject
     {
         for (var i = 0; i < InstrumentToggles.Count && i < instruments.Count; i++) InstrumentToggles[i].Sync(value.IsInstrumentEnabled(instruments[i]));
         for (var i = 0; i < TypeToggles.Count; i++) TypeToggles[i].Sync(value.IsGlobalEnabled(SuggestionCategoryTypeInfo.All[i]));
-        if (SelectedInstrument is { } instrument)
+        if (detailInstrument is { } instrument)
             for (var i = 0; i < InstrumentTypeToggles.Count; i++)
                 InstrumentTypeToggles[i].Sync(value.IsTypeEnabled(SuggestionCategoryTypeInfo.All[i], instrument));
         if (IsLive && CanApply) owner.ApplyFilter(value);
     }
 
-    partial void OnSelectedInstrumentChanged(Instrument? value) => RebuildInstrumentTypes();
+    partial void OnSelectedInstrumentChanged(Instrument? value)
+    {
+        if (value is not null) RebuildInstrumentTypes();
+    }
 
     /// <summary>Rebuilds the per-type switches for the selected instrument (none while nothing is selected).</summary>
     private void RebuildInstrumentTypes()
     {
         InstrumentTypeToggles.Clear();
-        if (SelectedInstrument is not { } instrument || !instruments.Contains(instrument)) return;
+        detailInstrument = SelectedInstrument is { } selected && instruments.Contains(selected) ? selected : null;
+        if (detailInstrument is not { } instrument) return;
         foreach (var type in SuggestionCategoryTypeInfo.All)
             InstrumentTypeToggles.Add(new SuggestionFilterToggle(type.Label(), type.FilterDescription(), "",
                 $"fst.suggestions.filter.type.{instrument.ServiceId()}.{type.Key()}", Draft.IsTypeEnabled(type, instrument),
