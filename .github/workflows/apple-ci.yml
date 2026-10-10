@@ -259,7 +259,9 @@ jobs:
           echo "FST_CI_DEVICE=$device" >> "$GITHUB_ENV"
       - name: Songs Filter journeys (serialized, loopback fixture)
         # One test method per batch with a long batch timeout: the AX5 journey alone runs for many minutes on
-        # the runner, and no other lane shares its simulator. A skipped journey fails the step.
+        # the runner, and no other lane shares its simulator. A skipped journey fails the step. A batch whose
+        # test failed runs once more (`--retries 1`): the runner's simulator can time out an XCUITest query;
+        # a real failure fails both attempts, and the failed attempt's result bundle is uploaded either way.
         env:
           JOURNEYS: ${{ matrix.journeys }}
         run: |
@@ -270,7 +272,7 @@ jobs:
           grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log"
           only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
           python3 tools/ios_sim.py uitest --device "$FST_CI_DEVICE" ${{ matrix.uitest_args }} --fail-on-skip \
-            --batch-size 1 --timeout 2400 "${only[@]}"
+            --batch-size 1 --timeout 2400 --retries 1 "${only[@]}"
       - name: Upload journey results
         # Also when the job times out (cancelled), so a slow or hung batch can be diagnosed.
         if: failure() || cancelled()

@@ -37,6 +37,7 @@ from tools.ios_sim import (
     existing_ci_device,
     output_paths,
     pick_ci_runtime,
+    should_retry_batch,
     skip_problem,
     parse_steps,
     resolve_device,
@@ -209,6 +210,21 @@ class FailOnSkipTests(unittest.TestCase):
 
     def test_unreadable_summary_fails(self):
         self.assertIsNotNone(skip_problem(None))
+
+
+class RetryBatchTests(unittest.TestCase):
+    """`uitest --retries` reruns only a batch whose test failed, at most N more times."""
+
+    def test_a_test_failure_retries_while_attempts_remain(self):
+        self.assertTrue(should_retry_batch(65, 0, 1))
+        self.assertFalse(should_retry_batch(65, 1, 1))
+
+    def test_no_retries_by_default(self):
+        self.assertFalse(should_retry_batch(65, 0, 0))
+
+    def test_success_timeout_and_setup_errors_never_retry(self):
+        for code in (0, 124, 70, 1, ios_sim.EXIT_POSE_MISMATCH):
+            self.assertFalse(should_retry_batch(code, 0, 3), code)
 
 
 class SourceHashTests(unittest.TestCase):

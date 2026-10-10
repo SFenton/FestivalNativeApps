@@ -172,6 +172,11 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertRegex(self.text, r"leg: duo-folded\n\s+device_type: iPhone Duo\n\s+uitest_args: --pose folded\n")
         self.assertIn("--fail-on-skip", self.text.split("songs-filter-journeys:", 1)[1])
 
+    def test_songs_filter_legs_retry_a_failed_batch_once(self) -> None:
+        legs = self.text.split("songs-filter-journeys:", 1)[1].split("\n  apple-ci:", 1)[0]
+        self.assertIn("--retries 1", legs)
+        self.assertNotIn("--retries", self.text.split("songs-filter-journeys:", 1)[0])
+
     def test_required_check_needs_every_job(self) -> None:
         required = self.text.split("\n  apple-ci:\n", 1)[1]
         self.assertIn("name: apple-ci\n", required)
