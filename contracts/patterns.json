@@ -2421,7 +2421,8 @@
         317,
         324,
         342,
-        542
+        542,
+        580
       ],
       "web": [
         {
@@ -2629,6 +2630,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
             "symbol": "marqueeTitle"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
+            "symbol": "PinnedTitleSubtitle"
           }
         ],
         "windows": [
@@ -2700,7 +2705,8 @@
         317,
         342,
         363,
-        542
+        542,
+        580
       ]
     },
     {
