@@ -12,7 +12,7 @@
 
 ## Copy variants
 
-Android puts page actions in the top app bar, so it uses the web **desktop** ("header") copy for the variant slides (same `contentKey`s as mobile, so seen-state is shared). `songs-navigation` is the only width-dependent slide: bottom tabs on compact windows, "sidebar" (rail/drawer) otherwise. `shop-views` is omitted until Shop has a grid/list toggle.
+Android uses the web **desktop** copy for the variant slides (same `contentKey`s as mobile, so seen-state is shared). Page tools float in the shell's toolbar at every window size (#576), so the two desktop slides that placed a page tool "in the header" are adapted (as Apple adapts them): `playerhistory-sort` says "in the toolbar" and `songinfo-paths` names no place (toolbar on the pushed page, song header card in a pane); `songinfo-shop-button` keeps "header" (the pill is in the song header card). Test: `FirstRunTest.pageToolSlidesNameTheFloatingToolbarNotTheHeaderAndKeepTheirContentKeys`. `songs-navigation` is the only width-dependent slide: bottom tabs on compact windows, "sidebar" (rail/drawer) otherwise. `shop-views` is omitted until Shop has a grid/list toggle.
 
 ## Center and UI
 
