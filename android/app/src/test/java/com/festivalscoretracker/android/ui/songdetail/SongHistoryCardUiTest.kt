@@ -166,6 +166,26 @@ class SongHistoryCardUiTest {
         assertTrue(description("fst.song-detail.history.top.0").endsWith("best score"))
     }
 
+    /**
+     * `view-all-cta` R4 (#588 review): View All Scores speaks its label first, then the selected
+     * chart's card, once (the visible label leaves the merged semantics), and follows a switch.
+     */
+    @Test
+    fun viewAllScoresSpeaksTheLabelThenTheSelectedCard() {
+        show(rows("Solo_Guitar", 8) + rows("Solo_Bass", 7))
+        rule.waitForIdle()
+        fun cta() = rule.onNodeWithTag("fst.song-detail.history.view-all").fetchSemanticsNode().config
+        assertEquals(listOf("View All Scores, Lead Score History"), cta()[SemanticsProperties.ContentDescription])
+        assertFalse("label not read twice", cta().contains(SemanticsProperties.Text))
+        assertEquals(androidx.compose.ui.semantics.Role.Button, cta()[SemanticsProperties.Role])
+        rule.onNodeWithTag("fst.song-detail.history.instrument.Solo_Bass").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("View All Scores, Bass Score History"), cta()[SemanticsProperties.ContentDescription])
+        rule.onNodeWithTag("fst.song-detail.history.view-all").performClick()
+        assertEquals(Instrument.Bass, viewAll)
+        assertEquals("Pro Drums + Cymbals Score History", scoreHistoryCardName(Instrument.ProCymbals))
+    }
+
     @Test
     fun theCardEndsAtTheRowsWithoutViewAll() {
         show(rows("Solo_Guitar", 3))

@@ -222,10 +222,12 @@ fun SongHistoryCard(
         }
         if (selectedPoints.size > SongHistoryChart.TOP_COUNT) {
             // `view-all-cta` R1: the shared purple button ends the card, inset like the preview cards'.
+            // R4: label-first spoken name with the selected chart's card, e.g. "View All Scores, Lead Score History".
             ViewFullLeaderboardButton(
                 onClick = { onViewAll(selected) },
                 label = "View All Scores",
                 testTag = "fst.song-detail.history.view-all",
+                cardName = scoreHistoryCardName(selected),
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             )
         } else {
@@ -235,6 +237,15 @@ fun SongHistoryCard(
         }
     }
 }
+
+/**
+ * The Score History card's name for View All Scores' spoken label (`view-all-cta` R4, as
+ * Apple's `PurpleActionName.spoken("View All Scores", card: "<chart> Score History")`).
+ *
+ * @param chart Selected chart.
+ * @return For example "Lead Score History".
+ */
+internal fun scoreHistoryCardName(chart: Instrument): String = "${chart.label} Score History"
 
 /**
  * Release the swap's height pin: ease from the held height to the new content height,

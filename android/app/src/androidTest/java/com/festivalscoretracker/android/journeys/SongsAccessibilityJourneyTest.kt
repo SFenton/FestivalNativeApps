@@ -258,6 +258,36 @@ class SongsAccessibilityJourneyTest {
         h.assertAccessible()
     }
 
+    /**
+     * Issue #588 review (`view-all-cta` R4): with more than five Lead scores, View All Scores ends
+     * the Score History card after the five best-score rows, TalkBack reads it after them as one
+     * button named label first ("View All Scores, Lead Score History"), at least 48 dp tall; ATF
+     * over the card.
+     */
+    @Test
+    fun songDetailScoreHistoryViewAllScoresReadsLabelFirstAfterTheRows() {
+        transport.on("/api/player/${Fixtures.ACCOUNT_A}/history") { ProfileFixtures.longHistory() }
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), transport)
+        h.scrollTo("fst.song-detail.list", "fst.song-detail.history.view-all")
+        h.waitForTag("fst.song-detail.history.top.4")
+        val cta = "fst.song-detail.history.view-all"
+        assertEquals(1, rule.onAllNodes(hasTestTag(cta) and hasAnyAncestor(hasTestTag("fst.song-detail.history.card"))).fetchSemanticsNodes().size)
+        assertTrue("five best scores only", !h.exists("fst.song-detail.history.top.5"))
+        rule.onNodeWithTag(cta).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("View All Scores, Lead Score History")))
+        val min = with(rule.density) { 48.dp.toPx() } - 1
+        assertTrue(rule.onNodeWithTag(cta).fetchSemanticsNode().size.height >= min)
+        val stops = h.readingStops("song-detail-history-view-all")
+        val button = stops.indexOfFirst { it.id == cta }
+        assertTrue("View All Scores is a stop: ${stops.map { it.id to it.label }}", button >= 0)
+        assertEquals("View All Scores, Lead Score History", stops[button].label)
+        assertTrue(stops[button].isClickable)
+        val rows = (0 until 5).map { i -> stops.indexOfFirst { it.id == "fst.song-detail.history.top.$i" } }.filter { it >= 0 }
+        assertTrue("the last best score is read: $rows", stops.any { it.id == "fst.song-detail.history.top.4" })
+        assertTrue("rows in order, then View All Scores: $rows / $button", rows == rows.sorted() && rows.all { it < button })
+        h.assertAccessible()
+    }
+
     @Test
     @DeviceCi
     fun itemShop() {
