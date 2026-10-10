@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.festivalscoretracker.android.core.layout.WideColumns
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.testing.SectionIndexFixtures
 import org.junit.Assert.assertEquals
@@ -31,9 +32,11 @@ import org.junit.runner.RunWith
  * (`rememberSingleColumn`, as every hinge split does) with the same reading order. Phones are
  * turned to landscape through the activity's requested
  * orientation. Fixtures only (`SectionIndexFixtures`: two songs per title section).
- * `@DeviceCi` runs it on a phone; `@HalfOpenFoldJourney` on a half-open book fold. Locally:
+ * `@DeviceCi` runs it on a phone; `@HalfOpenFoldJourney` on a half-open book fold (columns either
+ * side of the fold clearance, `hinge-columns` R1); flat unfolded they split at the content
+ * midpoint (R7). Locally:
  * `device.py test com.festivalscoretracker.android.journeys.SongsWideColumnsAccessibilityJourneyTest --avd FST_Phone`
- * (or `--avd FST_Book_Fold --posture half --runner-arg fstRequireHinge=true`).
+ * (or `--avd FST_Book_Fold --posture half --runner-arg fstRequireHinge=true`, or `--posture unfolded`).
  */
 @RunWith(AndroidJUnit4::class)
 @DeviceCi
@@ -122,8 +125,16 @@ class SongsWideColumnsAccessibilityJourneyTest {
             assertTrue("the next section starts a new line in the leading column", bounds("$ROW$NEXT").top >= first.bottom)
         }
         fold?.let { hinge ->
-            assertEquals("the leading column ends at the fold", hinge.left, first.right, 2f)
-            assertEquals("the trailing column starts at the fold", hinge.right, second.left, 2f)
+            // `hinge-columns` R1: the clearance is the fold's width, at least the gutter, centred
+            // on the fold (a zero-width emulator fold still gets the 12 dp gutter).
+            val clearance = maxOf(hinge.width, with(rule.density) { WideColumns.SPACING_DP.dp.toPx() })
+            assertEquals("the leading column ends at the fold clearance", hinge.center.x - clearance / 2, first.right, 2f)
+            assertEquals("the trailing column starts after the fold clearance", hinge.center.x + clearance / 2, second.left, 2f)
+        }
+        if (fold == null && first.top == second.top) {
+            // `hinge-columns` R7: flat unfolded (or any window without a separating fold) divides
+            // at the content midpoint, never on the inactive hinge.
+            assertEquals("no fold: the columns split at the content midpoint ($first | $second)", first.width, second.width, 2f)
         }
         h.assertNothingStraddles("fst.songs.search", "$ROW$FIRST", "$ROW$SECOND", "$ROW$NEXT")
         assertRowsReadInListOrder("songs-wide-100")
