@@ -339,8 +339,7 @@ private fun AppSettingsSection(settings: AppSettings, vm: SettingsViewModel, onF
         ToggleRow(
             "Enable Experimental Leaderboard Ranks",
             "Enable this to see more ranking mechanisms in the Leaderboards page.",
-            settings.experimentalRanks, {}, "fst.settings.experimental-ranks",
-            enabled = false, disabledReason = "Not available on Android yet.",
+            settings.experimentalRanks, vm::setExperimentalRanks, "fst.settings.experimental-ranks",
         )
         if (onFeedback != null) {
             FeedbackKind.entries.forEach { kind ->

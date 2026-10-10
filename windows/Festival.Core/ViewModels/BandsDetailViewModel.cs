@@ -74,6 +74,15 @@ public sealed partial class BandDetailViewModel : ObservableObject
     /// <summary>Rank-by choices for Statistics and Rank History.</summary>
     public List<BandRankingMetric> Metrics { get; } = [.. BandRankingMetricInfo.All];
 
+    /// <summary>Rank By labels in <see cref="Metrics"/> order (the picker's items).</summary>
+    public List<string> MetricLabels { get; } = [.. BandRankingMetricInfo.All.Select(m => m.Label())];
+
+    /// <summary>
+    /// Whether the Rank By picker shows: only with Settings' Experimental Ranks on (web <c>BandPage</c> shows experimental
+    /// ranks only then); otherwise Statistics and Rank History stay on Total Score.
+    /// </summary>
+    public bool ShowRankBy => session.Settings.ExperimentalRanks;
+
     #region State
     /// <summary>Band-row lifecycle.</summary>
     [ObservableProperty]
@@ -184,13 +193,14 @@ public sealed partial class BandDetailViewModel : ObservableObject
     /// <summary>Whether the worst list is empty.</summary>
     public bool WorstEmpty => Worst.Count == 0;
 
-    /// <summary>Index of <see cref="Metric"/> in <see cref="Metrics"/> (picker binding).</summary>
+    /// <summary>Index of <see cref="Metric"/> in <see cref="Metrics"/> (picker binding; experimental metrics need
+    /// Settings' Experimental Ranks).</summary>
     public int MetricIndex
     {
-        get => (int)Metric;
+        get => Metrics.IndexOf(Metric);
         set
         {
-            if (value >= 0 && value < Metrics.Count) Metric = Metrics[value];
+            if (value >= 0 && value < Metrics.Count) Metric = Metrics[value].Gate(session.Settings.ExperimentalRanks);
         }
     }
 

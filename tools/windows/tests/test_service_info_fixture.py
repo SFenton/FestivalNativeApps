@@ -64,6 +64,22 @@ class ResponseTests(unittest.TestCase):
         self.assertNotIn("attemptProgress", current)
         self.assertIn("attemptProgress", mock_service.SERVICE_INFO_DISCOVERY["currentUpdate"])
 
+    def test_switching_goes_unknown_then_exact_then_unknown_with_later_progress(self):
+        """Issue #556: each read is newer (the reducer ignores an older read of one operation as stale)."""
+        reads = [f.response("switching", read)[1]["currentUpdate"] for read in range(0, 4 * f.SWITCHING_READS, f.SWITCHING_READS)]
+        self.assertEqual([(c["phaseId"], c["phasePercent"], c["unitsTotalFinal"]) for c in reads],
+                         [("scrape.leaderboards", None, False), ("scrape.leaderboards", 40.0, True),
+                          ("post.compute_rankings", None, False), ("post.compute_rankings", None, False)])
+        self.assertEqual((reads[1]["unitsCompleted"], reads[1]["unitsTotal"]), (40, 100))
+        times = [c["lastProgressAt"] for c in reads[:3]]
+        self.assertEqual(times, sorted(set(times)), "strictly later progress times")
+        self.assertLess(reads[1]["phaseOrdinal"], reads[2]["phaseOrdinal"], "a forward phase, not a restart")
+        self.assertEqual({c["operationId"] for c in reads}, {"fixture-op-2"})
+        self.assertTrue(all("attemptProgress" not in c for c in reads))
+        for step in range(3):
+            first = step * f.SWITCHING_READS
+            self.assertEqual(f.response("switching", first), f.response("switching", first + f.SWITCHING_READS - 1), step)
+
     def test_failed_stopped_unpublished(self):
         self.assertEqual(f.response("failed", 0)[1]["currentUpdate"]["status"], "failed")
         self.assertEqual(f.response("stopped", 0)[1]["workerStatus"]["status"], "offline")
@@ -171,9 +187,28 @@ class PagesTests(unittest.TestCase):
 
     def test_timed_page_runs_once(self):
         pages = {p["name"]: p for p in json.loads(PAGES.read_text(encoding="utf-8"))}
-        monotonic = pages["settings-service-info-monotonic"]
-        self.assertEqual(m.page_sizes(monotonic, ["compact", "medium", "wide"], "normal"), ["compact"])
-        self.assertEqual(m.mode_pages([monotonic], "text-200"), [])
+        for name in ("settings-service-info-monotonic", "settings-service-info-switching"):
+            page = pages[name]
+            self.assertEqual(m.page_sizes(page, ["compact", "medium", "wide"], "normal"), ["compact"], name)
+            self.assertEqual(m.mode_pages([page], "text-200"), [], name)
+
+    def test_unknown_total_pages_assert_the_sweep_by_motion_mode(self):
+        """Issue #556: the bar sweeps with motion, holds a still track under reduced motion or a hidden window."""
+        pages = {p["name"]: p for p in json.loads(PAGES.read_text(encoding="utf-8"))}
+        sweeping, still = pages["settings-service-info-indeterminate"], pages["settings-service-info-indeterminate-still"]
+        bar = "assertstatus:raw=fst.settings.service-info.bar|"
+        self.assertIn(bar + "sweeping@10", sweeping["after_ready"])
+        self.assertIn(bar + "still@10", still["after_ready"])
+        for mode in ("no-animations", "app-reduced"):
+            self.assertEqual(m.mode_pages([sweeping], mode), [], mode)
+            self.assertEqual(m.mode_pages([still], mode), [still], mode)
+        self.assertEqual(m.mode_pages([still], "normal"), [])
+        self.assertEqual(m.mode_pages([sweeping], "normal"), [sweeping])
+        statuses = [s.split("|", 1)[1] for s in pages["settings-service-info-switching"]["after_ready"] if s.startswith(bar)]
+        self.assertEqual(statuses, ["sweeping@15", "determinate@15", "sweeping@15", "held not-visible@10", "sweeping@10"])
+        for page in (sweeping, still):
+            self.assertTrue(any(s.startswith("scan:") for s in page["after_ready"]), page["name"])
+            self.assertTrue(any(s.startswith("assertorder:") for s in page["after_ready"]), page["name"])
 
     def test_monotonic_page_proves_each_accepted_count_is_announced_once(self):
         """Issue #275: listening starts before Settings' first read; kept-back lower reads announce nothing."""
@@ -211,6 +246,18 @@ class PagesTests(unittest.TestCase):
         names = {p["name"] for p in m.mode_pages(pages, "normal")}
         self.assertNotIn("settings-service-info-stacked", names)
         self.assertIn("settings-service-info-stacked", {p["name"] for p in m.mode_pages(pages, "text-200")})
+
+    def test_state_row_layout_pages_check_measured_fit_both_ways(self):
+        """#539: the state row stacks by measured fit, so a compact window stacks at 225% and a medium one stays inline."""
+        pages = {p["name"]: p for p in json.loads(PAGES.read_text(encoding="utf-8"))}
+        stacked, inline = pages["settings-service-info-stacked"], pages["settings-service-info-inline-large-text"]
+        self.assertEqual((stacked["sizes"], stacked["modes"][0]), (["compact"], "text-225"))
+        self.assertEqual((inline["sizes"], inline["modes"][0]), (["medium"], "text-225"))
+        self.assertIn("assertbelow:id=fst.settings.service-info.process|id=fst.settings.service-info.state", stacked["after_ready"])
+        self.assertIn("assertbelow:id=fst.settings.service-info.state|id=fst.settings.service-info.process", inline["after_ready"])
+        for page in (stacked, inline):
+            self.assertIn("assertapart:name=Leaderboard Service State&class=TextBlock|id=fst.settings.service-info.process",
+                          page["after_ready"])
 
 
 if __name__ == "__main__":

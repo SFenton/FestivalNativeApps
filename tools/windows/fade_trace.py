@@ -77,6 +77,9 @@ WIRING: tuple[tuple[str, str, str], ...] = (
      r"case ArmScroll\.Rushed:\s*\n\s*TraceRush\(owner,\s*arm,\s*RushPending\(owner,\s*arm,\s*now,\s*out var kept\)",
      "pending fades keep trickling in after a scroll instead of fading in together (issue #323, load-scroll)"),
     ("windows/Festival.App/Controls/FadeIn.cs",
+     r"arm\.Settle\(held\.X,\s*held\.Y\);\s*\n\s*var now = Now;\s*\n\s*OnScrolled\(scroller,\s*arm,\s*arm\.Scrolled\(",
+     "a scroll before a held page entrance began no longer rushes it (issue #532, journey fade song-reveal)"),
+    ("windows/Festival.App/Controls/FadeIn.cs",
      r"if \(fade\.Arm != arm\) continue;\s*\n\s*if \(!arm\.RushReaches\(fade\.Index\)\)",
      "a rush no longer starts its entrance's pending pinned row or page sections (journey fade boards, profile)"),
     ("windows/Festival.App/Pages/SongDetailPage.xaml.cs",
@@ -88,6 +91,9 @@ WIRING: tuple[tuple[str, str, str], ...] = (
     ("windows/Festival.App/Pages/SongDetailPage.xaml.cs",
      r"Enter\(args\.Element,",
      "Song Detail leaderboard cards realized by an early scroll pop in or fade late (load-transition R5)"),
+    ("windows/Festival.App/Pages/SongDetailPage.xaml.cs",
+     r"FadeIn\.HoldEntrance\(Scroller\);\s*\n\s*FadeOutSpinner\(\);",
+     "a scroll while Song Detail's spinner fades out no longer rushes its entrance (issue #532, journey fade song-reveal)"),
     ("windows/Festival.App/Controls/PlayerProfileView.xaml.cs",
      r"FadeIn\.BeginEntrance\(Scroller\);(?:\s*\n\s*FadeIn\.Enter\(Scroller,\s*(?:TitleRow|OverviewHeading|OverviewGrid),[^\n]*){3}",
      "Player Profile's title and Overview keep their stagger after an early scroll or Quick Links jump (issue #323)"),
@@ -428,10 +434,12 @@ def check_entrance_rush(events: list[FadeEvent], owner: str, targets: tuple[str,
     """R5 (issue #323): a scroll during an entrance rushes every fade of it that hasn't started, entrance elements too.
 
     The phase loads the entrance (a board's rows and its pinned row, or a page's sections) and scrolls during it: a
-    drag, wheel, Quick Links jump or programmatic scroll. ``targets`` must have entered with the owner before the
-    scroll (:func:`check_enrolled`); the scroll must rush the entrance (a ``fade-close`` means it came after the
-    entrance, or the rush is gone); the rush must start every fade still pending (:func:`_rush_problems`); and nothing
-    of the entrance may be scheduled with a delay after it.
+    drag, wheel, Quick Links jump or programmatic scroll. ``targets`` must enter with the owner (:func:`check_enrolled`)
+    in the entrance the scroll hit: before the scroll, or after it at once when the scroll came while the content was
+    laid out but still hidden (Song Details' spinner fade, issue #532), so the entrance began rushed; the scroll must
+    rush the entrance (a ``fade-close`` means it came after the entrance, or the rush is gone); the rush must start
+    every fade still pending (:func:`_rush_problems`); and nothing of the entrance may be scheduled with a delay after
+    it.
 
     Args:
         events: Events of the phase.
@@ -451,7 +459,10 @@ def check_entrance_rush(events: list[FadeEvent], owner: str, targets: tuple[str,
     if armed:
         own = own[armed[-1]:]
         first -= armed[-1]
-    failures = check_enrolled(own[:first], owner, targets)
+    # The entrance runs to the next reload; elements entering after the rush must start at once (_delayed_after).
+    end = next((i for i in range(first + 1, len(own)) if own[i].kind == "arm" and own[i].values.get("start") == 0),
+               len(own))
+    failures = check_enrolled(own[:end], owner, targets)
     if own[first].kind == "close":
         since = int(own[first].values.get("since", window_ms))
         why = (f"inside the {window_ms} ms window, so the rush is missing" if since < window_ms

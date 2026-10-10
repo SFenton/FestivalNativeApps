@@ -17,7 +17,8 @@
 | Store client | `tools/release/fst_store.py` | `fst_release.py windows status\|submit\|record-build` dispatches here (Microsoft Store submission API) |
 | `store-release` | [`store-release.yml`](../../.github/workflows/store-release.yml) | `workflow_dispatch` only (`platform`, `command` status/submit, `build`, `notes_b64`, `request_id`, `dry_run`), hosted `ubuntu-latest`, `store-release` environment (master only). Runs `tools/release/actions_job.py`, which enforces policy and uploads `store-release-result` (`result.json`) |
 | Secrets tool | `tools/release/store_secrets.py` | `status`, `asc`, `ios-p12`, `msstore`: validates and uploads credentials to the `store-release` environment through `gh secret set` stdin |
-| Android/macOS | `android-release.yml`, `macos-release.yml` | Disabled scaffolds (below) |
+| Android | `android-release.yml` | Signed App Bundle per `android/v…` tag; Google Play internal testing ([release-android.md](release-android.md)) |
+| macOS | `macos-release.yml` | Disabled scaffold (below) |
 
 `native.yml` (hosted Windows/Android unit tests and the `android-device` accessibility journeys), `windows-ui.yml` (Windows accessibility journeys) and `contracts.yml` are unchanged by the release machine; the required checks are `apple-ci` and `contracts`.
 
@@ -153,7 +154,7 @@ Set the repository variable `FST_RELEASE_<ANDROID|MACOS>_ENABLED=true` only afte
 
 | Platform | Plan |
 |---|---|
-| Android | Gradle Play Publisher with a Play service account secret and upload keystore; internal track first |
+| Android | Internal testing implemented ([release-android.md](release-android.md)); closed testing, production and the release machine's review/promotion step next |
 | Windows | Implemented (MSIX build + Store submission API); see [Windows](#windows-microsoft-store) |
 | macOS | Copy `ios_appstore_build.sh` for `FestivalDesktop`; the client already supports `fst_release.py macos …` (ASC `MAC_OS`, bundle id `com.sfenton.festivalscoretracker.mac`) |
 
