@@ -92,7 +92,6 @@ fun ProfileSheet(
         title = "Profiles",
         closeTag = "fst.profile.close",
         onDismissRequest = onDismiss,
-        skipPartiallyExpanded = false,
         modifier = Modifier.testTag("fst.profile.sheet"),
     ) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 24.dp)) {

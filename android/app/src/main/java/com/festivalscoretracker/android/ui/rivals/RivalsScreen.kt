@@ -289,7 +289,6 @@ fun FindRivalSheet(
         title = RivalText.FIND_RIVAL,
         closeTag = "fst.rivals.find.close",
         onDismissRequest = onDismiss,
-        skipPartiallyExpanded = false,
         modifier = Modifier.testTag("fst.rivals.find.sheet"),
     ) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
