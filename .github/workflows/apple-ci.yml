@@ -93,6 +93,7 @@ jobs:
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
             SongBarCaptionIconJourneyTests/testPlayerHistoryCaptionIconAtLargestText
+            SongSeasonAccessibilityJourneyTests/testTappedScoreSeasonIsReadableAtLargestText
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
           mock=$!
