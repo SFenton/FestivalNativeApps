@@ -600,6 +600,7 @@ struct NotificationsButton: View {
     /// accessory, issue #92) the system item badge is not shown.
     var drawsBadgeOnIcon = false
     @State private var presented = false
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     private var center: NotificationsCenter { session.notificationsCenter }
 
     var body: some View {
@@ -628,6 +629,8 @@ struct NotificationsButton: View {
         .accessibilityValue(Text(""))
         .accessibilityIdentifier("fst.shell.notifications")
         .task(id: session.selectionRevision) { await center.refresh(session: session) }
+        // Settings › Experimental Ranks re-projects the feed and the badge count.
+        .onChange(of: experimentalRanks, initial: true) { _, enabled in center.setExperimentalRanks(enabled) }
         .sheet(isPresented: $presented) {
             // Closure passed directly, like the profile sheet (environment trap).
             NotificationsSheet(session: session) { route in pushRoute?(route) }

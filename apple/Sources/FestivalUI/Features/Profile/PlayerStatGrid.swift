@@ -61,7 +61,7 @@ struct PlayerStatGrid: View {
                 PlayerStatTileView(tile: tile, scope: scope, onSelect: onSelect)
             }
         }
-        .measuresHorizontalSpan($span)
+        .measuresHorizontalSpan($span, fold: layout.splitHinge)
     }
 }
 

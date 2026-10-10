@@ -55,4 +55,7 @@ Back from a cached page keeps its scroll position: `Services/CachedPageScroll` p
 ## Open
 
 - No rank-history chart or band-combo filter (same as iPhone).
-- WinUI's flyout `PopupHost` (Rank By, Quick Links) reports Axe `BoundingRectangleCompletelyObscuresContainer`: framework, [windows-accessibility.md](../../testing/windows-accessibility.md) open item 8.
+
+## Popup hosting (issue #534, 2026-10-09)
+
+The Rank By and Quick Links menus open in-window (`ShouldConstrainToRootBounds`), so WinUI no longer creates the windowed `PopupHost` whose input site Axe reported as `BoundingRectangleCompletelyObscuresContainer` ([windows-accessibility.md](../../testing/windows-accessibility.md) open item 8). `leaderboards-rank-by-menu` and `quick-links-menu` scan 0 Axe errors at compact and medium, at normal and 225% text, gated in `windows-ui` by `ui_ci.py`'s `popups` runs with no allowance. A menu can't extend past the window edge any more; a menu taller than the window scrolls inside it.

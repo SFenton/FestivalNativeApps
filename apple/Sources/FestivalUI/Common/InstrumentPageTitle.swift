@@ -109,6 +109,17 @@ struct InstrumentPageTitleToolbarItem: ToolbarContent {
     /// Accessibility identifier of the shown title.
     let identifier: String
 
+    /// Whether a page whose top bar minimizes on scroll (Full Rankings, All Rivals) may
+    /// pin its title in this chrome: not on the iPhone Duo vertical bar, where the
+    /// system title stays instead (pattern `page-tools-and-nav-chrome` R14). Song
+    /// pages keep their top bar (#363) and do not ask.
+    ///
+    /// - Parameter chrome: The section chrome the page is shown in.
+    /// - Returns: False on the vertical bar, true otherwise.
+    nonisolated static func pinsTitle(in chrome: DeviceLayout.SectionChrome) -> Bool {
+        !chrome.isVerticalBar
+    }
+
     var body: some ToolbarContent {
         ToolbarItem(placement: .principal) {
             if isShown {

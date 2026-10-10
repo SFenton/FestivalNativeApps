@@ -37,7 +37,7 @@
                     <TextBlock Text="{x:Bind ViewModel.SortLabel, Mode=OneWay}" />
                 </StackPanel>
                 <DropDownButton.Flyout>
-                    <MenuFlyout x:Name="SortMenu" Placement="BottomEdgeAlignedRight" Opening="OnSortMenuOpening">
+                    <MenuFlyout x:Name="SortMenu" Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True" Opening="OnSortMenuOpening">
                         <RadioMenuFlyoutItem Text="Date" GroupName="mode" Tag="Date" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.date" />
                         <RadioMenuFlyoutItem Text="Score" GroupName="mode" Tag="Score" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.score" />
                         <RadioMenuFlyoutItem Text="Accuracy" GroupName="mode" Tag="Accuracy" Click="OnSortModeClick" AutomationProperties.AutomationId="fst.history.sort.mode.accuracy" />

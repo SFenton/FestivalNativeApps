@@ -30,7 +30,10 @@ struct BandDetailScreen: View {
     @State private var detailState: RankLoadState<BandDetail> = .loading
     @State private var historyState: RankLoadState<BandRankHistoryResponse> = .loading
     @State private var songsState: RankLoadState<BandSongExtremesResponse> = .loading
-    @State private var rankBy: BandRankingMetric = .adjusted
+    /// The picked metric (Adjusted until the person picks one, web `BandPage`); read
+    /// through ``rankBy``.
+    @State private var selectedRankBy: BandRankingMetric = .adjusted
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @State private var songsById: [String: Song] = [:]
     @State private var quickLinks = QuickLinksController()
     @Environment(\.deviceLayout) private var layout
@@ -60,9 +63,15 @@ struct BandDetailScreen: View {
         bandType != nil && teamKey?.isEmpty == false
     }
 
-    /// Rank By is offered once a resolvable band's detail has loaded.
+    /// The metric in effect: Total Score while Settings › Experimental Ranks is off
+    /// (web `BandPage`: `enableExperimentalRanks ? 'adjusted' : 'totalscore'`; pattern
+    /// `experimental-ranks`).
+    private var rankBy: BandRankingMetric { selectedRankBy.coerced(experimentalRanks: experimentalRanks) }
+
+    /// Rank By is offered once a resolvable band's detail has loaded, and only with
+    /// experimental ranks (Total Score is the only metric otherwise).
     private var showsRankBy: Bool {
-        guard isResolvable, case .loaded = detailState else { return false }
+        guard experimentalRanks, isResolvable, case .loaded = detailState else { return false }
         return true
     }
 
@@ -77,18 +86,18 @@ struct BandDetailScreen: View {
         .festivalBackground(.carousel, session: session)
         .festivalNavigationTitle(name ?? "Band")
         // Mac: View › Rank By mirrors the toolbar menu.
-        .macRankByCommands($rankBy)
+        .macRankByCommands($selectedRankBy, experimentalRanks: experimentalRanks)
         .toolbar {
             if pageTools == nil, showsRankBy {
                 ToolbarItem(placement: .festivalPageAction) {
-                    BandRankByMenu(selection: $rankBy)
+                    BandRankByMenu(selection: $selectedRankBy)
                 }
             }
             QuickLinksToolbarItem(quickLinks)
         }
         // iPhone tab-bar accessory (issue #92): Rank By before Quick Links.
         .festivalPageTool(token: rankBy, order: PageToolOrder.primary, isEnabled: showsRankBy) {
-            BandRankByMenu(selection: $rankBy)
+            BandRankByMenu(selection: $selectedRankBy)
         }
         .task(id: teamKey) { await loadDetail() }
         .task { await loadSongLookup() }

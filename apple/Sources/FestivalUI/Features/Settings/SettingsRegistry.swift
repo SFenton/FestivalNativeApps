@@ -30,7 +30,7 @@ enum SettingsRegistry {
         ("fst.settings.leeway", .double(1)),
         ("fst.settings.pathDefaultView", .string(PathDisplayMode.image.rawValue)),
         ("fst.settings.pathUnavailableWarningDismissed", .bool(false)),
-        ("fst.settings.experimentalRanks", .bool(false)),
+        (ExperimentalRanks.storageKey, .bool(ExperimentalRanks.defaultValue)),
         ("fst.settings.hideShop", .bool(false)),
         ("fst.settings.disableShopHighlighting", .bool(false)),
         (SuggestionFilterSettings.storageKey, .data(Data())),
