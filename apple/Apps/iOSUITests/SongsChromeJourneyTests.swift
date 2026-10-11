@@ -1284,6 +1284,145 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertEqual(issues, [], "Section title audit issues mid-push at AX XXXL")
     }
 
+    /// Issue #451 (accessibility for #286), at the largest text size: a jump from the A–Z
+    /// index lands the letter's grown title on the section bar's line, below the
+    /// navigation bar, with its first row (a named button at least 44 pt tall) right
+    /// under it; the bar names the landed section and the index's spoken value follows
+    /// it. Mid-alphabet, far back and far forward; then the system audit on the landed
+    /// section titles and rows. The macOS-hosted counterpart that `apple-ci` runs on
+    /// every change, `SongsSectionJumpAccessibilityTests`, covers reading order, Quick
+    /// Links on grouped sorts and Reduce Motion/Transparency. Needs the large fixture
+    /// like the tests above (skips otherwise).
+    @MainActor
+    func testSectionJumpIsAccessibleAtLargestText() throws {
+        try assertSectionJumpAccessibleAtLargestText(duoWindow: nil)
+    }
+
+    /// The same on the folded iPhone Duo's outer display (simulated on an iPhone; the
+    /// vertical system bar trails the rail).
+    @MainActor
+    func testSectionJumpIsAccessibleAtLargestTextDuoFolded() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The Duo window is simulated on an iPhone")
+        try assertSectionJumpAccessibleAtLargestText(duoWindow: "folded")
+    }
+
+    /// Launch Songs at AX5, jump with the A–Z index and check each landing.
+    ///
+    /// - Parameter duoWindow: `DebugDuoWindow` to simulate, or nil for the device itself.
+    /// - Throws: A skip without iOS 26's section bar or the large fixture; audit failures.
+    @MainActor
+    private func assertSectionJumpAccessibleAtLargestText(duoWindow: String?) throws {
+        continueAfterFailure = false
+        guard #available(iOS 26.0, *) else { throw XCTSkip("The section bar is iOS 26+.") }
+        XCUIDevice.shared.orientation = .portrait
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        var environment = [
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_STILL_BACKGROUND": "1",
+        ]
+        if let duoWindow {
+            environment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
+            environment["FST_DEBUG_DUO_WINDOW"] = duoWindow
+        }
+        let app = FestivalApp.makeApp(environment)
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        let rail = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch
+        guard rail.waitForExistence(timeout: FestivalApp.budget(20)),
+              rail.staticTexts.matching(NSPredicate(format: "label == 'P'")).firstMatch.exists
+        else {
+            throw XCTSkip("Catalogue lacks the A–Z sections; use mock_service.py --large-catalogue.")
+        }
+        if let duoWindow {
+            let readout = app.staticTexts["fst.shell.debug.duo-window"]
+            let reached = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "label BEGINSWITH %@", "\(duoWindow) "), object: readout
+            )
+            XCTAssertEqual(XCTWaiter().wait(for: [reached], timeout: FestivalApp.budget(10)), .completed,
+                           "The app never simulated \(duoWindow)")
+        }
+        // The index: one named, adjustable element whose value is the current letter.
+        XCTAssertEqual(rail.label, "Jump to section")
+        XCTAssertEqual(rail.value as? String, "#")
+        XCTAssertGreaterThanOrEqual(rail.frame.height, 44, "Index target \(rail.frame)")
+
+        let letters = Array("#ABCDEFGHIJKLMNOPQRSTUVWXYZ").map(String.init)
+        let sectionBar = app.staticTexts["fst.songs.section-bar"]
+        let list = app.descendants(matching: .any)["fst.songs.list"]
+        func title(_ letter: String) -> XCUIElement {
+            app.staticTexts["fst.songs.section.\(letters.firstIndex(of: letter)!)"]
+        }
+        // The rail condenses at this size (#388): take the first letter of a run it shows.
+        func shown(_ run: String) -> String? {
+            run.map(String.init).first {
+                rail.staticTexts.matching(NSPredicate(format: "label == %@", $0)).firstMatch.exists
+            }
+        }
+        func waitUntil(_ what: @autoclosure () -> String, _ condition: @escaping () -> Bool) {
+            let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: FestivalApp.budget(8)), .completed, what())
+        }
+        func jump(to letter: String) throws {
+            rail.staticTexts.matching(NSPredicate(format: "label == %@", letter)).firstMatch.tap()
+            let target = title(letter)
+            waitUntil("Did not land on \(letter): bar \(sectionBar.label) \(sectionBar.frame), title \(target.frame)") {
+                sectionBar.exists && sectionBar.label == letter && target.exists
+                    && abs(target.frame.minY - sectionBar.frame.minY) <= 1
+            }
+            // Grown with the text, below the top chrome (the #286 symptom), and read once.
+            XCTAssertGreaterThanOrEqual(sectionBar.frame.height, 40, "\(letter) bar not grown: \(sectionBar.frame)")
+            XCTAssertEqual(app.staticTexts.matching(identifier: "fst.songs.section-bar").count, 1)
+            let navigation = app.navigationBars.firstMatch
+            if navigation.exists {
+                XCTAssertGreaterThanOrEqual(target.frame.minY, navigation.frame.maxY - 1,
+                                            "\(letter) title under the navigation bar: \(target.frame) \(navigation.frame)")
+            }
+            XCTAssertEqual(target.label, letter)
+            // Its first row follows at once, named, full size and in view.
+            let titleBottom = target.frame.maxY
+            let window = app.windows.firstMatch.frame
+            let rows = try FestivalApp.snapshotNodes(in: list) {
+                $0.identifier.hasPrefix("fst.songs.row.") && $0.frame.minY >= titleBottom - 1
+            }
+            let first = try XCTUnwrap(rows.min { $0.frame.minY < $1.frame.minY }, "\(letter): no row below its title")
+            XCTAssertLessThanOrEqual(first.frame.minY - titleBottom, 8, "\(letter) first row \(first.frame) far from its title")
+            XCTAssertTrue(first.label.hasPrefix(letter), "\(letter) first row is '\(first.label)'")
+            XCTAssertGreaterThanOrEqual(first.frame.height, 44, "\(letter) first row \(first.frame)")
+            XCTAssertTrue(window.intersects(first.frame), "\(letter) first row off screen: \(first.frame)")
+            waitUntil("Index value \(String(describing: rail.value)), not \(letter)") {
+                rail.value as? String == letter
+            }
+        }
+
+        let mid = try XCTUnwrap(shown("MNOPQRST"), "The index shows none of M–T")
+        try jump(to: mid)
+        try jump(to: try XCTUnwrap(shown("BCDEFGH"), "The index shows none of B–H"))
+        try jump(to: try XCTUnwrap(shown("UVW"), "The index shows none of U–W"))
+        SongsUITestSupport.record(app, name: "songs-section-jump-ax5\(duoWindow.map { "-duo-\($0)" } ?? "")")
+
+        // The system audit on the landed section titles, the bar and the rows (the rail's
+        // condensed letters and the rest of the page have their own journeys).
+        var issues: [String] = []
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            app, [.dynamicType, .textClipped, .sufficientElementDescription, .trait],
+            name: "section jump", reset: { issues = [] }
+        ) { issue in
+            let id = issue.element?.identifier ?? ""
+            let titles = id == "fst.songs.section-bar" || id.hasPrefix("fst.songs.section.")
+            let rows = id.hasPrefix("fst.songs.row.")
+                && [.sufficientElementDescription, .trait].contains(issue.auditType)
+            guard titles || rows else { return true }
+            issues.append("\(id): \(issue.compactDescription)")
+            return true
+        }
+        XCTAssertEqual(issues, [], "Landed section audit issues at AX XXXL")
+    }
+
     /// Issue #8: scrolling near the top changed scroll-driven state on the Songs screen
     /// (scrolled away, passed section titles, section bar edge and toolbar state), and
     /// every change re-ran the whole screen: re-sort, re-diff every List row, re-render
