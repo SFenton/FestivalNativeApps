@@ -8,10 +8,15 @@ import com.festivalscoretracker.android.core.shell.PxSpan
 import com.festivalscoretracker.android.core.shell.ToolbarInsets
 import com.festivalscoretracker.android.ui.common.FloatingToolbarHost
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The floating toolbar stays in its page's pane, off the side system bars and on one side of a hinge (#576). */
+/**
+ * The floating toolbar stays in its page's pane, off the side system bars and on one side of a
+ * hinge (#576), and the latest page to register it owns its tools and reading order.
+ */
 class FloatingToolbarPlacementTest {
     private val margin = 16
 
@@ -72,5 +77,39 @@ class FloatingToolbarPlacementTest {
         assertEquals(PxSpan(0, 420), host.pane)
         songs()
         assertNull(host.pane)
+    }
+
+    @Test
+    fun latestToolbarOwnerShowsItsToolsAndTheEarlierOwnerTakesThemBack() {
+        val host = FloatingToolbarHost()
+        val songsTools: @Composable RowScope.() -> Unit = {}
+        val detailTools: @Composable RowScope.() -> Unit = {}
+        assertNull(host.current)
+        // Every page's toolbar stays on screen while it scrolls (R7, issues #52, #577); the entering
+        // page owns the one toolbar and the previous page takes it back when it returns.
+        val songs = host.register(mutableStateOf(songsTools))
+        assertTrue(host.current === songsTools)
+        val detail = host.register(mutableStateOf(detailTools))
+        assertTrue(host.current === detailTools)
+        detail()
+        assertTrue(host.current === songsTools)
+        songs()
+        assertNull(host.current)
+    }
+
+    @Test
+    fun latestToolbarOwnerDecidesWhetherItReadsFirst() {
+        val host = FloatingToolbarHost()
+        val content = mutableStateOf<@Composable RowScope.() -> Unit>({})
+        assertFalse(host.readFirst)
+        // Suggestions' endless feed reads its toolbar first (issue #112); a pushed page does not.
+        val suggestions = host.register(content, readFirst = true)
+        assertTrue(host.readFirst)
+        val detail = host.register(content)
+        assertFalse(host.readFirst)
+        detail()
+        assertTrue(host.readFirst)
+        suggestions()
+        assertFalse(host.readFirst)
     }
 }

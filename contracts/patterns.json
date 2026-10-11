@@ -1029,6 +1029,13 @@
           "message": "The shell alone renders the floating toolbar, at every window size (page-tools-and-nav-chrome R4, R6)."
         },
         {
+          "id": "android-floating-toolbar-stays-on-screen",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "exitAlwaysScrollBehavior|FloatingToolbarScrollState|pinActions\\b",
+          "allow": [],
+          "message": "The floating toolbar never hides on scroll, on any page (page-tools-and-nav-chrome R7, agent decision #577)."
+        },
+        {
           "id": "windows-titlebar-content",
           "glob": "windows/**/*.xaml",
           "regex": "<TitleBar\\.Content>",
