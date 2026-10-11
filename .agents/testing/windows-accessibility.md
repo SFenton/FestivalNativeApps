@@ -458,6 +458,21 @@ Fixed: Feedback field hints were a `TextBox.Description` that clipped at compact
 
 Fixed (test only): the First Run page still asserted the template `CloseButton` ID, but #244 gave that Close `fst.first-run.close`. No app defect was found.
 
+## Modal legibility accessibility tests (issue #518, for #239, 2026-10-12)
+
+The #400 runs above cover the modal shell's names, roles, reading order, targets and keyboard. `journeys/a11y-modal-legibility.json` adds checks for #239's two rendering fixes. `ui_ci.py` runs it as `modal-legibility-desert` (compact, medium), `modal-legibility-night-sky` (compact) and `modal-legibility-text-225` (compact), all with `--scan --tabs 30`. Every page is limited to its `modes`, so default text has no run here; `modals` already covers it.
+- **No contrast backplate.** Under Desert and Night sky, `assertpaint` probes a 24×10 epx area around the label of the First Run Next and the Reset dialog's Cancel and Reset. The probe passes when the area contains the button's own fill colour (`@fill`, sampled at the left padding). The First Run pips are probed too: the selected pill must be Highlight (Desert #903909, Night sky #D6B4FD), its dot HighlightText and an unselected dot WindowText. At this host's 300% scale the pips sit below the fold, so the page first runs `scrollto:id=fst.first-run.body,100`.
+- **Hints wrap.** At 225% text, `assertmarquee …|wrapped|60` checks that the Report an Issue hints for Title, Description and Expected Behavior are wrapping TextBlocks at least 60 epx tall. The Title hint also sits below its header, the edit fields read their hint as HelpText, Tab moves from Expected Behavior to Attach Media, and Esc restores focus to the Settings row.
+
+Negative controls: with `CommandLabelsWithoutBackplate`/`WithoutBackplate` removed, the label probe failed with "0 px within 16 of #903909" (Desert) and "… of #D6B4FD" (Night sky), and the selected pip dot turned WindowText. With the hint as a string `Description`, the hint wait failed ("no on-screen element … class=TextBlock").
+
+| Configuration | Result |
+| --- | --- |
+| Desert (compact, medium), Night sky (compact), text 225% (compact) at this host's 300% scale | Pass, Axe 0 |
+| The same with `+scale-100` (the runner's 100% scale) | Pass, Axe 0 |
+
+No app defect was found.
+
 ## Song leaderboard accessibility tests (issue #443, 2026-10-08)
 
 Backfills CI tests for the #93 Windows change (rows fade above the floating pinned row and pager; paging keeps the header, pinned row and pager). New `journeys/a11y-song-leaderboard.json` (fixture `--song-leaderboard-paging`, Fixture Player 1 selected) and the song-board pages of `a11y-board-footer-fade.json` are now `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:

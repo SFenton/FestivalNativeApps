@@ -7,7 +7,7 @@ A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own deskto
 
 This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
-that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
+that the modal journey (issue #400) and its contrast-backplate and hint-wrap legibility pages (issue #518), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
 push (issue #452), the Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438), the Paths
@@ -119,6 +119,12 @@ RUNS: tuple[Run, ...] = (
     Run("modals", "a11y-modals.json"),
     # The same pages at Windows' largest text size: text on screen, commands reachable by Tab and hit-testable.
     Run("modals-text-225", "a11y-modals.json", sizes="compact", mode="text-225"),
+    # What #239 changed on top of the modal shell (issue #518): under a contrast theme the dialog command labels and the
+    # First Run pips paint their own colours with no Window-coloured text backplate (pixel probes), and the Feedback
+    # field hints wrap at 225% text. Default-mode names, order, targets and keyboard are the "modals" runs above.
+    Run("modal-legibility-desert", "a11y-modal-legibility.json", mode="hc-desert"),
+    Run("modal-legibility-night-sky", "a11y-modal-legibility.json", sizes="compact", mode="hc-night-sky"),
+    Run("modal-legibility-text-225", "a11y-modal-legibility.json", sizes="compact", mode="text-225"),
     # What's New (issues #80, #274, #434): placeholder and grouped tester/store notes; level-2 version and level-3
     # category headings, reading order, the Raw bullet glyph, 40x40 Dismiss, keyboard scrolling and Esc.
     Run("whats-new", "a11y-whats-new.json"),
