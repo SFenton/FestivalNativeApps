@@ -106,7 +106,7 @@ public static class LeaderboardColumnLayout
     /// <summary>Rating width per character (wider than a bold digit, so a bold selected rating keeps its place).</summary>
     public const double RatingCharWidth = 9.5;
 
-    /// <summary>Season width per character (body text, <c>S15</c>).</summary>
+    /// <summary>Season label width per character (the season pill's 14 epx label, <c>S15</c>).</summary>
     public const double SeasonCharWidth = 8.5;
 
     /// <summary>Songs-label width per character (12 epx caption, bold on the selected row).</summary>
@@ -180,7 +180,9 @@ public static class LeaderboardColumnLayout
         var gap = known && rowWidth < CompactBreakpoint ? CompactGap : WideGap;
         var rank = section.RankChars == 0 ? 0 : RankColumnWidth(section.RankChars) * scale;
         var value = Math.Ceiling(section.ValueChars * (score ? ScoreCharWidth : RatingCharWidth)) * scale;
-        var meta = Math.Ceiling(section.MetaChars * (score ? SeasonCharWidth : SongsCharWidth)) * scale;
+        // A score row's season is the shared season pill (issue #606): its label plus chrome, at least 48 epx.
+        var meta = section.MetaChars == 0 ? 0
+            : (score ? MetadataPillStyle.SeasonWidth(section.MetaChars, SeasonCharWidth) : Math.Ceiling(section.MetaChars * SongsCharWidth)) * scale;
         var accuracy = score && section.HasAccuracy ? AccuracyWidth * scale : 0;
         var pinned = score && pinSeason;
         var showMeta = section.HasMeta && (!score || pinned || (known && rowWidth >= SeasonBreakpoint));

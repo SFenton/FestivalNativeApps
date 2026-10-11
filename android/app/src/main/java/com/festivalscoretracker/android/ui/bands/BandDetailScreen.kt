@@ -264,7 +264,7 @@ private fun BandDetailContent(
         val hinge = rememberBandHinge(contentLeft, maxWidth)
         val panes = BandLayout.panes(windowWidthDp(), hinge, split = twoPane)
         val scrollPadding = Modifier.padding(start = 16.dp, end = 16.dp)
-        val bottom = padding.calculateBottomPadding() + 24.dp
+        val bottom = padding.calculateBottomPadding()
         if (panes.twoPane) {
             // One scrolling page: the header spans both panes (only the leading one in book
             // posture, FoldLane) and each row pairs two sections on one top edge (#584).

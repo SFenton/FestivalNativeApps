@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -271,5 +272,65 @@ class BoardFooterFadeDrawUiTest {
     @Test
     fun lastRowSitsOneItemGapAboveThePagerWithoutAScore() {
         assertEquals(12f, endGap(withScore = false), 0.5f)
+    }
+
+    /**
+     * Issue #579: the pinned selected row floats above the pager with only its own fill. Around
+     * a red 48 dp row on a blue page, the footer draws nothing (no card fill, rim or shadow) in
+     * the row's 8 dp side insets or the gap above the pager, the row starts at the footer's top
+     * and its sides line up with the rows (the rows' card inset, `leaderboard-row` R1).
+     */
+    @Test
+    fun pinnedSelectedRowDrawsNoCardAroundItsFill() {
+        rule.setContent {
+            Box(Modifier.size(400.dp, 800.dp).background(Color.Blue).testTag("board")) {
+                RankingsBoardLayout(
+                    hinge = null,
+                    measure = Modifier,
+                    padding = PaddingValues(),
+                    listState = rememberLazyListState(),
+                    idPrefix = "fst.t",
+                    controls = {},
+                    footer = { PinnedSelectedRow { Box(Modifier.fillMaxWidth().height(48.dp).background(Color.Red).testTag("pinned")) } },
+                    pager = { Box(Modifier.width(120.dp).height(48.dp).testTag("pager")) },
+                    fadeAboveFooter = true,
+                ) {
+                    items(100) { Box(Modifier.fillMaxWidth().height(40.dp).padding(horizontal = PINNED_ROW_INSET).background(Color.Green).testTag("row.$it")) }
+                }
+            }
+        }
+        rule.waitForIdle()
+        val origin = rule.onNodeWithTag("board").fetchSemanticsNode().positionInWindow
+        val root = rule.activity.window.decorView
+        val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
+        rule.runOnUiThread { root.draw(Canvas(bitmap)) }
+        fun at(x: Float, y: Float) = bitmap.getPixel((origin.x + x).toInt(), (origin.y + y).toInt())
+        fun isPage(x: Float, y: Float) = at(x, y) == android.graphics.Color.BLUE
+        fun inBoard(tag: String) = rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot.translate(-origin.x, -origin.y)
+        val bar = inBoard("fst.t.bottom-bar")
+        val pinned = inBoard("pinned")
+        val pager = inBoard("pager")
+        val row = inBoard("row.0")
+
+        assertEquals("the row starts at the footer's top, with no card padding above it", bar.top, pinned.top, 0.5f)
+        assertEquals("rows' card inset", bar.left + PINNED_ROW_INSET.value, pinned.left, 0.5f)
+        assertEquals("aligned with the rows (left)", row.left, pinned.left, 0.5f)
+        assertEquals("aligned with the rows (right)", row.right, pinned.right, 0.5f)
+        assertEquals(android.graphics.Color.RED, at(pinned.center.x, pinned.center.y))
+        // Every pixel of the footer outside the row and pager is the page: no card fill or rim.
+        val outside = buildList {
+            for (y in pinned.top.toInt() + 1 until pinned.bottom.toInt() - 1) {
+                add(bar.left + 1 to y.toFloat())
+                add(pinned.left - 2 to y.toFloat())
+                add(pinned.right + 2 to y.toFloat())
+                add(bar.right - 1 to y.toFloat())
+            }
+            for (y in pinned.bottom.toInt() + 1 until pager.top.toInt()) {
+                for (x in listOf(bar.left + 1, pinned.left + 1, pinned.center.x, pinned.right - 1, bar.right - 1)) add(x to y.toFloat())
+            }
+            for (y in pager.top.toInt() + 1 until bar.bottom.toInt() - 1) add(bar.left + 1 to y.toFloat())
+        }
+        val card = outside.filterNot { (x, y) -> isPage(x, y) }
+        assertTrue("footer draws a card around the pinned row at $card", card.isEmpty())
     }
 }

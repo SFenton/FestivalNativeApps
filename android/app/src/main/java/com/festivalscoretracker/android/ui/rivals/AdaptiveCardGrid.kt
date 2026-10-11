@@ -70,6 +70,7 @@ internal class SpecCells(private val spec: ColumnSpec) : GridCells {
  * @param horizontalPadding Side gutter outside the columns.
  * @param state Scroll state.
  * @param testTag Test tag for the grid.
+ * @param verticalItemSpacing Gap between items; 0 for a list drawn as one card of lazy segments (RivalCardSegment).
  * @param content Grid items.
  */
 @Composable
@@ -81,6 +82,7 @@ fun AdaptiveCardGrid(
     horizontalPadding: Dp = 16.dp,
     state: LazyGridState = rememberLazyGridState(),
     testTag: String? = null,
+    verticalItemSpacing: Dp = 16.dp,
     content: LazyGridScope.() -> Unit,
 ) {
     val density = LocalDensity.current
@@ -110,7 +112,7 @@ fun AdaptiveCardGrid(
             state = state,
             contentPadding = contentPadding,
             horizontalArrangement = Arrangement.spacedBy(with(density) { spec.spacing.toDp() }),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(verticalItemSpacing),
             modifier = modifier
                 .fillMaxSize()
                 .padding(horizontal = horizontalPadding)

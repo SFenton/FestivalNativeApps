@@ -2,7 +2,7 @@
 
 > **What:** where two-column layouts (grids, side-by-side rows) put their centre gutter and where full-width titles wrap when a foldable is partially folded with a vertical fold (iPhone Duo book pose, Android book posture). **Read when:** adding a grid, a two-up row or a full-width title to a page that can show on a foldable's inner display, or changing column counts on the Duo inner display.
 
-Status: **current**, 2026-10-10. Provenance: #343 (split from #332), #365 (R8), #584 (R8 on Android), #366 (Song Detail band previews), #373 (feedback form and photo library panes); Android precedent from the Rivals, Shop, Songs and Settings hinge work; owner rule #361 (flat divides at the free space's midpoint); owner rule #368 (Paths Side by Side panes).
+Status: **current**, 2026-10-10. Provenance: #343 (split from #332), #365 (R8), #584 (R8 on Android), #366 (Song Detail band previews), #373 (feedback form and photo library panes); Android precedent from the Rivals, Shop, Songs and Settings hinge work; owner rule #361 (flat divides at the free space's midpoint); owner rule #368 (Paths Side by Side panes); Android on-demand split #583 (its panes follow R7).
 
 ## Intent
 

@@ -172,7 +172,7 @@ private val MAX_LIST_WIDTH = 840.dp
 internal fun HistoryLoaded(instrument: Instrument, state: PlayerHistoryUiState, revealed: Boolean, padding: PaddingValues, hinge: HingeSplit?, modifier: Modifier = Modifier) {
     val direction = LocalLayoutDirection.current
     val top = padding.calculateTopPadding() + 8.dp
-    val bottom = padding.calculateBottomPadding() + 24.dp
+    val bottom = padding.calculateBottomPadding()
     val startPad = padding.calculateStartPadding(direction) + 16.dp
     val endPad = padding.calculateEndPadding(direction) + 16.dp
     Box(modifier) {

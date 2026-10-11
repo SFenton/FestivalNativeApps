@@ -59,7 +59,7 @@ import com.festivalscoretracker.android.ui.common.LoadSwap
 import com.festivalscoretracker.android.core.shell.LoadSwapPhase
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.fadeInStagger
-import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.BOARD_CARD_INDEX
 import com.festivalscoretracker.android.ui.common.loadSwapSpinnerItem
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
@@ -136,8 +136,8 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
         // Once per page arrival: a return from a profile keeps the reader's scroll position.
         val key = "${boardKey}:${metric.wireId}:$page"
         if (revealedPage == key) return@LaunchedEffect
-        val index = entries.indexOfFirst { RankingSpotlight.isSelected(selected, it.accountId) }
-        if (awaitSelectedRowEntrance(fadeIn, fadeInStagger(index), reduceMotion)) {
+        // The selected row enters with the board's card (load-transition R11, #614).
+        if (awaitSelectedRowEntrance(fadeIn, fadeInStagger(BOARD_CARD_INDEX), reduceMotion)) {
             withFrameNanos { }
             anchor.bounds()?.let { (top, height) -> listState.revealSelectedRow("rows", null, top, height, animate = !reduceMotion) }
         }
@@ -216,7 +216,8 @@ private fun FullRankingsControls(current: RankingsPayload?) {
 }
 
 /**
- * Row items for one page of account rankings, faded out and staggered in by the load swap.
+ * Row items for one page of account rankings: one card, faded out by the load swap and faded in
+ * as one with all its rows (load-transition R11, owner #614).
  *
  * @param swap Load swap for the page.
  * @param entries Page rows.
@@ -237,14 +238,13 @@ private fun LazyListScope.rankingRows(
 ) {
     item(key = "rows") {
         val density = LocalDensity.current
-        GlassCard(anchor.item.fillMaxWidth().then(swap.contentModifier)) {
+        GlassCard(anchor.item.fillMaxWidth().then(with(swap) { Modifier.card() }).testTag("fst.full-rankings.rows")) {
             Column(Modifier.padding(8.dp).onSizeChanged { onRowWidth(with(density) { it.width.toDp().value }) }) {
                 when {
                     entries.isEmpty() -> Text("No ranked players yet.", color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
                     else -> entries.forEachIndexed { index, entry ->
                         val isSelected = RankingSpotlight.isSelected(selected, entry.accountId)
-                        // The reveal anchor sits outside the fade-in so it measures the settled row.
-                        Box((if (isSelected) anchor.row else Modifier).festivalFadeIn(swap.revealed, fadeInStagger(index))) {
+                        Box(if (isSelected) anchor.row else Modifier) {
                             if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                             AccountRankingRow(
                                 entry = entry,
@@ -287,13 +287,14 @@ private fun ColumnScope.FullRankingsFooter(
     // Pinned on every page, the player's own included, like the song boards (issue #318).
     when (val placement = RankingSpotlight.pinnedPlacement(selected, entries, source)) {
         RankingSpotlightPlacement.None, RankingSpotlightPlacement.Inline -> Unit
-        RankingSpotlightPlacement.Pending -> AnchoredRowCard { SpotlightLoadingRow("fst.full-rankings.spotlight-footer.loading") }
+        RankingSpotlightPlacement.Pending -> PinnedSelectedRow { SpotlightLoadingRow("fst.full-rankings.spotlight-footer.loading") }
         RankingSpotlightPlacement.Unranked -> AnchoredRowCard { SpotlightUnrankedRow("Not yet ranked on $boardLabel.", "fst.full-rankings.spotlight-footer.unranked") }
         // Web fixed player footer: the full-width row in the page's columns, so it lines up
         // with the rows above (operator batch 7, 7.9). `leaderboard-row` R7: it jumps to the
         // player's page while their row is elsewhere and opens Statistics once it is on screen;
-        // while a page loads, the rank decides.
-        is RankingSpotlightPlacement.Footer -> AnchoredRowCard {
+        // while a page loads, the rank decides. Only its purple fill floats above the pager, with
+        // no card around it (#579).
+        is RankingSpotlightPlacement.Footer -> PinnedSelectedRow {
             val rank = placement.entry.rank(metric)
             val visible = if (pageShown) entries.any { RankingSpotlight.isSelected(selected, it.accountId) } else rank > 0 && LeaderboardPaging.pageForRank(rank, RankingPaging.PAGE_SIZE) == page
             val action = SelectedRowAction.footer(rank, visible, page, RankingPaging.PAGE_SIZE)

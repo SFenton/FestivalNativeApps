@@ -116,17 +116,36 @@ def mode_spec(mode: str) -> dict:
     return merged
 
 
-def restore_values(previous: dict, applied: dict) -> dict:
+def restore_values(previous: dict, applied: dict | list[str]) -> dict:
     """The subset of ``previous`` settings that ``applied`` changed (what to restore).
 
     Args:
         previous: ``sysset`` ``previous`` values.
-        applied: Settings that were set.
+        applied: Settings that were set, or the keys that will change (:func:`system_keys`).
 
     Returns:
         ``{key: previous value}`` for every applied key.
     """
     return {key: previous[key] for key in applied if key in previous}
+
+
+def system_keys(applied: dict, steps: list[str]) -> list[str]:
+    """System settings one drive changes: the mode's, plus ``high_contrast`` when a step switches it live.
+
+    A ``contrast:`` step (``uiwin``) switches the contrast theme with the app open, so the runner must snapshot and
+    restore the theme even in a mode that doesn't set one.
+
+    Args:
+        applied: The mode's ``system`` settings.
+        steps: The page's step strings.
+
+    Returns:
+        Keys to snapshot before the drive and restore after it.
+    """
+    keys = list(applied)
+    if "high_contrast" not in keys and any(s.partition(":")[0].strip().lower() == "contrast" for s in steps):
+        keys.append("high_contrast")
+    return keys
 
 
 def pending_restore(path: Path) -> dict:
@@ -455,6 +474,8 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
                           hold_seconds=hold, wait_seconds=1800)
     with lock:
         applied = spec.get("system") or {}
+        step_texts = page_steps(page, size, out, suffix, scan, tabs)
+        touched = system_keys(applied, step_texts)
         previous: dict = {}
         pid = None
         leftover = pending_restore(RESTORE_FILE)
@@ -463,16 +484,17 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
             uiwin.run_driver({"command": "sysset", "set": leftover}, lock)
             RESTORE_FILE.unlink(missing_ok=True)
         try:
-            if applied:
+            if touched:
                 current = uiwin.run_driver({"command": "sysset", "set": {}}, lock)["current"]
-                previous = restore_values(current, applied)
+                previous = restore_values(current, touched)
                 RESTORE_FILE.parent.mkdir(parents=True, exist_ok=True)
                 RESTORE_FILE.write_text(json.dumps(previous), encoding="utf-8")
+            if applied:
                 uiwin.run_driver({"command": "sysset", "set": applied}, lock)
             launched = uiwin.run_driver({"command": "launch", "exe": str(exe), "args": args, "env": env,
                                          "timeout": 30}, lock)
             pid = launched["pid"]
-            steps = [uiwin.parse_step(s) for s in page_steps(page, size, out, suffix, scan, tabs)]
+            steps = [uiwin.parse_step(s) for s in step_texts]
             result = uiwin.run_driver({"command": "drive", "pid": pid, "steps": steps}, lock,
                                       budget=lock.remaining())
             record["ok"] = True
@@ -483,7 +505,7 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
                 record["focus"] = summarize_focus(result["focus"])
                 record["focus_raw"] = [e["line"] for e in result["focus"]]
             record["window"] = {k: result.get(k) for k in ("bounds_epx", "scale")}
-            for key in ("sizes", "apart", "hits", "presses", "narration", "read", "orders"):
+            for key in ("sizes", "apart", "hits", "presses", "narration", "read", "orders", "paint"):
                 if key in result:
                     record[key] = result[key]
         except RuntimeError as error:
