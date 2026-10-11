@@ -185,6 +185,12 @@ RUNS: tuple[Run, ...] = (
     # no-player and reduced-motion states.
     Run("song-band-pinned", "a11y-song-band-pinned.json", tabs=0),
     Run("song-band-pinned-text-225", "a11y-song-band-pinned.json", sizes="compact", mode="text-225", tabs=0),
+    # The shared song leaderboard header on the band and solo boards (issues #317, #465): one 40+ epx button named by
+    # every visible line, title heading 1, header -> size switcher -> rows order, Tab/Shift+Tab/Right and Enter to Song
+    # Details, the total leaving on a slow size switch, and no button for an unresolved song; again at 225% text.
+    Run("song-leaderboard-header", "a11y-song-leaderboard-header.json", tabs=0),
+    Run("song-leaderboard-header-text-225", "a11y-song-leaderboard-header.json", sizes="compact", mode="text-225",
+        tabs=0),
     # The song board's pinned "your score" row joins the rows' load gate (issues #295, #457): on the first load only the
     # spinner is exposed; on a Filter Invalid Scores reload the pinned row leaves UIA and the Tab order (Tab goes from
     # the header to Next) while the header and pager stay; then it reads "Your rank, 1st. Open your statistics. …,
