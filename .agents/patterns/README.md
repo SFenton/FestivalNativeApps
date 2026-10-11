@@ -49,4 +49,4 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [experimental-ranks](experimental-ranks.md) | Settings → Experimental Ranks as the one gate: which ranking metrics Rank By offers, fallback of saved/routed metrics to Total Score, and the profile tiles, Rivals, notifications, Mac menu and first-run slide it gates |
 | [band-member-lines](band-member-lines.md) | Band card members: one line each, names leading on one shared edge, value and icons trailing, card-wide stack when any member can't fit |
 | [shop-offer-status](shop-offer-status.md) | Item Shop New / Leaving Tomorrow on Songs rows, Shop rows and cards: gold outline only for New, a visible indicator only for Leaving, both spoken |
-| [search-scopes](search-scopes.md) | Search scopes: global search's kinds and the profile search's All · Players · Bands on one engine, native scope controls, what a result opens |
+| [search-scopes](search-scopes.md) | Global search's kinds and the profile search's All · Players · Bands on one engine per platform: native All-first scope controls that start on All and only filter, and what a result opens |

@@ -4565,7 +4565,7 @@
       "title": "Search scopes: global and profile search",
       "status": "current",
       "doc": ".agents/patterns/search-scopes.md",
-      "summary": "Every song/player/band search runs the platform's global-search engine with the kinds it needs as targets; the profile search offers All · Players · Bands and starts on All with players and bands searched together (owner #600, web SearchModal targets players|bands), reuses global search's rows, order and All-only titles, opens a player or a band's page (no gate message), and uses a native scope control with an explicit All (Apple scope bar, Android M3 segmented buttons, Windows SelectorBar; agent decision #600). Find Rival stays players-only.",
+      "summary": "Every song/player/band search runs the platform's global-search engine with the kinds it needs as targets; the profile search offers All · Players · Bands and starts on All with players and bands searched together (owner #600, web SearchModal targets players|bands), names the scope's targets in its prompt (\"Search players or bands\"), reuses global search's rows, order and All-only titles, opens a player or a band's page (no gate message), and uses a native scope control with an explicit All (Apple scope bar, Android M3 segmented buttons, Windows SelectorBar; agent decision #600). Find Rival stays players-only.",
       "keywords": [
         "search scope",
         "scope bar",
@@ -4575,9 +4575,18 @@
         "players and bands",
         "segmented button",
         "selectorbar",
-        "all players bands"
+        "all players bands",
+        "global search",
+        "band search",
+        "player search",
+        "segmented control",
+        "targets"
       ],
       "web": [
+        {
+          "path": "App.tsx",
+          "symbol": "PROFILE_SEARCH_CONFIG"
+        },
         {
           "path": "components/search/SearchModal.tsx",
           "symbol": "SearchModal"
@@ -4590,12 +4599,20 @@
       "canonical": {
         "apple": [
           {
+            "path": "apple/Sources/FestivalCore/GlobalSearch.swift",
+            "symbol": "GlobalSearchTargets"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchModel.swift",
             "symbol": "GlobalSearchModel"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
             "symbol": "GlobalSearchResults"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
+            "symbol": "GlobalSearchIdentifiers"
           }
         ],
         "android": [
@@ -4622,6 +4639,10 @@
         ],
         "windows": [
           {
+            "path": "windows/Festival.Core/Domain/GlobalSearchResults.cs",
+            "symbol": "SearchScopes"
+          },
+          {
             "path": "windows/Festival.Core/ViewModels/GlobalSearchViewModel.cs",
             "symbol": "GlobalSearchViewModel"
           }
@@ -4638,13 +4659,16 @@
         ],
         "pages": []
       },
+      "guards": [],
       "issues": [
         299,
         320,
         348,
         573,
         600
-      ]
+      ],
+      "supersedes": [],
+      "supersededBy": null
     }
   ]
 }
