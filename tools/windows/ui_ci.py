@@ -419,6 +419,8 @@ RUNS: tuple[Run, ...] = (
     # selectors and Close; mid-swap Axe scans; at 225% text, with in-app Reduce Motion and with Animation effects off.
     # The compact Instrument ComboBox (issues #88, #439) opens to "Lead, list item, selected", Bass, Drums, Tap Vocals
     # (no Karaoke), each a 40 epx option, and switches by pointer and Alt+Down/Up/Enter with focus kept, Axe-scanned open.
+    # Sized for its longest option (issues #280, #526), it and its siblings keep their place and width on one line when
+    # the selection changes to the longest name (Tap Vocals) and back.
     # The compact Display ComboBox at the row's right edge keeps its whole keyboard focus ring (issues #269, #523): the
     # dialog content is the dialog less its padding and border, so the ring's right, top and bottom match its left side.
     Run("paths-swap", "a11y-paths-swap.json", sizes="compact,medium,wide"),
