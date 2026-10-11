@@ -279,7 +279,11 @@ class ProfileViewModelsTest {
 
     // region Score history
 
-    private fun historyViewModel(respond: suspend (String) -> PlayerHistoryPayload, calls: MutableList<String>) = PlayerHistoryViewModel(
+    private fun historyViewModel(
+        respond: suspend (String) -> PlayerHistoryPayload,
+        calls: MutableList<String>,
+        currentSeason: suspend () -> Int? = { null },
+    ) = PlayerHistoryViewModel(
         songId = "s-alpha",
         instrument = Instrument.Lead,
         read = { account, _, _ -> calls += account; respond(account) },
@@ -288,7 +292,25 @@ class ProfileViewModelsTest {
         backoff = ServiceRetryBackoff(),
         zone = ZoneOffset.UTC,
         locale = Locale.US,
+        currentSeason = currentSeason,
     )
+
+    @Test
+    fun historyNamesTheCurrentSeasonOnlyWhenTheCatalogueReportsIt() = runTest(main.dispatcher) {
+        settings.value = AppSettings(selectedPlayer = playerA)
+        val current = historyViewModel({ history(it) }, mutableListOf(), currentSeason = { 40 })
+        advanceUntilIdle()
+        assertEquals(40, current.state.value.currentSeason)
+        val best = current.state.value.rows.first()
+        assertTrue(best.announcement(40).contains("Current season 40"))
+        assertFalse(best.announcement(39).contains("Current season"))
+        assertTrue(best.announcement.contains("Season 40"))
+
+        val failing = historyViewModel({ history(it) }, mutableListOf(), currentSeason = { error("catalogue down") })
+        advanceUntilIdle()
+        assertNull(failing.state.value.currentSeason)
+        assertEquals(HistoryPhase.Loaded, failing.state.value.phase)
+    }
 
     private fun history(account: String) = PlayerHistoryPayload(
         FestivalApi.JSON.decodeFromString(PlayerHistoryResponse.serializer(), ProfileFixtures.history(account)),

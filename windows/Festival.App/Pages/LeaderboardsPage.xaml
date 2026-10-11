@@ -98,7 +98,7 @@
                                             <controls:ServiceStatusInline Status="{x:Bind Status}" />
                                         </Border>
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
-                                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52">
+                                                       controls:FadeIn.Together="True" controls:FadeIn.RowHeight="52">
                                             <ItemsRepeater.Layout>
                                                 <!-- One non-virtualizing column: rows stay realized while the page is cached, so Back
                                                      never re-estimates them and moves the page (#276). -->
@@ -151,7 +151,7 @@
                                             <controls:ServiceStatusInline Status="{x:Bind Status}" />
                                         </Border>
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
-                                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52">
+                                                       controls:FadeIn.Together="True" controls:FadeIn.RowHeight="52">
                                             <ItemsRepeater.Layout>
                                                 <!-- One non-virtualizing column: rows stay realized while the page is cached, so Back
                                                      never re-estimates them and moves the page (#276). -->

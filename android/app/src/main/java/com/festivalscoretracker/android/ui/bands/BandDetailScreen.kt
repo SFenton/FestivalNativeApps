@@ -94,6 +94,7 @@ import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.PercentilePill
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.design.SECTION_HEADER_TOP_PADDING
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
@@ -549,14 +550,14 @@ private fun SongList(rows: List<BandSongRow>, description: String, tag: String, 
                         if (largeText) {
                             // Large text: the rank column moves under the title instead of squeezing it.
                             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Pill(percentile)
+                                PercentilePill(percentile)
                                 Text(rankText, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
                             }
                         }
                     }
                     if (!largeText) {
                         Column(horizontalAlignment = Alignment.End) {
-                            Pill(percentile)
+                            PercentilePill(percentile)
                             Text(rankText, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
                         }
                     }

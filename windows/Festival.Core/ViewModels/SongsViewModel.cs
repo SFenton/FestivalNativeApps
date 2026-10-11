@@ -346,6 +346,7 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
             {
                 Highlight = highlight, InShop = inShop,
                 Chips = SongInstrumentStatusPolicy.Badges(song, settings.VisibleInstruments, chart => scores.Facts!(song.SongId, chart)),
+                Warning = Warning(song, filterChart),
             };
         }
         if (!scores.Available || metadataChart is not { } chart)
@@ -365,7 +366,24 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
             ChartRaw = fields.Count == 0 ? song.Difficulty?.ChartedValue(chart) : null,
             Metadata = fields,
             ScoreState = fields.Count > 0 ? null : song.Supports(chart) ? "No score" : $"No {chart.Label()} chart",
+            Warning = Warning(song, filterChart),
         };
+    }
+
+    /// <summary>
+    /// The row's invalid-score indicator (web <c>SongRow</c> + <c>InvalidScoreIcon</c>): every visible chart whose shown
+    /// score was replaced, dropped or kept over the CHOpt maximum, narrowed to the single-chart filter when one is set.
+    /// </summary>
+    /// <param name="song">Catalogue row.</param>
+    /// <param name="filterChart">Single-chart filter.</param>
+    /// <returns>Warning, or <see langword="null"/> when no described chart differs (or Filter Invalid Scores is off).</returns>
+    private InvalidScoreWarning? Warning(Song song, Instrument? filterChart)
+    {
+        if (scores.Reason is not { } reason) return null;
+        Dictionary<Instrument, InvalidScoreReason>? reasons = null;
+        foreach (var chart in settings.VisibleInstruments)
+            if (reason(song.SongId, chart) is { } why) (reasons ??= [])[chart] = why;
+        return reasons is null ? null : InvalidScoreWarning.Of(song.Title, reasons, filterChart);
     }
 }
 #endregion

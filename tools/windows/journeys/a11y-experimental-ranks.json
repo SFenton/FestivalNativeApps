@@ -43,5 +43,7 @@
                    "assertbelow:name=Adjusted Skill&class=ComboBoxItem|name=Total Score&class=ComboBoxItem",
                    "assertbelow:name=Weighted&class=ComboBoxItem|name=Adjusted Skill&class=ComboBoxItem",
                    "assertbelow:name=FC Rate&class=ComboBoxItem|name=Weighted&class=ComboBoxItem",
+                   "assertsize:name=Total Score&class=ComboBoxItem|40x40", "assertsize:name=Adjusted Skill&class=ComboBoxItem|40x40",
+                   "assertsize:name=Weighted&class=ComboBoxItem|40x40", "assertsize:name=FC Rate&class=ComboBoxItem|40x40",
                    "collapse:id=fst.band.rank-by", "waitgone:name=FC Rate&class=ComboBoxItem@5", "wait:1"]}
 ]

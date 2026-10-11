@@ -343,6 +343,13 @@
         <Setter Property="MinHeight" Value="{StaticResource FSTMenuItemMinHeight}" />
     </Style>
 
+    <!-- Drop-down options are targets too (page-tools-and-nav-chrome R10, issue #439): WinUI's keyboard/mouse
+         ComboBoxItemThemePadding (5 epx above, 7 below) left the Paths Instrument options 38 epx tall. The item template
+         insets its pill (LayoutRoot) by 2 epx top and bottom, like a menu item, so the same height gives a 40 epx pill. -->
+    <Style TargetType="ComboBoxItem" BasedOn="{StaticResource DefaultComboBoxItemStyle}">
+        <Setter Property="MinHeight" Value="{StaticResource FSTMenuItemMinHeight}" />
+    </Style>
+
     <!-- Radio choices are targets too (page-tools-and-nav-chrome R10, issue #430): WinUI's template draws each RadioButton
          32 epx tall (a fixed 32 epx circle row, no MinHeight) with an 8 epx RadioButtonsRowSpacing between them, so the
          Paths Difficulty/Display, Sort By/Direction and Settings Path Default View choices were 32 epx targets. Each

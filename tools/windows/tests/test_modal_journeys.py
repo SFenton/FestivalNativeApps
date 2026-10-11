@@ -31,7 +31,10 @@ _CALLERS = {
     "MainWindow.WhatsNew.cs": ("modal-whats-new",),
     "Pages/LicensesPage.xaml.cs": ("modal-licenses",),
     "Pages/SettingsPage.xaml.cs": ("modal-settings-reset",),
+    "Pages/SongsPage.xaml.cs": ("modal-invalid-score",),
 }
+#: Dismissing command labels; the Filtered Score alert's OK is the web InvalidScoreIcon alert's (issue #613).
+_DISMISS = ("Close", "Cancel", "Dismiss", "OK")
 #: The Karaoke notice is an alert with its own two choices and no Close (modal-shell R3 deviation, issue #239).
 _ALERTS = {"modal-paths-warning"}
 #: Hit probes at the edges of a 40x40 epx target (the hit-target journey's offsets, issue #271).
@@ -44,13 +47,13 @@ def _steps(page: dict) -> list[str]:
 
 
 def _close(page: dict) -> str:
-    """The selector of a page's dismissing command (Close, Cancel or Dismiss), from its ``assertname`` step."""
+    """The selector of a page's dismissing command (Close, Cancel, Dismiss or OK), from its ``assertname`` step."""
     for step in page["ready"]:
         verb, _, rest = step.partition(":")
         sel, _, text = rest.partition("|")
-        if verb == "assertname" and text in ("Close", "Cancel", "Dismiss"):
+        if verb == "assertname" and text in _DISMISS:
             return sel
-    raise AssertionError(f"{page['name']}: no Close/Cancel/Dismiss assertname")
+    raise AssertionError(f"{page['name']}: no Close/Cancel/Dismiss/OK assertname")
 
 
 class ModalJourneyTests(unittest.TestCase):

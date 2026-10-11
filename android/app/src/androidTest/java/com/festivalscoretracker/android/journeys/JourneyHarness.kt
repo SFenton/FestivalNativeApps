@@ -296,7 +296,7 @@ class JourneyHarness(private val rule: JourneyRule) {
         val nodes = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
         if (nodes.isNotEmpty() && nodes.all { it.size.height >= min && it.size.width >= min }) return true
         // A Material icon button draws 40 dp and extends its touch bounds to 48 dp; partly
-        // scrolled off (the hide-on-scroll floating toolbar) ATF measures the cut-off part. Its
+        // off screen (a node mid-transition) ATF measures the cut-off part. Its
         // accessibility node, once fully shown, reports the real touch bounds (issue #171).
         if (nodes.isEmpty()) return false
         fun fullSize() = visibleAccessibilityNodes(tag).let { shown ->
