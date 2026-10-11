@@ -629,6 +629,17 @@ class OcclusionRobustnessTests(unittest.TestCase):
         self.assertIn("RestoreIsolated();", source.split("finally", 1)[1][:200])
         self.assertIn('"front" => Front(', source)
 
+    def test_driver_resize_parks_pointer_off_window(self):
+        # #571: a cursor left by an earlier run's press slid under the title-bar search box on a resize and opened its
+        # hover tooltip (a windowed PopupHost Axe fails). Every resize must park the cursor before and after the move.
+        source = (u.DRIVER_DIR / "Program.cs").read_text(encoding="utf-8")
+        resize = source.split("private JsonNode Resize(", 1)[1].split("private static void ParkPointer(", 1)[0]
+        self.assertIn("ParkPointer(target, work);\n            Native.MoveVisible(hwnd, target);", resize)
+        self.assertIn("ParkPointer(Native.VisibleBounds(hwnd), monitor.Work);\n        Thread.Sleep(600);", resize)
+        park = source.split("private static void ParkPointer(", 1)[1].split("\n    }\n", 1)[0]
+        self.assertIn("window.Contains(corner)", park)
+        self.assertIn("Native.MouseAt(corner)", park)
+
 
 if __name__ == "__main__":
     unittest.main()

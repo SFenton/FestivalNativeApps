@@ -394,10 +394,46 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 default:
                     throw new ArgumentException($"unknown resize kind {kind}");
             }
+            ParkPointer(target, work);
             Native.MoveVisible(hwnd, target);
         }
+        ParkPointer(Native.VisibleBounds(hwnd), monitor.Work);
         Thread.Sleep(600);
         return Describe(window);
+    }
+
+    /// <summary>
+    /// Moves the cursor off a window's bounds to a corner of the work area. The cursor is state shared by every run on
+    /// the host: a <c>tapat</c>/<c>click</c>/<c>hover</c> in an earlier page or run leaves it wherever it pressed, and when
+    /// a resize slides an element under that resting cursor Windows sends a synthetic mouse move, so WinUI opens the
+    /// element's hover tooltip in a page that never pointed at it (issue #571: the title-bar search box's tooltip over
+    /// <c>qlj-profile-pane</c> at wide 225% text after an earlier run's title-bar presses; its windowed <c>PopupHost</c>
+    /// failed the Axe scan). Parking on every resize keeps hover to the pages that ask for it with a pointer step. A
+    /// cursor already outside the window stays put; a window covering the whole work area (maximized) has no corner to
+    /// park on, so the cursor stays put there too.
+    /// </summary>
+    /// <param name="window">Window bounds to keep the cursor off (physical pixels).</param>
+    /// <param name="work">Monitor work area (physical pixels).</param>
+    private static void ParkPointer(Rectangle window, Rectangle work)
+    {
+        if (!Native.GetCursorPos(out var cursor) || !window.Contains(cursor.X, cursor.Y)) return;
+        // Bottom-right first: a later maximize keeps the cursor here, over the content's corner rather than a caption
+        // button or the navigation toggle, which have tooltips.
+        Point[] corners =
+        [
+            new(work.Right - 2, work.Bottom - 2),
+            new(work.Left + 1, work.Bottom - 2),
+            new(work.Right - 2, work.Top + 1),
+            new(work.Left + 1, work.Top + 1),
+        ];
+        foreach (var corner in corners)
+        {
+            if (window.Contains(corner)) continue;
+            // Real input when possible, so WinUI sees the pointer leave and cancels a pending hover tooltip.
+            if (PostedInput.IsSessionLocked()) Mouse.MoveTo(corner);
+            else Native.MouseAt(corner);
+            return;
+        }
     }
 
     #endregion
@@ -2180,6 +2216,17 @@ internal static class Native
     [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
+    [DllImport("user32.dll", EntryPoint = "GetCursorPos")] private static extern bool GetCursorPosition(out POINT point);
+
+    /// <summary>The cursor's physical screen position.</summary>
+    /// <param name="point">Cursor position, or the origin when it can't be read (e.g. no interactive desktop).</param>
+    /// <returns><see langword="true"/> when the position was read.</returns>
+    public static bool GetCursorPos(out System.Drawing.Point point)
+    {
+        var read = GetCursorPosition(out var raw);
+        point = read ? new System.Drawing.Point(raw.X, raw.Y) : default;
+        return read;
+    }
 
     /// <summary>
     /// Which Windows App SDK non-client input window takes a screen point. With a custom title bar the window's caption
