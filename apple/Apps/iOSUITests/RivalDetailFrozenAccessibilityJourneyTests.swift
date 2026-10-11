@@ -242,8 +242,10 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
 
     /// `unattributed-contrast-page-floor`: every static text renders at least 4.5:1. The bars'
     /// own texts are measured in place; page texts are measured in the clear band, scrolling
-    /// the page by half the band until it stops, so each passes through it. A page text still
-    /// under a bar at the end is reported unmeasured.
+    /// the page by half the band until it stops, so each passes through it. Once scrolled, the
+    /// band starts `scrollEdgeDepth` below the top bar, past its designed dimming (the iPhone
+    /// CI run 38121401715 measured #558's rank pills at 2.3:1 just under the bar). A page text
+    /// still under a bar at the end is reported unmeasured.
     ///
     /// - Parameter app: The audited app, at the top of its page.
     /// - Returns: Texts below 4.5:1 or never measured; empty when the floor holds.
@@ -258,8 +260,12 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
             let (texts, top, bottom) = try screenTexts(app)
             let signature = texts.map { "\($0.label)\($0.frame)" }.joined()
             let atEnd = signature == previous
+            // Once the page has scrolled, content within the top bar's scroll-edge depth is dimmed
+            // by design (system soft edge + `TopEdgeScrim`, `scroll-edge` R6). Each drag moves the
+            // page half the band, so a text there was measured lower in the band a step before.
+            let clearTop = step == 0 ? top : top + Self.scrollEdgeDepth
             for text in texts where text.frame.intersects(window) {
-                let clear = text.chrome ? step == 0 : (text.frame.minY >= top - 0.5 && text.frame.maxY <= bottom + 0.5)
+                let clear = text.chrome ? step == 0 : (text.frame.minY >= clearTop - 0.5 && text.frame.maxY <= bottom + 0.5)
                 if clear {
                     let ratio = try renderedContrast(of: text.frame, in: image, window: window)
                     if (ratio ?? 0) < 4.5 {
@@ -390,6 +396,11 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
 
     /// Rule of an unattributed default-size clipping prediction, resolved by the AX5 audit.
     private static let predictedClipping = "predicted-clipping"
+
+    /// Depth below the top bar that the page's scroll-edge treatment dims once content scrolls
+    /// under it: `TopEdgeScrim` ends by the Quick Links landing line, bar + 32 pt
+    /// (`QuickLinks.defaultActivationOffset`, `scroll-edge` R6).
+    private static let scrollEdgeDepth: CGFloat = 32
 
     /// A default-size Dynamic Type or clipping flag, accepted once the same text is ≥ 1.35×
     /// taller at AX5 (or, for a `predictedClipping` flag, once the AX5 audit finds no clipping).
