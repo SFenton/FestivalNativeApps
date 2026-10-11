@@ -221,6 +221,7 @@ enum class SongPercentileTier {
  * @property starCount Stars shown (1–5).
  * @property goldStars Stars are gold (service 6).
  * @property currentSeason Season equals the catalogue season (inverted pill).
+ * @property season Season number of a [MetadataField.Season] pill.
  * @property intensityRaw Raw chart intensity for the meter.
  * @property gameDifficulty Game difficulty 0–3, or −1.
  */
@@ -234,6 +235,7 @@ data class SongMetadataPill(
     val starCount: Int = 0,
     val goldStars: Boolean = false,
     val currentSeason: Boolean = false,
+    val season: Int? = null,
     val intensityRaw: Double? = null,
     val gameDifficulty: Int = -1,
 )
@@ -316,7 +318,7 @@ object SongMetadataPolicy {
         if (MetadataField.Season in shown && season != null && season > 0) {
             val current = season == currentSeason
             byKind[MetadataField.Season] = SongMetadataPill(
-                MetadataField.Season, "S$season", if (current) "Current season $season" else "Season $season", currentSeason = current,
+                MetadataField.Season, "S$season", if (current) "Current season $season" else "Season $season", currentSeason = current, season = season,
             )
         }
         val raw = song.difficulty?.chartedValue(chart)

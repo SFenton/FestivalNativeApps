@@ -52,6 +52,12 @@ object BrandTokens {
     val statusRed = Color(0xFFC62828)
     val surfaceFrosted = Color(0xC7121826)
     val surfaceMuted = Color(0xFF223047)
+
+    /** Web `surfaceWhiteSubtle` (rgba 255 255 255 / 10%): the neutral percentile pill. */
+    val surfaceWhiteSubtle = Color(0x1AFFFFFF)
+
+    /** Web `borderSubtle`: the season pill outline and Suggestions row dividers. */
+    val borderSubtle = Color(0xFF1E2A3A)
     val surfaceSubtle = Color(0xFF162133)
     val textDisabled = Color(0xFF607089)
     val textMuted = Color(0xFF8899AA)
