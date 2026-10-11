@@ -129,7 +129,7 @@
                                         </Grid>
                                         <controls:ServiceStatusInline Visibility="{x:Bind ShowError, Mode=OneWay}" Margin="8,4" Status="{x:Bind Status}" />
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
-                                                       controls:FadeIn.Together="True" controls:FadeIn.RowHeight="52">
+                                                       controls:FadeIn.Together="True" controls:FadeIn.RowHeight="52" controls:RowSeparators.Enabled="True">
                                             <ItemsRepeater.Layout>
                                                 <!-- One non-virtualizing column: rows stay realized while the page is cached, so Back
                                                      never re-estimates them and moves the page (#276). -->
@@ -137,12 +137,18 @@
                                             </ItemsRepeater.Layout>
                                             <ItemsRepeater.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:RivalRowItem">
-                                                    <!-- Anonymous leaderboard rows (empty account ID, #213) read as text and don't open anything. -->
+                                                    <!-- Anonymous leaderboard rows (empty account ID, #213) read as text and don't open anything.
+                                                         The section's rows share one card with an inset hairline between them, like Apple's
+                                                         FestivalGlassSection rows (RowSeparators; issue #603). -->
                                                     <controls:LeaderboardRowButton Style="{StaticResource FSTRivalRowButtonStyle}" Tag="{x:Bind ProfileRoute}" Click="OnRouteClick"
                                                             IsActionable="{x:Bind HasProfile}" IsTabStop="{x:Bind HasProfile}" IsHitTestVisible="{x:Bind HasProfile}"
                                                             AutomationProperties.Name="{x:Bind AccessibleName}"
                                                             AutomationProperties.AutomationId="{x:Bind AutomationId}">
-                                                        <controls:RivalRowView Item="{x:Bind}" />
+                                                        <Grid>
+                                                            <Border x:Name="RowSeparator" Height="1" Margin="0,-6,0,0" VerticalAlignment="Top" IsHitTestVisible="False" Visibility="Collapsed"
+                                                                    Background="{ThemeResource FSTRowSeparatorBrush}" AutomationProperties.AccessibilityView="Raw" />
+                                                            <controls:RivalRowView Item="{x:Bind}" />
+                                                        </Grid>
                                                     </controls:LeaderboardRowButton>
                                                 </DataTemplate>
                                             </ItemsRepeater.ItemTemplate>

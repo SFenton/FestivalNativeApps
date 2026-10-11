@@ -34,7 +34,7 @@ Debug APK checked on each AVD with `device.py drive --route shop --extra FST_DEB
 
 | Configuration | Finding |
 |---|---|
-| FST_Phone portrait/landscape, 1.0×/2.0× | Compact list (landscape is 923 dp: grid with 3 columns and a toggle). At 2.0× titles and artists wrap inside the row with no clipping, and the cart button stays a 48 dp touch target (40 dp IconButton container padded by `minimumInteractiveComponentSize`). At rest the floating Filter toolbar covers the lowest visible row's cart button. This is deliberate: the shell's shared M3 floating toolbar hides when you scroll (`FestivalApp` `toolbarScroll`), and the list reserves its height at the end. |
+| FST_Phone portrait/landscape, 1.0×/2.0× | Compact list (landscape is 923 dp: grid with 3 columns and a toggle). At 2.0× titles and artists wrap inside the row with no clipping, and the cart button stays a 48 dp touch target (40 dp IconButton container padded by `minimumInteractiveComponentSize`). At rest the floating Filter toolbar covers the lowest visible row's cart button. This is deliberate: the shell's shared M3 floating toolbar overlays content like a FAB and stays on screen (issue #577), and the list reserves its height at the end, so scrolling a row up clears it. |
 | Light vs dark system theme | Identical: the app is dark-only by design ([design/android.md](../../design/android.md)). |
 | FST_Tablet landscape 1280 dp / portrait 800 dp | Drawer and 4 columns; rail and 3 columns. List/Grid toggle and filter sheet work. At 2.0× the grid scrims grow to four lines inside the tiles. |
 | FST_Resizable phone / foldable (+rotated) / tablet / desktop | Compact list, medium rail and grid, then expanded. Desktop was full-width before the fix and is now a centred 1040 dp grid/list (fixed). |

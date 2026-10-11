@@ -64,9 +64,11 @@ class SongDetailViewModel(
     private val loadBandBoard: (suspend (String, BandType, Int, String?) -> SongBandLeaderboardResponse)? = null,
 ) : ViewModel() {
     private val catalogPublicationFlow = MutableStateFlow<Int?>(null)
+    private val currentSeasonFlow = MutableStateFlow<Int?>(null)
     private val songLoader = RetryingLoader(viewModelScope, "song:$songKey", backoff) { refresh ->
         val payload = loadCatalog(refresh)
         catalogPublicationFlow.value = payload.publicationId
+        currentSeasonFlow.value = payload.catalog.currentSeason
         SongResolver.resolve(payload.catalog.songs, songKey)
     }
     private val previews = mutableMapOf<Pair<Instrument, Double?>, RetryingLoader<LeaderboardPayload>>()
@@ -81,6 +83,9 @@ class SongDetailViewModel(
 
     /** Generation observed for the catalogue the song was resolved from. */
     val catalogPublication: StateFlow<Int?> = catalogPublicationFlow.asStateFlow()
+
+    /** The catalogue's current season (inverts that season's pill), or null until known. */
+    val currentSeason: StateFlow<Int?> = currentSeasonFlow.asStateFlow()
 
     init {
         songLoader.ensureStarted()
@@ -196,8 +201,11 @@ class SongLeaderboardViewModel(
     backoff: ServiceRetryBackoff,
 ) : ViewModel() {
     private val pageFlow = MutableStateFlow(initialPage.coerceAtLeast(1))
+    private val currentSeasonFlow = MutableStateFlow<Int?>(null)
     private val songLoader = RetryingLoader(viewModelScope, "song:$songId", backoff) { refresh ->
-        SongResolver.resolve(loadCatalog(refresh).catalog.songs, songId)
+        val catalog = loadCatalog(refresh).catalog
+        currentSeasonFlow.value = catalog.currentSeason
+        SongResolver.resolve(catalog.songs, songId)
     }
     private val pageLoader = RetryingLoader(viewModelScope, "board:$songId:${instrument.wireId}", backoff) {
         val requested = pageFlow.value
@@ -219,6 +227,9 @@ class SongLeaderboardViewModel(
 
     /** Current one-based page. */
     val page: StateFlow<Int> = pageFlow.asStateFlow()
+
+    /** The catalogue's current season (inverts that season's pill), or null until known. */
+    val currentSeason: StateFlow<Int?> = currentSeasonFlow.asStateFlow()
 
     init {
         songLoader.ensureStarted()

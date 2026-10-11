@@ -91,10 +91,12 @@ fun AccuracyBadge(badge: ScoreAccuracyBadge, modifier: Modifier = Modifier, id: 
  * about the badge's vertical centre (top edge leaning right). The rectangle is inset by the
  * shear first, so the slanted outline stays inside the badge's bounds and column.
  *
+ * Shared by [PercentilePill] (pattern `metadata-pills`).
+ *
  * @param skewed Apply the shear (off for the wrapping large-text label).
  * @return Modifier.
  */
-private fun Modifier.goldOutline(skewed: Boolean): Modifier = drawBehind {
+internal fun Modifier.goldOutline(skewed: Boolean): Modifier = drawBehind {
     val stroke = GOLD_STROKE_DP.dp.toPx()
     val shear = if (skewed) GOLD_SKEW_TAN else 0f
     val shift = shear * size.height / 2

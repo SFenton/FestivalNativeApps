@@ -37,7 +37,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.isTraversalGroup
@@ -355,13 +354,6 @@ private fun TrailingPane(
     scope: SplitPaneScope,
     toolbar: FloatingToolbarHost,
 ) {
-    val scroll = remember { FloatingToolbarScrollState() }
-    val density = LocalDensity.current
-    val touchExploration = rememberScreenReaderOn()
-    scroll.hiddenOffsetPx = with(density) { ((FLOATING_TOOLBAR_HEIGHT_DP + FLOATING_TOOLBAR_MARGIN_DP).dp + split.toolbarLift).toPx() }
-    scroll.enabled = !touchExploration && !toolbar.pinned
-    val top by inner.currentBackStackEntryFlow.collectAsState(null)
-    LaunchedEffect(top?.id, touchExploration) { scroll.reset() }
     // The pane's NavHost would register its own system-Back callback whenever it composes, ahead
     // of the drawer and global search; the shell's one split Back handler (SplitBackRegistry)
     // drives the pane instead, so the pane's NavHost gets a dispatcher nothing ever invokes.
@@ -372,7 +364,8 @@ private fun TrailingPane(
             override val lifecycle: Lifecycle = lifecycle
         }
     }
-    Box(Modifier.fillMaxSize().nestedScroll(scroll.connection)) {
+    // Its floating toolbar never hides on scroll (`page-tools-and-nav-chrome` R7, #577).
+    Box(Modifier.fillMaxSize()) {
         CompositionLocalProvider(LocalShellActions provides actions, LocalSplitPane provides scope, LocalOnBackPressedDispatcherOwner provides isolatedBack) {
             NavHost(navController = inner, startDestination = EmptyPaneRoute, modifier = Modifier.fillMaxSize()) {
                 composable<EmptyPaneRoute> {}
@@ -385,7 +378,6 @@ private fun TrailingPane(
                 .align(Alignment.BottomEnd)
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
                 .padding(end = FLOATING_TOOLBAR_MARGIN_DP.dp, bottom = FLOATING_TOOLBAR_MARGIN_DP.dp + split.toolbarLift),
-            scroll = scroll,
         )
     }
 }

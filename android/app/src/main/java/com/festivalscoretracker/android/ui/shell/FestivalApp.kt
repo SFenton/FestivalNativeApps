@@ -72,7 +72,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
@@ -154,12 +153,10 @@ import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_HEIGHT_DP
 import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_MARGIN_DP
 import com.festivalscoretracker.android.ui.common.FloatingToolbar
 import com.festivalscoretracker.android.ui.common.FloatingToolbarHost
-import com.festivalscoretracker.android.ui.common.FloatingToolbarScrollState
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.LocalShellPosture
 import com.festivalscoretracker.android.ui.common.SearchChrome
 import com.festivalscoretracker.android.ui.common.ShellActions
-import com.festivalscoretracker.android.ui.common.rememberScreenReaderOn
 import com.festivalscoretracker.android.ui.common.shellPosture
 import com.festivalscoretracker.android.ui.compete.competeDestinations
 import com.festivalscoretracker.android.ui.firstrun.FirstRunDemoSongsSource
@@ -450,16 +447,8 @@ private fun FestivalShell(
     // Beside a rail or drawer the content reaches the window bottom: the toolbar rises above the
     // system navigation bar, and the band every page reserves for it grows by the same amount.
     val toolbarLift = if (layout == NavigationLayout.BottomBar) 0.dp else navBars.calculateBottomPadding()
-    // M3 "exit always": the toolbar slides away while content scrolls toward its end and back
-    // when it scrolls back; never hidden under TalkBack or on pages that pin it (Songs and
-    // Suggestions keep Sort/Filter/Quick Links reachable while scrolled, issue #52); shown
-    // again on every navigation.
-    val toolbarScroll = remember { FloatingToolbarScrollState() }
-    val touchExploration = rememberScreenReaderOn()
-    val toolbarPinned = floatingToolbar.pinned
-    toolbarScroll.hiddenOffsetPx = with(density) { ((FLOATING_TOOLBAR_HEIGHT_DP + FLOATING_TOOLBAR_MARGIN_DP).dp + toolbarLift).toPx() }
-    toolbarScroll.enabled = !touchExploration && !toolbarPinned
-    LaunchedEffect(stack.lastOrNull()?.id, touchExploration, toolbarPinned) { toolbarScroll.reset() }
+    // The toolbar never hides on scroll, on any page (`page-tools-and-nav-chrome` R7, #52, #577),
+    // so the band every page reserves for it below its last row is always covered by it.
     val bottomPadding = PaddingValues(
         end = safeEnd,
         bottom = (FLOATING_TOOLBAR_HEIGHT_DP + 2 * FLOATING_TOOLBAR_MARGIN_DP).dp + toolbarLift,
@@ -584,7 +573,6 @@ private fun FestivalShell(
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .nestedScroll(toolbarScroll.connection)
                         .onGloballyPositioned {
                             contentLeftPx = it.positionInWindow().x.toInt()
                             contentWidthPx = it.size.width
@@ -636,9 +624,9 @@ private fun FestivalShell(
                     // Composed after the NavHost, so an open trailing pane takes system Back before
                     // the page is popped, and before the drawer and global search, composed later.
                     BackHandler(enabled = splitBack.enabled) { splitBack.back() }
-                    // Clipped to the content area: hidden on scroll it slides behind the bottom
-                    // bar's edge instead of ghosting through the translucent bar (issue #102).
-                    // The clip layer has no input or semantics, so touches and TalkBack pass through.
+                    // Clipped to the content area, so the toolbar never draws over the bottom bar
+                    // (issue #102). It never hides on scroll (R7, #577). The clip layer has no
+                    // input or semantics, so touches and TalkBack pass through.
                     Box(Modifier.matchParentSize().clipToBounds()) {
                         // End-aligned (M3 Expressive floating toolbars may sit at the edge), where
                         // the web's mobile FAB dock sits; one shared toolbar per screen. It stays
@@ -665,7 +653,6 @@ private fun FestivalShell(
                                     right = with(density) { insets.right.toDp() },
                                     bottom = FLOATING_TOOLBAR_MARGIN_DP.dp + toolbarLift,
                                 ),
-                            scroll = toolbarScroll,
                         )
                     }
                 }

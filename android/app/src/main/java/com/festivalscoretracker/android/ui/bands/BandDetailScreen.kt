@@ -1,5 +1,8 @@
 package com.festivalscoretracker.android.ui.bands
 
+import com.festivalscoretracker.android.ui.leaderboards.HistoryCell
+import com.festivalscoretracker.android.ui.leaderboards.HistoryColumnsRow
+import com.festivalscoretracker.android.ui.leaderboards.rememberHistoryColumns
 import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
@@ -30,6 +33,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -78,6 +82,8 @@ import com.festivalscoretracker.android.presentation.bands.BandSongsState
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.FestivalScreen
+import com.festivalscoretracker.android.ui.common.FoldLane
+import com.festivalscoretracker.android.ui.common.ProvideFoldLane
 import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
@@ -89,7 +95,9 @@ import com.festivalscoretracker.android.ui.common.StatTileText
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import com.festivalscoretracker.android.ui.design.GlassCard
+import com.festivalscoretracker.android.ui.design.readingGroup
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.PercentilePill
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.design.SECTION_HEADER_TOP_PADDING
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
@@ -118,8 +126,10 @@ internal fun bandHeadingInset(id: String, statisticsRow: Boolean): Dp =
 
 /**
  * `/bands/:bandId` (web `BandPage`): Members, Band Summary, Band Statistics (Rank
- * By), Band Rank History and Five Best / Five Worst Songs. Splits into two
- * independently scrolling panes on wide windows or around a vertical hinge.
+ * By), Band Rank History and Five Best / Five Worst Songs. On wide windows or around a
+ * vertical hinge the one scrolling page pairs its sections in two panes row by row
+ * ([BandLayout.DETAIL_ROWS]) under a full-width header, so sections side by side always
+ * share a top edge (`hinge-columns` R8, #584).
  *
  * @param viewModel Detail logic.
  * @param routeName Name carried by the route (shown until the row loads).
@@ -132,7 +142,7 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
     val detail = (detailState as? LoadState.Loaded)?.value
     val title = detail?.let { BandMember.joinNames(it.displayMembers) } ?: routeName?.takeIf { it.isNotBlank() } ?: "Band"
     val revealed = rememberRevealed(detail != null)
-    // Quick Links (web BandPage) while the page is one scrolling column; two panes show everything side by side.
+    // Quick Links (web BandPage) in one column and two panes: both are one scrolling page (#584).
     val scroll = rememberScrollState()
     // One pane decision drives both the layout and the Quick Links action, so they cannot disagree.
     val separatingHinge = shellPosture().hingeList.any { it.isVertical && it.isSeparating }
@@ -144,7 +154,7 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
     val (quickLinks, anchors) = rememberScrollQuickLinks(
         scroll,
         "Quick Links",
-        if (detail != null && !twoPane) BandQuickLinks.sections() else emptyList(),
+        if (detail != null) BandQuickLinks.sections() else emptyList(),
         fadeIn,
         headingInset = { id -> bandHeadingInset(id, statisticsRow) },
     )
@@ -196,14 +206,20 @@ private fun BandDetailContent(
     val summary = remember(detail, type) { BandDetailProjection.summary(detail, type) }
     val statistics = remember(detail, type, metric, bestSong) { BandDetailProjection.statistics(detail, type, metric, bestSong) }
     var contentLeft by rememberMeasuredPx(0f)
-    val mark: (String) -> Modifier = { id -> if (!twoPane) with(anchors) { Modifier.section(id) } else Modifier }
-    val leading: @Composable ColumnScope.() -> Unit = {
+    val mark: (String) -> Modifier = { id -> with(anchors) { Modifier.section(id) } }
+    val header: @Composable () -> Unit = {
         BandPageHeader(title, "${type.label} · ${BandFormatting.appearances(detail.songsPlayed)}", "fst.band")
+    }
+    val members: @Composable ColumnScope.() -> Unit = {
         Column(mark("members")) { MembersSection(detail.displayMembers, onNavigate) }
+    }
+    val summarySection: @Composable ColumnScope.() -> Unit = {
         Column(mark("summary")) {
             SectionHeader("Band Summary", Modifier.testTag("fst.band.summary-section"))
             StatGrid(summary, onNavigate)
         }
+    }
+    val statisticsSection: @Composable ColumnScope.() -> Unit = {
         Column(mark("statistics")) {
             if (!experimentalRanks) {
                 // Experimental Ranks off: Total Score only, so no Rank By (experimental-ranks R1).
@@ -223,10 +239,23 @@ private fun BandDetailContent(
             StatGrid(statistics, onNavigate)
         }
     }
-    val trailing: @Composable ColumnScope.() -> Unit = {
+    val historySection: @Composable ColumnScope.() -> Unit = {
         Column(mark("rank-history")) { HistorySection(history, metric, viewModel::retryHistory) }
-        Column(mark("songs")) { SongsSections(songs, title, artworkUrl, viewModel::retrySongs, onNavigate) }
     }
+    // Two panes: Five Best beside Five Worst once loaded; loading and failures show under Five Best.
+    val loadedSongs = (songs as? LoadState.Loaded)?.value
+    val sections: Map<String, @Composable ColumnScope.() -> Unit> = mapOf(
+        BandLayout.MEMBERS to members,
+        BandLayout.SUMMARY to summarySection,
+        BandLayout.STATISTICS to statisticsSection,
+        BandLayout.RANK_HISTORY to historySection,
+        BandLayout.BEST_SONGS to {
+            Column(mark("songs")) {
+                if (loadedSongs != null) BestSongs(loadedSongs, title, artworkUrl, onNavigate) else SongsSections(songs, title, artworkUrl, viewModel::retrySongs, onNavigate)
+            }
+        },
+        BandLayout.WORST_SONGS to { if (loadedSongs != null) WorstSongs(loadedSongs, title, artworkUrl, onNavigate) },
+    )
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
@@ -237,15 +266,21 @@ private fun BandDetailContent(
         val scrollPadding = Modifier.padding(start = 16.dp, end = 16.dp)
         val bottom = padding.calculateBottomPadding() + 24.dp
         if (panes.twoPane) {
-            Row(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-                val leadingModifier = panes.leadingWidth?.let { Modifier.width(it.dp) } ?: Modifier.weight(1f)
-                Column(leadingModifier.fillMaxSize().verticalScroll(rememberScrollState()).then(scrollPadding).testTag("fst.band.pane.leading")) {
-                    Column(Modifier.festivalFadeIn(revealed)) { leading() }
-                    Spacer(Modifier.height(bottom))
-                }
-                Spacer(Modifier.width(panes.gap.dp))
-                Column(Modifier.weight(1f).fillMaxSize().verticalScroll(rememberScrollState()).then(scrollPadding).testTag("fst.band.pane.trailing")) {
-                    Column(Modifier.festivalFadeIn(revealed, fadeInStagger(1))) { trailing() }
+            // One scrolling page: the header spans both panes (only the leading one in book
+            // posture, FoldLane) and each row pairs two sections on one top edge (#584).
+            ProvideFoldLane(panes.leadingWidth?.dp) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .then(with(anchors) { Modifier.viewport() })
+                        .verticalScroll(scroll)
+                        .padding(top = padding.calculateTopPadding())
+                        .testTag("fst.band.content"),
+                ) {
+                    FoldLane(Modifier.festivalFadeIn(revealed)) { Box(Modifier.fillMaxWidth().testTag("fst.band.header")) { Box(scrollPadding) { header() } } }
+                    BandLayout.DETAIL_ROWS.forEachIndexed { index, (leading, trailing) ->
+                        BandPaneRow(panes, index, Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1)), sections.getValue(leading), sections.getValue(trailing))
+                    }
                     Spacer(Modifier.height(bottom))
                 }
             }
@@ -261,12 +296,47 @@ private fun BandDetailContent(
                         .testTag("fst.band.content"),
                 ) {
                     // Web BandPage staggers its sections in as the band loads.
-                    Column(Modifier.festivalFadeIn(revealed)) { leading() }
-                    Column(Modifier.festivalFadeIn(revealed, fadeInStagger(1))) { trailing() }
+                    Column(Modifier.festivalFadeIn(revealed)) {
+                        header()
+                        members()
+                        summarySection()
+                        statisticsSection()
+                    }
+                    Column(Modifier.festivalFadeIn(revealed, fadeInStagger(1))) {
+                        historySection()
+                        Column(mark("songs")) { SongsSections(songs, title, artworkUrl, viewModel::retrySongs, onNavigate) }
+                    }
                     Spacer(Modifier.height(bottom))
                 }
             }
         }
+    }
+}
+
+/**
+ * One row of the two-pane Band Detail page: [leading] and [trailing] start on the row's top
+ * edge, in the panes [BandLayout.panes] places (meeting at a separating hinge, else equal
+ * halves 24 dp apart). Each side is one TalkBack group, so a row reads leading then trailing.
+ *
+ * @param panes Pane geometry.
+ * @param index Row index, for test tags.
+ * @param modifier Modifier for the row.
+ * @param leading Leading section.
+ * @param trailing Trailing section.
+ */
+@Composable
+private fun BandPaneRow(
+    panes: BandLayout.Panes,
+    index: Int,
+    modifier: Modifier,
+    leading: @Composable ColumnScope.() -> Unit,
+    trailing: @Composable ColumnScope.() -> Unit,
+) {
+    Row(modifier.fillMaxWidth().testTag("fst.band.row.$index"), verticalAlignment = Alignment.Top) {
+        val leadingWidth = panes.leadingWidth?.let { Modifier.width(it.dp) } ?: Modifier.weight(1f)
+        Column(leadingWidth.readingGroup().padding(horizontal = 16.dp).testTag("fst.band.row.$index.leading"), content = leading)
+        Spacer(Modifier.width(panes.gap.dp))
+        Column(Modifier.weight(1f).readingGroup().padding(horizontal = 16.dp).testTag("fst.band.row.$index.trailing"), content = trailing)
     }
 }
 
@@ -399,6 +469,9 @@ private fun RankByMenu(metric: BandRankingMetric, options: List<BandRankingMetri
 
 // region Rank history
 
+/** Gap between a history row's date, rank and value. */
+private val HISTORY_GAP = 12.dp
+
 @Composable
 private fun HistorySection(state: LoadState<BandRankHistoryResponse>, metric: BandRankingMetric, onRetry: () -> Unit) {
     SectionHeader("Band Rank History", Modifier.testTag("fst.band.history-section"))
@@ -420,22 +493,29 @@ private fun HistorySection(state: LoadState<BandRankHistoryResponse>, metric: Ba
             }
             val points = remember(ranked, metric) { BandDetailProjection.points(ranked, metric) }
             val rows = remember(ranked, metric) { BandDetailProjection.recentRows(ranked, metric) }
+            // One rank and value width over every snapshot, so the rows line up (web BandRankHistoryChart, issue #594).
+            val texts = remember(ranked, metric) { BandDetailProjection.columnTexts(ranked, metric) }
+            val style = LocalTextStyle.current
+            val columns = rememberHistoryColumns(texts, style, HISTORY_GAP)
             GlassCard(Modifier.fillMaxWidth()) {
                 RankHistoryChart(points.map { Offset(it.x, it.y) }, ranked.first().rank(metric), ranked.last().rank(metric), ranked.size)
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-                    rows.forEach { row ->
-                        Row(
-                            Modifier
+                    rows.forEachIndexed { index, row ->
+                        // The newest snapshot is bold, the others' rank semibold (web `i === 0`).
+                        val weight = if (index == 0) FontWeight.Bold else FontWeight.Normal
+                        HistoryColumnsRow(
+                            plan = columns,
+                            date = HistoryCell(row.dateText, BrandTokens.textSecondary, weight),
+                            rank = HistoryCell(row.rankText, BrandTokens.textPrimary, if (index == 0) FontWeight.Bold else FontWeight.SemiBold),
+                            value = HistoryCell(row.valueText, BrandTokens.textSecondary, weight),
+                            style = style,
+                            modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 40.dp)
                                 .testTag("fst.band.history-row.${row.date}")
-                                .clearAndSetSemantics { contentDescription = "${row.dateText}, rank ${row.rankText}, ${row.valueText}" },
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(row.dateText, color = BrandTokens.textSecondary, modifier = Modifier.weight(1f))
-                            Text(row.rankText, color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                            Text(row.valueText, color = BrandTokens.textSecondary)
-                        }
+                                .clearAndSetSemantics { contentDescription = "${row.dateText}, rank ${row.rankText}, ${row.valueText}" }
+                                .padding(vertical = 4.dp),
+                            probeKey = "band.${row.date}",
+                        )
                     }
                 }
             }
@@ -487,18 +567,36 @@ private fun SongsSections(
     onRetry: () -> Unit,
     onNavigate: (AppRoute) -> Unit,
 ) {
-    SectionHeader("Five Best Songs", Modifier.testTag("fst.band.songs-section"))
     when (state) {
-        LoadState.Loading -> SectionProgress("Loading band songs")
-        is LoadState.Failed -> ServiceStatusInline(state.issue, "Band songs unavailable", state.countdown, onRetry)
+        LoadState.Loading -> {
+            SectionHeader("Five Best Songs", Modifier.testTag("fst.band.songs-section"))
+            SectionProgress("Loading band songs")
+        }
+        is LoadState.Failed -> {
+            SectionHeader("Five Best Songs", Modifier.testTag("fst.band.songs-section"))
+            ServiceStatusInline(state.issue, "Band songs unavailable", state.countdown, onRetry)
+        }
         is LoadState.Loaded -> {
-            val best = state.value.response.best.map { BandSongRow(it, state.value.songsById[it.songId]) }
-            val worst = state.value.response.worst.map { BandSongRow(it, state.value.songsById[it.songId]) }
-            SongList(best, "$title's highest-ranked band songs, sorted by percentile.", "fst.band.best-songs", artworkUrl, onNavigate)
-            SectionHeader("Five Worst Songs")
-            SongList(worst, "$title's lowest-ranked band songs, sorted by percentile.", "fst.band.worst-songs", artworkUrl, onNavigate)
+            BestSongs(state.value, title, artworkUrl, onNavigate)
+            WorstSongs(state.value, title, artworkUrl, onNavigate)
         }
     }
+}
+
+/** Five Best Songs: heading, description and rows. */
+@Composable
+private fun BestSongs(state: BandSongsState, title: String, artworkUrl: (String?) -> String?, onNavigate: (AppRoute) -> Unit) {
+    SectionHeader("Five Best Songs", Modifier.testTag("fst.band.songs-section"))
+    val best = state.response.best.map { BandSongRow(it, state.songsById[it.songId]) }
+    SongList(best, "$title's highest-ranked band songs, sorted by percentile.", "fst.band.best-songs", artworkUrl, onNavigate)
+}
+
+/** Five Worst Songs: heading, description and rows. */
+@Composable
+private fun WorstSongs(state: BandSongsState, title: String, artworkUrl: (String?) -> String?, onNavigate: (AppRoute) -> Unit) {
+    SectionHeader("Five Worst Songs", Modifier.testTag("fst.band.worst-songs-section"))
+    val worst = state.response.worst.map { BandSongRow(it, state.songsById[it.songId]) }
+    SongList(worst, "$title's lowest-ranked band songs, sorted by percentile.", "fst.band.worst-songs", artworkUrl, onNavigate)
 }
 
 @Composable
@@ -535,14 +633,14 @@ private fun SongList(rows: List<BandSongRow>, description: String, tag: String, 
                         if (largeText) {
                             // Large text: the rank column moves under the title instead of squeezing it.
                             Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Pill(percentile)
+                                PercentilePill(percentile)
                                 Text(rankText, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
                             }
                         }
                     }
                     if (!largeText) {
                         Column(horizontalAlignment = Alignment.End) {
-                            Pill(percentile)
+                            PercentilePill(percentile)
                             Text(rankText, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
                         }
                     }

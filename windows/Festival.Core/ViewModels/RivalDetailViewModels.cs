@@ -17,7 +17,10 @@ public enum RivalSongOutcome
     Losing,
 }
 
-/// <summary>One shared song, head to head (web <c>RivalSongRow</c>, standalone layout).</summary>
+/// <summary>
+/// One shared song, head to head (pattern <c>rival-rows</c>, the Apple <c>RivalSongRowContent</c> design on every surface,
+/// issue #603): art, title, artist, "#rank Name" pills for both sides and a rank-gap badge.
+/// </summary>
 public sealed record RivalSongItem
 {
     /// <summary>Builds a row, enriching it from the catalogue when the song is known.</summary>
@@ -31,8 +34,7 @@ public sealed record RivalSongItem
         PlayerName = playerName;
         RivalName = rivalName;
         Title = song.Title ?? catalogSong?.Title ?? song.SongId;
-        var artist = song.Artist ?? catalogSong?.Artist;
-        Subtitle = catalogSong?.Year is { } year && artist is not null ? $"{artist} · {year}" : artist ?? "";
+        Artist = song.Artist ?? catalogSong?.Artist ?? "";
         AlbumArt = catalogSong?.AlbumArt;
         var keyboard = catalogSong?.UsesKeyboardIcon == true;
         InstrumentInfo.TryParse(song.UserInstrument ?? song.Instrument, out var user);
@@ -51,8 +53,11 @@ public sealed record RivalSongItem
     /// <summary>Song title (service title, else catalogue, else ID).</summary>
     public string Title { get; }
 
-    /// <summary><c>Artist · Year</c>.</summary>
-    public string Subtitle { get; }
+    /// <summary>Artist (service, else catalogue), or empty when unknown.</summary>
+    public string Artist { get; }
+
+    /// <summary>Whether the artist line shows.</summary>
+    public bool HasArtist => Artist.Length > 0;
 
     /// <summary>Catalogue art reference, if known.</summary>
     public string? AlbumArt { get; }
@@ -89,8 +94,19 @@ public sealed record RivalSongItem
     /// <summary>Whether the player leads.</summary>
     public bool IsWinning => Outcome == RivalSongOutcome.Winning;
 
+    /// <summary>Whether the two ranks are equal.</summary>
+    public bool IsTied => Outcome == RivalSongOutcome.Tie;
+
     /// <summary>Whether the rival leads.</summary>
     public bool IsLosing => Outcome == RivalSongOutcome.Losing;
+
+    /// <summary>Who leads, from the rival's side (the mirror of <see cref="Outcome"/>): tints the rival's pill.</summary>
+    public RivalSongOutcome RivalOutcome => Outcome switch
+    {
+        RivalSongOutcome.Winning => RivalSongOutcome.Losing,
+        RivalSongOutcome.Losing => RivalSongOutcome.Winning,
+        _ => RivalSongOutcome.Tie,
+    };
 
     /// <summary><c>#rank</c> for the player.</summary>
     public string UserRankText => string.Create(CultureInfo.CurrentCulture, $"#{Comparison.UserRank:N0}");
@@ -98,46 +114,35 @@ public sealed record RivalSongItem
     /// <summary><c>#rank</c> for the rival.</summary>
     public string RivalRankText => string.Create(CultureInfo.CurrentCulture, $"#{Comparison.RivalRank:N0}");
 
-    /// <summary>Player's score, or empty.</summary>
-    public string UserScoreText => Comparison.UserScore?.ToString("N0", CultureInfo.CurrentCulture) ?? "";
+    /// <summary>The player's standing pill, <c>#rank Name</c> (rival-rows R3).</summary>
+    public string PlayerPillText => $"{UserRankText} {PlayerName}";
 
-    /// <summary>Rival's score, or empty.</summary>
-    public string RivalScoreText => Comparison.RivalScore?.ToString("N0", CultureInfo.CurrentCulture) ?? "";
+    /// <summary>The rival's standing pill, <c>#rank Name</c> (rival-rows R3).</summary>
+    public string RivalPillText => $"{RivalRankText} {RivalName}";
 
     /// <summary>Signed rank gap.</summary>
     public string RankDeltaText => RivalHeadToHead.FormatRankDelta(Comparison.RankDelta);
 
-    /// <summary>Signed score gap.</summary>
-    public string ScoreDiffText => RivalHeadToHead.FormatScoreDiff(Comparison);
-
-    /// <summary>Screen-reader name.</summary>
-    public string AccessibleName =>
-        $"{Title}, {InstrumentLabel}, you rank {Comparison.UserRank:N0}, {RivalName} ranks {Comparison.RivalRank:N0}, " +
-        (Outcome switch { RivalSongOutcome.Winning => "you lead", RivalSongOutcome.Losing => "they lead", _ => "tied" });
+    /// <summary>Unsigned rank gap under the badge's ▲/▼/= glyph (the web's compact <c>K</c>/<c>M</c> form).</summary>
+    public string RankGapText => RivalHeadToHead.FormatRankDelta(Math.Abs((long)Comparison.RankDelta)).TrimStart('+');
 
     /// <summary>
-    /// Screen-reader name of the full (Rivalry) row, which also shows artist, year and both scores. The row's parts are
-    /// hidden from UI Automation, so this one stop reads everything it shows.
+    /// The row's one screen-reader stop (rival-rows R5): song, artist, chart, both ranks and who leads. The row's parts are
+    /// hidden from UI Automation, so this reads everything it shows.
     /// </summary>
-    public string FullAccessibleName
+    public string AccessibleName
     {
         get
         {
-            var subtitle = Subtitle.Length == 0 ? "" : $", {Subtitle.Replace(" · ", ", ", StringComparison.Ordinal)}";
-            var outcome = Outcome switch { RivalSongOutcome.Winning => "you lead", RivalSongOutcome.Losing => "they lead", _ => "tied" };
+            var artist = HasArtist ? $", {Artist}" : "";
+            var leader = Outcome switch { RivalSongOutcome.Winning => "you lead", RivalSongOutcome.Losing => $"{RivalName} leads", _ => "tied" };
             return string.Create(CultureInfo.CurrentCulture,
-                $"{Title}{subtitle}, {InstrumentLabel}, you rank {Comparison.UserRank:N0}{Points(UserScoreText)}, " +
-                $"{RivalName} ranks {Comparison.RivalRank:N0}{Points(RivalScoreText)}, {outcome}");
+                $"{Title}{artist}, {InstrumentLabel}, you rank {Comparison.UserRank:N0}, {RivalName} ranks {Comparison.RivalRank:N0}, {leader}");
         }
     }
 
     /// <summary>UIA automation ID.</summary>
     public string AutomationId => $"fst.rivalry.song.{Comparison.SongId}.{Comparison.Instrument}";
-
-    /// <summary>Spoken score suffix.</summary>
-    /// <param name="score">Formatted score, or empty when unknown.</param>
-    /// <returns><c>, with N points</c>, or empty.</returns>
-    private static string Points(string score) => score.Length == 0 ? "" : $" with {score} points";
 }
 #endregion
 
