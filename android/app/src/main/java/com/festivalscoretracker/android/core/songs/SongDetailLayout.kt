@@ -94,13 +94,25 @@ object SongDetailLayout {
     /** Web `SONG_DETAIL_SCORE_HISTORY_QUICK_LINK_ID`. */
     const val HISTORY_ID = "score-history"
 
+    /** Prefix of [instrumentId]. */
+    private const val INSTRUMENT_PREFIX = "instrument-"
+
     /**
      * Web `songDetailInstrumentQuickLinkId`.
      *
      * @param chart Chart.
      * @return `instrument-<wireId>`.
      */
-    fun instrumentId(chart: Instrument): String = "instrument-${chart.wireId}"
+    fun instrumentId(chart: Instrument): String = INSTRUMENT_PREFIX + chart.wireId
+
+    /**
+     * Whether a section is an instrument leaderboard card (whose heading is the instrument header
+     * row rather than a section header).
+     *
+     * @param id Quick Links section ID.
+     * @return True for an [instrumentId].
+     */
+    fun isInstrumentId(id: String): Boolean = id.startsWith(INSTRUMENT_PREFIX)
 
     /**
      * Web `songDetailBandQuickLinkId`.

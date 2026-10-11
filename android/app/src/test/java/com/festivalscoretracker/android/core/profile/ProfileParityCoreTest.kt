@@ -262,6 +262,8 @@ class ProfileParityCoreTest {
         assertEquals(Instrument.Drums, links[2].instrument)
         // Every link lands on a row.
         links.forEach { link -> assertTrue(rows.any { it.key == ProfileSections.rowKey(link.id) }) }
+        // Issue #587: only chart statistics open with the flush instrument heading.
+        assertEquals(listOf(false, true, true, false, false), links.map { ProfileSections.isInstrumentId(it.id) })
     }
 
     @Test

@@ -57,6 +57,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.readingGroup
@@ -91,6 +92,7 @@ import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
+import com.festivalscoretracker.android.ui.design.SECTION_HEADER_TOP_PADDING
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinkAnchors
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
@@ -126,6 +128,18 @@ fun StatisticsScreen(viewModel: PlayerProfileViewModel, isRoot: Boolean = true) 
 }
 
 /**
+ * How far a profile section's heading sits below the top of its grid row: chart statistics open with the
+ * flush instrument row; Overview, Top Songs and Bands open with a [SectionHeader] (`section-jump-landing`
+ * R2, issue #587). A nested Rank History or Percentiles link lands its card's top, measured by its anchor
+ * (`quick-links` R10, issue #590).
+ *
+ * @param id Quick Links section ID.
+ * @return Heading inset.
+ */
+internal fun profileHeadingInset(id: String): Dp =
+    if (ProfileSections.isInstrumentId(id) || ProfileSections.isNested(id)) 0.dp else SECTION_HEADER_TOP_PADDING
+
+/**
  * Top bar, Quick Links (in the floating toolbar: menu on medium+ windows, sheet on compact) with
  * Select/Switch as its own pill beside it (#590), and the profile body.
  */
@@ -152,6 +166,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
     val fadeWindow = rememberFadeInWindow(gridState, reset = state.accountId)
     val quickLinks = rememberQuickLinks(
         gridState, "Quick Links", sections, fadeInWindow = fadeWindow,
+        headingInset = ::profileHeadingInset,
         offsetOf = { id -> if (ProfileSections.isNested(id)) anchors.offsetOf(id) else 0 },
     ) { id ->
         rows.indexOfFirst { it.key == ProfileSections.rowKey(id) }.takeIf { it >= 0 }

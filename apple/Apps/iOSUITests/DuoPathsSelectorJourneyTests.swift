@@ -2,11 +2,18 @@ import CoreGraphics
 import UIKit
 import XCTest
 
-/// The Paths sheet's instrument selector on folded iPhone Duo (owner, issue #360;
-/// pattern modal-shell R2 variant): folded, the selector shows only the instrument icon
-/// and the sheet title reads "Paths · <instrument>", updating on each switch, while
-/// VoiceOver still reads "Instrument, <name>". Every other pose keeps the icon + name
-/// selector and the plain "Paths" title.
+/// The Paths sheet's Instrument and View selectors (pattern modal-shell R2 variants).
+///
+/// - Folded iPhone Duo (owner, issue #360): the instrument selector shows only its icon and
+///   the sheet title reads "Paths · <instrument>", updating on each switch; the View menu
+///   shows only its Image/Text symbol too (issue #612).
+/// - iPhone in portrait (owner, issue #612, like the web's mobile Paths modal): the
+///   Instrument and View menus show only their icon, Difficulty fills the rest of the row,
+///   and the title stays "Paths". At accessibility text sizes the stacked menus name
+///   their values again.
+/// - The unfolded Duo keeps icon + name selectors and the plain title.
+///
+/// VoiceOver reads "Instrument, <name>" and "View, <mode>" everywhere.
 ///
 /// The folded journey simulates the Duo window with the Debug `FST_DEBUG_DUO_WINDOW_REMOTE`
 /// switch (`DebugDuoWindow`), so it unfolds and folds again while the sheet stays open.
@@ -19,9 +26,9 @@ import XCTest
 /// python3 tools/ios_sim.py uitest --device iphone --only DuoPathsSelectorJourneyTests
 /// ```
 ///
-/// "Icon only" is checked in pixels: XCUITest exposes the menu as one element labelled
-/// "Instrument", so the selector's content width (icon, name and chevron against the
-/// capsule) is measured from its screenshot.
+/// "Icon only" is checked in pixels: XCUITest exposes each menu as one element labelled
+/// "Instrument" or "View", so the selector's content width (icon, name and chevron against
+/// the capsule) is measured from its screenshot.
 final class DuoPathsSelectorJourneyTests: XCTestCase {
     /// Loopback fixture service.
     private static let origin = "http://127.0.0.1:18360"
@@ -54,6 +61,11 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
         let foldedLead = try contentWidth(of: instrument, name: "folded-lead")
         XCTAssertLessThanOrEqual(foldedLead, Self.iconOnlyMaxWidth,
                                  "Folded selector draws \(foldedLead) pt: more than the icon")
+        let view = menu("fst.paths.display", in: app)
+        assertAccessible("View", "Text", view)
+        let foldedView = try contentWidth(of: view, name: "folded-view-text")
+        XCTAssertLessThanOrEqual(foldedView, Self.iconOnlyMaxWidth,
+                                 "Folded View menu draws \(foldedView) pt: more than the icon")
 
         choose("Bass", in: instrument, app: app)
         XCTAssertTrue(title("Paths · Bass", in: app).waitForExistence(timeout: 10),
@@ -73,6 +85,9 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
             let named = try contentWidth(of: instrument, name: "\(window)-bass")
             XCTAssertGreaterThanOrEqual(named, foldedBass + Self.nameMinExtraWidth,
                                         "\(window) selector (\(named) pt) shows no name beside the icon (\(foldedBass) pt)")
+            let namedView = try contentWidth(of: view, name: "\(window)-view-text")
+            XCTAssertGreaterThanOrEqual(namedView, foldedView + Self.nameMinExtraWidth,
+                                        "\(window) View menu (\(namedView) pt) shows no name beside the icon (\(foldedView) pt)")
         }
 
         DuoWindowSwitch.post("folded")
@@ -161,16 +176,17 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
         waitForExpectations(timeout: 10)
     }
 
-    /// The device's own pose (an ordinary iPhone, no simulated window) keeps the plain
-    /// title and the icon + name selector. Skipped on the iPhone Duo, whose real pose the
-    /// folded journey covers.
+    /// An ordinary iPhone in portrait (owner, issue #612; web mobile Paths modal): the
+    /// Instrument and View menus show only their icon, at least 44 pt square, Difficulty
+    /// fills the rest of the row between them, the title stays "Paths", and VoiceOver
+    /// still reads "Instrument, <name>" and "View, <mode>". The View menu lists Image and
+    /// Text. Skipped on the iPhone Duo, whose real pose the folded journey covers.
     @MainActor
-    func testStandardPhoneKeepsNamedSelectorAndPlainTitle() throws {
+    func testStandardPhoneShowsIconOnlySelectorsAndPlainTitle() throws {
         continueAfterFailure = false
-        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "iPhone only")
-        let device = ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ?? ""
-        try XCTSkipIf(device.contains("Duo"), "The Duo's own pose is covered by the folded journey")
+        try requireStandardPhone()
         try requireFixture()
+        XCUIDevice.shared.orientation = .portrait
         let app = FestivalApp.makeApp([
             "FST_API_BASE_URL": Self.origin,
             "FST_UI_TEST_CLEAR_PROFILE": "1",
@@ -179,19 +195,102 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         let instrument = openPaths(in: app)
+        let difficulty = menu("fst.paths.difficulty", in: app)
+        let view = menu("fst.paths.display", in: app)
 
         XCTAssertTrue(title("Paths", in: app).waitForExistence(timeout: 10), "Titles: \(titles(in: app))")
         XCTAssertFalse(title("Paths · Lead", in: app).exists)
         assertAccessible("Lead", instrument)
+        assertAccessible("View", "Text", view)
+        XCTAssertEqual(difficulty.label, "Difficulty")
+        for selector in [instrument, view] {
+            XCTAssertGreaterThanOrEqual(selector.frame.width, 44, "\(selector.label) narrower than 44 pt")
+        }
+        // Reading order and the row: Instrument, Difficulty (filling), View.
+        XCTAssertLessThan(instrument.frame.maxX, difficulty.frame.minX)
+        XCTAssertLessThan(difficulty.frame.maxX, view.frame.minX)
+        XCTAssertGreaterThan(difficulty.frame.width, instrument.frame.width + view.frame.width,
+                             "Difficulty (\(difficulty.frame.width) pt) does not take the spare width")
         let lead = try contentWidth(of: instrument, name: "standard-lead")
-        XCTAssertGreaterThan(lead, Self.iconOnlyMaxWidth, "Standard selector (\(lead) pt) shows no name")
+        XCTAssertLessThanOrEqual(lead, Self.iconOnlyMaxWidth, "Instrument draws \(lead) pt: more than the icon")
+        let text = try contentWidth(of: view, name: "standard-view-text")
+        XCTAssertLessThanOrEqual(text, Self.iconOnlyMaxWidth, "View draws \(text) pt: more than the icon")
+
+        view.tap()
+        for option in ["Image", "Text"] {
+            let item = app.buttons.matching(
+                NSPredicate(format: "label == %@ AND identifier != %@", option, view.identifier)
+            ).firstMatch
+            XCTAssertTrue(item.waitForExistence(timeout: 5), "View option \(option) missing")
+        }
+        XCTAssertFalse(app.buttons.matching(
+            NSPredicate(format: "label == %@", "Side by Side")
+        ).firstMatch.exists, "The iPhone sheet offers Side by Side")
+        app.buttons.matching(
+            NSPredicate(format: "label == %@ AND identifier != %@", "Image", view.identifier)
+        ).firstMatch.tap()
+        assertAccessible("View", "Image", view)
+        let image = try contentWidth(of: view, name: "standard-view-image")
+        XCTAssertLessThanOrEqual(image, Self.iconOnlyMaxWidth, "View draws \(image) pt: more than the icon")
+
         choose("Bass", in: instrument, app: app)
         XCTAssertTrue(app.staticTexts["Path unavailable"].waitForExistence(timeout: 10))
         XCTAssertTrue(title("Paths", in: app).exists, "Titles: \(titles(in: app))")
         assertAccessible("Bass", instrument)
+        let bass = try contentWidth(of: instrument, name: "standard-bass")
+        XCTAssertLessThanOrEqual(bass, Self.iconOnlyMaxWidth)
+    }
+
+    /// At an accessibility text size the iPhone's selectors stack, each the full width,
+    /// and the Instrument and View menus name their values again (issue #612). Their text
+    /// scales, is not clipped and keeps 44 pt targets (XCUITest Dynamic Type, text clipped
+    /// and hit region audits on the selector row).
+    @MainActor
+    func testStandardPhoneStackedSelectorsNameValuesAtLargeText() throws {
+        continueAfterFailure = false
+        try requireStandardPhone()
+        try requireFixture()
+        XCUIDevice.shared.orientation = .portrait
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": Self.origin,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
+        ])
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityLarge.rawValue,
+        ]
+        app.launch()
+        defer { app.terminate() }
+        let instrument = openPaths(in: app)
+        let difficulty = menu("fst.paths.difficulty", in: app)
+        let view = menu("fst.paths.display", in: app)
+
+        assertAccessible("Lead", instrument)
+        assertAccessible("View", "Text", view)
+        // Stacked in reading order.
+        XCTAssertLessThan(instrument.frame.midY, difficulty.frame.midY)
+        XCTAssertLessThan(difficulty.frame.midY, view.frame.midY)
+        let lead = try contentWidth(of: instrument, name: "large-text-lead")
+        XCTAssertGreaterThan(lead, Self.iconOnlyMaxWidth, "Stacked Instrument (\(lead) pt) shows no name")
+        let text = try contentWidth(of: view, name: "large-text-view")
+        XCTAssertGreaterThan(text, Self.iconOnlyMaxWidth, "Stacked View (\(text) pt) shows no name")
+
+        let selectors = ["fst.paths.instrument", "fst.paths.difficulty", "fst.paths.display"]
+        try app.performAccessibilityAudit(for: [.dynamicType, .textClipped, .hitRegion]) { issue in
+            guard let element = issue.element, selectors.contains(element.identifier) else { return true }
+            XCTFail("Paths selector audit: \(issue.compactDescription); element=\(element.identifier)")
+            return true
+        }
     }
 
     // MARK: - Helpers
+
+    /// Skip unless an ordinary iPhone runs the test (the Duo's own pose is folded).
+    private func requireStandardPhone() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "iPhone only")
+        let device = ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ?? ""
+        try XCTSkipIf(device.contains("Duo"), "The Duo's own pose is covered by the folded journey")
+    }
 
     /// Skip unless the fixture service answers.
     @MainActor
@@ -250,9 +349,16 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
     @MainActor
     private func assertAccessible(_ name: String, _ instrument: XCUIElement,
                                   file: StaticString = #filePath, line: UInt = #line) {
-        XCTAssertEqual(instrument.label, "Instrument", file: file, line: line)
-        XCTAssertEqual(instrument.value as? String, name, file: file, line: line)
-        XCTAssertGreaterThanOrEqual(instrument.frame.height, 44, file: file, line: line)
+        assertAccessible("Instrument", name, instrument, file: file, line: line)
+    }
+
+    /// VoiceOver reads a selector as "<title>, <value>", on a target at least 44 pt tall.
+    @MainActor
+    private func assertAccessible(_ title: String, _ value: String, _ selector: XCUIElement,
+                                  file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertEqual(selector.label, title, file: file, line: line)
+        XCTAssertEqual(selector.value as? String, value, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(selector.frame.height, 44, file: file, line: line)
     }
 
     /// A navigation title text with exactly this label.
@@ -289,7 +395,7 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
     /// measured from its screenshot, which is attached to the report.
     ///
     /// - Parameters:
-    ///   - selector: The instrument menu.
+    ///   - selector: The instrument or View menu.
     ///   - name: Attachment name.
     /// - Returns: Content width in points.
     @MainActor
@@ -298,7 +404,7 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
         RunLoop.current.run(until: Date().addingTimeInterval(0.6))
         let shot = selector.screenshot()
         let attachment = XCTAttachment(screenshot: shot)
-        attachment.name = "paths-instrument-\(name)"
+        attachment.name = "paths-selector-\(name)"
         attachment.lifetime = .keepAlways
         add(attachment)
         let image = try XCTUnwrap(shot.image.cgImage)

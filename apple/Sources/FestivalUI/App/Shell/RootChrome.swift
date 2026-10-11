@@ -65,7 +65,23 @@ struct PushRouteAction: Equatable {
     static func == (lhs: Self, rhs: Self) -> Bool { true }
 }
 
+/// Environment action that opens the app's Settings: the Settings section on iOS and
+/// iPadOS, the Settings window's Paths pane (Filter Invalid Scores) on the Mac.
+///
+/// Equatable for the same reason as ``OpenProfileAction``.
+struct OpenAppSettingsAction: Equatable {
+    let handler: @MainActor () -> Void
+
+    /// Show Settings.
+    @MainActor func callAsFunction() { handler() }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { true }
+}
+
 extension EnvironmentValues {
+    /// Opens Settings; nil outside the root shell (hosted tests), where callers hide
+    /// their Settings action.
+    @Entry var openAppSettings: OpenAppSettingsAction? = nil
     /// Opens the profile selection sheet owned by the root shell.
     @Entry var openProfile = OpenProfileAction(handler: {})
     /// The profile button (avatar) press: the selected player's Statistics page, or the

@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasContentDescriptionExactly
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -16,6 +17,7 @@ import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.testing.RankingsFixtures
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -153,7 +155,8 @@ class ShellAccessibilityJourneyTest {
 
     /**
      * App Navigation (issue #132), selected player: the player tab set (Compete on compact
-     * widths, Leaderboards + Rivals on regular ones), Statistics, and the drawer's player row.
+     * widths, Leaderboards + Rivals on regular ones), the Item Shop tab that replaces
+     * Statistics (#601), Statistics through the profile chip, and the drawer's player row.
      */
     @Test
     fun appNavigationPlayerStates() {
@@ -161,16 +164,28 @@ class ShellAccessibilityJourneyTest {
         h.launch(DebugLaunch(profile = player, stillBackground = true), navigationTransport)
         h.waitForTag("fst.songs.list")
         h.waitForTag("fst.nav.tab.suggestions")
-        h.waitForTag("fst.nav.tab.statistics")
+        h.waitForTag("fst.nav.tab.shop")
+        assertFalse(h.exists("fst.nav.tab.statistics"))
         assertTrue(h.exists("fst.nav.tab.compete") != h.exists("fst.nav.tab.rivals"))
         h.assertNothingStraddles(*NAV_TAGS)
         h.readingOrder("nav-player")
-        h.tap("fst.nav.tab.statistics")
-        h.waitForTag("fst.statistics")
+        // #601: Item Shop is a named, selectable tab where Statistics was.
+        rule.onNodeWithTag("fst.nav.tab.shop").assert(hasText("Item Shop") or hasContentDescription("Item Shop"))
+        h.tap("fst.nav.tab.shop")
+        h.waitForTag("fst.shop.sort.open")
         h.waitGone("fst.songs.list")
-        h.awaitAccessibilityTree("fst.statistics", absent = "fst.songs.list")
-        rule.onNodeWithTag("fst.nav.tab.statistics").assertIsSelected()
+        h.awaitAccessibilityTree("fst.shop.sort.open", absent = "fst.songs.list")
+        rule.onNodeWithTag("fst.nav.tab.shop").assertIsSelected()
+        h.readingOrder("nav-player-shop")
+        // The profile chip still opens the selected profile's Statistics, pushed with Back.
+        h.tap("fst.nav.profile")
+        h.waitForTag("fst.statistics")
+        h.waitForTag("fst.nav.back")
+        h.awaitAccessibilityTree("fst.statistics", absent = "fst.shop.sort.open")
         h.readingOrder("nav-player-statistics")
+        h.tap("fst.nav.back")
+        h.waitForTag("fst.shop.sort.open")
+        h.waitGone("fst.statistics")
         if (h.exists("fst.nav.drawer")) {
             h.tap("fst.nav.drawer")
             h.waitForTag("fst.nav.drawer.deselect")
@@ -190,7 +205,7 @@ class ShellAccessibilityJourneyTest {
         /** Navigation chrome that must never straddle a hinge. */
         val NAV_TAGS = arrayOf(
             "fst.nav.bar", "fst.nav.rail", "fst.nav.permanent-drawer",
-            "fst.nav.tab.songs", "fst.nav.tab.leaderboards", "fst.nav.tab.settings", "fst.nav.tab.statistics",
+            "fst.nav.tab.songs", "fst.nav.tab.leaderboards", "fst.nav.tab.settings", "fst.nav.tab.shop",
         )
     }
 }

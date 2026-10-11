@@ -256,7 +256,7 @@ class ProfileParityUiTest {
         // Only the song with a Bass score stays.
         journey.waitForTag("fst.songs.row.s-alpha")
         journey.waitGone("fst.songs.row.s-beta")
-        journey.waitForTag("fst.nav.tab.statistics")
+        journey.waitForTag("fst.nav.tab.shop")
     }
 
     @Test

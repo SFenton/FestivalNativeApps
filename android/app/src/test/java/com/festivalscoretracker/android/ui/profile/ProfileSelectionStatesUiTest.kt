@@ -8,7 +8,10 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
-import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -32,7 +35,15 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.data.RequestGate
-import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
+import com.festivalscoretracker.android.core.bands.BandMember
+import com.festivalscoretracker.android.core.bands.PlayerBandEntry
+import com.festivalscoretracker.android.core.nav.BandRoute
+import com.festivalscoretracker.android.core.search.GlobalBandResult
+import com.festivalscoretracker.android.core.search.GlobalSearchResults
+import com.festivalscoretracker.android.core.search.SearchDestination
+import com.festivalscoretracker.android.core.search.SearchScope
+import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
+import com.festivalscoretracker.android.presentation.search.GlobalSearchViewModel
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.ui.theme.FestivalAccessibility
@@ -53,10 +64,11 @@ import org.robolectric.annotation.Config
 // region Sheet states
 
 /**
- * Issue #133: every reachable `fst.profile.*` sheet state (contract `profile-selection`)
- * on the real [ProfileSheet] with a scripted search: anonymous, debouncing, loading,
- * results, empty envelope, HTTP error, band-blocked, selected player, deselect confirm and
- * 200% text.
+ * Issue #133 / #600: every reachable `fst.profile.*` sheet state (contract `profile-selection`)
+ * on the real [ProfileSheet] over global search's engine narrowed to players and bands, with
+ * scripted searches: anonymous (All), debouncing, loading, results, empty envelope, HTTP error,
+ * bands (band-blocked: a band opens its page, it can't be selected), selected player, deselect
+ * confirm and 200% text.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h891dp-xxhdpi")
@@ -65,8 +77,18 @@ class ProfileSelectionSheetStatesUiTest {
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     private val queries = mutableListOf<String>()
+    private val bandQueries = mutableListOf<String>()
     private var answer: suspend (String) -> List<PlayerSearchResult> = { listOf(PlayerSearchResult(Fixtures.ACCOUNT_A, "Synthetic Player")) }
-    private val viewModel = ProfileSearchViewModel { query -> queries += query; answer(query) }
+    private var bandAnswer: suspend (String) -> List<PlayerBandEntry> = { listOf(duo) }
+    private val viewModel = GlobalSearchViewModel(
+        loadCatalog = { error("profile search never reads the catalogue") },
+        searchPlayers = { query, _ -> queries += query; answer(query) },
+        searchBands = { query, _ -> bandQueries += query; bandAnswer(query) },
+        selectedAccountId = { null },
+        backoff = ServiceRetryBackoff { 0L },
+        targets = SearchScope.profileTargets,
+    )
+    private val opened = mutableListOf<SearchDestination>()
     private val viewed = mutableListOf<Pair<String, String>>()
     private var dismissed = 0
     private var deselected = 0
@@ -74,6 +96,7 @@ class ProfileSelectionSheetStatesUiTest {
     private fun show(player: SelectedPlayer? = null, fontScale: Float = 1f) {
         // The sheet is its own window, so the scale must come from the configuration.
         if (fontScale != 1f) RuntimeEnvironment.setFontScale(fontScale)
+        viewModel.open()
         rule.setContent {
             FestivalTheme {
                 val density = LocalDensity.current
@@ -84,6 +107,7 @@ class ProfileSelectionSheetStatesUiTest {
                     ProfileSheet(
                         player = player,
                         searchViewModel = viewModel,
+                        onOpen = { opened += it },
                         onViewPlayer = { id, name -> viewed += id to name },
                         onDeselect = { deselected++ },
                         onDismiss = { dismissed++ },
@@ -121,7 +145,7 @@ class ProfileSelectionSheetStatesUiTest {
         settle()
     }
 
-    private fun heightOf(tag: String) = rule.onNodeWithTag(tag).getUnclippedBoundsInRoot().height
+    private fun count(tag: String) = rule.onAllNodesWithTag(tag).fetchSemanticsNodes().size
 
     private fun assertTarget(tag: String) {
         // Touch bounds include Material's minimum interactive size padding.
@@ -133,21 +157,33 @@ class ProfileSelectionSheetStatesUiTest {
     private fun isHeading(text: String) = rule.onNodeWithText(text).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
 
     @Test
-    fun anonymousShowsTheHintAndPlayersTarget() {
+    fun anonymousShowsTheHintAndAllScope() {
         show()
         waitForTag("fst.profile.hint")
-        assertEquals(0, rule.onAllNodesWithTag("fst.profile.selected").fetchSemanticsNodes().size)
-        rule.onNodeWithText("Enter at least 2 characters").assert(hasText("Enter at least 2 characters"))
-        rule.onNodeWithTag("fst.profile.scope.players").assertIsSelected()
-        rule.onNodeWithTag("fst.profile.scope.bands").assertIsNotSelected()
+        assertEquals(0, count("fst.profile.selected"))
+        rule.onNodeWithTag("fst.profile.hint").assert(hasText(GlobalSearchResults.ENTER_QUERY_HINT_PROFILES))
+        // Issue #600: All · Players · Bands, starting on All.
+        rule.onNodeWithTag("fst.profile.scope.all").assertIsSelected().assert(hasText("All"))
+        rule.onNodeWithTag("fst.profile.scope.players").assertIsNotSelected().assert(hasText("Players"))
+        rule.onNodeWithTag("fst.profile.scope.bands").assertIsNotSelected().assert(hasText("Bands"))
+        listOf("all", "players", "bands").forEach { assertTarget("fst.profile.scope.$it") }
+        rule.onNodeWithTag("fst.profile.search")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf(GlobalSearchResults.PROFILE_FIELD_NAME)))
+            .assertIsEnabled()
+        rule.onNodeWithText(GlobalSearchResults.PROFILE_PLACEHOLDER).assertExists()
         isHeading("Profiles")
         isHeading("Find a Profile")
         rule.onNodeWithTag("fst.profile.sheet").assert(SemanticsMatcher.expectValue(SemanticsProperties.PaneTitle, "Profiles"))
+        // Each scope's hint names what it searches; switching never searches.
+        tap("fst.profile.scope.bands")
+        rule.onNodeWithTag("fst.profile.hint").assert(hasText("Enter at least two characters to search for bands."))
+        tap("fst.profile.scope.all")
         // One character keeps the hint and never searches.
         rule.onNodeWithTag("fst.profile.search").performTextInput("s")
         settle(600)
         waitForTag("fst.profile.hint")
         assertTrue(queries.isEmpty())
+        assertTrue(bandQueries.isEmpty())
         tap("fst.profile.close")
         rule.waitUntil(5_000) { settle(100); dismissed == 1 }
     }
@@ -158,36 +194,46 @@ class ProfileSelectionSheetStatesUiTest {
         answer = { gate.await() }
         show()
         rule.onNodeWithTag("fst.profile.search").performTextInput("syn")
-        // Debouncing: 250 ms must pass before the GET; the hint stays.
+        // Debouncing: 250 ms must pass before the GETs; the one spinner shows meanwhile.
         assertTrue(queries.isEmpty())
-        rule.onNodeWithTag("fst.profile.hint").assert(hasText("Enter at least 2 characters"))
-        settle(400)
         waitForTag("fst.profile.loading")
         rule.onNodeWithTag("fst.profile.loading").assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Searching")))
-        assertEquals(listOf("syn"), queries)
+        rule.waitUntil(5_000) { settle(100); queries == listOf("syn") && bandQueries == listOf("syn") }
+        // All waits for players and bands together (web useUnifiedSearch).
+        assertEquals(0, count("fst.profile.band.${duoKey}"))
         gate.complete(listOf(PlayerSearchResult(Fixtures.ACCOUNT_A, "Synthetic Player"), PlayerSearchResult(Fixtures.ACCOUNT_B, "Other Player")))
         waitForTag("fst.profile.result.${Fixtures.ACCOUNT_B}")
         waitGone("fst.profile.loading")
+        // All: players then bands, each under its section title.
+        waitForTag("fst.profile.section.players")
+        waitForTag("fst.profile.section.bands")
+        rule.onNodeWithTag("fst.profile.section.players").assert(hasText("Players"))
         assertTarget("fst.profile.result.${Fixtures.ACCOUNT_A}")
+        rule.onNodeWithTag("fst.profile.status").assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("2 players, 1 band")))
         // Clear is a labelled 48 dp icon button.
         rule.onNodeWithTag("fst.profile.clear").assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Clear search")))
         assertTarget("fst.profile.clear")
         tap("fst.profile.result.${Fixtures.ACCOUNT_B}")
-        assertEquals(listOf(Fixtures.ACCOUNT_B to "Other Player"), viewed)
+        assertEquals(listOf<SearchDestination>(SearchDestination.Push(PlayerRoute(Fixtures.ACCOUNT_B, "Other Player"))), opened)
         assertEquals(1, dismissed)
     }
 
     @Test
-    fun emptyEnvelopeOffersRetry() {
+    fun emptyEnvelopeShowsTheEmptyStateAndSearchRunsAgain() {
         answer = { emptyList() }
+        bandAnswer = { emptyList() }
         show()
         rule.onNodeWithTag("fst.profile.search").performTextInput("zzqx")
         settle(400)
-        waitForTag("fst.profile.retry")
-        rule.onNodeWithText("No players found").assert(hasText("No players found"))
-        assertTarget("fst.profile.retry")
-        tap("fst.profile.retry")
-        rule.waitUntil(5_000) { settle(100); queries.size == 2 }
+        waitForTag("fst.profile.empty")
+        rule.onNodeWithText(GlobalSearchResults.EMPTY_ALL_TITLE).assertExists()
+        rule.onNodeWithText(GlobalSearchResults.EMPTY_PROFILES_SUBTITLE).assertExists()
+        // Like global search (issue #299) there is no Retry button: IME Search runs it again.
+        assertEquals(0, count("fst.profile.retry"))
+        rule.onNodeWithTag("fst.profile.search").performImeAction()
+        rule.waitUntil(5_000) { settle(100); queries.size == 2 && bandQueries.size == 2 }
+        tap("fst.profile.scope.players")
+        rule.onNodeWithText(GlobalSearchResults.EMPTY_PLAYERS_TITLE).assertExists()
         // Clearing returns to the hint without another search.
         tap("fst.profile.clear")
         settle(400)
@@ -196,37 +242,50 @@ class ProfileSelectionSheetStatesUiTest {
     }
 
     @Test
-    fun httpErrorShowsInlineStatusAndRetrySearchesAgain() {
+    fun httpErrorShowsInlineStatusAndSearchRunsAgain() {
         var fail = true
         answer = { if (fail) throw FestivalApiException.HttpStatus(403) else listOf(PlayerSearchResult(Fixtures.ACCOUNT_A, "Synthetic Player")) }
         show()
         rule.onNodeWithTag("fst.profile.search").performTextInput("syn")
         settle(400)
-        waitForTag("fst.service-status.inline")
-        rule.onNodeWithText("Player search unavailable").assert(hasText("Player search unavailable"))
-        // An error is not an empty result.
-        assertEquals(0, rule.onAllNodesWithText("No players found").fetchSemanticsNodes().size)
-        assertTarget("fst.profile.retry")
+        waitForTag("fst.profile.players-error")
+        // An error is not an empty result, and bands still show beside it.
+        assertEquals(0, rule.onAllNodesWithText(GlobalSearchResults.EMPTY_PLAYERS_TITLE).fetchSemanticsNodes().size)
+        waitForTag("fst.profile.band.$duoKey")
         fail = false
-        tap("fst.profile.retry")
+        rule.onNodeWithTag("fst.profile.search").performImeAction()
         waitForTag("fst.profile.result.${Fixtures.ACCOUNT_A}")
+        waitGone("fst.profile.players-error")
         assertEquals(2, queries.size)
     }
 
     @Test
-    fun bandsTargetIsBlockedWithoutARequest() {
+    fun bandsScopeSearchesBandsAndOpensTheBandPage() {
         show()
         rule.onNodeWithTag("fst.profile.search").performTextInput("syn")
         settle(400)
         waitForTag("fst.profile.result.${Fixtures.ACCOUNT_A}")
+        waitForTag("fst.profile.band.$duoKey")
         tap("fst.profile.scope.bands")
-        waitForTag("fst.profile.bands-unavailable")
         rule.onNodeWithTag("fst.profile.scope.bands").assertIsSelected()
-        rule.onNodeWithTag("fst.profile.search").assertIsNotEnabled()
-        assertEquals(0, rule.onAllNodesWithTag("fst.profile.clear").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("fst.profile.scope.all").assertIsNotSelected()
+        waitGone("fst.profile.result.${Fixtures.ACCOUNT_A}")
+        // A single scope is untitled: its segment names it.
+        assertEquals(0, count("fst.profile.section.bands"))
+        rule.onNodeWithTag("fst.profile.search").assertIsEnabled()
+        assertEquals(0, count("fst.profile.bands-unavailable"))
+        // Switching scope filters what was already searched.
         assertEquals(1, queries.size)
+        assertEquals(1, bandQueries.size)
         tap("fst.profile.scope.players")
         waitForTag("fst.profile.result.${Fixtures.ACCOUNT_A}")
+        waitGone("fst.profile.band.$duoKey")
+        tap("fst.profile.scope.bands")
+        // A band can't be the selected profile on Android: its result opens the Band page.
+        tap("fst.profile.band.$duoKey")
+        assertEquals(listOf(GlobalBandResult(duo).destination), opened)
+        assertTrue((opened.single() as SearchDestination.Push).route is BandRoute)
+        assertEquals(1, dismissed)
     }
 
     @Test
@@ -261,14 +320,27 @@ class ProfileSelectionSheetStatesUiTest {
         rule.onNodeWithTag("fst.profile.close").assertExists()
         val titleHeight = rule.onNodeWithText("Profiles").getUnclippedBoundsInRoot().height
         assertTrue("title is $titleHeight", titleHeight > 40.dp)
-        listOf("fst.profile.view-selected", "fst.profile.deselect", "fst.profile.scope.players", "fst.profile.scope.bands", "fst.profile.close").forEach {
+        listOf("fst.profile.view-selected", "fst.profile.deselect", "fst.profile.scope.all", "fst.profile.scope.players", "fst.profile.scope.bands", "fst.profile.close").forEach {
             assertTarget(it)
         }
+        rule.onNodeWithTag("fst.profile.scope.players").assert(hasText("Players"))
         rule.onNodeWithTag("fst.profile.search").performTextInput("syn")
         settle(400)
         waitForTag("fst.profile.result.${Fixtures.ACCOUNT_A}")
         assertTarget("fst.profile.result.${Fixtures.ACCOUNT_A}")
-        rule.onNodeWithText("Synthetic Player").assert(hasText("Synthetic Player"))
+        rule.onNodeWithTag("fst.profile.results").performScrollToNode(hasTestTag("fst.profile.band.$duoKey"))
+        assertTarget("fst.profile.band.$duoKey")
+    }
+
+    private companion object {
+        val duo = PlayerBandEntry(
+            bandId = "band-1",
+            teamKey = "${Fixtures.ACCOUNT_A}:${Fixtures.ACCOUNT_B}",
+            bandType = "Band_Duets",
+            appearanceCount = 12,
+            members = listOf(BandMember(Fixtures.ACCOUNT_A, "Alpha Player"), BandMember(Fixtures.ACCOUNT_B, "Beta Player")),
+        )
+        val duoKey = GlobalBandResult(duo).key
     }
 }
 
@@ -313,7 +385,7 @@ class ProfileSelectionPageStatesUiTest {
         journey.waitForTag("fst.player.select")
         rule.onNodeWithTag("fst.player.select").assert(hasContentDescription("Select Profile"))
         assertEquals(0, rule.onAllNodesWithTag("fst.player.reload").fetchSemanticsNodes().size)
-        assertEquals(0, rule.onAllNodesWithTag("fst.nav.tab.statistics").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.tab.shop").fetchSemanticsNodes().size)
         assertTrue(rule.onNodeWithTag("fst.player.select").getUnclippedBoundsInRoot().height >= 48.dp)
         assertKeyless()
     }
@@ -335,7 +407,7 @@ class ProfileSelectionPageStatesUiTest {
     fun selectedSyncingProfileRetriesOnStatistics() {
         journey.transport.on("/api/player/${Fixtures.ACCOUNT_A}", status = 202) { ProfileFixtures.syncing() }
         journey.launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), stillBackground = true))
-        journey.tap("fst.nav.tab.statistics")
+        journey.tap("fst.nav.profile")
         journey.waitForTag("fst.player.syncing")
         val before = journey.transport.sent("/api/player/${Fixtures.ACCOUNT_A}").size
         journey.tap("fst.player.retry")
@@ -389,14 +461,14 @@ class ProfileSelectionPageStatesUiTest {
         journey.waitGone("fst.player.reload")
         assertEquals(before + 1, journey.transport.sent("/api/player/${Fixtures.ACCOUNT_B}").size)
         journey.tap("fst.player.select")
-        journey.waitForTag("fst.nav.tab.statistics")
+        journey.waitForTag("fst.nav.tab.shop")
         assertKeyless()
     }
 
     @Test
     fun selectedProfileReloadsOnANewPublication() {
         journey.launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), stillBackground = true))
-        journey.tap("fst.nav.tab.statistics")
+        journey.tap("fst.nav.profile")
         journey.waitForTag("fst.player.overview")
         val before = journey.transport.sent("/api/player/${Fixtures.ACCOUNT_A}").size
         advancePublication()

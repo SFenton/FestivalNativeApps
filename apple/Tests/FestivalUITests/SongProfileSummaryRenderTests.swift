@@ -13,7 +13,6 @@ private struct SummaryStateCase {
     let chart: Instrument?
     let chartAvailable: Bool
     let score: PlayerScore?
-    let filterInvalidScores: Bool
     let gold: Bool
 }
 
@@ -29,27 +28,23 @@ private struct SummaryStateCase {
     let cases: [SummaryStateCase] = [
         SummaryStateCase(
             name: "not-loaded", state: .none, chart: .lead,
-            chartAvailable: true, score: nil, filterInvalidScores: false, gold: true
+            chartAvailable: true, score: nil, gold: true
         ),
         SummaryStateCase(
             name: "no-visible-chart", state: .available, chart: nil,
-            chartAvailable: false, score: nil, filterInvalidScores: false, gold: true
+            chartAvailable: false, score: nil, gold: true
         ),
         SummaryStateCase(
             name: "uncharted", state: .available, chart: .proDrums,
-            chartAvailable: false, score: nil, filterInvalidScores: false, gold: false
+            chartAvailable: false, score: nil, gold: false
         ),
         SummaryStateCase(
             name: "no-bass-score", state: .available, chart: .bass,
-            chartAvailable: true, score: nil, filterInvalidScores: false, gold: false
-        ),
-        SummaryStateCase(
-            name: "invalid-filter-paused", state: .available, chart: .lead,
-            chartAvailable: true, score: score, filterInvalidScores: true, gold: true
+            chartAvailable: true, score: nil, gold: false
         ),
         SummaryStateCase(
             name: "valid-lead", state: .available, chart: .lead,
-            chartAvailable: true, score: score, filterInvalidScores: false, gold: false
+            chartAvailable: true, score: score, gold: false
         ),
     ]
     var screenshots: [String: Data] = [:]
@@ -59,7 +54,6 @@ private struct SummaryStateCase {
                 player: player, chart: scenario.chart,
                 chartAvailable: scenario.chartAvailable, score: scenario.score,
                 state: scenario.state, visibility: SongMetadataVisibility(),
-                filterInvalidScores: scenario.filterInvalidScores,
                 songId: "fixture-pulse"
             )
             .frame(width: 390, height: 110)
@@ -78,6 +72,6 @@ private struct SummaryStateCase {
     }
     #expect(screenshots["not-loaded"] != screenshots["no-visible-chart"])
     #expect(screenshots["uncharted"] != screenshots["no-bass-score"])
-    #expect(screenshots["invalid-filter-paused"] != screenshots["valid-lead"])
+    #expect(screenshots["no-bass-score"] != screenshots["valid-lead"])
 }
 #endif

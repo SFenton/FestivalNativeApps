@@ -109,7 +109,7 @@ class ProfileDeviceJourneyTest {
     fun selectStaysOnThePage() {
         launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
         tap("fst.player.select")
-        waitForTag("fst.nav.tab.statistics")
+        waitForTag("fst.nav.tab.shop")
         waitForTag("fst.player.overview")
         assertNothingStraddles("fst.player.overview", "fst.player.instrument.Solo_Guitar", "fst.player.instrument.Solo_Bass")
         // Operator 7.12: no page-header Deselect (the drawer owns it, like the web sidebar).
@@ -125,7 +125,7 @@ class ProfileDeviceJourneyTest {
         rule.onNodeWithTag("fst.player.select").assertContentDescriptionEquals("Switch to This Profile").assertIsDisplayed()
         tap("fst.player.select")
         tap("fst.player.switch-confirm.ok")
-        waitForTag("fst.nav.tab.statistics")
+        waitForTag("fst.nav.tab.shop")
         waitForTag("fst.player")
     }
 

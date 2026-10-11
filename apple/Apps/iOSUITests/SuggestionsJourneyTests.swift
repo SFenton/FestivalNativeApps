@@ -165,7 +165,20 @@ final class SuggestionsJourneyTests: XCTestCase {
             centre.tap()
         }
         XCTAssertTrue(leadToggles.firstMatch.waitForExistence(timeout: 5), "Choosing Lead did not reveal its toggles")
+        // Pattern `accordion` (#561): once the section has grown and the toggles faded in,
+        // they are readable, hittable switches with a full-size target.
+        let firstToggle = leadToggles.firstMatch
+        XCTAssertTrue(firstToggle.isHittable, "The revealed toggle is not hittable")
+        XCTAssertFalse(firstToggle.label.isEmpty, "The revealed toggle has no label")
+        XCTAssertGreaterThanOrEqual(firstToggle.frame.height, 44, "The revealed toggle's target is too short")
         record(app, name: "suggestions-filter-instrument-selector")
+        if lead.exists {
+            // Deselecting fades the toggles out, then the section collapses.
+            lead.tap()
+            XCTAssertTrue(
+                firstToggle.waitForNonExistence(timeout: 5), "Deselecting Lead did not collapse its toggles"
+            )
+        }
         app.buttons["fst.suggestions.filter.done"].tap()
     }
 

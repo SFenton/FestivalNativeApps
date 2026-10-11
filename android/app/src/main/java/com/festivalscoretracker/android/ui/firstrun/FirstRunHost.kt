@@ -27,6 +27,7 @@ import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.core.nav.RivalsRoute
 import com.festivalscoretracker.android.core.nav.RivalsTab
 import com.festivalscoretracker.android.core.nav.ShopRoute
+import com.festivalscoretracker.android.core.nav.ShopTab
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
 import com.festivalscoretracker.android.core.nav.SongsTab
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
@@ -58,7 +59,7 @@ fun firstRunPage(entry: NavBackStackEntry?): FirstRunPageKey? {
         destination.hasRoute(LeaderboardsTab::class) || destination.hasRoute(LeaderboardsRoute::class) -> FirstRunPageKey.Leaderboards
         destination.hasRoute(CompeteTab::class) || destination.hasRoute(CompeteRoute::class) -> FirstRunPageKey.Compete
         destination.hasRoute(RivalsTab::class) || destination.hasRoute(RivalsRoute::class) -> FirstRunPageKey.Rivals
-        destination.hasRoute(ShopRoute::class) -> FirstRunPageKey.Shop
+        destination.hasRoute(ShopTab::class) || destination.hasRoute(ShopRoute::class) -> FirstRunPageKey.Shop
         else -> null
     }
 }

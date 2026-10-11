@@ -176,7 +176,7 @@ fun SettingsScreen(
 
     val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
     val split = rememberHingeSplit()
-    // Wide windows: list/detail (owner, #371) by the app's list-detail rule (Songs, Licenses).
+    // Wide windows: list/detail (owner, #371) by the app's list-detail rule (as Licenses).
     val twoPane = AdaptiveLayoutPolicy.showsTwoPanes(windowWidthDp, split.value != null, density.fontScale)
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     val shown = SettingsPanes.shown(selectedId, settings)
@@ -547,19 +547,19 @@ private fun FirstRunSection(onShow: (FirstRunPageKey) -> Unit) {
     }
 }
 
+/**
+ * Reset: the web's `resetRow`, a section header and the red Reset All Settings button with no
+ * card around them (#599), like the uncarded Licenses and Privacy Policy rows. It stays in the
+ * list in list/detail too.
+ */
 @Composable
 private fun ResetSection(onReset: () -> Unit) {
-    GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Reset Settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
-            Hint("Restore all settings to their default values.")
-            Button(
-                onClick = onReset,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = BrandTokens.textPrimary),
-                modifier = Modifier.fillMaxWidth().testTag("fst.settings.reset"),
-            ) { Text("Reset All Settings") }
-        }
-    }
+    Header("Reset Settings", "Restore all settings to their default values.")
+    Button(
+        onClick = onReset,
+        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = BrandTokens.textPrimary),
+        modifier = Modifier.fillMaxWidth().testTag("fst.settings.reset"),
+    ) { Text("Reset All Settings") }
 }
 
 // endregion
@@ -649,7 +649,7 @@ internal fun AppVersionRow(
  * itself, not in a card, with a trailing chevron; the whole row is one link (batch 6.17).
  *
  * In list/detail Settings (issue #371) every multi-option section is this row; [selected] then
- * marks the row whose options the detail pane shows (the Songs/Licenses selected-row tint) and
+ * marks the row whose options the detail pane shows (the Licenses selected-row tint) and
  * insets the text so the tint has room around it. Null outside list/detail.
  */
 @Composable
@@ -706,7 +706,7 @@ private fun DetailRow(detail: SettingsDetail, value: String, panes: SettingsPane
     }
 }
 
-/** Selected list row tint, the Songs and Licenses list/detail selection (web `--accent-purple` wash). */
+/** Selected list row tint, the Licenses list/detail selection (web `--accent-purple` wash). */
 private val SELECTED_ROW_COLOR = BrandTokens.accentPurple.copy(alpha = 0.35f)
 
 // endregion
