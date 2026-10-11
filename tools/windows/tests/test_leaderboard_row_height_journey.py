@@ -17,12 +17,18 @@ JOURNEYS = Path(__file__).resolve().parents[1] / "journeys"
 JOURNEY = JOURNEYS / "a11y-leaderboard-row-height.json"
 CARD = "fst.leaderboards.card.Solo_PeripheralGuitar"
 BAND_CARD = "fst.leaderboards.band-card.Band_Duets"
+#: The selected player's spotlight under the Tap Vocals card (the fifth card, past the overview's four-card reveal gate)
+#: and pinned above the Full Rankings pager (issues #281, #527).
+SPOTLIGHT = "fst.leaderboards.card.Solo_Vocals.spotlight"
+FOOTER = "fst.full-rankings.spotlight-footer"
 #: Rows (and pinned rows) each page must measure at the shared 48 epx ``LeaderboardRowMetrics.MinHeight``.
 ROWS = {
     "row-height-overview-skeleton": ["id=fst.rankings.row.fixture-player-1", "id=fst.rankings.row.fixture-player-2",
                                      f"raw={CARD}.skeleton.0", f"raw={CARD}.skeleton.1"],
     "row-height-overview-band-skeleton": [f"raw={BAND_CARD}.skeleton.0", "id=fst.band-rankings.row.fixture-team-1",
                                           "id=fst.band-rankings.row.fixture-team-2"],
+    "row-height-card-spotlight-loading": [f"raw={SPOTLIGHT}.loading-row", f"id={SPOTLIGHT}"],
+    "row-height-full-rankings-spotlight-loading": [f"raw={FOOTER}.loading-row", f"id={FOOTER}"],
     "row-height-full-rankings": ["id=fst.rankings.row.fixture-player-1", "id=fst.rankings.row.fixture-player-2",
                                  "id=fst.full-rankings.spotlight-footer"],
     "row-height-band-rankings": ["id=fst.band-rankings.row.fixture-team-1", "id=fst.band-rankings.row.fixture-team-2"],
@@ -90,9 +96,44 @@ class LeaderboardRowHeightJourneyTests(unittest.TestCase):
         self.assertLess(done, span)
         self.assertIn(f"waitgone:id={BAND_CARD}.skeleton.0@1", band[:mark])
 
+    def test_spotlight_loading_row_keeps_the_pinned_row_height_and_stays_out_of_the_control_view(self):
+        """#281, #527: the "Loading your rank" placeholder is the canonical row, so the "your rank" row that replaces it
+        doesn't move View All or the pager; it is raw-view only and Tab skips it and the ring, which Narrator reads as a
+        busy, non-focusable progress bar between the rows and View All / the pager."""
+        for name, prefix, anchor, row in (
+                ("row-height-card-spotlight-loading", SPOTLIGHT, f"id={SPOTLIGHT[:-len('.spotlight')]}.view-all",
+                 "id=fst.rankings.row.fixture-rank-10"),
+                ("row-height-full-rankings-spotlight-loading", FOOTER, "id=fst.full-rankings.page-next",
+                 "id=fst.rankings.row.fixture-player-1")):
+            page = load()[name]
+            self.assertIn("--rank-delay", page["fixture"], name)
+            if prefix == SPOTLIGHT:
+                # The first four cards reveal only once their spotlights load, so only the fifth card's read waits.
+                fixture = page["fixture"]
+                self.assertEqual(fixture[fixture.index("--rank-delay-instrument") + 1], "Solo_Vocals")
+            drive = steps(page)
+            label = "spotlight" if prefix == SPOTLIGHT else "footer"
+            mark = drive.index(f"markspan:raw={prefix}.loading-row|{anchor}|{label}")
+            loaded = drive.index(f"waitgone:id={prefix}.loading@5")
+            span = drive.index(f"assertspan:id={prefix}|{anchor}|{label}")
+            self.assertLess(mark, loaded)
+            self.assertLess(loaded, span)
+            for step in (f"assertread:id={prefix}.loading|Busy Loading your rank, ProgressRing",
+                         f"assertstate:id={prefix}.loading|type=progressbar",
+                         f"assertstate:id={prefix}.loading|focusable=false",
+                         f"waitgone:id={prefix}.loading-row@1", f"assertfocus:{row}@3"):
+                self.assertLess(drive.index(step), loaded, step)
+            self.assertIn(f"scan:{{stem}}-loading", drive[:loaded])
+            # A row holds focus during the scan, so no pager tooltip (a windowed PopupHost) is open.
+            self.assertEqual(drive[drive.index("scan:{stem}-loading") - 1], f"assertfocus:{row}@3")
+            loading, done = [order(s) for s in drive if s.startswith("assertorder:")]
+            self.assertEqual(loading[1:], [f"id={prefix}.loading", anchor])
+            self.assertEqual(done[1:], [f"id={prefix}", anchor])
+
     def test_rows_read_as_one_button_in_visual_order(self):
         pages = load()
-        reads = [s for page in pages.values() for s in steps(page) if s.startswith("assertread:")]
+        reads = [s for page in pages.values() for s in steps(page)
+                 if s.startswith("assertread:") and not s.split("|")[0].endswith(".loading")]
         self.assertIn("assertread:id=fst.rankings.row.fixture-player-2|Rank #2, Fixture Player 2. Total Score 88,000,000, "
                       "38 / 50 songs, button", reads)
         self.assertTrue(all(s.endswith(", button") for s in reads))
