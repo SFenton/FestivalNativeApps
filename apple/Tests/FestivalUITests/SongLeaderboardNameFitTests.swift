@@ -152,9 +152,11 @@ private func labelFrames(_ view: NSView) -> [String: NSRect] {
     )
     let frames = labelFrames(host)
     var scoreEdges: [CGFloat] = []
-    for entry in entries {
+    for (index, entry) in entries.enumerated() {
         let name = try #require(frames[entry.displayName ?? ""], "frames: \(frames.keys.sorted())")
-        let rank = try #require(frames["#\(entry.rank.formatted())"], "frames: \(frames.keys.sorted())")
+        // The pinned (player's) row's rank speaks as "Your rank, …" (issue #457).
+        let rankLabel = SongLeaderboardEntryRow.spokenRank(entry.rank, isPlayer: index == entries.count - 1)
+        let rank = try #require(frames[rankLabel], "frames: \(frames.keys.sorted())")
         let score = try #require(frames[entry.score.formatted()], "frames: \(frames.keys.sorted())")
         // AppKit frames grow upward: the name line sits above (greater y than) the
         // rank and score line, which share one baseline row.

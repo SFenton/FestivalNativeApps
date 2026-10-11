@@ -19,6 +19,12 @@ the page scroller of a page entrance) and ``at`` the app's monotonic clock (ms):
     fade-hold list=RowsRepeater held=8 wait=1650 at=5130
     fade-reveal list=RowsRepeater index=17 wait=1650 scrolled=1 motion=1 at=6780
     fade-skip list=CardList index=6 at=5700
+    fade-show list=JumpButton played=0 motion=0 at=5810
+    fade-hide list=JumpButton armed=0 motion=0 at=6020
+
+An ``OnShow`` element writes a ``fade-show`` each time it turns visible (``played``: whether its fade ran) and an
+``OnHide`` element a ``fade-hide`` each time it collapses (``armed``: whether its implicit hide fade was set);
+``a11y_matrix.py`` pages that declare ``fade_trace`` judge them with :func:`check_show_hide` (R6, issue #517).
 
 A journey drives the app in phases and judges only the lines each phase appended, so it can prove that a page fades
 the rows visible at load, that a scroll right after the load rushes the entrance so the rows it realizes fade in
@@ -41,7 +47,7 @@ from pathlib import Path
 from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[2]
-LINE = re.compile(r"^fade-(?P<kind>arm|play|enter|early|rush|close|hold|reveal|skip|ride) list=(?P<list>\S+)"
+LINE = re.compile(r"^fade-(?P<kind>arm|play|enter|early|rush|close|hold|reveal|skip|ride|show|hide) list=(?P<list>\S+)"
                   r"(?P<rest>(?: \w+=[^\s=]+)*)\s*$")
 NUMBER = re.compile(r"-?\d+")
 ARM_WINDOW_MS = 1000
@@ -115,6 +121,13 @@ WIRING: tuple[tuple[str, str, str], ...] = (
     ("windows/Festival.App/Pages/BandsSongLeaderboardPage.xaml.cs",
      r"SelectedRowReveal\.Start\(Rows,",
      "the song band leaderboard jumps to the band's row before it has faded in (issue #323)"),
+    ("windows/Festival.App/Controls/FadeIn.cs",
+     r"if \(!Motion\.Allowed\)\s*\n\s*\{\s*\n\s*ElementCompositionPreview\.SetImplicitHideAnimation\(element,\s*null\);"
+     r"\s*\n\s*element\.SetValue\(HideArmedProperty,\s*false\);",
+     "an OnHide element (Songs Jump) fades out under Reduce Motion (R6; a11y-section-index index-open-escape, #517)"),
+    ("windows/Festival.App/Pages/SongsPage.xaml",
+     r'x:Name="JumpButton"[^>]*controls:FadeIn\.OnShow="True" controls:FadeIn\.OnHide="True"',
+     "Songs Jump appears or disappears abruptly with motion on (issue #231), and its fade trace is gone (#517)"),
 )
 
 DELAYED_PLAY = re.compile(r"FadeIn\.Play\([^()]*(?:\([^()]*\)[^()]*)*,")
@@ -148,7 +161,7 @@ class FadeEvent:
     """One ``fade-*`` perf-log line."""
 
     kind: str
-    """``arm``, ``play``, ``enter``, ``early``, ``rush``, ``close``, ``hold``, ``reveal`` or ``skip``."""
+    """``arm``, ``play``, ``enter``, ``early``, ``rush``, ``close``, ``hold``, ``reveal``, ``skip``, ``ride``, ``show`` or ``hide``."""
     list: str
     """Entrance owner: list or page scroller name (``x:Name``, else AutomationId)."""
     values: dict[str, int | str] = field(default_factory=dict, compare=False)
@@ -423,6 +436,44 @@ def check_enrolled(events: list[FadeEvent], owner: str, targets: tuple[str, ...]
         where = f" (it entered with {elsewhere[target]})" if target in elsewhere else ""
         failures.append(f"{owner}: {target} did not fade in with its entrance (no fade-enter target={target}){where}, "
                         "so a scroll cannot rush it")
+    return failures
+
+
+def check_show_hide(events: list[FadeEvent], element: str, sequence: list[str], motion: bool | None) -> list[str]:
+    """An ``OnShow``/``OnHide`` element showed and hid in ``sequence`` order, fading only while motion is on (R6).
+
+    Each ``fade-show`` must have played its fade exactly when ``motion=1`` and each ``fade-hide`` must have had its
+    implicit hide fade armed exactly when ``motion=1``, so a Reduce Motion run proves the element appears and
+    disappears at once (issue #517: Songs Jump). ``motion`` pins the expected switch: ``False`` under in-app Reduce
+    Motion or Windows Animation effects off; ``None`` when it depends on the host (a CI runner may have animations off).
+
+    Args:
+        events: Events of the drive.
+        element: The element's trace name (``x:Name``, else AutomationId), e.g. ``JumpButton``.
+        sequence: ``show``/``hide`` kinds that must appear in this order (other lines may come between them).
+        motion: Expected ``motion`` value, or ``None`` for any (still consistent with ``played``/``armed``).
+
+    Returns:
+        Failures.
+    """
+    own = [e for e in events if e.kind in ("show", "hide") and e.list == element]
+    failures = []
+    at = 0
+    for kind in sequence:
+        found = next((i for i in range(at, len(own)) if own[i].kind == kind), None)
+        if found is None:
+            failures.append(f"{element}: no fade-{kind} after {[e.kind for e in own[:at]]} (expected {sequence})")
+            break
+        at = found + 1
+    for event in own:
+        moving = event.values.get("motion")
+        ran = event.values.get("played" if event.kind == "show" else "armed")
+        if motion is not None and moving != (1 if motion else 0):
+            failures.append(f"{element}: fade-{event.kind} motion={moving}, expected {1 if motion else 0}")
+        if ran != moving:
+            verb = "played" if event.kind == "show" else "armed"
+            failures.append(f"{element}: fade-{event.kind} {verb}={ran} with motion={moving}"
+                            + (" (animated under Reduce Motion)" if moving == 0 else " (no fade with motion on)"))
     return failures
 
 
