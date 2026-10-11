@@ -38,8 +38,10 @@ Per configuration (fixture runs: `shop_journey` and `a11y_matrix`; live runs: th
 | Desert, Night sky | caption plate Window/WindowText, badges HighlightText on Highlight (fixed backplate), 0 Axe errors |
 | Text 200% | title, count and buttons scale; long tile titles end in an ellipsis (full text in the UIA name); 0 Axe errors |
 | Display 100% / 150% | layout identical in epx; 0 Axe errors |
-| Keyboard | Tab order (medium/wide): search, profile, pane, Filter, List/Grid toggle, each tile, then wraps to the pane toggle. Compact drops the pane items and the toggle. Visible focus ring on tiles and buttons. Shift+F10 on a tile opens the official-link menu and Esc closes it; tiles invoke Song Detail through UIA Invoke |
+| Keyboard | Tab order (medium/wide): search, profile, pane, Sort, Filter, List/Grid toggle, then the tile grid as one stop with arrow keys inside (#206), then wraps to the pane toggle. Compact drops the pane items and the toggle. Visible focus ring on tiles and buttons. Shift+F10 on a tile opens the official-link menu and Esc closes it; tiles invoke Song Detail through UIA Invoke |
 
 Narrator order follows the UIA tree: the "Item Shop" heading (level 1), count, Filter, toggle, then the tiles in reading order. Each tile is one stop, and its name reads the title, artist and year, and badge.
+
+CI accessibility tests (issue #516): `tools/windows/journeys/a11y-shop-offers.json` in `ui_ci.py` (`shop-offers`, `-text-225`, `-reduced`); details in [windows-accessibility.md](../../testing/windows-accessibility.md#item-shop-offers-accessibility-tests-issue-516-2026-10-12). Rules they guard: the List/Grid toggle stays level with Filter at default text (the shared `WrapPanel` breaks lines with `WrapLineLayout`, so arrange never wraps what measure kept), and when it wraps at large text it stays clear of the tiles; the Leaving pill and pulse ring repaint on a live contrast switch (`ShopPage.RepaintBadges`, `ShopPulseRing`; [shop-offer-status](../../patterns/shop-offer-status.md) R6).
 
 Deliberate deviations from the winui-design/code-review skills: raw `FontSize` 16/12 on tile title and pills (web `ShopCard` parity) and English literals (the app has no `.resw` localisation yet).
