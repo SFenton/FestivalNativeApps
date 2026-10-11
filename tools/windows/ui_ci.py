@@ -10,7 +10,8 @@ This is the one registry of Windows accessibility journeys that gate pull reques
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
-push (issue #452), the Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438) and the Full
+push (issue #452), the Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438), the Paths
+text table (issue #515, also under a contrast theme) and the Full
 Rankings pinned row (issue #466, also with in-app Reduce Motion), the Leaderboards card "your rank" row (issue #493,
 also with in-app Reduce Motion), the Search All section titles (issue #483, also with in-app Reduce Motion), the
 Song Band Leaderboard rows, empty and error states (issue #510), the
@@ -321,6 +322,13 @@ RUNS: tuple[Run, ...] = (
     # Zoom in, then End/Home on the focused chart) and back at 100% with Zoom out unavailable, and after Image <-> Text.
     Run("paths-chart", "a11y-paths-chart.json", sizes="compact,medium,wide", tabs=0),
     Run("paths-chart-text-225", "a11y-paths-chart.json", sizes="compact,wide", mode="text-225", tabs=0),
+    # Paths text table (issues #223, #515): "Path table, pane" (a Tab stop that keeps focus on End/Home) holds one
+    # "Activation n: …, group" per card in selectors -> table -> cards -> Close order, with the column captions and
+    # values Raw (read once), the compact stack and wide grid with values apart; a live Desert switch repaints the frets
+    # and Overdrive bar in system colours and refits the dialog so the display selector is not clipped, and back.
+    Run("paths-text-contrast", "a11y-paths-text.json", sizes="compact", mode="hc-desert", tabs=0, only="paths-text"),
+    Run("paths-text", "a11y-paths-text.json", sizes="compact,medium,wide", tabs=0),
+    Run("paths-text-text-225", "a11y-paths-text.json", sizes="compact,wide", mode="text-225", tabs=0),
 )
 
 
