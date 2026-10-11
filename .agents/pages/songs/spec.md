@@ -58,4 +58,4 @@ Control-to-control propagation; modal draft confirm and focus restore; filtered-
 
 ## Open gaps (all platforms)
 
-Band rows and assignments; invalid-score fallback variants (`ml`/`vs`/`rt`) and the warning action; metadata order editing; profile/FC/band Sort modes; remaining Filter sections; quick-link rail; first-run carousel; conditional profile tabs. Per-route gap text: `python3 tools/parity_backlog.py --list`.
+Band rows and assignments; the invalid-score warning action on Windows ([invalid-scores](../../patterns/invalid-scores.md)); metadata order editing; profile/FC/band Sort modes; remaining Filter sections; quick-link rail; first-run carousel; conditional profile tabs. Per-route gap text: `python3 tools/parity_backlog.py --list`.
