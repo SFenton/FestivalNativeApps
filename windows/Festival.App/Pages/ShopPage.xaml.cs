@@ -105,10 +105,34 @@ public sealed partial class ShopPage : Page
         AppliedButtonState.Apply(FilterButton, ViewModel.IsFilterActive, ViewModel.FilterStatus);
     }
 
-    /// <summary>Re-resolves the code-set button tints on the UI thread after a system colour (contrast theme) change.</summary>
+    /// <summary>Re-resolves the code-set button tints and Leaving Tomorrow pills on the UI thread after a system colour (contrast theme) change.</summary>
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
-    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(UpdateButtonTints);
+    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(() =>
+    {
+        UpdateButtonTints();
+        RepaintBadges();
+    });
+
+    /// <summary>
+    /// Recolours the realized tiles' and rows' Leaving Tomorrow pills, which take their brushes in code as they are
+    /// prepared; without this a live contrast switch left the brand red pill with a Window backplate (issue #516).
+    /// </summary>
+    private void RepaintBadges()
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(OfferGrid); i++)
+        {
+            if (VisualTreeHelper.GetChild(OfferGrid, i) is not FrameworkElement tile) continue;
+            var index = OfferGrid.GetElementIndex(tile);
+            if (index >= 0 && OfferGrid.ItemsSourceView?.GetAt(index) is ShopOfferItem item) ApplyBadge(tile, item, "BadgePill", "BadgeLabel");
+        }
+        for (var i = 0; i < ViewModel.Offers.Count; i++)
+        {
+            if (OfferList.ContainerFromIndex(i) is not ListViewItem { ContentTemplateRoot: SongRowCard card }) continue;
+            foreach (var child in card.Trailing.Children)
+                if (child is Border { Child: TextBlock label } badge) ApplyBadge(badge, label, ViewModel.Offers[i]);
+        }
+    }
 
     /// <summary>Loads the applied sort into the live draft as the Sort flyout opens.</summary>
     /// <param name="sender">Flyout.</param>

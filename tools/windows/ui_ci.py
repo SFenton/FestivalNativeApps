@@ -15,7 +15,8 @@ text table (issue #515, also under a contrast theme) and the Full
 Rankings pinned row (issue #466, also with in-app Reduce Motion), the Leaderboards card "your rank" row (issue #493,
 also with in-app Reduce Motion), the Search All section titles (issue #483, also with in-app Reduce Motion), the
 Song Band Leaderboard rows, empty and error states (issue #510), the Suggestions cards, keyboard, filter and states
-(issue #513), the real-control First Run demos (issue #498, also with Animation effects off), the profile title row
+(issue #513), the Item Shop offers grid, List/Grid toggle, rings and states (issue #516, also with in-app Reduce
+Motion), the real-control First Run demos (issue #498, also with Animation effects off), the profile title row
 (issue #446) and the Score History chart (issue #512, also under Desert contrast) run at default and 225% text, and
 that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
@@ -231,6 +232,16 @@ RUNS: tuple[Run, ...] = (
     Run("shop-filter-keyboard", "a11y-keyboard.json", tabs=0, only=SHOP_FILTER_KEYBOARD),
     Run("shop-filter-keyboard-text-225", "a11y-keyboard.json", sizes="compact", mode="text-225", tabs=0,
         only=SHOP_FILTER_KEYBOARD),
+    # Item Shop offers (issues #224, #516): tile phrases (title, artist · year, Leaving Tomorrow / New, Button), the
+    # List/Grid toggle's name, 40 epx target and level with Filter (never wrapped under the tiles at default text, kept
+    # clear of them at 225%), hidden at compact, empty, failed and Shop-hidden; Enter/Space switch the layout with focus
+    # kept on the toggle; only the active ring reads "Busy Loading Item Shop"; and the Leaving pill follows a live
+    # contrast switch (Desert paint check, medium only). Also with the app's Reduce Motion (the reveal is instant).
+    # (The partial reduced-motion run comes first: generated_runs reads a file's last explicit run as its coverage.)
+    Run("shop-offers-reduced", "a11y-shop-offers.json", sizes="medium", mode="app-reduced",
+        only="shop-offers-view-toggle"),
+    Run("shop-offers", "a11y-shop-offers.json"),
+    Run("shop-offers-text-225", "a11y-shop-offers.json", mode="text-225"),
     # The pinned "your band" row on a song's full Duos/Trios/Quads board (issues #306, #461): Narrator phrases for
     # Jump / Open band, 40 epx targets, rows -> pin -> pager order, Tab/Enter jump clear of the pin, size switch,
     # no-player and reduced-motion states.

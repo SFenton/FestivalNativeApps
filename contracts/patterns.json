@@ -4471,7 +4471,7 @@
       "title": "Item Shop offer status",
       "status": "current",
       "doc": ".agents/patterns/shop-offer-status.md",
-      "summary": "New and Leaving Tomorrow on Songs rows, Item Shop list rows, Item Shop grid cards and first-run demo rows: New is the gold outline alone with no chip, pill or sparkles glyph (operator 2026-09-28 for Songs; #562 for the Shop), only Leaving Tomorrow gets a visible indicator (red clock circle or pill, before the bag and chevron), and both states stay in the row or card's accessible name. Highlighting off or a hidden Shop shows no state.",
+      "summary": "New and Leaving Tomorrow on Songs rows, Item Shop list rows, Item Shop grid cards and first-run demo rows: New is the gold outline alone with no chip, pill or sparkles glyph (operator 2026-09-28 for Songs; #562 for the Shop), only Leaving Tomorrow gets a visible indicator (red clock circle or pill, before the bag and chevron), and both states stay in the row or card's accessible name. Highlighting off or a hidden Shop shows no state. The outline and pill follow a live contrast switch (#516).",
       "keywords": [
         "item shop",
         "new",
@@ -4541,6 +4541,10 @@
           {
             "path": "windows/Festival.App/Pages/ShopPage.xaml.cs",
             "symbol": "ApplyBadge"
+          },
+          {
+            "path": "windows/Festival.App/Controls/ShopPulseRing.cs",
+            "symbol": "ShopPulseRing"
           }
         ]
       },
