@@ -991,6 +991,10 @@
             "symbol": "RadioButtonsRowSpacing"
           },
           {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "DefaultComboBoxItemStyle"
+          },
+          {
             "path": "windows/Festival.App/Controls/WrapPanel.cs",
             "symbol": "WrapPanel"
           },
@@ -1023,6 +1027,13 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt"
           ],
           "message": "The shell alone renders the floating toolbar, at every window size (page-tools-and-nav-chrome R4, R6)."
+        },
+        {
+          "id": "android-floating-toolbar-stays-on-screen",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "exitAlwaysScrollBehavior|FloatingToolbarScrollState|pinActions\\b",
+          "allow": [],
+          "message": "The floating toolbar never hides on scroll, on any page (page-tools-and-nav-chrome R7, agent decision #577)."
         },
         {
           "id": "windows-titlebar-content",
@@ -4701,6 +4712,92 @@
         348,
         573,
         600
+      ]
+    },
+    {
+      "id": "metadata-pills",
+      "title": "Metadata pills",
+      "status": "current",
+      "doc": ".agents/patterns/metadata-pills.md",
+      "summary": "The season chip (S15) and percentile chip (Top N%) are one shared component each per platform, one size everywhere (chip label style, 24 dp tall, 8 dp corners, season >= 48 dp, percentile >= 5.5 em), with the web colours: seasons textSecondary on surfaceSubtle with a borderSubtle outline and the catalogue's current season inverted; Top 1% skewed gold outline, Top 5% gold outline, else 10% white. Season pills read 'Season N' / 'Current season N' (#606).",
+      "keywords": [
+        "season pill",
+        "season chip",
+        "current season",
+        "percentile pill",
+        "top x%",
+        "top 1%",
+        "top 5%",
+        "chip contrast",
+        "metadata pill"
+      ],
+      "web": [
+        {
+          "path": "components/songs/metadata/SeasonPill.tsx",
+          "symbol": "SeasonPill"
+        },
+        {
+          "path": "components/songs/metadata/PercentilePill.tsx",
+          "symbol": "PercentilePill"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/ScoreSeasonPill.swift",
+            "symbol": "ScoreSeasonPill"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerPercentileTable.swift",
+            "symbol": "PercentilePill"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/MetadataPills.kt",
+            "symbol": "SeasonPill"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/MetadataPills.kt",
+            "symbol": "PercentilePill"
+          }
+        ],
+        "windows": []
+      },
+      "related": {
+        "patterns": [
+          "leaderboard-row",
+          "surface-materials",
+          "shop-offer-status"
+        ],
+        "pages": [
+          "songs",
+          "suggestions",
+          "song-detail",
+          "song-leaderboard",
+          "player-history",
+          "player-profile",
+          "statistics",
+          "band-detail"
+        ],
+        "controls": [
+          "song-score-metadata",
+          "score-accuracy"
+        ]
+      },
+      "guards": [
+        {
+          "id": "android-private-pill",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "fun\\s+\\w*(SeasonPill|PercentilePill)\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/design/MetadataPills.kt"
+          ],
+          "message": "Season and percentile chips use the shared ui/design/MetadataPills.kt components (metadata-pills R1)."
+        }
+      ],
+      "issues": [
+        606
       ],
       "supersedes": [],
       "supersededBy": null
