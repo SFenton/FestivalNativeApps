@@ -12,8 +12,9 @@ that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
 push (issue #452), the Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438) and the Full
 Rankings pinned row (issue #466, also with in-app Reduce Motion), the Leaderboards card "your rank" row (issue #493,
-also with in-app Reduce Motion), the Search All section titles (issue #483, also with in-app Reduce Motion) and the
-Song Band Leaderboard rows, empty and error states (issue #510) run at default and 225% text, and
+also with in-app Reduce Motion), the Search All section titles (issue #483, also with in-app Reduce Motion), the
+Song Band Leaderboard rows, empty and error states (issue #510) and the
+real-control First Run demos (issue #498, also with Animation effects off) run at default and 225% text, and
 that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
@@ -245,6 +246,17 @@ RUNS: tuple[Run, ...] = (
     # keyboard Settings replay with Esc focus return, demo frame clear of the title. At 225% the guide body scrolls.
     Run("first-run-demos", "a11y-first-run-demos.json"),
     Run("first-run-demos-text-225", "a11y-first-run-demos.json", sizes="compact", mode="text-225"),
+    # Real-control First Run demos (issues #380, #498): Sort Songs, the Score History chart and Suggestions' auto-scroll
+    # are built from the page's own controls (census HelpText) yet stay out of the control view and the Tab order (slide
+    # -> pip -> Next -> Back -> Close, 40x40 Close); the auto-scroll runs with its edge fades, pauses while minimized and
+    # holds at the top with in-app Reduce Motion or Windows' Animation effects off; with Windows' transparency effects
+    # off, or the app's Less Transparency or More Contrast, it scrolls with hard clipped edges (fade=off, scroll-edge R7).
+    Run("first-run-real-demos", "a11y-first-run-real-demos.json"),
+    Run("first-run-real-demos-text-225", "a11y-first-run-real-demos.json", sizes="compact", mode="text-225"),
+    Run("first-run-real-demos-no-animations", "a11y-first-run-real-demos.json", sizes="compact", mode="no-animations",
+        only="frrd-infinite-scroll-static"),
+    Run("first-run-real-demos-no-transparency", "a11y-first-run-real-demos.json", sizes="compact",
+        mode="no-transparency", only="frrd-infinite-scroll-no-transparency"),
     # Full boards as one grouped card (issue #543): song board, Full Rankings, Band Rankings and the song band board rows
     # touch (0 epx), each stays one 40+ epx Button stop in visual order, rows -> pinned row -> pager, Up/Down and Tab.
     Run("grouped-boards", "a11y-grouped-boards.json", tabs=0),
@@ -313,7 +325,11 @@ def generated_runs(explicit: tuple[Run, ...]) -> tuple[Run, ...]:
     skipped = json.loads(skip_file.read_text(encoding="utf-8")).get("a11y_pages", {}) if skip_file.exists() else {}
     covered: dict[str, set[str] | None] = {}
     for run in explicit:
-        covered[run.pages] = None if not run.only else set(run.only.split(","))
+        # A run of every page covers the file even when another run (e.g. a reduced-motion one) picks some pages.
+        if not run.only or (run.pages in covered and covered[run.pages] is None):
+            covered[run.pages] = None
+        else:
+            covered[run.pages] = covered.get(run.pages, set()) | set(run.only.split(","))
     generated = []
     for source in sorted(JOURNEYS.glob("a11y-*.json")):
         if covered.get(source.name) is None and source.name in covered:
