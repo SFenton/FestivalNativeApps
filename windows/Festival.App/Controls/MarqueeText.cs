@@ -34,11 +34,21 @@ public sealed partial class MarqueeText : Panel
         nameof(TextStyle), typeof(Style), typeof(MarqueeText), new PropertyMetadata(null, (d, _) => ((MarqueeText)d).OnStyleChanged()));
 
     /// <summary>
-    /// Wrap instead of scrolling at large Windows text sizes (in-page song header lines, pattern <c>song-header</c> R3).
-    /// Off by default: rows, cards and bar titles stay on one line at every text size.
+    /// Wrap instead of scrolling at large Windows text sizes: in-page song header lines (pattern <c>song-header</c> R3) and
+    /// leaderboard row names (pattern <c>leaderboard-row</c> R3, issue #455). Off by default: other rows, cards and bar
+    /// titles stay on one line at every text size.
     /// </summary>
     public static readonly DependencyProperty WrapsAtLargeTextProperty = DependencyProperty.Register(
         nameof(WrapsAtLargeText), typeof(bool), typeof(MarqueeText), new PropertyMetadata(false, (d, _) => ((MarqueeText)d).OnWrapsAtLargeTextChanged()));
+
+    /// <summary>
+    /// Lines of height the text reserves while it wraps (<see cref="WrapsAtLargeText"/> at large text), so rows that share
+    /// a name budget stay one height whether a name takes one line or more (pattern <c>leaderboard-row</c> R2, issue #455).
+    /// A minimum, never a cap: longer text still wraps onto every line it needs. Shorter text is centred in the reserved
+    /// height, level with a row's centred rank. Ignored on one line (default 1).
+    /// </summary>
+    public static readonly DependencyProperty MinLinesProperty = DependencyProperty.Register(
+        nameof(MinLines), typeof(int), typeof(MarqueeText), new PropertyMetadata(1, (d, _) => ((MarqueeText)d).OnMinLinesChanged()));
 
     /// <summary>Seconds for one scroll-and-dwell cycle (web default 8).</summary>
     public static double CycleSeconds { get; set; } = 8;
@@ -52,6 +62,8 @@ public sealed partial class MarqueeText : Panel
     private static readonly UISettings SystemSettings = new();
     private readonly TextBlock primary = new() { TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock copy = new() { TextWrapping = TextWrapping.NoWrap, Visibility = Visibility.Collapsed };
+    // Invisible MinLines-line text in the same style: its height is the wrapped text's reserved height.
+    private readonly TextBlock lineProbe = new() { TextWrapping = TextWrapping.NoWrap, Opacity = 0, Text = "\u00A0" };
     private static readonly DateTimeOffset Epoch = DateTimeOffset.UnixEpoch;
     private double naturalWidth;
     private double trackDistance;
@@ -67,7 +79,9 @@ public sealed partial class MarqueeText : Panel
     {
         Children.Add(primary);
         Children.Add(copy);
+        Children.Add(lineProbe);
         AutomationProperties.SetAccessibilityView(copy, AccessibilityView.Raw);
+        AutomationProperties.SetAccessibilityView(lineProbe, AccessibilityView.Raw);
         primary.IsTextTrimmedChanged += (_, _) => IsTextTrimmedChanged?.Invoke(this, EventArgs.Empty);
         IsHitTestVisible = false;
         SizeChanged += (_, _) => { UpdateClip(); QueueUpdate(); };
@@ -85,6 +99,25 @@ public sealed partial class MarqueeText : Panel
 
     /// <summary>Whether the text currently wraps (large text with <see cref="WrapsAtLargeText"/> on); it never scrolls then.</summary>
     public bool IsWrapped => wrapped;
+
+    /// <inheritdoc cref="MinLinesProperty" />
+    public int MinLines
+    {
+        get => (int)GetValue(MinLinesProperty);
+        set => SetValue(MinLinesProperty, value);
+    }
+
+    /// <summary>Rebuilds the line probe for the new budget (explicit line breaks, one non-breaking space per line).</summary>
+    private void OnMinLinesChanged()
+    {
+        lineProbe.Inlines.Clear();
+        for (var line = 0; line < Math.Max(1, MinLines); line++)
+        {
+            if (line > 0) lineProbe.Inlines.Add(new Microsoft.UI.Xaml.Documents.LineBreak());
+            lineProbe.Inlines.Add(new Microsoft.UI.Xaml.Documents.Run { Text = "\u00A0" });
+        }
+        if (wrapped) InvalidateMeasure();
+    }
 
     /// <summary>Re-evaluates the wrap mode and whether to follow text size changes.</summary>
     private void OnWrapsAtLargeTextChanged()
@@ -162,7 +195,7 @@ public sealed partial class MarqueeText : Panel
         set
         {
             if (primary.FontWeight.Weight == value.Weight) return;
-            primary.FontWeight = copy.FontWeight = value;
+            primary.FontWeight = copy.FontWeight = lineProbe.FontWeight = value;
             Restart();
         }
     }
@@ -309,10 +342,13 @@ public sealed partial class MarqueeText : Panel
     {
         if (wrapped)
         {
-            // Large text: the whole text on as many lines as it needs, never wider than the column.
+            // Large text: the whole text on as many lines as it needs, never wider than the column, and at least
+            // MinLines tall so rows sharing a name budget keep one height.
             primary.Measure(availableSize);
             naturalWidth = primary.DesiredSize.Width;
-            return primary.DesiredSize;
+            if (MinLines <= 1) return primary.DesiredSize;
+            lineProbe.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            return new Size(primary.DesiredSize.Width, Math.Max(primary.DesiredSize.Height, lineProbe.DesiredSize.Height));
         }
         primary.Measure(new Size(double.PositiveInfinity, availableSize.Height));
         naturalWidth = primary.DesiredSize.Width;
@@ -327,8 +363,11 @@ public sealed partial class MarqueeText : Panel
     protected override Size ArrangeOverride(Size finalSize)
     {
         var height = primary.DesiredSize.Height;
-        primary.Arrange(new Rect(0, 0, playing ? naturalWidth : finalSize.Width, height));
+        // Wrapped text shorter than its reserved lines is centred in them, level with a row's centred rank.
+        var top = !wrapped || MinLines <= 1 || finalSize.Height <= height ? 0 : (finalSize.Height - height) / 2;
+        primary.Arrange(new Rect(0, top, playing ? naturalWidth : finalSize.Width, height));
         copy.Arrange(new Rect(playing ? trackDistance : naturalWidth + Gap, 0, naturalWidth, height));
+        lineProbe.Arrange(new Rect(0, 0, 0, 0));
         return finalSize;
     }
 
@@ -359,7 +398,7 @@ public sealed partial class MarqueeText : Panel
     /// <summary>Applies a new style to both copies.</summary>
     private void OnStyleChanged()
     {
-        primary.Style = copy.Style = TextStyle;
+        primary.Style = copy.Style = lineProbe.Style = TextStyle;
         primary.TextTrimming = playing || wrapped ? TextTrimming.None : TextTrimming.CharacterEllipsis;
         InvalidateMeasure();
         QueueUpdate();

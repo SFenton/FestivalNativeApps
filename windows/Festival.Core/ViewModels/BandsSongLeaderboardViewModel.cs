@@ -422,6 +422,9 @@ public sealed record SongBandSpotlightRow(SongBandLeaderboardEntry Entry, Select
     /// <summary>Joined member names (<c>A + B</c>).</summary>
     public string Name => Entry.MembersLabel;
 
+    /// <summary>One large-text name line per member (<see cref="LeaderboardRowMetrics.BandNameLines"/>, issue #455).</summary>
+    public int LargeTextNameLines => LeaderboardRowMetrics.BandNameLines(Entry.Members.Count);
+
     /// <summary>Always the selected player's band (purple highlight, bold).</summary>
     public bool IsSelected => true;
 
