@@ -13,6 +13,7 @@ with Animation effects off), the first-run song demos (issue #420), the header f
 push (issue #452), the Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438) and the Full
 Rankings pinned row (issue #466, also with in-app Reduce Motion), the Leaderboards card "your rank" row (issue #493,
 also with in-app Reduce Motion), the Search All section titles (issue #483, also with in-app Reduce Motion), the
+Song Band Leaderboard rows, empty and error states (issue #510), the
 real-control First Run demos (issue #498, also with Animation effects off) and the profile title row (issue #446) run at
 default and 225% text, and that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
@@ -220,6 +221,8 @@ RUNS: tuple[Run, ...] = (
     # no-player and reduced-motion states.
     Run("song-band-pinned", "a11y-song-band-pinned.json", tabs=0),
     Run("song-band-pinned-text-225", "a11y-song-band-pinned.json", sizes="compact", mode="text-225", tabs=0),
+    Run("song-band-board", "a11y-song-band-leaderboard.json", tabs=0),
+    Run("song-band-board-text-225", "a11y-song-band-leaderboard.json", sizes="compact", mode="text-225", tabs=0),
     # The shared song leaderboard header on the band and solo boards (issues #317, #465): one 40+ epx button named by
     # every visible line, title heading 1, header -> size switcher -> rows order, Tab/Shift+Tab/Right and Enter to Song
     # Details, the total leaving on a slow size switch, and no button for an unresolved song; again at 225% text.
