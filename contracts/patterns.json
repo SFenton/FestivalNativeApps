@@ -1395,6 +1395,10 @@
         {
           "path": "components/bands/SongBandScoreFooter.tsx",
           "symbol": "getSongBandScoreWidth"
+        },
+        {
+          "path": "pages/leaderboard/player/PlayerHistoryPage.tsx",
+          "symbol": "scoreWidth"
         }
       ],
       "canonical": {
@@ -1454,6 +1458,10 @@
           {
             "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
             "symbol": "FestivalGroupSegment"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/LeaderboardColumnSlot.swift",
+            "symbol": "LeaderboardColumnSlot"
           }
         ],
         "android": [
@@ -1713,7 +1721,8 @@
         370,
         381,
         409,
-        461
+        461,
+        594
       ]
     },
     {
