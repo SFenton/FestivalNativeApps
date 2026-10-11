@@ -11,8 +11,8 @@
      "assertaligned:raw=fst.song-band-leaderboard.row.band-fixture-band_duets-999:999.members|raw=fst.song-band-leaderboard.row.band-fixture-band_duets-1000:1000.members",
      "assertorder:id=fst.song-band-leaderboard.row.band-fixture-band_duets-999:999|id=fst.song-band-leaderboard.row.band-fixture-band_duets-1000:1000|id=fst.song-band-leaderboard.spotlight-footer"
    ]},
-  {"name": "sbl-rank-column-1000-large-text", "route": "/songs/fixture-pulse/bands/Band_Duets?page=40", "profile": "fixture-player-1:Fixture Player 1", "fixture": ["song_band_preview_fixture.py", "--bands", "far"], "scan": true, "tabs": 0, "sizes": ["compact"], "modes": ["text-225", "text-200", "text-150"],
-   "note": "Large-text twin of sbl-rank-column-1000: at 225% text one band card nearly fills the list, so the pair is scrolled to the list top (scrollinset) before the same alignment checks.",
+  {"name": "sbl-rank-column-1000-large-text", "route": "/songs/fixture-pulse/bands/Band_Duets?page=40", "profile": "fixture-player-1:Fixture Player 1", "fixture": ["song_band_preview_fixture.py", "--bands", "far"], "scan": true, "tabs": 0, "sizes": ["medium"], "modes": ["text-225", "text-200", "text-150"],
+   "note": "Large-text twin of sbl-rank-column-1000: at large text one band card nearly fills the list, so the pair is scrolled to the list top (scrollinset) before the same alignment checks. It runs in the medium window: since #455 the pinned band row wraps its full name at 150%+ text (leaderboard-row R3), and at 225% in the compact window it leaves room for only one band card above it, so a rank pair can no longer be on screen together.",
    "ready": ["waitfor:id=fst.song-band-leaderboard.row.band-fixture-band_duets-976:976@30", "waitfor:id=fst.song-band-leaderboard.spotlight-footer@15", "wait:1"],
    "after_ready": [
      "scrollto:id=fst.song-band-leaderboard.list,100",
@@ -36,8 +36,8 @@
      "assertaligned:raw=fst.song-band-leaderboard.row.band-fixture-band_duets-9999:9999.members|raw=fst.song-band-leaderboard.row.band-fixture-band_duets-10000:10000.members",
      "assertorder:id=fst.song-band-leaderboard.row.band-fixture-band_duets-9999:9999|id=fst.song-band-leaderboard.row.band-fixture-band_duets-10000:10000|id=fst.song-band-leaderboard.spotlight-footer"
    ]},
-  {"name": "sbl-rank-column-10000-large-text", "route": "/songs/fixture-pulse/bands/Band_Duets?page=400", "profile": "fixture-player-1:Fixture Player 1", "fixture": ["song_band_preview_fixture.py", "--bands", "far"], "scan": true, "tabs": 0, "sizes": ["compact"], "modes": ["text-225", "text-200", "text-150"],
-   "note": "Large-text twin of sbl-rank-column-10000: at 225% text one band card nearly fills the list, so the pair is scrolled to the list top (scrollinset) before the same alignment checks.",
+  {"name": "sbl-rank-column-10000-large-text", "route": "/songs/fixture-pulse/bands/Band_Duets?page=400", "profile": "fixture-player-1:Fixture Player 1", "fixture": ["song_band_preview_fixture.py", "--bands", "far"], "scan": true, "tabs": 0, "sizes": ["medium"], "modes": ["text-225", "text-200", "text-150"],
+   "note": "Large-text twin of sbl-rank-column-10000: at large text one band card nearly fills the list, so the pair is scrolled to the list top (scrollinset) before the same alignment checks. It runs in the medium window: since #455 the pinned band row wraps its full name at 150%+ text (leaderboard-row R3), and at 225% in the compact window it leaves room for only one band card above it, so a rank pair can no longer be on screen together.",
    "ready": ["waitfor:id=fst.song-band-leaderboard.row.band-fixture-band_duets-9976:9976@30", "waitfor:id=fst.song-band-leaderboard.spotlight-footer@15", "wait:1"],
    "after_ready": [
      "scrollto:id=fst.song-band-leaderboard.list,100",

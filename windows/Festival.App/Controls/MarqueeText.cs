@@ -44,8 +44,8 @@ public sealed partial class MarqueeText : Panel
     /// <summary>
     /// Lines of height the text reserves while it wraps (<see cref="WrapsAtLargeText"/> at large text), so rows that share
     /// a name budget stay one height whether a name takes one line or more (pattern <c>leaderboard-row</c> R2, issue #455).
-    /// A minimum, never a cap: longer text still wraps onto every line it needs. The text sits inside the reserved height by
-    /// <see cref="FrameworkElement.VerticalAlignment"/>. Ignored on one line (default 1).
+    /// A minimum, never a cap: longer text still wraps onto every line it needs. Shorter text is centred in the reserved
+    /// height, level with a row's centred rank. Ignored on one line (default 1).
     /// </summary>
     public static readonly DependencyProperty MinLinesProperty = DependencyProperty.Register(
         nameof(MinLines), typeof(int), typeof(MarqueeText), new PropertyMetadata(1, (d, _) => ((MarqueeText)d).OnMinLinesChanged()));
@@ -363,13 +363,8 @@ public sealed partial class MarqueeText : Panel
     protected override Size ArrangeOverride(Size finalSize)
     {
         var height = primary.DesiredSize.Height;
-        // Wrapped text shorter than its reserved lines sits inside them like the control would in its cell.
-        var top = !wrapped || finalSize.Height <= height ? 0 : VerticalAlignment switch
-        {
-            VerticalAlignment.Top => 0,
-            VerticalAlignment.Bottom => finalSize.Height - height,
-            _ => (finalSize.Height - height) / 2,
-        };
+        // Wrapped text shorter than its reserved lines is centred in them, level with a row's centred rank.
+        var top = !wrapped || MinLines <= 1 || finalSize.Height <= height ? 0 : (finalSize.Height - height) / 2;
         primary.Arrange(new Rect(0, top, playing ? naturalWidth : finalSize.Width, height));
         copy.Arrange(new Rect(playing ? trackDistance : naturalWidth + Gap, 0, naturalWidth, height));
         lineProbe.Arrange(new Rect(0, 0, 0, 0));
