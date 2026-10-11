@@ -11,7 +11,7 @@ import FestivalDesign
 // MARK: - Fixtures
 
 /// Answers nothing: the hosted Songs list starts loaded, so any request is unexpected.
-private actor ScrollAwayRejectingTransport: HTTPTransport {
+actor ScrollAwayRejectingTransport: HTTPTransport {
     private var paths: [String] = []
 
     /// Record and refuse every request.
@@ -29,7 +29,7 @@ private actor ScrollAwayRejectingTransport: HTTPTransport {
 }
 
 /// The words `tools/mock_service.py --large-catalogue` builds its titles from.
-private let scrollAwayWords = [
+let scrollAwayWords = [
     "Anthem", "Ballad", "Cascade", "Drift", "Echo", "Flare", "Glow", "Horizon", "Ignite",
     "Jubilee", "Kinetic", "Lumen", "Mirage", "Nova", "Orbit", "Prism", "Quartz", "Rhythm",
     "Signal", "Tempo", "Uplift", "Vortex", "Wave", "Xenon", "Yonder", "Zenith",
@@ -40,7 +40,7 @@ private let scrollAwayWords = [
 ///
 /// - Returns: A validated catalogue observed under publication seven.
 /// - Throws: A catalogue the decoder or validation rejects.
-private func scrollAwayCatalogue() throws -> CatalogPayload {
+func scrollAwayCatalogue() throws -> CatalogPayload {
     var titles = zip([1, 7, 24, 99], ["Beat", "Nights", "Hours", "Lights"]).map { "\($0) \($1)" }
     for word in scrollAwayWords {
         titles += ["Theory", "Run", "Signal", "Garden"].map { "\(word) \($0)" }
@@ -156,7 +156,7 @@ private struct ScrollAwayHost {
 
 /// The Songs List's scroll view: the deepest one whose content runs well past its height.
 @MainActor
-private func scrollAwayListScrollView(in view: NSView) -> NSScrollView? {
+func scrollAwayListScrollView(in view: NSView) -> NSScrollView? {
     for subview in view.subviews {
         if let found = scrollAwayListScrollView(in: subview) { return found }
     }
