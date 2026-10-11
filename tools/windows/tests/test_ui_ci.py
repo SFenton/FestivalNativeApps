@@ -341,6 +341,32 @@ class UiCiTests(unittest.TestCase):
             self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[settled:])
         self.assertIn("assertsize:id=fst.paths.instrument.Solo_Guitar|40x40", wide[settled:])
 
+    def test_paths_instrument_picker_runs_in_ci(self):
+        # Issue #439 (#88): the compact Instrument ComboBox opens, reads each option by name in order without Karaoke,
+        # every option is a 40 epx target, and pointer and keyboard switches announce and keep focus. Checked in
+        # windows-ui at default and 225% text and with Animation effects off, Axe-scanned open and after the switch.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-swap.json"]
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-swap.json").read_text(encoding="utf-8"))
+        page = next(page for page in pages if page["name"] == "paths-instrument-picker")
+        self.assertTrue(page["scan"])
+        modes = {run.mode for run in runs if page in m.mode_pages(pages, run.mode)
+                 and m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({"normal", "text-225", "no-animations"}, modes)
+        steps = page["after_ready"]
+        expand = steps.index("expand:id=fst.paths.instrument.compact")
+        select = steps.index("select:name=Bass&class=ComboBoxItem")
+        for check in ("assertread:id=fst.paths.instrument.compact|Instrument, combo box, expanded",
+                      "assertread:name=Lead&class=ComboBoxItem|Lead, list item, selected",
+                      "assertbelow:name=Tap Vocals&class=ComboBoxItem|name=Drums&class=ComboBoxItem",
+                      "waitgone:name=Karaoke&class=ComboBoxItem@1", "scan:{stem}-open"):
+            self.assertIn(check, steps[expand:select])
+        for choice in ("Lead", "Bass", "Drums", "Tap Vocals"):
+            self.assertIn(f"assertsize:name={choice}&class=ComboBoxItem|40x40", steps[expand:select])
+        for check in ("assertannounced:Loading Bass Expert path@5", "assertstate:id=fst.paths.instrument.compact|value=Bass@5",
+                      "key:alt+down", "assertannounced:Loading Lead Expert path@5",
+                      "assertfocus:id=fst.paths.instrument.compact@3", "assertfocus:id=fst.paths.difficulty.compact@3"):
+            self.assertIn(check, steps[select:])
+
     def test_paths_chart_runs_every_page(self):
         # Issue #438 (#87, #279): the chart's centring, hidden scroll bars, names, order and keyboard panning are checked
         # in windows-ui at default and 225% text, every page, Axe-scanned.
