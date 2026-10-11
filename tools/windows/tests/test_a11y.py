@@ -165,6 +165,16 @@ class MatrixTests(unittest.TestCase):
         light = {**previous, "light_theme": False}
         self.assertEqual(m.restore_values(light, m.MODES["light-theme"]["system"]), {"light_theme": False})
 
+    def test_live_contrast_switch_is_restored(self):
+        # Issue #606 review: a page that switches the contrast theme mid-drive snapshots and restores it in any mode.
+        steps = ["resize:compact", "waitfor:id=x@5", "contrast:desert", "assertpaint:raw=y|L8,M0!=#162133"]
+        self.assertEqual(m.system_keys({}, steps), ["high_contrast"])
+        self.assertEqual(m.system_keys({"text_scale": 200}, steps), ["text_scale", "high_contrast"])
+        self.assertEqual(m.system_keys({"high_contrast": "dusk"}, steps), ["high_contrast"])
+        self.assertEqual(m.system_keys({"text_scale": 200}, steps[:2]), ["text_scale"])
+        previous = {"high_contrast": "off", "text_scale": 100}
+        self.assertEqual(m.restore_values(previous, m.system_keys({}, steps)), {"high_contrast": "off"})
+
     def test_launch_args_and_live_pages(self):
         page = {"name": "shop", "first_run": "on"}
         fixture = m.launch_args(8765, page, Path("/s.json"))

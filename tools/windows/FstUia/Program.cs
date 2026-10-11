@@ -861,6 +861,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertannouncedcount":
                 AssertAnnouncedCount(step);
                 break;
+            case "contrast":
+                // A live contrast-theme switch with the app open; a11y_matrix restores the previous theme.
+                SetHighContrast(arg);
+                break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
         }

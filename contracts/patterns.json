@@ -4740,6 +4740,10 @@
             "symbol": "MetadataPills"
           },
           {
+            "path": "windows/Festival.App/Controls/MetadataPill.cs",
+            "symbol": "MetadataPill"
+          },
+          {
             "path": "windows/Festival.Core/Domain/MetadataPillStyle.cs",
             "symbol": "MetadataPillStyle"
           }
