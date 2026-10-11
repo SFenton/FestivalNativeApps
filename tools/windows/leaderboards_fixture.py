@@ -5,7 +5,8 @@ failed states, so this wrapper can answer chosen top-level boards with an empty 
 scrape-freeze 503 with ``Retry-After: 30`` (``--frozen-board``). Board names are the service IDs used in the path:
 ``Solo_Bass`` for ``/api/rankings/Solo_Bass`` and ``Band_Trios`` for ``/api/rankings/bands/Band_Trios``. Player
 spotlight reads (``/api/rankings/{instrument}/{accountId}``) and every other route are the unchanged mock service.
-``--long-name`` renames every rank-2 player to a name too long for any row, for the name marquee (issue #292).
+``--long-name`` renames every rank-2 player (rankings and solo song boards) to a name too long for any row, for the
+name marquee (issue #292) and the song board's trimmed-name tool tip (issue #197).
 ``--slow-board`` answers a chosen board normally after :data:`SLOW_SECONDS`, so its card's loading rows stay on screen
 next to loaded cards (issue #281: placeholder rows as tall as loaded rows).
 ``--slow-song-board <songId>/<instrument>`` answers that song board's first page (``offset`` 0) after
@@ -151,11 +152,30 @@ def install(empty: set[str], frozen: set[str], slow: set[str] = frozenset(),
     mock_service.FixtureServer.request_queue_size = 128
 
 
+def long_song_board_names(payload: dict | None) -> dict | None:
+    """Rename the rank-2 entry of a song board page (``/api/leaderboard/{songId}/{instrument}``) to :data:`LONG_NAME`.
+
+    Args:
+        payload: A response body about to be written.
+
+    Returns:
+        A copy with the rank-2 entry renamed when ``payload`` is a solo song board page (``songId``, ``instrument``
+        and ``entries``), else ``payload`` unchanged.
+    """
+    if not (isinstance(payload, dict) and "songId" in payload and "instrument" in payload
+            and isinstance(payload.get("entries"), list)):
+        return payload
+    entries = [{**entry, "displayName": LONG_NAME} if entry.get("rank") == LONG_NAME_RANK else entry
+               for entry in payload["entries"]]
+    return {**payload, "entries": entries}
+
+
 def install_long_name() -> None:
-    """Give every rank-2 rankings entry :data:`LONG_NAME`, for the overflowing-name marquee (issue #292).
+    """Give every rank-2 rankings and song board entry :data:`LONG_NAME`, for the overflowing-name marquee (issue #292)
+    and the song board's trimmed-name tooltip (issue #197).
 
     Patches ``mock_service._ranking_entry``, so board pages, Full Rankings pages and the rank-2 player's spotlight
-    read agree on the name.
+    read agree on the name, and the handler's JSON writer for song board pages.
     """
     original = mock_service._ranking_entry
 
@@ -163,6 +183,13 @@ def install_long_name() -> None:
         return original(rank, account_id, LONG_NAME if rank == LONG_NAME_RANK else display_name)
 
     mock_service._ranking_entry = entry
+    handler = mock_service.FixtureHandler
+    write = handler._json
+
+    def _json(self, status: int, payload: dict | None, **kwargs) -> None:
+        write(self, status, long_song_board_names(payload), **kwargs)
+
+    handler._json = _json
 
 
 def main() -> None:
