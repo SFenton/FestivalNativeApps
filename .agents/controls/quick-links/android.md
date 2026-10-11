@@ -38,13 +38,11 @@ FestivalScreen(title, isRoot, actions = { QuickLinksAction(quickLinks, windowWid
 |---|---|
 | Settings | Done: `app-settings`, `item-shop`, `show-instruments`, `show-metadata`, `accessibility` (native), `version`, `service-info`, `first-run`, `licenses`, `privacy-policy`, `reset` (no `refresh-profile-name`/`export` rows; no `diagnostics`, the section is gone in every build, #374) |
 | Player / Statistics | Done: `global` "Global Statistics", `instrument:<wire>` per visible chart, `top-songs`, `bands` (row-major grid; with a separating hinge the grid splits at the fold and Quick Links stay the floating-toolbar menu anchored in the pane that owns the toolbar, never a panel or the top app bar, R4/#576) |
-| Songs | Done: sort buckets (`<webId>:<token>`, e.g. `duration:lt2`, `shop:in-shop`, `hasfc:fc`) for every sort except Title/Artist/Year, which keep the section index (as iPhone) |
-| Player / Statistics | Done: `global` "Global Statistics", `instrument:<wire>` per visible chart, `top-songs`, `bands` (staggered grid; with a separating hinge the grid splits at the fold and Quick Links stay the floating-toolbar menu anchored in the pane that owns the toolbar, never a panel or the top app bar, R4/#576) |
 | Songs | Done: sort buckets (`<webId>:<token>`, e.g. `duration:lt2`, `shop:in-shop`, `hasfc:fc`) for every sort except Title/Artist, which keep the section index (as iPhone) and show their `#`/A–Z titles without Quick Links (`SongsUiState.quickLinkHeaders`, #582) |
 | Song Detail (pushed page only) | Done: `intensity`, `score-history` (only when the page shows the card: one `showHistory` flag feeds `SongDetailLayout.items` and `.quickLinks`), `instrument-<wire>` per visible chart, `band-<wire>` per band size |
 | Compete | Done: `leaderboards`, `rivals` (row-major grid headers; none while a full-page issue shows) |
 | Leaderboards | Done: `rank-history` (selected player), `instrument:<wire>`, `band:<wire>` |
-| Band Detail (one pane) | Done: `members`, `summary`, `statistics`, `rank-history`, `songs` (`rememberScrollQuickLinks`; no Quick Links in two panes) |
+| Band Detail | Done: `members`, `summary`, `statistics`, `rank-history`, `songs` (`rememberScrollQuickLinks`) in one column and in two panes: both are one `verticalScroll` page (two panes are paired rows since #584), so a jump to a trailing section lands its row |
 | Rivals | Done: the loaded hub cards (`common`, combo, `<wire>` / `leaderboard.<wire>`) |
 | Rival Detail | Done: `rival-category:<key>` per loaded category |
 | Rivalry | **None** ([quick-links](../../patterns/quick-links.md) R8, owner #545): one link per song only repeated the list, so `RivalryScreen` has no entry point and `RivalQuickLinks` has no per-song builder. Do not restore it |
