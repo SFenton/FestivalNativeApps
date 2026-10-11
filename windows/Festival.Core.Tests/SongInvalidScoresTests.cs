@@ -96,6 +96,21 @@ public class SongInvalidScoresTests
         // Without minLeeway: the CHOpt ceiling and the legacy fallback apply, and there is no Over CHOpt Threshold exemption.
         Assert.Equal((990L, InvalidScoreReason.Fallback), (Filtered(Score(2000, validScore: 990)).Detail!.Score, Filtered(Score(2000, validScore: 990)).Reason));
         Assert.Null(Filtered(Score(2000)).Detail);
+
+        // Without minLeeway, a validScores array is ignored: only the legacy fields replace an invalid score (web legacy path).
+        PlayerValidScoreVariant[] mixedVariants = [new() { Score = 700, MinLeeway = 0, Stars = 4, RankTiers = [new(-5, 9)] }];
+        var mixed = Filtered(Score(2000, variants: mixedVariants, validScore: 990));
+        Assert.Equal(InvalidScoreReason.Fallback, mixed.Reason);
+        Assert.Equal((990L, 0, 950_000d, false, 6), (mixed.Detail!.Score, mixed.Detail.Rank!.Value, mixed.Detail.Accuracy!.Value,
+            mixed.Detail.IsFullCombo!.Value, mixed.Detail.Stars!.Value));
+        Assert.Equal(700L, Resolve(Score(2000, variants: mixedVariants, validScore: 990)).Detail!.Score); // Songs' effectiveScores prefers variants
+        var mixedNoLegacy = Filtered(Score(2000, variants: mixedVariants));
+        Assert.Equal((null, InvalidScoreReason.NoFallback), (mixedNoLegacy.Detail, mixedNoLegacy.Reason));
+        Assert.Equal(1000L, Filtered(Score(1000, variants: mixedVariants)).Detail!.Score); // within the ceiling: raw stays
+
+        // minLeeway present with variants none of which is eligible: dropped, legacy fields ignored.
+        var ineligible = Filtered(Score(500, minLeeway: 2, variants: [new PlayerValidScoreVariant { Score = 400, MinLeeway = 3 }], validScore: 450));
+        Assert.Equal((null, InvalidScoreReason.NoFallback), (ineligible.Detail, ineligible.Reason));
     }
 
     [Fact]

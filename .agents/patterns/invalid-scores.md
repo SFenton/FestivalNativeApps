@@ -28,7 +28,7 @@ The owner: "Filtered Player Score Display should work in native apps as it does 
    - Otherwise drop the score.
 
    Rows, status chips, metadata pills, the wide profile panel ([songs-profile-panel](songs-profile-panel.md)), Score/FC filters, season buckets and the Score/Percentile/Stars sorts all use the effective scores, and nothing pauses.
-4. **R4. Song Details (web `filterPlayerScores`).** With `ml` present, only `validScores` can replace a score and the legacy fields are ignored. Without `ml`, the CHOpt ceiling and the legacy fallback apply. Song Details has no Over CHOpt Threshold. The leaderboard preview's selected-player row shows the filtered score, or no row.
+4. **R4. Song Details (web `filterPlayerScores`).** With `ml` present, only `validScores` can replace a score and the legacy fields are ignored. Without `ml`, the CHOpt ceiling and the legacy fallback apply, and a `validScores` array on that score is ignored (Songs' R3 still prefers it). Branch on `ml` first; never delegate R4 to the R3 resolver. Song Details has no Over CHOpt Threshold. The leaderboard preview's selected-player row shows the filtered score, or no row.
 5. **R5. Indicator.** A Songs row (not a Shop row) with a selected player's current scores shows one indicator when any described chart was replaced, dropped or kept over threshold. The described charts are the filtered chart, else the Settings-visible charts.
    - **Tone:** red alert circle; gold warning when every described chart is over threshold.
    - **Pulse:** like the web's opacity pulse, held still by Reduce Motion (system or app) and by an inactive scene.

@@ -83,20 +83,64 @@ public static class InvalidScorePolicy
     {
         if (IsValid(score, song, chart, leeway)) return new(raw, null);
         if (showOverThreshold) return new(raw, InvalidScoreReason.OverThreshold);
-        if (score.ValidScores is { Count: > 0 } variants)
+        if (score.ValidScores is { Count: > 0 }) return Variant(score, raw, song, chart, leeway);
+        return Legacy(score, raw);
+    }
+
+    /// <summary>
+    /// Resolves one raw score by Song Details' rule (web <c>filterPlayerScores</c>, invalid-scores R4), branching on
+    /// <c>minLeeway</c> like the web: when present, a score valid at the leeway stays and an invalid one is replaced
+    /// only by an eligible <c>validScores</c> variant (never the legacy fields); when absent, a score within the CHOpt
+    /// ceiling stays and an invalid one is replaced only by the legacy <c>validScore</c> fields (never a variant).
+    /// There is no Over CHOpt Threshold exemption.
+    /// </summary>
+    /// <param name="score">Raw wire score.</param>
+    /// <param name="raw">Its unfiltered detail.</param>
+    /// <param name="song">Catalogue row (CHOpt maximum, population curve).</param>
+    /// <param name="chart">Chart.</param>
+    /// <param name="leeway">Leeway percent.</param>
+    /// <returns>Effective detail and reason.</returns>
+    public static InvalidScoreResolution ResolveFiltered(PlayerScore score, SongScoreDetail raw, Song? song, Instrument chart, double leeway)
+    {
+        if (score.MinLeeway is { } min)
         {
-            var fallback = variants.FirstOrDefault(v => v.MinLeeway <= leeway);
-            if (fallback is null) return new(null, InvalidScoreReason.NoFallback);
-            return new(raw with
-            {
-                Score = fallback.Score,
-                Accuracy = fallback.Accuracy ?? raw.Accuracy,
-                IsFullCombo = fallback.IsFullCombo ?? raw.IsFullCombo,
-                Stars = fallback.Stars ?? raw.Stars,
-                Rank = RankAt(fallback.RankTiers, leeway) ?? raw.Rank,
-                TotalEntries = song?.FilteredPopulation(chart, leeway) ?? raw.TotalEntries,
-            }, InvalidScoreReason.Fallback);
+            if (min <= leeway) return new(raw, null);
+            return score.ValidScores is { Count: > 0 }
+                ? Variant(score, raw, song, chart, leeway)
+                : new(null, InvalidScoreReason.NoFallback);
         }
+        if (Threshold(song, chart, leeway) is not { } limit || score.Score <= limit) return new(raw, null);
+        return Legacy(score, raw);
+    }
+
+    /// <summary>Substitutes the best <c>validScores</c> variant valid at the leeway (web <c>validScores.find</c>).</summary>
+    /// <param name="score">Raw wire score with a non-empty <c>validScores</c>.</param>
+    /// <param name="raw">Its unfiltered detail.</param>
+    /// <param name="song">Catalogue row (population curve).</param>
+    /// <param name="chart">Chart.</param>
+    /// <param name="leeway">Leeway percent.</param>
+    /// <returns>The variant's detail, or no score when none is eligible.</returns>
+    private static InvalidScoreResolution Variant(PlayerScore score, SongScoreDetail raw, Song? song, Instrument chart, double leeway)
+    {
+        var fallback = score.ValidScores?.FirstOrDefault(v => v.MinLeeway <= leeway);
+        if (fallback is null) return new(null, InvalidScoreReason.NoFallback);
+        return new(raw with
+        {
+            Score = fallback.Score,
+            Accuracy = fallback.Accuracy ?? raw.Accuracy,
+            IsFullCombo = fallback.IsFullCombo ?? raw.IsFullCombo,
+            Stars = fallback.Stars ?? raw.Stars,
+            Rank = RankAt(fallback.RankTiers, leeway) ?? raw.Rank,
+            TotalEntries = song?.FilteredPopulation(chart, leeway) ?? raw.TotalEntries,
+        }, InvalidScoreReason.Fallback);
+    }
+
+    /// <summary>Substitutes the legacy <c>validScore*</c> fields (web legacy path).</summary>
+    /// <param name="score">Raw wire score.</param>
+    /// <param name="raw">Its unfiltered detail.</param>
+    /// <returns>The legacy detail, or no score when <c>validScore</c> is absent.</returns>
+    private static InvalidScoreResolution Legacy(PlayerScore score, SongScoreDetail raw)
+    {
         if (score.ValidScore is not { } legacy) return new(null, InvalidScoreReason.NoFallback);
         return new(raw with
         {
@@ -108,22 +152,6 @@ public static class InvalidScorePolicy
             TotalEntries = score.ValidTotalEntries ?? raw.TotalEntries,
         }, InvalidScoreReason.Fallback);
     }
-
-    /// <summary>
-    /// Resolves one raw score by Song Details' rule (web <c>filterPlayerScores</c>, invalid-scores R4): no Over CHOpt
-    /// Threshold exemption, and with <c>minLeeway</c> present only a <c>validScores</c> variant can replace the score
-    /// (the legacy <c>validScore</c> fields apply only to scores without <c>minLeeway</c>).
-    /// </summary>
-    /// <param name="score">Raw wire score.</param>
-    /// <param name="raw">Its unfiltered detail.</param>
-    /// <param name="song">Catalogue row (CHOpt maximum, population curve).</param>
-    /// <param name="chart">Chart.</param>
-    /// <param name="leeway">Leeway percent.</param>
-    /// <returns>Effective detail and reason.</returns>
-    public static InvalidScoreResolution ResolveFiltered(PlayerScore score, SongScoreDetail raw, Song? song, Instrument chart, double leeway) =>
-        score.MinLeeway is { } min && min > leeway && score.ValidScores is not { Count: > 0 }
-            ? new(null, InvalidScoreReason.NoFallback)
-            : Resolve(score, raw, song, chart, leeway, false);
 }
 #endregion
 
