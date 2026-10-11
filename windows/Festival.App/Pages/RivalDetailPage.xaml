@@ -39,8 +39,20 @@
             <StackPanel Spacing="2">
                 <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="Wrap"
                            AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.rival-detail.title" />
-                <TextBlock Text="{x:Bind ViewModel.ScopeLabel, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
-                           AutomationProperties.AutomationId="fst.rival-detail.scope" />
+                <!-- Subtitle (#604): "Rivals", or "{icon} {Instrument} Rivals" for a single-instrument scope. The icon is
+                     decorative (Raw) and sized to the body line like SongLeaderboardHeader's board line, so Narrator
+                     reads the subtitle once (page-tools-and-nav-chrome R18). The gap is the icon's margin, not ColumnSpacing, so plain
+                     "Rivals" stays aligned with the title when the icon is collapsed. -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <controls:InstrumentIcon File="{x:Bind ViewModel.SubtitleIconFile, Mode=OneWay}" Width="20" Height="20" Margin="0,0,8,0" VerticalAlignment="Center"
+                                             Visibility="{x:Bind ViewModel.HasSubtitleIcon, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
+                    <TextBlock Grid.Column="1" Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}"
+                               TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.AutomationId="fst.rival-detail.subtitle" />
+                </Grid>
                 <TextBlock Text="{x:Bind ViewModel.Summary, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
                            Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" AutomationProperties.AutomationId="fst.rival-detail.summary" controls:FadeIn.OnShow="True" />
             </StackPanel>

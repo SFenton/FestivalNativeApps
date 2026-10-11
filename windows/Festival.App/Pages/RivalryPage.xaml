@@ -39,8 +39,12 @@
             <StackPanel Spacing="2">
                 <TextBlock Text="{x:Bind ViewModel.Title}" Style="{StaticResource FSTPageTitleStyle}" TextWrapping="Wrap"
                            AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.rivalry.title" />
-                <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
-                           Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                <!-- Section title over the rival's name (#604), then the section's description on its own line. -->
+                <TextBlock Text="{x:Bind ViewModel.Subtitle, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap"
+                           AutomationProperties.AutomationId="fst.rivalry.subtitle" />
+                <TextBlock Text="{x:Bind ViewModel.Description, Mode=OneWay}" Style="{StaticResource BodyTextBlockStyle}" TextWrapping="Wrap"
+                           Foreground="{ThemeResource FSTSecondaryTextBrush}" Visibility="{x:Bind ViewModel.HasDescription, Mode=OneWay}" Margin="0,4,0,0"
+                           AutomationProperties.AutomationId="fst.rivalry.description" />
             </StackPanel>
             <Grid x:Name="Actions" Grid.Column="1" VerticalAlignment="Top">
                 <Grid.ColumnDefinitions>

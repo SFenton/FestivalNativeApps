@@ -71,6 +71,35 @@ class UiCiTests(unittest.TestCase):
         names = {page["name"] for page in pages}
         self.assertTrue({"song-band-pin-jump", "song-band-pin-open", "song-band-pin-no-player"} <= names)
 
+    def test_song_band_board_runs_at_default_and_largest_text(self):
+        # Issue #510 (#196): the full band board's single-stop rows, empty and error states run in CI at default and
+        # 225% text, and its accuracy pill's contrast-theme colours at default size.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-song-band-leaderboard.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan and run.only == "" for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        self.assertIn("medium", runs["normal"].sizes.split(","))
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-song-band-leaderboard.json").read_text(encoding="utf-8"))}
+        self.assertEqual({"sbl-rows", "sbl-empty", "sbl-error", "sbl-accuracy-pill-contrast"}, set(pages))
+        for page in pages.values():
+            self.assertNotIn("axe_allow", page)
+        row = "fst.song-band-leaderboard.row.fixture-band-1:1"
+        steps = pages["sbl-rows"]["after_ready"]
+        self.assertTrue(any(step.startswith(f"assertread:id={row}|Rank 1. Band 1 Member A, Lead, 94,500 points.")
+                            for step in steps))
+        self.assertIn(f"assertstate:id={row}|type=listitem", steps)
+        self.assertIn(f"assertstate:id={row}|invoke=true", steps)
+        self.assertIn(f"assertsize:id={row}|0x40", steps)
+        self.assertIn("waitfor:raw=fst.star-rating.white-5@3", steps)
+        self.assertIn("waitgone:id=fst.star-rating.white-5@1", steps)
+        self.assertIn(f"waitgone:id={row}.accuracy@1", steps)
+        self.assertIn("assertstate:id=fst.song-band-leaderboard.empty|heading=2", pages["sbl-empty"]["after_ready"])
+        self.assertIn("assertsize:id=fst.service-status.retry|40x40", pages["sbl-error"]["after_ready"])
+        pill = pages["sbl-accuracy-pill-contrast"]
+        self.assertIn("contrast:desert", pill["after_ready"])
+        self.assertIn("contrast:off", pill["after_ready"])
+
     def test_full_rankings_pinned_runs_at_default_largest_text_and_reduced_motion(self):
         # Issue #466 (#318): Full Rankings' pinned "your rank" row (also on the player's own page) runs in CI at default
         # and 225% text, and its keyboard jump with in-app Reduce Motion.
@@ -94,6 +123,62 @@ class UiCiTests(unittest.TestCase):
                                             "id=fst.full-rankings.spotlight-footer|id=fst.full-rankings.page-first")
                             for step in steps))
 
+    def test_leaderboards_card_jump_runs_at_default_largest_text_and_reduced_motion(self):
+        # Issue #493 (#370): a Leaderboards card's "your rank" row runs in CI at default and 225% text, and its keyboard
+        # jump to Full Rankings with in-app Reduce Motion.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-leaderboards-card-jump.json"}
+        self.assertEqual({"normal", "text-225", "app-reduced"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertEqual("", runs["normal"].only)
+        self.assertEqual("", runs["text-225"].only)
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        self.assertEqual("card-jump-row-keyboard", runs["app-reduced"].only)
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-leaderboards-card-jump.json").read_text(encoding="utf-8"))}
+        self.assertEqual({"card-jump-row", "card-jump-row-keyboard", "card-in-place-row"}, set(pages))
+        spotlight = "id=fst.leaderboards.card.Solo_Guitar.spotlight"
+        jump = pages["card-jump-row"]["after_ready"]
+        self.assertIn(f"assertsize:{spotlight}|40x40", jump)
+        self.assertTrue(any(step.startswith(f"assertread:{spotlight}|~^Your rank, 40th\\. Jump to your position")
+                            for step in jump))
+        keyboard = pages["card-jump-row-keyboard"]["after_ready"]
+        self.assertIn("key:enter", keyboard)
+        self.assertIn("waitfor:id=fst.rankings.row.fixture-rank-40@15", keyboard)
+        self.assertEqual(f"assertfocus:{spotlight}@3", keyboard[-2])
+
+    def test_search_all_section_titles_run_at_default_largest_text_and_reduced_motion(self):
+        # Issue #483 (#348): Search's All section titles run in CI at default and 225% text and with in-app Reduce
+        # Motion, while the file's other pages keep their generated runs.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-search.json" and run.only == ci.SEARCH_SECTIONS
+                and run.mode != "app-reduced"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        reduced = [run for run in ci.RUNS if run.pages == "a11y-search.json" and run.mode == "app-reduced"]
+        self.assertEqual(["search-all-sections,search-all-sections-keyboard"], [run.only for run in reduced])
+        self.assertTrue(all(run.scan for run in (*runs.values(), *reduced)))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        generated = {run.mode: set(run.only.split(",")) for run in ci.RUNS if run.name.startswith("a11y-search-")}
+        self.assertEqual({"normal", "text-225"}, set(generated))
+        for pages in generated.values():
+            self.assertIn("search-results-all", pages)
+            self.assertFalse(pages & set(ci.SEARCH_SECTIONS.split(",")))
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-search.json").read_text(encoding="utf-8"))}
+        steps = pages["search-all-sections"]["after_ready"]
+        for section, title in (("songs", "Songs"), ("players", "Players"), ("bands", "Bands")):
+            self.assertIn(f"assertread:id=fst.global-search.section.{section}|{title}, text", steps)
+            self.assertIn(f"assertstate:id=fst.global-search.section.{section}|heading=2", steps)
+            self.assertIn(f"assertstate:id=fst.global-search.section.{section}|focusable=false", steps)
+        self.assertIn("assertorder:id=fst.global-search.scope.all|id=fst.global-search.section.songs"
+                      "|id=fst.global-search.result.song", steps)
+        keyboard = pages["search-all-sections-keyboard"]
+        self.assertEqual(0, keyboard["tabs"])
+        focus = [step for step in keyboard["after_ready"] if step.startswith("assertfocus:")]
+        self.assertEqual(["scope.all", "result.song", "result.player", "result.band", "result.player", "result.song",
+                          "scope.all"], [step.split("fst.global-search.")[1].split("@")[0] for step in focus])
+        for scope in ("songs", "players", "bands"):
+            single = pages[f"search-results-{scope}"]["after_ready"]
+            self.assertTrue(any(step.startswith(f"waitgone:id=fst.global-search.section.{scope}") for step in single))
+
     def test_first_run_demos_run_at_default_and_largest_text(self):
         """#420 review: the first-run demo journey gates PRs, not just its JSON guard."""
         demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-demos.json"}
@@ -101,6 +186,42 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(all(run.scan and not run.only for run in demos.values()))
         self.assertIn("compact", demos["text-225"].sizes.split(","))
         self.assertEqual({"compact", "medium"}, set(demos["normal"].sizes.split(",")))
+
+    def test_real_control_first_run_demos_run_with_text_and_motion_off(self):
+        """#498: the #380 real-control demos gate PRs at default and 225% text, and hold still with animations off."""
+        demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-real-demos.json"}
+        self.assertEqual({"normal", "text-225", "no-animations", "no-transparency"}, set(demos))
+        self.assertTrue(all(run.scan for run in demos.values()))
+        self.assertFalse(demos["normal"].only or demos["text-225"].only)
+        self.assertEqual("frrd-infinite-scroll-static", demos["no-animations"].only)
+
+    def test_real_control_auto_scroll_hard_edge_runs_in_every_r7_setting(self):
+        """#498 review: the auto-scroll demo's hard edge (fade=off) is asserted with transparency effects off, Less
+        Transparency and More Contrast, and the faded pages skip those modes."""
+        demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-real-demos.json"}
+        self.assertEqual("frrd-infinite-scroll-no-transparency", demos["no-transparency"].only)
+        pages = {page["name"]: page for page in ci.run_pages(demos["normal"])}
+        self.assertEqual({"lessTransparency": True}, pages["frrd-infinite-scroll-less-transparency"]["settings"])
+        self.assertEqual({"moreContrast": True}, pages["frrd-infinite-scroll-more-contrast"]["settings"])
+        self.assertNotIn("frrd-infinite-scroll-no-transparency", pages)
+        hard = [*ci.run_pages(demos["no-transparency"]), pages["frrd-infinite-scroll-less-transparency"],
+                pages["frrd-infinite-scroll-more-contrast"]]
+        self.assertEqual(3, len(hard))
+        for page in hard:
+            status = [step for step in page["after_ready"] if step.startswith("assertstatus:")]
+            self.assertTrue(status and all(step.endswith("fade=off$@15") for step in status), page["name"])
+            self.assertIn("waitgone:id=fst.first-run.demo.suggestions-infinite-scroll@1", page["after_ready"])
+        faded = [page["name"] for mode in ("no-transparency", "app-contrast", "hc-desert")
+                 for page in ci.run_pages(ci.Run("x", "a11y-first-run-real-demos.json", mode=mode))
+                 if "suggestions-infinite-scroll" in json.dumps(page) and "fade=off" not in json.dumps(page)]
+        self.assertEqual([], faded)
+
+    def test_a_full_run_covers_its_file_despite_a_partial_run(self):
+        """#498: a reduced-motion ``only`` run must not make the generator re-run the file's pages a second time."""
+        generated = {run.name for run in ci.RUNS}
+        for stem in ("a11y-grouped-boards", "a11y-first-run-real-demos"):
+            self.assertNotIn(f"{stem}-normal", generated)
+            self.assertNotIn(f"{stem}-text-225", generated)
 
     def test_modals_run_at_default_and_largest_text(self):
         modal = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-modals.json"}
@@ -207,6 +328,23 @@ class UiCiTests(unittest.TestCase):
         for target in ("fst.songs.filter|", "fst.songs.filter.reset|", "fst.songs.filter.year.select-all|",
                        "fst.songs.filter.year.clear-all|"):
             self.assertIn(f"assertsize:id={target}40x40", steps)
+
+    def test_profile_title_runs_at_default_and_largest_text(self):
+        # Issue #446 (#97): the avatar-free profile title row runs in CI at default and 225% text, fixture pages only.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-profile-title.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = json.loads((ci.JOURNEYS / "a11y-profile-title.json").read_text(encoding="utf-8"))
+        fixture = {page["name"] for page in pages} - {page["name"] for page in m.live_pages(pages)}
+        for run in runs.values():
+            with self.subTest(run=run.name):
+                only = set(run.only.split(","))
+                self.assertFalse({name for name in only if name.startswith("pt-live")}, "CI makes no service calls")
+                self.assertTrue({"pt-switch", "pt-anonymous", "pt-selected", "pt-notice"} <= only)
+                self.assertLessEqual(fixture, only)
+        large = [page["name"] for page in m.mode_pages(pages, "text-225") if page["name"] in runs["text-225"].only]
+        self.assertIn("pt-actions-wrap", large)
 
     def test_experimental_ranks_runs_at_default_and_largest_text(self):
         """#541: the Experimental Ranks toggle and the Rank By gate it drives gate pull requests at 100% and 225% text."""

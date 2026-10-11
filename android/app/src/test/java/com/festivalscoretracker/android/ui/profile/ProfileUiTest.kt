@@ -5,7 +5,10 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -115,8 +118,7 @@ class ProfileUiTest {
         rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.percentiles.Solo_Guitar"))
         rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.instrument-empty.Solo_Drums"))
 
-        // Select stays on the page and adds the profile tabs (Item Shop among them, #601).
-        rule.onNodeWithTag("fst.player.available").performScrollToNode(hasTestTag("fst.player.select"))
+        // Select stays in reach beside Quick Links (#590) and adds the profile tabs (Item Shop among them, #601).
         tap("fst.player.select")
         waitGone("fst.player.select")
         waitForTag("fst.nav.tab.shop")
@@ -127,8 +129,10 @@ class ProfileUiTest {
         tap("fst.nav.profile")
         waitForTag("fst.statistics")
         waitForTag("fst.player.overview")
-        // Operator 7.12: Deselect lives in the drawer (web sidebar), not on the page.
-        assertEquals(0, rule.onAllNodesWithText("Deselect Profile").fetchSemanticsNodes().size)
+        // Issue #590: Deselect Profile is the pill beside Quick Links, never in the page content.
+        waitForTag("fst.player.deselect")
+        rule.onNodeWithTag("fst.player.deselect").assert(hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar.companion")))
+        assertEquals(0, rule.onAllNodes(hasTestTag("fst.player.deselect").and(hasAnyAncestor(hasTestTag("fst.player.available")))).fetchSemanticsNodes().size)
         assertEquals(1, transport.sent("/api/player/${Fixtures.ACCOUNT_A}").size)
 
         // Issue #290: back on Songs, the chip opens the selected profile, not the search sheet.
@@ -171,7 +175,7 @@ class ProfileUiTest {
     fun switchIsConfirmedAndBandsScopeExplains() {
         launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), route = PlayerRoute(Fixtures.ACCOUNT_B, "Other"), stillBackground = true))
         waitForTag("fst.player.select")
-        rule.onNodeWithText("Switch to This Profile").assertIsDisplayed()
+        rule.onNodeWithTag("fst.player.select").assert(hasContentDescription("Switch to This Profile")).assertIsDisplayed()
         tap("fst.player.select")
         waitForTag("fst.player.switch-confirm")
         tap("fst.player.switch-confirm.cancel")

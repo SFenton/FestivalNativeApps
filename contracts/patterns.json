@@ -109,6 +109,14 @@
           {
             "path": "windows/Festival.App/Controls/BoardFooterFade.cs",
             "symbol": "Attach"
+          },
+          {
+            "path": "windows/Festival.App/Controls/TopEdgeFade.cs",
+            "symbol": "AutoScrollEdgeFade"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/FirstRunDemoContent.cs",
+            "symbol": "FirstRunAutoScroll"
           }
         ]
       },
@@ -820,7 +828,7 @@
       "title": "Page tools and navigation chrome",
       "status": "current",
       "doc": ".agents/patterns/page-tools-and-nav-chrome.md",
-      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android Rival pages name the rival and the section in the bar: Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604).",
+      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android and Windows Rival pages name the rival and the section in the bar (Windows: the page header): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too.",
       "keywords": [
         "navigation",
         "page tools",
@@ -840,7 +848,8 @@
         "page subtitle",
         "rival detail",
         "rivalry",
-        "rival name"
+        "rival name",
+        "select profile"
       ],
       "web": [
         {
@@ -893,6 +902,10 @@
           {
             "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
             "symbol": "VerticalBarActionItem"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
+            "symbol": "BarItemSpokenState"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/Search/BottomSearchField.swift",
@@ -983,6 +996,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rivals/RivalScope.kt",
             "symbol": "detailSubtitle"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FloatingToolbar.kt",
+            "symbol": "FloatingToolbarActionButton"
           }
         ],
         "windows": [
@@ -1029,6 +1046,10 @@
           {
             "path": "windows/Festival.App/Controls/InstrumentIconRow.cs",
             "symbol": "InstrumentIconRow"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/RivalDetailViewModels.cs",
+            "symbol": "RivalDetailText"
           }
         ]
       },
@@ -1228,6 +1249,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackFormPanes.swift",
             "symbol": "FeedbackFormPanes"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/SheetStyle.swift",
+            "symbol": "festivalFormIdentifier"
           }
         ],
         "android": [
@@ -2013,6 +2038,10 @@
             "symbol": "FadeIn"
           },
           {
+            "path": "windows/Festival.Core/Domain/FirstRunDemoContent.cs",
+            "symbol": "FirstRunEntrance"
+          },
+          {
             "path": "windows/Festival.Core/Domain/MotionPolicy.cs",
             "symbol": "StaggerArm"
           },
@@ -2507,14 +2536,15 @@
       "title": "Quick Links",
       "status": "current",
       "doc": ".agents/patterns/quick-links.md",
-      "summary": "One native Quick Links controller per page preserves web section order, uses a 32-unit shared landing/current line, and exposes an accessible current section through the platform chooser.",
+      "summary": "One native Quick Links controller per page preserves web section order, uses a 32-unit shared landing/current line, and exposes an accessible current section through the platform chooser; a nested section can be a card inside its parent row, landing at its measured offset (Profile Rank History and Percentiles, #590).",
       "keywords": [
         "quick links",
         "jump to section",
         "section navigation",
         "active section",
         "menu order",
-        "section index"
+        "section index",
+        "nested"
       ],
       "web": [
         {
@@ -2557,6 +2587,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/quicklinks/QuickLinksUi.kt",
             "symbol": "QuickLinksAction"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/quicklinks/QuickLinksUi.kt",
+            "symbol": "QuickLinkAnchors"
           }
         ],
         "windows": [

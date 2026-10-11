@@ -16,7 +16,9 @@ namespace Festival.App.Controls;
 /// (<see cref="FadeIn"/> hold) and waits until the row's own entrance has finished (<see cref="FadeInTiming.RevealWait"/>),
 /// rushes the rest of the entrance and scrolls, so every row the scroll reaches fades in together and none is already
 /// opaque. A reader's own scroll first, a newer reveal or load, or leaving the page calls it off. With motion off it
-/// scrolls at once and rushes nothing (R6). The scroll itself is the caller's (instant, centred; #318 made it reliable).
+/// still waits for the realized row (a list the gate has just made visible has no layout yet, so an earlier scroll is a
+/// no-op, issue #493), then scrolls at once and holds or rushes nothing (R6). The scroll itself is the caller's
+/// (instant, centred; #318 made it reliable).
 /// </summary>
 public static class SelectedRowReveal
 {
@@ -34,20 +36,13 @@ public static class SelectedRowReveal
     {
         if (index < 0) return;
         (list.GetValue(CurrentProperty) as Reveal)?.Stop();
-        if (!Motion.Allowed)
-        {
-            list.ClearValue(CurrentProperty);
-            FadeIn.Trace("fade-reveal", list, $"index={index} wait=0 scrolled=1 motion=0");
-            scroll();
-            return;
-        }
-        var reveal = new Reveal(list, index, scroll);
+        var reveal = new Reveal(list, index, scroll, Motion.Allowed);
         list.SetValue(CurrentProperty, reveal);
         reveal.Start();
     }
 
-    /// <summary>One reveal waiting for its row's realization, then for its entrance.</summary>
-    private sealed class Reveal(FrameworkElement list, int index, Action scroll)
+    /// <summary>One reveal waiting for its row's realization, then (with motion) for its entrance.</summary>
+    private sealed class Reveal(FrameworkElement list, int index, Action scroll, bool motion)
     {
         private readonly StaggerArm arm = FadeIn.ArmFor(list);
         private readonly int generation = FadeIn.ArmFor(list).Generation;
@@ -96,6 +91,11 @@ public static class SelectedRowReveal
             var realized = Realized(index) || Realized(0);
             if (!realized && ++frames < RealizeFrames) return;
             StopFrames();
+            if (!motion)
+            {
+                Finish();
+                return;
+            }
             var now = FadeIn.Now;
             // Rows realized now start their stagger (or a whole-card board its one fade, #614) now; a board whose entrance already ended (rows shown in place) waits for nothing.
             wait = arm.IsRunning(now) ? arm.RevealWait(index, FadeIn.VisibleRows(list), now) : TimeSpan.Zero;
@@ -118,8 +118,8 @@ public static class SelectedRowReveal
         }
 
         /// <summary>
-        /// Rushes the entrance and scrolls, unless a newer reveal or load, an unload or the reader's own scroll got there
-        /// first (web <c>navToPlayer</c> skips its scroll then).
+        /// Rushes the entrance (with motion) and scrolls, unless a newer reveal or load, an unload or the reader's own
+        /// scroll got there first (web <c>navToPlayer</c> skips its scroll then).
         /// </summary>
         private void Finish()
         {
@@ -127,9 +127,9 @@ public static class SelectedRowReveal
             var current = Current;
             if (current) list.ClearValue(CurrentProperty);
             var go = current && list.IsLoaded && arm.Generation == generation && !arm.HasScrolled;
-            if (go) FadeIn.RushForAutomaticScroll(list, FadeInTiming.RevealScroll);
+            if (go && motion) FadeIn.RushForAutomaticScroll(list, FadeInTiming.RevealScroll);
             if (token >= 0) arm.EndExpectation(token);
-            FadeIn.Trace("fade-reveal", list, $"index={index} wait={wait.TotalMilliseconds:F0} scrolled={(go ? 1 : 0)} motion=1");
+            FadeIn.Trace("fade-reveal", list, $"index={index} wait={wait.TotalMilliseconds:F0} scrolled={(go ? 1 : 0)} motion={(motion ? 1 : 0)}");
             if (go) scroll();
         }
 
