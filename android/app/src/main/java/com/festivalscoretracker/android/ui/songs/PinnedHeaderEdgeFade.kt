@@ -3,10 +3,15 @@ package com.festivalscoretracker.android.ui.songs
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -20,6 +25,7 @@ import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.unit.Dp
@@ -28,9 +34,11 @@ import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.songs.EdgeFade
 import com.festivalscoretracker.android.core.songs.EdgeFadeItem
 import com.festivalscoretracker.android.core.scrolledge.ScrollEdgeFade
+import com.festivalscoretracker.android.core.songs.PinnedHeaderEndSpace
 import com.festivalscoretracker.android.core.songs.SongHeaderEdgeFade
 import com.festivalscoretracker.android.ui.common.drawScrollEdgeRamp
 import com.festivalscoretracker.android.ui.common.rememberScrollEdgeHardEdge
+import kotlinx.coroutines.flow.filterNotNull
 
 // region Pinned section header edge fade
 
@@ -64,6 +72,12 @@ internal class PinnedHeaderEdgeState(
     val edge: EdgeFade? by derivedStateOf {
         if (firstHeaderKey == null) null
         else SongHeaderEdgeFade.edge(visible(), listState.layoutInfo.viewportStartOffset, spacing, depth)
+    }
+
+    /** Keys of the rows wholly in the cut under the pinned header ([SongHeaderEdgeFade.cutRows]). */
+    val cutKeys: Set<Any> by derivedStateOf {
+        val fade = edge ?: return@derivedStateOf emptySet()
+        SongHeaderEdgeFade.cutRows(visible(), listState.layoutInfo.viewportStartOffset, fade.top).mapTo(HashSet()) { it.key }
     }
 
     /** Key of the header pinned at the list's top edge, or null ([SongHeaderEdgeFade.pinned]). */
@@ -135,6 +149,24 @@ internal fun rememberPinnedHeaderRecorder(key: Any, layers: MutableMap<Any, Grap
 }
 
 /**
+ * Hides a row from TalkBack while it lies wholly in the cut under the pinned header
+ * ([PinnedHeaderEdgeState.cutKeys]), where nobody can see it (issue #417). Compose would otherwise
+ * keep the invisible row as a stop read before the section's heading: its touch bounds reach past
+ * the list's top clip (minimum touch-target slop), beyond the header covering it. The row keeps
+ * its touch handling and tags, and returns to TalkBack as soon as any part of it scrolls below
+ * the cut.
+ *
+ * @param state The list's edge state.
+ * @param key The row's list key.
+ * @return Semantics modifier, empty while the row is not cut.
+ */
+@Composable
+internal fun rememberHiddenUnderPinnedHeader(state: PinnedHeaderEdgeState, key: Any): Modifier {
+    val cut by remember(state, key) { derivedStateOf { key in state.cutKeys } }
+    return if (cut) Modifier.semantics { hideFromAccessibility() } else Modifier
+}
+
+/**
  * Has TalkBack read a sticky header before the rows beneath it while it is pinned (scroll-edge
  * R5). Compose orders a list's items by their on-screen bounds; a row partly hidden under the
  * pinned header ([pinnedHeaderEdgeFade] is drawing only) starts at the same top edge and further
@@ -152,6 +184,52 @@ internal fun rememberPinnedHeaderReadOrder(key: Any, state: PinnedHeaderEdgeStat
     return if (pinned) Modifier.semantics { traversalIndex = PINNED_HEADER_TRAVERSAL_INDEX } else Modifier
 }
 
+/**
+ * Extra end padding that lets a sticky-header list finish its last section push (issue #560;
+ * section-headers R4/R5): without it, a list whose last scroll position falls inside a push rests
+ * with the pinned title half pushed off the top. Add the result to the list's end content padding.
+ * It is measured against [baseEndPadding], so it stays put once applied; it keeps its last value
+ * while the list's last item is off screen, and resets when [firstHeaderKey] changes (a new sort).
+ * It is saved with the list's saveable state: a list that comes back (Back from Song Detail, a
+ * configuration change) restores its scroll position against the same end padding, so the
+ * restored position is not clamped back into the unfinished push.
+ *
+ * @param listState The list's state.
+ * @param firstHeaderKey Key of the list's first header, or null when the list has no headers.
+ * @param spacing Gap between list items.
+ * @param baseEndPadding The list's end content padding without the extra space.
+ * @param isHeader Whether a list key is a sticky header's.
+ * @return Extra end padding ([PinnedHeaderEndSpace]).
+ */
+@Composable
+internal fun rememberPinnedHeaderEndSpace(
+    listState: LazyListState,
+    firstHeaderKey: Any?,
+    spacing: Dp,
+    baseEndPadding: Dp,
+    isHeader: (Any) -> Boolean,
+): Dp {
+    val density = LocalDensity.current
+    val spacingPx = with(density) { spacing.roundToPx() }
+    val basePx = with(density) { baseEndPadding.roundToPx() }
+    var extraPx by rememberSaveable(firstHeaderKey) { mutableIntStateOf(0) }
+    LaunchedEffect(listState, firstHeaderKey, spacingPx, basePx, isHeader) {
+        snapshotFlow {
+            val info = listState.layoutInfo
+            PinnedHeaderEndSpace.extra(
+                items = info.visibleItemsInfo.map { EdgeFadeItem(it.index, it.key, it.offset, it.size, isHeader(it.key)) },
+                viewportStart = info.viewportStartOffset,
+                viewportEnd = info.viewportEndOffset,
+                baseEndPadding = basePx,
+                spacing = spacingPx,
+                lastIndex = info.totalItemsCount - 1,
+                firstHeaderKey = firstHeaderKey,
+            )
+        }.filterNotNull().collect { extraPx = it }
+    }
+    return with(density) { extraPx.toDp() }
+}
+
 /** Traversal index of the pinned header among its list's items (which keep 0). */
 internal const val PINNED_HEADER_TRAVERSAL_INDEX = -1f
 
@@ -163,9 +241,9 @@ internal const val PINNED_HEADER_TRAVERSAL_INDEX = -1f
  * whole ([SongHeaderEdgeFade.headersOverEdge]), so their text stays fully opaque, the next header
  * pushes the pinned one out without fading (issue #288) and no row ever shows behind a header.
  * With a hard edge ([PinnedHeaderEdgeState.depth] 0) rows end at the header's bottom edge.
- * Drawing only: hit testing and semantics are unchanged; [rememberPinnedHeaderReadOrder] keeps
- * the pinned header first in TalkBack order. Without an edge it draws
- * nothing and skips the offscreen layer.
+ * Drawing only: hit testing is unchanged; rows wholly in the cut leave TalkBack through
+ * [rememberHiddenUnderPinnedHeader] and [rememberPinnedHeaderReadOrder] keeps the pinned header
+ * first in TalkBack order. Without an edge it draws nothing and skips the offscreen layer.
  *
  * @param state The list's edge state.
  * @param headerStart Headers' start inset in px (the list's start content padding).

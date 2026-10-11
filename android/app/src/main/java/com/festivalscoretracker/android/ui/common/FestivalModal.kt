@@ -161,7 +161,8 @@ fun FestivalModalCloseButton(onClick: () -> Unit, tag: String, modifier: Modifie
 
 /**
  * Shared modal header: a Title Case heading that takes the free width, optional actions,
- * then [FestivalModalCloseButton] at the end.
+ * then [FestivalModalCloseButton] at the end. No line separates it from the body
+ * (modal-shell R15, issue #607): callers never start their body with a divider.
  *
  * @param title Heading text.
  * @param closeTag Close button test tag.
@@ -247,12 +248,15 @@ fun FestivalModalBody(modifier: Modifier = Modifier, content: @Composable Column
  * slides the sheet away (instantly under Reduce
  * Motion) before [onDismissRequest]; swipe down, a scrim tap and back call it directly.
  *
+ * Every sheet opens fully expanded (modal-shell R13, issue #586): its content height, up to
+ * the window below the status bar, with no half-height stop. A partially expanded sheet hid
+ * Quick Links rows, Profiles and Find Rival below the screen until dragged up.
+ *
  * @param title Header and pane title.
  * @param closeTag Close button test tag.
  * @param onDismissRequest Called once the sheet is closed in any way.
  * @param modifier Sheet modifier (test tags, extra semantics).
  * @param titleTag Optional heading test tag.
- * @param skipPartiallyExpanded Open fully expanded (default) or allow the half-height stop.
  * @param headerActions Extra header actions placed before Close.
  * @param content Sheet body below the header.
  */
@@ -264,11 +268,10 @@ fun FestivalModalSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     titleTag: String? = null,
-    skipPartiallyExpanded: Boolean = true,
     headerActions: @Composable RowScope.() -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = skipPartiallyExpanded)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
     val close: () -> Unit = {
@@ -287,7 +290,7 @@ fun FestivalModalSheet(
             containerColor = BrandTokens.cardBackground,
             modifier = Modifier.festivalSheetTop().festivalSheetHingeSide().popupTestTags().then(modifier).semantics { paneTitle = title }
                 .fadeInRushOnScroll(fadeIn),
-            // Material's handle is 32 dp wide; once the sheet can collapse it is a 48 dp touch target.
+            // Material's handle is 32 dp wide; its Dismiss action makes it a 48 dp touch target.
             dragHandle = { BottomSheetDefaults.DragHandle(Modifier.minimumInteractiveComponentSize()) },
         ) {
             FestivalModalHeader(title, closeTag, close, titleTag = titleTag, actions = headerActions)

@@ -151,7 +151,16 @@ public sealed class StaggerArm
     private int rushLimit;
     private TimeSpan? expectedAt;
     private int expectation;
+    private TimeSpan? togetherStart;
     private readonly Dictionary<int, TimeSpan> fadeStarts = new();
+
+    /// <summary>
+    /// Whether the list's rows share one card and fade in together as that card (owner-approved variant, issue #614): every
+    /// row of a load starts the same fade, one <see cref="FadeInTiming.Interval"/> after the first row is realized (with
+    /// a board's pinned row, <see cref="PinnedRowReveal.RevealDelay"/>), instead of staggering row by row. Rushes, the
+    /// window, a selected-row reveal's hold and Reduce Motion behave as for a staggered list.
+    /// </summary>
+    public bool Together { get; set; }
 
     /// <summary>Creates a closed arm.</summary>
     /// <param name="window">How long an arm stays open without scrolling (default <see cref="FadeInTiming.ArmWindow"/>;
@@ -221,6 +230,7 @@ public sealed class StaggerArm
                 HasScrolled = false;
                 fadeStarts.Clear();
             }
+            togetherStart = null;
             Generation++;
         }
         armedAt = now;
@@ -381,8 +391,24 @@ public sealed class StaggerArm
         {
             if (closesOnScroll) Note(now + d);
             fadeStarts[index] = now + d;
+            if (Together && !IsRushing(now)) togetherStart ??= now + d;
         }
         return delay;
+    }
+
+    /// <summary>
+    /// How long a selected-row reveal waits for its row's entrance before it scrolls (web <c>navToPlayer</c>): the row's
+    /// stagger slot (<see cref="FadeInTiming.RevealWait"/>), or for a <see cref="Together"/> card the card's one fade.
+    /// </summary>
+    /// <param name="index">The selected row's index.</param>
+    /// <param name="visible">Rows that stagger (the visible count).</param>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns>Wait (at least one fade).</returns>
+    public TimeSpan RevealWait(int index, int visible, TimeSpan now)
+    {
+        if (!Together) return FadeInTiming.RevealWait(index, visible);
+        var start = togetherStart is { } at ? (at > now ? at - now : TimeSpan.Zero) : FadeInTiming.Interval;
+        return start + FadeInTiming.Duration;
     }
 
     /// <summary>Whether a row at or after <paramref name="start"/> has been given a fade since the last load.</summary>
@@ -409,7 +435,10 @@ public sealed class StaggerArm
     {
         if (IsRushing(now)) return TimeSpan.Zero;
         if (!IsRunning(now)) return null;
-        var delay = Within(now) ? natural : Late(now);
+        var delay = Together ? (togetherStart is null ? natural : TogetherDelay(now))
+            : Within(now) ? natural : Late(now);
+        // A whole card's pinned row and rows start one fade, whichever is scheduled first (issue #614).
+        if (Together) togetherStart ??= now + delay;
         Note(now + delay);
         return delay;
     }
@@ -436,15 +465,26 @@ public sealed class StaggerArm
             // Replay guard (issue #532): a batch card recycled and realized again inside the window keeps the fade it
             // was given, or shows in place once that fade has begun; only cards not shown yet fade.
             if (fadeStarts.TryGetValue(index, out var start)) return start > now ? start - now : null;
+            if (Together && index >= BatchStart) return TogetherDelay(now);
             return FadeInTiming.BatchDelay(index, BatchStart, visible);
         }
         if (!IsRunning(now) || index < BatchStart) return null;
         var tail = IsTail(index, visible);
-        var delay = !Within(now) ? Late(now)
+        var delay = Together ? TogetherDelay(now)
+            : !Within(now) ? Late(now)
             : FadeInTiming.BatchDelay(index, BatchStart, visible) ?? FadeInTiming.TailDelay(visible);
         if (tail && expectedAt is { } at && at - now > delay) delay = at - now;
         return delay;
     }
+
+    /// <summary>
+    /// The shared delay of a <see cref="Together"/> card's rows: the start the card's first row was given (0 once it has
+    /// passed), else one <see cref="FadeInTiming.Interval"/>, the first stagger slot.
+    /// </summary>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns>Delay (never negative).</returns>
+    private TimeSpan TogetherDelay(TimeSpan now) =>
+        togetherStart is { } at ? (at > now ? at - now : TimeSpan.Zero) : FadeInTiming.Interval;
 
     /// <summary>A row realized after the window while the entrance still runs starts with the entrance's last fade.</summary>
     /// <param name="now">Monotonic time.</param>
@@ -497,6 +537,74 @@ public static class MotionSwitch
     /// <returns>Whether to animate.</returns>
     public static bool Allowed(bool systemAnimationsEnabled, bool appReduceMotion, bool launchReduceMotion) =>
         systemAnimationsEnabled && !appReduceMotion && !launchReduceMotion;
+}
+#endregion
+
+#region Accordion motion
+/// <summary>One timed phase of an accordion move: when it starts after the toggle and how long it runs.</summary>
+/// <param name="Begin">Delay from the toggle.</param>
+/// <param name="Duration">Run time; zero when the phase is already finished.</param>
+public readonly record struct AccordionPhase(TimeSpan Begin, TimeSpan Duration)
+{
+    /// <summary>When the phase finishes, measured from the toggle.</summary>
+    public TimeSpan End => Begin + Duration;
+}
+
+/// <summary>
+/// The timing of one accordion open or close (pattern <c>load-transition</c>, owner-approved accordion variant, issue
+/// #561): opening grows the container first and then fades its content in; closing fades the content out first and then
+/// collapses the container. An interrupted move starts from where the previous one stopped, so each phase only runs for
+/// the part it still has to cover. With motion off both phases are instant.
+/// </summary>
+/// <param name="Height">The container's height phase.</param>
+/// <param name="Fade">The content's opacity phase.</param>
+public readonly record struct AccordionMotion(AccordionPhase Height, AccordionPhase Fade)
+{
+    /// <summary>Each phase's full length: the web <c>Accordion</c>'s <c>QUICK_FADE_MS</c>, 300 ms in total like <c>CollapseOnExit</c>.</summary>
+    public static readonly TimeSpan PhaseDuration = TimeSpan.FromMilliseconds(150);
+
+    /// <summary>Curve for every step, opening and closing: the web CSS <c>ease</c> (load-transition R3, R10).</summary>
+    public static readonly (float X1, float Y1, float X2, float Y2) Spline = (0.25f, 0.1f, 0.25f, 1f);
+
+    /// <summary>When the whole move finishes.</summary>
+    public TimeSpan Total => Height.End > Fade.End ? Height.End : Fade.End;
+
+    /// <summary>Plans a move from the current state.</summary>
+    /// <param name="open">Whether the accordion is opening.</param>
+    /// <param name="heightProgress">Current height as a fraction of the open height (0 closed, 1 open).</param>
+    /// <param name="opacity">Current content opacity (0 hidden, 1 shown).</param>
+    /// <param name="motionAllowed">Whether motion may run (<see cref="MotionSwitch.Allowed"/>).</param>
+    /// <returns>The two phases.</returns>
+    public static AccordionMotion Plan(bool open, double heightProgress, double opacity, bool motionAllowed)
+    {
+        if (!motionAllowed) return new(new(TimeSpan.Zero, TimeSpan.Zero), new(TimeSpan.Zero, TimeSpan.Zero));
+        var height = Clamp(heightProgress);
+        var shown = Clamp(opacity);
+        if (open)
+        {
+            var grow = Scale(1 - height);
+            return new(new(TimeSpan.Zero, grow), new(grow, Scale(1 - shown)));
+        }
+        var fade = Scale(shown);
+        return new(new(fade, Scale(height)), new(TimeSpan.Zero, fade));
+    }
+
+    /// <summary>Height progress for a measured height against the open height.</summary>
+    /// <param name="current">Current height.</param>
+    /// <param name="open">Open (natural) height.</param>
+    /// <returns>Fraction in [0, 1]; 1 when the open height is unknown or zero.</returns>
+    public static double Progress(double current, double open) =>
+        double.IsNaN(current) || double.IsNaN(open) || open <= 0 ? 1 : Clamp(current / open);
+
+    /// <summary>The remaining part of a full phase.</summary>
+    /// <param name="fraction">Fraction still to run.</param>
+    /// <returns>Duration.</returns>
+    private static TimeSpan Scale(double fraction) => TimeSpan.FromTicks((long)Math.Round(PhaseDuration.Ticks * fraction));
+
+    /// <summary>Clamps to [0, 1], treating NaN as 0.</summary>
+    /// <param name="value">Value.</param>
+    /// <returns>Clamped value.</returns>
+    private static double Clamp(double value) => double.IsNaN(value) ? 0 : Math.Clamp(value, 0, 1);
 }
 #endregion
 

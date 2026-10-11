@@ -283,11 +283,14 @@ public sealed record ShopOfferItem(ShopSong Offer, ShopHighlight? Highlight, boo
     /// <summary>Badge text, or empty.</summary>
     public string BadgeText => Highlight?.Label() ?? "";
 
-    /// <summary>Whether a badge shows.</summary>
-    public bool HasBadge => Highlight is not null;
-
-    /// <summary>Whether the badge is Leaving Tomorrow (red) rather than New (gold).</summary>
+    /// <summary>Whether the offer is Leaving Tomorrow (red) rather than New (gold) or plain.</summary>
     public bool IsLeaving => Highlight == ShopHighlight.LeavingTomorrow;
+
+    /// <summary>
+    /// Whether a tile or row shows the visible state pill: only Leaving Tomorrow, like the web <c>ShopCard</c> and
+    /// <c>SongRow</c> leaving indicator. New is the gold pulse alone and stays in <see cref="Announcement"/> (issue #562).
+    /// </summary>
+    public bool ShowsPill => IsLeaving;
 
     /// <summary>Song Detail route (only when <see cref="HasSongDetail"/>).</summary>
     public AppRoute DetailRoute => new AppRoute.SongDetail(Offer.SongId);

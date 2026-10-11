@@ -47,6 +47,27 @@ public sealed record PathInstrumentOption(Instrument Instrument, string Label, s
 }
 #endregion
 
+#region Display option
+/// <summary>
+/// One entry of the compact display (Image/Text) <c>ComboBox</c>: the web <c>IoImage</c>/<c>IoReaderOutline</c> icon and
+/// the name. The icon-only box (issue #612) shows only <see cref="Glyph"/>; UI Automation reads <see cref="Label"/>.
+/// </summary>
+/// <param name="Label">Visible and spoken name, <c>Image</c> or <c>Text</c>.</param>
+/// <param name="Glyph">Segoe Fluent Icons glyph (Photo, Document).</param>
+public sealed record PathDisplayOption(string Label, string Glyph)
+{
+    /// <summary>Image (Segoe Fluent Icons Photo, U+E91B).</summary>
+    public static readonly PathDisplayOption Image = new("Image", "\uE91B");
+
+    /// <summary>Text (Segoe Fluent Icons Document, U+E8A5).</summary>
+    public static readonly PathDisplayOption Text = new("Text", "\uE8A5");
+
+    /// <summary>The name, which UI Automation reads as the combo box's value.</summary>
+    /// <returns><see cref="Label"/>.</returns>
+    public override string ToString() => Label;
+}
+#endregion
+
 #region Paths
 /// <summary>
 /// CHOpt Paths dialog: instrument, difficulty and image/text selectors reset on every opening; image and text
@@ -145,6 +166,9 @@ public sealed partial class SongPathsViewModel : ObservableObject
 
     /// <summary>Difficulty labels for the segmented picker.</summary>
     public List<string> DifficultyLabels { get; } = [.. PathDifficultyInfo.All.Select(d => d.Label())];
+
+    /// <summary>Compact display picker entries (index = <see cref="DisplayIndex"/>): Image, then Text.</summary>
+    public List<PathDisplayOption> DisplayOptions { get; } = [PathDisplayOption.Image, PathDisplayOption.Text];
 
     /// <summary>Failed-read presentation.</summary>
     public ServiceStatusViewModel Status { get; }

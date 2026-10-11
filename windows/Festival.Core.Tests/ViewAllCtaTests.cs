@@ -7,7 +7,7 @@ namespace Festival.Core.Tests;
 /// <summary>
 /// Issue #268 (check of #68/#41), pattern <c>view-all-cta</c>: every "View all" call to action below a card's rows
 /// (Song Detail's View Full Leaderboard and View All Scores, the Rivals hub's View All Rivals, Rival Detail's category
-/// View All (#321), Leaderboards' View All Rankings) is the same button: one shared style
+/// View All (#321), Leaderboards' View All Rankings, the profile Bands groups' View All Bands (N) (#596)) is the same button: one shared style
 /// with no per-page layout overrides, a Fluent 40 epx minimum target, and a UIA name that starts with its visible label.
 /// </summary>
 public class ViewAllCtaTests
@@ -74,12 +74,50 @@ public class ViewAllCtaTests
     public void RivalsAndSongDetail_UseTheSharedButton()
     {
         var consumers = Consumers();
-        // Song Detail Score History + instrument + band cards, Leaderboards solo + band cards, the Rivals hub cards and
-        // Rival Detail's category cards (#321: their former in-card text link is now this button).
-        // The profile's Bands groups use the frosted ViewAllCard instead (surface-materials R7, issue #312).
-        Assert.Equal(["LeaderboardsPage.xaml", "LeaderboardsPage.xaml", "RivalDetailPage.xaml", "RivalsPage.xaml", "SongDetailPage.xaml",
-            "SongDetailPage.xaml", "SongDetailPage.xaml"],
+        // Song Detail Score History + instrument + band cards, Leaderboards solo + band cards, the profile's Bands groups
+        // (owner #596, view-all-cta owner-approved variant), the Rivals hub cards and Rival Detail's category cards (#321:
+        // their former in-card text link is now this button).
+        Assert.Equal(["LeaderboardsPage.xaml", "LeaderboardsPage.xaml", "PlayerProfileView.xaml", "RivalDetailPage.xaml", "RivalsPage.xaml",
+            "SongDetailPage.xaml", "SongDetailPage.xaml", "SongDetailPage.xaml"],
             consumers.Select(c => c.File).Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void ProfileBandGroups_AreOneRowsCardEndingInTheSharedButton()
+    {
+        // Owner #596: each Duos/Trios/Quads group is one FSTRowsCardStyle card of separated band rows that ends in the
+        // purple View All Bands (N), as the Rivals hub cards; the frosted ViewAllCard (#312) is gone.
+        var profile = XDocument.Load(Path.Combine(AppRoot, "Controls", "PlayerProfileView.xaml"));
+        var group = profile.Descendants().Single(e => e.Name.LocalName == "DataTemplate" && Attr(e, "DataType") == "vm:PlayerProfileBandGroup");
+        var card = group.Descendants().Single(e => e.Name.LocalName == "Border" && Attr(e, "Style") == "{StaticResource FSTRowsCardStyle}");
+        var rows = card.Descendants().Single(e => e.Name.LocalName == "ItemsRepeater");
+        Assert.Equal("True", Attr(rows, "RowSeparators.Enabled"));
+        Assert.Contains(rows.Descendants(), e => e.Name.LocalName == "BandCardView");
+        var spacing = rows.Descendants().Single(e => e.Name.LocalName == "LeaderboardsCardGridLayout");
+        Assert.Equal("0", Attr(spacing, "Spacing"));
+        var last = card.Elements().Single().Elements().Last();
+        Assert.Equal("Button", last.Name.LocalName);
+        Assert.Equal(StyleRef, Attr(last, "Style"));
+        Assert.Equal("{x:Bind HasMore}", Attr(last, "Visibility"));
+        Assert.DoesNotContain(profile.Descendants(), e => e.Name.LocalName == "ViewAllCard");
+        Assert.False(File.Exists(Path.Combine(AppRoot, "Controls", "ViewAllCard.cs")));
+        // The empty state stays outside the card (No Bands Yet is its own compact card).
+        Assert.Contains(group.Descendants(), e => e.Name.LocalName == "EmptyStateView" && e.Parent != card);
+    }
+
+    [Fact]
+    public void BandCardView_GroupedRowsDropTheSurfaceAndPillAndDrawASeparator()
+    {
+        var markup = XDocument.Load(Path.Combine(AppRoot, "Controls", "BandCardView.xaml"));
+        var pill = markup.Descendants().Single(e => e.Name.LocalName == "TextBlock" && Attr(e, "Text") == "{x:Bind Card.BandTypeLabel, Mode=OneWay}").Parent!;
+        Assert.StartsWith("{x:Bind Card.ShowsBandType", Attr(pill, "Visibility"), StringComparison.Ordinal);
+        var separator = markup.Descendants().Single(e => Attr(e, "Name") == "RowSeparator");
+        Assert.Equal("{ThemeResource FSTRowSeparatorBrush}", Attr(separator, "Background"));
+        Assert.Equal("Collapsed", Attr(separator, "Visibility"));
+        Assert.Equal("False", Attr(separator, "IsHitTestVisible"));
+        var code = File.ReadAllText(Path.Combine(AppRoot, "Controls", "BandCardView.xaml.cs"));
+        Assert.Contains("BandCardView : UserControl, ISeparatedRow", code, StringComparison.Ordinal);
+        Assert.Contains("Surface.Visibility = grouped ? Visibility.Collapsed", code, StringComparison.Ordinal);
     }
 
     [Fact]

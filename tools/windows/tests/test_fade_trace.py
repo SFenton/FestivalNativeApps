@@ -187,6 +187,20 @@ class EntranceRushTests(unittest.TestCase):
                 "fade-rush list=A start=0 rushed=0 kept=0 since=300 at=1300"]
         self.assertIn("1 were still pending", f.check_entrance_rush(events(*rows), "A")[0])
 
+    def test_a_row_played_again_is_one_pending_fade(self):
+        # #552 (master run 37937505898): a re-realized row logs fade-play again; its latest play replaces the first.
+        replayed = ["fade-arm list=A start=0 at=1000", "fade-play list=A index=9 delay=1250 motion=1 at=1000",
+                    "fade-play list=A index=9 delay=1250 motion=1 at=1050",
+                    "fade-rush list=A start=0 rushed=1 kept=0 since=300 at=1300"]
+        self.assertEqual([], f.check_entrance_rush(events(*replayed), "A"))
+        # Two distinct pending rows still need two rushed fades.
+        two = [*replayed[:2], replayed[2].replace("index=9", "index=10"), replayed[3]]
+        self.assertIn("started 1 fade(s) but 2 were still pending", f.check_entrance_rush(events(*two), "A")[0])
+        # A replay that already started by the rush leaves the row not pending.
+        started = [*replayed[:2], "fade-play list=A index=9 delay=0 motion=1 at=1100",
+                   replayed[3].replace("rushed=1", "rushed=0")]
+        self.assertEqual([], f.check_entrance_rush(events(*started), "A"))
+
     def test_a_fade_scheduled_after_the_rush_with_a_delay_fails(self):
         late = [*PAGE, *EARLY_RUSH, "fade-enter list=Scroller target=BandBoards delay=300 motion=1 at=1600",
                 "fade-play list=Scroller index=2 delay=250 motion=1 at=1600"]
@@ -283,6 +297,53 @@ class RevealTests(unittest.TestCase):
             self.assertIn(expected, problems)
         self.assertIn("expected 15", f.check_reveal(events(*still), "RowsRepeater", 15, motion=False)[0])
         self.assertIn("fade-reveal missing", f.check_reveal(events(*still[:2]), "RowsRepeater", motion=False)[0])
+
+
+class TogetherTests(unittest.TestCase):
+    """Issue #614: a whole card's rows and pinned row start one fade; preview rows never stagger inside their card."""
+
+    CARD = ["fade-arm list=RowsRepeater start=0 at=5000",
+            "fade-enter list=RowsRepeater target=SpotlightPanel delay=125 motion=1 at=5001",
+            "fade-play list=RowsRepeater index=0 delay=98 motion=1 at=5028",
+            "fade-play list=RowsRepeater index=1 delay=97 motion=1 at=5029",
+            "fade-play list=RowsRepeater index=20 delay=95 motion=1 at=5031",
+            "fade-play list=RowsRepeater index=21 delay=0 motion=1 at=5300"]
+
+    def test_one_fade_passes(self):
+        self.assertEqual([], f.check_together(events(*self.CARD), "RowsRepeater", ["SpotlightPanel"]))
+
+    def test_a_stagger_inside_the_card_is_reported(self):
+        staggered = ["fade-arm list=RowsRepeater start=0 at=5000",
+                     "fade-play list=RowsRepeater index=0 delay=125 motion=1 at=5001",
+                     "fade-play list=RowsRepeater index=1 delay=250 motion=1 at=5002"]
+        self.assertIn("ms apart", f.check_together(events(*staggered), "RowsRepeater")[0])
+
+    def test_a_pinned_row_outside_the_cards_fade_is_reported(self):
+        late = [*self.CARD[:1], "fade-enter list=RowsRepeater target=SpotlightPanel delay=400 motion=1 at=5001",
+                *self.CARD[2:]]
+        self.assertIn("apart", f.check_together(events(*late), "RowsRepeater", ["SpotlightPanel"])[0])
+
+    def test_a_row_shown_before_the_card_is_reported(self):
+        early = [*self.CARD, "fade-play list=RowsRepeater index=22 delay=0 motion=1 at=5050"]
+        self.assertIn("before the card", f.check_together(events(*early), "RowsRepeater")[0])
+
+    def test_only_the_latest_load_before_the_rush_counts(self):
+        lines = ["fade-arm list=RowsRepeater start=0 at=1000",
+                 "fade-play list=RowsRepeater index=0 delay=125 motion=1 at=1001",
+                 "fade-play list=RowsRepeater index=1 delay=250 motion=1 at=1001",
+                 *self.CARD, "fade-rush list=RowsRepeater start=0 rushed=1 kept=0 since=50 at=5050",
+                 "fade-play list=RowsRepeater index=40 delay=300 motion=1 at=5060"]
+        self.assertEqual([], f.check_together(events(*lines), "RowsRepeater"))
+        self.assertIn("no row faded", f.check_together(events("fade-arm list=RowsRepeater start=0 at=1"), "RowsRepeater")[0])
+
+    def test_preview_rows_ride_their_card_or_fade_as_one(self):
+        ridden = events("fade-ride list=PreviewRows index=0 at=1", "fade-play list=PreviewRows index=0 delay=125 motion=1 at=2")
+        self.assertEqual([], f.check_no_row_stagger(ridden, "PreviewRows"))
+        staggered = events("fade-play list=PreviewRows index=0 delay=125 motion=1 at=2",
+                           "fade-play list=PreviewRows index=1 delay=250 motion=1 at=2")
+        self.assertIn("[1]", f.check_no_row_stagger(staggered, "PreviewRows")[0])
+        self.assertIn("no preview row", f.check_no_row_stagger(events(), "PreviewRows")[0])
+
 
 class DelayedPlayTests(unittest.TestCase):
     """Every delayed fade belongs to an entrance: no direct ``FadeIn.Play(element, delay)`` (review #358)."""

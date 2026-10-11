@@ -96,6 +96,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import com.festivalscoretracker.android.core.search.GlobalBandResult
 import com.festivalscoretracker.android.core.search.GlobalPlayerResult
 import com.festivalscoretracker.android.core.search.GlobalSearchLayout
 import com.festivalscoretracker.android.core.search.GlobalSearchResults
@@ -454,19 +455,7 @@ fun GlobalSearchContent(
     // so nothing resizes while typing.
     Column(Modifier.fillMaxSize()) {
         ScopePills(ui.scope, onToggleScope)
-        // Result counts are spoken, not shown (operator batch 6): an undrawn polite live region.
-        val announcement = ui.announcement
-        if (announcement != null && !ui.isShortQuery) {
-            Box(
-                Modifier
-                    .size(1.dp)
-                    .testTag(GlobalSearchTags.STATUS)
-                    .semantics {
-                        contentDescription = announcement
-                        liveRegion = LiveRegionMode.Polite
-                    },
-            )
-        }
+        SearchAnnouncement(ui, GlobalSearchTags.STATUS)
         Box(Modifier.fillMaxWidth().weight(1f)) {
             when {
                 ui.hint != null -> CenteredMessage(ui.hint!!)
@@ -550,95 +539,137 @@ private fun ScopePills(selected: SearchScope, onToggle: (SearchScope) -> Unit) {
 
 @Composable
 private fun Results(ui: GlobalSearchUiState, artworkUrl: (String?) -> String?, onOpen: (SearchDestination) -> Unit) {
-    // Web SearchModal restaggers once per content signature: hide for a frame when the result
-    // set changes, then fade rows in (web fadeInUp, 125 ms stagger).
+    // The results' own fade window (web SearchModal `useStaggerRush`): scrolling the results
+    // mid-entrance fades the rest in together (load-transition R5).
+    val fadeIn = rememberPageFadeInWindow()
+    CompositionLocalProvider(LocalFadeInWindow provides fadeIn) {
+        val revealed = rememberSearchResultsRevealed(ui)
+        // A new scope or query starts at the top: a kept state would pin the previously first
+        // visible key (the first player after Players → All) and hide the songs above it.
+        val listState = remember(ui.scope, ui.settledQuery) { LazyListState() }
+        LazyColumn(Modifier.fadeInRushOnScroll(fadeIn).fillMaxSize().testTag("fst.global-search.results"), state = listState) {
+            searchResultItems(ui, revealed, artworkUrl, onOpen)
+        }
+    }
+}
+
+/**
+ * Test tags for one search surface's result rows: global search's, or the Profiles sheet's
+ * (issue #600), which shows the same rows.
+ *
+ * @property player Tag for a player row.
+ * @property band Tag for a band card.
+ * @property section Tag for an All-scope section title.
+ * @property playersError Tag for the players failure line.
+ * @property bandsError Tag for the bands failure line.
+ */
+internal class SearchResultTags(
+    val player: (GlobalPlayerResult) -> String,
+    val band: (GlobalBandResult) -> String,
+    val section: (SearchScope) -> String,
+    val playersError: String,
+    val bandsError: String,
+) {
+    companion object {
+        /** Global search's `fst.global-search.*` tags. */
+        val global = SearchResultTags(
+            player = { GlobalSearchTags.RESULT_PLAYER },
+            band = { GlobalSearchTags.RESULT_BAND },
+            section = GlobalSearchTags::section,
+            playersError = GlobalSearchTags.PLAYERS_ERROR,
+            bandsError = GlobalSearchTags.BANDS_ERROR,
+        )
+    }
+}
+
+/**
+ * Whether the current result set may show: web SearchModal restaggers once per content
+ * signature, so a changed set hides for a frame, then its rows fade in (web fadeInUp, 125 ms
+ * stagger). Call inside the surface's fade window.
+ *
+ * @param ui Search state.
+ * @return Whether to reveal the rows.
+ */
+@Composable
+internal fun rememberSearchResultsRevealed(ui: GlobalSearchUiState): Boolean {
     val signature = remember(ui.songs, ui.players, ui.bands) {
         Triple(ui.songs.map { it.songId }, ui.players.map { it.accountId }, ui.bands.map { it.key })
     }
     var settled by remember { mutableStateOf<Any?>(null) }
     LaunchedEffect(signature) { settled = signature }
-    // The results' own fade window (web SearchModal `useStaggerRush`): scrolling the results
-    // mid-entrance fades the rest in together (load-transition R5).
-    val fadeIn = rememberPageFadeInWindow()
-    CompositionLocalProvider(LocalFadeInWindow provides fadeIn) {
-        ResultsList(ui, rememberRevealed(settled == signature), Modifier.fadeInRushOnScroll(fadeIn), artworkUrl, onOpen)
-    }
+    return rememberRevealed(settled == signature)
 }
 
 /**
- * The results list, inside the results' fade window.
+ * The search results as lazy-list items, shared by global search and the Profiles sheet (pattern
+ * search-scopes, issue #600): in All each shown kind sits under its section title, then its
+ * failure line and rows (songs, players, then band cards).
  *
  * @param ui Search state.
- * @param revealed Whether the current result set may show ([rememberRevealed]).
- * @param modifier Modifier for the list.
+ * @param revealed Whether the current result set may show ([rememberSearchResultsRevealed]).
  * @param artworkUrl Artwork URL resolver.
  * @param onOpen Opens a result.
+ * @param tags Row test tags.
  */
-@Composable
-private fun ResultsList(
+internal fun LazyListScope.searchResultItems(
     ui: GlobalSearchUiState,
     revealed: Boolean,
-    modifier: Modifier,
     artworkUrl: (String?) -> String?,
     onOpen: (SearchDestination) -> Unit,
+    tags: SearchResultTags = SearchResultTags.global,
 ) {
     // Like the web stagger, a section title takes one slot before its rows.
     val titleSlot = if (ui.showsSectionTitles) 1 else 0
     val songsOffset = titleSlot
     val playersOffset = if (ui.showSongsSection) songsOffset + ui.songs.size + titleSlot else titleSlot
     val bandsOffset = if (ui.showPlayersSection) playersOffset + ui.players.size + titleSlot else playersOffset
-    // A new scope or query starts at the top: a kept state would pin the previously first
-    // visible key (the first player after Players → All) and hide the songs above it.
-    val listState = remember(ui.scope, ui.settledQuery) { LazyListState() }
-    LazyColumn(modifier.fillMaxSize().testTag("fst.global-search.results"), state = listState) {
-        if (ui.showSongsSection) {
-            sectionTitle(ui, SearchScope.Songs, revealed, songsOffset - 1)
-            if (ui.songsPhase == SectionPhase.Failed) {
-                item(key = "songs-failed") { InlineMessage(GlobalSearchResults.SONGS_FAILED) }
-            }
-            itemsIndexed(ui.songs, key = { _, song -> "s-${song.songId}" }) { index, song ->
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
-                    SongResultRow(song, artworkUrl(song.albumArt)) { onOpen(song.destination) }
-                }
+    if (ui.showSongsSection) {
+        sectionTitle(ui, SearchScope.Songs, revealed, songsOffset - 1, tags)
+        if (ui.songsPhase == SectionPhase.Failed) {
+            item(key = "songs-failed") { InlineMessage(GlobalSearchResults.SONGS_FAILED) }
+        }
+        itemsIndexed(ui.songs, key = { _, song -> "s-${song.songId}" }) { index, song ->
+            Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                SongResultRow(song, artworkUrl(song.albumArt)) { onOpen(song.destination) }
             }
         }
-        if (ui.showPlayersSection) {
-            sectionTitle(ui, SearchScope.Players, revealed, playersOffset - 1)
-            if (ui.playersPhase == SectionPhase.Failed) {
-                item(key = "players-failed") {
-                    ServiceStatusInline(
-                        issue = ui.playersIssue ?: return@item,
-                        fallbackTitle = GlobalSearchResults.PLAYERS_UNAVAILABLE,
-                        countdown = ui.playersCountdown,
-                        onRetry = null,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag(GlobalSearchTags.PLAYERS_ERROR),
-                    )
-                }
-            }
-            itemsIndexed(ui.players, key = { _, player -> "p-${player.accountId}" }) { index, player ->
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(playersOffset + index))) {
-                    PlayerResultRow(player) { onOpen(player.destination) }
-                }
+    }
+    if (ui.showPlayersSection) {
+        sectionTitle(ui, SearchScope.Players, revealed, playersOffset - 1, tags)
+        if (ui.playersPhase == SectionPhase.Failed) {
+            item(key = "players-failed") {
+                ServiceStatusInline(
+                    issue = ui.playersIssue ?: return@item,
+                    fallbackTitle = GlobalSearchResults.PLAYERS_UNAVAILABLE,
+                    countdown = ui.playersCountdown,
+                    onRetry = null,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag(tags.playersError),
+                )
             }
         }
-        if (ui.showBandsSection) {
-            sectionTitle(ui, SearchScope.Bands, revealed, bandsOffset - 1)
-            if (ui.bandsPhase == SectionPhase.Failed) {
-                item(key = "bands-failed") {
-                    ServiceStatusInline(
-                        issue = ui.bandsIssue ?: return@item,
-                        fallbackTitle = GlobalSearchResults.BANDS_UNAVAILABLE,
-                        countdown = ui.bandsCountdown,
-                        onRetry = null,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag(GlobalSearchTags.BANDS_ERROR),
-                    )
-                }
+        itemsIndexed(ui.players, key = { _, player -> "p-${player.accountId}" }) { index, player ->
+            Box(Modifier.festivalFadeIn(revealed, fadeInStagger(playersOffset + index))) {
+                PlayerResultRow(player, tags.player(player)) { onOpen(player.destination) }
             }
-            // Web SearchModal renders band results with the same PlayerBandCard as a player's Bands.
-            itemsIndexed(ui.bands, key = { _, band -> "b-${band.key}" }) { index, band ->
-                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(bandsOffset + index)).padding(horizontal = 16.dp, vertical = 4.dp)) {
-                    PlayerBandCard(band.entry, onClick = { onOpen(band.destination) }, tag = GlobalSearchTags.RESULT_BAND)
-                }
+        }
+    }
+    if (ui.showBandsSection) {
+        sectionTitle(ui, SearchScope.Bands, revealed, bandsOffset - 1, tags)
+        if (ui.bandsPhase == SectionPhase.Failed) {
+            item(key = "bands-failed") {
+                ServiceStatusInline(
+                    issue = ui.bandsIssue ?: return@item,
+                    fallbackTitle = GlobalSearchResults.BANDS_UNAVAILABLE,
+                    countdown = ui.bandsCountdown,
+                    onRetry = null,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).testTag(tags.bandsError),
+                )
+            }
+        }
+        // Web SearchModal renders band results with the same PlayerBandCard as a player's Bands.
+        itemsIndexed(ui.bands, key = { _, band -> "b-${band.key}" }) { index, band ->
+            Box(Modifier.festivalFadeIn(revealed, fadeInStagger(bandsOffset + index)).padding(horizontal = 16.dp, vertical = 4.dp)) {
+                PlayerBandCard(band.entry, onClick = { onOpen(band.destination) }, tag = tags.band(band))
             }
         }
     }
@@ -653,12 +684,13 @@ private fun ResultsList(
  * @param section Category the title names.
  * @param revealed Whether the current result set may show.
  * @param staggerIndex The title's slot in the entrance stagger.
+ * @param tags Surface test tags.
  */
-private fun LazyListScope.sectionTitle(ui: GlobalSearchUiState, section: SearchScope, revealed: Boolean, staggerIndex: Int) {
+private fun LazyListScope.sectionTitle(ui: GlobalSearchUiState, section: SearchScope, revealed: Boolean, staggerIndex: Int, tags: SearchResultTags) {
     if (!ui.showsSectionTitles) return
     item(key = "h-${section.token}") {
         Box(Modifier.festivalFadeIn(revealed, fadeInStagger(staggerIndex))) {
-            SectionHeader(section.title, Modifier.padding(horizontal = 16.dp).testTag(GlobalSearchTags.section(section)))
+            SectionHeader(section.title, Modifier.padding(horizontal = 16.dp).testTag(tags.section(section)))
         }
     }
 }
@@ -690,7 +722,7 @@ private fun SongResultRow(song: GlobalSongResult, artUrl: String?, onClick: () -
 }
 
 @Composable
-private fun PlayerResultRow(player: GlobalPlayerResult, onClick: () -> Unit) {
+private fun PlayerResultRow(player: GlobalPlayerResult, tag: String, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -699,7 +731,7 @@ private fun PlayerResultRow(player: GlobalPlayerResult, onClick: () -> Unit) {
             .heightIn(min = 56.dp)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics(mergeDescendants = true) { contentDescription = player.accessibleName }
-            .testTag(GlobalSearchTags.RESULT_PLAYER)
+            .testTag(tag)
             .padding(horizontal = 16.dp, vertical = 8.dp),
     ) {
         Box(Modifier.size(40.dp).background(BrandTokens.accentPurple, CircleShape), contentAlignment = Alignment.Center) {
@@ -723,6 +755,29 @@ internal fun monogram(name: String): String = name.firstOrNull { it.isLetterOrDi
 @Composable
 private fun InlineMessage(text: String) {
     Text(text, color = BrandTokens.textSecondary, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+}
+
+/**
+ * The settled query's result counts, spoken but not shown (operator batch 6): an undrawn polite
+ * live region. Shared by global search and the Profiles sheet.
+ *
+ * @param ui Search state.
+ * @param tag Test tag.
+ */
+@Composable
+internal fun SearchAnnouncement(ui: GlobalSearchUiState, tag: String) {
+    val announcement = ui.announcement
+    if (announcement != null && !ui.isShortQuery) {
+        Box(
+            Modifier
+                .size(1.dp)
+                .testTag(tag)
+                .semantics {
+                    contentDescription = announcement
+                    liveRegion = LiveRegionMode.Polite
+                },
+        )
+    }
 }
 
 @Composable

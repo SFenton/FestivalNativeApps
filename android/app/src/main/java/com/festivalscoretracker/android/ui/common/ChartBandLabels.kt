@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -26,21 +27,27 @@ private val BAND_LABEL_GAP = 8.dp
  * tall as its tallest label, so it grows with the text size and never clips a date. The dates
  * are decorative: TalkBack reads them from the chart's own description.
  *
+ * While a paged chart slides ([ChartPageSlide], `load-transition` R12), the row keeps the new
+ * window's layout and shifts it by `shift` bands, so each date moves with its bar and settles
+ * on it; the row clips dates that slide past its edges.
+ *
  * @param labels One label per visible bar, left to right.
  * @param plotInset Gutter on each side of the plot.
  * @param style Label style.
  * @param color Label colour.
  * @param modifier Modifier.
+ * @param shift Bands the labels trail their place by, read while placing (0 at rest).
  */
 @Composable
-fun ChartBandLabels(labels: List<String>, plotInset: Dp, style: TextStyle, color: Color, modifier: Modifier = Modifier) {
+fun ChartBandLabels(labels: List<String>, plotInset: Dp, style: TextStyle, color: Color, modifier: Modifier = Modifier, shift: () -> Float = { 0f }) {
     Layout(
         content = { labels.forEach { Text(it, style = style, color = color, maxLines = 1, softWrap = false) } },
-        modifier = modifier.fillMaxWidth().clearAndSetSemantics { },
+        modifier = modifier.fillMaxWidth().clipToBounds().clearAndSetSemantics { },
     ) { measurables, constraints ->
         val width = constraints.maxWidth
         val placeables = measurables.map { it.measure(Constraints(maxWidth = width)) }
         val inset = plotInset.toPx()
+        val band = if (placeables.isEmpty()) 0f else (width - 2 * inset).coerceAtLeast(0f) / placeables.size
         val lefts = ChartGeometry.bandLabelLefts(
             placeables.map { it.width.toFloat() },
             plotLeft = inset,
@@ -49,7 +56,8 @@ fun ChartBandLabels(labels: List<String>, plotInset: Dp, style: TextStyle, color
             gap = BAND_LABEL_GAP.toPx(),
         )
         layout(width, placeables.maxOfOrNull { it.height } ?: 0) {
-            placeables.forEachIndexed { i, placeable -> lefts[i]?.let { placeable.place(it.roundToInt(), 0) } }
+            val offset = shift() * band
+            placeables.forEachIndexed { i, placeable -> lefts[i]?.let { placeable.place((it + offset).roundToInt(), 0) } }
         }
     }
 }

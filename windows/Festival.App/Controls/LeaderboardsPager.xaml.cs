@@ -118,13 +118,24 @@ public sealed partial class LeaderboardsPager : UserControl
     /// <param name="e">Changed property.</param>
     private void OnPagerChanged(object? sender, PropertyChangedEventArgs e) => UpdateState();
 
-    /// <summary>Writes "page / total", its spoken form, and hides the pager for a single page (web <c>totalPages &gt; 1</c>).</summary>
+    /// <summary>
+    /// Writes "page / total" and its spoken form, and hides the pager while the board has no more than one known page
+    /// (web <c>totalPages &gt; 1</c>). The text is left alone while hidden, so a switch that resets the count never writes
+    /// or announces a "1 / 1" placeholder (issue #575).
+    /// </summary>
     private void UpdateState()
     {
         if (Pager is not { } pager) return;
-        Info.Text = pager.InfoText;
-        AutomationProperties.SetName(Info, pager.InfoAnnouncement);
-        Root.Visibility = pager.IsPaged ? Visibility.Visible : Visibility.Collapsed;
+        if (pager.IsPaged)
+        {
+            Info.Text = pager.InfoText;
+            AutomationProperties.SetName(Info, pager.InfoAnnouncement);
+            Root.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            Root.Visibility = Visibility.Collapsed;
+        }
         ApplyDimming();
     }
 
