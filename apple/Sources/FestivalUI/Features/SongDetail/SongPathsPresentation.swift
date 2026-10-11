@@ -1,3 +1,4 @@
+import CoreGraphics
 import FestivalCore
 
 // MARK: - View mode
@@ -21,6 +22,16 @@ enum PathViewMode: String, CaseIterable, Identifiable, Sendable {
         case .image: "Image"
         case .text: "Text"
         case .sideBySide: "Side by Side"
+        }
+    }
+
+    /// SF Symbol for the mode, shown in its menu item and, where the View menu is icon-only,
+    /// as the collapsed menu's label (web mobile `IoImage` / `IoReaderOutline`, issue #612).
+    var systemImage: String {
+        switch self {
+        case .image: "photo"
+        case .text: "doc.text"
+        case .sideBySide: "rectangle.split.2x1"
         }
     }
 
@@ -99,6 +110,28 @@ enum SongPathsPolicy {
     /// - Returns: True when more than one mode is offered.
     nonisolated static func showsViewMenu(_ layout: DeviceLayout) -> Bool {
         modes(for: layout).count > 1
+    }
+
+    /// Web `MOBILE_BREAKPOINT`: at or below this window width the web's Paths modal draws
+    /// its mobile selector row (instrument and display as icon + chevron).
+    nonisolated static let mobileBreakpoint: CGFloat = 768
+
+    /// Whether the Instrument and View menus name their value beside its icon.
+    ///
+    /// In a sheet no wider than the web's mobile breakpoint (iPhone in portrait, a compact
+    /// iPad window) the side-by-side row is too narrow for icon + name, so the two menus
+    /// show only the icon, like the web's mobile Paths modal, and Difficulty takes the rest
+    /// of the row (owner, issue #612). The stacked accessibility-size layout gives each
+    /// menu the full width, so it names them. Folded iPhone Duo is icon-only at every size
+    /// (owner, issue #360). The full-window viewer and wider sheets keep icon + name.
+    ///
+    /// - Parameters:
+    ///   - layout: The window's current layout.
+    ///   - stacked: Whether the selectors stack (accessibility text sizes).
+    /// - Returns: False where the menus show their icon alone.
+    nonisolated static func selectorsShowNames(_ layout: DeviceLayout, stacked: Bool) -> Bool {
+        guard SongPathsSheet.showsInstrumentName(pose: layout.pose) else { return false }
+        return isWide(layout) || stacked || layout.size.width > mobileBreakpoint
     }
 
     /// The iPhone Duo partially folded (book pose) on its inner display.

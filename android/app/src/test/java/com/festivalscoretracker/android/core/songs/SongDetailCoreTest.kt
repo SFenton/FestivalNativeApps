@@ -99,6 +99,11 @@ class SongDetailCoreTest {
         assertEquals(5, SongDetailLayout.indexOf(items, SongDetailLayout.instrumentId(Instrument.Vocals)))
         assertEquals(3, SongDetailLayout.indexOf(items, "score-history"))
         assertNull(SongDetailLayout.indexOf(items, "missing"))
+        // Issue #587: instrument cards open with the instrument header, every other section with a section header.
+        assertTrue(SongDetailLayout.isInstrumentId(SongDetailLayout.instrumentId(Instrument.Bass)))
+        assertFalse(SongDetailLayout.isInstrumentId("band-Band_Duets"))
+        assertFalse(SongDetailLayout.isInstrumentId(SongDetailLayout.INTENSITY_ID))
+        assertFalse(SongDetailLayout.isInstrumentId(SongDetailLayout.HISTORY_ID))
         val single = SongDetailLayout.items(charts, columns = 1, history = false, hinge = false, bands = emptyList())
         assertEquals(listOf("header", "actions", "intensity") + charts.map { "instruments:${it.wireId}" }, single.map { it.key })
     }

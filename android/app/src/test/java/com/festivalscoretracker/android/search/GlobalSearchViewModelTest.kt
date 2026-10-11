@@ -475,4 +475,103 @@ class GlobalSearchViewModelTest {
         assertEquals(SectionPhase.Empty, vm.ui.playersPhase)
         assertEquals(SectionPhase.Empty, vm.ui.bandsPhase)
     }
+
+    // region Profile search (issue #600)
+
+    private fun profileModel(
+        players: Recorder,
+        bands: BandRecorder,
+        saved: SavedStateHandle = SavedStateHandle(),
+        catalogReads: MutableList<Unit> = mutableListOf(),
+    ) = GlobalSearchViewModel(
+        { catalogReads += Unit; songs },
+        players::search,
+        bands::search,
+        { null },
+        ServiceRetryBackoff { 0L },
+        saved,
+        targets = SearchScope.profileTargets,
+    )
+
+    @Test
+    fun profileSearchFindsPlayersAndBandsTogetherWithoutSongs() = runTest(main.dispatcher) {
+        val players = Recorder { listOf(PlayerSearchResult(Fixtures.ACCOUNT_A, "Alpha Player")) }
+        val bands = BandRecorder { listOf(duo) }
+        val catalogReads = mutableListOf<Unit>()
+        val vm = profileModel(players, bands, catalogReads = catalogReads)
+        vm.open()
+        assertEquals(SearchScope.All, vm.ui.scope)
+        assertEquals(SearchScope.profileTargets, vm.ui.targets)
+        assertEquals(GlobalSearchResults.ENTER_QUERY_HINT_PROFILES, vm.ui.hint)
+        vm.onQueryChange(" alpha ")
+        settle()
+        advanceUntilIdle()
+        // Web SearchModal targets players|bands: both are searched at once, songs never are.
+        assertEquals(listOf("alpha/10"), players.queries)
+        assertEquals(listOf("alpha/10"), bands.queries)
+        assertTrue(catalogReads.isEmpty())
+        assertEquals(SectionPhase.Idle, vm.ui.songsPhase)
+        assertFalse(vm.ui.showSongsSection)
+        assertTrue(vm.ui.showPlayersSection)
+        assertTrue(vm.ui.showBandsSection)
+        assertTrue(vm.ui.showsSectionTitles)
+        assertFalse(vm.ui.isBusy)
+        assertEquals("1 player, 1 band", vm.ui.announcement)
+        // Players and Bands narrow to one kind without another request.
+        vm.selectScope(SearchScope.Players)
+        assertTrue(vm.ui.showPlayersSection)
+        assertFalse(vm.ui.showBandsSection)
+        assertFalse(vm.ui.showsSectionTitles)
+        vm.selectScope(SearchScope.Bands)
+        assertFalse(vm.ui.showPlayersSection)
+        assertTrue(vm.ui.showBandsSection)
+        assertEquals("Enter at least two characters to search for bands.", GlobalSearchResults.enterQueryHint(SearchScope.Bands, SearchScope.profileTargets))
+        vm.selectScope(SearchScope.All)
+        assertTrue(vm.ui.showPlayersSection && vm.ui.showBandsSection)
+        assertEquals(1, players.queries.size)
+        assertEquals(1, bands.queries.size)
+    }
+
+    @Test
+    fun profileSearchNeverSelectsSongsAndForgetsOnClose() = runTest(main.dispatcher) {
+        val saved = SavedStateHandle(mapOf("globalSearch.scope" to SearchScope.Songs.token))
+        val vm = profileModel(Recorder { emptyList() }, BandRecorder { emptyList() }, saved)
+        // A Songs scope can't be restored or chosen: profile search has no songs.
+        assertEquals(SearchScope.All, vm.ui.scope)
+        vm.selectScope(SearchScope.Songs)
+        assertEquals(SearchScope.All, vm.ui.scope)
+        vm.selectScope(SearchScope.Bands)
+        assertEquals(SearchScope.Bands, vm.ui.scope)
+        vm.toggleScope(SearchScope.Bands)
+        assertEquals(SearchScope.All, vm.ui.scope)
+        vm.open()
+        vm.selectScope(SearchScope.Players)
+        vm.onQueryChange("zzqx")
+        settle()
+        advanceUntilIdle()
+        assertEquals(SearchEmptyState(GlobalSearchResults.EMPTY_PLAYERS_TITLE, GlobalSearchResults.EMPTY_PLAYERS_SUBTITLE), vm.ui.emptyState)
+        vm.selectScope(SearchScope.All)
+        assertEquals(SearchEmptyState(GlobalSearchResults.EMPTY_ALL_TITLE, GlobalSearchResults.EMPTY_PROFILES_SUBTITLE), vm.ui.emptyState)
+        assertEquals(GlobalSearchResults.NO_RESULTS, vm.ui.announcement)
+        // Closing resets the query and scope (web SearchModal) but keeps the targets.
+        vm.close()
+        assertEquals("", vm.ui.query)
+        assertEquals(SearchScope.All, vm.ui.scope)
+        assertEquals(SearchScope.profileTargets, vm.ui.targets)
+    }
+
+    @Test
+    fun profileSearchAnnouncesAnUnsendableQueryAtOnce() = runTest(main.dispatcher) {
+        val players = Recorder { emptyList() }
+        val bands = BandRecorder { emptyList() }
+        val vm = profileModel(players, bands)
+        vm.onQueryChange("al\u202Epha")
+        settle()
+        assertTrue(players.queries.isEmpty())
+        assertTrue(bands.queries.isEmpty())
+        assertFalse(vm.ui.isBusy)
+        assertEquals(GlobalSearchResults.NO_RESULTS, vm.ui.announcement)
+    }
+
+    // endregion
 }
