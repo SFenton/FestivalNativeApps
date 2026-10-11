@@ -74,6 +74,12 @@ class CiUiTests(unittest.TestCase):
                    for shard in range(1, 13)]
         self.assertLessEqual(max(weights) - min(weights), max(ci_ui.task_weight(task) for task in tasks))
 
+    def test_accordion_runner_gets_the_journey_retries(self):
+        # Issue #571: a hosted-runner stall once delayed the leeway close's start; the runner retries like journeys.
+        task = next(task for task in ci_ui.all_tasks() if task.name == "runner:accordion")
+        command = ci_ui.task_command(task, ci_ui.Path("out"), 2)
+        self.assertEqual(command[-2:], ["--retries", "2"])
+        self.assertNotIn("--shots", command)
 
 if __name__ == "__main__":
     unittest.main()
