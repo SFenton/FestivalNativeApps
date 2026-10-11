@@ -162,6 +162,10 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(m.MODES["light-theme"]["system"], {"light_theme": True})
         self.assertEqual(m.MODES["text-200"]["system"], {"text_scale": 200})
         self.assertEqual(m.MODES["scale-150"]["system"], {"display_scale": 150})
+        self.assertEqual(m.MODES["scrollbars-always"]["system"], {"always_show_scrollbars": True})
+        bars = {**previous, "always_show_scrollbars": False}
+        self.assertEqual(m.restore_values(bars, m.mode_spec("scrollbars-always+text-225")["system"]),
+                         {"always_show_scrollbars": False, "text_scale": 100})
         light = {**previous, "light_theme": False}
         self.assertEqual(m.restore_values(light, m.MODES["light-theme"]["system"]), {"light_theme": False})
 
