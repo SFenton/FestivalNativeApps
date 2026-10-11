@@ -458,6 +458,9 @@ public sealed record BandSongRow(BandSongPerformance Performance, Song? Song)
     /// <summary><c>Top 4%</c>.</summary>
     public string PercentileText => BandFormatting.Percentile(Performance.Percentile);
 
+    /// <summary>Tier of <see cref="PercentileText"/>'s shared percentile pill (web <c>PlayerSongRow</c> → <c>PercentilePill</c>).</summary>
+    public SongPercentileTier PercentileTier => MetadataPillStyle.TierOf(Performance.Percentile);
+
     /// <summary><c>#1 of 26</c>.</summary>
     public string RankText => $"{BandFormatting.Rank(Performance.Rank)} of {BandFormatting.Count(Performance.TotalEntries)}";
 

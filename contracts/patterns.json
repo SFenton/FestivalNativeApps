@@ -4850,7 +4850,20 @@
             "symbol": "PercentilePill"
           }
         ],
-        "windows": []
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/MetadataPills.cs",
+            "symbol": "MetadataPills"
+          },
+          {
+            "path": "windows/Festival.App/Controls/MetadataPill.cs",
+            "symbol": "MetadataPill"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/MetadataPillStyle.cs",
+            "symbol": "MetadataPillStyle"
+          }
+        ]
       },
       "related": {
         "patterns": [
@@ -4882,6 +4895,15 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/design/MetadataPills.kt"
           ],
           "message": "Season and percentile chips use the shared ui/design/MetadataPills.kt components (metadata-pills R1)."
+        },
+        {
+          "id": "windows-private-pill",
+          "glob": "windows/Festival.App/**/*",
+          "regex": "FST(SeasonPill|CurrentSeason|PercentileNeutral|PercentilePill|GoldPillFill)\\w*Brush",
+          "allow": [
+            "windows/Festival.App/Themes/Styles.xaml"
+          ],
+          "message": "Season and percentile chips come from Controls/MetadataPills.cs, whose roles live in Festival.Core MetadataPillStyle (metadata-pills R1)."
         }
       ],
       "issues": [

@@ -460,6 +460,9 @@ public sealed record SongBandSpotlightRow(SongBandLeaderboardEntry Entry, Select
     /// <summary>Season text (<c>S15</c>), or empty.</summary>
     public string Season => Entry.Season is { } s ? string.Create(CultureInfo.InvariantCulture, $"S{s}") : "";
 
+    /// <inheritdoc />
+    public int? SeasonNumber => Entry.Season;
+
     /// <summary>Band Detail with the safe lookup keys (as the in-list row); a jump is the page's command (<see cref="Action"/>).</summary>
     public AppRoute? Route => new AppRoute.Band(Entry.BandId.Length > 0 ? Entry.BandId : Entry.TeamKey, Entry.BandType, Entry.TeamKey);
 
