@@ -33,6 +33,7 @@
 | Grouped Songs (Shop sort) | iPhone | Intermittent nil-element Dynamic Type issue; saved Shop sort + failed Shop offline state has an unidentified contrast node |
 | Item Shop list, Songs list | iPhone | One nil-element "Text clipped" finding each (no identifier, label or frame), reproduced on the pre-#18 Shop rows too and still after the visible New badge was removed (#562, 2026-10-09: both `ShopJourneyTests` audits, Songs rows visually unchanged). The shared Song row's marquee title/artist findings (Songs since the marquee landed, Shop once it reused the row) were fixed by wrapping at accessibility sizes (issue #18) |
 | Karaoke path warning alert | iPhone | System alert title contrast and message Dynamic Type |
+| Songs Filter sheet, score section with a player | iPhone 27.0 | First `.all` audit of this sheet on iPhone (#615, 2026-10-10, unchanged since #613): Dynamic Type "partially unsupported" on the system Form section headers ("Individual charts", "Instrument") plus nil-element Dynamic Type and "Text clipped"; contrast on the "Player Score and FC Filters" header, the secondary score footnote and the Instrument rows. No finding named a Score/FC or Over CHOpt switch, so `testPlayerScoreFilterSettingsPauseAndDeselectScope` asserts those switches' label, value, enabled state and ≥ 43 pt height instead of auditing the sheet. iPad audits this sheet with waivers (`IPadAccessibilityAuditTests`, browse) |
 
 ## Drawer journey (iPhone and iPhone Duo)
 

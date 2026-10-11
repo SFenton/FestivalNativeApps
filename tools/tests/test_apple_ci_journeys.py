@@ -7,7 +7,8 @@ Songs section-push AX XXXL journey (#288, #452), the Songs large-title rest jour
 the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape) and the pinned caption-icon journeys (``song-header`` R4, #542); ``HISTORY_JOURNEYS``/``HISTORY_IPAD_JOURNEYS``
 (iPad bundle, on the iPhone and the iPad) must keep the Score History AX5 journeys (#385, the region #302 changed);
 ``A11Y_MODE_JOURNEYS`` (iPhone bundle) must keep the Songs section-bar fade journey under Increase Contrast and
-Reduce Transparency (#391, the region #10 changed).
+Reduce Transparency (#391, the region #10 changed); ``PLAIN_JOURNEYS`` (iPhone bundle, on the iPhone in the
+plain-fixture step) must keep the Filter Invalid Scores score-check journey (#615).
 """
 
 import re
@@ -24,6 +25,7 @@ IPAD_UITESTS = ROOT / "apple" / "Apps" / "iPadOSUITests"
 BLOCKS = {
     "JOURNEYS": UITESTS,
     "A11Y_MODE_JOURNEYS": UITESTS,
+    "PLAIN_JOURNEYS": UITESTS,
     "HISTORY_JOURNEYS": IPAD_UITESTS,
     "HISTORY_IPAD_JOURNEYS": IPAD_UITESTS,
 }
@@ -127,9 +129,9 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertEqual(self.history["HISTORY_JOURNEYS"], [page], "the iPhone run: the page only (the split skips)")
         self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split])
         self.assertEqual(self.workflow.count("uitest --app ipad"), 2)
-        # iPhone journeys, the iPhone accessibility-mode loop (#391), two Score History runs, the iPad journeys and
-        # the iPad keyboard batch (#473).
-        self.assertEqual(self.workflow.count("--fail-on-skip"), 6)
+        # iPhone journeys, the iPhone accessibility-mode loop (#391), two Score History runs, the plain-fixture
+        # iPhone run (#615), the iPad journeys and the iPad keyboard batch (#473).
+        self.assertEqual(self.workflow.count("--fail-on-skip"), 7)
 
     def test_section_bar_fade_journey_runs_under_contrast_and_transparency(self) -> None:
         # #391: the only device evidence that rows under the #10 section-bar fade stay named and pass the audit
@@ -139,6 +141,14 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertEqual(ci_journey_blocks(self.workflow, "A11Y_MODE_JOURNEYS"), [[journey]])
         self.assertIn("for mode in increase-contrast reduce-transparency; do", self.workflow)
         self.assertIn('--fail-on-skip --timeout 900 --a11y "$mode" "${only[@]}"', self.workflow)
+
+    def test_invalid_score_filter_journey_runs_on_the_plain_fixture(self) -> None:
+        # #615: the only device evidence for the Filter sheet's score checks under Filter Invalid Scores. It needs
+        # `fixture-pulse` and `fixture-orbit` on screen, which the large catalogue pushes below the fold.
+        journey = "SongsJourneyTests/testPlayerScoreFilterSettingsPauseAndDeselectScope"
+        self.assertEqual(ci_journeys(self.workflow, "PLAIN_JOURNEYS"), [journey])
+        self.assertNotIn(journey, self.journeys)
+        self.assertIn('uitest --app phone --device "$iphone"', self.workflow)
 
     def test_board_footer_fade_keyboard_journey_runs_in_ci(self) -> None:
         # #473: the iPad hardware-keyboard form needs its own invocation, because --a11y applies to a whole run.

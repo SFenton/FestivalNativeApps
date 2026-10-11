@@ -2,7 +2,7 @@
 
 > **What:** Settings › Filter Invalid Scores for a selected player's scores: which score each chart shows (raw, a valid fallback or nothing), the Songs row's invalid-score indicator and its **Filtered Score** alert, the Over CHOpt Threshold checks and Song Details' filtered score. **Read when:** you change selected-player scores on Songs rows, chips, metadata, the profile panel, Songs filters or sorts, or Song Details' player score; or you add a page that shows a selected player's per-song scores.
 
-Status: **current**, 2026-10-10. Provenance: #613 (Apple port; Android and Windows ports predate the record).
+Status: **current**, 2026-10-10. Provenance: #613 (Apple port; Android and Windows ports predate the record); #615 (Filter sheet checks stay usable).
 
 ## Intent
 
@@ -27,7 +27,7 @@ The owner: "Filtered Player Score Display should work in native apps as it does 
    - Otherwise use the legacy `validScore*` fields.
    - Otherwise drop the score.
 
-   Rows, status chips, metadata pills, the wide profile panel ([songs-profile-panel](songs-profile-panel.md)), Score/FC filters, season buckets and the Score/Percentile/Stars sorts all use the effective scores, and nothing pauses.
+   Rows, status chips, metadata pills, the wide profile panel ([songs-profile-panel](songs-profile-panel.md)), Score/FC filters, season buckets and the Score/Percentile/Stars sorts all use the effective scores, and nothing pauses. The Filter sheet's global and per-chart Missing/Has Scores and Missing/Has FCs checks stay enabled for a selected player while the setting is on, with no paused notice in the sheet or on Songs (#615, like web `useFilteredSongs`). Changing the setting or the leeway re-applies saved checks in place and never clears them, except that Over CHOpt Threshold checks go inert (R8).
 4. **R4. Song Details (web `filterPlayerScores`).** With `ml` present, only `validScores` can replace a score and the legacy fields are ignored. Without `ml`, the CHOpt ceiling and the legacy fallback apply. Song Details has no Over CHOpt Threshold. The leaderboard preview's selected-player row shows the filtered score, or no row.
 5. **R5. Indicator.** A Songs row (not a Shop row) with a selected player's current scores shows one indicator when any described chart was replaced, dropped or kept over threshold. The described charts are the filtered chart, else the Settings-visible charts.
    - **Tone:** red alert circle; gold warning when every described chart is over threshold.
@@ -50,6 +50,7 @@ The owner: "Filtered Player Score Display should work in native apps as it does 
 Tests:
 - Apple: `InvalidScorePolicyTests` (core), `SongPlayerScoreFilterTests.overThresholdChecksNeedFilterInvalidScoresAndAScoreAboveTheCeiling`, and `SelectedSongRowRenderTests.filteredScoresShowEffectiveScoresAndAnIndicatorAfterTheSong` (hosted Songs tree, iPhone width and wide).
 - Apple: `SongsSortSheetRenderTests.songsFilterSheetOffersOverThresholdOnlyWhileFilteringInvalidScores`.
+- Apple (#615): `SongPlayerScoreFilterTests.savedScoreFiltersApplyToEffectiveScoresAtEveryLeeway` (Score/FC, Over CHOpt, season, stars and percentile through substituted scores at several leeways and with the setting off), hosted `SongsSortSheetRenderTests.songsFilterSheetScoreChecksStayEnabledWhileFilteringInvalidScores` (role, order, enabled state, value, no paused copy), and the iPhone journey `SongsJourneyTests.testPlayerScoreFilterSettingsPauseAndDeselectScope` (no notice, saved check kept, switches enabled with labels and ≥ 43 pt height; release CI runs it in `apple-ci`'s plain-fixture step, `PLAIN_JOURNEYS`).
 - Android: `SongsParityTest`.
 - Windows: `SongInvalidScoresTests`.
 

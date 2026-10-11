@@ -22,6 +22,8 @@ struct MacAXNode: CustomStringConvertible {
     /// `isAccessibilityElement`: false for containers and for elements assistive
     /// technologies skip (SwiftUI's `accessibilityHidden`).
     let isElement: Bool
+    /// `isAccessibilityEnabled`: false for a disabled control VoiceOver reads as dimmed.
+    var isEnabled = true
 
     /// The name VoiceOver speaks first: label, else title, else value.
     var spokenName: String { [label, title, value].first { !$0.isEmpty } ?? "" }
@@ -30,7 +32,7 @@ struct MacAXNode: CustomStringConvertible {
         "\(String(repeating: " ", count: depth))\(role)\(subrole.isEmpty ? "" : "/\(subrole)")"
             + " '\(spokenName)'" + (!value.isEmpty && value != spokenName ? " = '\(value)'" : "")
             + (identifier.isEmpty ? "" : " #\(identifier)") + (selected ? " [selected]" : "")
-            + (isElement ? "" : " (not element)")
+            + (isEnabled ? "" : " [disabled]") + (isElement ? "" : " (not element)")
     }
 }
 
@@ -71,7 +73,8 @@ func macAccessibilityTree(_ root: NSView, navigationOrder: Bool = false) -> [Mac
                 label: string(object, "accessibilityLabel"), title: string(object, "accessibilityTitle"),
                 value: string(object, "accessibilityValue"), identifier: string(object, "accessibilityIdentifier"),
                 selected: (read(object, "isAccessibilitySelected") as? Bool) ?? false,
-                help: string(object, "accessibilityHelp"), isElement: isElement
+                help: string(object, "accessibilityHelp"), isElement: isElement,
+                isEnabled: (read(object, "isAccessibilityEnabled") as? Bool) ?? true
             ))
         }
         let ordered = navigationOrder ? read(object, "accessibilityChildrenInNavigationOrder") as? [Any] : nil
