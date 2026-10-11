@@ -631,7 +631,9 @@
         "grouped list",
         "group card",
         "uncarded section",
-        "reset row"
+        "reset row",
+        "reading pane card",
+        "privacy policy pane"
       ],
       "web": [
         {

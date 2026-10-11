@@ -69,6 +69,7 @@ import kotlinx.coroutines.withContext
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 import com.festivalscoretracker.android.ui.common.FestivalModalSheet
+import com.festivalscoretracker.android.ui.design.GlassCard
 
 // region Screen
 
@@ -212,7 +213,12 @@ private fun LicensesBody(
                     if (shown == null) {
                         FestivalEmptyState("No packages", Modifier.fillMaxSize().testTag("fst.licenses.detail-empty"))
                     } else {
-                        LicenseDetail(shown, current.text(shown), Modifier.fillMaxSize().verticalScroll(rememberScrollState()))
+                        // One card under the license text, so it stays legible over any artwork (issue #609).
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+                            GlassCard(Modifier.fillMaxWidth().testTag("fst.licenses.detail-card")) {
+                                LicenseDetail(shown, current.text(shown), Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp))
+                            }
+                        }
                     }
                 }
             }
