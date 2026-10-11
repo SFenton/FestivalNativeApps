@@ -138,6 +138,11 @@ class StepTests(unittest.TestCase):
                     "assertstate:id=x|heading="):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
+        # Issue #380: a raw-view demo's HelpText census keeps its case and may be a regex (`~`, `|` after the first).
+        census = u.parse_step(r"assertstate:raw=fst.first-run.demo.songs-sort|help=~^controls=(?=.*\bRadioButtons\b)@15")
+        self.assertEqual(census["selector"], {"kind": "raw", "value": "fst.first-run.demo.songs-sort"})
+        self.assertEqual((census["key"], census["value"], census["timeout"]),
+                         ("help", r"~^controls=(?=.*\bRadioButtons\b)", 15.0))
         for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe", "assertstate:id=x|value=",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
                     "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",
