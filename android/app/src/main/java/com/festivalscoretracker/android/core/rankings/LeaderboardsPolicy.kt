@@ -50,21 +50,22 @@ object RankingNavigation {
     /**
      * Route for the selected player's row appended under a rankings preview (Compete's
      * leaderboard cards, issue #370): like Song Detail's appended row (`leaderboard-row` R7),
-     * it opens the instrument's full rankings on the page containing the player's rank, where
-     * the board reveals the highlighted row. Without a full board (combo scopes) or a usable
-     * rank it opens Statistics instead.
+     * it opens the board's full rankings on the page containing the player's rank, where
+     * the board reveals the highlighted row; a combo preview opens the combo board (#602).
+     * Without a full board or a usable rank it opens Statistics instead.
      *
      * @param entry The selected player's ranking row.
      * @param metric The preview's Rank By.
-     * @param instrument The full board's instrument, or null when the preview has none.
+     * @param instrument The full board's instrument (a combo's first chart), or null when the preview has none.
      * @param selectedAccountId Selected player, or null.
+     * @param comboId The within-group combo whose board the preview shows, or null for an instrument board.
      * @return [FullRankingsRoute] on the player's page, or [playerRoute]'s destination.
      */
-    fun previewSpotlightRoute(entry: AccountRankingEntry, metric: RankingMetric, instrument: Instrument?, selectedAccountId: String?): AppRoute? {
+    fun previewSpotlightRoute(entry: AccountRankingEntry, metric: RankingMetric, instrument: Instrument?, selectedAccountId: String?, comboId: String? = null): AppRoute? {
         val profile = playerRoute(entry.accountId, entry.displayName, selectedAccountId)
         if (instrument == null || profile == null) return profile
         return when (val action = SelectedRowAction.preview(entry.rank(metric), RankingPaging.PAGE_SIZE)) {
-            is SelectedRowAction.Jump -> FullRankingsRoute(instrument.wireId, metric.wireId, action.page)
+            is SelectedRowAction.Jump -> FullRankingsRoute(instrument.wireId, metric.wireId, action.page, combo = comboId)
             SelectedRowAction.OpenProfile -> profile
         }
     }

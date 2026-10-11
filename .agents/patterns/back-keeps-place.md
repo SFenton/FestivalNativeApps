@@ -2,7 +2,7 @@
 
 > **What:** how a page you return to with Back (from View All, a rival, a song, Licenses) comes back: no reload, no movement, no replayed fade-in, and focus on the control that opened the pushed page. **Read when:** making a page cacheable or kept on the back stack, changing what a page does when it appears again, or adding a pushed page reached from a cached root.
 
-Status: **current**, 2026-10-09. Provenance: #39 (iOS), #82 (Android, Windows), #276 (Windows), #347 (Apple splits), #352 (profiles cover the split), #369 (Compete rivals beside Compete), #560 (Windows Songs deep Back), #583 (Android on-demand split).
+Status: **current**, 2026-10-09. Provenance: #39 (iOS), #82 (Android, Windows), #276 (Windows), #347 (Apple splits), #352 (profiles cover the split), #369 (Compete rivals beside Compete), #410 (Apple Rivals hub sections, accessibility gate), #560 (Windows Songs deep Back), #583 (Android on-demand split).
 
 ## Intent
 
@@ -60,6 +60,15 @@ Grounds, by strength: `winui-design` (**must** for custom navigation): "Build cu
 | Settings | Licenses | `back-settings-licenses` | The First Run Guides row above Licenses | ✅ |
 
 Out of scope: pushed pages (Song Detail, Full Rankings, Rival Detail, Licenses …) aren't cached, so they rebuild on Back and don't keep focus or scroll (the deferred option above). Statistics isn't cached and pushes nothing.
+
+### Apple consumers (#39, #410)
+
+| Root | Pushed page | Gate key | Accessibility gate | Status |
+|---|---|---|---|---|
+| Compete | Full Rankings (View Full Leaderboard), Rival Detail, All Rivals | `CompetePageLoadKey` in `CompeteHubModel` | Hosted `CompeteReturnAccessibilityTests.backToCompeteReadsTheSamePageWithoutASpinner` (Large and AX5, three motion modes): no `AXBusyIndicator` or "Loading…" and the same role, name, id and frame (±1 pt) for every reachable element for 900 ms after the return; iPhone `CompeteAccessibilityJourneyTests/testBackFromFullLeaderboardKeepsCompeteReadableAtAX5` taps View Full Leaderboard and Back at AX5 (`apple-ci`) | ✅ |
+| Rivals hub | All Rivals, Rival Detail | `RivalsSectionLoadKey<Scope>` on Common, Combo, each Song card and each Leaderboard card | Hosted `CompeteReturnAccessibilityTests.backToTheRivalsHubReadsTheSamePageWithoutASpinner` (Song and Leaderboard tabs, Large and AX5): no second rivals read, no spinner, an unchanged tree, View All Rivals ≥ 44 × 44 pt | ✅ **Fixed (#410):** Common, Combo and the Leaderboard tab's cards had no gate, so Back swapped them to "Loading" spinners and read them again (R1) |
+
+Leaderboards, Profile and Suggestions use their earlier inline keys ([architecture](../platforms/apple/architecture.md#reappearance-keeps-loaded-content)).
 
 ## Known debt
 

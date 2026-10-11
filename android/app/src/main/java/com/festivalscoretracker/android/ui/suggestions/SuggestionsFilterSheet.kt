@@ -14,7 +14,6 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
@@ -81,7 +80,6 @@ fun SuggestionsFilterSheet(
         titleTag = "fst.suggestions.filter.title",
         onDismissRequest = onDismiss,
     ) {
-        HorizontalDivider(color = BrandTokens.glassBorder)
         LazyColumn(Modifier.fillMaxWidth().testTag("fst.suggestions.filter.form")) {
             item { SectionTitle("Instruments", "fst.suggestions.filter.instruments") }
             items(instruments, key = { "instrument.${it.wireId}" }) { instrument ->
