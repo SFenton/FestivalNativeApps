@@ -50,7 +50,7 @@ The owner: "Filtered Player Score Display should work in native apps as it does 
 Tests:
 - Apple: `InvalidScorePolicyTests` (core), `SongPlayerScoreFilterTests.overThresholdChecksNeedFilterInvalidScoresAndAScoreAboveTheCeiling`, and `SelectedSongRowRenderTests.filteredScoresShowEffectiveScoresAndAnIndicatorAfterTheSong` (hosted Songs tree, iPhone width and wide).
 - Apple: `SongsSortSheetRenderTests.songsFilterSheetOffersOverThresholdOnlyWhileFilteringInvalidScores`.
-- Apple (#615): `SongPlayerScoreFilterTests.savedScoreFiltersApplyToEffectiveScoresAtEveryLeeway` (Score/FC, Over CHOpt, season, stars and percentile through substituted scores at several leeways and with the setting off), hosted `SongsSortSheetRenderTests.songsFilterSheetScoreChecksStayEnabledWhileFilteringInvalidScores` (role, order, enabled state, value, no paused copy), and the iPhone journey `SongsJourneyTests.testPlayerScoreFilterSettingsPauseAndDeselectScope` (no notice, saved check kept, switches enabled with labels and ≥ 43 pt height).
+- Apple (#615): `SongPlayerScoreFilterTests.savedScoreFiltersApplyToEffectiveScoresAtEveryLeeway` (Score/FC, Over CHOpt, season, stars and percentile through substituted scores at several leeways and with the setting off), hosted `SongsSortSheetRenderTests.songsFilterSheetScoreChecksStayEnabledWhileFilteringInvalidScores` (role, order, enabled state, value, no paused copy), and the iPhone journey `SongsJourneyTests.testPlayerScoreFilterSettingsPauseAndDeselectScope` (no notice, saved check kept, switches enabled with labels and ≥ 43 pt height; release CI runs it in `apple-ci`'s plain-fixture step, `PLAIN_JOURNEYS`).
 - Android: `SongsParityTest`.
 - Windows: `SongInvalidScoresTests`.
 

@@ -530,7 +530,7 @@ final class SongsJourneyTests: XCTestCase {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = SongsUITestSupport.fixtureApp()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_API_BASE_URL"] = SongsUITestSupport.fixtureURL
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launchArguments += [
             "-fst.settings.hideShop", "NO",
