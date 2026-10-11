@@ -172,7 +172,8 @@ class RivalDetailViewModel(
     private val accountId: String,
     private val rivalId: String,
     private val routeName: String?,
-    scope: RivalScope?,
+    /** Route scope (Settings-gated); it also picks the bar subtitle ([RivalScopes.detailSubtitle]). */
+    val scope: RivalScope?,
     private val allowLiveFallback: Boolean,
     visible: Set<Instrument>,
     private val repository: RivalsRepository,

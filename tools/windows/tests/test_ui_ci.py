@@ -71,6 +71,85 @@ class UiCiTests(unittest.TestCase):
         names = {page["name"] for page in pages}
         self.assertTrue({"song-band-pin-jump", "song-band-pin-open", "song-band-pin-no-player"} <= names)
 
+    def test_full_rankings_pinned_runs_at_default_largest_text_and_reduced_motion(self):
+        # Issue #466 (#318): Full Rankings' pinned "your rank" row (also on the player's own page) runs in CI at default
+        # and 225% text, and its keyboard jump with in-app Reduce Motion.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-full-rankings.json"}
+        self.assertEqual({"normal", "text-225", "app-reduced"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertEqual("", runs["normal"].only)
+        self.assertEqual("", runs["text-225"].only)
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        self.assertEqual("fr-pinned-jump-keyboard", runs["app-reduced"].only)
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-full-rankings.json").read_text(encoding="utf-8"))}
+        self.assertEqual({"fr-pinned-own-page", "fr-pinned-own-page-keyboard", "fr-pinned-jump-keyboard"}, set(pages))
+        own = pages["fr-pinned-own-page"]
+        self.assertTrue(own["profile"].startswith("fixture-player-2:"))
+        steps = own["after_ready"]
+        self.assertIn("assertsize:id=fst.full-rankings.spotlight-footer|40x40", steps)
+        self.assertTrue(any(step.startswith("assertread:id=fst.full-rankings.spotlight-footer|~^Your rank, 2nd")
+                            for step in steps))
+        self.assertTrue(any(step.startswith("assertorder:id=fst.full-rankings.title|id=fst.rankings.row.fixture-player-2|"
+                                            "id=fst.full-rankings.spotlight-footer|id=fst.full-rankings.page-first")
+                            for step in steps))
+
+    def test_leaderboards_card_jump_runs_at_default_largest_text_and_reduced_motion(self):
+        # Issue #493 (#370): a Leaderboards card's "your rank" row runs in CI at default and 225% text, and its keyboard
+        # jump to Full Rankings with in-app Reduce Motion.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-leaderboards-card-jump.json"}
+        self.assertEqual({"normal", "text-225", "app-reduced"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertEqual("", runs["normal"].only)
+        self.assertEqual("", runs["text-225"].only)
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        self.assertEqual("card-jump-row-keyboard", runs["app-reduced"].only)
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-leaderboards-card-jump.json").read_text(encoding="utf-8"))}
+        self.assertEqual({"card-jump-row", "card-jump-row-keyboard", "card-in-place-row"}, set(pages))
+        spotlight = "id=fst.leaderboards.card.Solo_Guitar.spotlight"
+        jump = pages["card-jump-row"]["after_ready"]
+        self.assertIn(f"assertsize:{spotlight}|40x40", jump)
+        self.assertTrue(any(step.startswith(f"assertread:{spotlight}|~^Your rank, 40th\\. Jump to your position")
+                            for step in jump))
+        keyboard = pages["card-jump-row-keyboard"]["after_ready"]
+        self.assertIn("key:enter", keyboard)
+        self.assertIn("waitfor:id=fst.rankings.row.fixture-rank-40@15", keyboard)
+        self.assertEqual(f"assertfocus:{spotlight}@3", keyboard[-2])
+
+    def test_search_all_section_titles_run_at_default_largest_text_and_reduced_motion(self):
+        # Issue #483 (#348): Search's All section titles run in CI at default and 225% text and with in-app Reduce
+        # Motion, while the file's other pages keep their generated runs.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-search.json" and run.only == ci.SEARCH_SECTIONS
+                and run.mode != "app-reduced"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        reduced = [run for run in ci.RUNS if run.pages == "a11y-search.json" and run.mode == "app-reduced"]
+        self.assertEqual(["search-all-sections,search-all-sections-keyboard"], [run.only for run in reduced])
+        self.assertTrue(all(run.scan for run in (*runs.values(), *reduced)))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        generated = {run.mode: set(run.only.split(",")) for run in ci.RUNS if run.name.startswith("a11y-search-")}
+        self.assertEqual({"normal", "text-225"}, set(generated))
+        for pages in generated.values():
+            self.assertIn("search-results-all", pages)
+            self.assertFalse(pages & set(ci.SEARCH_SECTIONS.split(",")))
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-search.json").read_text(encoding="utf-8"))}
+        steps = pages["search-all-sections"]["after_ready"]
+        for section, title in (("songs", "Songs"), ("players", "Players"), ("bands", "Bands")):
+            self.assertIn(f"assertread:id=fst.global-search.section.{section}|{title}, text", steps)
+            self.assertIn(f"assertstate:id=fst.global-search.section.{section}|heading=2", steps)
+            self.assertIn(f"assertstate:id=fst.global-search.section.{section}|focusable=false", steps)
+        self.assertIn("assertorder:id=fst.global-search.scope.all|id=fst.global-search.section.songs"
+                      "|id=fst.global-search.result.song", steps)
+        keyboard = pages["search-all-sections-keyboard"]
+        self.assertEqual(0, keyboard["tabs"])
+        focus = [step for step in keyboard["after_ready"] if step.startswith("assertfocus:")]
+        self.assertEqual(["scope.all", "result.song", "result.player", "result.band", "result.player", "result.song",
+                          "scope.all"], [step.split("fst.global-search.")[1].split("@")[0] for step in focus])
+        for scope in ("songs", "players", "bands"):
+            single = pages[f"search-results-{scope}"]["after_ready"]
+            self.assertTrue(any(step.startswith(f"waitgone:id=fst.global-search.section.{scope}") for step in single))
+
     def test_first_run_demos_run_at_default_and_largest_text(self):
         """#420 review: the first-run demo journey gates PRs, not just its JSON guard."""
         demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-demos.json"}
@@ -340,6 +419,32 @@ class UiCiTests(unittest.TestCase):
         for choice in ("Easy", "Medium", "Hard", "Expert", "Image", "Text"):
             self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[settled:])
         self.assertIn("assertsize:id=fst.paths.instrument.Solo_Guitar|40x40", wide[settled:])
+
+    def test_paths_instrument_picker_runs_in_ci(self):
+        # Issue #439 (#88): the compact Instrument ComboBox opens, reads each option by name in order without Karaoke,
+        # every option is a 40 epx target, and pointer and keyboard switches announce and keep focus. Checked in
+        # windows-ui at default and 225% text and with Animation effects off, Axe-scanned open and after the switch.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-swap.json"]
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-swap.json").read_text(encoding="utf-8"))
+        page = next(page for page in pages if page["name"] == "paths-instrument-picker")
+        self.assertTrue(page["scan"])
+        modes = {run.mode for run in runs if page in m.mode_pages(pages, run.mode)
+                 and m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({"normal", "text-225", "no-animations"}, modes)
+        steps = page["after_ready"]
+        expand = steps.index("expand:id=fst.paths.instrument.compact")
+        select = steps.index("select:name=Bass&class=ComboBoxItem")
+        for check in ("assertread:id=fst.paths.instrument.compact|Instrument, combo box, expanded",
+                      "assertread:name=Lead&class=ComboBoxItem|Lead, list item, selected",
+                      "assertbelow:name=Tap Vocals&class=ComboBoxItem|name=Drums&class=ComboBoxItem",
+                      "waitgone:name=Karaoke&class=ComboBoxItem@1", "scan:{stem}-open"):
+            self.assertIn(check, steps[expand:select])
+        for choice in ("Lead", "Bass", "Drums", "Tap Vocals"):
+            self.assertIn(f"assertsize:name={choice}&class=ComboBoxItem|40x40", steps[expand:select])
+        for check in ("assertannounced:Loading Bass Expert path@5", "assertstate:id=fst.paths.instrument.compact|value=Bass@5",
+                      "key:alt+down", "assertannounced:Loading Lead Expert path@5",
+                      "assertfocus:id=fst.paths.instrument.compact@3", "assertfocus:id=fst.paths.difficulty.compact@3"):
+            self.assertIn(check, steps[select:])
 
     def test_paths_chart_runs_every_page(self):
         # Issue #438 (#87, #279): the chart's centring, hidden scroll bars, names, order and keyboard panning are checked

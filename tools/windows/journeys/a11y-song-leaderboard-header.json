@@ -1,0 +1,131 @@
+[
+  {
+    "name": "song-band-header",
+    "note": "Issues #317, #465: the band board's song header is one 40+ epx button named by every visible line (title, artist, band size, entry total; web SongInfoHeader role=link named by its content) with help text, the title stays the page's level-1 heading, and the header reads before the band-size switcher and the rows. Tab/Shift+Tab walk header -> selected size -> first row and back; Enter on the header opens Song Details.",
+    "route": "/songs/fixture-pulse/bands/Band_Duets",
+    "fixture": ["--song-band-totals"],
+    "ready": [
+      "waitfor:id=fst.song-band-leaderboard.row.fixture-band-1:1@30",
+      "waitfor:id=fst.song-band-leaderboard.total@10",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:id=fst.song-band-leaderboard.song|Fixture Pulse, Synthetic Quartet, Duos, 29 Duos entries, button, Opens Song Details",
+      "assertstate:id=fst.song-band-leaderboard.song|type=button",
+      "assertstate:id=fst.song-band-leaderboard.song|invoke=true",
+      "assertstate:id=fst.song-band-leaderboard.song|focusable=true",
+      "assertstate:id=fst.song-band-leaderboard.title|heading=1",
+      "assertsize:id=fst.song-band-leaderboard.song|40x40",
+      "assertread:id=fst.song-band-leaderboard.band-type-menu|Band size: Duos, group",
+      "assertread:id=fst.song-band-leaderboard.band-type.Band_Duets|Duos, SelectorBarItem, selected",
+      "assertread:id=fst.song-band-leaderboard.band-type.Band_Trios|Trios, SelectorBarItem",
+      "assertorder:id=fst.song-band-leaderboard.song|id=fst.song-band-leaderboard.band-type-menu|id=fst.song-band-leaderboard.row.fixture-band-1:1",
+      "focus:id=fst.song-band-leaderboard.song",
+      "assertfocus:id=fst.song-band-leaderboard.song@3",
+      "key:tab",
+      "assertfocus:id=fst.song-band-leaderboard.band-type.Band_Duets@3",
+      "key:tab",
+      "assertfocus:id=fst.song-band-leaderboard.row.fixture-band-1:1@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.song-band-leaderboard.band-type.Band_Duets@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.song-band-leaderboard.song@3",
+      "waitgone:class=ToolTip@5"
+    ],
+    "teardown": [
+      "focus:id=fst.song-band-leaderboard.song",
+      "key:enter",
+      "waitfor:id=fst.song-detail.title@10"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "song-band-header-switch",
+    "note": "Issue #317 review, #465: a band-size switch by keyboard (Tab from the header to the selected size, then Right) renames the header at once with the new size and without the old size's total while the new size loads (held 5 s); focus stays on the size, and Shift+Tab reaches the header. After the empty size lands the header still names no total.",
+    "route": "/songs/fixture-pulse/bands/Band_Duets",
+    "fixture": ["--song-band-totals", "--song-band-slow", "Band_Trios"],
+    "ready": [
+      "waitfor:id=fst.song-band-leaderboard.row.fixture-band-1:1@30",
+      "waitfor:id=fst.song-band-leaderboard.total@10",
+      "wait:1"
+    ],
+    "after_ready": [
+      "focus:id=fst.song-band-leaderboard.song",
+      "assertfocus:id=fst.song-band-leaderboard.song@3",
+      "key:tab",
+      "assertfocus:id=fst.song-band-leaderboard.band-type.Band_Duets@3",
+      "key:right",
+      "assertread:id=fst.song-band-leaderboard.band-type.Band_Trios|Trios, SelectorBarItem, selected@2",
+      "assertread:id=fst.song-band-leaderboard.song|Fixture Pulse, Synthetic Quartet, Trios, button, Opens Song Details@2",
+      "waitgone:id=fst.song-band-leaderboard.total@1",
+      "assertread:id=fst.song-band-leaderboard.band-type-menu|Band size: Trios, group",
+      "assertread:name=Busy Loading band scores|Busy Loading band scores, ProgressRing",
+      "assertorder:id=fst.song-band-leaderboard.song|id=fst.song-band-leaderboard.band-type-menu|name=Busy Loading band scores",
+      "assertfocus:id=fst.song-band-leaderboard.band-type.Band_Trios",
+      "key:shift+tab",
+      "assertfocus:id=fst.song-band-leaderboard.song@3",
+      "key:tab",
+      "assertfocus:id=fst.song-band-leaderboard.band-type.Band_Trios@3",
+      "waitfor:id=fst.song-band-leaderboard.empty@10",
+      "assertread:id=fst.song-band-leaderboard.song|Fixture Pulse, Synthetic Quartet, Trios, button, Opens Song Details",
+      "waitgone:id=fst.song-band-leaderboard.total@1"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "song-band-header-unresolved",
+    "note": "Issue #317, #465: with an unresolved song the header is not a button (no UIA button, no tab stop); its board line still reads before the switcher and the failure state, and Tab never lands on the header.",
+    "route": "/songs/missing-song/bands/Band_Trios",
+    "ready": [
+      "waitfor:name=Failed to load band leaderboard@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "waitgone:id=fst.song-band-leaderboard.song@1",
+      "assertread:id=fst.song-band-leaderboard.subtitle|Trios, text",
+      "assertread:id=fst.song-band-leaderboard.band-type-menu|Band size: Trios, group",
+      "assertorder:id=fst.song-band-leaderboard.subtitle|id=fst.song-band-leaderboard.band-type-menu|name=Failed to load band leaderboard|name=Retry",
+      "focus:id=fst.song-band-leaderboard.band-type.Band_Trios",
+      "assertfocus:id=fst.song-band-leaderboard.band-type.Band_Trios@3",
+      "key:tab",
+      "assertfocus:name=Retry@3",
+      "key:tab",
+      "assertfocus:id=PART_BackButton@3",
+      "key:shift+tab",
+      "assertfocus:name=Retry@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.song-band-leaderboard.band-type.Band_Trios@3"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "song-solo-header",
+    "note": "Issues #317, #465: the solo board shares the header: one 40+ epx button named by title, artist, instrument and entry total, the title is the level-1 heading, Tab goes header -> first row, and Enter opens Song Details.",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "ready": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-1@30",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:id=fst.song-leaderboard.song|Fixture Pulse, Synthetic Quartet, Lead, 26 Lead entries, button, Opens Song Details",
+      "assertstate:id=fst.song-leaderboard.song|type=button",
+      "assertstate:id=fst.song-leaderboard.song|focusable=true",
+      "assertstate:id=fst.song-leaderboard.title|heading=1",
+      "assertsize:id=fst.song-leaderboard.song|40x40",
+      "assertorder:id=fst.song-leaderboard.song|id=fst.song-leaderboard.row.fixture-player-1",
+      "focus:id=fst.song-leaderboard.song",
+      "assertfocus:id=fst.song-leaderboard.song@3",
+      "key:tab",
+      "assertfocus:id=fst.song-leaderboard.row.fixture-player-1@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.song-leaderboard.song@3",
+      "waitgone:class=ToolTip@5"
+    ],
+    "teardown": [
+      "focus:id=fst.song-leaderboard.song",
+      "key:enter",
+      "waitfor:id=fst.song-detail.title@10"
+    ],
+    "tabs": 0
+  }
+]

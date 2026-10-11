@@ -123,8 +123,9 @@ final class SongSeasonAccessibilityJourneyTests: XCTestCase {
 
         if audit {
             var issues: [String] = []
-            try app.performAccessibilityAudit(
-                for: [.dynamicType, .textClipped, .hitRegion, .sufficientElementDescription]
+            try SongsUITestSupport.performAuditRetryingTimeout(
+                app, [.dynamicType, .textClipped, .hitRegion, .sufficientElementDescription],
+                name: "score history \(category)", reset: { issues.removeAll() }
             ) { issue in
                 let id = issue.element?.identifier ?? ""
                 guard id.hasPrefix("fst.song-detail.history.row.") || id == Self.detailId else { return true }

@@ -229,7 +229,7 @@ class LoadFadeWindowAccessibilityJourneyTest {
         settle()
     }
 
-    /** Let flings, the hide-on-scroll chrome and running entrances finish. */
+    /** Let flings and running entrances finish. */
     private fun settle() {
         rule.waitForIdle()
         rule.mainClock.advanceTimeBy(SETTLE_MILLIS)

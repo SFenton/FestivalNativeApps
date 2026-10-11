@@ -173,6 +173,18 @@ public abstract record RivalScope
         _ => "Combined Rivals",
     };
 
+    /// <summary>
+    /// The one chart a single-instrument scope (song or leaderboard rivals) is about, whose icon leads the All Rivals
+    /// title and the Rival Detail subtitle (page-tools-and-nav-chrome R18, #557, #604); <see langword="null"/> for lists
+    /// spanning several charts (Common, combos, Settings-derived).
+    /// </summary>
+    public Instrument? SingleInstrument => this switch
+    {
+        Song { IsCommon: false, Mask: not 0 } s => s.Instruments[0],
+        Leaderboard l => l.Instrument,
+        _ => null,
+    };
+
     /// <summary>Compact token for <c>?scope=</c> on rival detail and rivalry paths.</summary>
     /// <returns><c>song:A,B</c>, <c>leaderboard:A:metric</c>, <c>combo:03</c> or <c>settings:common</c>.</returns>
     public string ToToken() => this switch

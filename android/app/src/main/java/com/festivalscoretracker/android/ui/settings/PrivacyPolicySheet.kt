@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,6 +36,7 @@ import com.festivalscoretracker.android.core.privacy.PrivacyPolicySection
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalModalDialog
 import com.festivalscoretracker.android.ui.common.FestivalModalSheet
+import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -85,22 +85,33 @@ fun PrivacyPolicySheet(compact: Boolean, onDismiss: () -> Unit, loadPolicy: (sus
 
 /**
  * Settings → Privacy Policy in the Settings detail pane (list/detail Settings, issue #371): the same policy
- * text as the modal, under the pane's [header] instead of a modal title bar. The policy scrolls in the pane.
+ * text as the modal, under the pane's [header] instead of a modal title bar, inside one [GlassCard] like
+ * every other detail's options (issue #609: on the bare pane the text sat straight on the artwork). The
+ * caller's detail column scrolls it and caps it at the page column width; the card turns opaque with
+ * Reduce Transparency or Increase Contrast, so the text never depends on the artwork behind it.
  *
- * @param padding Page content padding from the Settings screen.
- * @param header Pane heading (the detail's title and hint).
+ * @param header Pane heading (the detail's title and hint), above the card.
  * @param loadPolicy Policy source (the bundled asset by default).
  */
 @Composable
-internal fun PrivacyPolicyPane(padding: PaddingValues, header: @Composable () -> Unit, loadPolicy: (suspend () -> PrivacyPolicy)? = null) {
+internal fun PrivacyPolicyPane(header: @Composable () -> Unit, loadPolicy: (suspend () -> PrivacyPolicy)? = null) {
     val policy = rememberPrivacyPolicy(loadPolicy)
-    Column(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).testTag("fst.privacy-policy.pane")) {
-        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) { header() }
-        PolicyBody(
-            policy,
-            Modifier.fillMaxHeight(),
-            PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = padding.calculateBottomPadding() + 24.dp),
-        )
+    Column(Modifier.fillMaxWidth().testTag("fst.privacy-policy.pane")) {
+        header()
+        if (policy == null) return@Column
+        GlassCard(Modifier.fillMaxWidth().testTag("fst.privacy-policy.card")) {
+            if (policy.isEmpty) {
+                FestivalEmptyState("The privacy policy could not be loaded.", Modifier.fillMaxWidth().padding(16.dp).testTag("fst.privacy-policy.empty"))
+            } else {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp).testTag("fst.privacy-policy.content"),
+                ) {
+                    if (policy.effectiveDateText.isNotBlank()) EffectiveDate(policy.effectiveDateText)
+                    policy.sections.forEach { PolicySection(it) }
+                }
+            }
+        }
     }
 }
 
@@ -141,17 +152,20 @@ private fun ColumnScope.PolicyBody(
         modifier = modifier.weight(1f, fill = false).fillMaxWidth().testTag("fst.privacy-policy.content"),
     ) {
         if (policy.effectiveDateText.isNotBlank()) {
-            item(key = "effective-date") {
-                Text(
-                    policy.effectiveDateText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = BrandTokens.textSecondary,
-                    modifier = Modifier.testTag("fst.privacy-policy.effective-date"),
-                )
-            }
+            item(key = "effective-date") { EffectiveDate(policy.effectiveDateText) }
         }
         items(policy.sections, key = { it.id.ifBlank { it.title } }) { section -> PolicySection(section) }
     }
+}
+
+@Composable
+private fun EffectiveDate(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = BrandTokens.textSecondary,
+        modifier = Modifier.testTag("fst.privacy-policy.effective-date"),
+    )
 }
 
 @Composable
