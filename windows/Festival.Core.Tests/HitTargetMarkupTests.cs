@@ -304,6 +304,16 @@ public class HitTargetMarkupTests
     }
 
     [Theory]
+    [InlineData("Pages/SongDetailPage.xaml")]
+    [InlineData("Pages/PlayerHistoryPage.xaml")]
+    public void ScoreHistoryRetry_UsesMinTarget(string file)
+    {
+        // Issue #512 (#198): Song Detail's still-syncing Score History Retry was WinUI's 32 epx button height.
+        var retry = Assert.Single(ById(Load(file), "fst.history.retry"));
+        Assert.Equal(Resource, Attr(retry, "MinHeight"));
+    }
+
+    [Theory]
     [InlineData("Controls/ServiceStatusView.xaml")]
     [InlineData("Controls/ServiceStatusInline.xaml")]
     public void ServiceStatus_RetryUsesMinTargetAndCountdownCollapses(string file)
