@@ -76,8 +76,10 @@ public sealed class SongScoreSource
     }
 
     /// <summary>
-    /// Builds Song Detail's source (web <c>SongDetailPage</c> + <c>filterPlayerScores</c>): with Filter Invalid Scores on,
-    /// the player's row eleven shows the same effective score as Songs, without Songs' Over CHOpt Threshold exemption.
+    /// Builds Song Detail's source (web <c>SongDetailPage</c> + <c>filterPlayerScores</c>, invalid-scores R4): with
+    /// Filter Invalid Scores on, the player's row eleven shows the filtered score
+    /// (<see cref="InvalidScorePolicy.ResolveFiltered"/>: no Over CHOpt Threshold exemption, no legacy fallback when
+    /// <c>minLeeway</c> is present), or no row.
     /// </summary>
     /// <param name="session">Session.</param>
     /// <param name="song">The page's song (CHOpt maxima and population curves), or <see langword="null"/> for raw scores.</param>
@@ -85,7 +87,7 @@ public sealed class SongScoreSource
     public static SongScoreSource ForDetail(FestivalSession session, Song? song) =>
         !session.Settings.FilterInvalidScores || song is null
             ? For(session, null)
-            : For(session, new InvalidScoreContext([song], session.Settings.Leeway, []));
+            : For(session, new InvalidScoreContext([song], session.Settings.Leeway, [], songDetails: true));
 
     /// <summary>Builds the source, optionally resolving invalid scores.</summary>
     /// <param name="session">Session.</param>
@@ -118,17 +120,20 @@ public sealed class SongScoreSource
         private readonly Dictionary<string, Song> songs;
         private readonly double leeway;
         private readonly HashSet<Instrument> overThreshold;
+        private readonly bool songDetails;
 
         /// <summary>Captures the context.</summary>
         /// <param name="songs">Catalogue rows.</param>
         /// <param name="leeway">Leeway percent.</param>
         /// <param name="overThreshold">Charts whose raw invalid scores stay (Over CHOpt Threshold checks).</param>
-        public InvalidScoreContext(IReadOnlyList<Song> songs, double leeway, IEnumerable<Instrument> overThreshold)
+        /// <param name="songDetails">Use Song Details' rule (<see cref="InvalidScorePolicy.ResolveFiltered"/>).</param>
+        public InvalidScoreContext(IReadOnlyList<Song> songs, double leeway, IEnumerable<Instrument> overThreshold, bool songDetails = false)
         {
             this.songs = new Dictionary<string, Song>(StringComparer.Ordinal);
             foreach (var song in songs) this.songs.TryAdd(song.SongId, song);
             this.leeway = leeway;
             this.overThreshold = [.. overThreshold];
+            this.songDetails = songDetails;
         }
 
         /// <summary>Resolves one raw score.</summary>
@@ -136,8 +141,9 @@ public sealed class SongScoreSource
         /// <param name="songId">Song.</param>
         /// <param name="chart">Chart.</param>
         /// <returns>Resolution.</returns>
-        public InvalidScoreResolution Resolve(PlayerScore score, string songId, Instrument chart) =>
-            InvalidScorePolicy.Resolve(score, ToDetail(score), songs.GetValueOrDefault(songId), chart, leeway, overThreshold.Contains(chart));
+        public InvalidScoreResolution Resolve(PlayerScore score, string songId, Instrument chart) => songDetails
+            ? InvalidScorePolicy.ResolveFiltered(score, ToDetail(score), songs.GetValueOrDefault(songId), chart, leeway)
+            : InvalidScorePolicy.Resolve(score, ToDetail(score), songs.GetValueOrDefault(songId), chart, leeway, overThreshold.Contains(chart));
     }
 
     /// <summary>Loads (or reuses) the selected player's scores; failures are recorded by the session.</summary>

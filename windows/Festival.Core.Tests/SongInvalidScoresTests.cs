@@ -80,6 +80,25 @@ public class SongInvalidScoresTests
     }
 
     [Fact]
+    public void ResolveFiltered_SongDetailsUsesTheWebFilterPlayerScoresRule()
+    {
+        static InvalidScoreResolution Filtered(PlayerScore score) =>
+            InvalidScorePolicy.ResolveFiltered(score, SongScoreSource.ToDetail(score), Chart, Instrument.Lead, 1);
+
+        // minLeeway present and invalid: only validScores may replace it, never the legacy fields (web filterPlayerScores).
+        var noVariants = Filtered(Score(500, minLeeway: 2, validScore: 450));
+        Assert.Equal((null, InvalidScoreReason.NoFallback), (noVariants.Detail, noVariants.Reason));
+        Assert.Equal(450L, Resolve(Score(500, minLeeway: 2, validScore: 450)).Detail!.Score); // Songs' effectiveScores keeps legacy
+        var variant = Filtered(Score(500, minLeeway: 2, variants: [new PlayerValidScoreVariant { Score = 400, MinLeeway = 0 }], validScore: 450));
+        Assert.Equal((400L, InvalidScoreReason.Fallback), (variant.Detail!.Score, variant.Reason));
+        Assert.Equal(500L, Filtered(Score(500, minLeeway: 0.5, validScore: 450)).Detail!.Score);
+
+        // Without minLeeway: the CHOpt ceiling and the legacy fallback apply, and there is no Over CHOpt Threshold exemption.
+        Assert.Equal((990L, InvalidScoreReason.Fallback), (Filtered(Score(2000, validScore: 990)).Detail!.Score, Filtered(Score(2000, validScore: 990)).Reason));
+        Assert.Null(Filtered(Score(2000)).Detail);
+    }
+
+    [Fact]
     public void Filter_OverThresholdNeedsARawScoreOverTheMaximum()
     {
         var songs = new[] { Chart, Chart with { SongId = "s2" }, Chart with { SongId = "s3" } };

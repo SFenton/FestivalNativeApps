@@ -108,6 +108,22 @@ public static class InvalidScorePolicy
             TotalEntries = score.ValidTotalEntries ?? raw.TotalEntries,
         }, InvalidScoreReason.Fallback);
     }
+
+    /// <summary>
+    /// Resolves one raw score by Song Details' rule (web <c>filterPlayerScores</c>, invalid-scores R4): no Over CHOpt
+    /// Threshold exemption, and with <c>minLeeway</c> present only a <c>validScores</c> variant can replace the score
+    /// (the legacy <c>validScore</c> fields apply only to scores without <c>minLeeway</c>).
+    /// </summary>
+    /// <param name="score">Raw wire score.</param>
+    /// <param name="raw">Its unfiltered detail.</param>
+    /// <param name="song">Catalogue row (CHOpt maximum, population curve).</param>
+    /// <param name="chart">Chart.</param>
+    /// <param name="leeway">Leeway percent.</param>
+    /// <returns>Effective detail and reason.</returns>
+    public static InvalidScoreResolution ResolveFiltered(PlayerScore score, SongScoreDetail raw, Song? song, Instrument chart, double leeway) =>
+        score.MinLeeway is { } min && min > leeway && score.ValidScores is not { Count: > 0 }
+            ? new(null, InvalidScoreReason.NoFallback)
+            : Resolve(score, raw, song, chart, leeway, false);
 }
 #endregion
 

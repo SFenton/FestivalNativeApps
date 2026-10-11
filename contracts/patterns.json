@@ -3535,8 +3535,28 @@
             "symbol": "InvalidScorePolicy"
           },
           {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "ResolveFiltered"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "InvalidScoreWarning"
+          },
+          {
+            "path": "windows/Festival.Core/Data/Models.cs",
+            "symbol": "FilteredPopulation"
+          },
+          {
             "path": "windows/Festival.Core/ViewModels/SongScoreSource.cs",
             "symbol": "ForSongs"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongScoreSource.cs",
+            "symbol": "ForDetail"
+          },
+          {
+            "path": "windows/Festival.App/Controls/InvalidScoreIndicator.cs",
+            "symbol": "InvalidScoreIndicator"
           }
         ]
       },

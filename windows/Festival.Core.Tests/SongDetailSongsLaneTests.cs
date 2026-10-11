@@ -223,6 +223,27 @@ public class SongDetailSongsLaneTests
     }
 
     [Fact]
+    public async Task RowEleven_HidesAnInvalidScoreWithMinLeewayButNoValidVariant()
+    {
+        // invalid-scores R4 (web filterPlayerScores): with ml present only vs can replace it, so the legacy 950 is ignored.
+        var legacyOnly = ""","ml":2.0,"validScore":950""";
+        var service = new FakeService();
+        SongsWire.Install(service, player: true, profiles: new()
+        {
+            [PlayerWire.Id] = (HttpStatusCode.OK, PlayerWire.Profile(PlayerWire.Id, "Fixture One", PlayerWire.Score("s2", "01", 1200, 990, true, 6, 30, 100, 30, legacyOnly))),
+        });
+        var session = service.Session(settings: new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One"), FilterInvalidScores = true });
+        var vm = new SongDetailViewModel(session, new AppRoute.SongDetail("s2"));
+        await vm.LoadAsync();
+        var lead = vm.Leaderboards.Single(b => b.Instrument == Instrument.Lead);
+        Assert.DoesNotContain(lead.Rows, r => r.IsSelectedPlayer);
+
+        session.UpdateSettings(s => s with { FilterInvalidScores = false });
+        Assert.Contains("1,200", lead.Rows.Single(r => r.IsSelectedPlayer).Score, StringComparison.Ordinal);
+        vm.Detach();
+    }
+
+    [Fact]
     public async Task RowEleven_FollowsScoresThatArriveAfterLoad()
     {
         var service = new FakeService();
