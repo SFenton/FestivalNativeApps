@@ -511,6 +511,24 @@ Backfills CI tests for the #348 Windows change: in the All scope, Search titles 
 
 No accessibility defect was found. Harness rule: `assertbelow`, `assertapart` and `assertorder` need both elements on screen, so each later title's checks follow the `reveal:` of its first row (at 225% text the Bands title starts below the fold).
 
+## Song Band Leaderboard accessibility tests (issue #510, 2026-10-11)
+
+Backfills CI tests for the #196 Windows change: each band card on a song's Duos/Trios/Quads board is one Narrator stop named in visual order, the empty and failure states name themselves, and the accuracy pill follows contrast themes. Before this, `windows-ui` checked the header (`a11y-song-leaderboard-header.json`), the pin (`a11y-song-band-pinned.json`), the rank rail and a partial row phrase in the load swap, but not the full row phrase, the row's role, its parts staying out of the control view, the empty state or the pill. New `journeys/a11y-song-band-leaderboard.json` (`rivals_fixture.py`, `Band_Duets`; `Band_Trios` empty; `missing-song` failure) is a set of `windows-ui` runs in `tools/windows/ui_ci.py` (`song-band-board`, `-text-225`). They assert:
+- `sbl-rows`: rows 1 and 2 read "Rank 1. Band 1 Member A, Lead, 94,500 points. Band 1 Member B, Bass, 94,000 points. Team score 94,500 points, full combo, 96.5% accuracy, 5 stars, list item" (row 2 without "full combo"); the row is a `ListItem` with Invoke, focusable and at least 40 epx tall; its `.rank`, `.accuracy` and the star row exist in the raw view only, and no member name, instrument, `.members` or star `Image` is in the control view; reading order header → size switcher → row 1; Down/Up move between rows, Enter opens Band Detail and Back returns to the row;
+- `sbl-empty`: "No band scores found, text" is a Level 2 heading, not focusable, after the switcher (Trios selected) and before its message; no list, pager or entry total is left;
+- `sbl-error`: "Failed to load band leaderboard, text" is a Level 2 heading, then "Retry, button" (40×40 epx, Invoke); Tab and Shift+Tab move between the Trios switcher item and Retry;
+- `sbl-accuracy-pill-contrast` (medium, default theme only; it switches Desert on and off in the running app): the pill paints navy `#223047`, then ButtonFace `#FFFAEF` with a ButtonText `#202020` edge under Desert, then navy again (`assertpaint` on the raw `.accuracy` ID).
+
+`tests/test_ui_ci.py` pins the runs and the key checks. `tabs: 0` on every page: the rows' ordered keyboard steps replace the walk.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`song-band-board`, all 4 pages; the pill page at medium) | Pass, Axe 0 |
+| Text 225% (compact, rows, empty, error) | Pass, Axe 0 |
+| Regression check: `StarRow` fix reverted | `sbl-rows` fails: "element id=fst.star-rating.white-5 is still on screen" |
+
+**Failed, fixed:** every band card (and every Raw `StarRow` host: leaderboard rows, Song Detail band previews, Band Detail gold stars, Songs rows; Suggestions and Songs metadata stars, which aren't Raw, keep their `Image`) exposed its stars as a second control-view `Image "5 stars"` inside the one-stop row, so scan mode read the rating twice. `StarRowPeer.IsControlElementCore` returned `true` regardless of the host's `AccessibilityView="Raw"`; it and `IsContentElementCore` now follow `AutomationProperties.AccessibilityView`. Rule: a custom `AutomationPeer` that overrides `IsControlElementCore`/`IsContentElementCore` must honour the owner's `AccessibilityView`, or Raw in XAML silently stops working. `journeys/star-rating.json` now finds leaderboard stars with `raw=`.
+
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
 Accessibility tests for #77. The no-profile Filter pages moved into `journeys/a11y-songs-filter.json` (`songs-filter-anonymous`, `songs-filter-anonymous-year`, `kb-songs-filter-anonymous`), which `tools/windows/ui_ci.py` runs in `windows-ui` at default text (compact, medium) and 225% text (compact); `tests/test_ui_ci.py` keeps both runs. They assert Narrator phrases, reading order, 40×40 epx targets, the toggle and expand states, the applied "Filters applied" status and the keyboard walk ([songs-filter windows](../controls/songs-filter/windows.md#accessibility-tests-issue-432-no-profile)).
