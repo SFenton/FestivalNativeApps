@@ -618,7 +618,7 @@
       "title": "Surface materials",
       "status": "current",
       "doc": ".agents/patterns/surface-materials.md",
-      "summary": "Use one native frosted material surface for content cards, rows and custom floating controls; reserve Liquid Glass and system materials for navigation and chrome; opaque fallbacks win for contrast and reduced transparency. Owner-approved #596 variant: the Apple profile's Duos, Trios and Quads band previews are one grouped card each (rows with hairlines, purple View All inside), unlike the web's per-band frosted cards.",
+      "summary": "Use one native frosted material surface for content cards, rows and custom floating controls; reserve Liquid Glass and system materials for navigation and chrome; opaque fallbacks win for contrast and reduced transparency. Owner-approved #596 variant: the Apple profile's Duos, Trios and Quads band previews are one grouped card each (rows with hairlines, purple View All inside), unlike the web's per-band frosted cards. Android draws a long lazy list as one card from GlassCardSegment pieces (All Rivals, Rivalry, #603).",
       "keywords": [
         "material",
         "glass",
@@ -674,6 +674,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt",
             "symbol": "GlassCard"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt",
+            "symbol": "GlassCardSegment"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/theme/FestivalTheme.kt",
@@ -4197,7 +4201,7 @@
       "title": "Experimental ranks",
       "status": "current",
       "doc": ".agents/patterns/experimental-ranks.md",
-      "summary": "Settings \u2192 Enable Experimental Leaderboard Ranks (off by default, reset by Reset) is the one gate for the experimental ranking metrics app-wide like the web: while off, Rank By offers Total Score only and is hidden in-page (the Mac View \u203a Rank By submenu lists only Total Score); saved, routed and selected metrics are coerced to Total Score at read time, never rewritten; turning it off returns open pages to Total Score; on offers Adjusted, Weighted, FC Rate and Max Score (bands without Max Score); Rivals Rank By, profile rank tiles, rank notifications (web projection) and the first-run slide follow it (#541).",
+      "summary": "Settings → Enable Experimental Leaderboard Ranks (off by default, reset by Reset) is the one gate for the experimental ranking metrics app-wide like the web: while off, Rank By offers Total Score only and is hidden in-page (the Mac View › Rank By submenu lists only Total Score); saved, routed and selected metrics are coerced to Total Score at read time, never rewritten; turning it off returns open pages to Total Score; on offers Adjusted, Weighted, FC Rate and Max Score (bands without Max Score); Rivals Rank By, profile rank tiles, rank notifications (web projection) and the first-run slide follow it (#541).",
       "keywords": [
         "experimental ranks",
         "experimental leaderboard ranks",
@@ -4343,7 +4347,7 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/firstrun/FirstRunRotatingDemos.kt"
           ],
           "debt": [],
-          "message": "Rank By menus and metric lists offer RankingMetric.enabled / BandRankingMetric.enabled (or a view model's gated options), never every metric, so Settings \u2192 Experimental Ranks gates them (experimental-ranks R1)."
+          "message": "Rank By menus and metric lists offer RankingMetric.enabled / BandRankingMetric.enabled (or a view model's gated options), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1)."
         },
         {
           "id": "apple-ungated-metric-list",
@@ -4365,7 +4369,7 @@
             "windows/Festival.Core/ViewModels/RivalsViewModels.cs"
           ],
           "debt": [],
-          "message": "Rank By menus offer RankingMetricInfo.Enabled / BandRankingMetricInfo.Enabled (a view model's gated MetricOptions), never every metric, so Settings \u2192 Experimental Ranks gates them (experimental-ranks R1). Band Detail and the Rivals hub list every metric only behind ShowRankBy / ShowMetricPicker."
+          "message": "Rank By menus offer RankingMetricInfo.Enabled / BandRankingMetricInfo.Enabled (a view model's gated MetricOptions), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1). Band Detail and the Rivals hub list every metric only behind ShowRankBy / ShowMetricPicker."
         }
       ],
       "supersedes": [],
@@ -4496,7 +4500,7 @@
       "title": "Rival rows",
       "status": "current",
       "doc": ".agents/patterns/rival-rows.md",
-      "summary": "Rows inside Rivals cards: the hub's rival rows and the song comparison rows on Rival Detail, Rivalry and the Duo category cards. One row component per kind on every surface, one shared red/green status capsule with text (readable red text), album art leading every song row through the shared ArtworkTile (art vertically centred alone, above the instrument icon when both, owner #558), one spoken element per row that names who leads, and pills that stack and wrap at accessibility sizes. Apple and Windows song rows show '#rank Name' pills for both sides, the leader green and the trailer red (agent decisions #558, #603, owner may override). Each rival list is one card of rows with hairlines, never a card per row (R6, #603).",
+      "summary": "Rows inside Rivals cards: the hub's rival rows and the song comparison rows on Rival Detail, Rivalry and the Duo category cards. One row component per kind on every surface, one shared red/green status capsule with text (readable red text), album art leading every song row through the shared ArtworkTile (art vertically centred alone, above the instrument icon when both, owner #558), one spoken element per row that names who leads, and pills that stack and wrap at accessibility sizes. Apple, Android and Windows song rows show '#rank Name' pills for both sides, the leader green and the trailer red, with a rank-delta badge and no scores (agent decisions #558, #603, owner may override). Each rival list is one card of rows with hairlines, never a card per row (R6, owner #603): the hub and Compete rivals cards with View All inside, each Rival Detail category, and All Rivals and Rivalry (Android lazy card segments, Windows grouped ListView slices).",
       "keywords": [
         "rival",
         "rivals",
@@ -4507,7 +4511,10 @@
         "behind",
         "pill",
         "status pill",
-        "album art"
+        "album art",
+        "one card",
+        "card segment",
+        "closest battles"
       ],
       "web": [
         {
@@ -4554,6 +4561,22 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
             "symbol": "RivalSongRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalPreviewRows"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalCardSegment"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalDeltaBadge"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rivals/RivalAnalysis.kt",
+            "symbol": "RivalSongStanding"
           }
         ],
         "windows": [
@@ -4588,7 +4611,8 @@
           "rivals",
           "all-rivals",
           "rival-detail",
-          "rivalry"
+          "rivalry",
+          "compete"
         ]
       },
       "guards": []
