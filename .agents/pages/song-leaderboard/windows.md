@@ -90,6 +90,14 @@ The #295 pinned-row gate has its own pages (issue #457): `tools/windows/journeys
 
 The entrance timing (pinned row fading in with the rows) stays in `fade_journey.py`'s song-board scenario. `tools/windows/tests/test_song_pinned_reveal_journey.py` pins the pages, the fixture flags and the runs. No accessibility defect was found.
 
+The states #197 changed have their own pages (issue #511): `tools/windows/journeys/a11y-song-board-states.json`, run by `ui_ci.py` as `song-board-states` (compact and medium), `-text-225`, `-reduced` (in-app Reduce Motion) and `-contrast` (Desert).
+- Pinned row ID: the list row reads "Your rank, 1st. Fixture Player 1, …" and the pinned row "Your rank, 1st. Open your statistics. …"; they are separate UIA elements (`assertapart`), in header → rows → pinned row order.
+- Empty board (Bass, `totalEntries` 0): the header reads "Fixture Pulse, Synthetic Quartet, Bass, button, Opens Song Details" with no "0 Bass entries"; the title stays heading 1, "No scores yet." reads after the header, and there is no pager or pinned row.
+- Contrast plate (`hc-desert`, scrolled to 50%): the footer is a hard edge, and no Desert WindowText (#3D3D3D) pixels sit beside First/Last or between the pinned row and the pager. The plate is redundant with the #308 hard edge (the probes pass with only the plate removed), so the probes guard what users see: with the plate and hard edge both off they fail on row text beside the pager.
+- Trimmed name (Reduce Motion stops the marquee; `leaderboards_fixture.py --long-name` gives rank 2 a long name): Narrator reads the full name; Down from row 1 focuses row 2 and its tool tip reads the full name; Down to row 3 (a name that fits) closes it.
+
+Mutation-tested (total shown at 0, tool tip removed, pinned row given the list row's ID): each fails its page. `tools/windows/tests/test_song_leaderboard_a11y_journey.py` pins the pages and runs. No accessibility defect was found.
+
 ## IDs
 
 `fst.song-leaderboard.title`, `.artist`, `.instrument`, `.total` (only when shown), `.list`, `.row.<accountId>`, `.spotlight-footer` (jumps or opens Statistics, R7; `.spotlight-jump` was removed in #307), `.page-first|page-previous|page-info|page-next|page-last`.
