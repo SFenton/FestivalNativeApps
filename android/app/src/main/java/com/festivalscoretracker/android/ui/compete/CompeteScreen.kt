@@ -307,16 +307,18 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                             }
                         }
                         }
-                    }
-                    if (fullBoard != null) {
-                        val rows = value.entries.size + (if (value.spotlight != null) 1 else 0)
-                        ViewFullLeaderboardButton(
-                            onClick = fullBoard,
-                            modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(body + rows)),
-                            label = CompeteText.VIEW_FULL_LEADERBOARDS,
-                            testTag = "fst.compete.view-full-leaderboards",
-                            cardName = scope.label,
-                        )
+                        // `view-all-cta` R1 (Android, #603): the CTA ends the card inside it, inset 12 dp like
+                        // the rivals card beside it and Song Detail's previews (the rows' 8 dp padding is above it).
+                        if (fullBoard != null) {
+                            val rows = value.entries.size + (if (value.spotlight != null) 1 else 0)
+                            ViewFullLeaderboardButton(
+                                onClick = fullBoard,
+                                modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp).festivalFadeIn(revealed, fadeInStagger(body + rows)),
+                                label = CompeteText.VIEW_FULL_LEADERBOARDS,
+                                testTag = "fst.compete.view-full-leaderboards",
+                                cardName = scope.label,
+                            )
+                        }
                     }
                 }
             }
@@ -325,8 +327,8 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
 }
 
 /**
- * One scope's rivals card: its header, then three above / three below and View All Rivals (or
- * empty copy, or an inline error), each fading in at its place in the page order.
+ * One scope's rivals card: its header, then one card of three above / three below ending in View
+ * All Rivals (or empty copy, or an inline error), fading in at its place in the page order.
  *
  * @param section Scope state.
  * @param viewModel Page logic (retry).

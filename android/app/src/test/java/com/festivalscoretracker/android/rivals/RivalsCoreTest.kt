@@ -27,11 +27,13 @@ import com.festivalscoretracker.android.core.rivals.RivalScopes
 import com.festivalscoretracker.android.core.rivals.RivalSentiment
 import com.festivalscoretracker.android.core.rivals.RivalSettingsScope
 import com.festivalscoretracker.android.core.rivals.RivalSongComparison
+import com.festivalscoretracker.android.core.rivals.RivalSongStanding
 import com.festivalscoretracker.android.core.rivals.RivalSummary
 import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.core.rivals.RivalrySort
 import com.festivalscoretracker.android.core.rivals.RivalsListResponse
 import com.festivalscoretracker.android.core.rivals.rivalEntries
+import com.festivalscoretracker.android.ui.design.CardSegment
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -310,20 +312,54 @@ class RivalsCoreTest {
         assertEquals("+1.5M", RivalHeadToHead.formatRankDelta(1_500_000, Locale.US))
         assertEquals("+2M", RivalHeadToHead.formatRankDelta(2_000_000, Locale.US))
         assertEquals("−12M", RivalHeadToHead.formatRankDelta(-12_345_678, Locale.US))
-        assertEquals("+20", RivalHeadToHead.formatScoreDiff(song(20), Locale.US))
-        assertEquals("−7,000", RivalHeadToHead.formatScoreDiff(song(0).copy(userScore = 1000, rivalScore = 8000), Locale.US))
-        assertEquals("+0", RivalHeadToHead.formatScoreDiff(song(0).copy(userScore = null, rivalScore = null), Locale.US))
-        assertEquals(-7000L, RivalHeadToHead.scoreDiff(song(0).copy(userScore = 1000, rivalScore = 8000)))
     }
 
+    /** #603: song rows follow iOS `RivalSongRowContent`: standing pills, an arrow badge and one spoken label. */
     @Test
-    fun spokenScoreGapsUseFullCountsWithoutSignsAndSingularNouns() {
+    fun songRowsUseTheIosStandingPillsBadgeAndLabel() {
+        assertEquals(RivalSongStanding.PlayerAhead, RivalHeadToHead.standing(3))
+        assertEquals(RivalSongStanding.RivalAhead, RivalHeadToHead.standing(-1))
+        assertEquals(RivalSongStanding.Tied, RivalHeadToHead.standing(0))
+        assertEquals(true, RivalSongStanding.PlayerAhead.playerWins)
+        assertEquals(false, RivalSongStanding.PlayerAhead.rivalWins)
+        assertEquals(false, RivalSongStanding.RivalAhead.playerWins)
+        assertEquals(true, RivalSongStanding.RivalAhead.rivalWins)
+        assertNull(RivalSongStanding.Tied.playerWins)
+        assertNull(RivalSongStanding.Tied.rivalWins)
+        assertEquals("#1,234 SFentonX", RivalHeadToHead.standingPill(1_234, "SFentonX", Locale.US))
+        assertEquals("12", RivalHeadToHead.deltaMagnitude(-12, Locale.US))
+        assertEquals("15K", RivalHeadToHead.deltaMagnitude(15_400, Locale.US))
+        assertEquals("0", RivalHeadToHead.deltaMagnitude(0, Locale.US))
+        val comparison = song(-12).copy(userRank = 27, rivalRank = 15)
+        assertEquals(
+            "Song, Lead, You rank 27, Them rank 15, Them leads by 12 ranks",
+            RivalHeadToHead.songRowLabel(comparison, "Song", "Lead", "You", "Them", Locale.US),
+        )
+        assertEquals(
+            "Song, You rank 27, Them rank 15, Them leads by 12 ranks",
+            RivalHeadToHead.songRowLabel(comparison, "Song", "", "You", "Them", Locale.US),
+        )
+        assertEquals(
+            "Song, You rank 27, Them rank 15, Them leads by 12 ranks",
+            RivalHeadToHead.songRowLabel(comparison, "Song", null, "You", "Them", Locale.US),
+        )
+    }
+
+    /** #603: a long list drawn as one card of lazy segments rounds and borders only its two ends. */
+    @Test
+    fun cardSegmentsRoundOnlyTheCardsEnds() {
+        assertEquals(CardSegment.Only, CardSegment.of(0, 1))
+        assertEquals(CardSegment.Only, CardSegment.of(0, 0))
+        assertEquals(listOf(CardSegment.First, CardSegment.Middle, CardSegment.Last), (0 until 3).map { CardSegment.of(it, 3) })
+        assertEquals(listOf(CardSegment.First, CardSegment.Last), (0 until 2).map { CardSegment.of(it, 2) })
+        assertTrue(CardSegment.Only.isTop && CardSegment.Only.isBottom)
+        assertTrue(CardSegment.First.isTop && !CardSegment.First.isBottom)
+        assertFalse(CardSegment.Middle.isTop || CardSegment.Middle.isBottom)
+        assertTrue(!CardSegment.Last.isTop && CardSegment.Last.isBottom)
+    }
+    @Test
+    fun spokenRankGapsUseFullCountsWithoutSigns() {
         assertEquals("Rival leads by 15,400 ranks", RivalHeadToHead.leaderPhrase(-15_400, "Rival", Locale.US))
-        assertEquals("your score is 20 points higher", RivalHeadToHead.spokenScoreDiff(song(20), Locale.US))
-        assertEquals("your score is 1 point higher", RivalHeadToHead.spokenScoreDiff(song(1), Locale.US))
-        assertEquals("your score is 7,000 points lower", RivalHeadToHead.spokenScoreDiff(song(0).copy(userScore = 1000, rivalScore = 8000), Locale.US))
-        assertEquals("your score is 1 point lower", RivalHeadToHead.spokenScoreDiff(song(0).copy(userScore = 999, rivalScore = 1000), Locale.US))
-        assertEquals("same score", RivalHeadToHead.spokenScoreDiff(song(0).copy(userScore = null, rivalScore = null), Locale.US))
     }
 
     @Test

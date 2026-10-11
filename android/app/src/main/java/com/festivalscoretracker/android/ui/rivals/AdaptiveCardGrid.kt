@@ -66,6 +66,7 @@ private class SpecCells(private val spec: ColumnSpec) : StaggeredGridCells {
  * @param horizontalPadding Side gutter outside the columns.
  * @param state Scroll state.
  * @param testTag Test tag for the grid.
+ * @param verticalItemSpacing Gap between items; 0 for a list drawn as one card of lazy segments (RivalCardSegment).
  * @param content Grid items.
  */
 @Composable
@@ -77,6 +78,7 @@ fun AdaptiveCardGrid(
     horizontalPadding: Dp = 16.dp,
     state: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
     testTag: String? = null,
+    verticalItemSpacing: Dp = 16.dp,
     content: LazyStaggeredGridScope.() -> Unit,
 ) {
     val density = LocalDensity.current
@@ -106,7 +108,7 @@ fun AdaptiveCardGrid(
             state = state,
             contentPadding = contentPadding,
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(with(density) { spec.spacing.toDp() }),
-            verticalItemSpacing = 16.dp,
+            verticalItemSpacing = verticalItemSpacing,
             modifier = modifier
                 .fillMaxSize()
                 .padding(horizontal = horizontalPadding)

@@ -105,6 +105,7 @@ import com.festivalscoretracker.android.ui.suggestions.SuggestionCardView
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import com.festivalscoretracker.android.ui.songdetail.HistoryRow as SongHistoryRow
+import com.festivalscoretracker.android.ui.songdetail.RowSeparator
 
 // region Driver
 
@@ -498,10 +499,24 @@ private fun ExperimentalMetricsDemo(running: Boolean) {
  */
 @Composable
 private fun DemoRivalRows(rivals: List<FirstRunDemoRival>, direction: RivalDirection, id: String, firstEntrance: Int) {
-    Column(verticalArrangement = Arrangement.spacedBy(RIVAL_ROW_GAP)) {
+    DemoRivalCard(Modifier.demoEntrance(FirstRunEntrance.rowDelay(id, firstEntrance))) {
         rivals.forEachIndexed { index, rival ->
+            if (index > 0) RowSeparator()
             RivalRow(rival.entry(direction), onClick = null, modifier = Modifier.demoEntrance(FirstRunEntrance.rowDelay(id, firstEntrance + index)))
         }
+    }
+}
+
+/**
+ * One group's rows in one card, as the real Rivals lists draw them (`rival-rows`, #603).
+ *
+ * @param modifier Card modifier (its entrance).
+ * @param content Rows with their separators.
+ */
+@Composable
+private fun DemoRivalCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    GlassCard(modifier.fillMaxWidth()) {
+        Column(Modifier.padding(vertical = 4.dp)) { content() }
     }
 }
 
@@ -598,7 +613,7 @@ private fun RivalGroups(id: String, running: Boolean, fit: RivalGroupsFit) {
 
 /**
  * Web `RivalsInstrumentsDemo`: one real Rivals section per instrument (its header with the
- * instrument icon, then its above and below [RivalRow]s), random cards swapping to the next rival
+ * instrument icon, then its above and below [RivalRow]s in one card), random rows swapping to the next rival
  * from their pool. When a section with both cards doesn't fit, one section shows a single card
  * that alternates sides (web single-card mode).
  */
@@ -627,11 +642,14 @@ private fun RivalsInstrumentsDemo(running: Boolean) {
             instruments.forEachIndexed { section, instrument ->
                 Column(verticalArrangement = Arrangement.spacedBy(RIVAL_ROW_GAP)) {
                     RivalSectionHeader(instrument.label, Modifier.demoEntrance(FirstRunEntrance.rowDelay(id, entrance++)), instrument = instrument)
-                    repeat(fit.cards) { card ->
-                        val slot = section * fit.cards + card
-                        val delay = FirstRunEntrance.rowDelay(id, entrance++)
-                        DemoSlot(pools[slot][rotation.positions[slot]], fade, slot, Modifier.demoEntrance(delay)) { entry ->
-                            RivalRow(entry, onClick = null)
+                    DemoRivalCard(Modifier.demoEntrance(FirstRunEntrance.rowDelay(id, entrance))) {
+                        repeat(fit.cards) { card ->
+                            val slot = section * fit.cards + card
+                            val delay = FirstRunEntrance.rowDelay(id, entrance++)
+                            if (card > 0) RowSeparator()
+                            DemoSlot(pools[slot][rotation.positions[slot]], fade, slot, Modifier.demoEntrance(delay)) { entry ->
+                                RivalRow(entry, onClick = null)
+                            }
                         }
                     }
                 }
@@ -672,23 +690,26 @@ private fun RivalsDetailDemo(running: Boolean) {
                     Modifier.demoEntrance(0).testTag("fst.first-run.demo.category"),
                     titleColor = categoryColor(shown.sentiment),
                 )
-                shownSongs.zip(shown.ranks).forEachIndexed { row, (song, rank) ->
-                    RivalSongRow(
-                        song = rank.comparison(song),
-                        catalogSong = catalog?.firstOrNull { it.songId == song.id },
-                        artUrl = song.artUrl.takeUnless { dataSaver },
-                        playerName = PLAYER_NAME,
-                        rivalName = FirstRunDemoPools.DETAIL_RIVAL,
-                        onClick = null,
-                        modifier = Modifier.demoEntrance(FirstRunEntrance.rowDelay(id, row, lead = 1)),
-                    )
+                DemoRivalCard(Modifier.demoEntrance(FirstRunEntrance.rowDelay(id, 0, lead = 1))) {
+                    shownSongs.zip(shown.ranks).forEachIndexed { row, (song, rank) ->
+                        if (row > 0) RowSeparator()
+                        RivalSongRow(
+                            song = rank.comparison(song),
+                            catalogSong = catalog?.firstOrNull { it.songId == song.id },
+                            artUrl = song.artUrl.takeUnless { dataSaver },
+                            playerName = PLAYER_NAME,
+                            rivalName = FirstRunDemoPools.DETAIL_RIVAL,
+                            onClick = null,
+                            modifier = Modifier.demoEntrance(FirstRunEntrance.rowDelay(id, row, lead = 1)),
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-/** Gap between rival rows (the real Rivals list's 8 dp). */
+/** Gap between a rival header and its card (the real Rivals list's 8 dp). */
 private val RIVAL_ROW_GAP = 8.dp
 
 /** Gap between rival groups and sections (web `Gap.md`). */
