@@ -254,7 +254,7 @@ private fun OverviewList(
     }
     LazyColumn(
         state = listState,
-        contentPadding = PaddingValues(start = gap, end = gap, top = 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+        contentPadding = PaddingValues(start = gap, end = gap, top = 8.dp, bottom = padding.calculateBottomPadding()),
         verticalArrangement = Arrangement.spacedBy(20.dp),
         modifier = Modifier.fillMaxSize().then(measure).testTag("fst.leaderboards"),
     ) {

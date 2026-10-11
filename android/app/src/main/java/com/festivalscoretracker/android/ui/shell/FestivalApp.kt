@@ -136,7 +136,6 @@ import com.festivalscoretracker.android.presentation.settings.SettingsViewModel
 import com.festivalscoretracker.android.ui.background.ArtworkBackground
 import com.festivalscoretracker.android.ui.bands.bandsDestinations
 import com.festivalscoretracker.android.ui.common.ComingSoonScreen
-import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_HEIGHT_DP
 import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_MARGIN_DP
 import com.festivalscoretracker.android.ui.common.FloatingToolbar
 import com.festivalscoretracker.android.ui.common.FloatingToolbarHost
@@ -429,14 +428,12 @@ private fun FestivalShell(
     // Global search stays in the top app bar and page filters inline above the content (#309).
     val floatingToolbar = remember { FloatingToolbarHost() }
     // Beside a rail or drawer the content reaches the window bottom: the toolbar rises above the
-    // system navigation bar, and the band every page reserves for it grows by the same amount.
+    // system navigation bar, and every page's content ends above it by the same amount.
     val toolbarLift = if (layout == NavigationLayout.BottomBar) 0.dp else navBars.calculateBottomPadding()
-    // The toolbar never hides on scroll, on any page (`page-tools-and-nav-chrome` R7, #52, #577),
-    // so the band every page reserves for it below its last row is always covered by it.
-    val bottomPadding = PaddingValues(
-        end = safeEnd,
-        bottom = (FLOATING_TOOLBAR_HEIGHT_DP + 2 * FLOATING_TOOLBAR_MARGIN_DP).dp + toolbarLift,
-    )
+    // Only the chrome every page clears: FestivalScreen adds the toolbar band while the page's
+    // toolbar shows tools, then one standard gap (BottomChromeSpacing, R7, #578), so a page
+    // without tools ends one gap above the bottom bar instead of above an absent toolbar.
+    val bottomPadding = PaddingValues(end = safeEnd, bottom = toolbarLift)
     // Only the phone top bar shows a hamburger; the rail header owns it on medium widths.
     val openDrawer: (() -> Unit)? = if (layout == NavigationLayout.BottomBar) ({ scope.launch { drawerState.open() } }) else null
     // Issue #290 (web getProfileClickDestination): with a profile selected the chip opens its

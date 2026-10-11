@@ -361,7 +361,7 @@ internal fun SongBandLeaderboardLayout(
     rows: LazyListScope.() -> Unit,
 ) {
     val top = padding.calculateTopPadding()
-    val bottom = padding.calculateBottomPadding() + 24.dp
+    val bottom = padding.calculateBottomPadding()
     val leading = split.leadingWidth
     if (split.twoPane && leading != null) {
         Row(Modifier.fillMaxSize()) {

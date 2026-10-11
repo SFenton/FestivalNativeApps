@@ -172,7 +172,7 @@ private fun LicensesBody(
         Row(Modifier.fillMaxSize()) {
             LazyColumn(
                 state = listState,
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = padding.calculateBottomPadding()),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = when {
                     hinge != null -> Modifier.width(with(density) { hinge.first.toDp() })

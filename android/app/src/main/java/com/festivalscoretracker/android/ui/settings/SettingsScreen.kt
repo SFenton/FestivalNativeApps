@@ -202,7 +202,7 @@ fun SettingsScreen(
             Row(Modifier.fillMaxSize()) {
                 LazyColumn(
                     state = listState,
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 24.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding()),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                     // Centred page column on wide windows, like the web and Licenses.
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -763,7 +763,7 @@ private fun SettingsDetailContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp)
+            .padding(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding())
             .testTag("fst.settings.detail.${detail.id}"),
     ) {
         Column(Modifier.widthIn(max = 840.dp).fillMaxWidth()) {

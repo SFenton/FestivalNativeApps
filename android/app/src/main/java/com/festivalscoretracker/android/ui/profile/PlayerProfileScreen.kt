@@ -261,7 +261,7 @@ private fun LoadedProfile(
     val direction = LocalLayoutDirection.current
     ProfileGrid(
         state = gridState,
-        contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+        contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding()),
         modifier = Modifier.padding(start = padding.calculateStartPadding(direction) + 16.dp, end = padding.calculateEndPadding(direction) + 16.dp),
         onSplitChange = onSplitChange,
     ) { split ->

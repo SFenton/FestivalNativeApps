@@ -99,7 +99,7 @@ internal fun PrivacyPolicyPane(padding: PaddingValues, header: @Composable () ->
         PolicyBody(
             policy,
             Modifier.fillMaxHeight(),
-            PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+            PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = padding.calculateBottomPadding()),
         )
     }
 }

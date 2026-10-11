@@ -236,7 +236,7 @@ private fun BandDetailContent(
         val hinge = rememberBandHinge(contentLeft, maxWidth)
         val panes = BandLayout.panes(windowWidthDp(), hinge, split = twoPane)
         val scrollPadding = Modifier.padding(start = 16.dp, end = 16.dp)
-        val bottom = padding.calculateBottomPadding() + 24.dp
+        val bottom = padding.calculateBottomPadding()
         if (panes.twoPane) {
             Row(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
                 val leadingModifier = panes.leadingWidth?.let { Modifier.width(it.dp) } ?: Modifier.weight(1f)

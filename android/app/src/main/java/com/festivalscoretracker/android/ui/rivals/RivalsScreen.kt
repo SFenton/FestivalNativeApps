@@ -230,7 +230,7 @@ private fun HubContent(
             RivalsMessage(RivalText.LEADERBOARD_EMPTY, null, "fst.rivals.empty")
         }
         else -> AdaptiveCardGrid(
-            contentPadding = PaddingValues(top = 12.dp, bottom = bottomPadding + 24.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = bottomPadding),
             state = gridState,
             testTag = "fst.rivals.grid",
         ) {

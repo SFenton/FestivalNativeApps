@@ -303,7 +303,7 @@ private fun SuggestionsGrid(
             LazyVerticalStaggeredGrid(
                 columns = columns.cells,
                 state = gridState,
-                contentPadding = PaddingValues(start = start, end = end, top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+                contentPadding = PaddingValues(start = start, end = end, top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding()),
                 horizontalArrangement = Arrangement.spacedBy(columns.gap),
                 verticalItemSpacing = 24.dp,
                 modifier = Modifier.fillMaxSize().testTag("fst.suggestions.list"),

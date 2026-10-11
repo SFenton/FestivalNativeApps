@@ -121,7 +121,7 @@ fun AllRivalsScreen(viewModel: AllRivalsViewModel) {
                     return@FestivalScreen
                 }
                 AdaptiveCardGrid(
-                    contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+                    contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding()),
                     minColumn = 360.dp,
                     maxColumns = 2,
                     testTag = "fst.all-rivals.list",
@@ -196,7 +196,7 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
                 val content = current.value
                 val player = shell.selectedPlayer?.displayName
                 AdaptiveCardGrid(
-                    contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+                    contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding()),
                     state = gridState,
                     testTag = "fst.rival-detail.grid",
                 ) {
@@ -336,7 +336,7 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
                 }
                 val player = shell.selectedPlayer?.displayName
                 AdaptiveCardGrid(
-                    contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+                    contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding()),
                     maxColumns = 2,
                     state = gridState,
                     testTag = "fst.rivalry.list",

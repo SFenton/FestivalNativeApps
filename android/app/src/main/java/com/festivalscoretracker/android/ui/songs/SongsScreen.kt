@@ -402,7 +402,7 @@ private fun SongList(
     val headerStart = with(density) { 16.dp.toPx() }
     // The list end leaves room for the last section push to finish, so a pinned title never rests
     // half pushed off the top at the end of the list (issue #560, section-headers R4/R5).
-    val bottomPadding = padding.calculateBottomPadding() + 16.dp
+    val bottomPadding = padding.calculateBottomPadding()
     val endSpace = rememberPinnedHeaderEndSpace(listState, firstHeaderKey, LIST_SPACING, bottomPadding, IS_HEADER_KEY)
     // The list filter is pinned above the scrolling list on every window size (issue #52; phones
     // too since issue #309, like the web toolbar and Apple's Filter Songs field): it never scrolls

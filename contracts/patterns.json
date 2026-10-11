@@ -933,6 +933,10 @@
             "symbol": "FloatingToolbarPlacement"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/BottomChromeSpacing.kt",
+            "symbol": "BottomChromeSpacing"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/search/GlobalSearch.kt",
             "symbol": "GlobalSearchEntry"
           },
@@ -1126,7 +1130,8 @@
         544,
         557,
         576,
-        597
+        597,
+        578
       ]
     },
     {
@@ -1739,7 +1744,8 @@
         381,
         409,
         461,
-        594
+        594,
+        578
       ]
     },
     {
