@@ -31,6 +31,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.core.shell.BottomChromeSpacing
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
@@ -47,8 +48,6 @@ import com.festivalscoretracker.android.testing.EmptyRegionAssertions.assertFill
 import com.festivalscoretracker.android.testing.EmptyRegionAssertions.boundsOf
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
-import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_HEIGHT_DP
-import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_MARGIN_DP
 import com.festivalscoretracker.android.ui.common.spinnerShowsDuring
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
@@ -228,16 +227,16 @@ class BandsUiTest {
         click("fst.player-bands.group.duos")
         waitForTag("fst.player-bands.empty")
         settle()
-        // The grid ends at its own bottom less the shell's bottom padding (the floating toolbar's
-        // room at every window size, #576) and its 24 dp; the empty pager row adds one 12 dp item
-        // gap after the state.
-        val shellBottom = (FLOATING_TOOLBAR_HEIGHT_DP + 2 * FLOATING_TOOLBAR_MARGIN_DP).toFloat()
+        // The grid ends at its own bottom less the shell's bottom padding: Player Bands has no page
+        // tools, so only one standard gap above the bottom bar (issue #578); the empty pager row
+        // adds one 12 dp item gap after the state.
+        val shellBottom = BottomChromeSpacing.contentBottomDp(0f, 0f)
         rule.assertFillsAndCentres(
             "fst.player-bands.empty",
             above = rule.boundsOf("fst.player-bands.group-picker"),
             gapAbove = 12f,
             belowTop = rule.boundsOf("fst.player-bands.list").bottom,
-            gapBelow = 12f + 24f + shellBottom,
+            gapBelow = 12f + shellBottom,
             firstText = "No bands found",
             lastText = "No duos have been recorded for this player yet.",
             density = rule.density.density,

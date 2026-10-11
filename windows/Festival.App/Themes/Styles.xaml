@@ -69,17 +69,24 @@
             <SolidColorBrush x:Key="FSTStatGreenBrush" Color="#FF2ECC71" />
             <SolidColorBrush x:Key="FSTTopOneFillBrush" Color="#FFFFD700" />
             <SolidColorBrush x:Key="FSTTopOneTextBrush" Color="#FF000000" />
-            <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="#FFFFFFFF" />
-            <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="#FF000000" />
+            <!-- Shared season and percentile pills (pattern metadata-pills, Controls/MetadataPills, issue #606): Apple
+                 ScoreSeasonPill / web SeasonPill textSecondary on surfaceSubtle with a borderSubtle ring; the current season
+                 is the inverted pill. Ordinary "Top N%" is textSecondary on surfaceMuted (web surfaceWhiteSubtle, opaque). -->
+            <SolidColorBrush x:Key="FSTSeasonPillFillBrush" Color="#FF162133" />
+            <SolidColorBrush x:Key="FSTSeasonPillTextBrush" Color="#FFD7DEE8" />
+            <SolidColorBrush x:Key="FSTSeasonPillStrokeBrush" Color="#FF1E2A3A" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="#FFD7DEE8" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="#FF162133" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonStrokeBrush" Color="#FF162133" />
+            <SolidColorBrush x:Key="FSTPercentileNeutralFillBrush" Color="#FF223047" />
+            <SolidColorBrush x:Key="FSTPercentileNeutralTextBrush" Color="#FFD7DEE8" />
+            <SolidColorBrush x:Key="FSTPercentileNeutralStrokeBrush" Color="#00000000" />
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="#1FFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="#00000000" />
             <!-- Gold-outline pill (Player Profile Top 1–5% rows): no fill over the card; Window under a contrast theme so
                  the pill stays readable on the Highlight row hover. -->
             <SolidColorBrush x:Key="FSTGoldPillFillBrush" Color="#00000000" />
-            <!-- Band Detail song rows' "Top N%" pill (web purple percentile badge). -->
-            <SolidColorBrush x:Key="FSTPercentilePillFillBrush" Color="#FF7C3AED" />
-            <SolidColorBrush x:Key="FSTPercentilePillTextBrush" Color="#FFFFFFFF" />
             <!-- Notifications flag pill (issue #229): white text and the web's translucent ring around the FLAG_COLORS fill. -->
             <SolidColorBrush x:Key="FSTNotificationFlagTextBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTNotificationFlagStrokeBrush" Color="#2EFFFFFF" />
@@ -223,15 +230,20 @@
             <SolidColorBrush x:Key="FSTStatGreenBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTTopOneFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTTopOneTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <!-- Season and ordinary percentile pills are ButtonFace/ButtonText pills; the current season is Highlight. -->
+            <SolidColorBrush x:Key="FSTSeasonPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FSTSeasonPillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTSeasonPillStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonStrokeBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTPercentileNeutralFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FSTPercentileNeutralTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTPercentileNeutralStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTGoldPillFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <!-- Percentile pills become plain system pills (outlined by FSTNeutralPillStrokeBrush). -->
-            <SolidColorBrush x:Key="FSTPercentilePillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
-            <SolidColorBrush x:Key="FSTPercentilePillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <!-- Notification flags become outlined system pills; the flag word, not its hue, carries the meaning. -->
             <SolidColorBrush x:Key="FSTNotificationFlagTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTNotificationFlagStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />

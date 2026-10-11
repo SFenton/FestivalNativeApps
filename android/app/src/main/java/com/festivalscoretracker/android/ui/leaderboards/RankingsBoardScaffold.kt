@@ -117,19 +117,21 @@ internal fun RankingsBoardLayout(
     itemGap: Dp = ROW_GAP_DP.dp,
     rows: LazyListScope.() -> Unit,
 ) {
+    // Already one standard gap above the chrome actually shown (FestivalScreen, issue #578): the
+    // pager or pinned row rests there, and a hinge pane's rows end there.
     val bottom = padding.calculateBottomPadding()
     Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).then(measure)) {
         if (hinge != null) {
             Row(Modifier.fillMaxSize()) {
                 Box(Modifier.width(hinge.start).fillMaxHeight()) {
-                    BoardList(listState, idPrefix, PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottom + 24.dp), itemGap = itemGap, rows = rows)
+                    BoardList(listState, idPrefix, PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottom), itemGap = itemGap, rows = rows)
                 }
                 Spacer(Modifier.width(hinge.end - hinge.start))
                 Column(
                     Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottom + 12.dp)
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottom)
                         .testTag("$idPrefix.supporting-pane"),
                 ) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp), content = controls)
@@ -184,7 +186,7 @@ internal fun RankingsBoardLayout(
                     Modifier
                         .align(Alignment.BottomCenter)
                         .onSizeChanged { anchoredHeight = it.height }
-                        .padding(start = 16.dp, end = 16.dp, bottom = bottom + 12.dp),
+                        .padding(start = 16.dp, end = 16.dp, bottom = bottom),
                 )
             }
         }

@@ -151,6 +151,10 @@ public interface ILeaderboardScoreRow : ILeaderboardEntryRow
     /// <summary><c>S15</c>, or empty (column hidden).</summary>
     string Season { get; }
 
+    /// <summary>Season number behind <see cref="Season"/>, compared with the catalogue's current season for the inverted
+    /// season pill (pattern <c>metadata-pills</c>, issue #606).</summary>
+    int? SeasonNumber { get; }
+
     /// <summary>Grouped score.</summary>
     string Score { get; }
 

@@ -76,7 +76,9 @@
                      ellipsizes, with the full name as the row's tooltip, when motion is off or the window is hidden. At
                      150%+ Windows text it wraps onto more lines instead (leaderboard-row R3, issue #455). -->
                 <controls:MarqueeText x:Name="NameText" WrapsAtLargeText="True" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" Grid.RowSpan="3" VerticalAlignment="Center" />
-                <!-- Season (score rows, ≥ 520 epx like the web) or the small "X / Y" songs label (rankings rows), right-aligned in the shared column. -->
+                <!-- The small "X / Y" songs label (rankings rows), right-aligned in the shared meta column. A score row's season
+                     (≥ 520 epx like the web) is the shared season pill (MetadataPills, issue #606), added in code beside this
+                     text and placed in the same cell. -->
                 <TextBlock x:Name="MetaText" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                 <StackPanel x:Name="ValueStack" Grid.Column="3" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right">
                     <TextBlock x:Name="ValueText" AutomationProperties.AccessibilityView="Raw" FontWeight="SemiBold" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" />

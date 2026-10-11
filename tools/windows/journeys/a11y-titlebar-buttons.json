@@ -14,8 +14,16 @@
                    "assertfocus:id=fst.shell.notifications@3",
                    "focus:id=fst.shell.profile", "key:enter", "waitfor:id=fst.player.deselect@20",
                    "waitgone:id=fst.profile.search@2", "shot:{stem}-avatar.png",
+                   "waitfor:id=fst.statistics@10",
+                   "assertname:id=fst.shell.profile|Profile: Fixture Player 1",
+                   "assertfocus:id=fst.shell.profile@3",
+                   "key:enter", "wait:1", "waitgone:id=fst.profile.search@2", "waitfor:id=fst.player.deselect@5",
+                   "assertfocus:id=fst.shell.profile@3",
                    "key:ctrl+shift+p", "waitfor:id=fst.profile.search@5", "waitfor:id=fst.profile.deselect@5",
                    "wait:0.5", "shot:{stem}-picker.png", "key:esc", "waitgone:id=fst.profile.search@5",
+                   "assertfocus:id=fst.shell.profile@3",
+                   "key:shift+f10", "waitfor:id=fst.profile.search@5", "waitfor:id=fst.profile.deselect@5",
+                   "key:esc", "waitgone:id=fst.profile.search@5", "assertfocus:id=fst.shell.profile@3",
                    "key:ctrl+1", "waitfor:id=fst.songs.row.fixture-pulse@15",
                    "assertname:id=fst.shell.notifications@5|Notifications"]},
   {"name": "tb-anonymous", "tab": "songs", "tabs": 0,
@@ -25,5 +33,9 @@
                    "assertname:id=fst.shell.profile|Select a player profile",
                    "focus:id=fst.shell.profile", "key:enter", "waitfor:id=fst.profile.search@5",
                    "wait:0.5", "shot:{stem}-picker.png", "key:esc", "waitgone:id=fst.profile.search@5",
-                   "assertfocus:id=fst.shell.profile@3"]}
+                   "assertfocus:id=fst.shell.profile@3",
+                   "key:shift+f10", "waitfor:id=fst.profile.search@5", "waitgone:id=fst.profile.deselect@1",
+                   "key:esc", "waitgone:id=fst.profile.search@5", "assertfocus:id=fst.shell.profile@3",
+                   "key:ctrl+shift+p", "waitfor:id=fst.profile.search@5", "key:esc",
+                   "waitgone:id=fst.profile.search@5", "assertname:id=fst.shell.profile|Select a player profile"]}
 ]
