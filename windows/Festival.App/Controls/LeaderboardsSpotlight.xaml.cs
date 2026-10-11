@@ -56,13 +56,15 @@ public sealed partial class LeaderboardsSpotlight : UserControl
     /// <summary>
     /// Applies automation IDs to each state. The prefix goes on the pinned row's own UIA element (its Button) and the
     /// loading ring, since the StackPanels around them are not in the UIA control view; the inline failure's Retry gets
-    /// <c>.retry</c> so several spotlights on one page stay distinct.
+    /// <c>.retry</c> so several spotlights on one page stay distinct. The placeholder under the ring gets
+    /// <c>.loading-row</c>: it stays raw-view only, so the ID only lets tests measure it (issue #527).
     /// </summary>
     private void ApplyIds()
     {
         if (IdPrefix is { } prefix)
         {
             PinnedRow.RowAutomationId = prefix;
+            LoadingRow.RowAutomationId = prefix + ".loading-row";
             AutomationProperties.SetAutomationId(LoadingRing, prefix + ".loading");
             AutomationProperties.SetAutomationId(Unranked, prefix + ".unranked");
             Failed.RetryAutomationId = prefix + ".retry";

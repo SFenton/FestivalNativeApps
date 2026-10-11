@@ -14,6 +14,11 @@ own-rank read) after that delay, so a journey can assert what a reload shows whi
 ``--bands-delay SECONDS`` does the same for the band boards (``/api/rankings/bands/{type}``,
 ``/api/leaderboard/{song}/bands/{type}`` and ``/api/player/{id}/bands``, not Song Detail's ``bands/all`` previews or
 a band's history/songs reads): their load and reload spinners stay up for accessibility pages (issue #431).
+``--rank-delay SECONDS`` answers only the selected player's own-rank reads (``/api/rankings/{instrument}/{accountId}``)
+after that delay, so the spotlight's "Loading your rank" row stays up under the overview cards and above the Full
+Rankings pager (issues #281, #527). ``--rank-delay-instrument INSTRUMENT`` limits it to one instrument's read: the
+overview reveals its first cards only once their spotlights settle, so only a later card (e.g. ``Solo_Vocals``)
+shows the loading row.
 
 Selected-player spotlight states come from the mock's own accounts: ``fixture-rank-40`` (page 2: the pinned row
 jumps there, then opens the profile), ``fixture-rank-fail`` (inline failure) and any other unknown ``fixture-*`` ID (404: not ranked).
@@ -129,6 +134,48 @@ def is_band_board_read(path: str) -> bool:
     return len(parts) == 5 and path.startswith("/api/player/") and parts[3] != "" and parts[4] == "bands"
 
 
+def is_own_rank_read(path: str, instrument: str | None = None) -> bool:
+    """Whether a path is the selected player's own-rank read on one instrument (delayed by ``--rank-delay``).
+
+    Args:
+        path: Request path.
+        instrument: Only this instrument's read matches (``--rank-delay-instrument``); ``None`` matches every one.
+
+    Returns:
+        ``True`` for ``/api/rankings/{instrument}/{accountId}`` (not a band board, history or the combo read).
+    """
+    parts = path.split("/")
+    return (len(parts) == 5 and path.startswith("/api/rankings/") and parts[3] not in ("", "bands", "combo")
+            and parts[4] != "" and instrument in (None, parts[3]))
+
+
+def take_option(argv: list[str], flag: str) -> tuple[str | None, list[str]]:
+    """Split ``<flag> <value>`` (or ``<flag>=<value>``) from the remaining arguments.
+
+    Args:
+        argv: Command-line arguments after the program name.
+        flag: The option, e.g. ``--rank-delay-instrument``.
+
+    Returns:
+        The value (``None`` when absent) and the remaining arguments.
+
+    Raises:
+        SystemExit: Missing or empty value.
+    """
+    value, rest, items = None, [], iter(argv)
+    for arg in items:
+        if arg == flag:
+            value = next(items, None)
+        elif arg.startswith(f"{flag}="):
+            value = arg.split("=", 1)[1]
+        else:
+            rest.append(arg)
+            continue
+        if not value:
+            raise SystemExit(f"{flag} needs a value")
+    return value, rest
+
+
 def install_delay(seconds: float, matches=is_board_read) -> None:
     """Answer matching reads only after a delay, keeping a load or reload spinner up long enough to inspect.
 
@@ -202,15 +249,20 @@ def take_rankings_delay(argv: list[str]) -> tuple[float | None, list[str]]:
 
 
 def main() -> None:
-    """Install the scenarios and the optional board delays, force ``--large-rankings`` and hand over to ``rivals_fixture``."""
+    """Install the scenarios and the optional board and own-rank delays, force ``--large-rankings`` and hand over to
+    ``rivals_fixture``."""
     install()
     delay, rest = take_rankings_delay(sys.argv[1:])
     bands_delay, rest = take_delay(rest, "--bands-delay")
+    rank_instrument, rest = take_option(rest, "--rank-delay-instrument")
+    rank_delay, rest = take_delay(rest, "--rank-delay")
     sys.argv[1:] = rest
     if delay:
         install_rankings_delay(delay)
     if bands_delay:
         install_delay(bands_delay, is_band_board_read)
+    if rank_delay:
+        install_delay(rank_delay, lambda path: is_own_rank_read(path, rank_instrument))
     if "--large-rankings" not in sys.argv:
         sys.argv.append("--large-rankings")
     rivals_fixture.main()
