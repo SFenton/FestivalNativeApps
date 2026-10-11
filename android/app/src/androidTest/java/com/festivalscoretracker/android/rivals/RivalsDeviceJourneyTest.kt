@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.rivals
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -224,7 +225,8 @@ class RivalsDeviceJourneyTest {
                     Column {
                         Box(Modifier.requiredWidth(300.dp)) { RivalPreviewRows(listOf(entry), onRival = {}, onViewAll = {}) }
                         Box(Modifier.requiredWidth(300.dp)) {
-                            ViewFullLeaderboardButton(onClick = {}, label = CompeteText.VIEW_FULL_LEADERBOARDS, testTag = "fst.compete.view-full-leaderboards")
+                            // Both end their card inside it, inset 12 dp (view-all-cta R1, #603).
+                            ViewFullLeaderboardButton(onClick = {}, label = CompeteText.VIEW_FULL_LEADERBOARDS, testTag = "fst.compete.view-full-leaderboards", modifier = Modifier.padding(horizontal = 12.dp))
                         }
                     }
                 }

@@ -195,6 +195,7 @@ class PresentationTest {
         advanceUntilIdle()
         val song = (byTitle.song.value as LoadState.Loaded).value
         assertEquals("s-alpha", song.songId)
+        assertEquals(15, byTitle.currentSeason.value)
         assertEquals(0, boardCalls)
         val preview = byTitle.preview(song, Instrument.Lead)
         assertSame(preview, byTitle.preview(song, Instrument.Lead))
@@ -222,6 +223,7 @@ class PresentationTest {
         assertEquals(3, viewModel.page.value)
         assertEquals(51, (viewModel.board.value as LoadState.Loaded).value.leaderboard.entries.first().rank)
         assertEquals("Alpha Tune", (viewModel.song.value as LoadState.Loaded).value.title)
+        assertEquals(15, viewModel.currentSeason.value)
         viewModel.goTo(2)
         advanceUntilIdle()
         assertEquals(26, (viewModel.board.value as LoadState.Loaded).value.leaderboard.entries.first().rank)

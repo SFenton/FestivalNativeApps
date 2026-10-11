@@ -14,6 +14,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -65,7 +66,8 @@ import org.junit.runner.RunWith
  * - **Fold split after a jump.** Unfolded (flat) → Top Songs → half open → Quick Links back to
  *   Global Statistics used to keep stale lanes: a gap beside Overview and the Lead card off
  *   screen and out of TalkBack's reach. After the posture change Overview stays in the leading
- *   pane, Lead sits beside it after the hinge, and TalkBack reads Overview then Lead.
+ *   pane, Lead starts the next row before the hinge (#584: Overview spans the line, its content
+ *   in the leading pane), and TalkBack reads Overview then Lead.
  *
  * ATF (labels, 48 dp targets, contrast) runs on every step. Fixtures only; `android-device`
  * runs the class (`@DeviceCi`). The fold case needs a window that is two lanes wide when flat
@@ -156,16 +158,17 @@ class StatisticsAccessibilityJourneyTest {
         jumpTo(config, "bands", "Bands")
         // The preview starts reading when the Bands row is first composed: the jump lands on its loading state.
         h.waitForTag(BANDS_LOADING)
-        val beforeLoad = headingTop(BANDS)
+        val beforeLoad = bandsTitleTop()
         bands.complete(Unit)
         h.waitForTag(DUOS)
         // Inside the 3 s hold the groups arrive below the heading; it must land again, then stay.
         Thread.sleep(HOLD_CHECK_MS)
         rule.waitForIdle()
-        val held = headingTop(BANDS)
+        val held = bandsTitleTop()
         val line = landingLine()
         Log.i(JourneyHarness.READING_ORDER_TAG, "statistics-bands $config | before load $beforeLoad | held $held | line $line | can scroll ${canScrollForward()}")
-        val tolerance = with(rule.density) { LANDING_TOLERANCE_DP.dp.toPx() }
+        // The title, not its header's 16 dp top padding, sits on the line (#587): within the controller's 8 dp threshold.
+        val tolerance = with(rule.density) { QuickLinks.COMPLETE_THRESHOLD_DP.dp.toPx() }
         // A window tall enough to show every group at once ends the list above the line (the end clamps the jump).
         assertTrue(
             "$config: after the bands loaded the Bands heading is at $held px, not on the landing line $line px (it landed at $beforeLoad px)",
@@ -241,11 +244,11 @@ class StatisticsAccessibilityJourneyTest {
 
     /**
      * Flat → Top Songs → half open → Global Statistics: Overview stays in the leading pane and
-     * the Lead card sits beside it after the hinge, where TalkBack reaches it next.
+     * the Lead card starts the row under it (#584), where TalkBack reaches it next.
      */
     @Test
     @HalfOpenFoldJourney
-    fun quickLinksBackToGlobalAfterHalfOpeningKeepLeadBesideOverview() {
+    fun quickLinksBackToGlobalAfterHalfOpeningKeepLeadNextToOverview() {
         launchStatistics(transport()) { 1f }
         publish(State.FLAT) { h.exists(OVERVIEW) && h.exists(LEAD) }
         h.publishTalkBackTree()
@@ -265,7 +268,7 @@ class StatisticsAccessibilityJourneyTest {
         try {
             rule.waitUntil(10_000) { h.exists(LEAD) }
         } catch (failure: Throwable) {
-            throw AssertionError("half open: Lead never appeared beside Overview (stale lanes left a gap): ${h.readingOrder("statistics-fold-stale", fresh = true)}", failure)
+            throw AssertionError("half open: Lead never appeared after Overview (stale lanes left a gap): ${h.readingOrder("statistics-fold-stale", fresh = true)}", failure)
         }
         rule.waitForIdle()
 
@@ -274,8 +277,8 @@ class StatisticsAccessibilityJourneyTest {
         val grid = bounds(GRID)
         Log.i(JourneyHarness.READING_ORDER_TAG, "statistics-fold | fold $fold | overview $overview | lead $lead | grid $grid")
         assertTrue("half open: Overview $overview runs past the hinge $fold", overview.right <= fold + 1f)
-        assertTrue("half open: Lead $lead is not after the hinge $fold", lead.left >= fold - 1f)
-        assertTrue("half open: Lead $lead is not beside Overview $overview (a lane gap hid it)", lead.top < overview.bottom && lead.top >= grid.top)
+        assertTrue("half open: Lead $lead runs past the hinge $fold", lead.right <= fold + 1f)
+        assertTrue("half open: Lead $lead doesn't start the row under Overview $overview (a gap hid it)", lead.top >= overview.bottom - 1f && lead.top < grid.bottom)
 
         val order = h.readingOrder("statistics-fold-global", fresh = true)
         val overviewAt = order.indexOf(OVERVIEW_LABEL)
@@ -355,10 +358,14 @@ class StatisticsAccessibilityJourneyTest {
     /** The window's width in dp. */
     private fun windowWidthDp(): Int = with(rule.density) { rule.activity.window.decorView.width.toDp().value.toInt() }
 
-    /** Top of the section tagged [tag] in window pixels. */
-    private fun headingTop(tag: String): Float = bounds(tag).top
+    /**
+     * Top of the Bands section's title in window pixels: inside its section header's own top padding,
+     * which a jump must not leave as dead space under the top bar (#587).
+     */
+    private fun bandsTitleTop(): Float = rule.onNode(hasText(BANDS_HEADING) and hasAnyAncestor(hasTestTag(BANDS)), useUnmergedTree = true)
+        .fetchSemanticsNode().layoutInfo.coordinates.positionInWindow().y
 
-    /** Where a Quick Links jump lands a section: 32 dp below the top bar. */
+    /** Where a Quick Links jump lands a section's title: 32 dp below the top bar. */
     private fun landingLine(): Float =
         bounds(TOP_BAR).bottom + with(rule.density) { QuickLinks.LANDING_OFFSET_DP.dp.toPx() }
 
@@ -400,8 +407,5 @@ class StatisticsAccessibilityJourneyTest {
 
         /** How long after the bands load the heading must still be on its line (inside the 3 s hold). */
         const val HOLD_CHECK_MS = 1_500L
-
-        /** Landing tolerance: twice the controller's 8 dp completion threshold. */
-        const val LANDING_TOLERANCE_DP = 16
     }
 }

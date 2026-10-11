@@ -38,7 +38,7 @@
             <!-- The rows end at the floating pager through the bottom-chrome ramp (BoardFooterFade, issue #308). The wrapper
                  is the fade source because the load swap animates the ListView's own visual. -->
             <Grid x:Name="BoardFadeSource">
-                <ListView x:Name="Rows" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56" controls:BandScoreFooterPanel.IsSection="True"
+                <ListView x:Name="Rows" controls:FadeIn.Together="True" controls:FadeIn.RowHeight="56" controls:BandScoreFooterPanel.IsSection="True"
                           controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                           ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                           SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick" ContainerContentChanging="OnContainerContentChanging"
@@ -70,6 +70,8 @@
                                 <Border x:Name="RowSeparator" Height="1" Margin="12,0" VerticalAlignment="Top" IsHitTestVisible="False"
                                         Visibility="Collapsed" Background="{ThemeResource FSTRowSeparatorBrush}" AutomationProperties.AccessibilityView="Raw" />
                                 <Grid Padding="14,10" ColumnSpacing="12" RowSpacing="6" AutomationProperties.AccessibilityView="Raw">
+                                    <!-- One rank rail per page, sized by an invisible bold copy of its widest rank (SongBandRow.RailRank; web
+                                         computeRankWidth, issue #594), so every card's members line up at any text size. -->
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" MinWidth="40" />
                                         <ColumnDefinition Width="*" />
@@ -79,9 +81,14 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
+                                    <TextBlock Text="{x:Bind RailRank}" VerticalAlignment="Top" Margin="0,4,0,0" Opacity="0" IsHitTestVisible="False"
+                                               Style="{StaticResource BodyStrongTextBlockStyle}" FontWeight="Bold" Typography.NumeralAlignment="Tabular"
+                                               HighContrastAdjustment="None" AutomationProperties.AccessibilityView="Raw" />
                                     <TextBlock Text="{x:Bind Rank}" VerticalAlignment="Top" Margin="0,4,0,0" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                               Typography.NumeralAlignment="Tabular" AutomationProperties.AutomationId="{x:Bind RankAutomationId}"
                                                Foreground="{x:Bind pages:BandsSongLeaderboardPage.Secondary(IsSelected)}" AutomationProperties.AccessibilityView="Raw" />
-                                    <ItemsRepeater Grid.Column="1" ItemsSource="{x:Bind Members}" AutomationProperties.AccessibilityView="Raw">
+                                    <ItemsRepeater Grid.Column="1" ItemsSource="{x:Bind Members}" AutomationProperties.AccessibilityView="Raw"
+                                                   AutomationProperties.AutomationId="{x:Bind MembersAutomationId}">
                                         <ItemsRepeater.Layout>
                                             <StackLayout Spacing="4" />
                                         </ItemsRepeater.Layout>

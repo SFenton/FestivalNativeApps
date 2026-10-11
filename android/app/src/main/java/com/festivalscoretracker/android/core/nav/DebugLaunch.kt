@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.core.nav
 
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.SelectedPlayer
+import com.festivalscoretracker.android.core.rivals.RivalCombo
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
 import com.festivalscoretracker.android.core.search.SearchScope
 
@@ -16,6 +17,7 @@ import com.festivalscoretracker.android.core.search.SearchScope
  * `songLeaderboard:<songId>:<Instrument wire ID>[:<page>[:reveal]]`,
  * `playerHistory:<songId>:<Instrument wire ID>`, `player:<accountId>`,
  * `playerBands:<accountId>[:<group wire ID>]`, `leaderboards`, `fullRankings:<Instrument wire ID>[:<page>]`,
+ * `fullComboRankings:<within-group hex combo ID>[:<page>]`,
  * `bandRankings:<bandType>[:<page>]`, `shop`, `rivals`, `statistics`, `suggestions`,
  * `compete`, `bands`, `band:<bandId>`, `songBandLeaderboard:<songId>[:<bandType>[:<page>[:reveal]]]`, `licenses`, `allRivals:<scope>`,
  * `rivalDetail:<rivalId>[:<scope>]`, `rivalry:<rivalId>:<mode>[:<scope>]` (scope = `RivalScope.routeToken`).
@@ -127,6 +129,10 @@ data class DebugLaunch(
                 "leaderboards" -> LeaderboardsRoute
                 "fullRankings" -> arg?.split(":").let { pieces ->
                     FullRankingsRoute((Instrument.fromWireId(pieces?.getOrNull(0)) ?: Instrument.Lead).wireId, page = pieces?.getOrNull(1)?.toIntOrNull()?.coerceAtLeast(1) ?: 1)
+                }
+                "fullComboRankings" -> arg?.split(":")?.let { pieces ->
+                    val instruments = RivalCombo.rankingComboInstruments(pieces[0]) ?: return null
+                    FullRankingsRoute(instruments.first().wireId, page = pieces.getOrNull(1)?.toIntOrNull()?.coerceAtLeast(1) ?: 1, combo = RivalCombo.comboId(instruments))
                 }
                 "bandRankings" -> arg?.split(":").let { pieces ->
                     BandRankingsRoute(pieces?.getOrNull(0) ?: "Band_Duets", pieces?.getOrNull(1)?.toIntOrNull()?.coerceAtLeast(1) ?: 1)

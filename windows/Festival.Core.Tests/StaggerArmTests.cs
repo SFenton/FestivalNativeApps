@@ -434,4 +434,98 @@ public sealed class StaggerArmTests
         Assert.Equal(ArmScroll.None, arm.Scrolled(0, 100.5, Ms(1100)));
         Assert.False(arm.HasScrolled);
     }
+
+    // region Whole-card lists (owner-approved variant, issue #614)
+
+    private static StaggerArm LoadedTogether()
+    {
+        var arm = new StaggerArm { Together = true };
+        arm.Arm(0, Ms(1000));
+        arm.Settle(0, 0);
+        return arm;
+    }
+
+    [Fact]
+    public void Together_EveryRowOfTheCardStartsOneFade()
+    {
+        var arm = LoadedTogether();
+        // The first row takes the first stagger slot (with a board's pinned row, PinnedRowReveal.RevealDelay) ...
+        Assert.Equal(125, arm.Delay(0, 4, Ms(1100), 0, 0)!.Value.TotalMilliseconds);
+        Assert.Equal(PinnedRowReveal.RevealDelay, FadeInTiming.Interval);
+        // ... and every other row, realized a few ms later or below the first screen, starts at that same moment.
+        Assert.Equal(122, arm.Delay(1, 4, Ms(1103), 0, 0)!.Value.TotalMilliseconds);
+        Assert.Equal(120, arm.Delay(3, 4, Ms(1105), 0, 0)!.Value.TotalMilliseconds);
+        Assert.Equal(115, arm.Delay(30, 4, Ms(1110), 0, 0)!.Value.TotalMilliseconds);
+        // A row realized once the card's fade has begun joins it at once rather than fading after it.
+        Assert.Equal(TimeSpan.Zero, arm.Delay(31, 4, Ms(1300), 0, 0));
+        // The entrance ends with the card's fade (its last joiner at 1300 + 400), long before twelve staggered rows would.
+        Assert.False(arm.IsRunning(Ms(2100)));
+        Assert.Null(arm.Delay(32, 4, Ms(2100), 0, 0));
+    }
+
+    [Fact]
+    public void Together_AReloadRevealsTheNewPageAsOneFade()
+    {
+        var arm = LoadedTogether();
+        Assert.Equal(125, arm.Delay(0, 4, Ms(1100), 0, 0)!.Value.TotalMilliseconds);
+        arm.Arm(0, Ms(5000));
+        arm.Settle(0, 0);
+        Assert.Equal(125, arm.Delay(0, 4, Ms(5010), 0, 0)!.Value.TotalMilliseconds);
+        Assert.Equal(124, arm.Delay(7, 4, Ms(5011), 0, 0)!.Value.TotalMilliseconds);
+    }
+
+    [Fact]
+    public void Together_AScrollStillRushesTheCard()
+    {
+        var arm = LoadedTogether();
+        Assert.Equal(125, arm.Delay(0, 4, Ms(1100), 0, 0)!.Value.TotalMilliseconds);
+        Assert.Equal(ArmScroll.Rushed, arm.Scrolled(0, 240, Ms(1150)));
+        Assert.Equal(TimeSpan.Zero, arm.Delay(9, 4, Ms(1160), 0, 240));
+        Assert.Null(arm.Delay(9, 4, Ms(2000), 0, 900));
+    }
+
+    [Fact]
+    public void Together_ARevealWaitsForTheCardsFadeAndHoldsTheTailForItsScroll()
+    {
+        var arm = LoadedTogether();
+        // Before any row is realized the reveal plans for the first slot plus one fade.
+        Assert.Equal(525, arm.RevealWait(16, 12, Ms(1050)).TotalMilliseconds);
+        Assert.Equal(125, arm.Delay(0, 12, Ms(1100), 0, 0)!.Value.TotalMilliseconds);
+        // Afterwards it waits for the card's own fade to end, wherever the selected row sits.
+        Assert.Equal(525, arm.RevealWait(16, 12, Ms(1100)).TotalMilliseconds);
+        Assert.Equal(400, arm.RevealWait(3, 12, Ms(1300)).TotalMilliseconds);
+        // A staggered list keeps the row's own slot.
+        Assert.Equal(FadeInTiming.RevealWait(16, 12), Loaded().RevealWait(16, 12, Ms(1100)));
+        // Rows past the first screen wait for the reveal's automatic scroll, which rushes them as it lands.
+        arm.ExpectScroll(Ms(1525));
+        Assert.True(arm.IsTail(16, 12));
+        Assert.Equal(424, arm.Delay(16, 12, Ms(1101), 0, 0)!.Value.TotalMilliseconds);
+        Assert.Equal(124, arm.Delay(2, 12, Ms(1101), 0, 0)!.Value.TotalMilliseconds);
+    }
+
+    [Fact]
+    public void Together_ThePinnedRowAndTheRowsStartOneFade()
+    {
+        var arm = LoadedTogether();
+        // The board's pinned row is scheduled first (PinnedRowReveal.RevealDelay); the rows realized after join its start.
+        Assert.Equal(PinnedRowReveal.RevealDelay, arm.Entrance(PinnedRowReveal.RevealDelay, Ms(1100)));
+        Assert.Equal(98, arm.Delay(0, 12, Ms(1127), 0, 0)!.Value.TotalMilliseconds);
+        Assert.Equal(97, arm.Delay(5, 12, Ms(1128), 0, 0)!.Value.TotalMilliseconds);
+        // A pinned row that arrives after the rows joins theirs.
+        var late = LoadedTogether();
+        Assert.Equal(125, late.Delay(0, 12, Ms(1100), 0, 0)!.Value.TotalMilliseconds);
+        Assert.Equal(Ms(115), late.Entrance(PinnedRowReveal.RevealDelay, Ms(1110)));
+    }
+
+    [Fact]
+    public void Together_AnAppendedBatchFadesAsOneOfItsOwn()
+    {
+        var arm = new StaggerArm { Together = true };
+        arm.Arm(10, Ms(1000));
+        Assert.Null(arm.Delay(3, 4, Ms(1010), 0, 0));
+        Assert.Equal(125, arm.Delay(10, 4, Ms(1010), 0, 0)!.Value.TotalMilliseconds);
+        Assert.Equal(115, arm.Delay(14, 4, Ms(1020), 0, 0)!.Value.TotalMilliseconds);
+    }
+
+    // endregion
 }

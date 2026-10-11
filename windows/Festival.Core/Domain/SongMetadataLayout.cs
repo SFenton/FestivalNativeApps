@@ -22,6 +22,9 @@ public static class SongMetadataLayout
     /// <summary>Chart icon edge shown before the pills on a non-Lead chart.</summary>
     public const double ChartIconSize = 20;
 
+    /// <summary>Invalid-score indicator edge (a 40 epx button, Fluent's minimum target) at the end of the pills.</summary>
+    public const double IndicatorSize = 40;
+
     /// <summary>
     /// Row chrome around the pills in epx: list end padding (12), item margins (8), card padding (10 + 14) and border (2),
     /// art (44) and the card's two column gaps (2 × 12).
@@ -92,11 +95,16 @@ public static class SongMetadataLayout
     /// <summary>List width a row needs to show every pill beside a readable title.</summary>
     /// <param name="pillWidths">Measured widths of the pills (see <see cref="WidestSamples"/>).</param>
     /// <param name="namesChart">A non-Lead chart icon precedes the pills.</param>
+    /// <param name="indicator">
+    /// Rows may end with the invalid-score indicator (Filter Invalid Scores on), so its <see cref="IndicatorSize"/> is reserved
+    /// page-wide rather than per row.
+    /// </param>
     /// <returns>Required list width in epx.</returns>
-    public static double RequiredWidth(IEnumerable<double> pillWidths, bool namesChart)
+    public static double RequiredWidth(IEnumerable<double> pillWidths, bool namesChart, bool indicator = false)
     {
         var widths = pillWidths.Where(w => double.IsFinite(w) && w > 0).ToList();
         if (namesChart) widths.Add(ChartIconSize);
+        if (indicator) widths.Add(IndicatorSize);
         var trailing = widths.Sum() + PillSpacing * Math.Max(0, widths.Count - 1);
         return RowChrome + MinimumTitleWidth + trailing;
     }

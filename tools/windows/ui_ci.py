@@ -10,7 +10,8 @@ This is the one registry of Windows accessibility journeys that gate pull reques
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
-push (issue #452) and the Paths swap (issue #430, also with Animation effects off) run at default and 225% text, and
+push (issue #452), the Paths swap (issue #430, also with Animation effects off) and the Paths chart (issue #438) run at
+default and 225% text, and
 that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
@@ -190,6 +191,21 @@ RUNS: tuple[Run, ...] = (
     # touch (0 epx), each stays one 40+ epx Button stop in visual order, rows -> pinned row -> pager, Up/Down and Tab.
     Run("grouped-boards", "a11y-grouped-boards.json", tabs=0),
     Run("grouped-boards-text-225", "a11y-grouped-boards.json", sizes="compact", mode="text-225", tabs=0),
+    Run("grouped-boards-reduced", "a11y-grouped-boards.json", sizes="medium", mode="app-reduced", tabs=0,
+        only="grouped-song-board-one-card"),
+    # Rivals lists as one card (issue #603, rival-rows R3, R6): Rivalry and All Rivals rows touch (0 epx), each stays one
+    # named 40+ epx stop in visual order (iOS-design song rows read title, artist, instrument, ranks, who leads), Up/Down.
+    Run("rivals-cards", "a11y-rivals-cards.json", tabs=0),
+    Run("rivals-cards-text-225", "a11y-rivals-cards.json", sizes="compact", mode="text-225", tabs=0),
+    # Combo boards (issue #602): the OG band combo card is a level-2 heading group before Lead, its View All Rankings is
+    # a 40+ epx Button named with the board label, Enter opens combo Full Rankings (no instrument picker, combo title,
+    # pinned combo rank) and Back restores focus; rows stay 40+ epx stops with Down between them.
+    Run("combo-boards", "a11y-combo-boards.json", tabs=0),
+    Run("combo-boards-text-225", "a11y-combo-boards.json", sizes="compact", mode="text-225", tabs=0),
+    # Song Detail Score History as one card (issue #588): selector -> heading -> subtitle -> chart, then the best scores
+    # as in-card rows that touch (0 epx) in score order, ending on a 40+ epx View All Scores named for the chart.
+    Run("score-history-card", "a11y-score-history-card.json", tabs=0),
+    Run("score-history-card-text-225", "a11y-score-history-card.json", sizes="compact", mode="text-225", tabs=0),
     # Profile Bands groups as one card each (issue #596): rows touch, 40+ epx stops named without the band size, the
     # purple View All Bands (N) inside the card, header -> rows -> View All order, Down between rows and Tab to View All.
     Run("profile-bands", "a11y-profile-bands.json", tabs=0),
@@ -213,9 +229,16 @@ RUNS: tuple[Run, ...] = (
     # the selectors and Close, the selectors stay enabled and show the new value, "Loading …" then "… loaded" are
     # announced; Image <-> Text; keyboard switches (ComboBox, wide RadioButtons) keep focus on the selector; 40 epx zoom,
     # selectors and Close; mid-swap Axe scans; at 225% text, with in-app Reduce Motion and with Animation effects off.
+    # The compact Instrument ComboBox (issues #88, #439) opens to "Lead, list item, selected", Bass, Drums, Tap Vocals
+    # (no Karaoke), each a 40 epx option, and switches by pointer and Alt+Down/Up/Enter with focus kept, Axe-scanned open.
     Run("paths-swap", "a11y-paths-swap.json", sizes="compact,medium,wide"),
     Run("paths-swap-text-225", "a11y-paths-swap.json", sizes="compact,wide", mode="text-225"),
     Run("paths-swap-no-animations", "a11y-paths-swap.json", sizes="compact", mode="no-animations"),
+    # Paths chart (issues #87, #279, #438): "Path chart, pane" holds "<instrument> <difficulty> CHOpt path, image" in
+    # zoom -> chart -> image -> Close order, centred in its scroller with no scroll bar at rest, zoomed (keyboard Enter on
+    # Zoom in, then End/Home on the focused chart) and back at 100% with Zoom out unavailable, and after Image <-> Text.
+    Run("paths-chart", "a11y-paths-chart.json", sizes="compact,medium,wide", tabs=0),
+    Run("paths-chart-text-225", "a11y-paths-chart.json", sizes="compact,wide", mode="text-225", tabs=0),
 )
 
 

@@ -37,11 +37,13 @@ fun PlayerScore.toSongDetail(): SongScoreDetail = SongScoreDetail(
  * @property leeway Leeway percent.
  * @property songs Catalogue rows by ID (CHOpt maxima and population tiers).
  * @property overThreshold Charts whose raw invalid scores stay visible (Over CHOpt Threshold filter).
+ * @property songDetails Resolve with Song Details' rule ([InvalidScorePolicy.resolveFiltered], pattern R4) instead of Songs' (R3).
  */
 data class InvalidScoreContext(
     val leeway: Double,
     val songs: Map<String, Song>,
     val overThreshold: Set<Instrument> = emptySet(),
+    val songDetails: Boolean = false,
 )
 
 /**
@@ -75,6 +77,11 @@ fun SelectedProfileState.songScoreSource(catalogPublication: Int?, current: Int?
                     detail = { songId, chart -> song(songId)[chart]?.detail },
                     invalid = { songId ->
                         if (invalid == null) emptyMap() else song(songId).mapNotNull { (chart, resolution) -> resolution.reason?.let { chart to it } }.toMap()
+                    },
+                    overThreshold = { songId, chart ->
+                        // Web `useFilteredSongs`: a checked chart shows its raw score, over only above the unrounded ceiling.
+                        invalid != null && chart in invalid.overThreshold &&
+                            index[songId]?.get(chart)?.let { InvalidScorePolicy.exceedsCeiling(it.score.toLong(), invalid.songs[songId], chart, invalid.leeway) } == true
                     },
                 )
             } else {
@@ -112,7 +119,9 @@ fun PlayerScore.effective(song: Song?, chart: Instrument, leeway: Double): Playe
 private fun resolve(score: PlayerScore, songId: String, chart: Instrument, invalid: InvalidScoreContext?): InvalidScoreResolution {
     val raw = score.toSongDetail()
     if (invalid == null) return InvalidScoreResolution(raw, null)
-    return InvalidScorePolicy.resolve(score, raw, invalid.songs[songId], chart, invalid.leeway, chart in invalid.overThreshold)
+    val song = invalid.songs[songId]
+    if (invalid.songDetails) return InvalidScorePolicy.resolveFiltered(score, raw, song, chart, invalid.leeway)
+    return InvalidScorePolicy.resolve(score, raw, song, chart, invalid.leeway, chart in invalid.overThreshold)
 }
 
 // endregion

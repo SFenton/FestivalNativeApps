@@ -151,7 +151,16 @@ public sealed class StaggerArm
     private int rushLimit;
     private TimeSpan? expectedAt;
     private int expectation;
+    private TimeSpan? togetherStart;
     private readonly Dictionary<int, TimeSpan> fadeStarts = new();
+
+    /// <summary>
+    /// Whether the list's rows share one card and fade in together as that card (owner-approved variant, issue #614): every
+    /// row of a load starts the same fade, one <see cref="FadeInTiming.Interval"/> after the first row is realized (with
+    /// a board's pinned row, <see cref="PinnedRowReveal.RevealDelay"/>), instead of staggering row by row. Rushes, the
+    /// window, a selected-row reveal's hold and Reduce Motion behave as for a staggered list.
+    /// </summary>
+    public bool Together { get; set; }
 
     /// <summary>Creates a closed arm.</summary>
     /// <param name="window">How long an arm stays open without scrolling (default <see cref="FadeInTiming.ArmWindow"/>;
@@ -221,6 +230,7 @@ public sealed class StaggerArm
                 HasScrolled = false;
                 fadeStarts.Clear();
             }
+            togetherStart = null;
             Generation++;
         }
         armedAt = now;
@@ -381,8 +391,24 @@ public sealed class StaggerArm
         {
             if (closesOnScroll) Note(now + d);
             fadeStarts[index] = now + d;
+            if (Together && !IsRushing(now)) togetherStart ??= now + d;
         }
         return delay;
+    }
+
+    /// <summary>
+    /// How long a selected-row reveal waits for its row's entrance before it scrolls (web <c>navToPlayer</c>): the row's
+    /// stagger slot (<see cref="FadeInTiming.RevealWait"/>), or for a <see cref="Together"/> card the card's one fade.
+    /// </summary>
+    /// <param name="index">The selected row's index.</param>
+    /// <param name="visible">Rows that stagger (the visible count).</param>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns>Wait (at least one fade).</returns>
+    public TimeSpan RevealWait(int index, int visible, TimeSpan now)
+    {
+        if (!Together) return FadeInTiming.RevealWait(index, visible);
+        var start = togetherStart is { } at ? (at > now ? at - now : TimeSpan.Zero) : FadeInTiming.Interval;
+        return start + FadeInTiming.Duration;
     }
 
     /// <summary>Whether a row at or after <paramref name="start"/> has been given a fade since the last load.</summary>
@@ -409,7 +435,10 @@ public sealed class StaggerArm
     {
         if (IsRushing(now)) return TimeSpan.Zero;
         if (!IsRunning(now)) return null;
-        var delay = Within(now) ? natural : Late(now);
+        var delay = Together ? (togetherStart is null ? natural : TogetherDelay(now))
+            : Within(now) ? natural : Late(now);
+        // A whole card's pinned row and rows start one fade, whichever is scheduled first (issue #614).
+        if (Together) togetherStart ??= now + delay;
         Note(now + delay);
         return delay;
     }
@@ -436,15 +465,26 @@ public sealed class StaggerArm
             // Replay guard (issue #532): a batch card recycled and realized again inside the window keeps the fade it
             // was given, or shows in place once that fade has begun; only cards not shown yet fade.
             if (fadeStarts.TryGetValue(index, out var start)) return start > now ? start - now : null;
+            if (Together && index >= BatchStart) return TogetherDelay(now);
             return FadeInTiming.BatchDelay(index, BatchStart, visible);
         }
         if (!IsRunning(now) || index < BatchStart) return null;
         var tail = IsTail(index, visible);
-        var delay = !Within(now) ? Late(now)
+        var delay = Together ? TogetherDelay(now)
+            : !Within(now) ? Late(now)
             : FadeInTiming.BatchDelay(index, BatchStart, visible) ?? FadeInTiming.TailDelay(visible);
         if (tail && expectedAt is { } at && at - now > delay) delay = at - now;
         return delay;
     }
+
+    /// <summary>
+    /// The shared delay of a <see cref="Together"/> card's rows: the start the card's first row was given (0 once it has
+    /// passed), else one <see cref="FadeInTiming.Interval"/>, the first stagger slot.
+    /// </summary>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns>Delay (never negative).</returns>
+    private TimeSpan TogetherDelay(TimeSpan now) =>
+        togetherStart is { } at ? (at > now ? at - now : TimeSpan.Zero) : FadeInTiming.Interval;
 
     /// <summary>A row realized after the window while the entrance still runs starts with the entrance's last fade.</summary>
     /// <param name="now">Monotonic time.</param>

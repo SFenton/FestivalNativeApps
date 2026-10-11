@@ -64,6 +64,29 @@ class QuickLinksTest {
     }
 
     @Test
+    fun headingInsetLandsTheHeadingNotItsPadding() {
+        // Issue #587: an item whose heading keeps 16 dp above its title lands 16 dp higher, so the title is on the line.
+        assertEquals(16, QuickLinks.itemLandingPx(32, 16))
+        assertEquals(20, QuickLinks.itemLandingPx(32, 12))
+        assertEquals(32, QuickLinks.itemLandingPx(32, 0))
+        assertEquals(32, QuickLinks.itemLandingPx(32, -4))
+        assertEquals(-16, QuickLinks.lazyLandingScrollOffset(QuickLinks.itemLandingPx(32, 16), 0))
+        assertEquals(484, QuickLinks.scrollLandingTarget(500, QuickLinks.itemLandingPx(32, 16), 2000))
+    }
+
+    @Test
+    fun headingFrameStartsAtTheHeading() {
+        assertEquals(QuickLinkFrame(116f, 400f), QuickLinks.headingFrame(100f, 400f, 16f))
+        assertEquals(QuickLinkFrame(100f, 400f), QuickLinks.headingFrame(100f, 400f, -3f))
+        // A heading inset taller than the item never inverts the frame.
+        assertEquals(QuickLinkFrame(120f, 120f), QuickLinks.headingFrame(100f, 110f, 20f))
+        // The landed section is current on arrival: its heading frame starts exactly on the landing line.
+        val sections = listOf(QuickLinkSection("a", "A"), QuickLinkSection("b", "B"))
+        val landed = mapOf("a" to QuickLinkFrame(-300f, 15f), "b" to QuickLinks.headingFrame(16f, 600f, 16f))
+        assertEquals("b", QuickLinks.naturalActive(sections, landed, 32f))
+    }
+
+    @Test
     fun heldJumpRelandsOnlyWhenScrollingCanMoveTheTargetBack() {
         // On the line (within tolerance): stay.
         assertFalse(QuickLinks.needsReland(36, 32, 8, canScrollForward = true, canScrollBackward = true))

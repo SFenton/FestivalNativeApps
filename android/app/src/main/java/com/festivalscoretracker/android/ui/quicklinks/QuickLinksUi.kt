@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.automirrored.outlined.CompareArrows
@@ -68,6 +68,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.quicklinks.QuickLinkFrame
 import com.festivalscoretracker.android.core.quicklinks.QuickLinkSection
@@ -103,7 +104,7 @@ internal data class QuickLinkItem(val index: Int, val top: Int, val bottom: Int)
  */
 internal data class QuickLinkLayout(val items: List<QuickLinkItem>, val viewportHeight: Float)
 
-/** The scrolling surface a controller drives: a `LazyColumn` or a staggered grid. */
+/** The scrolling surface a controller drives: a `LazyColumn` or a `LazyVerticalGrid`. */
 internal interface QuickLinkScroller {
     /** Current layout; reads snapshot state, so `snapshotFlow` follows it. */
     fun layout(): QuickLinkLayout
@@ -164,8 +165,8 @@ private class ListScroller(private val state: LazyListState) : QuickLinkScroller
     override val position: Long get() = lazyPosition(state.firstVisibleItemIndex, state.firstVisibleItemScrollOffset)
 }
 
-/** [QuickLinkScroller] over a `LazyVerticalStaggeredGrid` (several items can share a row). */
-private class StaggeredScroller(private val state: LazyStaggeredGridState) : QuickLinkScroller {
+/** [QuickLinkScroller] over a `LazyVerticalGrid` (several items can share a row and its top edge). */
+private class GridScroller(private val state: LazyGridState) : QuickLinkScroller {
     override fun layout(): QuickLinkLayout {
         val info = state.layoutInfo
         val start = info.viewportStartOffset
@@ -187,7 +188,7 @@ private class StaggeredScroller(private val state: LazyStaggeredGridState) : Qui
 }
 
 /**
- * Quick Links state for one page backed by a lazy list or staggered grid whose
+ * Quick Links state for one page backed by a lazy list or grid whose
  * sections are items. Layout is observed only through `snapshotFlow` of the
  * layout info, and [activeId] changes only when the active section changes, so
  * scrolling does not recompose the page.
@@ -217,6 +218,13 @@ class QuickLinksController internal constructor(
      * (off for sticky-header lists, whose fixed rows cannot shift a landed header).
      */
     internal var holdLanding: Boolean = true
+
+    /**
+     * Section ID → how far its heading sits below the top of its item, in pixels (the heading's own top
+     * padding). Jumps land the heading on the landing line and the activation line tracks it
+     * (`section-jump-landing` R2, issue #587).
+     */
+    internal var headingInset: (String) -> Float = { 0f }
 
     /**
      * Title Case title (Songs: "<Sort> Quick Links"). Snapshot state, so a page keeps one controller
@@ -266,7 +274,7 @@ class QuickLinksController internal constructor(
         fadeInWindow?.rush()
         landing?.cancel()
         landing = scope.launch {
-            val px = landingPx.roundToInt()
+            val px = QuickLinks.itemLandingPx(landingPx.roundToInt(), headingInset(id).roundToInt())
             scroller.scrollTo(index, animate, px)
             settle()
             if (holdLanding) keepLanded(id, index, px)
@@ -317,7 +325,7 @@ class QuickLinksController internal constructor(
         if (activeId != tracker.activeId) activeId = tracker.activeId
     }
 
-    /** Frames: visible items from layout; items above the first visible one are "far above"; below is unknown. */
+    /** Frames: visible items from layout, starting at their headings; items above the first visible one are "far above"; below is unknown. */
     private fun frames(layout: QuickLinkLayout): Map<String, QuickLinkFrame> {
         val first = layout.items.minOfOrNull { it.index } ?: return emptyMap()
         val result = HashMap<String, QuickLinkFrame>()
@@ -325,7 +333,7 @@ class QuickLinksController internal constructor(
             val index = indexOf(section.id) ?: return@forEach
             val item = layout.items.firstOrNull { it.index == index }
             when {
-                item != null -> result[section.id] = QuickLinkFrame(item.top.toFloat(), item.bottom.toFloat())
+                item != null -> result[section.id] = QuickLinks.headingFrame(item.top.toFloat(), item.bottom.toFloat(), headingInset(section.id))
                 index < first -> result[section.id] = QuickLinkFrame(-1_000_000f, -999_999f)
             }
         }
@@ -341,6 +349,9 @@ class QuickLinksController internal constructor(
  * @param sections Sections in order (duplicates are dropped).
  * @param pinnedHeaders Section headers are sticky (Songs): jumps land them flush so they pin, with a 16 dp activation line.
  * @param fadeInWindow The page's fade window, which jumps rush (defaults to the enclosing one).
+ * @param headingInset Section ID → how far its heading sits below its item's top (the heading's own top
+ *   padding, such as [com.festivalscoretracker.android.ui.design.SECTION_HEADER_TOP_PADDING]); jumps land
+ *   the heading, not that padding, on the landing line (issue #587). Ignored with [pinnedHeaders].
  * @param indexOf Section ID → list item index.
  * @return Controller.
  */
@@ -351,36 +362,42 @@ fun rememberQuickLinks(
     sections: List<QuickLinkSection>,
     pinnedHeaders: Boolean = false,
     fadeInWindow: FadeInWindow? = LocalFadeInWindow.current,
+    headingInset: (String) -> Dp = NO_HEADING_INSET,
     indexOf: (String) -> Int?,
 ): QuickLinksController =
-    rememberQuickLinks(remember(listState) { ListScroller(listState) }, title, sections, pinnedHeaders, fadeInWindow, indexOf)
+    rememberQuickLinks(remember(listState) { ListScroller(listState) }, title, sections, pinnedHeaders, fadeInWindow, headingInset, indexOf)
 
 /**
- * Remember a Quick Links controller for a page laid out as a staggered grid.
+ * Remember a Quick Links controller for a page laid out as a row-major card grid.
  *
  * @param gridState The page's grid state.
  * @param title Quick Links title.
  * @param sections Sections in order (duplicates are dropped).
  * @param fadeInWindow The page's fade window, which jumps rush (defaults to the enclosing one).
+ * @param headingInset Section ID → how far its heading sits below its item's top (issue #587).
  * @param indexOf Section ID → grid item index.
  * @return Controller.
  */
 @Composable
 fun rememberQuickLinks(
-    gridState: LazyStaggeredGridState,
+    gridState: LazyGridState,
     title: String,
     sections: List<QuickLinkSection>,
     fadeInWindow: FadeInWindow? = LocalFadeInWindow.current,
+    headingInset: (String) -> Dp = NO_HEADING_INSET,
     indexOf: (String) -> Int?,
 ): QuickLinksController =
-    rememberQuickLinks(remember(gridState) { StaggeredScroller(gridState) }, title, sections, pinnedHeaders = false, fadeInWindow = fadeInWindow, indexOf = indexOf)
+    rememberQuickLinks(remember(gridState) { GridScroller(gridState) }, title, sections, pinnedHeaders = false, fadeInWindow = fadeInWindow, headingInset = headingInset, indexOf = indexOf)
+
+/** Sections whose headings sit flush with their items' tops (Settings, Leaderboards). */
+internal val NO_HEADING_INSET: (String) -> Dp = { 0.dp }
 
 /**
  * Remember a controller over any [QuickLinkScroller].
  *
- * Jumps land a section 32 dp below the visible top of the page (the web's default offset, #51) and the
- * activation line matches, so the landed section is the highlighted one. Lists with sticky headers land
- * them flush instead ([pinnedHeaders]).
+ * Jumps land a section's heading 32 dp below the visible top of the page (the web's default offset, #51;
+ * the heading rather than its item's padded top, #587) and the activation line matches, so the landed
+ * section is the highlighted one. Lists with sticky headers land them flush instead ([pinnedHeaders]).
  */
 @Composable
 internal fun rememberQuickLinks(
@@ -389,6 +406,7 @@ internal fun rememberQuickLinks(
     sections: List<QuickLinkSection>,
     pinnedHeaders: Boolean = false,
     fadeInWindow: FadeInWindow? = LocalFadeInWindow.current,
+    headingInset: (String) -> Dp = NO_HEADING_INSET,
     indexOf: (String) -> Int?,
 ): QuickLinksController {
     val scope = rememberCoroutineScope()
@@ -412,6 +430,7 @@ internal fun rememberQuickLinks(
     // Quick Links teleport to the section like the web (operator batch 7.15), never an animated scroll.
     controller.animate = false
     controller.holdLanding = !pinnedHeaders
+    controller.headingInset = if (pinnedHeaders) { _ -> 0f } else { id -> with(density) { headingInset(id).toPx() } }
     controller.fadeInWindow = fadeInWindow
     LaunchedEffect(controller) {
         snapshotFlow { scroller.layout() }.collect(controller::onLayout)

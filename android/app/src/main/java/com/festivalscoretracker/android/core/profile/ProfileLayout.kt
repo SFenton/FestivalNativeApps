@@ -222,7 +222,11 @@ sealed interface ProfileRow {
         val showsViewAll: Boolean get() = entries.isNotEmpty()
     }
 
-    /** Whether the row spans every column when no fold splits them. */
+    /**
+     * Whether the row spans the whole grid line (#584): flat or in landscape across every column;
+     * in book posture its content stays in the leading panel (`FoldLane`), so the cards after it
+     * start a new row on one top edge, as under Apple's full-width Overview.
+     */
     val fullWidth: Boolean get() = this !is InstrumentStats && this !is TopSongs && this !is BandGroup
 }
 
@@ -288,6 +292,15 @@ object ProfileSections {
      * @return Row key.
      */
     fun rowKey(id: String): String = if (id == "global") ProfileRow.Overview.key else id
+
+    /**
+     * Whether a Quick Links section is a chart's statistics, whose heading (the instrument row) sits
+     * flush with the top of its row; every other section opens with a padded section header.
+     *
+     * @param id Section ID.
+     * @return True for `instrument:<wire>`.
+     */
+    fun isInstrumentId(id: String): Boolean = id.startsWith("instrument:")
 }
 
 // endregion

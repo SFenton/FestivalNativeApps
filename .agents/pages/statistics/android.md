@@ -1,10 +1,10 @@
 # Statistics — Android notes
 
-> **What:** how the Android Statistics tab renders the selected player's profile. **Read when:** changing `StatisticsScreen` or the follow-selection mode of `PlayerProfileViewModel`. Shared body: [player-profile/android.md](../player-profile/android.md).
+> **What:** how the Android Statistics page renders the selected player's profile. **Read when:** changing `StatisticsScreen` or the follow-selection mode of `PlayerProfileViewModel`. Shared body: [player-profile/android.md](../player-profile/android.md).
 
-- `StatisticsTab` (tab root: hamburger and avatar) and `StatisticsRoute` (pushed) render `PlayerProfileContent` with `PlayerProfileViewModel(accountId = null)`, always showing the selected player with Deselect (web `App.tsx` routes `/statistics` to `PlayerPage`).
+- Statistics is not an Android tab since #601 (Item Shop took its slot; [page-tools-and-nav-chrome](../../patterns/page-tools-and-nav-chrome.md) R22): Profile, the drawer row, search and `FST_DEBUG_TAB=statistics` push `StatisticsRoute` (Back). `StatisticsTab` stays registered but no Android path selects it. Both render `PlayerProfileContent` with `PlayerProfileViewModel(accountId = null)`, always showing the selected player with Deselect (web `App.tsx` routes `/statistics` to `PlayerPage`).
 - It mirrors `SelectedProfileStore` instead of reading again; Retry calls `store.retry()`.
-- Per-entity reset: a switch re-targets the page and clears the rank and history cards; a deselect removes the tab (`FestivalTabPolicy`) and the page shows `fst.player.no-profile` until the shell moves to Songs. The tab does not restore nested history (`resetsPathOnLeave`).
+- Per-entity reset: a switch re-targets the page and clears the rank and history cards; a deselect redirects the pushed page to Songs (`ProfileRoutePolicy`), showing `fst.player.no-profile` until then.
 - Root tag `fst.statistics`; everything inside uses `fst.player.*`.
 
 ## Validation (issue #111, 2026-10-03)
@@ -17,7 +17,7 @@ Live public service (keyless; `/api/player/{id}`, rankings, rank history and pla
 | FST_Phone landscape (`wm user-rotation lock 1`; the drive's `rotate:` step is a no-op on this AVD), 100% / 200% | OK. 923 dp: Quick Links move to the menu (then in the top bar; the floating toolbar since #576); Overview 4 tiles across at 100%, 2 at 200% |
 | FST_Tablet landscape / portrait, 100% / 200% | OK. Drawer and two lanes (landscape), rail and one column (portrait); rail icon-only at 200%; menu items wrap at 200% |
 | FST_Resizable phone / foldable / tablet / desktop | OK. Bar → rail → drawer; 1 → 2 → 3 lanes; 200% checked at foldable and desktop |
-| FST_Book_Fold folded / unfolded / half-open, 100% / 200% | OK after fix. Half-open splits at the hinge (no straddling card). Found and fixed: unfolded → Top Songs → half-open → Global left a lane gap and hid Lead (`rememberProfileGridState`) |
+| FST_Book_Fold folded / unfolded / half-open, 100% / 200% | OK after fix. Half-open splits at the hinge (no straddling card). Found and fixed: unfolded → Top Songs → half-open → Global left a lane gap and hid Lead (`rememberProfileGridState`; since #584 the grid is row-major, Overview keeps to the leading panel with Lead starting the next row, and the workaround is gone) |
 | FST_Passport_Fold folded / unfolded, 100% / 200% | OK. Unfolded: rail, two lanes, menu; folded: bar, sheet; one column folded at 200% |
 | FST_TriFold folded / partial / unfolded, 100% / 200% | OK. All postures are flat (not separating), so width rules apply: two lanes unfolded, one column partial and folded, one column at 200% |
 | Light theme (`dark:off`) | Stays dark by design (the product uses one dark scheme, as on the web) |

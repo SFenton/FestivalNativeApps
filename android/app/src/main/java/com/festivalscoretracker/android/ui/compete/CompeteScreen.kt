@@ -11,9 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridScope
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
-import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -45,7 +45,6 @@ import com.festivalscoretracker.android.core.compete.CompeteHeaderLayout
 import com.festivalscoretracker.android.core.compete.CompeteScope
 import com.festivalscoretracker.android.core.compete.CompeteText
 import com.festivalscoretracker.android.core.nav.AppRoute
-import com.festivalscoretracker.android.core.nav.FullRankingsRoute
 import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.rankings.RankingNavigation
 import com.festivalscoretracker.android.core.rankings.RankingSpotlight
@@ -100,13 +99,13 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
     val latest by viewModel.content.collectAsStateWithLifecycle()
     val swap = rememberLoadSwap(latest, latest.ready)
     val content = swap.shown
-    val gridState = rememberLazyStaggeredGridState()
+    val gridState = rememberLazyGridState()
     val rivalsIndex = 1 + content.sections.size
     // Web: the two groups once the page's content is in (no full-page failure).
     val sections = if (swap.showsContent && content.fullPageIssue == null) RivalQuickLinks.compete() else emptyList()
     // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
     val fadeIn = rememberPageFadeInWindow()
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeIn) { id ->
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeIn, headingInset = { GROUP_HEADER_TOP_PADDING }) { id ->
         when (id) {
             RivalQuickLinks.COMPETE_LEADERBOARDS -> 0
             RivalQuickLinks.COMPETE_RIVALS -> rivalsIndex
@@ -146,7 +145,7 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
  * @param revealed The page swap's reveal flag ([festivalFadeIn]).
  */
 @Composable
-private fun CompeteGrid(content: CompeteContent, padding: PaddingValues, gridState: LazyStaggeredGridState, viewModel: CompeteViewModel, revealed: Boolean) {
+private fun CompeteGrid(content: CompeteContent, padding: PaddingValues, gridState: LazyGridState, viewModel: CompeteViewModel, revealed: Boolean) {
     val shell = LocalShellActions.current
     val selected = shell.selectedPlayer?.accountId
     val order = content.stagger
@@ -170,7 +169,13 @@ private fun CompeteGrid(content: CompeteContent, padding: PaddingValues, gridSta
     }
 }
 
-private fun LazyStaggeredGridScope.groupHeader(id: String, title: String, revealed: Boolean, stagger: Int) {
+/**
+ * Space a Compete group header keeps above its title: Quick Links jumps land the title, not this space,
+ * on the landing line (`section-jump-landing` R2, issue #587).
+ */
+private val GROUP_HEADER_TOP_PADDING = 8.dp
+
+private fun LazyGridScope.groupHeader(id: String, title: String, revealed: Boolean, stagger: Int) {
     // Full-line, but kept in the leading pane while the grid splits at a hinge (issue #343).
     foldLaneItem(key = "header:$id") {
         Box(Modifier.festivalFadeIn(revealed, fadeInStagger(stagger))) {
@@ -179,7 +184,7 @@ private fun LazyStaggeredGridScope.groupHeader(id: String, title: String, reveal
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = BrandTokens.textPrimary,
-                modifier = Modifier.padding(top = 8.dp).testTag("fst.compete.section.$id").semantics { heading() },
+                modifier = Modifier.padding(top = GROUP_HEADER_TOP_PADDING).testTag("fst.compete.section.$id").semantics { heading() },
             )
         }
     }
@@ -247,9 +252,9 @@ private fun EmptyCard(title: String, subtitle: String, modifier: Modifier = Modi
 private fun BoardCard(section: CompeteSection, selected: String?, viewModel: CompeteViewModel, navigate: (AppRoute) -> Unit, revealed: Boolean, stagger: Int) {
     val scope = section.scope
     val board = (section.board as? LoadState.Loaded<CompeteBoard>)?.value
-    // Only single charts have a native full board; combo boards stay previews.
-    val fullBoard: (() -> Unit)? = (scope as? CompeteScope.Single)?.takeIf { board?.hasNavigation == true }?.let {
-        { navigate(FullRankingsRoute(it.instrument.wireId, RankingMetric.TotalScore.wireId)) }
+    // Every scope, combos included, opens its full board (web `CompetePage`, #602).
+    val fullBoard: (() -> Unit)? = scope.takeIf { board?.hasNavigation == true }?.let {
+        { navigate(it.fullRankingsRoute) }
     }
     val body = stagger + 1
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.testTag("fst.compete.leaderboard-card.${scope.key}")) {
@@ -289,12 +294,12 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                                 Column(Modifier.festivalFadeIn(revealed, fadeInStagger(body + value.entries.size))) {
                                     HorizontalDivider(color = BrandTokens.glassBorder, modifier = Modifier.padding(vertical = 4.dp))
                                     // Like Song Detail's appended row (`leaderboard-row` R7, owner variant #370): it opens
-                                    // the full board on the player's page and reveals the row; combo scopes open Statistics.
+                                    // the scope's full board (a combo's included, #602) on the player's page and reveals the row.
                                     AccountRankingRow(
                                         entry = own,
                                         metric = RankingMetric.TotalScore,
                                         isSelected = true,
-                                        route = RankingNavigation.previewSpotlightRoute(own, RankingMetric.TotalScore, (scope as? CompeteScope.Single)?.instrument, selected),
+                                        route = RankingNavigation.previewSpotlightRoute(own, RankingMetric.TotalScore, scope.instruments.first(), selected, scope.comboId),
                                         onOpen = navigate,
                                         tag = "fst.compete.spotlight.${scope.key}",
                                     )
@@ -302,16 +307,18 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                             }
                         }
                         }
-                    }
-                    if (fullBoard != null) {
-                        val rows = value.entries.size + (if (value.spotlight != null) 1 else 0)
-                        ViewFullLeaderboardButton(
-                            onClick = fullBoard,
-                            modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(body + rows)),
-                            label = CompeteText.VIEW_FULL_LEADERBOARDS,
-                            testTag = "fst.compete.view-full-leaderboards",
-                            cardName = scope.label,
-                        )
+                        // `view-all-cta` R1 (Android, #603): the CTA ends the card inside it, inset 12 dp like
+                        // the rivals card beside it and Song Detail's previews (the rows' 8 dp padding is above it).
+                        if (fullBoard != null) {
+                            val rows = value.entries.size + (if (value.spotlight != null) 1 else 0)
+                            ViewFullLeaderboardButton(
+                                onClick = fullBoard,
+                                modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp).festivalFadeIn(revealed, fadeInStagger(body + rows)),
+                                label = CompeteText.VIEW_FULL_LEADERBOARDS,
+                                testTag = "fst.compete.view-full-leaderboards",
+                                cardName = scope.label,
+                            )
+                        }
                     }
                 }
             }
@@ -320,8 +327,8 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
 }
 
 /**
- * One scope's rivals card: its header, then three above / three below and View All Rivals (or
- * empty copy, or an inline error), each fading in at its place in the page order.
+ * One scope's rivals card: its header, then one card of three above / three below ending in View
+ * All Rivals (or empty copy, or an inline error), fading in at its place in the page order.
  *
  * @param section Scope state.
  * @param viewModel Page logic (retry).
