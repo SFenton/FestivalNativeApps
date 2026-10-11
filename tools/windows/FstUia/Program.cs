@@ -127,6 +127,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 "close" => Close(request),
                 "sysset" => SysSet(request),
                 "scan" => Scan(FindWindow(request), (string)request["out"]!, (string?)request["scanid"] ?? "scan"),
+                "ellipsis" => Ellipsis((string)request["image"]!, request["rect"]?.AsArray()),
                 _ => throw new ArgumentException($"unknown command {command}"),
             };
         }
@@ -164,6 +165,27 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         foreach (var blocker in blockers) covered.Add(JsonValue.Create($"{blocker.Title} (pid {blocker.Pid})"));
         return new JsonObject { ["foreground"] = foreground, ["covered_by"] = covered };
     }
+
+    /// <summary>
+    /// Raises the target above overlapping windows before a motion assertion. The app pauses looping motion (marquees,
+    /// shimmers) while its window is covered (<c>OcclusionTracker</c>), so on a shared desktop another lane's window
+    /// would otherwise turn a moving check into a false "did not scroll" failure. Waits briefly after raising so the
+    /// app's occlusion poll resumes motion; throws (via <see cref="EnsureForeground"/>) when it stays covered.
+    /// </summary>
+    /// <param name="window">Target.</param>
+    private void UncoverForMotion(Window window)
+    {
+        if (postKeys) return; // a locked console cannot activate windows; nothing covers it there either
+        var hwnd = window.Properties.NativeWindowHandle.Value;
+        var above = Native.WindowsAbove(hwnd, window.Properties.ProcessId.Value);
+        if (above.Count == 0) return;
+        Log("motion check: window covered by " + string.Join(", ", above.Select(b => $"\"{b.Title}\"")) + "; raising it");
+        EnsureForeground(window);
+        Thread.Sleep(MotionResumeDelay);
+    }
+
+    /// <summary>Time for the app's occlusion poll to notice it is uncovered and resume motion.</summary>
+    private static readonly TimeSpan MotionResumeDelay = TimeSpan.FromMilliseconds(800);
 
     /// <summary>Minimizes visible, overlapping top-level windows of other processes with the target's name.</summary>
     /// <param name="hwnd">Target window.</param>
@@ -696,6 +718,14 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "scrollto":
                 var scroller = Find(window, step);
                 if (!scroller.Patterns.Scroll.IsSupported) throw new InvalidOperationException("scrollto target has no Scroll pattern");
+                // Content that fits (e.g. short What's New notes in a tall window, or a
+                // flyout list that scrolls only at large text sizes, issue #428) is already at every position, and UIA
+                // rejects SetScrollPercent on a non-scrollable axis with UIA_E_INVALIDOPERATION.
+                if (!scroller.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault)
+                {
+                    Log($"scrollto: {arg} is not vertically scrollable (content fits); nothing to scroll");
+                    break;
+                }
                 scroller.Patterns.Scroll.Pattern.SetScrollPercent(-1, (double)step["percent"]!);
                 break;
             case "reveal":
@@ -780,12 +810,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 Pin(window, step, verb == "pin");
                 break;
             case "assertmarquee":
+                UncoverForMotion(window);
                 AssertMarquee(window, step);
                 break;
             case "assertmarqueesync":
+                UncoverForMotion(window);
                 AssertMarqueeSync(window, step);
                 break;
             case "assertmotion":
+                UncoverForMotion(window);
                 AssertMotion(window, step);
                 break;
             case "listen":
@@ -827,6 +860,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 break;
             case "assertannouncedcount":
                 AssertAnnouncedCount(step);
+                break;
+            case "contrast":
+                // A live contrast-theme switch with the app open; a11y_matrix restores the previous theme.
+                SetHighContrast(arg);
                 break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
@@ -937,8 +974,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Waits until an element matching the selector reports the expected UIA <c>ItemStatus</c>. Off-screen and raw-view
     /// elements count (e.g. the decorative backdrop's state while the window is minimized). Unless the expected status is
-    /// <c>not-visible</c>, <c>=background</c> or a held Shop pulse (<c>pulse=held</c>), the window is brought to the front
-    /// first (and every 2 s), since the backdrop pauses when covered.
+    /// <c>not-visible</c>, <c>=background</c>, a held Shop pulse (<c>pulse=held</c>) or a paused First Run auto-scroll
+    /// (<c>scroll=paused</c>), the window is brought to the front first (and every 2 s), since the backdrop pauses when
+    /// covered.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, the expected <c>status</c> and an optional timeout (default 5 s).</param>
@@ -957,11 +995,11 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         };
         rawView.Add(automation.PropertyLibrary.Element.ItemStatus);
         // The backdrop is occlusion-aware: asserting a visible state needs the window in front of other lanes' windows
-        // (a not-visible assertion, including a first-run demo's rotation=not-visible or a held Shop pulse, must not
-        // restore a minimized window, and a rotation=background one must not reactivate a window that foreground:off
-        // deactivated).
+        // (a not-visible assertion, including a first-run demo's rotation=not-visible, a held Shop pulse or a paused
+        // auto-scroll, must not restore a minimized window, and a rotation=background one must not reactivate a window
+        // that foreground:off deactivated).
         var front = !expected.Contains("not-visible", StringComparison.Ordinal) && !expected.Contains("=background", StringComparison.Ordinal)
-            && !expected.Contains("pulse=held", StringComparison.Ordinal);
+            && !expected.Contains("pulse=held", StringComparison.Ordinal) && !expected.Contains("scroll=paused", StringComparison.Ordinal);
         var nextFront = DateTime.MinValue;
         while (true)
         {
@@ -1088,8 +1126,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
     /// (<c>true</c>/<c>false</c>), SelectionItem <c>IsSelected</c> (<c>true</c>/<c>false</c>), rounded vertical scroll
-    /// percent (<c>scroll</c>), UIA heading level (<c>heading</c>: <c>1</c>–<c>9</c>, <c>0</c> for none) or name equals
-    /// the step's value.
+    /// percent (<c>scroll</c>), control type, Invoke support, keyboard focusability, value, UIA heading level
+    /// (<c>heading</c>: <c>1</c>–<c>9</c>, <c>0</c> for none), HelpText (<c>help</c>) or name equals the step's value (or
+    /// matches it as a regex when the value starts with <c>~</c>). A <c>raw=</c> selector searches the raw view.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
@@ -1103,7 +1142,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         while (true)
         {
             string? seen = null;
-            if (window.FindFirstDescendant(condition) is { } element)
+            if (InView(IsRaw(step), () => window.FindFirstDescendant(condition)) is { } element)
             {
                 seen = key switch
                 {
@@ -1136,10 +1175,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                         : element.Patterns.Selection.PatternOrDefault?.Selection.ValueOrDefault is { Length: > 0 } picked
                             ? picked[0].Properties.Name.ValueOrDefault
                             : null,
+                    // A raw-view peer's HelpText, e.g. a First Run demo's control census (controls=A+B+C).
+                    "help" => element.Properties.HelpText.ValueOrDefault ?? "",
                     _ => element.Properties.Name.ValueOrDefault,
                 };
             }
-            if (seen == expected) return;
+            if (StatusMatches(seen, expected)) return;
             if (DateTime.UtcNow > until)
                 throw new InvalidOperationException($"element {label} {key} is {(seen is null ? "missing" : $"\"{seen}\"")}, expected \"{expected}\"");
             Thread.Sleep(200);
@@ -1289,14 +1330,33 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var (condition, label) = Condition(step, key);
         var raw = IsRaw(step, key);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        var retried = false;
         while (true)
         {
-            var found = InView(raw, () => window.FindFirstDescendant(condition));
-            if (found is not null && (!onScreen || !found.Properties.IsOffscreen.ValueOrDefault)) return found;
+            try
+            {
+                var found = InView(raw, () => window.FindFirstDescendant(condition));
+                if (found is not null && (!onScreen || !found.Properties.IsOffscreen.ValueOrDefault)) return found;
+            }
+            // A busy app (e.g. restoring a page after Back on a slow runner) can time out one UIA call or drop an
+            // element mid-search; search again within the step's timeout, at least once (#552), and still fail if
+            // it persists.
+            catch (Exception error) when (IsTransientUia(error) && (!retried || DateTime.UtcNow <= until))
+            {
+                retried = true;
+                Thread.Sleep(200);
+                continue;
+            }
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"no on-screen element {label}");
             Thread.Sleep(200);
         }
     }
+
+    /// <summary>Whether a UI Automation error is a passing provider state worth searching again for.</summary>
+    /// <param name="error">The error a UIA call threw.</param>
+    /// <returns>True for a UIA call timeout (<c>UIA_E_TIMEOUT</c>, 0x80131505) or an element that went away.</returns>
+    internal static bool IsTransientUia(Exception error) =>
+        error is TimeoutException or FlaUI.Core.Exceptions.ElementNotAvailableException;
 
     /// <summary>
     /// Waits until the step's element is on screen with exactly the step's UIA Name; each <c>*</c> in the text matches
@@ -1821,10 +1881,30 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     }
 
     /// <summary>
+    /// Offline <see cref="EndsInEllipsis"/> check of a saved capture (no window): lets tool tests replay a failing
+    /// <c>assertmarquee</c> line from a CI screenshot.
+    /// </summary>
+    /// <param name="image">PNG path.</param>
+    /// <param name="rect">Optional <c>[x, y, width, height]</c> crop in image pixels (the element's bounds).</param>
+    /// <returns><c>ellipsis</c> and, when false, <c>detail</c>.</returns>
+    private static JsonNode Ellipsis(string image, JsonArray? rect)
+    {
+        using var source = new Bitmap(image);
+        var bounds = rect is null
+            ? new Rectangle(0, 0, source.Width, source.Height)
+            : new Rectangle((int)rect[0]!, (int)rect[1]!, (int)rect[2]!, (int)rect[3]!);
+        using var line = source.Clone(bounds, PixelFormat.Format32bppArgb);
+        var ellipsis = EndsInEllipsis(line, out var detail);
+        return new JsonObject { ["ellipsis"] = ellipsis, ["detail"] = detail };
+    }
+
+    /// <summary>
     /// Whether one rendered text line ends in "…": ink is any pixel whose luminance differs from the line's most common
     /// (background) luminance by more than 40. In the last third of a line height before the rightmost ink column, an
     /// ellipsis leaves only a short band of ink (at most a quarter of the line height: dots on the baseline) split into at
-    /// least two separate dots; the last glyph of clipped text is taller or one connected stroke.
+    /// least two separate dots; the last glyph of clipped text is taller or one connected stroke. A dot is a run of columns
+    /// at least half as dark as the band's darkest column: at 100% scale a small line's dots are one pixel apart, and
+    /// anti-aliasing leaves faint ink between them (issue #529, the pinned artist on the hosted runner).
     /// </summary>
     /// <param name="line">Capture of the text line.</param>
     /// <param name="detail">Why it is not an ellipsis.</param>
@@ -1855,18 +1935,24 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             return false;
         }
         var span = Math.Max(3, (int)Math.Round(height / 3.0));
+        var left = Math.Max(0, right - span + 1);
+        var contrast = new int[right - left + 1];
         int top = height, bottom = -1, runs = 0;
-        var inRun = false;
-        for (var x = Math.Max(0, right - span + 1); x <= right; x++)
+        for (var x = left; x <= right; x++)
         {
-            var inked = false;
             for (var y = 0; y < height; y++)
             {
                 if (!Ink(x, y)) continue;
-                inked = true;
+                contrast[x - left] = Math.Max(contrast[x - left], Math.Abs(lum[x, y] - background));
                 top = Math.Min(top, y);
                 bottom = Math.Max(bottom, y);
             }
+        }
+        var dot = contrast.Max() / 2.0;
+        var inRun = false;
+        foreach (var column in contrast)
+        {
+            var inked = column > 0 && column >= dot;
             if (inked && !inRun) runs++;
             inRun = inked;
         }

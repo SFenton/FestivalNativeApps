@@ -138,6 +138,55 @@ public static class FadeIn
     private static readonly DependencyProperty AnimatedProperty = DependencyProperty.RegisterAttached(
         "Animated", typeof(bool), typeof(FadeIn), new PropertyMetadata(false));
 
+    /// <summary>
+    /// The list's rows share one card and fade in together as that card (owner-approved variant, issue #614;
+    /// <see cref="StaggerArm.Together"/>): one fade for every row of a load, and none at all while an ancestor (the card
+    /// itself, staggered by an outer list or entering with its page) is still fading in, so the rows ride its fade. Setting
+    /// it also turns <c>Stagger</c> on.
+    /// </summary>
+    public static readonly DependencyProperty TogetherProperty = DependencyProperty.RegisterAttached(
+        "Together", typeof(bool), typeof(FadeIn), new PropertyMetadata(false, OnTogetherChanged));
+
+    /// <summary>When an element's latest fade ends (<see cref="Now"/> time); rows of a <c>Together</c> card ride it until then.</summary>
+    private static readonly DependencyProperty FadeEndProperty = DependencyProperty.RegisterAttached(
+        "FadeEnd", typeof(object), typeof(FadeIn), new PropertyMetadata(null));
+
+    /// <summary>Gets <c>Together</c>.</summary>
+    /// <param name="element">List.</param>
+    /// <returns>Whether the rows fade in as one card.</returns>
+    public static bool GetTogether(UIElement element) => (bool)element.GetValue(TogetherProperty);
+
+    /// <summary>Sets <c>Together</c>.</summary>
+    /// <param name="element">List.</param>
+    /// <param name="value">Whether the rows fade in as one card.</param>
+    public static void SetTogether(UIElement element, bool value) => element.SetValue(TogetherProperty, value);
+
+    /// <summary>Marks the list's arm as one card and hooks its rows (<c>Stagger</c>).</summary>
+    /// <param name="d">List.</param>
+    /// <param name="e">New value.</param>
+    private static void OnTogetherChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not UIElement list) return;
+        ArmOf(list).Together = e.NewValue is true;
+        if (e.NewValue is true) SetStagger(list, true);
+    }
+
+    /// <summary>
+    /// Whether a <c>Together</c> list's rows ride an ancestor that is still fading in (its card, staggered by an outer
+    /// list or entering with its page): they then show in place inside it rather than fade a second time after it.
+    /// </summary>
+    /// <param name="list">List.</param>
+    /// <param name="now">Monotonic time.</param>
+    /// <returns><see langword="true"/> while an ancestor's fade runs or waits to start.</returns>
+    private static bool RidesEnteringAncestor(DependencyObject list, TimeSpan now)
+    {
+        for (var node = VisualTreeHelper.GetParent(list); node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (node.GetValue(FadeEndProperty) is TimeSpan end && end > now && node.GetValue(AnimatedProperty) is true) return true;
+        }
+        return false;
+    }
+
     /// <summary>Gets <c>Stagger</c>.</summary>
     /// <param name="element">List.</param>
     /// <returns>Whether enabled.</returns>
@@ -301,6 +350,7 @@ public static class FadeIn
         var (x, y) = TrackerOf(list).Offset();
         var now = Now;
         var visible = VisibleRows(list);
+        var rides = arm.Together && RidesEnteringAncestor(list, now);
         var found = false;
         for (var i = 0; i < count; i++)
         {
@@ -311,7 +361,8 @@ public static class FadeIn
                 continue;
             }
             found = true;
-            if (arm.Delay(i, visible, now, x, y) is { } delay) PlayRow(list, element, i, delay, arm);
+            if (rides) Reset(element);
+            else if (arm.Delay(i, visible, now, x, y) is { } delay) PlayRow(list, element, i, delay, arm);
         }
     }
 
@@ -337,6 +388,12 @@ public static class FadeIn
         var (x, y) = tracker.Offset();
         var now = Now;
         OnScrolled(list, arm, arm.Scrolled(x, y, now), now);
+        if (arm.Together && RidesEnteringAncestor(list, now))
+        {
+            Reset(element);
+            Trace("fade-ride", list, $"index={index}");
+            return;
+        }
         var visible = VisibleRows(list);
         if (arm.Delay(index, visible, now, x, y) is { } delay)
         {
@@ -393,17 +450,50 @@ public static class FadeIn
     #endregion
 
     #region Entrances
+    private static readonly DependencyProperty HeldAnchorProperty = DependencyProperty.RegisterAttached(
+        "HeldAnchor", typeof(object), typeof(FadeIn), new PropertyMetadata(null));
+
+    /// <summary>A page scroller's position when its content was laid out, before its entrance began.</summary>
+    /// <param name="X">Horizontal offset (epx).</param>
+    /// <param name="Y">Vertical offset (epx).</param>
+    private sealed record HeldAnchor(double X, double Y);
+
+    /// <summary>
+    /// Holds a page entrance's start position while its content is already laid out (and scrollable) but still hidden,
+    /// such as Song Details behind its spinner's fade-out: a scroll in that moment then rushes the entrance as soon as
+    /// <see cref="BeginEntrance"/> starts it, rather than going unseen and leaving the content to stagger in after the
+    /// reader has scrolled (R5, issue #532).
+    /// </summary>
+    /// <param name="scroller">The page's scroller.</param>
+    public static void HoldEntrance(ScrollViewer scroller) =>
+        scroller.SetValue(HeldAnchorProperty, new HeldAnchor(scroller.HorizontalOffset, scroller.VerticalOffset));
+
     /// <summary>
     /// Starts a page's own first-load entrance (Song Detail's sections and cards, Player Profile's title and Overview):
     /// a load arm owned by the page's scroller, whose first movement rushes every <see cref="Enter"/> fade of the page
     /// that hasn't started (a drag, wheel, Quick Links jump or programmatic scroll; web <c>useStaggerRush</c>, issue #323).
+    /// After <see cref="HoldEntrance"/>, movement is measured from the held position, so a scroll that came first rushes
+    /// the entrance at once and its elements enter together.
+    /// An owner that isn't a scroller (a First Run carousel's <c>FlipView</c>, one entrance per slide shown, issue #380)
+    /// follows its nearest scrolling ancestor, so its own paging never rushes the slide it pages to.
     /// </summary>
-    /// <param name="scroller">The page's scroller.</param>
-    public static void BeginEntrance(ScrollViewer scroller)
+    /// <param name="owner">The page's scroller, or another entrance owner.</param>
+    public static void BeginEntrance(FrameworkElement owner)
     {
-        TrackerOf(scroller).Hook();
-        Restagger(scroller);
-        SettleNow(scroller);
+        var tracker = TrackerOf(owner);
+        tracker.Hook();
+        Restagger(owner);
+        if (owner.GetValue(HeldAnchorProperty) is not HeldAnchor held)
+        {
+            SettleNow(owner);
+            return;
+        }
+        owner.ClearValue(HeldAnchorProperty);
+        var arm = ArmOf(owner);
+        arm.Settle(held.X, held.Y);
+        var now = Now;
+        var (x, y) = tracker.Offset();
+        OnScrolled(owner, arm, arm.Scrolled(x, y, now), now);
     }
 
     /// <summary>
@@ -427,7 +517,10 @@ public static class FadeIn
             Reset(element);
             return;
         }
-        Schedule(element, delay, arm, -1);
+        // A whole card's pinned row starts with its rows at one absolute time (#614): the time spent since `now` (the
+        // scroll check, a first composition setup) comes off its delay rather than pushing its start later.
+        Schedule(element, delay, arm, -1, arm.Together ? now : null);
+        if (arm.Together) delay = now + delay > Now ? now + delay - Now : TimeSpan.Zero;
         Trace("fade-enter", owner, $"target={NameOf(element)} delay={delay.TotalMilliseconds:F0} motion={(Motion.Allowed ? 1 : 0)}");
     }
     #endregion
@@ -576,10 +669,11 @@ public static class FadeIn
     /// Writes a stagger decision to the perf log (<c>--perf-log</c>) for the fade journeys (issues #260 and #323): one
     /// line per re-arm, per row that fades, per entrance element scheduled, per load arm a scroll rushes or closes, per
     /// entrance element a rush started early, per hold for an automatic scroll and per row a scroll kept from fading
-    /// after the rush; never for rows that just appear otherwise, so steady scrolling writes nothing.
+    /// after the rush; never for rows that just appear otherwise, so steady scrolling writes nothing. A whole-card list
+    /// (<c>Together</c>, issue #614) writes one <c>fade-ride</c> per row that rides its entering card instead of fading.
     /// </summary>
     /// <param name="kind">Line kind (<c>fade-arm</c>, <c>fade-play</c>, <c>fade-enter</c>, <c>fade-rush</c>,
-    /// <c>fade-early</c>, <c>fade-close</c>, <c>fade-hold</c>, <c>fade-skip</c>, <c>fade-reveal</c>).</param>
+    /// <c>fade-early</c>, <c>fade-close</c>, <c>fade-hold</c>, <c>fade-skip</c>, <c>fade-reveal</c>, <c>fade-ride</c>).</param>
     /// <param name="list">Entrance owner (named by its x:Name, else its AutomationId).</param>
     /// <param name="detail">Space-separated <c>key=value</c> pairs (an <c>at=</c> monotonic time in ms is appended).</param>
     internal static void Trace(string kind, UIElement list, FormattableString detail)
@@ -625,12 +719,14 @@ public static class FadeIn
     /// <param name="delay">Start delay.</param>
     /// <param name="arm">Owning entrance.</param>
     /// <param name="index">Row index, or -1 for an entrance element.</param>
-    private static void Schedule(UIElement element, TimeSpan delay, StaggerArm arm, int index)
+    /// <param name="decidedAt">When <paramref name="delay"/> was decided, for a start at an absolute time; <see langword="null"/>: from now.</param>
+    private static void Schedule(UIElement element, TimeSpan delay, StaggerArm arm, int index, TimeSpan? decidedAt = null)
     {
-        if (!PlayCore(element, delay)) return;
+        if (!PlayCore(element, delay, decidedAt)) return;
         var now = Now;
         Prune(now);
-        if (delay > TimeSpan.Zero) Pending[element] = new PendingFade(arm, index, TokenOf(element), now + delay);
+        var startsAt = (decidedAt ?? now) + delay;
+        if (startsAt > now) Pending[element] = new PendingFade(arm, index, TokenOf(element), startsAt);
     }
 
     /// <summary>
@@ -690,8 +786,10 @@ public static class FadeIn
     /// <summary>Starts <c>fadeInUp</c> on the element's composition visual, replacing any fade it had.</summary>
     /// <param name="element">Element.</param>
     /// <param name="delay">Start delay.</param>
+    /// <param name="decidedAt">When <paramref name="delay"/> was decided, for a start at an absolute time (a whole card's
+    /// pinned row, issue #614): the time spent since comes off the delay. <see langword="null"/>: from now.</param>
     /// <returns><see langword="false"/> when motion is off (the element was shown in place instead).</returns>
-    private static bool PlayCore(UIElement element, TimeSpan delay)
+    private static bool PlayCore(UIElement element, TimeSpan delay, TimeSpan? decidedAt = null)
     {
         if (!Motion.Allowed)
         {
@@ -705,6 +803,7 @@ public static class FadeIn
         element.SetValue(AnimatedProperty, true);
         var (x1, y1, x2, y2) = FadeInTiming.EaseOut;
         var ease = compositor.CreateCubicBezierEasingFunction(new Vector2(x1, y1), new Vector2(x2, y2));
+        if (decidedAt is { } decided) delay = decided + delay > Now ? decided + delay - Now : TimeSpan.Zero;
 
         var fade = compositor.CreateScalarKeyFrameAnimation();
         fade.InsertKeyFrame(0f, 0f);
@@ -722,6 +821,7 @@ public static class FadeIn
 
         visual.StartAnimation(Opacity, fade);
         visual.StartAnimation(Translation, rise);
+        element.SetValue(FadeEndProperty, Now + delay + FadeInTiming.Duration);
         return true;
     }
 
@@ -731,6 +831,7 @@ public static class FadeIn
     {
         if (element.GetValue(AnimatedProperty) is not true) return;
         element.SetValue(AnimatedProperty, false);
+        element.ClearValue(FadeEndProperty);
         element.SetValue(TokenProperty, TokenOf(element) + 1);
         Pending.Remove(element);
         var visual = ElementCompositionPreview.GetElementVisual(element);

@@ -67,7 +67,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <!-- Centred: the action buttons beside it are 40 epx tall (FSTMinTargetSize), the box keeps Fluent's 32. -->
-            <AutoSuggestBox x:Name="SearchBox" PlaceholderText="Search songs or artists" QueryIcon="Find" VerticalAlignment="Center"
+            <AutoSuggestBox x:Name="SearchBox" controls:PopupHosting.InWindow="True" PlaceholderText="Search songs or artists" QueryIcon="Find" VerticalAlignment="Center"
                             Text="{x:Bind ViewModel.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                             QuerySubmitted="OnSearchSubmitted"
                             AutomationProperties.Name="Search songs"
@@ -82,7 +82,7 @@
                     <TextBlock x:Name="SortLabel" Text="{x:Bind ViewModel.SortSummary, Mode=OneWay}" />
                 </StackPanel>
                 <DropDownButton.Flyout>
-                    <Flyout x:Name="SortFlyout" Placement="BottomEdgeAlignedLeft" Opening="OnSortOpening">
+                    <Flyout x:Name="SortFlyout" Placement="BottomEdgeAlignedLeft" ShouldConstrainToRootBounds="True" Opening="OnSortOpening">
                         <controls:SongSortForm Draft="{x:Bind ViewModel.SortDraft}" Title="Sort Songs" IdPrefix="fst.songs.sort" />
                     </Flyout>
                 </DropDownButton.Flyout>
@@ -96,7 +96,7 @@
                     <TextBlock x:Name="FilterLabel" Text="Filter" />
                 </StackPanel>
                 <DropDownButton.Flyout>
-                    <Flyout x:Name="FilterFlyout" Placement="BottomEdgeAlignedLeft" Opening="OnFilterOpening">
+                    <Flyout x:Name="FilterFlyout" Placement="BottomEdgeAlignedLeft" ShouldConstrainToRootBounds="True" Opening="OnFilterOpening">
                         <Flyout.FlyoutPresenterStyle>
                             <Style TargetType="FlyoutPresenter">
                                 <Setter Property="MaxWidth" Value="520" />
@@ -434,10 +434,12 @@
             <controls:EdgeFadeLayer x:Name="ListFadeHost" Grid.Row="1" AutomationProperties.AutomationId="fst.songs.edge-fade" />
             <!-- Issue #288: the next section's title, drawn here from the edge fade's full depth (40 epx) up to the bar, where it pushes
                  StickyHeader out (the in-list heading turns transparent meanwhile but stays the UIA heading, so this copy
-                 is Raw). Positions follow the scroll on the compositor; nothing animates on its own. -->
+                 is Raw). Positions follow the scroll on the compositor; nothing animates on its own. The raw-view ID lets
+                 a11y-songs-section-push.json prove the copy is drawn yet never a second Narrator stop (issue #452). -->
             <Canvas x:Name="PushLayer" Grid.RowSpan="2" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw">
                 <TextBlock x:Name="IncomingHeader" Style="{StaticResource FSTSectionHeaderStyle}" Margin="0" Visibility="Collapsed"
-                           AutomationProperties.AccessibilityView="Raw" />
+                           AutomationProperties.AccessibilityView="Raw"
+                           AutomationProperties.AutomationId="fst.songs.section-header.incoming" />
             </Canvas>
 
             <ProgressRing Grid.RowSpan="2" x:Name="LoadingRing" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"

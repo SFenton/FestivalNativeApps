@@ -74,10 +74,8 @@ class CompeteReturnAccessibilityJourneyTest {
     private fun leadCardBounds(): Rect = rule.onNodeWithTag(LEAD_CARD).fetchSemanticsNode().boundsInRoot
 
     /**
-     * The reading order without the floating toolbar's Quick Links. Without a screen reader the
-     * toolbar hides while the grid scrolls and the shell shows it again on every navigation
-     * (`FestivalApp` `toolbarScroll.reset()`); under TalkBack it never hides, so it is not part of
-     * what Back must keep.
+     * The reading order without the floating toolbar's Quick Links: the toolbar is shell chrome
+     * that stays on screen on every page (R7, issue #577), so it is not part of what Back must keep.
      *
      * @param order Reading order.
      * @return The page's own stops.

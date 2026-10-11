@@ -171,6 +171,26 @@ data class RankHistoryChart(
         RankHistoryPlot.build(window, totalAccounts, locale, valueScale) { axisText(it, metric, locale) }
 
     /**
+     * The value axis top of a window's bars, in the metric's units.
+     *
+     * @param window Visible window over [snapshots].
+     * @return Top, or 0 when every visible value is zero.
+     */
+    fun valueTop(window: RankHistoryWindow): Double = RankHistoryPlot.valueTop(window, valueScale)
+
+    /**
+     * Bars and rank line for a window whose first band is at [position] (fractional mid-slide,
+     * `load-transition` R12).
+     *
+     * @param window Window being slid to.
+     * @param position Fractional start index.
+     * @param valueTop Value axis top in the metric's units.
+     * @return Marks to draw.
+     */
+    fun marks(window: RankHistoryWindow, position: Float, valueTop: Double): RankHistoryPlot.Marks =
+        RankHistoryPlot.marks(window, totalAccounts, position, valueTop, valueScale)
+
+    /**
      * Value-axis labels for a window: Recharts' nice ticks from zero over the visible
      * values (the same axis [plot] scales the bars to).
      *
@@ -189,6 +209,19 @@ data class RankHistoryChart(
      */
     fun detail(window: RankHistoryWindow, locale: Locale = Locale.getDefault()): RankHistoryRow? =
         window.selected?.let(points::getOrNull)?.let { row(it, metric, latest = false, locale = locale) }
+
+    /**
+     * The texts the rows' shared columns are measured from: every day of the chart, so the
+     * listed rows and any tapped bar's [detail] line up (web "stable column widths derived
+     * from ALL chart history points", `leaderboard-row` R1, issue #594).
+     *
+     * @param locale Locale.
+     * @return Every point's date, rank and value text.
+     */
+    fun columnTexts(locale: Locale = Locale.getDefault()): HistoryColumnTexts {
+        val rows = points.map { row(it, metric, latest = false, locale = locale) }
+        return HistoryColumnTexts(rows.map { it.date }, rows.map { it.rank }, rows.map { it.value })
+    }
 
     /**
      * Accessible description of a window ("Sep 21, 2026: #14. …").

@@ -21,7 +21,8 @@ permissions:
   contents: read
 concurrency:
   group: native-${{ github.ref }}
-  cancel-in-progress: true
+  # Only a PR's superseded runs are cancelled: master runs finish, so its checks reflect every merge.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   windows:
     runs-on: windows-latest

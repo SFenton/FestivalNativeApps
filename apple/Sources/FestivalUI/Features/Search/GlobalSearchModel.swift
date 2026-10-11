@@ -4,7 +4,9 @@ import FestivalCore
 
 // MARK: - Model
 
-/// State for one global-search surface (the iOS 26 search tab or the search sheet).
+/// State for one search surface: global search (the Search tab or the Mac search sheet)
+/// or the Profiles sheet, which searches only players and bands (``targets``, issue #600,
+/// pattern `search-scopes`).
 ///
 /// Songs filter the local catalogue as soon as it is loaded; players and bands wait for
 /// the web's 250 ms debounce, then call the allowlisted account and band searches in
@@ -22,6 +24,8 @@ final class GlobalSearchModel {
         case failed(ServiceIssue)
     }
 
+    /// What this surface searches; fixed for its lifetime.
+    let targets: GlobalSearchTargets
     /// Text in the search field.
     var query = ""
     /// Active scope; "All" by default (HIG: start broad).
@@ -39,6 +43,13 @@ final class GlobalSearchModel {
     private var catalogue: [Song]?
     /// Publication the catalogue was read under; a new publication reloads it.
     private var catalogueRevision: Int?
+
+    /// Create the state for one surface.
+    ///
+    /// - Parameter targets: What the surface searches (`.global` by default).
+    init(targets: GlobalSearchTargets = .global) {
+        self.targets = targets
+    }
 
     /// Identity of one search run for `.task(id:)`.
     struct RunKey: Hashable {
@@ -67,13 +78,13 @@ final class GlobalSearchModel {
     /// The field's Search key was pressed: rerun a failed or empty search (issue #299,
     /// no Retry button), leaving settled results and in-flight searches alone.
     func submit() {
-        guard hasQuery, GlobalSearch.submitReruns(scope: scope, outcomes: outcomes) else { return }
+        guard hasQuery, GlobalSearch.submitReruns(scope: scope, outcomes: outcomes, targets: targets) else { return }
         retry()
     }
 
     /// One centred spinner replaces the results while a shown section is pending.
     var isSearching: Bool {
-        hasQuery && GlobalSearch.isSearching(scope: scope, outcomes: outcomes)
+        hasQuery && GlobalSearch.isSearching(scope: scope, outcomes: outcomes, targets: targets)
     }
 
     /// A finished network section for the current run.
@@ -82,7 +93,8 @@ final class GlobalSearchModel {
         case bands(Result<[PlayerBandEntry], any Error>)
     }
 
-    /// Search songs, players and bands for the current query.
+    /// Search the surface's targets (songs, players and bands, or players and bands) for
+    /// the current query.
     ///
     /// - Parameter session: Shared app session (catalogue and API client).
     func search(session: FestivalSession) async {
@@ -90,7 +102,7 @@ final class GlobalSearchModel {
             clearResults()
             return
         }
-        await searchSongs(query, session: session)
+        if targets.searchesSongs { await searchSongs(query, session: session) }
         playerState = .loading
         bandState = .loading
         do {
@@ -178,7 +190,12 @@ final class GlobalSearchModel {
     /// VoiceOver's result-count summary once the current query's results settle, or nil.
     var resultAnnouncement: String? {
         guard hasQuery else { return nil }
-        return GlobalSearch.resultAnnouncement(scope: scope, outcomes: outcomes)
+        return GlobalSearch.resultAnnouncement(scope: scope, outcomes: outcomes, targets: targets)
+    }
+
+    /// Every shown section finished with no results (the centred empty state).
+    var isEmpty: Bool {
+        GlobalSearch.isEmpty(scope: scope, outcomes: outcomes, targets: targets)
     }
 
     /// Every section's outcome for the shared rules.

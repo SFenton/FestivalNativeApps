@@ -306,7 +306,7 @@
       "medium"
     ],
     "ready": [
-      "waitfor:id=fst.leaderboards.card.Solo_Guitar.spotlight.unranked@20"
+      "waitfor:id=fst.leaderboards.card.0f.spotlight.unranked@20"
     ]
   },
   {
@@ -324,6 +324,7 @@
   {
     "name": "leaderboards-rank-by-menu",
     "route": "/leaderboards",
+    "settings": {"experimentalRanks": true},
     "sizes": [
       "compact",
       "medium"
@@ -805,6 +806,7 @@
   {
     "name": "rank-by-menu",
     "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "settings": {"experimentalRanks": true},
     "sizes": [
       "medium"
     ],

@@ -34,6 +34,26 @@ public static class RivalsUi
         _ => "FSTRivalTieFillBrush",
     });
 
+    /// <summary>Pill stroke for a song outcome (pattern <c>rival-rows</c> R2: the tint at 40 %).</summary>
+    /// <param name="outcome">Outcome.</param>
+    /// <returns>Brush.</returns>
+    public static Brush OutcomeStroke(RivalSongOutcome outcome) => Brush(outcome switch
+    {
+        RivalSongOutcome.Winning => "FSTRivalWinStrokeBrush",
+        RivalSongOutcome.Losing => "FSTRivalLoseStrokeBrush",
+        _ => "FSTRivalTieStrokeBrush",
+    });
+
+    /// <summary>Segoe Fluent Icons arrow for the rank-gap badge: up when the player leads, down when the rival does.</summary>
+    /// <param name="outcome">Outcome.</param>
+    /// <returns>Glyph, or empty for a tie (the badge shows "=").</returns>
+    public static string DeltaGlyph(RivalSongOutcome outcome) => outcome switch
+    {
+        RivalSongOutcome.Winning => "\uE74A",
+        RivalSongOutcome.Losing => "\uE74B",
+        _ => "",
+    };
+
     /// <summary>Heading tint for a category sentiment.</summary>
     /// <param name="sentiment">Sentiment.</param>
     /// <returns>Brush.</returns>

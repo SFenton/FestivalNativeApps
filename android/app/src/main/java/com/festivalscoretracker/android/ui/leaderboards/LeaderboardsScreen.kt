@@ -65,7 +65,6 @@ import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
-import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.LocalFadeInWindow
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberFadeInWindow
@@ -98,6 +97,7 @@ import com.festivalscoretracker.android.ui.common.shellPosture
 @Composable
 fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
     val metric by viewModel.metric.collectAsStateWithLifecycle()
+    val experimentalRanks by viewModel.experimentalRanks.collectAsStateWithLifecycle()
     val instruments by viewModel.instruments.collectAsStateWithLifecycle()
     val selected by viewModel.selectedAccountId.collectAsStateWithLifecycle()
     val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
@@ -126,12 +126,12 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
             modifier = Modifier.semantics { testTagsAsResourceId = true },
             actions = {
                 QuickLinksAction(quickLinks, windowWidthDp)
-                RankByAction(metric, viewModel::selectMetric)
+                RankByAction(metric, experimentalRanks, viewModel::selectMetric)
             },
         ) { padding ->
             PullToRefreshBox(isRefreshing = refreshing, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
                 // Web load phase (operator batch 6, 6.41): a spinner until settings are read and
-                // the first card has data, then the page fades in and its rows stagger. A Rank By
+                // the first card has data, then the page fades in and each card's rows fade in with it as one (R11, #614). A Rank By
                 // change first fades the old cards out (issue #71). The list stays composed
                 // (hidden) under the spinner so its cards load meanwhile.
                 val lead = layout?.instruments?.firstOrNull()?.let { viewModel.card(it) }?.collectAsStateWithLifecycle()
@@ -253,7 +253,7 @@ private fun OverviewList(
     }
     LazyColumn(
         state = listState,
-        contentPadding = PaddingValues(start = gap, end = gap, top = 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+        contentPadding = PaddingValues(start = gap, end = gap, top = 8.dp, bottom = padding.calculateBottomPadding()),
         verticalArrangement = Arrangement.spacedBy(20.dp),
         modifier = Modifier.fillMaxSize().then(measure).testTag("fst.leaderboards"),
     ) {
@@ -388,11 +388,13 @@ private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewMo
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${instrument.label} rankings unavailable", current.countdown, { viewModel.retryCard(instrument) }, Modifier.padding(horizontal = 8.dp))
                 is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberAccountColumns(current.value.rankings.entries + pinnedEntry(viewModel, instrument, selected), metric, rowWidth = rowWidth)) {
                     val entries = current.value.rankings.entries
+                    // The card's rows, spotlight and View All fade in as one, never row by row (load-transition R11, owner #614).
+                    Column(Modifier.festivalFadeIn(revealed), verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
                     if (entries.isEmpty()) {
                         Text("No ranked ${instrument.label} players yet.", style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
                     }
                     entries.forEachIndexed { index, entry ->
-                        Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                        Box {
                             if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                             AccountRankingRow(
                                 entry = entry,
@@ -403,13 +405,14 @@ private fun InstrumentCard(instrument: Instrument, viewModel: LeaderboardsViewMo
                             )
                         }
                     }
-                    Column(Modifier.festivalFadeIn(revealed, fadeInStagger(entries.size))) {
+                    Column {
                         CardSpotlight(instrument, viewModel, metric, selected, entries, navigate, tag)
                         if (entries.isNotEmpty()) {
                             ViewAllButton(viewAllLabel("Rankings", current.value.rankings.totalAccounts), "$tag.view-all") {
                                 navigate(FullRankingsRoute(instrument.wireId, metric.wireId))
                             }
                         }
+                    }
                     }
                 }
             }
@@ -498,21 +501,22 @@ private fun BandCard(bandType: BandType, viewModel: LeaderboardsViewModel, metri
                 is LoadState.Failed -> ServiceStatusInline(current.issue, "${bandType.label} rankings unavailable", current.countdown, { viewModel.retryBand(bandType) }, Modifier.padding(horizontal = 8.dp))
                 is LoadState.Loaded -> CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(current.value.rankings.entries, bandMetric, rowWidth = rowWidth)) {
                     val entries = current.value.rankings.entries
+                    // The card's rows and View All fade in as one, never row by row (load-transition R11, owner #614).
+                    Column(Modifier.festivalFadeIn(revealed), verticalArrangement = Arrangement.spacedBy(LEADERBOARD_ROW_GAP)) {
                     if (entries.isEmpty()) {
                         Text("No ranked ${bandType.label.lowercase()} yet.", style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary, modifier = Modifier.padding(8.dp))
                     }
                     entries.forEachIndexed { index, entry ->
-                        Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index))) {
+                        Box {
                             if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                             BandRankingRow(entry, bandMetric, entry.includes(selected), RankingNavigation.bandRoute(entry, bandType), navigate)
                         }
                     }
                     if (entries.isNotEmpty()) {
-                        Box(Modifier.festivalFadeIn(revealed, fadeInStagger(entries.size))) {
-                            ViewAllButton(viewAllLabel("Band Rankings", current.value.rankings.totalTeams), "$tag.view-all") {
-                                navigate(BandRankingsRoute(bandType.wireId))
-                            }
+                        ViewAllButton(viewAllLabel("Band Rankings", current.value.rankings.totalTeams), "$tag.view-all") {
+                            navigate(BandRankingsRoute(bandType.wireId))
                         }
+                    }
                     }
                 }
             }

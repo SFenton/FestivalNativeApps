@@ -1,6 +1,6 @@
 [
   {
-    "name": "index-open",
+    "name": "index-open", "live_only": true,
     "tab": "songs",
     "ready": [
       "waitfor:id=fst.songs.section-header@40",
@@ -18,7 +18,7 @@
     ]
   },
   {
-    "name": "index-far-jumps",
+    "name": "index-far-jumps", "live_only": true,
     "tab": "songs",
     "ready": [
       "waitfor:id=fst.songs.section-header@40",
@@ -53,7 +53,7 @@
     ]
   },
   {
-    "name": "index-far-scroll",
+    "name": "index-far-scroll", "live_only": true,
     "tab": "songs",
     "ready": [
       "waitfor:id=fst.songs.section-header@40",
@@ -81,7 +81,7 @@
     ]
   },
   {
-    "name": "index-keyboard",
+    "name": "index-keyboard", "live_only": true,
     "tab": "songs",
     "ready": [
       "waitfor:id=fst.songs.section-header@40",

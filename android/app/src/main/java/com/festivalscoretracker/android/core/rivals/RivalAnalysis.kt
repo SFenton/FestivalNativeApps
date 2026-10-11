@@ -164,6 +164,31 @@ enum class RivalrySort(val label: String) {
     Title("Title"),
 }
 
+/**
+ * Who leads one shared song (iOS `RivalSongStanding`): it colours the song row's "#rank Name"
+ * pills and delta badge (`rival-rows` R3).
+ */
+enum class RivalSongStanding {
+    /** The player has the better rank. */
+    PlayerAhead,
+
+    /** The rival has the better rank. */
+    RivalAhead,
+
+    /** Same rank. */
+    Tied;
+
+    /** The player's pill: true for green, false for red, null for neutral. */
+    val playerWins: Boolean? get() = when (this) {
+        PlayerAhead -> true
+        RivalAhead -> false
+        Tied -> null
+    }
+
+    /** The rival's pill, the mirror of [playerWins]. */
+    val rivalWins: Boolean? get() = playerWins?.not()
+}
+
 /** Summaries, orderings and number formatting for rival comparisons. */
 object RivalHeadToHead {
     /**
@@ -195,6 +220,61 @@ object RivalHeadToHead {
     }
 
     /**
+     * Who leads one shared song (iOS `RivalSongStanding`).
+     *
+     * @param delta Signed rank delta (positive: the player leads).
+     * @return Standing.
+     */
+    fun standing(delta: Long): RivalSongStanding = when {
+        delta > 0 -> RivalSongStanding.PlayerAhead
+        delta < 0 -> RivalSongStanding.RivalAhead
+        else -> RivalSongStanding.Tied
+    }
+
+    /**
+     * A song row's "#rank Name" standing pill text (iOS `RivalSongRowContent`, `rival-rows` R3).
+     *
+     * @param rank Leaderboard rank.
+     * @param name Player or rival name.
+     * @param locale Number locale.
+     * @return Text such as `#1,234 SFentonX`.
+     */
+    fun standingPill(rank: Int, name: String, locale: Locale = Locale.getDefault()): String =
+        "#${NumberFormat.getIntegerInstance(locale).format(rank)} $name"
+
+    /**
+     * The trailing delta badge's unsigned rank gap (the arrow carries the direction), abbreviated
+     * like [formatRankDelta] so it fits the badge.
+     *
+     * @param delta Signed rank delta.
+     * @param locale Number locale.
+     * @return Text such as `12`, `15K` or `0`.
+     */
+    fun deltaMagnitude(delta: Long, locale: Locale = Locale.getDefault()): String = formatRankDelta(abs(delta), locale).removePrefix("+")
+
+    /**
+     * A song row's single TalkBack label: song, chart, both ranks and who leads.
+     *
+     * @param song Comparison.
+     * @param title Song title.
+     * @param chart Chart label, or null.
+     * @param playerName Player's name.
+     * @param rivalName Rival's name.
+     * @param locale Number locale.
+     * @return Text such as `Song, Lead, You rank 3, Rival rank 15, you lead by 12 ranks`.
+     */
+    fun songRowLabel(song: RivalSongComparison, title: String, chart: String?, playerName: String, rivalName: String, locale: Locale = Locale.getDefault()): String {
+        val format = NumberFormat.getIntegerInstance(locale)
+        return listOfNotNull(
+            title,
+            chart?.takeIf { it.isNotEmpty() },
+            "$playerName rank ${format.format(song.userRank)}",
+            "$rivalName rank ${format.format(song.rivalRank)}",
+            leaderPhrase(song.rankDelta.toLong(), rivalName, locale),
+        ).joinToString(", ")
+    }
+
+    /**
      * Web `formatRankDelta`: sign, exact below 10K, `K` below 1M, then `M`.
      *
      * @param delta Signed rank delta (positive: the player leads).
@@ -219,7 +299,7 @@ object RivalHeadToHead {
 
     /**
      * Spoken rank lead for a song row's accessibility label: the exact unsigned gap with a
-     * singular/plural unit (the visible pill keeps the web's signed, abbreviated form).
+     * singular/plural unit (the visible badge shows an arrow over the abbreviated gap).
      *
      * @param delta Signed rank delta (positive: the player leads).
      * @param rivalName Rival's display name.
@@ -231,44 +311,6 @@ object RivalHeadToHead {
         val magnitude = abs(delta)
         val gap = NumberFormat.getIntegerInstance(locale).format(magnitude) + if (magnitude == 1L) " rank" else " ranks"
         return if (delta > 0) "you lead by $gap" else "$rivalName leads by $gap"
-    }
-
-    /**
-     * Signed score difference, player minus rival (missing scores count as zero).
-     *
-     * @param song Comparison.
-     * @param locale Number locale.
-     * @return Text such as `+200` or `−7,000`.
-     */
-    fun formatScoreDiff(song: RivalSongComparison, locale: Locale = Locale.getDefault()): String {
-        val diff = (song.userScore ?: 0) - (song.rivalScore ?: 0)
-        return (if (diff >= 0) "+" else "−") + NumberFormat.getIntegerInstance(locale).format(abs(diff))
-    }
-
-    /**
-     * Signed score difference value.
-     *
-     * @param song Comparison.
-     * @return Player minus rival.
-     */
-    fun scoreDiff(song: RivalSongComparison): Long = (song.userScore ?: 0) - (song.rivalScore ?: 0)
-
-    /**
-     * Spoken score gap for TalkBack, player minus rival (missing scores count as zero).
-     *
-     * @param song Comparison.
-     * @param locale Number locale.
-     * @return "your score is 200 points higher", "… 1 point lower" or "same score".
-     */
-    fun spokenScoreDiff(song: RivalSongComparison, locale: Locale = Locale.getDefault()): String {
-        val diff = scoreDiff(song)
-        val magnitude = abs(diff)
-        val points = NumberFormat.getIntegerInstance(locale).format(magnitude) + if (magnitude == 1L) " point" else " points"
-        return when {
-            diff > 0 -> "your score is $points higher"
-            diff < 0 -> "your score is $points lower"
-            else -> "same score"
-        }
     }
 }
 

@@ -46,16 +46,16 @@ public enum SongInstrumentStatusPolicy {
     ///   - scoresAvailable: Published, identity-matched HTTP 200 profile loaded.
     ///   - iconsEnabled: Saved Show Instrument Icons setting.
     ///   - instrumentFilter: An explicit single chart, or nil for all instruments.
-    ///   - filterInvalidScores: Unsupported precomputed-score fallback still requested.
     ///   - visibleInstruments: User-enabled charts, at least one in normal Settings.
-    /// - Returns: True only for the selected, available, unfiltered icon presentation.
+    ///   Filter Invalid Scores doesn't hide chips: they show the effective scores
+    ///   (``InvalidScorePolicy``), as the web's do.
+    /// - Returns: True only for the selected, available, all-instrument icon presentation.
     public static func showsChips(
         hasSelectedPlayer: Bool, scoresAvailable: Bool, iconsEnabled: Bool,
-        instrumentFilter: Instrument?, filterInvalidScores: Bool,
-        visibleInstruments: Set<Instrument>
+        instrumentFilter: Instrument?, visibleInstruments: Set<Instrument>
     ) -> Bool {
         hasSelectedPlayer && scoresAvailable && iconsEnabled
-            && instrumentFilter == nil && !filterInvalidScores
+            && instrumentFilter == nil
             && !visibleInstruments.isEmpty
     }
 

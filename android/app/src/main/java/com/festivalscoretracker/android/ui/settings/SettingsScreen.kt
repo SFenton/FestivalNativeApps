@@ -1,6 +1,5 @@
 package com.festivalscoretracker.android.ui.settings
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
@@ -10,6 +9,7 @@ import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.settings.SettingsDetail
 import com.festivalscoretracker.android.core.settings.SettingsDetailText
 import com.festivalscoretracker.android.core.settings.SettingsPanes
+import com.festivalscoretracker.android.ui.common.AccordionReveal
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.shell.icon
 import androidx.compose.foundation.background
@@ -176,7 +176,7 @@ fun SettingsScreen(
 
     val scrolled by remember(listState) { derivedStateOf { listState.canScrollBackward } }
     val split = rememberHingeSplit()
-    // Wide windows: list/detail (owner, #371) by the app's list-detail rule (Songs, Licenses).
+    // Wide windows: list/detail (owner, #371) by the app's list-detail rule (as Licenses).
     val twoPane = AdaptiveLayoutPolicy.showsTwoPanes(windowWidthDp, split.value != null, density.fontScale)
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
     val shown = SettingsPanes.shown(selectedId, settings)
@@ -202,7 +202,7 @@ fun SettingsScreen(
             Row(Modifier.fillMaxSize()) {
                 LazyColumn(
                     state = listState,
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 24.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding()),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                     // Centred page column on wide windows, like the web and Licenses.
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -295,7 +295,7 @@ private fun AppSettingsSection(settings: AppSettings, vm: SettingsViewModel, onF
             "When enabled, the metadata display order on song rows is controlled separately from sort priority. When disabled, metadata follows sort priority order.",
             settings.enableVisualOrder, vm::setEnableVisualOrder, "fst.settings.enable-visual-order",
         )
-        AnimatedVisibility(settings.enableVisualOrder) {
+        AccordionReveal(settings.enableVisualOrder) {
             if (panes != null) {
                 SettingsDetail.SongRowOrder.let { DetailRow(it, songRowOrderSummary(settings), panes) }
             } else {
@@ -332,15 +332,14 @@ private fun AppSettingsSection(settings: AppSettings, vm: SettingsViewModel, onF
             "When enabled, the app will attempt to filter out invalid leaderboard values based on the maximum score derived from the CHOpt path.",
             settings.filterInvalidScores, vm::setFilterInvalidScores, "fst.settings.filter-invalid-scores",
         )
-        AnimatedVisibility(settings.filterInvalidScores) {
+        AccordionReveal(settings.filterInvalidScores) {
             if (panes != null) DetailRow(SettingsDetail.Leeway, ScoreLeeway.format(settings.leeway), panes) else LeewayControl(settings.leeway, vm::setLeeway)
         }
         Divider()
         ToggleRow(
             "Enable Experimental Leaderboard Ranks",
             "Enable this to see more ranking mechanisms in the Leaderboards page.",
-            settings.experimentalRanks, {}, "fst.settings.experimental-ranks",
-            enabled = false, disabledReason = "Not available on Android yet.",
+            settings.experimentalRanks, vm::setExperimentalRanks, "fst.settings.experimental-ranks",
         )
         if (onFeedback != null) {
             FeedbackKind.entries.forEach { kind ->
@@ -548,19 +547,19 @@ private fun FirstRunSection(onShow: (FirstRunPageKey) -> Unit) {
     }
 }
 
+/**
+ * Reset: the web's `resetRow`, a section header and the red Reset All Settings button with no
+ * card around them (#599), like the uncarded Licenses and Privacy Policy rows. It stays in the
+ * list in list/detail too.
+ */
 @Composable
 private fun ResetSection(onReset: () -> Unit) {
-    GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Reset Settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
-            Hint("Restore all settings to their default values.")
-            Button(
-                onClick = onReset,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = BrandTokens.textPrimary),
-                modifier = Modifier.fillMaxWidth().testTag("fst.settings.reset"),
-            ) { Text("Reset All Settings") }
-        }
-    }
+    Header("Reset Settings", "Restore all settings to their default values.")
+    Button(
+        onClick = onReset,
+        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = BrandTokens.textPrimary),
+        modifier = Modifier.fillMaxWidth().testTag("fst.settings.reset"),
+    ) { Text("Reset All Settings") }
 }
 
 // endregion
@@ -650,7 +649,7 @@ internal fun AppVersionRow(
  * itself, not in a card, with a trailing chevron; the whole row is one link (batch 6.17).
  *
  * In list/detail Settings (issue #371) every multi-option section is this row; [selected] then
- * marks the row whose options the detail pane shows (the Songs/Licenses selected-row tint) and
+ * marks the row whose options the detail pane shows (the Licenses selected-row tint) and
  * insets the text so the tint has room around it. Null outside list/detail.
  */
 @Composable
@@ -707,7 +706,7 @@ private fun DetailRow(detail: SettingsDetail, value: String, panes: SettingsPane
     }
 }
 
-/** Selected list row tint, the Songs and Licenses list/detail selection (web `--accent-purple` wash). */
+/** Selected list row tint, the Licenses list/detail selection (web `--accent-purple` wash). */
 private val SELECTED_ROW_COLOR = BrandTokens.accentPurple.copy(alpha = 0.35f)
 
 // endregion
@@ -739,8 +738,8 @@ private fun SettingsDetailPlaceholder(modifier: Modifier) {
 
 /**
  * One setting's options in the detail pane: its header and the same card the phone list shows
- * (whole sections), or the extracted control (App Settings sub-settings). Licenses and Privacy
- * Policy are their own scrolling lists in the pane.
+ * (whole sections), or the extracted control (App Settings sub-settings). Privacy Policy reads in
+ * one card in the same scrolling column (issue #609). Licenses is its own scrolling list in the pane.
  */
 @Composable
 private fun SettingsDetailContent(
@@ -756,7 +755,6 @@ private fun SettingsDetailContent(
 ) {
     when (detail) {
         SettingsDetail.Licenses -> return LicensesPane(padding, header = { Header(detail) })
-        SettingsDetail.PrivacyPolicy -> return PrivacyPolicyPane(padding, header = { Header(detail) })
         else -> Unit
     }
     Column(
@@ -764,7 +762,7 @@ private fun SettingsDetailContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp)
+            .padding(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding())
             .testTag("fst.settings.detail.${detail.id}"),
     ) {
         Column(Modifier.widthIn(max = 840.dp).fillMaxWidth()) {
@@ -780,7 +778,8 @@ private fun SettingsDetailContent(
                 SettingsDetail.PathColumnOrder -> PaneCard(detail) { Column(Modifier.padding(16.dp)) { PathColumnOrderControl(settings, vm) } }
                 SettingsDetail.SongRowOrder -> PaneCard(detail) { Column(Modifier.padding(16.dp)) { SongRowOrderControl(settings, vm) } }
                 SettingsDetail.Leeway -> PaneCard(detail) { LeewayControl(settings.leeway, vm::setLeeway, inPane = true) }
-                SettingsDetail.Licenses, SettingsDetail.PrivacyPolicy -> Unit
+                SettingsDetail.PrivacyPolicy -> PrivacyPolicyPane(header = { Header(detail) })
+                SettingsDetail.Licenses -> Unit
             }
         }
     }

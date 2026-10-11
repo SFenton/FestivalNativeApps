@@ -1,6 +1,7 @@
 [
   {
     "name": "stars-leaderboard",
+    "fixture": ["star_rating_fixture.py"],
     "route": "/songs/fixture-pulse/Solo_Guitar",
     "ready": [
       "waitfor:id=fst.song-leaderboard.row.fixture-player-1@30",
@@ -9,6 +10,7 @@
   },
   {
     "name": "stars-gold-average",
+    "fixture": ["star_rating_fixture.py"],
     "route": "/player/fixture-player-1",
     "ready": [
       "waitfor:id=fst.player.stat.overview.songs-played@30",
@@ -19,6 +21,7 @@
   },
   {
     "name": "stars-gold-average-quick-links",
+    "fixture": ["star_rating_fixture.py"],
     "route": "/player/fixture-player-1",
     "ready": [
       "waitfor:id=fst.player.stat.overview.songs-played@30",

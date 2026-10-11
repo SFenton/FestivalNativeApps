@@ -47,6 +47,23 @@ public class BandsPagerTests
         Assert.False(pager.NextCommand.CanExecute(null));
         Assert.True(pager.FirstCommand.CanExecute(null));
     }
+
+    [Fact]
+    public void Pager_ResetHidesItUntilANewCountArrives()
+    {
+        var bands = new BandsPagerViewModel(_ => Task.CompletedTask) { PageCount = 4, Page = 3 };
+        bands.Reset();
+        Assert.Equal(1, bands.Page);
+        Assert.False(bands.IsPaged);
+        Assert.False(bands.NextCommand.CanExecute(null) || bands.PreviousCommand.CanExecute(null));
+
+        var rankings = new RankingsPagerViewModel("fst.test", _ => Task.CompletedTask);
+        rankings.Update(3, 4);
+        rankings.Reset();
+        Assert.Equal(1, rankings.Page);
+        Assert.False(rankings.IsPaged);
+        Assert.False(rankings.LastCommand.CanExecute(null) || rankings.FirstCommand.CanExecute(null));
+    }
 }
 
 public class PlayerBandsViewModelTests
@@ -75,6 +92,12 @@ public class PlayerBandsViewModelTests
         Assert.Equal(new AppRoute.Band("b1", "Band_Duets", "acc:mate1"), card.Route);
         Assert.Equal("fst.player-bands.row.b1", card.AutomationId);
         Assert.Equal("View band: Player One, Lead; Unknown User, Drums. Duos, 1 appearance", card.Announcement);
+        // Player Bands mixes sizes on All, so its standalone cards keep the band-size pill (#596 is profile-only).
+        Assert.False(card.IsGroupedRow);
+        Assert.True(card.ShowsBandType);
+        var grouped = new PlayerBandCardViewModel(card.Entry) { IsGroupedRow = true };
+        Assert.False(grouped.ShowsBandType);
+        Assert.Equal("View band: Player One, Lead; Unknown User, Drums. 1 appearance", grouped.Announcement);
         var lead = card.Members[0];
         Assert.Equal("Lead", lead.InstrumentsText);
         Assert.Equal("instrument_guitar.png", lead.Icons.Single().File);
@@ -187,6 +210,38 @@ public class PlayerBandsViewModelTests
         await Async.Settle();
         Assert.True(vm.ShowRows);
     }
+
+    [Fact]
+    public async Task GroupSwitchHidesThePagerUntilTheNewGroupsCountLoads()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        var bands = new BandService();
+        var gate = new TaskCompletionSource();
+        bands.Service.Handler.Responder = async (request, token) =>
+        {
+            if (request.RequestUri!.Query.Contains("group=trios", StringComparison.Ordinal))
+            {
+                await gate.Task;
+                return BandService.Ok(BandWire.PlayerBands("acc", 60, 25));
+            }
+            return bands.Service.Override!(request) ?? Wire.Ok(Wire.Publication());
+        };
+        var vm = new PlayerBandsViewModel(bands.Service.Session(), new AppRoute.PlayerBands("acc"));
+        await vm.LoadAsync();
+        await vm.Pager.NextCommand.ExecuteAsync(null);
+        Assert.Equal("2 / 2", vm.Pager.PageText);
+
+        // Issue #575: never "1 / 2" from All Bands while Trios loads; the pager waits for Trios' own count.
+        var paged = new List<bool>();
+        vm.Pager.PropertyChanged += (_, _) => paged.Add(vm.Pager.IsPaged);
+        vm.Group = PlayerBandGroup.Trios;
+        await Async.Until(() => vm.IsLoading);
+        Assert.False(vm.Pager.IsPaged);
+        Assert.DoesNotContain(true, paged);
+        gate.SetResult();
+        await Async.Until(() => vm.ShowRows);
+        Assert.Equal("1 / 3", vm.Pager.PageText);
+    }
 }
 
 public class BandDetailViewModelTests
@@ -231,10 +286,11 @@ public class BandDetailViewModelTests
     {
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         var bands = new BandService();
-        var vm = new BandDetailViewModel(bands.Service.Session(), Route());
+        var vm = new BandDetailViewModel(bands.Service.Session(settings: new AppSettings { ExperimentalRanks = true }), Route());
         Assert.True(vm.IsLoading);
         Assert.Equal("fixture-band-1", vm.BandId);
         await vm.LoadAsync();
+        Assert.True(vm.ShowRankBy);
         Assert.True(vm.ShowContent);
         Assert.Equal("Fixture Rank One + Unknown User", vm.Title);
         Assert.Equal("Duos · 40 appearances", vm.Subtitle);
@@ -271,6 +327,10 @@ public class BandDetailViewModelTests
         Assert.Equal("222,222,222", vm.HistoryRows[0].Value);
         Assert.Equal("fst.band.history-row.2026-09-27", vm.HistoryRows[0].AutomationId);
         Assert.Equal("Sep 27, rank #1, 222,222,222", vm.HistoryRows[0].Announcement);
+        // #594: one rank column for the list, sized by the widest charted rank (web computeRankWidth).
+        var railRank = Assert.Single(vm.HistoryRows.Select(r => r.RailRank).Distinct());
+        Assert.All(vm.HistoryRows, r => Assert.True(r.Rank.Length <= railRank.Length));
+        Assert.Equal("fst.band.history-row.2026-09-27.rank", vm.HistoryRows[0].RankAutomationId);
 
         Assert.True(vm.ShowSongs);
         var best = vm.Best.Single();
@@ -290,14 +350,31 @@ public class BandDetailViewModelTests
         Assert.Equal("Fixture Rank One + Unknown User's highest-ranked band songs, sorted by percentile.", vm.BestDescription);
         Assert.StartsWith("Fixture Rank One + Unknown User's lowest", vm.WorstDescription);
 
-        vm.MetricIndex = 2;
+        vm.MetricIndex = 3;
         Assert.Equal(BandRankingMetric.FcRate, vm.Metric);
         Assert.Equal("FC Rate Rank", vm.Statistics[0].Label);
         Assert.Equal("#2", vm.Statistics[0].Value);
         Assert.Equal(["85.0%", "90.0%"], vm.HistoryRows.Select(r => r.Value).Reverse());
         vm.MetricIndex = 12;
-        Assert.Equal(2, vm.MetricIndex);
+        Assert.Equal(3, vm.MetricIndex);
         Assert.Equal(4, vm.Metrics.Count);
+        // The picker lists Total Score first, like web getEnabledBandRankingMetrics.
+        Assert.Equal(["Total Score", "Adjusted Skill", "Weighted", "FC Rate"], vm.MetricLabels);
+        vm.MetricIndex = 0;
+        Assert.Equal(BandRankingMetric.TotalScore, vm.Metric);
+    }
+
+    [Fact]
+    public async Task RankByNeedsExperimentalRanks()
+    {
+        var bands = new BandService();
+        var vm = new BandDetailViewModel(bands.Service.Session(), Route());
+        await vm.LoadAsync();
+        // Web BandPage renders the metric picker only with Settings' Experimental Ranks; Total Score stays.
+        Assert.False(vm.ShowRankBy);
+        vm.MetricIndex = 2;
+        Assert.Equal(BandRankingMetric.TotalScore, vm.Metric);
+        Assert.Equal("Total Score Rank", vm.Statistics[0].Label);
     }
 
     [Fact]
@@ -441,6 +518,12 @@ public class SongBandLeaderboardViewModelTests
         Assert.All(own.Members, m => Assert.True(m.OnPlayerRow));
         Assert.All(vm.Rows.Where(r => !r.IsSelected).SelectMany(r => r.Members), m => Assert.False(m.OnPlayerRow));
         Assert.StartsWith("Your band. Rank 30. ", own.PageAnnouncement, StringComparison.Ordinal);
+        // #594: every row of the page shares one rank rail sized by the page's widest rank.
+        Assert.All(vm.Rows, r => Assert.Equal(SongBandRow.WidestRank(vm.Rows.Select(x => x.Entry)), r.RailRank));
+        Assert.Equal(3, own.RailRank.Length); // "#26"–"#50"
+        Assert.Equal("#1,000", SongBandRow.WidestRank([own.Entry with { Rank = 1 }, own.Entry with { Rank = 1000 }]));
+        Assert.Equal(own.AutomationId + ".members", own.MembersAutomationId);
+        Assert.Equal(own.AutomationId + ".rank", own.RankAutomationId);
         Assert.True(vm.ShowSpotlight); // Still pinned on the band's own page (web hasSelectedFooter), now opening Band Detail.
         Assert.False(vm.CanJump);
         Assert.StartsWith("Your band's rank, 30th. Open band. ", vm.Spotlight!.Announcement, StringComparison.Ordinal);
@@ -878,5 +961,46 @@ public class SongBandLeaderboardViewModelTests
         Assert.Equal("", vm.TotalText);
         Assert.Equal("Quads", vm.BoardLabel);
         Assert.Equal("Pulse", vm.Title);
+    }
+
+    [Fact]
+    public async Task SizeSwitchHidesThePagerUntilTheNewSizesCountLoads()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        var bands = new BandService();
+        var trios = new TaskCompletionSource();
+        var route = bands.Service.Handler.Responder;
+        bands.Service.Handler.Responder = async (request, token) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.StartsWith("/api/leaderboard/", StringComparison.Ordinal) && path.Contains("/bands/", StringComparison.Ordinal))
+            {
+                var type = path.Split('/')[5];
+                if (type == "Band_Trios") await trios.Task;
+                return BandService.Ok(BandWire.SongBands("fixture-pulse", type, 2, type == "Band_Trios" ? 120 : 60, showTotals: true));
+            }
+            return await route(request, token);
+        };
+        var vm = new SongBandLeaderboardViewModel(bands.Service.Session(), new AppRoute.SongBandLeaderboard("fixture-pulse", "Band_Duets"));
+        await vm.LoadAsync();
+        await vm.Pager.NextCommand.ExecuteAsync(null);
+        Assert.Equal("2 / 3", vm.Pager.PageText);
+
+        // Issue #575: no "1 / 3" from Duos while Trios loads; the pager returns with Trios' own count.
+        var paged = new List<bool>();
+        vm.Pager.PropertyChanged += (_, _) => paged.Add(vm.Pager.IsPaged);
+        vm.BandType = BandType.Trios;
+        Assert.False(vm.Pager.IsPaged);
+        await Async.Settle();
+        Assert.DoesNotContain(true, paged);
+        trios.SetResult();
+        await Async.Until(() => vm.ShowRows && vm.Pager.IsPaged);
+        Assert.Equal("1 / 5", vm.Pager.PageText);
+
+        // A page-only reload keeps the pager and its count.
+        paged.Clear();
+        await vm.Pager.NextCommand.ExecuteAsync(null);
+        Assert.DoesNotContain(false, paged);
+        Assert.Equal("2 / 5", vm.Pager.PageText);
     }
 }

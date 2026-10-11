@@ -139,6 +139,84 @@ private final class FakeClock {
     #expect(scope.scheduleFade(.pastFirstScreen) == 0)
 }
 
+// MARK: - Card entrance (owner, issue #614)
+
+@Test func fadeInCardStartUsesTheCardsStaggerSlot() {
+    #expect(FestivalFadeIn.start(forCard: 0) == .card(0.125))
+    #expect(FestivalFadeIn.start(forCard: 2) == .card(0.375))
+    #expect(FestivalFadeIn.start(forCard: FestivalFadeIn.maxStaggeredItems) == .pastFirstScreen)
+    #expect(FestivalFadeIn.start(forCard: -1) == .never)
+    #expect(FestivalFadeIn.start(forCard: 0) != FestivalFadeIn.start(forIndex: 0))
+}
+
+/// Every segment of one card starts at the same moment, however late the lazy list
+/// builds its row: unlike a staggered row, its delay is measured from the window's
+/// opening, not from when it is scheduled.
+@MainActor
+@Test func fadeScopeStartsEveryCardSegmentTogether() {
+    let clock = FakeClock()
+    let scope = FestivalFadeInScope(now: { clock.time })
+    let start = FestivalFadeIn.start(forCard: BoardCardEntrance.index)
+    let first = scope.scheduleFade(start) ?? -1
+    #expect(abs(first - 0.125) < 1e-9)
+    // Rows built in a later pass share the first row's start time.
+    clock.time += 0.05
+    let second = scope.scheduleFade(start) ?? -1
+    #expect(abs((clock.time + second) - (100 + first)) < 1e-9)
+    clock.time += 0.05
+    let third = scope.scheduleFade(start) ?? -1
+    #expect(abs((clock.time + third) - (100 + first)) < 1e-9)
+    // A row built once the card is already fading starts at once, never later.
+    clock.time += 0.2
+    #expect(scope.scheduleFade(start) == 0)
+}
+
+/// A scroll rushes the card's pending segments (R5), and once the window has closed a
+/// segment built by scrolling appears without a fade.
+@MainActor
+@Test func fadeScopeRushesAndClosesCardSegments() {
+    let clock = FakeClock()
+    let scope = FestivalFadeInScope(now: { clock.time })
+    scope.noteContentOffset(0)
+    _ = scope.scheduleFade(.card(0.5))
+    clock.time += 0.1
+    scope.noteContentOffset(-200)
+    #expect(scope.isRushed)
+    #expect(scope.scheduleFade(.card(0.5)) == 0)
+    clock.time += FestivalFadeIn.duration
+    #expect(!scope.isOpen)
+    #expect(scope.scheduleFade(.card(0.125)) == nil)
+}
+
+/// A new page re-arms the window, so the new page's card fades as one again.
+@MainActor
+@Test func fadeScopeReArmedPageFadesItsCardAsOneAgain() {
+    let clock = FakeClock()
+    let scope = FestivalFadeInScope(now: { clock.time })
+    scope.arm(for: AnyHashable("page-1"))
+    _ = scope.scheduleFade(.card(0.125))
+    clock.time += 5
+    scope.noteContentOffset(0)
+    scope.noteContentOffset(-300)
+    #expect(!scope.isOpen)
+    scope.arm(for: AnyHashable("page-2"))
+    let first = scope.scheduleFade(.card(0.125)) ?? -1
+    clock.time += 0.1
+    let later = scope.scheduleFade(.card(0.125)) ?? -1
+    #expect(abs(first - 0.125) < 1e-9)
+    #expect(abs(later - 0.025) < 1e-9)
+}
+
+/// Card segments are never held for an expected automatic scroll: the card the reveal
+/// scrolls through has already faded in whole.
+@MainActor
+@Test func fadeScopeNeverHoldsCardSegments() {
+    let scope = FestivalFadeInScope()
+    _ = scope.expectAutomaticScroll()
+    #expect(!scope.holds(.card(0.125)))
+    #expect(scope.holds(.pastFirstScreen))
+}
+
 /// Web `useStaggerRush`: a scroll during the first load makes every pending fade, and every
 /// row built in the next fade duration, start at once; after that rows appear plainly.
 @MainActor
@@ -447,6 +525,8 @@ private final class StartFlag {
     #expect(SelectedRowReveal.wait(staggerIndex: 24, animates: true) == .milliseconds(1400))
     // A block-fade page waits for its one fade.
     #expect(SelectedRowReveal.wait(staggerIndex: nil, animates: true) == .milliseconds(400))
+    // A board's rows fade with their card (#614): every row waits for the card's entrance.
+    #expect(SelectedRowReveal.wait(staggerIndex: BoardCardEntrance.index, animates: true) == .milliseconds(525))
     // Reduce Motion or fades off: only the layout settle (R6).
     #expect(SelectedRowReveal.wait(staggerIndex: 24, animates: false) == SelectedRowReveal.settle)
 }

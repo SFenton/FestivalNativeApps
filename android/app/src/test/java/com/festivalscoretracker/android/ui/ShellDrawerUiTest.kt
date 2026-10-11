@@ -14,6 +14,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
@@ -34,7 +35,10 @@ import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.nav.FestivalTabPolicy
 import com.festivalscoretracker.android.core.nav.LeaderboardsRoute
 import com.festivalscoretracker.android.core.nav.ProfileKind
+import com.festivalscoretracker.android.core.nav.RivalsRoute
 import com.festivalscoretracker.android.core.nav.ShopRoute
+import com.festivalscoretracker.android.core.nav.StatisticsRoute
+import com.festivalscoretracker.android.core.shell.DrawerEntry
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.ui.shell.DrawerContent
 import com.festivalscoretracker.android.ui.shell.FestivalRail
@@ -65,6 +69,7 @@ class ShellDrawerUiTest {
                 player = null,
                 onSection = { sections += it },
                 onRoute = { routes += it },
+                onChild = { _, _ -> },
                 onOpenProfile = { profileOpened = true },
                 onDeselect = {},
             )
@@ -82,18 +87,21 @@ class ShellDrawerUiTest {
         assertTrue(profileOpened)
     }
 
+    /** #610: on a phone, Leaderboards and Rivals open as children of the Compete tab. */
     @Test
-    fun playerOnPhonePushesLeaderboardsAndDeselects() {
+    fun playerOnPhoneOpensLeaderboardsAndRivalsUnderCompeteAndDeselects() {
         val routes = mutableListOf<AppRoute>()
+        val children = mutableListOf<Pair<FestivalSection, AppRoute>>()
         var deselected = false
         rule.setContent {
             DrawerContent(
                 visible = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = false),
-                selected = FestivalSection.Compete,
+                selected = FestivalSection.Songs,
                 profile = ProfileKind.Player,
                 player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"),
                 onSection = {},
                 onRoute = { routes += it },
+                onChild = { parent, route -> children += parent to route },
                 onOpenProfile = {},
                 onDeselect = { deselected = true },
                 showShop = false,
@@ -102,9 +110,72 @@ class ShellDrawerUiTest {
         rule.onNodeWithTag("fst.nav.drawer.rivals").assertIsDisplayed()
         assertEquals(0, rule.onAllNodesWithTag("fst.nav.drawer.shop").fetchSemanticsNodes().size)
         rule.onNodeWithTag("fst.nav.drawer.leaderboards").performClick()
+        rule.onNodeWithTag("fst.nav.drawer.rivals").performClick()
         rule.onNodeWithTag("fst.nav.drawer.deselect").performClick()
-        assertEquals(listOf<AppRoute>(LeaderboardsRoute), routes)
+        assertEquals(listOf(FestivalSection.Compete to LeaderboardsRoute, FestivalSection.Compete to RivalsRoute), children)
+        assertEquals(emptyList<AppRoute>(), routes)
         assertTrue(deselected)
+    }
+
+    /**
+     * #610 (web sidebar `NavLink`): the row of the drawer page on screen is highlighted, not the
+     * tab under it, and Settings is not selected while a drawer page is pushed on it.
+     */
+    @Test
+    fun pushedDrawerPageRowIsSelectedInsteadOfItsTab() {
+        var page by mutableStateOf<DrawerEntry?>(DrawerEntry.Rivals)
+        var selected by mutableStateOf(FestivalSection.Compete)
+        rule.setContent {
+            DrawerContent(
+                visible = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = false),
+                selected = selected,
+                profile = ProfileKind.Player,
+                player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"),
+                onSection = {},
+                onRoute = {},
+                onChild = { _, _ -> },
+                onOpenProfile = {},
+                onDeselect = {},
+                page = page,
+            )
+        }
+        rule.onNodeWithTag("fst.nav.drawer.rivals").assertIsSelected()
+        listOf("songs", "suggestions", "statistics", "leaderboards", "shop", "settings").forEach {
+            rule.onNodeWithTag("fst.nav.drawer.$it").assertIsNotSelected()
+        }
+        page = DrawerEntry.Statistics
+        selected = FestivalSection.Settings
+        rule.waitForIdle()
+        rule.onNodeWithTag("fst.nav.drawer.statistics").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.drawer.settings").assertIsNotSelected()
+        page = null
+        rule.waitForIdle()
+        rule.onNodeWithTag("fst.nav.drawer.settings").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.drawer.statistics").assertIsNotSelected()
+    }
+
+    /** #601: with a profile, Item Shop is a tab, so its row selects the tab and shows it selected. */
+    @Test
+    fun playerShopRowSelectsTheItemShopTab() {
+        val sections = mutableListOf<FestivalSection>()
+        val routes = mutableListOf<AppRoute>()
+        rule.setContent {
+            DrawerContent(
+                visible = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = false),
+                selected = FestivalSection.Shop,
+                profile = ProfileKind.Player,
+                player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"),
+                onSection = { sections += it },
+                onRoute = { routes += it },
+                onChild = { _, _ -> },
+                onOpenProfile = {},
+                onDeselect = {},
+            )
+        }
+        rule.onNodeWithTag("fst.nav.drawer.shop").assertIsSelected().performClick()
+        rule.onNodeWithTag("fst.nav.drawer.statistics").assertIsNotSelected().performClick()
+        assertEquals(listOf(FestivalSection.Shop), sections)
+        assertEquals(listOf<AppRoute>(StatisticsRoute), routes)
     }
 
     /**
@@ -123,6 +194,7 @@ class ShellDrawerUiTest {
                 player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"),
                 onSection = { opened++ },
                 onRoute = { opened++ },
+                onChild = { _, _ -> },
                 onOpenProfile = {},
                 onDeselect = {},
             )
@@ -174,6 +246,7 @@ class ShellDrawerUiTest {
                         player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"),
                         onSection = {},
                         onRoute = {},
+                        onChild = { _, _ -> },
                         onOpenProfile = {},
                         onDeselect = {},
                     )

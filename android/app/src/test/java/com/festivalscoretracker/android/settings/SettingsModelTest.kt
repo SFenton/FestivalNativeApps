@@ -81,7 +81,9 @@ class SettingsModelTest {
         assertFalse(AppSettings(hideShop = true).shopHighlightEnabled)
         assertFalse(AppSettings(disableShopHighlighting = true).shopHighlightEnabled)
         val sanitized = AppSettings(experimentalRanks = true, leeway = 9.0).sanitized()
-        assertFalse(sanitized.experimentalRanks)
+        // Experimental Ranks is a real setting now (#541): sanitizing keeps it.
+        assertTrue(sanitized.experimentalRanks)
+        assertFalse(AppSettings().experimentalRanks)
         assertEquals(5.0, sanitized.leeway, 0.0)
     }
 

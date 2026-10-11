@@ -220,4 +220,23 @@ private struct TintedGlassProbe: View {
         _ = try await nativeHostedSettle(host, timeout: .milliseconds(200)) { false }
     }
 }
+
+/// Every recognizer plan reads the probe's "850,000" whole on a Mac, so the CPU fallbacks
+/// `nativeHostedRecognizedText` uses in a VM are known to work. Inside a VM a plan that
+/// reads nothing is reported as a known issue naming Vision's error, as diagnostics.
+@MainActor
+@Test(arguments: NativeHostedTextRecognitionPlan.allCases)
+func hostedTextRecognitionReadsTheProbe(plan: NativeHostedTextRecognitionPlan) throws {
+    let image = try nativeHostedTextRecognitionProbeImage()
+    let outcome: Result<[String], any Error> = Result { try nativeHostedRecognizeText(image, plan: plan) }
+    let lines = (try? outcome.get()) ?? []
+    let reads = lines.contains { nativeHostedDigits($0) == "850000" }
+    if nativeHostedIsVirtualMachine && !reads {
+        withKnownIssue("Vision reads no probe text in this VM with \(plan): \(outcome)") {
+            Issue.record("\(plan) read \(lines)")
+        }
+    } else {
+        #expect(reads, "\(plan) reads 850,000 whole: \(outcome)")
+    }
+}
 #endif

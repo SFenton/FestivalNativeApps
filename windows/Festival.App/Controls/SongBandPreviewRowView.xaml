@@ -27,6 +27,9 @@
                 <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
                 <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
             </Button.Resources>
+            <!-- One rank rail per section, sized by an invisible bold copy of the widest rank it shows (SongBandRow.RailRank, the
+                 appended selected band's included; web computeRankWidth, issue #594): real text at any text size and weight, so a
+                 bold or longer rank never pushes its members out of line. -->
             <Grid ColumnSpacing="12" RowSpacing="6">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" MinWidth="40" />
@@ -37,10 +40,16 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
+                <TextBlock Text="{x:Bind Row.RailRank, Mode=OneWay}" VerticalAlignment="Top" Margin="0,4,0,0" Opacity="0" IsHitTestVisible="False"
+                           Style="{StaticResource BodyStrongTextBlockStyle}" FontWeight="Bold" Typography.NumeralAlignment="Tabular"
+                           HighContrastAdjustment="None" AutomationProperties.AccessibilityView="Raw" />
                 <TextBlock x:Name="RankText" Text="{x:Bind Row.Rank, Mode=OneWay}" VerticalAlignment="Top" Margin="0,4,0,0"
-                           Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.AccessibilityView="Raw" />
+                           Style="{StaticResource BodyStrongTextBlockStyle}" AutomationProperties.AccessibilityView="Raw"
+                           Typography.NumeralAlignment="Tabular"
+                           AutomationProperties.AutomationId="{x:Bind Row.RankAutomationId, Mode=OneWay}" />
                 <ItemsRepeater x:Name="MembersRepeater" Grid.Column="1" ItemsSource="{x:Bind Row.Members, Mode=OneWay}"
-                               ElementPrepared="OnMemberPrepared" AutomationProperties.AccessibilityView="Raw">
+                               ElementPrepared="OnMemberPrepared" AutomationProperties.AccessibilityView="Raw"
+                               AutomationProperties.AutomationId="{x:Bind Row.MembersAutomationId, Mode=OneWay}">
                     <ItemsRepeater.Layout>
                         <StackLayout Spacing="4" />
                     </ItemsRepeater.Layout>

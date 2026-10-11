@@ -1,8 +1,11 @@
 package com.festivalscoretracker.android.journeys
 
+import android.content.pm.ActivityInfo
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Rect
 import android.os.Build
+import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -60,7 +63,13 @@ import org.junit.runner.RunWith
  * Block and category headings carry the heading role for TalkBack; a version without categories
  * gets no "Other" heading; the decorative "•" is never read; Close and Dismiss are 48 dp targets;
  * at 200% the headings and bullets lay out at 2× without clipping or ellipsis and Dismiss stays
- * on screen. Run with
+ * on screen.
+ *
+ * Wider windows (≥ 600 dp, no separating hinge) present the shared `FestivalModalDialog` instead
+ * of the sheet. There the dialog must take the window width less 16 dp margins, capped at 560 dp,
+ * never the platform's ~320 dp dialog width (issue #183, modal-shell R9), which left about 1.5
+ * note lines in view on a landscape phone at 200% text. The landscape passes turn a phone a
+ * quarter and repeat every check on that dialog. Run with
  * `device.py test com.festivalscoretracker.android.journeys.WhatsNewGroupsAccessibilityJourneyTest --avd …`;
  * reading orders go to logcat `FST_A11Y`.
  */
@@ -293,6 +302,42 @@ class WhatsNewGroupsAccessibilityJourneyTest {
     }
 
     /**
+     * Turn a phone to landscape through the activity's requested orientation (never the global
+     * rotation settings, which leaked into later classes, issue #549). The request ends with the
+     * activity. Large screens (smallest width ≥ 600 dp) may ignore it on Android 16; they already
+     * present the dialog, so the pass runs at their own orientation and logs it.
+     *
+     * @param screen Log name.
+     */
+    private fun turnToLandscape(screen: String) {
+        val sw = rule.activity.resources.configuration.smallestScreenWidthDp
+        rule.runOnUiThread { rule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE }
+        val turned = runCatching {
+            rule.waitUntil(10_000) { rule.activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE }
+        }.isSuccess
+        rule.waitForIdle()
+        Log.i(JourneyHarness.READING_ORDER_TAG, "$screen | landscape $turned (sw${sw}dp, w${rule.activity.resources.configuration.screenWidthDp}dp)")
+        if (sw < 600) assertTrue("$screen: a phone turns to landscape on request", turned)
+    }
+
+    /**
+     * On a window at least 600 dp wide without a separating hinge, What's New is the shared dialog
+     * at the window width less 16 dp margins, capped at 560 dp (modal-shell R9, issue #183), and
+     * inside the window; compact windows keep the sheet.
+     *
+     * @param screen Log name.
+     */
+    private fun assertPresentation(screen: String) {
+        val widthDp = rule.activity.resources.configuration.screenWidthDp
+        if (widthDp < 600 || h.hinges().isNotEmpty()) return
+        val dialog = rule.onNodeWithTag("fst.whats-new.sheet").fetchSemanticsNode()
+        val width = with(rule.density) { dialog.size.width.toDp() }.value
+        val expected = minOf(widthDp - 32f, 560f)
+        Log.i(JourneyHarness.READING_ORDER_TAG, "$screen | dialog ${width}dp in a ${widthDp}dp window")
+        assertEquals("$screen: dialog width in a ${widthDp}dp window", expected, width, 2f)
+    }
+
+    /**
      * The whole check for one channel at the current font scale.
      *
      * @param screen Log name.
@@ -303,6 +348,7 @@ class WhatsNewGroupsAccessibilityJourneyTest {
      */
     private fun assertChannel(screen: String, channel: InstallChannel, sequence: List<Stop>, absent: List<String>, scale: Float) {
         present(channel)
+        assertPresentation(screen)
         rule.onNodeWithTag("fst.whats-new.close").assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Close")))
         assertTarget(screen, "fst.whats-new.close")
         assertTarget(screen, "fst.whats-new.dismiss")
@@ -348,6 +394,31 @@ class WhatsNewGroupsAccessibilityJourneyTest {
     fun testerNotesAtDoubleTextKeepOrderHeadingsAndTargets() {
         assertEquals(2f, rule.activity.resources.configuration.fontScale, 0.01f)
         assertChannel("whats-new-tester-2x", InstallChannel.Tester, testerSequence, listOf(STORE_TITLE), 2f)
+    }
+
+    /**
+     * Store install on a landscape phone (issue #183): the 560 dp dialog, not the platform's
+     * ~320 dp one, reads the release's groups in order with headings, 48 dp targets and ATF.
+     */
+    @Test
+    @DeviceCi
+    fun landscapeDialogReadsStoreNotesByCategory() {
+        turnToLandscape("whats-new-landscape-store")
+        assertChannel("whats-new-landscape-store", InstallChannel.Store, storeSequence, listOf(TESTER_TITLE, TESTER_ONLY, SONGS_SECOND), rule.activity.resources.configuration.fontScale)
+    }
+
+    /**
+     * Tester install on a landscape phone at 200% system text (issue #183): the full-width dialog
+     * scrolls the grouped notes unclipped in reading order and keeps Close and Dismiss on screen
+     * as 48 dp targets.
+     */
+    @Test
+    @DeviceCi
+    @SystemFontScale(2f)
+    fun landscapeDialogAtDoubleTextKeepsWidthOrderHeadingsAndTargets() {
+        turnToLandscape("whats-new-landscape-tester-2x")
+        assertEquals(2f, rule.activity.resources.configuration.fontScale, 0.01f)
+        assertChannel("whats-new-landscape-tester-2x", InstallChannel.Tester, testerSequence, listOf(STORE_TITLE), 2f)
     }
 
     // endregion

@@ -258,14 +258,26 @@ enum HingeColumns {
 // MARK: - Measuring
 
 extension View {
-    /// Report this view's horizontal extent in window coordinates (only when it changes,
-    /// so vertical scrolling costs nothing).
+    /// Report this view's horizontal extent in window coordinates (only when it changes)
+    /// while a fold crosses the window.
     ///
-    /// - Parameter span: Receives the extent.
-    /// - Returns: The view, measured.
-    func measuresHorizontalSpan(_ span: Binding<HorizontalSpan?>) -> some View {
-        onGeometryChange(for: HorizontalSpan.self, of: { HorizontalSpan($0.frame(in: .global)) }) { value in
-            if span.wrappedValue != value { span.wrappedValue = value }
+    /// The span only places columns or titles around an iPhone Duo fold, so without one
+    /// nothing is measured: a window-space geometry reading is re-evaluated on every
+    /// scroll frame, for every grid and title on the page (issue #553). The reader sits
+    /// in a background, so a fold appearing or going never rebuilds the view itself.
+    ///
+    /// - Parameters:
+    ///   - span: Receives the extent.
+    ///   - fold: The window's fold (`DeviceLayout.splitHinge`), or nil for none.
+    /// - Returns: The view, measured while there is a fold.
+    func measuresHorizontalSpan(_ span: Binding<HorizontalSpan?>, fold: CGRect?) -> some View {
+        background {
+            if fold != nil {
+                Color.clear
+                    .onGeometryChange(for: HorizontalSpan.self, of: { HorizontalSpan($0.frame(in: .global)) }) { value in
+                        if span.wrappedValue != value { span.wrappedValue = value }
+                    }
+            }
         }
     }
 
@@ -288,7 +300,7 @@ private struct HingeSideTitle: ViewModifier {
         content
             .frame(maxWidth: HingeColumns.titleWidth(span: span, fold: layout.splitHinge) ?? .infinity, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .measuresHorizontalSpan($span)
+            .measuresHorizontalSpan($span, fold: layout.splitHinge)
     }
 }
 
@@ -350,7 +362,7 @@ struct HingeGrid<Content: View>: View {
             content
         }
         .frame(maxWidth: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
-        .measuresHorizontalSpan($span)
+        .measuresHorizontalSpan($span, fold: layout.splitHinge)
     }
 }
 
@@ -388,7 +400,7 @@ struct HingeEagerGrid<Content: View>: View {
             minimum: minimum, spacing: spacing, rowSpacing: rowSpacing,
             band: HingeColumns.adaptiveBand(span: span, fold: layout.splitHinge, gutter: spacing, minimum: minimum)
         ) { content }
-            .measuresHorizontalSpan($span)
+            .measuresHorizontalSpan($span, fold: layout.splitHinge)
     }
 }
 
@@ -463,6 +475,7 @@ struct HingeEagerGridLayout: Layout {
 struct HingeRow<Content: View>: View {
     private let spacing: CGFloat
     private let fillsHeight: Bool
+    private let matchesHeights: Bool
     private let content: Content
     @Environment(\.deviceLayout) private var layout
     @State private var span: HorizontalSpan?
@@ -473,11 +486,17 @@ struct HingeRow<Content: View>: View {
     ///   - spacing: Gap between cells (and the narrowest clearance over the hinge).
     ///   - fillsHeight: Give every cell the row's proposed height (side-by-side panes)
     ///     instead of its own (default false: cards, top-aligned).
+    ///   - matchesHeights: Size the row to its tallest cell and offer every cell that
+    ///     height (segments of a board's group card, #543).
     ///   - content: The cells, an even count (pad a short row with clear cells); one cell
     ///     alone fills the row.
-    init(spacing: CGFloat, fillsHeight: Bool = false, @ViewBuilder content: () -> Content) {
+    init(
+        spacing: CGFloat, fillsHeight: Bool = false, matchesHeights: Bool = false,
+        @ViewBuilder content: () -> Content
+    ) {
         self.spacing = spacing
         self.fillsHeight = fillsHeight
+        self.matchesHeights = matchesHeights
         self.content = content()
     }
 
@@ -485,8 +504,10 @@ struct HingeRow<Content: View>: View {
         let band = HingeColumns.band(
             span: span, fold: layout.splitHinge, gutter: spacing, minimumSide: HingeColumns.minimumSide
         )
-        HingeRowLayout(spacing: spacing, band: band, fillsHeight: fillsHeight) { content }
-            .measuresHorizontalSpan($span)
+        HingeRowLayout(spacing: spacing, band: band, fillsHeight: fillsHeight, matchesHeights: matchesHeights) {
+            content
+        }
+            .measuresHorizontalSpan($span, fold: layout.splitHinge)
     }
 }
 
@@ -499,6 +520,9 @@ struct HingeRowLayout: Layout {
     var band: HingeBand?
     /// Every cell takes the row's proposed height (side-by-side panes).
     var fillsHeight = false
+    /// The row is as tall as its tallest cell and every cell is offered that height
+    /// (one group card per column, #543).
+    var matchesHeights = false
 
     /// What a cell is offered.
     ///
@@ -541,7 +565,9 @@ struct HingeRowLayout: Layout {
         for (subview, cell) in zip(subviews, cells(width: bounds.width, count: subviews.count)) {
             subview.place(
                 at: CGPoint(x: bounds.minX + cell.x, y: bounds.minY), anchor: .topLeading,
-                proposal: cellProposal(width: cell.width, rowHeight: bounds.height)
+                proposal: matchesHeights && !fillsHeight
+                    ? ProposedViewSize(width: cell.width, height: bounds.height)
+                    : cellProposal(width: cell.width, rowHeight: bounds.height)
             )
         }
     }

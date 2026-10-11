@@ -273,3 +273,62 @@ extension KeyedDecodingContainer {
         }
     }
 }
+
+// MARK: - Experimental ranks projection
+
+/// Port of the web's `projectExperimentalRankNotification`
+/// (`components/notifications/notificationSurface.ts`): while Settings › Experimental
+/// Ranks is off, rank-improvement events for experimental metrics (Adjusted, Weighted,
+/// FC Rate, Max Score) are not surfaced (pattern `experimental-ranks`).
+public enum NotificationExperimentalRanks {
+    /// The notification as surfaced under the Settings switch.
+    ///
+    /// A notification with no aggregate rank event, or whose rank events are all Total
+    /// Score, is unchanged. One made only of experimental rank events is dropped. A
+    /// coalesced one that mixes both keeps its visible events, and its top-level kind,
+    /// metric, numbers and ranks (so its text and tap destination) come from the first.
+    ///
+    /// - Parameters:
+    ///   - dto: Decoded notification.
+    ///   - experimentalRanks: The Settings switch.
+    /// - Returns: The notification to show, or nil to hide it.
+    public static func project(
+        _ dto: ImprovementNotificationDto, experimentalRanks: Bool
+    ) -> ImprovementNotificationDto? {
+        if experimentalRanks { return dto }
+        let coalesced = dto.payload?.coalescedEvents ?? []
+        let events = coalesced.isEmpty
+            ? [NotificationEventPayload(
+                eventKind: dto.eventKind, instrument: dto.instrument, metric: dto.metric,
+                oldNumeric: dto.oldNumeric, newNumeric: dto.newNumeric,
+                oldRank: dto.oldRank.map(Double.init), newRank: dto.newRank.map(Double.init)
+            )]
+            : coalesced
+        let metrics = events.map { NotificationRankingMetric.metric(eventKind: $0.eventKind, metric: $0.metric) }
+        guard metrics.contains(where: { $0 != nil }) else { return dto }
+        let visible = zip(events, metrics).filter { $0.1?.isExperimental != true }.map(\.0)
+        guard let primary = visible.first else { return nil }
+        if visible.count == events.count { return dto }
+        let payload = dto.payload.map {
+            NotificationPayloadFields(
+                coalescedEvents: visible, coalescedInstruments: $0.coalescedInstruments,
+                oldFullCombo: $0.oldFullCombo, newFullCombo: $0.newFullCombo,
+                oldStars: $0.oldStars, newStars: $0.newStars,
+                songTitle: $0.songTitle, artist: $0.artist, albumArt: $0.albumArt
+            )
+        }
+        return ImprovementNotificationDto(
+            eventId: dto.eventId, notificationGuid: dto.notificationGuid, accountId: dto.accountId,
+            eventKind: primary.eventKind ?? dto.eventKind, songId: dto.songId, instrument: dto.instrument,
+            metric: primary.metric, oldNumeric: primary.oldNumeric, newNumeric: primary.newNumeric,
+            oldRank: wholeRank(primary.oldRank), newRank: wholeRank(primary.newRank),
+            payload: payload, detectedAt: dto.detectedAt, expiresAt: dto.expiresAt
+        )
+    }
+
+    /// A coalesced event's rank as the top-level integer rank, or nil when not finite.
+    private static func wholeRank(_ value: Double?) -> Int? {
+        guard let value, value.isFinite else { return nil }
+        return Int(value.rounded())
+    }
+}

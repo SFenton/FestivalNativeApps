@@ -1,0 +1,68 @@
+[
+  {"name": "rivals-cards-rivalry", "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8/rivalry", "profile": "fixture-player-1:Demo Player", "scan": true, "tabs": 0, "skip_modes": ["text-225"],
+   "note": "Issue #603 (rival-rows R3, R6): Rivalry's songs form one grouped card. The rows touch (0 epx apart, hairlines between them) and each is one 44+ epx list-item stop that reads what the iOS-design row shows (title, artist, instrument, both ranks, who leads) in visual order; Up/Down move between rows.",
+   "ready": ["waitfor:id=fst.rivalry.song.fixture-echo.Solo_Guitar@30", "wait:1.5"],
+   "after_ready": [
+     "assertgap:id=fst.rivalry.song.fixture-drift.Solo_Guitar|id=fst.rivalry.song.fixture-pulse.Solo_Guitar|0",
+     "assertgap:id=fst.rivalry.song.fixture-pulse.Solo_Guitar|id=fst.rivalry.song.fixture-orbit.Solo_Guitar|0",
+     "assertsize:id=fst.rivalry.song.fixture-pulse.Solo_Guitar|0x44",
+     "assertsize:id=fst.rivalry.song.fixture-orbit.Solo_Guitar|0x44",
+     "assertread:id=fst.rivalry.song.fixture-pulse.Solo_Guitar|~^Fixture Pulse, Fixture Artist, [^,]+, you rank 12, Demo Rival 1 ranks 13, you lead",
+     "assertread:id=fst.rivalry.song.fixture-orbit.Solo_Guitar|~^Fixture Orbit, Fixture Artist, [^,]+, you rank 40, Demo Rival 1 ranks 20, Demo Rival 1 leads",
+     "assertread:id=fst.rivalry.song.fixture-drift.Solo_Guitar|~^Fixture Drift, Fixture Artist, [^,]+, you rank 30, Demo Rival 1 ranks 30, tied",
+     "assertorder:id=fst.rivalry.song.fixture-drift.Solo_Guitar|id=fst.rivalry.song.fixture-pulse.Solo_Guitar|id=fst.rivalry.song.fixture-orbit.Solo_Guitar|id=fst.rivalry.song.fixture-echo.Solo_Guitar",
+     "focus:id=fst.rivalry.song.fixture-drift.Solo_Guitar",
+     "assertfocus:id=fst.rivalry.song.fixture-drift.Solo_Guitar@3",
+     "key:down",
+     "assertfocus:id=fst.rivalry.song.fixture-pulse.Solo_Guitar@3"
+   ]},
+  {"name": "rivals-cards-all-rivals", "route": "/rivals/all", "profile": "fixture-player-1:Demo Player", "scan": true, "tabs": 0,
+   "note": "Issue #603 (rival-rows R6): All Rivals' rows form one grouped card (rows touch, hairlines between them); each stays one 40+ epx stop named like the hub row, and Up/Down move between rows.",
+   "ready": ["waitfor:id=fst.all-rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@30", "wait:1.5"],
+   "after_ready": [
+     "assertsize:id=fst.all-rivals.row.f1c749eb07c32578cfa3e59ec38c03a8|0x40",
+     "assertread:id=fst.all-rivals.row.f1c749eb07c32578cfa3e59ec38c03a8|~^Demo Rival 1, ahead of you, 128 songs ahead, 243 songs behind",
+     "focus:id=fst.all-rivals.row.f1c749eb07c32578cfa3e59ec38c03a8",
+     "assertfocus:id=fst.all-rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@3",
+     "key:down",
+     "assertfocus:id=fst.all-rivals.row.f1c7f9da2f4c13b52437fac7ae3f9120@3"
+   ]},
+  {"name": "rivals-cards-detail", "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8", "profile": "fixture-player-1:Demo Player", "scan": true, "tabs": 0, "skip_modes": ["text-225"],
+   "note": "Issue #603 (rival-rows R3, R6): a Rival Detail category card's song rows are the iOS-design row with a hairline between them; each is one 44+ epx Button stop read in visual order before the card's View All.",
+   "ready": ["waitfor:id=fst.rival-detail.category.closest_battles.view-all@30", "wait:1.5"],
+   "after_ready": [
+     "assertsize:id=fst.rivalry.song.fixture-pulse.Solo_Guitar|0x44",
+     "assertread:id=fst.rivalry.song.fixture-pulse.Solo_Guitar|~^Fixture Pulse, Fixture Artist, [^,]+, you rank 12, Demo Rival 1 ranks 13, you lead",
+     "assertorder:id=fst.rivalry.song.fixture-drift.Solo_Guitar|id=fst.rivalry.song.fixture-pulse.Solo_Guitar|id=fst.rival-detail.category.closest_battles.view-all",
+     "focus:id=fst.rivalry.song.fixture-drift.Solo_Guitar",
+     "key:down",
+     "assertfocus:id=fst.rivalry.song.fixture-pulse.Solo_Guitar@3"
+   ]},
+  {"name": "rivals-cards-rivalry-large-text", "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8/rivalry", "profile": "fixture-player-1:Demo Player", "scan": true, "tabs": 0, "modes": ["text-225"],
+   "note": "Issue #603 at 225% text: the iOS-design rows grow (pills wrap) instead of clipping, so only one or two rows fit a compact window; the first row is still one 44+ epx stop with the full reading, and Down moves to (and reveals) the next row.",
+   "ready": ["scrollinto:id=fst.rivalry.song.fixture-drift.Solo_Guitar@30", "wait:1.5"],
+   "after_ready": [
+     "assertsize:id=fst.rivalry.song.fixture-drift.Solo_Guitar|0x44",
+     "assertread:id=fst.rivalry.song.fixture-drift.Solo_Guitar|~^Fixture Drift, Fixture Artist, [^,]+, you rank 30, Demo Rival 1 ranks 30, tied",
+     "focus:id=fst.rivalry.song.fixture-drift.Solo_Guitar",
+     "key:down",
+     "assertfocus:id=fst.rivalry.song.fixture-pulse.Solo_Guitar@3",
+     "assertread:id=fst.rivalry.song.fixture-pulse.Solo_Guitar|~^Fixture Pulse, Fixture Artist, [^,]+, you rank 12, Demo Rival 1 ranks 13, you lead"
+   ]},
+  {"name": "rivals-cards-detail-large-text", "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8", "profile": "fixture-player-1:Demo Player", "scan": true, "tabs": 0, "modes": ["text-225"],
+   "note": "Issue #603 at 225% text: a Rival Detail card's iOS-design song rows grow rather than clip; each stays one 44+ epx stop with the full reading, and Down moves along the card.",
+   "ready": ["scrollinto:id=fst.rivalry.song.fixture-drift.Solo_Guitar@30", "wait:1.5"],
+   "after_ready": [
+     "assertsize:id=fst.rivalry.song.fixture-drift.Solo_Guitar|0x44",
+     "assertread:id=fst.rivalry.song.fixture-drift.Solo_Guitar|~^Fixture Drift, Fixture Artist, [^,]+, you rank 30, Demo Rival 1 ranks 30, tied",
+     "focus:id=fst.rivalry.song.fixture-drift.Solo_Guitar",
+     "key:down",
+     "assertfocus:id=fst.rivalry.song.fixture-pulse.Solo_Guitar@3"
+   ]},  {"name": "rivals-cards-hub", "route": "/rivals", "profile": "fixture-player-1:Demo Player", "scan": true, "tabs": 0,
+   "note": "Issue #603 (rival-rows R6): the hub's section card (also Compete's rivals) keeps its rows in one card, now with hairlines between them; each row stays one 40+ epx Button stop named with the rival and standing, before the section's View All.",
+   "ready": ["waitfor:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@30", "wait:1.5"],
+   "after_ready": [
+     "assertsize:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8|0x40",
+     "assertread:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8|~^Demo Rival 1, ahead of you, 128 songs ahead, 243 songs behind"
+   ]}
+]

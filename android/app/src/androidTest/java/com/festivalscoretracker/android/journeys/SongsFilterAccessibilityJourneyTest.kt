@@ -225,27 +225,33 @@ class SongsFilterAccessibilityJourneyTest {
      * @param screen Log prefix.
      */
     private fun assertStateChanges(screen: String) {
+        // A row scrolled out of the form is not visible to TalkBack (modal-shell R5: the body clips at
+        // the header), so bring each row into view before reading its state.
+        fun switchStop(log: String, tag: String, on: Boolean) {
+            reveal(tag)
+            h.assertSwitchStop(log, tag, on)
+        }
         reveal("fst.songs.filter.year.2020")
         h.tap("fst.songs.filter.year.2020")
-        h.assertSwitchStop("$screen-year-off", "fst.songs.filter.year.2020", on = false)
-        h.assertSwitchStop("$screen-year-off", "fst.songs.filter.year.2010", on = true)
+        switchStop("$screen-year-off", "fst.songs.filter.year.2020", on = false)
+        switchStop("$screen-year-off", "fst.songs.filter.year.2010", on = true)
         reveal("fst.songs.filter.year.clear-all")
         h.tap("fst.songs.filter.year.clear-all")
-        listOf(2010, 2020).forEach { h.assertSwitchStop("$screen-year-clear", "fst.songs.filter.year.$it", on = false) }
+        listOf(2010, 2020).forEach { switchStop("$screen-year-clear", "fst.songs.filter.year.$it", on = false) }
         h.tap("fst.songs.filter.year.select-all")
-        listOf(2010, 2020).forEach { h.assertSwitchStop("$screen-year-select", "fst.songs.filter.year.$it", on = true) }
+        listOf(2010, 2020).forEach { switchStop("$screen-year-select", "fst.songs.filter.year.$it", on = true) }
         for (tag in listOf("fst.songs.filter.duration.3", "fst.songs.filter.shop-unavailable")) {
             reveal(tag)
             h.tap(tag)
-            h.assertSwitchStop("$screen-off", tag, on = false)
+            switchStop("$screen-off", tag, on = false)
             h.tap(tag)
-            h.assertSwitchStop("$screen-on", tag, on = true)
+            switchStop("$screen-on", tag, on = true)
         }
         // Double Bass Support only: the unsupported and unknown songs leave the list.
         reveal("fst.songs.filter.double-bass.unsupported")
         h.tap("fst.songs.filter.double-bass.unsupported")
-        h.assertSwitchStop("$screen-double-bass-off", "fst.songs.filter.double-bass.unsupported", on = false)
-        h.assertSwitchStop("$screen-double-bass-off", "fst.songs.filter.double-bass.supported", on = true)
+        switchStop("$screen-double-bass-off", "fst.songs.filter.double-bass.unsupported", on = false)
+        switchStop("$screen-double-bass-off", "fst.songs.filter.double-bass.supported", on = true)
         h.readingOrder("$screen-double-bass-off", fresh = true)
         h.waitGone("fst.songs.row.s-beta")
         h.waitGone("fst.songs.row.s-gamma")
@@ -259,8 +265,7 @@ class SongsFilterAccessibilityJourneyTest {
         listOf("fst.songs.filter.year", "fst.songs.filter.duration", "fst.songs.filter.shop").forEach { assertHeaderState(it, expanded = false) }
         reveal("fst.songs.filter.reset")
         h.tap("fst.songs.filter.reset")
-        reveal("fst.songs.filter.double-bass.unsupported")
-        h.assertSwitchStop("$screen-reset", "fst.songs.filter.double-bass.unsupported", on = true)
+        switchStop("$screen-reset", "fst.songs.filter.double-bass.unsupported", on = true)
         closeSheet()
         assertEquals("No filters", filterButtonState())
         h.waitForTag("fst.songs.row.s-beta")

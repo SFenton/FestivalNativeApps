@@ -111,6 +111,16 @@ class RankingsCoreTest {
         assertEquals(5, RankingPaging.pageCount(5, 0))
     }
 
+    /** Issue #575: a pager only for a loaded page count above one (web `hasPagination`). */
+    @Test
+    fun pagerShowsOnlyForAKnownMultiPageCount() {
+        assertFalse(RankingPaging.showsPager(null))
+        assertFalse(RankingPaging.showsPager(0))
+        assertFalse(RankingPaging.showsPager(1))
+        assertTrue(RankingPaging.showsPager(2))
+        assertTrue(RankingPaging.showsPager(34_760))
+    }
+
     @Test
     fun playerRankingAcceptsBlankInstrumentButNotMismatches() {
         val row = entry(RankingsFixtures.SELECTED_RANK)
@@ -281,7 +291,12 @@ class RankingsCoreTest {
             FullRankingsRoute("Solo_Guitar", "totalscore", 1),
             RankingNavigation.previewSpotlightRoute(own.copy(totalScoreRank = 25), RankingMetric.TotalScore, Instrument.Lead, selected),
         )
-        // No full board (combo scopes) or no usable rank: Statistics, as before.
+        // A combo preview opens the combo board on the player's page (#602).
+        assertEquals(
+            FullRankingsRoute("Solo_Guitar", "totalscore", 4, combo = "0f"),
+            RankingNavigation.previewSpotlightRoute(own, RankingMetric.TotalScore, Instrument.Lead, selected, comboId = "0f"),
+        )
+        // No full board or no usable rank: Statistics, as before.
         assertEquals(StatisticsRoute, RankingNavigation.previewSpotlightRoute(own, RankingMetric.TotalScore, null, selected))
         assertEquals(StatisticsRoute, RankingNavigation.previewSpotlightRoute(own.copy(totalScoreRank = 0), RankingMetric.TotalScore, Instrument.Lead, selected))
         assertNull(RankingNavigation.previewSpotlightRoute(own.copy(accountId = ""), RankingMetric.TotalScore, Instrument.Lead, selected))

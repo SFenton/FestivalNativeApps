@@ -16,7 +16,8 @@ Journey file shape::
 share a ``FST_DEBUG_DATA_DIR`` across relaunches (e.g. a dismissal persisting); ``{repo}`` in an ``extra`` value
 expands to the repository root (e.g. ``FST_DEBUG_WHATS_NEW_FILE`` pointing at a checked-in fixture). An optional
 ``"extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Name"}`` passes launch environment hooks,
-``"args": ["--reduce-motion"]`` extra app arguments, and an optional ``"fixture": ["--band-rankings", "empty"]``
+``"args": ["--reduce-motion"]`` extra app arguments, an optional ``"settings": {"experimentalRanks": true}`` seeds a
+throwaway ``settings.json`` (camelCase keys, ``--settings-path``), and an optional ``"fixture": ["--band-rankings", "empty"]``
 runs that journey against its own fixture service with those flags (``rivals_fixture.py`` unless ``--fixture``).
 
 Usage::
@@ -52,6 +53,25 @@ EXE = journey_exe.DEBUG_EXE
 # region Fixture service
 
 
+def journey_fixture(fixture: tuple[str, ...], override: Path | None = None) -> tuple[Path | None, tuple[str, ...]]:
+    """The fixture script and flags for a journey's ``fixture`` list (same convention as ``a11y_matrix`` pages).
+
+    A list starting with a ``.py`` name under ``tools/windows`` names its own wrapper (``["rankings_fixture.py",
+    "--rankings-delay", "3"]``); otherwise its flags go to ``--fixture`` or :data:`FIXTURE`, and an empty list to the
+    plain mock service. Naming the wrapper in the journey lets any runner (CI included) serve it correctly.
+
+    Args:
+        fixture: The journey's ``fixture`` list.
+        override: ``--fixture`` from the command line, used when the journey names no wrapper.
+
+    Returns:
+        Script (``None``: plain mock service) and the flags for it.
+    """
+    if fixture and fixture[0].endswith(".py"):
+        return REPO_ROOT / "tools" / "windows" / fixture[0], tuple(fixture[1:])
+    return override or (FIXTURE if fixture else None), tuple(fixture)
+
+
 def start_mock(log: Path, service_args: tuple[str, ...] = (), fixture: Path | None = None) -> tuple[subprocess.Popen, int]:
     """Start the fixture service on a free loopback port, logging to a file.
 
@@ -78,13 +98,13 @@ def start_mock(log: Path, service_args: tuple[str, ...] = (), fixture: Path | No
     command = ([sys.executable, "-u", str(fixture), "--port", "0", *service_args] if fixture is not None
                else [sys.executable, "-u", "-c", bootstrap, str(MOCK.parent), *service_args])
     proc = subprocess.Popen(command, stdout=handle, stderr=subprocess.STDOUT)
-    for _ in range(200):
+    for _ in range(600):
         match = re.search(r"127\.0\.0\.1:(\d+)", log.read_text(encoding="utf-8", errors="replace"))
         if match:
             return proc, int(match.group(1))
         time.sleep(0.1)
     proc.kill()
-    raise RuntimeError(f"fixture service did not start; see {log}")
+    raise RuntimeError(f"fixture service did not start within 60 s; see {log}")
 
 # endregion
 
@@ -103,13 +123,14 @@ def uiwin(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run([sys.executable, str(UIWIN), *args], capture_output=True, text=True)
 
 
-def launch_args(journey: dict, port: int, shots: Path) -> list[str]:
+def launch_args(journey: dict, port: int, shots: Path, settings: Path | None = None) -> list[str]:
     """``uiwin.py launch`` arguments for one journey.
 
     Args:
         journey: Journey definition.
         port: Fixture service port.
         shots: Screenshot directory, substituted for ``{shots}`` in ``extra`` values.
+        settings: Seeded settings file for a journey's ``settings`` (``--settings-path``), if any.
 
     Returns:
         The argument list (after ``launch``).
@@ -117,8 +138,26 @@ def launch_args(journey: dict, port: int, shots: Path) -> list[str]:
     return [str(EXE), "--route", journey["route"],
             "--arg=--base-url", f"--arg=http://127.0.0.1:{port}/",
             "--preset", journey.get("preset", "medium"),
+            *([f"--arg=--settings-path={settings}"] if settings is not None else []),
             *(f"--arg={arg}" for arg in journey.get("args", [])),
             *(f"--extra={key}={expand(str(value), shots)}" for key, value in journey.get("extra", {}).items())]
+
+
+def seed_settings(journey: dict, folder: Path) -> Path | None:
+    """Writes a journey's ``settings`` (camelCase ``settings.json`` keys) to a throwaway file.
+
+    Args:
+        journey: Journey definition.
+        folder: Temporary folder for the file.
+
+    Returns:
+        The file, or ``None`` when the journey seeds no settings.
+    """
+    if not journey.get("settings"):
+        return None
+    path = folder / f"{journey['name']}-settings.json"
+    path.write_text(json.dumps({"version": 1, **journey["settings"]}), encoding="utf-8")
+    return path
 
 
 def expand(value: str, shots: Path) -> str:
@@ -145,9 +184,23 @@ def run_journey(journey: dict, port: int, shots: Path) -> tuple[bool, str]:
     Returns:
         Pass flag and a short failure detail.
     """
-    launch = uiwin("launch", *launch_args(journey, port, shots))
-    if launch.returncode != 0:
-        return False, "launch: " + launch.stderr.strip()
+    with tempfile.TemporaryDirectory() as folder:
+        launch = uiwin("launch", *launch_args(journey, port, shots, seed_settings(journey, Path(folder))))
+        if launch.returncode != 0:
+            return False, "launch: " + launch.stderr.strip()
+        return drive_journey(journey, shots)
+
+
+def drive_journey(journey: dict, shots: Path) -> tuple[bool, str]:
+    """Drive and close one launched journey.
+
+    Args:
+        journey: Journey definition.
+        shots: Screenshot directory for ``{shots}``.
+
+    Returns:
+        Pass flag and a short failure detail.
+    """
     steps = [s.replace("{shots}", str(shots)) for s in journey["steps"]]
     with tempfile.NamedTemporaryFile("w", suffix=".steps", delete=False, encoding="utf-8") as handle:
         handle.write("\n".join(steps))
@@ -200,7 +253,8 @@ def main(argv: list[str] | None = None) -> int:
             extra = tuple(journey.get("fixture", ()))
             if extra not in services:
                 log = "fixture-service.log" if not services else f"fixture-service-{len(services)}.log"
-                services[extra] = start_mock(args.shots / log, base + extra, args.fixture or (FIXTURE if extra else None))
+                script, flags = journey_fixture(extra, args.fixture)
+                services[extra] = start_mock(args.shots / log, base + flags, script)
             port = services[extra][1]
             ok, detail = run_journey(journey, port, args.shots.resolve())
             attempts = 1

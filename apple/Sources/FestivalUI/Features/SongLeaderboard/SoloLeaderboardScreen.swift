@@ -53,7 +53,8 @@ struct SoloLeaderboardScreen: View {
     /// into view (issue #316).
     @State private var listHeight: CGFloat = 0
 
-    /// Row insets: two rows sit ``rowGap`` apart.
+    /// The group card's inset above its first row and below its last (rows inside it
+    /// abut); the pinned chrome still rests ``rowGap`` below the card.
     nonisolated private static let rowInset: CGFloat = 4
     /// Space between two rows, also kept above the pinned chrome (issue #293).
     nonisolated private static let rowGap: CGFloat = rowInset * 2
@@ -170,21 +171,42 @@ struct SoloLeaderboardScreen: View {
                                 // header R5, issue #316).
                                 resultArea(reveal.showsResult ? failedIssue : nil)
                             }
-                            // Row-major pairs in wide landscape (wide-columns R2, #353).
-                            ForEach(WideColumns.indexedRows(rows?.leaderboard.entries ?? [], columns: columns)) { row in
-                                WideColumnsRow(columns: columns, count: row.items.count) {
+                            // Row-major pairs in wide landscape (wide-columns R2, #353),
+                            // the page's rows segments of one group card per column
+                            // (leaderboard-row R10, owner #543): rows abut, and only
+                            // the card's ends keep the row inset.
+                            let entries = rows?.leaderboard.entries ?? []
+                            ForEach(WideColumns.indexedRows(entries, columns: columns)) { row in
+                                WideColumnsRow(columns: columns, count: row.items.count, matchesHeights: true) {
                                     ForEach(row.indexed, id: \.item.id) { index, entry in
-                                        entryRow(entry, index: index)
+                                        entryRow(entry)
+                                            .festivalGroupSegment(
+                                                .position(index: index, count: entries.count, columns: columns),
+                                                separatorInset: SongLeaderboardRowCard.horizontalPadding
+                                            )
+                                            // The card and every row in it fade in as one
+                                            // (owner #614); the page scope decides whether
+                                            // it still fades (R5).
+                                            .festivalCardSegmentFadeIn(cardIndex: BoardCardEntrance.index)
                                     }
                                 }
+                                // The card's top inset is content padding: a lone top
+                                // List row inset also left a gap under the first row
+                                // on macOS.
+                                .padding(.top, row.start == 0 ? Self.rowInset : 0)
                                 .listRowInsets(EdgeInsets(
-                                    top: Self.rowInset, leading: 16, bottom: Self.rowInset, trailing: 16
+                                    top: 0, leading: 16,
+                                    bottom: row.start + columns >= entries.count ? Self.rowInset : 0, trailing: 16
                                 ))
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                             }
                         }
                         .listStyle(.plain)
+                        // Rows set their own 48 pt height (R2): the system minimum
+                        // (about 52 pt on iOS 26) would open a strip of page between
+                        // a group card's segments (#543).
+                        .environment(\.defaultMinListRowHeight, 0)
                         .scrollContentBackground(.hidden)
                         // One fade window per revealed page (web `resetRush` on
                         // paginate): scrolling while its rows stagger in, or the
@@ -224,12 +246,12 @@ struct SoloLeaderboardScreen: View {
                                 focusPending = false
                                 return
                             }
-                            // After the row's own entrance (web `navToPlayer`, #323).
+                            // After the card's entrance (web `navToPlayer`, #323, #614).
                             // A pair's identity is its first row's (wide-columns, #353).
                             let rowStart = WideColumns.rowStart(of: targetIndex, columns: columns)
                             if await SelectedRowReveal.reveal(
                                 rows.leaderboard.entries[rowStart].id, proxy: proxy,
-                                reduceMotion: reduceMotion, staggerIndex: targetIndex, scope: fadeScope
+                                reduceMotion: reduceMotion, staggerIndex: BoardCardEntrance.index, scope: fadeScope
                             ) {
                                 focusPending = false
                             }
@@ -261,8 +283,9 @@ struct SoloLeaderboardScreen: View {
         // its LoadGate, issue #93). A bottom safe-area inset, not a VStack sibling: the
         // tab bar minimizes on scroll down, and a sibling made the List's own frame grow
         // and shrink at the end of the page, which read as a bounce. As an inset the
-        // List keeps its frame and only its content inset changes.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // List keeps its frame and only its content inset changes. Read after the
+        // header and rows (#461).
+        .boardBottomChrome {
             bottomChrome
         }
         // One set of columns for the page's rows and the pinned footer (web
@@ -289,7 +312,8 @@ struct SoloLeaderboardScreen: View {
             // iOS and iPadOS: the Mac keeps its window title (song-header R4).
             if showsSongHeader {
                 SongBarTitleToolbarItem(
-                    song: song, session: session, caption: instrument.label, isShown: headerHidden,
+                    song: song, session: session, caption: instrument.label,
+                    captionInstrument: instrument, isShown: headerHidden,
                     identifier: "fst.song-leaderboard.pinned-title"
                 )
             } else if !layout.sectionChrome.isVerticalBar {
@@ -317,16 +341,15 @@ struct SoloLeaderboardScreen: View {
 
     // MARK: Rows
 
-    /// One leaderboard row: its own material card (the player's purple) with the chevron
-    /// inside, as a button that pushes the player's page. One design with every
-    /// leaderboard (web `entryRow`); a button that pushes onto the tab's path rather than
-    /// a NavigationLink, so the List draws no second disclosure indicator outside it.
+    /// One leaderboard row: a row of the page's group card (the player's purple band)
+    /// with the chevron inside, as a button that pushes the player's page. One design
+    /// with every leaderboard (web `entryRow`); a button that pushes onto the tab's path
+    /// rather than a NavigationLink, so the List draws no second disclosure indicator
+    /// outside it.
     ///
-    /// - Parameters:
-    ///   - entry: The row's entry.
-    ///   - index: Its position on the page (fade stagger).
+    /// - Parameter entry: The row's entry.
     /// - Returns: The row, filling its column.
-    private func entryRow(_ entry: LeaderboardEntry, index: Int) -> some View {
+    private func entryRow(_ entry: LeaderboardEntry) -> some View {
         let isSelectedRow = isSelectedAccount(entry.accountId)
         return Button {
             path.append(playerRoute(for: entry))
@@ -338,12 +361,11 @@ struct SoloLeaderboardScreen: View {
             .contentShape(Rectangle())
         }
         .festivalRowButtonStyle()
-        // Accessibility grouping first, fade outermost: wrapping the link in the fade
-        // before `.contain` hid its score texts from the row's descendants.
+        // Accessibility grouping first, fade outermost (on the card segment): wrapping
+        // the link in the fade before `.contain` hid its score texts from the row's
+        // descendants.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.song-leaderboard.row.\(entry.accountId)")
-        // The page scope decides whether it still fades (R5).
-        .festivalFadeIn(staggerIndex: index)
         .frame(maxWidth: .infinity)
     }
 
@@ -406,7 +428,7 @@ struct SoloLeaderboardScreen: View {
                 }
             }
         }
-        .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
+        .boardBottomChrome(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
     /// Padding that rests the last row one row gap above the footer, or above the
@@ -473,10 +495,7 @@ struct SoloLeaderboardScreen: View {
                     .accessibilityIdentifier("fst.song-leaderboard.spotlight-jump")
                 }
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 16)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("fst.song-leaderboard.spotlight-footer")
+            .pinnedFooterControl(identifier: "fst.song-leaderboard.spotlight-footer")
         }
     }
 
@@ -584,15 +603,10 @@ struct SoloLeaderboardScreen: View {
     private func scoreHeader(_ payload: LeaderboardPayload) -> some View {
         if showsSongHeader {
             SongHeaderRow(song: song, session: session, onHeightChange: { headerHeight = $0 }) {
-                HStack(spacing: 6) {
-                    InstrumentIcon(instrument, size: 20)
-                        .accessibilityHidden(true)
-                    MarqueeText(SongLeaderboardBoardLine.text(
-                        name: instrument.label, totalEntries: payload.leaderboard.totalEntries,
-                        showsTotals: payload.leaderboard.showLeaderboardEntryTotals
-                    ))
-                    .foregroundStyle(FestivalText.primary)
-                }
+                SongBoardLine(instrument: instrument, text: SongLeaderboardBoardLine.text(
+                    name: instrument.label, totalEntries: payload.leaderboard.totalEntries,
+                    showsTotals: payload.leaderboard.showLeaderboardEntryTotals
+                ))
             }
             .accessibilityIdentifier("fst.song-leaderboard.header")
         } else {

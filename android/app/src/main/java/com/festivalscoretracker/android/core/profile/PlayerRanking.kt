@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.core.profile
 
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.rankings.RankingMetric
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
@@ -133,6 +134,10 @@ object ProfileFormatting {
  * @property instrument Service instrument ID; production returns `""` here (live 2026-09-28).
  * @property totalScore Summed best scores.
  * @property totalScoreRank Total Score rank (web default metric).
+ * @property adjustedSkillRank Adjusted percentile rank (experimental, 0 when absent).
+ * @property weightedRank Weighted percentile rank (experimental, 0 when absent).
+ * @property fcRateRank FC rate rank (experimental, 0 when absent).
+ * @property maxScorePercentRank Max Score % rank (experimental, 0 when absent).
  * @property totalRankedAccounts Size of the ranked field.
  * @property songsPlayed Songs played.
  * @property totalChartedSongs Charted songs.
@@ -144,6 +149,10 @@ data class PlayerInstrumentRanking(
     val instrument: String? = null,
     val totalScore: Long = 0,
     val totalScoreRank: Int = 0,
+    val adjustedSkillRank: Int = 0,
+    val weightedRank: Int = 0,
+    val fcRateRank: Int = 0,
+    val maxScorePercentRank: Int = 0,
     val totalRankedAccounts: Int = -1,
     val songsPlayed: Int = 0,
     val totalChartedSongs: Int = 0,
@@ -159,6 +168,20 @@ data class PlayerInstrumentRanking(
         val valid = (this.instrument.isNullOrEmpty() || this.instrument == instrument.wireId) &&
             this.accountId.equals(accountId, ignoreCase = true) && totalRankedAccounts >= 0 && totalScoreRank >= 0 && totalScore >= 0
         if (!valid) throw FestivalApiException.InvalidResponse()
+    }
+
+    /**
+     * This row's rank for a metric (web `getRankForMetric`).
+     *
+     * @param metric Rank By.
+     * @return Rank, 0 when unranked or absent.
+     */
+    fun rank(metric: RankingMetric): Int = when (metric) {
+        RankingMetric.Adjusted -> adjustedSkillRank
+        RankingMetric.Weighted -> weightedRank
+        RankingMetric.FcRate -> fcRateRank
+        RankingMetric.TotalScore -> totalScoreRank
+        RankingMetric.MaxScore -> maxScorePercentRank
     }
 
     /** Total Score rank over the field, 0 (best) to 1, or null when unranked. */

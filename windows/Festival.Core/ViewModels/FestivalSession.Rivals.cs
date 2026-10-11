@@ -19,8 +19,19 @@ public sealed partial class FestivalSession
     /// <summary>The leaderboard-rivals metric actually used: the web only honours non-default metrics with experimental ranks.</summary>
     /// <param name="requested">Metric chosen in the picker.</param>
     /// <returns>Requested metric, or Total Score when experimental ranks are off.</returns>
-    public RankingMetric EffectiveRivalMetric(RankingMetric requested) =>
-        Settings.ExperimentalRanks ? requested : RankingMetricInfo.Default;
+    public RankingMetric EffectiveRivalMetric(RankingMetric requested) => requested.Gate(Settings.ExperimentalRanks);
+
+    /// <summary>
+    /// Resolves a route scope against Settings: Settings-derived scopes take the visible charts, and a leaderboard scope's
+    /// metric falls back to Total Score while Experimental Ranks is off (web <c>coerceRankingMetric</c> on rival links).
+    /// </summary>
+    /// <param name="scope">Route scope.</param>
+    /// <returns>A concrete scope, or <see langword="null"/> when Settings cannot supply one.</returns>
+    public RivalScope? ResolveRivalScope(RivalScope? scope) => scope?.Resolve(Settings.VisibleInstruments) switch
+    {
+        RivalScope.Leaderboard l => l with { RankBy = EffectiveRivalMetric(l.RankBy) },
+        var resolved => resolved,
+    };
 
     /// <summary>Shared-song rivals for a chart or combo token.</summary>
     /// <param name="scope">Instrument service ID or combo token.</param>
@@ -85,7 +96,7 @@ public sealed partial class FestivalSession
         RivalScope? scope, string rivalId, bool allowLiveFallback = false, CancellationToken cancellationToken = default)
     {
         var account = RequireAccount();
-        return scope?.Resolve(Settings.VisibleInstruments) switch
+        return ResolveRivalScope(scope) switch
         {
             RivalScope.Leaderboard l => RivalsCache.GetAsync($"lbd|{account}|{l.Instrument.ServiceId()}|{rivalId}|{l.RankBy.ServiceId()}",
                 () => Throttled(() => Api.GetLeaderboardRivalDetailAsync(account, l.Instrument, rivalId, l.RankBy)), cancellationToken),

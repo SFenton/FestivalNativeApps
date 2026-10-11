@@ -14,6 +14,8 @@ public sealed class RankingsFake
     public int TotalTeams { get; set; } = 30;
     public HashSet<string> Failing { get; } = [];
     public Func<HttpRequestMessage, HttpResponseMessage?>? Extra { get; set; }
+    /// <summary>Selected player's combo rank (<see langword="null"/> answers 404, unranked).</summary>
+    public int? PlayerComboRank { get; set; } = 120;
 
     public RankingsFake()
     {
@@ -26,15 +28,21 @@ public sealed class RankingsFake
             if (!path.StartsWith("/api/rankings/", StringComparison.Ordinal)) return null;
             if (Failing.Contains(path)) return Wire.Response(HttpStatusCode.ServiceUnavailable);
             var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            var parts = path.Split('/');
+            if (parts[3] == "combo" && parts.Length == 5)
+                return PlayerComboRank is { } own
+                    ? Wire.Ok(RankingsWire.PlayerCombo(query["combo"]!, own, parts[4], query["rankBy"]!), pub)
+                    : Wire.Response(HttpStatusCode.NotFound);
             var page = int.Parse(query["page"]!, CultureInfo.InvariantCulture);
             var size = int.Parse(query["pageSize"]!, CultureInfo.InvariantCulture);
-            var parts = path.Split('/');
             if (parts[3] == "bands")
             {
                 var ranks = Enumerable.Range((page - 1) * size + 1, Math.Max(0, Math.Min(size, TotalTeams - (page - 1) * size)));
                 return Wire.Ok(RankingsWire.BandBoard(parts[4], page, size, TotalTeams, ranks), pub);
             }
             var accountRanks = Enumerable.Range((page - 1) * size + 1, Math.Max(0, Math.Min(size, TotalAccounts - (page - 1) * size)));
+            if (parts[3] == "combo")
+                return Wire.Ok(RankingsWire.ComboBoard(query["combo"]!, page, size, TotalAccounts, accountRanks, query["rankBy"]!), pub);
             return Wire.Ok(RankingsWire.Board(parts[3], page, size, TotalAccounts, accountRanks, query["rankBy"]!), pub);
         };
     }
@@ -75,9 +83,22 @@ public sealed class LeaderboardsOverviewTests
         var vm = new LeaderboardsViewModel(session, new FakeReader().Read);
         await vm.ActivateAsync();
 
-        Assert.Equal([Instrument.Lead, Instrument.Bass], vm.InstrumentCards.Select(c => c.Instrument));
+        // Web resolveSupportedRankingScopes (#602): the OG band combo comes before its instruments.
+        Assert.Equal(["03", "Solo_Guitar", "Solo_Bass"], vm.InstrumentCards.Select(c => c.Board.Id));
         Assert.Equal(BandTypeInfo.All, vm.BandCards.Select(c => c.BandType));
-        var lead = vm.InstrumentCards[0];
+        var combo = vm.InstrumentCards[0];
+        Assert.True(combo.ShowRows);
+        Assert.Equal(10, combo.Rows.Count);
+        Assert.Equal("Lead + Bass", combo.Title);
+        Assert.Equal(["instrument_guitar.png", "instrument_bass.png"], combo.IconFiles);
+        Assert.Equal("fst.leaderboards.card.03", combo.AutomationId);
+        Assert.Equal("fst.leaderboards.card.03.view-all", combo.ViewAllAutomationId);
+        Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "totalscore", Combo: "03"), combo.ViewAllRoute);
+        Assert.Equal("/leaderboards/all?combo=03&rankBy=totalscore", combo.ViewAllRoute.ToPath());
+        Assert.Equal("View All Rankings (60), Lead + Bass", combo.ViewAllName);
+        Assert.Equal("Player 1", combo.Rows[0].Name);
+        var lead = vm.InstrumentCards[1];
+        Assert.Empty(lead.IconFiles);
         Assert.True(lead.ShowRows);
         Assert.Equal(10, lead.Rows.Count);
         Assert.Equal("Lead", lead.Title);
@@ -99,12 +120,15 @@ public sealed class LeaderboardsOverviewTests
         Assert.Equal(band.ViewAllText + ", Quads", band.ViewAllName);
         Assert.StartsWith("View All Rankings", band.ViewAllName, StringComparison.Ordinal);
         Assert.Equal("Leaderboards Quick Links", vm.QuickLinks.Title);
-        Assert.Equal(["instrument:Solo_Guitar", "instrument:Solo_Bass", "band:Band_Duets", "band:Band_Trios", "band:Band_Quad"],
+        Assert.Equal(["combo:03", "instrument:Solo_Guitar", "instrument:Solo_Bass", "band:Band_Duets", "band:Band_Trios", "band:Band_Quad"],
             vm.QuickLinks.Items.Select(i => i.Section.Id));
-        Assert.Equal(Instrument.Lead, vm.QuickLinks.Items[0].Section.Instrument);
-        Assert.Equal(LeaderboardsViewModel.BandQuickLinkGlyph, vm.QuickLinks.Items[4].Glyph);
+        Assert.Equal("Lead + Bass", vm.QuickLinks.Items[0].Section.Title);
+        Assert.Equal(LeaderboardsViewModel.ComboQuickLinkGlyph, vm.QuickLinks.Items[0].Glyph);
+        Assert.Equal(Instrument.Lead, vm.QuickLinks.Items[1].Section.Instrument);
+        Assert.Equal(LeaderboardsViewModel.BandQuickLinkGlyph, vm.QuickLinks.Items[5].Glyph);
         Assert.All(fake.Service.Handler.Requests.Where(r => r.Uri.AbsolutePath.StartsWith("/api/rankings", StringComparison.Ordinal)),
             r => Assert.Contains("pageSize=10", r.Uri.Query, StringComparison.Ordinal));
+        Assert.Contains(fake.Service.Handler.Requests, r => r.Uri.AbsolutePath == "/api/rankings/combo" && r.Uri.Query.Contains("combo=03", StringComparison.Ordinal));
 
         // Activating again with nothing changed does not reload.
         var before = fake.Service.Handler.Requests.Count;
@@ -117,7 +141,7 @@ public sealed class LeaderboardsOverviewTests
     public async Task PageIsReadyOnlyAfterTheFirstCardsSettle()
     {
         var fake = new RankingsFake();
-        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Lead, Instrument.Bass] });
+        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Lead, Instrument.Bass], ExperimentalRanks = true });
         var vm = new LeaderboardsViewModel(session, new FakeReader().Read);
         var readiness = new List<bool>();
         vm.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(vm.IsReady)) readiness.Add(vm.IsReady); };
@@ -137,7 +161,7 @@ public sealed class LeaderboardsOverviewTests
     public async Task MetricSelectionPersistsNarrowsBandsAndReloads()
     {
         var fake = new RankingsFake();
-        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Drums] });
+        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Drums], ExperimentalRanks = true });
         var vm = new LeaderboardsViewModel(session, new FakeReader().Read);
         await vm.ActivateAsync();
         Assert.Equal("Total Score", vm.MetricLabel);
@@ -170,8 +194,10 @@ public sealed class LeaderboardsOverviewTests
         await vm.LoadAsync();
 
         Assert.True(vm.InstrumentCards[0].ShowEmpty);
-        Assert.Equal("No ranked Lead players yet.", vm.InstrumentCards[0].EmptyText);
-        var bass = vm.InstrumentCards[1];
+        Assert.Equal("No ranked Lead + Bass players yet.", vm.InstrumentCards[0].EmptyText);
+        Assert.True(vm.InstrumentCards[1].ShowEmpty);
+        Assert.Equal("No ranked Lead players yet.", vm.InstrumentCards[1].EmptyText);
+        var bass = vm.InstrumentCards[2];
         Assert.True(bass.ShowError);
         Assert.False(bass.IsLoading);
         Assert.True(bass.Status.HasIssue);
@@ -216,7 +242,7 @@ public sealed class LeaderboardsOverviewTests
     {
         var fake = new RankingsFake();
         var reader = new FakeReader { Result = (_, id) => RankingsWire.Account(26, id) };
-        var session = fake.Session(RankingsFake.Selected("me", [Instrument.Drums]) with { LeaderboardRankBy = "fcrate" });
+        var session = fake.Session(RankingsFake.Selected("me", [Instrument.Drums]) with { LeaderboardRankBy = "fcrate", ExperimentalRanks = true });
         var vm = new LeaderboardsViewModel(session, reader.Read);
         await vm.ActivateAsync();
 
@@ -250,7 +276,7 @@ public sealed class LeaderboardsOverviewTests
         var vm = new LeaderboardsViewModel(session, reader.Read);
         await vm.ActivateAsync();
 
-        var lead = vm.InstrumentCards[0].Spotlight;
+        var lead = vm.InstrumentCards[1].Spotlight;
         Assert.True(lead.ShowRow);
         Assert.True(lead.IsVisible);
         Assert.Equal("#120", lead.Row!.RankText);
@@ -262,13 +288,18 @@ public sealed class LeaderboardsOverviewTests
         Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "totalscore", 5, RevealSelected: true), lead.Row.Route);
         Assert.StartsWith("Your rank, 120th. Jump to your position. Player 120.", lead.Row.Announcement);
         // The pinned "#120" widens every rank column of the card so names line up (operator batch 7.9).
-        Assert.All(vm.InstrumentCards[0].Rows, r => Assert.Equal(4, r.Section!.RankChars));
-        Assert.Same(vm.InstrumentCards[0].Rows[0].Section, lead.Row.Section);
-        var bass = vm.InstrumentCards[1].Spotlight;
-        Assert.All(vm.InstrumentCards[1].Rows, r => Assert.Equal(3, r.Section!.RankChars));
+        Assert.All(vm.InstrumentCards[1].Rows, r => Assert.Equal(4, r.Section!.RankChars));
+        Assert.Same(vm.InstrumentCards[1].Rows[0].Section, lead.Row.Section);
+        var bass = vm.InstrumentCards[2].Spotlight;
+        Assert.All(vm.InstrumentCards[2].Rows, r => Assert.Equal(3, r.Section!.RankChars));
         Assert.True(bass.ShowUnranked);
         Assert.Equal("Not yet ranked on Bass.", bass.UnrankedText);
         Assert.Equal(2, reader.Calls.Count);
+        // The combo card reads the player's combo row through the public combo read and opens the combo board (#602).
+        var combo = vm.InstrumentCards[0].Spotlight;
+        Assert.True(combo.ShowRow);
+        Assert.Equal("#120", combo.Row!.RankText);
+        Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "totalscore", 5, true, "03"), combo.Row.Route);
     }
 
     [Fact]
@@ -397,10 +428,14 @@ public sealed class LeaderboardsOverviewTests
             },
         };
         var session = fake.Session(RankingsFake.Selected("me", [Instrument.Lead, Instrument.Bass]));
+        fake.PlayerComboRank = null;
         var vm = new LeaderboardsViewModel(session);
         await vm.ActivateAsync();
-        Assert.Equal("#77", vm.InstrumentCards[0].Spotlight.Row!.RankText);
-        Assert.True(vm.InstrumentCards[1].Spotlight.ShowUnranked);
+        Assert.Equal("#77", vm.InstrumentCards[1].Spotlight.Row!.RankText);
+        Assert.True(vm.InstrumentCards[2].Spotlight.ShowUnranked);
+        // The combo's 404 reads as unranked too.
+        Assert.True(vm.InstrumentCards[0].Spotlight.ShowUnranked);
+        Assert.Equal("Not yet ranked on Lead + Bass.", vm.InstrumentCards[0].Spotlight.UnrankedText);
     }
 
     [Fact]
@@ -531,7 +566,7 @@ public sealed class FullRankingsViewModelTests
     public async Task LoadsPageWithPagerAndInstrumentOptions()
     {
         var fake = new RankingsFake { TotalAccounts = 60 };
-        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Lead, Instrument.Bass] });
+        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Lead, Instrument.Bass], ExperimentalRanks = true });
         var vm = new FullRankingsViewModel(session, new AppRoute.FullRankings(Instrument.Drums, "fcrate"), new FakeReader().Read);
         await vm.LoadAsync();
 
@@ -734,6 +769,56 @@ public sealed class FullRankingsViewModelTests
     }
 
     [Fact]
+    public async Task BoardSwitchesHideThePagerUntilTheNewBoardsCountLoads()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        var fake = new RankingsFake { TotalAccounts = 60 };
+        var gate = new TaskCompletionSource();
+        var respond = fake.Service.Handler.Responder;
+        fake.Service.Handler.Responder = async (request, token) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == "/api/rankings/Solo_Bass" || request.RequestUri.Query.Contains("rankBy=fcrate", StringComparison.Ordinal)) await gate.Task;
+            return await respond(request, token);
+        };
+        var vm = new FullRankingsViewModel(fake.Session(settings: new AppSettings { ExperimentalRanks = true }), new AppRoute.FullRankings(Instrument.Lead, "totalscore"));
+        await vm.LoadAsync();
+        await vm.Pager.NextCommand.ExecuteAsync(null);
+        Assert.Equal("2 / 3", vm.Pager.InfoText);
+
+        // Issue #575 (load-transition R4): an instrument switch never shows the old board's "2 / 3" or a "1 / 1"
+        // placeholder; the pager stays hidden until the new board's real page count commits.
+        var paged = new List<(bool Paged, string Info)>();
+        vm.Pager.PropertyChanged += (_, _) => paged.Add((vm.Pager.IsPaged, vm.Pager.InfoText));
+        var switching = vm.SelectInstrumentAsync(Instrument.Bass);
+        await Async.Until(() => vm.IsLoading);
+        Assert.False(vm.Pager.IsPaged);
+        Assert.False(vm.Pager.NextCommand.CanExecute(null));
+        Assert.DoesNotContain(paged, p => p.Paged);
+        gate.SetResult();
+        await switching;
+        Assert.True(vm.Pager.IsPaged);
+        Assert.Equal("1 / 3", vm.Pager.InfoText);
+        Assert.DoesNotContain(paged, p => p.Paged && p.Info != "1 / 3");
+
+        // Rank By changes the board too.
+        await vm.Pager.LastCommand.ExecuteAsync(null);
+        gate = new TaskCompletionSource();
+        var metric = vm.SelectMetricAsync(RankingMetric.FcRate);
+        await Async.Until(() => vm.IsLoading);
+        Assert.False(vm.Pager.IsPaged);
+        gate.SetResult();
+        await metric;
+        Assert.Equal("1 / 3", vm.Pager.InfoText);
+
+        // A page-only reload keeps the pager and its known count in place.
+        paged.Clear();
+        await vm.Pager.NextCommand.ExecuteAsync(null);
+        Assert.DoesNotContain(paged, p => !p.Paged);
+        Assert.Equal("2 / 3", vm.Pager.InfoText);
+    }
+
+    [Fact]
     public async Task FailedInstrumentSwitchDropsTheOldBoardsPinnedRow()
     {
         var fake = new RankingsFake { TotalAccounts = 60 };
@@ -761,7 +846,7 @@ public sealed class FullRankingsViewModelTests
     {
         var fake = new RankingsFake { TotalAccounts = 60 };
         var reader = new FakeReader { Result = (_, _) => RankingsWire.Account(60, "acct60") };
-        var vm = new FullRankingsViewModel(fake.Session(RankingsFake.Selected("acct60")), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), reader.Read);
+        var vm = new FullRankingsViewModel(fake.Session(RankingsFake.Selected("acct60") with { ExperimentalRanks = true }), new AppRoute.FullRankings(Instrument.Lead, "totalscore"), reader.Read);
         await vm.LoadAsync();
         Assert.True(vm.PinnedGate.IsGated);
         Assert.True(vm.Spotlight.IsVisible);
@@ -887,7 +972,7 @@ public sealed class BandRankingsViewModelTests
     public async Task LoadsSwitchesAndPages()
     {
         var fake = new RankingsFake { TotalTeams = 40 };
-        var session = fake.Session(new AppSettings { LeaderboardRankBy = "maxscore" });
+        var session = fake.Session(new AppSettings { LeaderboardRankBy = "maxscore", ExperimentalRanks = true });
         var vm = new BandRankingsViewModel(session, new AppRoute.BandRankings("Band_Trios"));
         Assert.Equal(BandRankingMetric.TotalScore, vm.Metric);
         await vm.LoadAsync();
@@ -946,6 +1031,36 @@ public sealed class BandRankingsViewModelTests
         Assert.True(vm.ShowRows);
         Assert.True(vm.ShowContent);
         Assert.Equal(2, vm.Pager.Page);
+    }
+
+    [Fact]
+    public async Task BandSizeSwitchHidesThePagerUntilTheNewBoardsCountLoads()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        var fake = new RankingsFake { TotalTeams = 60 };
+        var gate = new TaskCompletionSource();
+        var respond = fake.Service.Handler.Responder;
+        fake.Service.Handler.Responder = async (request, token) =>
+        {
+            if (request.RequestUri!.AbsolutePath == "/api/rankings/bands/Band_Trios") await gate.Task;
+            return await respond(request, token);
+        };
+        var vm = new BandRankingsViewModel(fake.Session(), new AppRoute.BandRankings("Band_Duets"));
+        await vm.LoadAsync();
+        await vm.Pager.NextCommand.ExecuteAsync(null);
+        Assert.Equal("2 / 3", vm.Pager.InfoText);
+
+        // Issue #575: no "2 / 3" from Duos and no "1 / 1" placeholder while Trios loads.
+        var paged = new List<bool>();
+        vm.Pager.PropertyChanged += (_, _) => paged.Add(vm.Pager.IsPaged);
+        var switching = vm.SelectBandTypeAsync(BandType.Trios);
+        await Async.Until(() => vm.IsLoading);
+        Assert.False(vm.Pager.IsPaged);
+        Assert.DoesNotContain(true, paged);
+        gate.SetResult();
+        await switching;
+        Assert.True(vm.Pager.IsPaged);
+        Assert.Equal("1 / 3", vm.Pager.InfoText);
     }
 
     [Fact]
@@ -1228,6 +1343,27 @@ public sealed class SongLeaderboardViewModelTests
         var none = new SongLeaderboardViewModel(session, new AppRoute.SongLeaderboard("s2", Instrument.Lead));
         await none.LoadAsync();
         Assert.False(none.ShowSpotlight);
+    }
+
+    [Fact]
+    public async Task SpotlightUsesTheValidVariantAndItsFilteredRank()
+    {
+        var service = new FakeService();
+        var variant = PlayerWire.Score("s1", "01", 5000, 990, true, 6, 60, 100, 1.0,
+            ""","ml":2.0,"vs":[{"sc":4100,"acc":970,"fc":false,"st":5,"ml":-5,"rt":[{"l":-5,"r":12}]}]""");
+        PlayerWire.Install(service, new() { [PlayerWire.Id] = (HttpStatusCode.OK, PlayerWire.Profile(PlayerWire.Id, "Fixture One", variant)) });
+        var session = Session(service, new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One"), FilterInvalidScores = true });
+        await session.LoadSelectedProfileAsync();
+
+        var vm = new SongLeaderboardViewModel(session, new AppRoute.SongLeaderboard("s1", Instrument.Lead));
+        await vm.LoadAsync();
+        Assert.Equal(4100, vm.Spotlight!.Entry.Score);
+        Assert.Equal(12, vm.Spotlight.Entry.Rank);
+
+        session.UpdateSettings(s => s with { Leeway = 3 });
+        var raw = new SongLeaderboardViewModel(session, new AppRoute.SongLeaderboard("s1", Instrument.Lead));
+        await raw.LoadAsync();
+        Assert.Equal((5000L, 60), (raw.Spotlight!.Entry.Score, raw.Spotlight.Entry.Rank));
     }
 
     [Fact]

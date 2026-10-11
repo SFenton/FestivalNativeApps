@@ -10,6 +10,7 @@ import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.core.nav.RivalsRoute
 import com.festivalscoretracker.android.core.nav.RivalsTab
 import com.festivalscoretracker.android.core.nav.ShopRoute
+import com.festivalscoretracker.android.core.nav.ShopTab
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
 import com.festivalscoretracker.android.core.nav.SongsTab
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
@@ -54,7 +55,7 @@ enum class FirstRunPageKey(val key: String, val label: String) {
             LeaderboardsTab, LeaderboardsRoute -> Leaderboards
             CompeteTab, CompeteRoute -> Compete
             RivalsTab, RivalsRoute -> Rivals
-            ShopRoute -> Shop
+            ShopTab, ShopRoute -> Shop
             else -> null
         }
     }
@@ -66,9 +67,12 @@ enum class FirstRunPageKey(val key: String, val label: String) {
 
 /**
  * Every page's slides in web registration order (`pages/<page>/firstRun/index.ts`),
- * verbatim from `i18n/firstRun.en.json`. Android puts page actions in the top
- * app bar, so it uses the web **desktop** ("header") copy variants, which share
- * the web `contentKey`s with the mobile variants. The one width-dependent slide
+ * verbatim from `i18n/firstRun.en.json`, using the web **desktop** copy variants,
+ * which share the web `contentKey`s with the mobile variants. Page tools float in
+ * the shell's toolbar at every window size (#576), so the two slides that placed a
+ * page tool "in the header" name the toolbar (`playerhistory-sort`, as Apple) or no
+ * place (`songinfo-paths`: toolbar on the pushed page, song header in a pane);
+ * their `contentKey`s keep seen state. The one width-dependent slide
  * is `songs-navigation`: bottom tabs on compact widths, the rail/drawer
  * ("sidebar") otherwise. `shop-views` is omitted until Shop has a grid/list
  * toggle (web includes it only when `viewToggleAvailable`).
@@ -125,7 +129,7 @@ object FirstRunCatalog {
         FirstRunSlide("songinfo-bar-select", 2, "Select a Bar for Details", "Tap any bar on the chart to see the details for that score — date, season, score, and accuracy.", gate = FirstRunGate.HasPlayer),
         FirstRunSlide("songinfo-view-all", 2, "View Player Scores", "Below the chart, the player's top scores are listed for quick reference. If there's more than five, tapping View all scores will take you to the player history page, where you can see all tracked history for that user, score, and instrument.", gate = FirstRunGate.HasPlayer),
         FirstRunSlide("songinfo-top-scores", 2, "Top Scores Per Instrument", "Each instrument shows the top leaderboard entries for this song. Tap any player to go to their page, or \"View full leaderboard\" to go to the instrument leaderboard for the selected song."),
-        FirstRunSlide("songinfo-paths", 2, "Optimal Paths", "Tap \"View Paths\" in the header to see the optimal score path for any instrument and difficulty.", contentKey = "songinfo-paths"),
+        FirstRunSlide("songinfo-paths", 2, "Optimal Paths", "Tap \"View Paths\" to see the optimal score path for any instrument and difficulty.", contentKey = "songinfo-paths"),
         FirstRunSlide("songinfo-shop-button", 1, "Item Shop Link", "When a song is in the Item Shop, an Item Shop button appears in the header. Tap it to go straight to the store.", contentKey = "songinfo-shop-button"),
         FirstRunSlide("songinfo-new-in-shop", 1, "New Shop Songs", "When a shop song is newly added, the Item Shop button pulses gold instead of green.", contentKey = "songinfo-new-in-shop"),
         FirstRunSlide("songinfo-leaving-tomorrow", 1, "Leaving Tomorrow", "When a song is about to leave the Item Shop, the Item Shop button turns red so you know to act fast.", contentKey = "songinfo-leaving-tomorrow"),
@@ -134,12 +138,12 @@ object FirstRunCatalog {
     /** Score History (2). */
     val playerHistory: List<FirstRunSlide> = listOf(
         FirstRunSlide("playerhistory-score-list", 1, "Score History", "Every tracked score change for this song and instrument is listed here. Your personal best is highlighted so you can spot it at a glance."),
-        FirstRunSlide("playerhistory-sort", 1, "Sort Scores", "Tap the sort button in the header to reorder by date, score, accuracy, or season — ascending or descending.", contentKey = "playerhistory-sort"),
+        FirstRunSlide("playerhistory-sort", 1, "Sort Scores", "Tap the sort button in the toolbar to reorder by date, score, accuracy, or season — ascending or descending.", contentKey = "playerhistory-sort"),
     )
 
     /** Statistics (6). */
     val statistics: List<FirstRunSlide> = listOf(
-        FirstRunSlide("statistics-select-profile", 1, "Select Player Profile", "Press the Select Player Profile button at the top of the screen to select this player profile and see all of their tracked data.", contentKey = "statistics-select-profile"),
+        FirstRunSlide("statistics-select-profile", 1, "Select Player Profile", "Tap Select beside Quick Links at the bottom of this page to make this player your selected profile and see all of their tracked data.", contentKey = "statistics-select-profile"),
         FirstRunSlide("statistics-drill-down", 1, "Drill Into Your Data", "Tap any stat card marked with a chevron to jump to the Songs page with pre-applied filters, instantly showing you all songs for that category."),
         FirstRunSlide("statistics-overview", 2, "Global Statistics", "See a player's overall performance at a glance — songs played, full combos, gold stars, accuracy, and best rank. Tap any stat with an indicator to jump to the relevant songs."),
         FirstRunSlide("statistics-instrument-breakdown", 1, "Per-Instrument Stats", "Scroll down to see detailed stats for each instrument, and tap to immediately be taken to a filtered list of songs for that instrument."),

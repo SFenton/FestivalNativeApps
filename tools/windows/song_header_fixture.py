@@ -10,7 +10,8 @@ With ``--short-artist`` only the title is long and the artist keeps its short de
 overflowing line: it must scroll its own distance while the artist stays still (no lockstep partner, song-header R2).
 
 Usage: ``python tools/windows/song_header_fixture.py --port 0`` (other flags pass through to mock_service.py), or
-``python tools/windows/ui_journey.py tools/windows/journeys/song-header-title.json --fixture tools/windows/song_header_fixture.py``.
+``python tools/windows/ui_journey.py tools/windows/journeys/song-header-title.json`` (its journeys name this script
+in their ``fixture`` list).
 """
 
 from __future__ import annotations

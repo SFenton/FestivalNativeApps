@@ -74,6 +74,15 @@ public sealed partial class BandDetailViewModel : ObservableObject
     /// <summary>Rank-by choices for Statistics and Rank History.</summary>
     public List<BandRankingMetric> Metrics { get; } = [.. BandRankingMetricInfo.All];
 
+    /// <summary>Rank By labels in <see cref="Metrics"/> order (the picker's items).</summary>
+    public List<string> MetricLabels { get; } = [.. BandRankingMetricInfo.All.Select(m => m.Label())];
+
+    /// <summary>
+    /// Whether the Rank By picker shows: only with Settings' Experimental Ranks on (web <c>BandPage</c> shows experimental
+    /// ranks only then); otherwise Statistics and Rank History stay on Total Score.
+    /// </summary>
+    public bool ShowRankBy => session.Settings.ExperimentalRanks;
+
     #region State
     /// <summary>Band-row lifecycle.</summary>
     [ObservableProperty]
@@ -184,13 +193,14 @@ public sealed partial class BandDetailViewModel : ObservableObject
     /// <summary>Whether the worst list is empty.</summary>
     public bool WorstEmpty => Worst.Count == 0;
 
-    /// <summary>Index of <see cref="Metric"/> in <see cref="Metrics"/> (picker binding).</summary>
+    /// <summary>Index of <see cref="Metric"/> in <see cref="Metrics"/> (picker binding; experimental metrics need
+    /// Settings' Experimental Ranks).</summary>
     public int MetricIndex
     {
-        get => (int)Metric;
+        get => Metrics.IndexOf(Metric);
         set
         {
-            if (value >= 0 && value < Metrics.Count) Metric = Metrics[value];
+            if (value >= 0 && value < Metrics.Count) Metric = Metrics[value].Gate(session.Settings.ExperimentalRanks);
         }
     }
 
@@ -333,7 +343,9 @@ public sealed partial class BandDetailViewModel : ObservableObject
             .OrderBy(h => h.SnapshotDate, StringComparer.Ordinal).ToList();
         HistoryPoints = BandHistoryPoint.Normalize(ranked, Metric);
         HistoryChart = RankHistoryCombinedChart.BuildBand(ranked, Metric, detail?.TotalRankedTeams);
-        HistoryRows = [.. Enumerable.Reverse(ranked).Take(RecentHistoryRows).Select(h => new BandHistoryRow(h, Metric))];
+        // One rank column for the list, sized by the widest charted rank like the web's computeRankWidth (#594).
+        var railRank = LeaderboardColumnLayout.WidestRank(ranked.Select(h => BandFormatting.Rank(h.Rank(Metric))));
+        HistoryRows = [.. Enumerable.Reverse(ranked).Take(RecentHistoryRows).Select(h => new BandHistoryRow(h, Metric, railRank))];
         HistoryState = ranked.Count == 0 ? LoadState.Empty : LoadState.Loaded;
     }
 
@@ -399,8 +411,16 @@ public sealed record BandHistoryPoint
 /// <summary>One snapshot row: date, rank and metric value.</summary>
 /// <param name="Entry">Wire snapshot.</param>
 /// <param name="Metric">Metric.</param>
-public sealed record BandHistoryRow(BandRankHistoryEntry Entry, BandRankingMetric Metric)
+/// <param name="RailRank">The list's widest rank text, which sizes the shared rank column (issue #594).</param>
+public sealed record BandHistoryRow(BandRankHistoryEntry Entry, BandRankingMetric Metric, string RailRank = "")
 {
+    /// <summary>
+    /// The list's widest rank text: an invisible bold copy in every row's rank cell sizes one column that every rank
+    /// right-aligns in (web <c>BandRankHistoryChart</c> rows), so ranks line up whatever their length (issue #594).
+    /// Get-only: XAML type info cannot set init accessors.
+    /// </summary>
+    public string RailRank { get; } = RailRank;
+
     /// <summary><c>Sep 27</c>.</summary>
     public string Date => BandFormatting.ShortDate(Entry.SnapshotDate);
 
@@ -412,6 +432,9 @@ public sealed record BandHistoryRow(BandRankHistoryEntry Entry, BandRankingMetri
 
     /// <summary>Automation ID (<c>fst.band.history-row.&lt;date&gt;</c>).</summary>
     public string AutomationId => "fst.band.history-row." + Entry.SnapshotDate;
+
+    /// <summary>ID of the row's rank text (<c>&lt;row&gt;.rank</c>), for column-alignment checks.</summary>
+    public string RankAutomationId => AutomationId + ".rank";
 
     /// <summary>Screen-reader summary.</summary>
     public string Announcement => $"{Date}, rank {Rank}, {Value}";
@@ -434,6 +457,9 @@ public sealed record BandSongRow(BandSongPerformance Performance, Song? Song)
 
     /// <summary><c>Top 4%</c>.</summary>
     public string PercentileText => BandFormatting.Percentile(Performance.Percentile);
+
+    /// <summary>Tier of <see cref="PercentileText"/>'s shared percentile pill (web <c>PlayerSongRow</c> → <c>PercentilePill</c>).</summary>
+    public SongPercentileTier PercentileTier => MetadataPillStyle.TierOf(Performance.Percentile);
 
     /// <summary><c>#1 of 26</c>.</summary>
     public string RankText => $"{BandFormatting.Rank(Performance.Rank)} of {BandFormatting.Count(Performance.TotalEntries)}";

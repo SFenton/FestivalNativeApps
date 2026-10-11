@@ -117,19 +117,21 @@ internal fun RankingsBoardLayout(
     itemGap: Dp = ROW_GAP_DP.dp,
     rows: LazyListScope.() -> Unit,
 ) {
+    // Already one standard gap above the chrome actually shown (FestivalScreen, issue #578): the
+    // pager or pinned row rests there, and a hinge pane's rows end there.
     val bottom = padding.calculateBottomPadding()
     Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).then(measure)) {
         if (hinge != null) {
             Row(Modifier.fillMaxSize()) {
                 Box(Modifier.width(hinge.start).fillMaxHeight()) {
-                    BoardList(listState, idPrefix, PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottom + 24.dp), itemGap = itemGap, rows = rows)
+                    BoardList(listState, idPrefix, PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottom), itemGap = itemGap, rows = rows)
                 }
                 Spacer(Modifier.width(hinge.end - hinge.start))
                 Column(
                     Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottom + 12.dp)
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottom)
                         .testTag("$idPrefix.supporting-pane"),
                 ) {
                     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp), content = controls)
@@ -184,7 +186,7 @@ internal fun RankingsBoardLayout(
                     Modifier
                         .align(Alignment.BottomCenter)
                         .onSizeChanged { anchoredHeight = it.height }
-                        .padding(start = 16.dp, end = 16.dp, bottom = bottom + 12.dp),
+                        .padding(start = 16.dp, end = 16.dp, bottom = bottom),
                 )
             }
         }
@@ -240,29 +242,48 @@ private fun Modifier.gapBelowIfShown(gap: Dp): Modifier = layout { measurable, c
 }
 
 /**
- * Opaque card for anchored "your rank" content, so the floating row stays legible
- * over the rows scrolling beneath it.
+ * The selected profile's or band's pinned row above the pager: the row alone, with its own
+ * purple selected fill and no card or band around it (issue #579; Apple's pinned row floats
+ * over the page the same way, #93). Rows never draw beneath the anchored footer
+ * ([clipAboveFooter]), so nothing shows through the row's translucent fill.
+ *
+ * Only the rows' card inset ([PINNED_ROW_INSET]) is kept, horizontally, so the pinned row's
+ * fill and columns line up with the selected row inside the card above it.
+ *
+ * @param modifier Modifier (the load swap's pinned-row stagger and visibility).
+ * @param content The row, its loading placeholder included.
+ */
+@Composable
+fun PinnedSelectedRow(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(modifier.fillMaxWidth().padding(horizontal = PINNED_ROW_INSET), content = content)
+}
+
+/**
+ * Opaque card for an anchored "your rank" message (rank unavailable, not yet ranked), so the
+ * text reads as one floating notice like Apple's carded footer messages. The selected row
+ * itself uses [PinnedSelectedRow], never this card (issue #579).
  *
  * @param modifier Modifier.
- * @param content Row content.
+ * @param content Message content.
  */
 @Composable
 fun AnchoredRowCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Surface(
         shape = RoundedCornerShape(12.dp),
-        // Opaque: no row may show through a pinned footer (operator batch 5).
         color = BrandTokens.cardBackground,
         border = BorderStroke(1.dp, BrandTokens.glassBorder),
         shadowElevation = 4.dp,
         modifier = modifier.fillMaxWidth(),
     ) {
-        // Same inset as the rows' card, so the pinned row's columns line up with the list.
-        Column(Modifier.padding(ANCHORED_ROW_CARD_PADDING), content = content)
+        Column(Modifier.padding(PINNED_ROW_INSET), content = content)
     }
 }
 
-/** Inset inside [AnchoredRowCard] (the solo boards' row card inset; band boards start their ranks after it). */
-internal val ANCHORED_ROW_CARD_PADDING = 8.dp
+/**
+ * The board rows' card inset, which [PinnedSelectedRow] keeps so the pinned row lines up with
+ * the rows (the solo boards' row card inset; band boards start their ranks after it).
+ */
+internal val PINNED_ROW_INSET = 8.dp
 
 /** Space between list items, also left between the last item and the anchored footer. */
 private const val ROW_GAP_DP = 12

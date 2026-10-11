@@ -2,11 +2,14 @@ package com.festivalscoretracker.android.journeys
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.RankingsFixtures
@@ -49,7 +52,9 @@ class BandRankingsJourneyTest {
     @Test
     fun pagesSwitchesAndOpensABandAccessibly() {
         h.enableAccessibilityChecks()
-        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("bandRankings:Band_Duets"), profile = player, stillBackground = true), transport)
+        // Experimental Ranks on so Rank By shows (#541).
+        val preferences = MemoryPreferences(mutablePreferencesOf(booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS) to true))
+        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("bandRankings:Band_Duets"), profile = player, stillBackground = true), transport, preferences)
         h.waitForTag("fst.band-rankings.population")
         h.waitForTag(row(1))
         waitForDescription("Page 1 of 2")
@@ -69,9 +74,9 @@ class BandRankingsJourneyTest {
         waitForDescription("Page 1 of 2")
 
         h.tap("fst.band-rankings.rank-by-menu")
-        h.waitForTag("fst.band-rankings.rank-by-menu.2")
+        h.waitForTag("fst.band-rankings.rank-by-menu.3")
         h.readingOrder("band-rankings-rank-by-menu")
-        h.tap("fst.band-rankings.rank-by-menu.2")
+        h.tap("fst.band-rankings.rank-by-menu.3")
         rule.waitUntil(15_000) { transport.requests.any { it.url.contains("/api/rankings/bands/Band_Trios?rankBy=fcrate") } }
 
         h.waitForTag(row(1))

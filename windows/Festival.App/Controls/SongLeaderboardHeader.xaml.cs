@@ -1,4 +1,5 @@
 using Festival.App.Services;
+using Festival.Core.Domain;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
@@ -30,7 +31,7 @@ public sealed partial class SongLeaderboardHeader : UserControl
     public static readonly DependencyProperty ArtistProperty = Register(nameof(Artist), (h, _) => h.UpdateVisibility());
 
     /// <summary>Board line: instrument name or band size.</summary>
-    public static readonly DependencyProperty BoardLabelProperty = Register(nameof(BoardLabel), null);
+    public static readonly DependencyProperty BoardLabelProperty = Register(nameof(BoardLabel), (h, _) => h.UpdateVisibility());
 
     /// <summary>Instrument icon file for the board line; empty for a board without an icon (band sizes).</summary>
     public static readonly DependencyProperty BoardIconFileProperty = Register(nameof(BoardIconFile), (h, _) => h.UpdateVisibility());
@@ -115,7 +116,9 @@ public sealed partial class SongLeaderboardHeader : UserControl
     /// <summary>
     /// Collapses empty lines, so a board without icon or total leaves no gap; an unresolved song (no title) also hides the
     /// art tile, leaving only the board line above the failure state, and stops the header acting as a button (there is no
-    /// song to open: no hit testing, tab stop or UIA button, while its lines stay readable).
+    /// song to open: no hit testing, tab stop or UIA button, while its lines stay readable). Narrator reads the named
+    /// button as one item and skips its inner lines, so the button is named by every visible line (title, artist, board,
+    /// total; web <c>role="link"</c> named by its content, issue #465), renamed as the board or its total changes.
     /// </summary>
     private void UpdateVisibility()
     {
@@ -124,6 +127,7 @@ public sealed partial class SongLeaderboardHeader : UserControl
         SongButton.IsHitTestVisible = hasSong;
         SongButton.IsTabStop = hasSong;
         AutomationProperties.SetAccessibilityView(SongButton, hasSong ? AccessibilityView.Content : AccessibilityView.Raw);
+        AutomationProperties.SetName(SongButton, SongLeaderboardHeaderText.AccessibleName(Title, Artist, BoardLabel, TotalText));
         BoardIcon.Visibility = BoardIconFile.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         TotalBlock.Visibility = TotalText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }

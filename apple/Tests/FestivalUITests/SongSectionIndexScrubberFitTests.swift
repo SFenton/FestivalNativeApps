@@ -1,4 +1,5 @@
 import CoreGraphics
+import SwiftUI
 import Testing
 @testable import FestivalUI
 
@@ -104,5 +105,44 @@ struct SongSectionIndexScrubberFitTests {
             ) == entry.section)
         }
         #expect(SongSectionIndexScrubber.section(at: 0, height: height, inset: inset, entries: []) == nil)
+    }
+
+    /// Issue #388: the labels follow iOS Caption 2 (HIG Typography) up to AX2 and the
+    /// capsule widens with them; the default size keeps the 22 pt strip.
+    @Test func labelsAndWidthScaleWithCaptionTwoUpToAX2() {
+        #expect(SongSectionIndexScrubber.scale(for: .xSmall) == 1)
+        #expect(SongSectionIndexScrubber.scale(for: .large) == 1)
+        #expect(SongSectionIndexScrubber.width(for: .large) == 22)
+        #expect(SongSectionIndexScrubber.width(for: .xLarge) == 26)
+        #expect(SongSectionIndexScrubber.width(for: .xxxLarge) == 34)
+        #expect(SongSectionIndexScrubber.width(for: .accessibility1) == 40)
+        #expect(SongSectionIndexScrubber.width(for: .accessibility2) == 48)
+        #expect(SongSectionIndexScrubber.width(for: .accessibility5) == 48)
+        #expect(abs(SongSectionIndexScrubber.scale(for: .accessibility5) - 24 / 11) < 0.0001)
+        #expect(SongSectionIndexScrubber.maxTypeSize == .accessibility2)
+        let scales = DynamicTypeSize.allCases.map(SongSectionIndexScrubber.scale(for:))
+        #expect(zip(scales, scales.dropFirst()).allSatisfy { $0 <= $1 }, "\(scales)")
+    }
+
+    /// Issue #388: at larger text sizes the strip stays within its default-size height,
+    /// so the larger labels condense instead of reaching under the expanded search field.
+    @Test func largerLabelsCondenseWithinTheDefaultHeight() {
+        let labels = ["#"] + (65...90).map { String(UnicodeScalar(UInt8($0))) }
+        #expect(SongSectionIndexScrubber.heightLimit(labelCount: 27, labelHeight: 13.3, scale: 1) == nil)
+        let scale = SongSectionIndexScrubber.scale(for: .accessibility2)
+        let large = 13.3 * scale
+        let limit = SongSectionIndexScrubber.heightLimit(labelCount: 27, labelHeight: large, scale: scale)
+        let defaultStrip = 2 * SongSectionIndexScrubber.outerPadding + 2 * SongSectionIndexScrubber.labelInset
+            + 27 * 13.3 + 26 * SongSectionIndexScrubber.labelSpacing
+        #expect(abs((limit ?? 0) - defaultStrip) < 0.001)
+        let capacity = SongSectionIndexScrubber.capacity(availableHeight: min(limit ?? 0, 650), labelHeight: large)
+        let entries = SongSectionIndexScrubber.entries(labels: labels, capacity: capacity)
+        #expect(entries.count <= capacity ?? 0)
+        #expect(entries.count < labels.count)
+        #expect(entries.first?.label == "#" && entries.last?.label == "Z")
+        let drawn = 2 * SongSectionIndexScrubber.outerPadding + 2 * SongSectionIndexScrubber.labelInset
+            + CGFloat(entries.count) * (large + SongSectionIndexScrubber.labelSpacing)
+            - SongSectionIndexScrubber.labelSpacing
+        #expect(drawn <= defaultStrip + 0.001, "\(drawn) > \(defaultStrip)")
     }
 }

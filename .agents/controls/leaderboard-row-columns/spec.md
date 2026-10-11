@@ -13,7 +13,7 @@ Source: `FortniteFestivalWeb/src/pages/songinfo/components/topScoresLayout.ts` (
 | Rankings (cards, full, bands, Compete) | — | rank · name · songs · rating; no score metadata |
 
 - **Rank width** is computed once per section from the longest `#rank` label, including the pinned/spotlight row: `ceil(len("#" + rank.toLocaleString()) × 8.5) + 12` px, 48 px for an empty section. Every row in the section (and on desktop the pinned player row) uses it.
-- **Score width** is `${longest score label}ch` across the page (plus the pinned row on desktop).
+- **Score width** is `${longest score label}ch` across the page (plus the pinned row on desktop). Score History lists do the same (web `PlayerHistoryPage` `scoreWidth`; Song Detail `globalScoreWidth`), and rank history snapshot lists share one `computeRankWidth` of every snapshot rank so the bold current rank lines up (#594).
 - **Rating** has a minimum width: `"1,000,000,000"` for total score, otherwise `5ch`.
 
 ## Native rule (all platforms)
