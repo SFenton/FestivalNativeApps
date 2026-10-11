@@ -727,6 +727,37 @@ class UiCiTests(unittest.TestCase):
                       "assertfocus:id=fst.paths.instrument.compact@3", "assertfocus:id=fst.paths.difficulty.compact@3"):
             self.assertIn(check, steps[select:])
 
+    def test_paths_instrument_width_runs_in_ci(self):
+        # Issue #526 (#280): the compact Instrument box is sized for its longest option, so switching to the longest
+        # fixture name (Tap Vocals) by pointer and back to Bass by keyboard leaves all three selector boxes where they
+        # were, same width, on one line, read as "Instrument, combo box" with the new value. Checked in windows-ui at
+        # default and 225% text and with Animation effects off, Axe-scanned after the switch.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-swap.json"]
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-swap.json").read_text(encoding="utf-8"))
+        page = next(page for page in pages if page["name"] == "paths-instrument-width")
+        self.assertTrue(page["scan"])
+        modes = {run.mode for run in runs if page in m.mode_pages(pages, run.mode)
+                 and m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({"normal", "text-225", "no-animations"}, modes)
+        steps = page["after_ready"]
+        boxes = ("instrument", "difficulty", "display")
+        first = steps.index("select:name=Tap Vocals&class=ComboBoxItem")
+        second = steps.index("key:enter")
+        for box in boxes:
+            self.assertIn(f"pin:id=fst.paths.{box}.compact", steps[:first])
+            self.assertIn(f"assertpinned:id=fst.paths.{box}.compact", steps[first:second])
+            self.assertIn(f"assertpinned:id=fst.paths.{box}.compact", steps[second:])
+        for check in ("assertlevel:id=fst.paths.instrument.compact|id=fst.paths.difficulty.compact",
+                      "assertlevel:id=fst.paths.difficulty.compact|id=fst.paths.display.compact"):
+            self.assertIn(check, steps[:first])
+        for check in ("assertstate:id=fst.paths.instrument.compact|value=Tap Vocals@5",
+                      "assertread:id=fst.paths.instrument.compact|Instrument, combo box, collapsed",
+                      "assertsize:id=fst.paths.instrument.compact|40x40", "scan:{stem}-tap-vocals"):
+            self.assertIn(check, steps[first:second])
+        for check in ("assertstate:id=fst.paths.instrument.compact|value=Bass@5",
+                      "assertfocus:id=fst.paths.instrument.compact@3", "assertfocus:id=fst.paths.display.compact@3"):
+            self.assertIn(check, steps[second:])
+
     def test_paths_chart_runs_every_page(self):
         # Issue #438 (#87, #279): the chart's centring, hidden scroll bars, names, order and keyboard panning are checked
         # in windows-ui at default and 225% text, every page, Axe-scanned.
