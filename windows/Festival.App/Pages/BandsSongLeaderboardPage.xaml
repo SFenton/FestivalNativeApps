@@ -138,6 +138,7 @@
                                                         Background="{ThemeResource FSTAccuracyPillFillBrush}" BorderBrush="{ThemeResource FSTNeutralPillStrokeBrush}"
                                                         Visibility="{x:Bind HasAccuracy}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                                     <TextBlock Text="{x:Bind Accuracy}" FontSize="12" Foreground="{ThemeResource FSTNeutralPillTextBrush}"
+                                                               AutomationProperties.AutomationId="{x:Bind AccuracyAutomationId}"
                                                                AutomationProperties.AccessibilityView="Raw" />
                                                 </Border>
                                                 <controls:StarRow Stars="{x:Bind StarCount}" StarSize="14" VerticalAlignment="Center"

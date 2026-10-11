@@ -105,7 +105,7 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         PerfLog.Mark("song-detail-rendered");
     }
 
-    /// <summary>Keeps the instrument selector in step with the history section.</summary>
+    /// <summary>Keeps the instrument selector in step with the history section and the page still as its rows change.</summary>
     /// <param name="sender">History model.</param>
     /// <param name="e">Changed property.</param>
     private void OnHistoryChanged(object? sender, PropertyChangedEventArgs e)
@@ -121,6 +121,14 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         // Raised before the switch clears the row, so the closed row's height is still laid out (issue #261).
         if (e.PropertyName is nameof(SongScoreHistoryViewModel.ReservesDetail))
             HistoryDetailSlot.MinHeight = history.ReservesDetail ? Math.Max(HistoryDetail.ActualHeight, HistoryDetailSlot.ActualHeight) : 0;
+        // A picked or cleared bar opens or closes the detail row below the chart. Without the hold, scroll anchoring kept a
+        // Leaderboards row below it still and pushed the chart up under the pinned header, where Left/Right no longer
+        // reached the next bar (issue #512, load-transition R8). Raised before layout, so the hold covers the resize.
+        if (e.PropertyName is nameof(SongScoreHistoryViewModel.SelectedRow))
+        {
+            PauseScrollAnchoring();
+            ResumeScrollAnchoring();
+        }
     }
 
     #region Score history swap
@@ -213,7 +221,8 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     }
 
     /// <summary>
-    /// Holds the page scroller's anchoring off for a chart swap (<see cref="CachedPageScroll.HoldAnchoring"/>), so the page
+    /// Holds the page scroller's anchoring off for a chart swap or a bar's detail row opening or closing
+    /// (<see cref="CachedPageScroll.HoldAnchoring"/>), so the page
     /// doesn't scroll and Score History stays where the reader picked the chart (issue #423, load-transition R8). The
     /// swap replaces the top-five rows below the chart (Bass shows 2, Lead 5); WinUI then re-picked an anchor below them (a
     /// Leaderboards card in a window tall enough to show one) and scrolled the page by the rows' height change.

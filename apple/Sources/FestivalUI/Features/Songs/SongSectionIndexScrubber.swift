@@ -183,17 +183,27 @@ struct SongSectionIndexScrubber: View {
         )
         .padding(.vertical, Self.outerPadding)
         .padding(.trailing, trailingMargin)
-        .accessibilityElement()
+        .modifier(adjustableAccessibility)
         .accessibilityLabel("Jump to section")
         .accessibilityValue(sections[safeIndex: activeIndex]?.label ?? "")
-        .accessibilityAdjustableAction { direction in
-            switch direction {
-            case .increment: move(by: 1)
-            case .decrement: move(by: -1)
-            @unknown default: break
-            }
-        }
         .accessibilityIdentifier("fst.songs.section-index")
+    }
+
+    /// The strip as one adjustable element: increment and decrement step one section.
+    ///
+    /// iOS exposes `accessibilityAdjustableAction` as the adjustable trait. On macOS that
+    /// modifier alone leaves a role-less `AXUnknown` element, which VoiceOver cannot
+    /// present as a control (issue #451), so the Mac describes the strip as a slider over
+    /// the section indices; its value is still the section's label.
+    private var adjustableAccessibility: some ViewModifier {
+        #if os(macOS)
+        SectionIndexSliderAccessibility(
+            count: sections.count,
+            index: Binding(get: { activeIndex }, set: { move(by: $0 - activeIndex) })
+        )
+        #else
+        SectionIndexAdjustableAccessibility(move: move(by:))
+        #endif
     }
 
     /// Resolve and announce the section under a drag location.
@@ -364,6 +374,43 @@ struct SongSectionIndexScrubber: View {
         onSelect(sections[index].id)
     }
 }
+
+// MARK: - Accessibility
+
+#if os(macOS)
+/// The Mac's section index: a slider over the section indices (AXSlider), which VoiceOver
+/// and Voice Control adjust one section at a time.
+private struct SectionIndexSliderAccessibility: ViewModifier {
+    let count: Int
+    @Binding var index: Int
+
+    func body(content: Content) -> some View {
+        content.accessibilityRepresentation {
+            Slider(
+                value: Binding(get: { Double(index) }, set: { index = Int($0.rounded()) }),
+                in: 0...Double(max(count - 1, 1)), step: 1
+            )
+        }
+    }
+}
+#else
+/// The section index as one adjustable element (the iOS adjustable trait).
+private struct SectionIndexAdjustableAccessibility: ViewModifier {
+    let move: (Int) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .accessibilityElement()
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: move(1)
+                case .decrement: move(-1)
+                @unknown default: break
+                }
+            }
+    }
+}
+#endif
 
 private extension Array {
     subscript(safeIndex index: Int) -> Element? {

@@ -132,10 +132,11 @@ PROBE = re.compile(
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
 #: vertical scroll percent, ``0``-``100`` or ``-1`` when the content fits; ``type`` the lower-case UIA control type such as
 #: ``button`` or ``text``; ``invoke`` whether the Invoke pattern is offered; ``focusable`` UIA IsKeyboardFocusable;
-#: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option).
+#: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option;
+#: ``help`` the UIA HelpText, e.g. a First Run demo's ``controls=`` census. A value starting with ``~`` is a regex.)
 STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
               "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false"),
-              "value": None, "heading": tuple("0123456789")}
+              "value": None, "heading": tuple("0123456789"), "help": None}
 
 # endregion
 
@@ -299,8 +300,8 @@ def parse_step(step: str) -> dict:
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (or matches it as a .NET regex when it starts with ``~``; no ``;`` since steps split on it)
     (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``; a status containing
-    ``not-visible``, ``=background`` or ``pulse=held`` is read without bringing the window to the front);
-    ``foreground:on`` activates the app window and ``foreground:off`` hands activation to the taskbar, leaving the window
+    ``not-visible``, ``=background``, ``pulse=held`` or ``scroll=paused`` is read without bringing the window to the
+    front); ``foreground:on`` activates the app window and ``foreground:off`` hands activation to the taskbar, leaving the window
     visible and uncovered but inactive (e.g. a first-run demo's ``rotation=background``; while the console is locked
     both send ``WM_ACTIVATE`` instead);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
@@ -309,7 +310,8 @@ def parse_step(step: str) -> dict:
     rounded: ``0`` is a list back at its top), ``heading`` (UIA heading level ``1``-``9``, ``0`` for none: Narrator's
     H/Shift+H stops, e.g. a pinned section title or one a Quick Links jump lands on), ``name`` or ``value`` (UIA Value,
     else the selected item's name: what Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``)
-    equals ``<value>``;
+    or ``help`` (UIA HelpText, e.g. a First Run demo's ``controls=`` census) equals ``<value>`` (or matches it as a .NET
+    regex when it starts with ``~``; ``raw=`` selectors search the raw view);
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
     ``assertmarquee:<sel>|moving|<epx>`` fails unless the element is at most ``<epx>`` effective pixels high (one line)
@@ -512,7 +514,7 @@ def parse_step(step: str) -> dict:
         key, eq, value = assertion.partition("=")
         key, value = key.strip().lower(), value.strip()
         if not sep or not eq or key not in STATE_KEYS or not value:
-            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|value|scroll|type|invoke|focusable|heading=<value>[@<seconds>]")
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|value|help|scroll|type|invoke|focusable|heading=<value>[@<seconds>]")
         allowed = STATE_KEYS[key]
         if allowed is not None and value.lower() not in allowed:
             raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")

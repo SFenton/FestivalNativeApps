@@ -1,0 +1,101 @@
+[
+  {
+    "name": "song-board-pinned-own-id",
+    "note": "Issue #197: the pinned 'your rank' row has its own UIA element (fst.song-leaderboard.spotlight-footer), not a second copy of the player's list-row ID, so Narrator and UIA reach the list row and the pinned row as two distinct targets: the list row in rank order, the pinned row after every row and before the pager.",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "ready": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@20",
+      "waitfor:id=fst.song-leaderboard.spotlight-footer@10",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:id=fst.song-leaderboard.row.fixture-player-1|~^Your rank, 1st\\. Fixture Player 1, .+, button$",
+      "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics.*, button$",
+      "assertapart:id=fst.song-leaderboard.row.fixture-player-1|id=fst.song-leaderboard.spotlight-footer",
+      "assertsize:id=fst.song-leaderboard.row.fixture-player-1|0x40",
+      "assertsize:id=fst.song-leaderboard.spotlight-footer|40x40",
+      "assertorder:id=fst.song-leaderboard.song|id=fst.song-leaderboard.row.fixture-player-1|id=fst.song-leaderboard.row.fixture-player-2|id=fst.song-leaderboard.spotlight-footer"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "song-board-empty-total",
+    "note": "Issue #197: an empty board (Bass: no entries, showLeaderboardEntryTotals true, totalEntries 0) never says '0 Bass entries' (web LeaderboardPage totalEntries > 0). The header reads title, artist and instrument only, the title stays heading 1, the empty state reads after the header, and no pager or pinned row is exposed.",
+    "route": "/songs/fixture-pulse/Solo_Bass",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "ready": [
+      "waitfor:id=fst.song-leaderboard.empty@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:id=fst.song-leaderboard.song|Fixture Pulse, Synthetic Quartet, Bass, button, Opens Song Details",
+      "assertstate:id=fst.song-leaderboard.title|heading=1",
+      "assertsize:id=fst.song-leaderboard.song|40x40",
+      "waitgone:id=fst.song-leaderboard.total@2",
+      "assertread:id=fst.song-leaderboard.empty|No scores yet., text",
+      "assertorder:id=fst.song-leaderboard.song|id=fst.song-leaderboard.empty",
+      "waitgone:id=fst.song-leaderboard.page-info@2",
+      "waitgone:id=fst.song-leaderboard.page-next@2",
+      "waitgone:id=fst.song-leaderboard.spotlight-footer@2"
+    ]
+  },
+  {
+    "name": "song-board-contrast-plate",
+    "note": "Issue #197: under a contrast theme the footer fade is a hard cut and a Window-colour plate backs the pinned row and pager, so no row text (Desert WindowText #3D3D3D) shows beside the pager buttons or between the pinned row and the pager mid-scroll; the pinned row and pager keep their names, 40x40 targets and order.",
+    "modes": ["hc-desert"],
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "fixture": ["--song-leaderboard-paging"],
+    "ready": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@20",
+      "waitfor:id=fst.song-leaderboard.spotlight-footer@10",
+      "waitfor:id=fst.song-leaderboard.page-info@10",
+      "wait:1"
+    ],
+    "after_ready": [
+      "scrollto:id=fst.song-leaderboard.list,50",
+      "wait:1",
+      "assertstatus:id=fst.song-leaderboard.footer-fade|hard-edge@5",
+      "assertpaint:id=fst.song-leaderboard.page-first|L-48,M-16,L-8,M16!=#3D3D3D~80",
+      "assertpaint:id=fst.song-leaderboard.page-last|R-8,M-16,R-48,M16!=#3D3D3D~80",
+      "assertpaint:id=fst.song-leaderboard.spotlight-footer|L0,B-2,R0,B-6!=#3D3D3D~80",
+      "assertpaint:id=fst.song-leaderboard.page-first|L-28,M0=#FFFAEF~8",
+      "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. .+, button$",
+      "assertread:id=fst.song-leaderboard.page-next|Next page, button",
+      "assertsize:id=fst.song-leaderboard.spotlight-footer|40x40",
+      "assertsize:id=fst.song-leaderboard.page-next|40x40",
+      "assertorder:id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-first|id=fst.song-leaderboard.page-info|id=fst.song-leaderboard.page-next"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "song-board-name-tooltip",
+    "note": "Issue #197: with motion off (in-app Reduce Motion stops the name marquee) a row name too long for its column ellipsizes, Narrator still reads it in full, and keyboard focus on the row shows the full name as a tool tip; a row whose name fits has none.",
+    "modes": ["app-reduced"],
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "fixture": ["leaderboards_fixture.py", "--long-name"],
+    "ready": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-2@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits, .+, button$",
+      "assertsize:id=fst.song-leaderboard.row.fixture-player-2|0x40",
+      "focus:id=fst.song-leaderboard.row.fixture-player-1",
+      "key:down",
+      "assertfocus:id=fst.song-leaderboard.row.fixture-player-2@3",
+      "waitfor:class=ToolTip@6",
+      "assertread:class=ToolTip|Fixture Player With An Extraordinarily Long Display Name That Never Fits, tool tip",
+      "key:down",
+      "assertfocus:id=fst.song-leaderboard.row.fixture-player-3@3",
+      "waitgone:class=ToolTip@5",
+      "wait:2",
+      "waitgone:class=ToolTip@1",
+      "focus:id=fst.song-leaderboard.song",
+      "waitgone:class=ToolTip@5"
+    ],
+    "tabs": 0
+  }
+]
