@@ -414,7 +414,7 @@
       "title": "Section headers",
       "status": "current",
       "doc": ".agents/patterns/section-headers.md",
-      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap, and the list end lets the last push finish.",
+      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap, the list end lets the last push finish, and Songs titles its sections in every sort, A–Z included.",
       "keywords": [
         "section header",
         "section title",

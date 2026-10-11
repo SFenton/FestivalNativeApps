@@ -182,7 +182,7 @@ fun SongsScreen(
     val listState = rememberLazyListState()
     val listed = state.catalog is LoadState.Loaded && !state.invalidSavedFilter
     val leading = state.notices.size
-    val linkSections = remember(state.headers, listed) { if (listed) state.headers.map { it.quickLink } else emptyList() }
+    val linkSections = remember(state.quickLinkHeaders, listed) { if (listed) state.quickLinkHeaders.map { it.quickLink } else emptyList() }
     // Headers are their own (sticky) items, so a header's list index counts the headers before it
     // (and, in two columns, the lines rather than the rows before it: the list's WideColumnLines).
     // They pin under the top bar, so jumps land them flush rather than 32 dp down (#51).
@@ -457,8 +457,8 @@ private fun SongList(
                                 modifier = rememberHiddenUnderPinnedHeader(headerEdge, lineKey),
                             ) { onSongClick(row.song) }
                         }
-                        // Bucket headers stick under the pinned search field with no backing (issue #91, like the
-                        // Title/Artist list and iOS): rows passing beneath are hidden behind them and fade out
+                        // Section headers (every sort, Title/Artist's #/A–Z too, issue #582) stick under the pinned
+                        // search field with no backing (issue #91, like iOS): rows passing beneath are hidden behind them and fade out
                         // just below them (pinnedHeaderEdgeFade, issue #49). They span both columns (wide-columns R2).
                         grid.lines.forEach { line ->
                             when (line) {
@@ -569,37 +569,63 @@ private val STILL_BREATHE: () -> Float = { 1f }
  * stays current after a jump. Without that, TalkBack's Next section would stop at the
  * section at the top of the last screen and never reach the final sections.
  *
+ * The jump target is kept until the list moves back or the user drags it, not until the list
+ * can scroll forward again: the pinned-title list-end space ([rememberPinnedHeaderEndSpace])
+ * can grow after a far jump without the list moving (issue #582).
+ *
  * @property listState List state.
  * @property sections Sections.
  * @property lines The list's lines (one or two columns), mapping rows to list items.
  */
 @Stable
 private class SectionPosition(private val listState: LazyListState, private val sections: List<SongSection>, private val lines: WideColumnLines) {
-    /** Last jump target, until the list scrolls back from its end or the user drags it. */
+    /** Last jump target, until the list scrolls back or the user drags it. */
     private var jumped by mutableStateOf<SongSection?>(null)
+
+    /** Furthest list position (item, offset) since the jump landed; moving back from it forgets the jump. */
+    private var furthest: Pair<Int, Int>? = null
 
     /** Current section, or null. */
     val current: SongSection? by derivedStateOf {
         val top = sections.lastOrNull { it.firstIndex <= lines.firstRowOfItem(listState.firstVisibleItemIndex) }
         val target = jumped
-        if (target != null && !listState.canScrollForward && target.firstIndex > (top?.firstIndex ?: -1)) target else top
+        if (target != null && target.firstIndex > (top?.firstIndex ?: -1)) target else top
     }
 
     /**
-     * Scrolls [section]'s first row to the top, or as near as the list's end allows. Every
-     * section starts a line, so its first row lands in the leading column.
+     * Scrolls [section]'s title to its pin line (its first row when it has none), or as near as
+     * the list's end allows. Every section starts a line, so its first row lands in the leading
+     * column, clear below the pinned title (section-jump-landing R3, issue #582).
      *
      * @param section Section to show.
      */
     suspend fun jumpTo(section: SongSection) {
+        listState.scrollToItem(lines.itemOfSection(section.firstIndex))
+        // Measured after the list has clamped the jump to its end.
+        furthest = position()
         jumped = section
-        listState.scrollToItem(lines.itemOfRow(section.firstIndex))
     }
 
-    /** Forgets the jump target once the list leaves its end or the user drags it. */
+    /** Forgets the jump target once the list moves back from where it landed or the user drags it. */
     suspend fun forgetJumpsOnMove() = coroutineScope {
-        launch { snapshotFlow { listState.canScrollForward }.collect { if (it) jumped = null } }
+        launch {
+            snapshotFlow { position() }.collect { now ->
+                val mark = furthest ?: return@collect
+                if (BY_POSITION.compare(now, mark) < 0) {
+                    jumped = null
+                    furthest = null
+                } else {
+                    furthest = now
+                }
+            }
+        }
         listState.interactionSource.interactions.collect { if (it is DragInteraction.Start) jumped = null }
+    }
+
+    private fun position(): Pair<Int, Int> = listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+
+    private companion object {
+        val BY_POSITION: Comparator<Pair<Int, Int>> = compareBy({ it.first }, { it.second })
     }
 }
 
