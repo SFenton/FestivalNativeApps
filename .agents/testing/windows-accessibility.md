@@ -30,7 +30,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ (C/M/W, also 200%; display 100%/150%, issue #197) |
 | Player History (Song Detail Score History, issue #198) | ✅✅✅ | 7/9/9 | UIA (locked console) | ✅ (Night sky, Desert: chart roles) | ✅ (200%: axes scale) |
 | Song Band Leaderboard | ✅✅✅ (+live, #196) | 8/10/10 | UIA only (#196) | ✅ | ✅ (+200% C+M) |
-| Item Shop (grid, list, filter, states) | ✅✅✅ (+live, #206; shop-offers states #224) | 5/8/8 (grid one stop) | ✅ (`kb-shop-*`) | ✅ | ✅ (200% C+M, #206) |
+| Item Shop (grid, list, filter, states) | ✅✅✅ (+live, #206; shop-offers states #224; CI `shop-offers` #516) | 5/8/8 (grid one stop) | ✅ (`kb-shop-*`) | ✅ | ✅ (200% C+M, #206) |
 | Suggestions | ✅✅✅ (AOT crash fixed; filter, empty, end-of-mix, loading, syncing, denied, #205) | 10–15 (20-press, #205) | ✅ (arrows between rows, #205) | ✅ | ✅ (200%; display 100%/150%, #205) |
 | Leaderboards + Quick Links | ✅✅✅ (+live, #207) | 20/21/21 | ✅ | ✅ | ✅ (C+M; rows stack, #207) |
 | Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
@@ -202,6 +202,8 @@ Fixed:
 - Desert's WindowText and GrayText bars were only ~1.8:1 apart; under contrast themes, unfilled bars are now GrayText outlines (shape, not colour alone).
 - The bars kept their old colours after a contrast-theme switch while the app was open; they now re-apply on `ColorValuesChanged`.
 - The unavailable state drew seven empty bars at 40% opacity (the skill says never put `Opacity` on system-colour brushes); it now shows "Difficulty unavailable", and a recycled meter resets its automation ID.
+
+CI rule (issue #514): `tools/windows/journeys/a11y-difficulty-meter.json` keeps these fixes in the `windows-ui` job. It checks the cell and row names, the reading order, that the meter isn't focusable, normal fills, hollow unfilled bars under Desert and the live Desert on/off recolour. The `invalid` state no page reaches runs in the `difficulty-meter` control lab (`meter-lab-*`): its Text role, name, automation ID, missing child and focus, and that re-binding the same meter to a level and back restores the Image role and `fst.songs.difficulty-meter`. A meter change updates these pages. Paint probes must avoid the 62×20 polygon edges (bar *i* centre is x = 9*i*+4 epx at mid-height). Pages that assert normal colours list every `hc-*` mode in `skip_modes`. Page list: [difficulty-meter/windows.md](../controls/difficulty-meter/windows.md#states-and-reachability).
 
 ## Score Accuracy validation (issue #220, 2026-10-03)
 
@@ -458,6 +460,21 @@ Fixed: Feedback field hints were a `TextBox.Description` that clipped at compact
 
 Fixed (test only): the First Run page still asserted the template `CloseButton` ID, but #244 gave that Close `fst.first-run.close`. No app defect was found.
 
+## Modal legibility accessibility tests (issue #518, for #239, 2026-10-12)
+
+The #400 runs above cover the modal shell's names, roles, reading order, targets and keyboard. `journeys/a11y-modal-legibility.json` adds checks for #239's two rendering fixes. `ui_ci.py` runs it as `modal-legibility-desert` (compact, medium), `modal-legibility-night-sky` (compact) and `modal-legibility-text-225` (compact), all with `--scan --tabs 30`. Every page is limited to its `modes`, so default text has no run here; `modals` already covers it.
+- **No contrast backplate.** Under Desert and Night sky, `assertpaint` probes a 24×10 epx area around the label of the First Run Next and the Reset dialog's Cancel and Reset. The probe passes when the area contains the button's own fill colour (`@fill`, sampled at the left padding). The First Run pips are probed too: the selected pill must be Highlight (Desert #903909, Night sky #D6B4FD), its dot HighlightText and an unselected dot WindowText. At this host's 300% scale the pips sit below the fold, so the page first runs `scrollto:id=fst.first-run.body,100`.
+- **Hints wrap.** At 225% text, `assertmarquee …|wrapped|60` checks that the Report an Issue hints for Title, Description and Expected Behavior are wrapping TextBlocks at least 60 epx tall. The Title hint also sits below its header, the edit fields read their hint as HelpText, Tab moves from Expected Behavior to Attach Media, and Esc restores focus to the Settings row.
+
+Negative controls: with `CommandLabelsWithoutBackplate`/`WithoutBackplate` removed, the label probe failed with "0 px within 16 of #903909" (Desert) and "… of #D6B4FD" (Night sky), and the selected pip dot turned WindowText. With the hint as a string `Description`, the hint wait failed ("no on-screen element … class=TextBlock").
+
+| Configuration | Result |
+| --- | --- |
+| Desert (compact, medium), Night sky (compact), text 225% (compact) at this host's 300% scale | Pass, Axe 0 |
+| The same with `+scale-100` (the runner's 100% scale) | Pass, Axe 0 |
+
+No app defect was found.
+
 ## Song leaderboard accessibility tests (issue #443, 2026-10-08)
 
 Backfills CI tests for the #93 Windows change (rows fade above the floating pinned row and pager; paging keeps the header, pinned row and pager). New `journeys/a11y-song-leaderboard.json` (fixture `--song-leaderboard-paging`, Fixture Player 1 selected) and the song-board pages of `a11y-board-footer-fade.json` are now `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
@@ -551,6 +568,55 @@ Backfills CI tests for the #196 Windows change: each band card on a song's Duos/
 
 **Failed, fixed:** every band card (and every Raw `StarRow` host: leaderboard rows, Song Detail band previews, Band Detail gold stars, Songs rows; Suggestions and Songs metadata stars, which aren't Raw, keep their `Image`) exposed its stars as a second control-view `Image "5 stars"` inside the one-stop row, so scan mode read the rating twice. `StarRowPeer.IsControlElementCore` returned `true` regardless of the host's `AccessibilityView="Raw"`; it and `IsContentElementCore` now follow `AutomationProperties.AccessibilityView`. Rule: a custom `AutomationPeer` that overrides `IsControlElementCore`/`IsContentElementCore` must honour the owner's `AccessibilityView`, or Raw in XAML silently stops working. `journeys/star-rating.json` now finds leaderboard stars with `raw=`.
 
+## Suggestions accessibility tests (issue #513, 2026-10-12)
+
+Backfills CI tests for the #205 Windows change (PR #128): named filter `Expander`s, one Tab stop per card with arrow keys across rows, neutral contrast pills, and state titles as headings. Until now only `suggestions_journey.py` and the generated `suggestions` matrix page covered it, outside the `windows-ui` job. New `journeys/a11y-suggestions.json` (`suggestions_fixture_server.py`, seed 1) runs in `tools/windows/ui_ci.py` as `suggestions` (compact, medium) and `suggestions-text-225` (compact). It asserts:
+- `suggestions-cards`: Filter reads "collapsed" and is at least 40 epx tall; the first card title is a Level 2 heading; a row reads its full name as a focusable button, is at least 40×40 and doesn't overlap the next row; Filter reads before the list, and card names read in order (each card is a list item named by its title, its rows read whole); the dispatcher's 30-press Tab walk stays in the app;
+- `suggestions-keyboard`: Down/Up move between rows within a card and across cards without scrolling the list; Tab goes to the next card's first row, Shift+Tab back and then to Filter; Enter opens the flyout on Instruments, and Esc returns focus to Filter, which reads "collapsed";
+- `suggestions-filter`: Filter reads "expanded"; the title is a Level 2 heading and Instrument-Specific Level 3; Instruments and General read their names, state and help text and are at least 40 epx tall, as is Reset; the order is title → Instruments → General → Reset, and Instrument-Specific → picker → Reset (picker arrows 40×40); Enter expands Instruments and Tab lands on "Lead, toggle switch, on" (40×40), then Bass; Space toggles Lead and enables Reset; General expands and reads its switches;
+- `suggestions-syncing` and `suggestions-no-results`: each state title is a Level 2 heading after Filter; no-results turns every type off in the flyout, and Esc leaves focus on Filter with no list;
+- `suggestions-rival-pill-contrast` (medium): in normal mode the rival pill keeps its brand fill; after a live switch to Desert it paints the ButtonFace fill and ButtonText outline, and the brand fill returns after switching back.
+
+`tests/test_ui_ci.py` pins the runs and the key checks; `SuggestionsAccessibilityMarkupTests` guards the fixes in markup.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (all pages; rival contrast at medium) | **Failed, fixed** (two defects, below). Pass, Axe 0 after the fixes |
+| Text 225% (compact, all pages but rival contrast) | **Failed, fixed:** the flyout ran off the window, so Reset was off screen. Pass, Axe 0 after the fix |
+| Desert contrast, switched live (medium) | **Failed, fixed:** the rival pill kept its brand fill (#D9E3F0 sampled). Pass after the fix |
+
+Defects fixed:
+- **Live contrast switch:** `SuggestionSongRow` set its brushes once, so a page left open across a contrast switch kept the brand rival pill, separator, chevron and subtitle colour. It now re-resolves them and rebuilds its metadata on `ContrastTheme.Changed` (as `LeaderboardEntryRow` and `MetadataPill` do; [metadata-pills](../patterns/metadata-pills.md)).
+- **Unnamed Tab stop:** the three filter `ItemsControl`s were Tab stops, so after expanding a section Tab first landed on an unnamed pane. They are now `IsTabStop="False"`, as on Songs and Shop.
+- **Reset off screen:** the filter form didn't fit the space below its button. `OnFilterOpening` now clamps its height and width to the window, as Songs and Shop do.
+
+Harness rules: the flyout's expanded sections push later controls below the fold at 225% text, so each `assertorder`, `focus` or `expand` past the fold follows a `reveal:` (UIA scroll, no input). `assertread` phrases never include the heading level, so headings use `assertstate:…|heading=N`. A card's own Group and title TextBlock are not in the Narrator order (the card list item is named by its title).
+
+## Item Shop offers accessibility tests (issue #516, 2026-10-12)
+
+Backfills CI tests for the #224 Windows change (PR #168): Shop tiles named by title, artist · year and state, the List/Grid toggle (wide windows only, same height as Filter), contrast-safe captions and Leaving pill, and only the active ring exposed as "Busy Loading Item Shop". Until now `shop_journey.py` checked these only for visibility, and the generated `shop`/`shop-list` pages checked the Axe scan. New `journeys/a11y-shop-offers.json` (default fixture plus `shop_fixture.py` modes) runs in `tools/windows/ui_ci.py` as `shop-offers` (compact, medium), `shop-offers-text-225` (compact, medium) and `shop-offers-reduced` (medium, app Reduce Motion, the toggle page). It asserts:
+- `shop-offers-grid-read` (medium, wide): tile phrases "Fixture Orbit, Synthetic Quartet · 2026, Leaving Tomorrow, button" and "…, New, button", focusable and invokable; "Item Shop" heading 1; order title → count → Sort → Filter → toggle → tiles; the toggle reads "List View, button", is at least 40 epx tall, is level with Filter and hit-testable at its top and bottom edges (not covered by a tile); tiles 40×40 and apart; no loading ring in UIA;
+- `shop-offers-grid-compact`: no toggle; same tile phrases and order;
+- `shop-offers-view-toggle` (medium): Enter switches to the list and Space back, focus stays on the toggle, its name flips "Grid View" ↔ "List View", it stays level with Filter, the reveal ring leaves UIA, and Tab then lands on the first tile;
+- `shop-offers-text-wrap` (medium, 225% text only): the wrapped toggle keeps its name and 40 epx target, stays in order after Filter, and overlaps neither Sort, Filter nor a tile;
+- `shop-offers-loading`: a slow read shows one ring reading "Busy Loading Item Shop, ProgressRing" with no toggle, Filter or grid, and it leaves UIA once the tiles land;
+- `shop-offers-empty`, `-failed`, `-hidden`: no toggle, Sort or Filter; the empty title reads as text, Retry is 40 epx, and "Item Shop Is Hidden" is heading 2;
+- `shop-offers-contrast-live` (medium, default text): the Leaving pill paints #C62828, after a live switch to Desert it paints Highlight (#903909) with no WindowText backplate and the caption plate paints Window, and the red returns after switching back.
+
+`tests/test_ui_ci.py` pins the runs and key checks; `WrapLineLayoutTests` guards the wrap rule.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium, wide (all pages; contrast at medium) | **Failed, fixed** (two defects, below). Pass, Axe 0 after the fixes |
+| Text 225% (compact, medium) | Pass, Axe 0 |
+| App Reduce Motion (medium, toggle page) | Pass, Axe 0 |
+
+Defects fixed:
+- **List View under the tiles:** at default text in medium and wide windows the toggle sat a line below Filter, and at medium the tile grid covered it. `WrapPanel` measured one line, but layout rounding handed arrange a fraction of a pixel less, so arrange broke the line that measure had kept and drew the toggle outside the reserved height. Measure and arrange now share `WrapLineLayout.Lines` with a 1 epx tolerance ([page-tools-and-nav-chrome](../patterns/page-tools-and-nav-chrome.md) R11). The fix also reaches the other `WrapPanel` consumers: the Rivals page and rows, profile/Statistics title actions, Song Detail and notification rows.
+- **Live contrast switch:** the Leaving pill and the pulse ring took their brushes once, so a page left open across a contrast switch kept the brand red pill (with a Window backplate on its text) and the brand outline. `ShopPulseRing` now repaints on `ContrastTheme.Changed` (Songs rows and first-run demos too), and `ShopPage` re-applies `ApplyBadge` to realized tiles and rows ([shop-offer-status](../patterns/shop-offer-status.md) R6).
+
+Harness rules: the ProgressRing peer prefixes its busy state, so assert ring names as "Busy Loading …" (a `waitgone:name=Loading …` passes trivially). Pages that assert the toggle level with Filter skip `text-225`, where it wraps by design (R11).
+
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
 Accessibility tests for #77. The no-profile Filter pages moved into `journeys/a11y-songs-filter.json` (`songs-filter-anonymous`, `songs-filter-anonymous-year`, `kb-songs-filter-anonymous`), which `tools/windows/ui_ci.py` runs in `windows-ui` at default text (compact, medium) and 225% text (compact); `tests/test_ui_ci.py` keeps both runs. They assert Narrator phrases, reading order, 40×40 epx targets, the toggle and expand states, the applied "Filters applied" status and the keyboard walk ([songs-filter windows](../controls/songs-filter/windows.md#accessibility-tests-issue-432-no-profile)).
@@ -577,6 +643,21 @@ The push follows the scroll with no animation of its own, so Reduce Motion has n
 | --- | --- |
 | Compact, medium (3 pages, `--scan`) | Pass, Axe 0 |
 | Text 225% (compact, 3 pages) | Pass, Axe 0 |
+
+## Songs scrolling (issue #520, 2026-10-11)
+
+Accessibility tests for #247's Windows Songs scroll fix (the pinned title re-read after a non-animated jump's last view change). `journeys/a11y-songs-scroll.json` runs on the large fixture catalogue; `tools/windows/ui_ci.py` runs it in `windows-ui` at default text (`songs-scroll`: compact, medium), 225% text (`songs-scroll-text-225`: compact) and Windows Animation effects off (`songs-scroll-no-animations`: compact, where keyboard End/Home are non-animated jumps), all `--scan`; `tests/test_ui_ci.py` keeps the three runs and the key steps. The pages assert:
+- `songs-scroll-far-jumps`: UIA Scroll-pattern jumps (Narrator and scroll-bar moves) to 100, 25, 75 and 50%, each landing in a letter range disjoint from the previous one, so a stale pinned title fails; the title stays a level-2 Text heading, Narrator reads Jump → title → list, and Jump keeps its name and 40×40 epx.
+- `songs-scroll-fling-back`: bottom → top → 3% → top ends at `scroll=0` with the title reading "#, text" before the first row.
+- `songs-scroll-keyboard`: End moves focus to the last row (`fixture-song-105`, 40 epx) with the title in X–Z; Home returns focus to the first row and the title to "#, text".
+
+Ranges, not exact letters, because the letter at a scroll percent depends on window size and text scale (medium: 25% D, 50% K, 75% R, 100% Y). Check: with both re-reads removed (`OnScrollerViewChanged` settle and `RecheckHeaderAfterLayout`), `songs-scroll-far-jumps` fails ("#" pinned after the jump) at compact and medium; with only #247's settle removed it still passes, since #248's after-layout re-read covers the same case. No accessibility defect was found, so no app code changed. The live-only `songs-scroll-a11y.json` (anonymous or SFentonX, no name checks) stays a host check.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (3 pages, `--scan`) | Pass, Axe 0 |
+| Text 225% (compact, 3 pages) | Pass, Axe 0 |
+| Animation effects off (compact, 3 pages) | Pass, Axe 0 |
 
 ## Feedback Form validation (issue #236, 2026-10-05)
 

@@ -359,7 +359,19 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
 /// <param name="Index">Point index (for selection).</param>
 /// <param name="Point">Point.</param>
 /// <param name="IsSelected">Whether this bar is selected (purple stroke).</param>
-public sealed record ScoreHistoryBar(int Index, ScoreHistoryPoint Point, bool IsSelected);
+public sealed record ScoreHistoryBar(int Index, ScoreHistoryPoint Point, bool IsSelected)
+{
+    /// <summary>
+    /// Whether a new page of bars differs from the drawn one only in which bar is selected, so the chart can restyle its
+    /// bars in place: rebuilding them would move keyboard focus to a new, not yet laid-out bar (issue #512).
+    /// </summary>
+    /// <param name="drawn">Bars on screen.</param>
+    /// <param name="next">New bars.</param>
+    /// <returns><see langword="true"/> when the same points are drawn in the same order.</returns>
+    public static bool OnlySelectionChanged(IReadOnlyList<ScoreHistoryBar> drawn, IReadOnlyList<ScoreHistoryBar> next) =>
+        drawn.Count > 0 && drawn.Count == next.Count
+        && drawn.Zip(next).All(pair => pair.First.Index == pair.Second.Index && pair.First.Point == pair.Second.Point);
+}
 
 /// <summary>A list or detail row: date, season/difficulty pills, score, accuracy (web <c>LeaderboardEntry</c> with a date label).</summary>
 /// <param name="Point">Point.</param>

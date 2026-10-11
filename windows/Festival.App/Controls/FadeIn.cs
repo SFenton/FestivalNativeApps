@@ -53,11 +53,19 @@ public static class FadeIn
     private static void OnShowChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not FrameworkElement element || e.NewValue is not true) return;
-        element.Loaded += (_, _) => { if (element.Visibility == Visibility.Visible) Play(element); };
+        element.Loaded += (_, _) => { if (element.Visibility == Visibility.Visible) Show(element); };
         element.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) =>
         {
-            if (element.IsLoaded && element.Visibility == Visibility.Visible) Play(element);
+            if (element.IsLoaded && element.Visibility == Visibility.Visible) Show(element);
         });
+    }
+
+    /// <summary>Plays an <c>OnShow</c> element's fade and traces whether it played (<c>fade-show</c>, R6).</summary>
+    /// <param name="element">Element.</param>
+    private static void Show(UIElement element)
+    {
+        var played = PlayCore(element, TimeSpan.Zero);
+        Trace("fade-show", element, $"played={(played ? 1 : 0)} motion={(Motion.Allowed ? 1 : 0)}");
     }
     #endregion
 
@@ -68,6 +76,10 @@ public static class FadeIn
     /// </summary>
     public static readonly DependencyProperty OnHideProperty = DependencyProperty.RegisterAttached(
         "OnHide", typeof(bool), typeof(FadeIn), new PropertyMetadata(false, OnHideChanged));
+
+    /// <summary>Whether <see cref="ArmHide"/> last set an implicit hide fade (traced by <c>fade-hide</c> as <c>armed</c>).</summary>
+    private static readonly DependencyProperty HideArmedProperty = DependencyProperty.RegisterAttached(
+        "HideArmed", typeof(bool), typeof(FadeIn), new PropertyMetadata(false));
 
     /// <summary>Gets <c>OnHide</c>.</summary>
     /// <param name="element">Element.</param>
@@ -95,7 +107,12 @@ public static class FadeIn
         element.Unloaded += (_, _) => Motion.Changed -= Refresh;
         element.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) =>
         {
-            if (element.Visibility != Visibility.Visible) return;
+            if (element.Visibility != Visibility.Visible)
+            {
+                if (element.IsLoaded)
+                    Trace("fade-hide", element, $"armed={(element.GetValue(HideArmedProperty) is true ? 1 : 0)} motion={(Motion.Allowed ? 1 : 0)}");
+                return;
+            }
             // A finished hide fade leaves the visual transparent; OnShow's fade (if any) animates over this.
             ElementCompositionPreview.GetElementVisual(element).Opacity = 1;
             ArmHide(element);
@@ -109,6 +126,7 @@ public static class FadeIn
         if (!Motion.Allowed)
         {
             ElementCompositionPreview.SetImplicitHideAnimation(element, null);
+            element.SetValue(HideArmedProperty, false);
             return;
         }
         var compositor = ElementCompositionPreview.GetElementVisual(element).Compositor;
@@ -117,6 +135,7 @@ public static class FadeIn
         fade.InsertKeyFrame(1f, 0f);
         fade.Duration = FadeInTiming.HideDuration;
         ElementCompositionPreview.SetImplicitHideAnimation(element, fade);
+        element.SetValue(HideArmedProperty, true);
     }
     #endregion
 
@@ -671,9 +690,13 @@ public static class FadeIn
     /// entrance element a rush started early, per hold for an automatic scroll and per row a scroll kept from fading
     /// after the rush; never for rows that just appear otherwise, so steady scrolling writes nothing. A whole-card list
     /// (<c>Together</c>, issue #614) writes one <c>fade-ride</c> per row that rides its entering card instead of fading.
+    /// An <c>OnShow</c> element writes one <c>fade-show</c> per show (<c>played</c>: whether its fade ran) and an
+    /// <c>OnHide</c> element one <c>fade-hide</c> per collapse (<c>armed</c>: whether an implicit hide fade was set), both
+    /// with <c>motion</c>, so an accessibility page can prove Reduce Motion shows and hides it at once (R6, issue #517).
     /// </summary>
     /// <param name="kind">Line kind (<c>fade-arm</c>, <c>fade-play</c>, <c>fade-enter</c>, <c>fade-rush</c>,
-    /// <c>fade-early</c>, <c>fade-close</c>, <c>fade-hold</c>, <c>fade-skip</c>, <c>fade-reveal</c>, <c>fade-ride</c>).</param>
+    /// <c>fade-early</c>, <c>fade-close</c>, <c>fade-hold</c>, <c>fade-skip</c>, <c>fade-reveal</c>, <c>fade-ride</c>,
+    /// <c>fade-show</c>, <c>fade-hide</c>).</param>
     /// <param name="list">Entrance owner (named by its x:Name, else its AutomationId).</param>
     /// <param name="detail">Space-separated <c>key=value</c> pairs (an <c>at=</c> monotonic time in ms is appended).</param>
     internal static void Trace(string kind, UIElement list, FormattableString detail)

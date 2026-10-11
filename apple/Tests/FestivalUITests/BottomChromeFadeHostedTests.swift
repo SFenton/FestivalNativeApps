@@ -151,7 +151,7 @@ enum BottomChromeFadeMode: String, CaseIterable, CustomTestStringConvertible {
 
 /// The board's own scroll view: the deepest one whose content runs past its height.
 @MainActor
-private func boardScrollView(in view: NSView) -> NSScrollView? {
+func boardScrollView(in view: NSView) -> NSScrollView? {
     for subview in view.subviews {
         if let found = boardScrollView(in: subview) { return found }
     }
@@ -167,7 +167,7 @@ private func boardScrollView(in view: NSView) -> NSScrollView? {
 /// Mean channel value (0–255) above which a sample is row text: the rows' light grey
 /// text measures ~140 on cards of ~35. Within 10 pt of the chrome the fade leaves text
 /// at most ~28% opaque (~65), well under it.
-private let rowTextThreshold = 100
+let rowTextThreshold = 100
 
 /// The two band boards, each with its row identifiers.
 enum BottomChromeBandBoard: String, CaseIterable, CustomTestStringConvertible {
@@ -208,7 +208,7 @@ enum BottomChromeBandBoard: String, CaseIterable, CustomTestStringConvertible {
 /// Scroll the board's clip view so `offset` points of content sit above its top, and
 /// let the scroll-driven fade height and mask settle.
 @MainActor
-private func scrollBoard(
+func scrollBoard(
     _ scroll: NSScrollView, to offset: CGFloat, host: NSHostingView<some View>
 ) async throws -> CGImage {
     let clip = scroll.contentView
@@ -296,7 +296,7 @@ func bandBoardRowsFadeAbovePagerWithoutPlayerFooter(board: BottomChromeBandBoard
 // MARK: - Accessibility (issue #473, for #329)
 
 /// One realized accessibility element: identifier, spoken text, role, state and frame.
-private struct BoardAccessibilityNode {
+struct BoardAccessibilityNode {
     let identifier: String
     /// Label, then value, joined (what VoiceOver reads first).
     let text: String
@@ -319,7 +319,7 @@ private struct BoardAccessibilityNode {
 /// - Parameter host: The window's hosting view.
 /// - Returns: The elements, depth first.
 @MainActor
-private func boardAccessibilityNodes(in host: NSView) -> [BoardAccessibilityNode] {
+func boardAccessibilityNodes(in host: NSView) -> [BoardAccessibilityNode] {
     var nodes: [BoardAccessibilityNode] = []
     var seen = Set<ObjectIdentifier>()
     func read(_ object: NSObject, _ key: String) -> Any? {
@@ -359,6 +359,15 @@ extension BottomChromeBandBoard {
         switch self {
         case .bandRankings: "fst.band-rankings"
         case .songBand: "fst.song-band-leaderboard"
+        }
+    }
+
+    /// Identifiers of the floating bar's other controls beside the pager (the band-size
+    /// switcher pill); like the pager they sit below the fade.
+    var barControlIdentifiers: [String] {
+        switch self {
+        case .bandRankings: ["fst.band-rankings.band-type-menu"]
+        case .songBand: []
         }
     }
 
@@ -481,7 +490,8 @@ func bandBoardFooterFadeKeepsRowsAndPagerAccessible(
         let strays = nodes.filter { node in
             guard let frame = node.frame, frame.intersects(fadeBand), frame.height < size.height / 2,
                   board.rank(of: node.identifier) == nil,
-                  !node.identifier.hasPrefix("\(board.pagerPrefix).page") else { return false }
+                  !node.identifier.hasPrefix("\(board.pagerPrefix).page"),
+                  !board.barControlIdentifiers.contains(node.identifier) else { return false }
             return !rowFrames.contains { $0.insetBy(dx: -1, dy: -1).contains(frame) }
         }
         #expect(strays.isEmpty, "only rows are reachable in the fade band: \(strays.map { "\($0.identifier) \($0.text)" })")
@@ -501,6 +511,15 @@ func bandBoardFooterFadeKeepsRowsAndPagerAccessible(
         let infoFrame = try #require(info.frame)
         #expect(infoFrame.width >= 44 && infoFrame.height >= 44, "page-info target \(infoFrame)")
         #expect(infoFrame.minY >= chromeTop - 0.5, "page-info sits below the fade: \(infoFrame) vs \(chromeTop)")
+        // The band-size pill: one 44 pt control beside the pager, also below the fade (the
+        // opaque card's centred stroke may reach half a point above it).
+        for id in board.barControlIdentifiers {
+            let controls = nodes.filter { $0.identifier == id }
+            #expect(controls.count == 1, "\(id) is one element: \(controls.map(\.text))")
+            let frame = try #require(controls.first?.frame, "\(id) frame")
+            #expect(frame.width >= 44 && frame.height >= 44, "\(id) target \(frame)")
+            #expect(frame.minY >= chromeTop - 0.5, "\(id) sits below the fade: \(frame) vs \(chromeTop)")
+        }
     }
 }
 

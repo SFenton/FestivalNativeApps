@@ -7,8 +7,9 @@ Songs section-push AX XXXL journey (#288, #452), the Songs large-title rest jour
 the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape) and the pinned caption-icon journeys (``song-header`` R4, #542); ``HISTORY_JOURNEYS``/``HISTORY_IPAD_JOURNEYS``
 (iPad bundle, on the iPhone and the iPad) must keep the Score History AX5 journeys (#385, the region #302 changed);
 ``PLAIN_JOURNEYS`` (iPhone bundle, on the iPhone in the plain-fixture step) must keep the Filter Invalid Scores score-check
-journey (#615). The Songs Filter journeys (#432) must run on the iPhone, the iPad and the folded iPhone Duo
-on release-branch dispatches, gated by the required ``apple-ci`` job.
+journey (#615); ``UNPINNED_JOURNEYS`` (iPhone bundle, on its own unpinned listener) must keep the player
+profile's pause-notice AX5 journey (#446, the region #97 changed). The Songs Filter journeys (#432) must run on
+the iPhone, the iPad and the folded iPhone Duo on release-branch dispatches, gated by the required ``apple-ci`` job.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ BLOCKS = {
     "PLAIN_JOURNEYS": UITESTS,
     "HISTORY_JOURNEYS": IPAD_UITESTS,
     "HISTORY_IPAD_JOURNEYS": IPAD_UITESTS,
+    "UNPINNED_JOURNEYS": UITESTS,
 }
 
 
@@ -269,9 +271,9 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertEqual(self.history["HISTORY_JOURNEYS"], [page], "the iPhone run: the page only (the split skips)")
         self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split])
         self.assertEqual(self.workflow.count("uitest --app ipad"), 2)
-        # iPhone journeys, two Score History runs, the plain-fixture iPhone run (#615), the iPad journeys and the
-        # iPad keyboard batch (#473), and the Songs Filter legs (#432).
-        self.assertEqual(self.workflow.count("--fail-on-skip"), 7)
+        # iPhone journeys, the unpinned profile-notice run (#446), two Score History runs, the plain-fixture iPhone run
+        # (#615), the iPad journeys and the iPad keyboard batch (#473), and the Songs Filter legs (#432).
+        self.assertEqual(self.workflow.count("--fail-on-skip"), 8)
 
     def test_invalid_score_filter_journey_runs_on_the_plain_fixture(self) -> None:
         # #615: the only device evidence for the Filter sheet's score checks under Filter Invalid Scores. It needs
@@ -297,6 +299,15 @@ class AppleCIJourneysTests(unittest.TestCase):
         # #288/#452: the only iOS Dynamic Type and audit evidence for the Songs section push.
         self.assertIn("SongsChromeJourneyTests/testSectionPushIsAccessibleAtLargestText", self.journeys)
 
+    def test_section_jump_ax5_journeys_run_in_ci(self) -> None:
+        # #451 (for #286): the only iOS Dynamic Type and audit evidence for a Songs index jump's landing.
+        iphone, ipad = self.blocks
+        for method in ("testSectionJumpIsAccessibleAtLargestText", "testSectionJumpIsAccessibleAtLargestTextDuoFolded"):
+            self.assertIn(f"SongsChromeJourneyTests/{method}", iphone)
+        # The Duo window is simulated on an iPhone only; its selector skips on an iPad.
+        self.assertIn("SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestText", ipad)
+        self.assertNotIn("SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestTextDuoFolded", ipad)
+
     def test_large_title_rest_journeys_run_in_ci(self) -> None:
         # #560: the only device evidence that a programmatic scroll never rests part-way through the large title,
         # on the current scroll-geometry path and the forced iOS 17 `PlatformScrollObserver` path.
@@ -312,6 +323,18 @@ class AppleCIJourneysTests(unittest.TestCase):
             "testPlayerHistoryCaptionIconAtLargestText",
         ):
             self.assertIn(f"SongBarCaptionIconJourneyTests/{method}", self.journeys)
+
+    def test_profile_notice_ax5_journey_runs_on_its_unpinned_listener(self) -> None:
+        # #446/#97: the only real Dynamic Type evidence for the profile's pause notice (macOS has none).
+        self.assertEqual(
+            ci_journey_blocks(self.workflow, "UNPINNED_JOURNEYS"), [["ProfileNoticeTextSizeJourneyTests/testUnverifiedNoticeGrowsAndStaysWholeAtLargestText"]]
+        )
+        step = self.workflow.split("- name: iPhone unpinned-fixture journeys", 1)[1].split("- name:", 1)[0]
+        self.assertIn("tools/mock_service.py --port 18446 --unpinned", step)
+        self.assertIn("TEST_RUNNER_FST_PROFILE_NOTICE_FIXTURE_URL: http://127.0.0.1:18446", step)
+        self.assertIn("--fail-on-skip", step)
+        source = (UITESTS / "ProfileNoticeTextSizeJourneyTests.swift").read_text(encoding="utf-8")
+        self.assertIn('?? "http://127.0.0.1:18446"', source)
 
 
 if __name__ == "__main__":

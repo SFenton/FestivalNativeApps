@@ -1,3 +1,4 @@
+using Festival.Core.Domain;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Windows.Foundation;
@@ -30,27 +31,30 @@ public sealed partial class WrapPanel : Panel
     /// <returns>Used size.</returns>
     private Size Layout(double width, bool arrange)
     {
-        var lines = new List<(List<UIElement> Items, double Height)>();
-        var current = new List<UIElement>();
-        double x = 0, line = 0, used = 0;
+        var visible = new List<UIElement>();
         foreach (var child in Children)
         {
             if (!arrange) child.Measure(new Size(width, double.PositiveInfinity));
-            if (child.Visibility == Visibility.Collapsed) continue;
-            var size = child.DesiredSize;
-            if (x > 0 && x + size.Width > width)
+            if (child.Visibility != Visibility.Collapsed) visible.Add(child);
+        }
+        // Shared rule (with a layout-rounding tolerance) so arrange never breaks a line that measure kept whole.
+        var breaks = WrapLineLayout.Lines(visible.Select(c => c.DesiredSize.Width).ToArray(), width, HorizontalSpacing);
+        var lines = new List<(List<UIElement> Items, double Height)>();
+        double x = 0, used = 0;
+        for (var i = 0; i < visible.Count; i++)
+        {
+            var size = visible[i].DesiredSize;
+            if (i == 0 || breaks[i] != breaks[i - 1])
             {
-                lines.Add((current, line));
-                current = [];
+                lines.Add(([], 0));
                 x = 0;
-                line = 0;
             }
-            current.Add(child);
+            var (items, height) = lines[^1];
+            items.Add(visible[i]);
+            lines[^1] = (items, Math.Max(height, size.Height));
             x += size.Width + HorizontalSpacing;
             used = Math.Max(used, x - HorizontalSpacing);
-            line = Math.Max(line, size.Height);
         }
-        if (current.Count > 0) lines.Add((current, line));
 
         double y = 0;
         foreach (var (items, height) in lines)
