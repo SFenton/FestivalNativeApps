@@ -74,6 +74,8 @@
       "toggle:id=fst.suggestions.filter.instrument-picker.compact",
       "scrollinto:id=fst.suggestions.filter.type.Solo_Bass.nearFC@5",
       "waitfor:id=fst.suggestions.filter.type.Solo_Bass.nearFC@5",
+      "focus:id=fst.suggestions.filter.type.Solo_Bass.nearFC",
+      "assertfocus:id=fst.suggestions.filter.type.Solo_Bass.nearFC",
       "wait:0.5"
     ],
     "teardown": [
