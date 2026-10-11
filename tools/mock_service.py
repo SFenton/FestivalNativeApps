@@ -129,6 +129,26 @@ SONG_BAND_LEADERBOARDS_ALL = re.compile(r"^/api/leaderboard/(fixture-[a-z0-9-]+)
 PLAYER = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)$")
 PLAYER_HISTORY = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/history$")
 PLAYER_NOTIFICATIONS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/notifications$")
+# `fixture-notifications-long` (issue #459): a feed long enough to scroll the
+# Notifications sheet under its pinned "New" title at any text size.
+LONG_NOTIFICATIONS_ACCOUNT = "fixture-notifications-long"
+LONG_NOTIFICATIONS_COUNT = 24
+
+
+def _long_notifications(account_id: str) -> list[dict]:
+    """Rank-improved events on `fixture-pulse`, newest first, cycling the four parts."""
+    instruments = ["Solo_Guitar", "Solo_Bass", "Solo_Drums", "Solo_Vocals"]
+    return [
+        {
+            "eventId": 100 + index, "notificationGuid": f"fixture-long-notif-{index}",
+            "accountId": account_id, "eventKind": "player_song_rank_improved",
+            "songId": "fixture-pulse", "instrument": instruments[index % len(instruments)],
+            "oldRank": 500 + index, "newRank": index + 1,
+            "detectedAt": "2024-01-05T00:00:00Z", "expiresAt": "2024-02-05T00:00:00Z",
+        }
+        for index in range(LONG_NOTIFICATIONS_COUNT)
+    ]
+
 PLAYER_BANDS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/bands$")
 RANKINGS = re.compile(r"^/api/rankings/([A-Za-z_]+)$")
 PLAYER_RANK_HISTORY = re.compile(r"^/api/rankings/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
@@ -1358,6 +1378,13 @@ class FixtureHandler(BaseHTTPRequestHandler):
                             "expiresAt": "2024-02-04T00:00:00Z",
                         },
                     ][:limit],
+                })
+            elif account_id == LONG_NOTIFICATIONS_ACCOUNT:
+                self._json(200, {
+                    "generatedAt": "2024-01-05T00:00:00Z", "expiresAfterHours": 72,
+                    "sourceRunId": 1, "sourceCompletedAt": "2024-01-05T00:00:00Z",
+                    "notificationsGenerated": True,
+                    "items": _long_notifications(account_id)[:limit],
                 })
             else:
                 # An unregistered/unknown account gets an empty *generated* envelope,
