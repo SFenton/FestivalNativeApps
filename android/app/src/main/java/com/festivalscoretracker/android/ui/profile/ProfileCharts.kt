@@ -17,7 +17,7 @@ import com.festivalscoretracker.android.core.profile.PlayerTileAction
 import com.festivalscoretracker.android.core.suggestions.PercentileTier
 import com.festivalscoretracker.android.presentation.profile.PercentileRow
 import com.festivalscoretracker.android.ui.design.GlassCard
-import com.festivalscoretracker.android.ui.suggestions.PercentilePill
+import com.festivalscoretracker.android.ui.design.PercentilePill
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,7 +76,7 @@ internal fun PercentileTable(rows: List<PercentileRow>, canRun: (PlayerTileActio
                     Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(Modifier.weight(1f)) { PercentilePill(row.bucket.label, percentileTier(row.bucket.topPercent)) }
+                    Box(Modifier.weight(1f)) { PercentilePill(row.bucket.label, tier = percentileTier(row.bucket.topPercent)) }
                     Text(row.bucket.count.toString(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary)
                     if (action != null) {
                         Icon(

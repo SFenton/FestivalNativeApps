@@ -353,6 +353,260 @@ final class FirstRunJourneyTests: XCTestCase {
         relaunched.buttons["fst.first-run.close"].tap()
     }
 
+    // MARK: - Guide title (issue #24, accessibility backfill #429)
+
+    /// Issue #24 gave each guide an inline navigation title naming its page, and left
+    /// VoiceOver's first focus to the system so that title is read first. On the launch Songs
+    /// guide and the Leaderboards guide (the longest tab-root title), launched at the default
+    /// size and again at the largest accessibility text size (AX5):
+    /// - **name and role:** the title is a heading named exactly by its page, the bar's only text;
+    ///   Close keeps its name, button role and a hittable target;
+    /// - **reading order:** across the whole presented guide (the sheet's subtree of the
+    ///   accessibility snapshot, not just its bar) the first elements read are the title, Close,
+    ///   then the first slide (`modal-shell` R2), with nothing of the page behind the sheet
+    ///   reachable; the bar itself reads title then Close, and the frames follow that order;
+    /// - **text scaling:** the title's drawn glyphs (ink height in pixels,
+    ///   `SongsUITestSupport.brightGlyphHeight`) grow from the default size to AX5 by at least
+    ///   ``guideTitleMinimumGrowth``, and at both sizes the title reads back whole from its
+    ///   capture (Vision, ``RecognizedText``: no ellipsis), wholly on screen and clear of Close;
+    ///   the scoped AX5 audit (Dynamic Type, clipped text, hit region, descriptions, element
+    ///   detection) finds nothing in the guide's bar.
+    ///
+    /// The title is the system inline navigation title (`FestivalModal`, `modal-shell` R2), whose
+    /// size UIKit caps (measured 1.22× for "Leaderboards", 1.23× for "Songs"; bar titles offer the
+    /// Large Content Viewer instead, `testing/apple/accessibility.md` `system-bar-title-size`),
+    /// so its floor is ``guideTitleMinimumGrowth``, not the 1.35× rule for page text; Apple's
+    /// Dynamic Type audit accepts it.
+    /// It is navigation-bar chrome a macOS-hosted view cannot reproduce, so this journey is the
+    /// evidence (`FirstRunGuideTitleTests` unit-tests every page's title;
+    /// `FirstRunDemoSongsAccessibilityTests` the content order). HIG VoiceOver: "Use titles and
+    /// headings to convey hierarchy"; HIG Accessibility: 44×44 pt default control size.
+    @MainActor
+    func testGuideTitleIsReadFirstAtLargestText() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        for (tab, title, firstSlide) in [
+            ("songs", "Songs", "Song List"), ("leaderboards", "Leaderboards", "Global Rankings"),
+        ] {
+            let standard = launchGuide(tab: tab, contentSize: .large)
+            let baseline = try assertGuideTitle(standard, title: title, firstSlide: firstSlide, size: "default")
+            standard.terminate()
+
+            let app = launchGuide(tab: tab, contentSize: .accessibilityExtraExtraExtraLarge)
+            let enlarged = try assertGuideTitle(app, title: title, firstSlide: firstSlide, size: "AX5")
+            let ratio = enlarged / baseline
+            let growth = XCTAttachment(string: String(format: "%@ %.0f → %.0f px (%.2f×)", title, baseline, enlarged, ratio))
+            growth.name = "first-run-title-growth-\(tab)"
+            growth.lifetime = .keepAlways
+            add(growth)
+            XCTAssertGreaterThanOrEqual(ratio, Self.guideTitleMinimumGrowth,
+                                        "'\(title)' glyphs grow at AX5: \(enlarged) vs \(baseline) px")
+            try auditGuideBar(app, title: title)
+            app.terminate()
+        }
+    }
+
+    /// Minimum growth of the guide's title glyphs from the default size to AX5.
+    ///
+    /// UIKit caps the inline navigation title (`system-bar-title-size`): its ink measured
+    /// 36 → 44 px ("Leaderboards") and 43 → 53 px ("Songs") on an iPhone 17 Pro, 1.22–1.23×.
+    /// The floor fails a title drawn at a fixed size (1.0×) with room for a pixel of rounding.
+    static let guideTitleMinimumGrowth: CGFloat = 1.15
+
+    /// Launch the fixture app at `contentSize` with the guide of `tab` forced open.
+    ///
+    /// - Parameters:
+    ///   - tab: The `FST_DEBUG_TAB` whose guide opens.
+    ///   - contentSize: The preferred content size category.
+    /// - Returns: The launched app.
+    @MainActor
+    private func launchGuide(tab: String, contentSize: UIContentSizeCategory) -> XCUIApplication {
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": ProcessInfo.processInfo.environment["FST_FIRST_RUN_FIXTURE_URL"]
+                ?? "http://127.0.0.1:8765",
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_FIRST_RUN": "force",
+            "FST_DEBUG_TAB": tab,
+        ])
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", contentSize.rawValue]
+        app.launch()
+        return app
+    }
+
+    /// The title rules of ``testGuideTitleIsReadFirstAtLargestText()`` on one open guide.
+    ///
+    /// - Parameters:
+    ///   - app: The launched app showing a guide.
+    ///   - title: The page title the guide must carry.
+    ///   - firstSlide: Title of the guide's first slide.
+    ///   - size: The launch's text size, for messages and attachments.
+    /// - Returns: The title's ink height in pixels.
+    /// - Throws: An unreadable snapshot or an unrecognized title.
+    @MainActor
+    private func assertGuideTitle(
+        _ app: XCUIApplication, title: String, firstSlide: String, size: String
+    ) throws -> CGFloat {
+        let close = app.navigationBars.buttons["fst.first-run.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: FestivalApp.budget(20)), "\(title) guide opens (\(size))")
+        // Next, or Done for a one-slide guide (Leaderboards without a player).
+        let next = app.buttons.matching(
+            NSPredicate(format: "identifier IN %@", ["fst.first-run.next", "fst.first-run.done"])
+        ).firstMatch
+        XCTAssertTrue(next.waitForExistence(timeout: FestivalApp.budget(10)), "\(title) guide shows Next or Done")
+        let bar = app.navigationBars.containing(.button, identifier: "fst.first-run.close").firstMatch
+        let heading = bar.staticTexts[title]
+        XCTAssertTrue(heading.waitForExistence(timeout: FestivalApp.budget(5)), "\(title) guide is titled \(title)")
+        let slide = slide(app, titled: firstSlide)
+        XCTAssertTrue(slide.waitForExistence(timeout: FestivalApp.budget(10)), "\(firstSlide) slide")
+        Thread.sleep(forTimeInterval: FestivalApp.budget(1))
+        SongsUITestSupport.record(app, name: "first-run-title-\(title.lowercased())-\(size)")
+
+        // Name and role: the bar's only text is the page name, read as a heading.
+        let nodes = Self.flatten(try bar.snapshot()).map(\.node)
+        let texts = nodes.filter { $0.elementType == .staticText }
+        XCTAssertEqual(texts.map(\.label), [title], "the guide's bar reads only its title (\(size))")
+        if let text = texts.first, let traits = Self.traits(text) {
+            XCTAssertNotEqual(traits & UIAccessibilityTraits.header.rawValue, 0, "'\(title)' is a heading (\(size))")
+        }
+        let readable = nodes.filter { $0.elementType == .staticText || $0.elementType == .button }
+            .map { $0.identifier.isEmpty ? $0.label : $0.identifier }
+        XCTAssertEqual(readable, [title, "fst.first-run.close"], "bar reads title then Close (\(size))")
+
+        try assertGuideReadingOrder(app, title: title, firstSlide: firstSlide, size: size)
+
+        // Placement: wholly on screen, before Close, above the slide and its controls.
+        let window = app.windows.firstMatch.frame
+        let frame = heading.frame
+        XCTAssertTrue(window.contains(frame), "'\(title)' wholly on screen: \(frame) (\(size))")
+        XCTAssertLessThanOrEqual(frame.maxX, close.frame.minX, "'\(title)' ends before Close (\(size))")
+        XCTAssertFalse(frame.intersects(close.frame), "'\(title)' does not overlap Close (\(size))")
+        XCTAssertLessThanOrEqual(frame.maxY, slide.frame.minY + 0.5,
+                                 "'\(title)' \(frame) above the slide \(slide.frame) (\(size))")
+        XCTAssertLessThan(frame.maxY, next.frame.minY, "'\(title)' above \(next.label) (\(size))")
+
+        // Text scaling: the drawn title reads back whole; the caller compares its ink height.
+        let reading = RecognizedText.recognize(heading, label: title, frame: frame)
+        XCTAssertTrue(RecognizedText.showsWhole(title, in: reading.text),
+                      "'\(title)' reads back whole at \(size): '\(reading.text ?? "nil")'")
+        let height = CGFloat(try SongsUITestSupport.brightGlyphHeight(in: heading))
+        XCTAssertGreaterThan(height, 8, "'\(title)' has measurable ink at \(size)")
+
+        // Close: a named, hittable button beside the title. Its frame reads about 35 pt but
+        // the system expands its hit region (near-miss taps:
+        // `testControlsAcceptNearMissesAndReadAsButtons`); the AX5 audit's hit-region check
+        // covers it.
+        XCTAssertEqual(close.label, "Close")
+        XCTAssertEqual(close.elementType, .button)
+        XCTAssertTrue(close.isHittable, "Close is reachable (\(size))")
+        return height
+    }
+
+    /// The whole presented guide reads its title, then Close, then the first slide.
+    ///
+    /// The app snapshot follows the accessibility element order VoiceOver navigates. Across
+    /// the whole app (not just the guide's bar) the first readable elements must be the title,
+    /// Close and the slide, in that order. The guide is the smallest subtree holding its
+    /// navigation bar and its first slide; nothing readable may lie outside it except the
+    /// system sheet grabber (the sheet's own "Sheet Grabber" button, which UIKit places ahead of
+    /// the sheet's content in every grabber sheet; it is sheet chrome, not body), so the page
+    /// behind the modal sheet is out of the tree.
+    ///
+    /// - Parameters:
+    ///   - app: The launched app showing a guide.
+    ///   - title: The page title the guide must carry.
+    ///   - firstSlide: Title of the guide's first slide.
+    ///   - size: The launch's text size, for messages.
+    /// - Throws: An unreadable snapshot.
+    @MainActor
+    private func assertGuideReadingOrder(
+        _ app: XCUIApplication, title: String, firstSlide: String, size: String
+    ) throws {
+        let all = Self.flatten(try app.snapshot())
+        func name(_ node: XCUIElementSnapshot) -> String {
+            node.identifier.isEmpty ? node.label : node.identifier
+        }
+        func isGrabber(_ node: XCUIElementSnapshot) -> Bool {
+            node.elementType == .button && node.label == "Sheet Grabber"
+        }
+        let titleNode = all.first { entry in
+            entry.node.elementType == .staticText && entry.node.label == title
+                && all.contains { $0.node.elementType == .navigationBar && entry.path.starts(with: $0.path) }
+        }
+        let slideNode = all.first { $0.node.label.hasPrefix("\(firstSlide). ") }
+        let titlePath = try XCTUnwrap(titleNode?.path, "'\(title)' in the app snapshot (\(size))")
+        let slidePath = try XCTUnwrap(slideNode?.path, "'\(firstSlide)' slide in the app snapshot (\(size))")
+        let guide = Array(zip(titlePath, slidePath).prefix { $0 == $1 }.map(\.0))
+        // A readable element is one VoiceOver stops on: text, a button, or the combined slide.
+        // Nodes inside the slide are combined into it, so VoiceOver reads them with the slide.
+        let readable = all.filter { entry in
+            (entry.node.elementType == .staticText || entry.node.elementType == .button
+                || entry.node.label.hasPrefix("\(firstSlide). ")) && !name(entry.node).isEmpty
+                && !(entry.path.count > slidePath.count && entry.path.starts(with: slidePath))
+        }
+        let attachment = XCTAttachment(string: readable.map { entry in
+            let inGuide = entry.path.count > guide.count && entry.path.starts(with: guide)
+            return "\(inGuide ? "guide" : "outside") \(entry.node.elementType.rawValue) \(name(entry.node))"
+        }.joined(separator: "\n"))
+        attachment.name = "first-run-\(title.lowercased())-\(size)-reading-order"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        let order = readable.filter { !isGrabber($0.node) }.map { name($0.node) }
+        XCTAssertEqual(Array(order.prefix(3)), [title, "fst.first-run.close", slideNode?.node.label ?? firstSlide],
+                       "the presented guide reads its title, then Close, then the slide (\(size)): \(order)")
+        let outside = readable.filter { entry in
+            !(entry.path.count > guide.count && entry.path.starts(with: guide)) && !isGrabber(entry.node)
+        }.map { name($0.node) }
+        XCTAssertEqual(outside, [], "the page behind the guide is out of the accessibility tree (\(size))")
+    }
+
+    /// Audit the guide's bar at AX5: the title and Close, and anything drawn in the bar.
+    ///
+    /// - Parameters:
+    ///   - app: The launched app showing a guide at AX5.
+    ///   - title: The page title the guide carries.
+    /// - Throws: A failed audit run.
+    @MainActor
+    private func auditGuideBar(_ app: XCUIApplication, title: String) throws {
+        let bar = app.navigationBars.containing(.button, identifier: "fst.first-run.close").firstMatch
+        var issues: [String] = []
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            app, [.dynamicType, .textClipped, .hitRegion, .sufficientElementDescription, .elementDetection],
+            name: "\(title) guide bar", reset: { issues = [] }
+        ) { issue in
+            guard let element = issue.element else { return true }
+            let frame = element.frame
+            guard element.identifier == "fst.first-run.close" || element.label == title
+                || frame.intersects(bar.frame) else { return true }
+            issues.append("\(issue.compactDescription): #\(element.identifier) '\(element.label)' \(frame)")
+            return true
+        }
+        XCTAssertEqual(issues, [], "Open audit issues in the \(title) guide's bar")
+    }
+
+    /// Every node of a snapshot in depth-first (accessibility) order, with its child-index path.
+    ///
+    /// - Parameter root: The snapshot root.
+    /// - Returns: Nodes in order; a node's path is a prefix of its descendants' paths.
+    @MainActor
+    private static func flatten(_ root: XCUIElementSnapshot) -> [(node: XCUIElementSnapshot, path: [Int])] {
+        var nodes: [(node: XCUIElementSnapshot, path: [Int])] = []
+        func visit(_ node: XCUIElementSnapshot, _ path: [Int]) {
+            nodes.append((node, path))
+            for (index, child) in node.children.enumerated() { visit(child, path + [index]) }
+        }
+        visit(root, [])
+        return nodes
+    }
+
+    /// The snapshot's accessibility traits, when readable (as `WhatsNewAccessibilityJourneyTests`).
+    @MainActor
+    private static func traits(_ snapshot: XCUIElementSnapshot) -> UInt64? {
+        let object = snapshot as AnyObject
+        guard object.responds(to: NSSelectorFromString("traits")) else { return nil }
+        return (object.value(forKey: "traits") as? NSNumber)?.uint64Value
+    }
+
     // MARK: - Song demos (issue #26, accessibility backfill #401)
 
     /// Issue #26: the Songs list demo shows real catalogue songs (redacted placeholders while

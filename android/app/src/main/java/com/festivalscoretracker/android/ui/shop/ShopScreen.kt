@@ -396,7 +396,7 @@ private fun ShopContent(
         StartPane(hinge) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val side = shopSideMargin(maxWidth.value).dp
-                Column(Modifier.fillMaxSize().padding(start = side, end = side, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)) {
+                Column(Modifier.fillMaxSize().padding(start = side, end = side, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding())) {
                     if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
                     state.sortPaused?.let { Notice(it, "fst.shop.sort-paused") }
                     if (state.filteredEmpty) NoMatchingOffers(Modifier.weight(1f)) else EmptyShop(Modifier.weight(1f))
@@ -421,7 +421,7 @@ private fun ShopContent(
         val sideDp = shopSideMargin(maxWidth.value).dp
         val side = with(density) { sideDp.roundToPx() }
         val pageWidth = constraints.maxWidth
-        val contentPadding = PaddingValues(start = sideDp, end = sideDp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)
+        val contentPadding = PaddingValues(start = sideDp, end = sideDp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding())
         // The hinge in the content's leading-edge coordinates (the cells mirror back for RTL).
         val contentHinge = hinge?.let { (start, width) ->
             val left = start.roundToInt()

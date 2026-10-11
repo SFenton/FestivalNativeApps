@@ -136,7 +136,7 @@
       "assertname:id=fst.song-band-leaderboard.title|Fixture Pulse",
       "assertname:id=fst.song-band-leaderboard.subtitle|Duos",
       "assertstate:id=fst.song-band-leaderboard.song|type=button",
-      "assertstate:id=fst.song-band-leaderboard.song|name=Fixture Pulse",
+      "assertstate:id=fst.song-band-leaderboard.song|name=Fixture Pulse, Synthetic Quartet, Duos, 29 Duos entries",
       "assertstate:id=fst.song-band-leaderboard.song|invoke=true",
       "invoke:id=fst.song-band-leaderboard.song",
       "waitfor:id=fst.song-detail.title@10",

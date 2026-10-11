@@ -658,7 +658,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         let tabTop = app.tabBars.firstMatch.exists
             ? app.tabBars.firstMatch.frame.minY : app.windows.firstMatch.frame.maxY
         let rowUnderTabBar = rowSnapshots().contains { $0.frame.maxY > tabTop }
-        try performAuditRetryingTimeout(app, .all, name: "largest text fade", reset: {}) { issue in
+        try SongsUITestSupport.performAuditRetryingTimeout(app, .all, name: "largest text fade", reset: {}) { issue in
             let attachment = XCTAttachment(
                 string: "\(issue.auditType): \(issue.detailedDescription); "
                     + "element=\(issue.element?.identifier ?? "unidentified"), "
@@ -1053,7 +1053,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         var failures: [String] = []
         var unattributedClipped = 0
         var unattributedContrast: [String] = []
-        try performAuditRetryingTimeout(app, .all, name: name, reset: {
+        try SongsUITestSupport.performAuditRetryingTimeout(app, .all, name: name, reset: {
             page = nil
             accepted = []
             failures = []
@@ -1136,7 +1136,7 @@ final class SongsChromeJourneyTests: XCTestCase {
     @MainActor
     private func ax5Clipping(_ app: XCUIApplication) throws -> [String] {
         var clipped: [String] = []
-        try performAuditRetryingTimeout(app, .textClipped, name: "ax5 clipping", reset: { clipped = [] }) { issue in
+        try SongsUITestSupport.performAuditRetryingTimeout(app, .textClipped, name: "ax5 clipping", reset: { clipped = [] }) { issue in
             if issue.element?.elementType != .searchField {
                 clipped.append(issue.element.map { "\($0.elementType.rawValue) '\($0.label)'" } ?? "no element")
             }
@@ -1144,39 +1144,6 @@ final class SongsChromeJourneyTests: XCTestCase {
         }
         XCTContext.runActivity(named: "AX5 clipping: \(clipped)") { _ in }
         return clipped
-    }
-
-    /// Run an accessibility audit, once more when it does not complete in time: the CI
-    /// runner's virtual machine sometimes exceeds XCTest's audit deadline on this long
-    /// list (`com.apple.xcode.xctest.accessibilityAudit` -56, #388).
-    ///
-    /// - Parameters:
-    ///   - app: The app to audit.
-    ///   - types: The audit types.
-    ///   - name: Names the retry activity.
-    ///   - reset: Clears what the handler collected before the retry.
-    ///   - handler: The issue handler.
-    /// - Throws: The second timeout or any other audit error.
-    @MainActor
-    private func performAuditRetryingTimeout(
-        _ app: XCUIApplication,
-        _ types: XCUIAccessibilityAuditType,
-        name: String,
-        reset: () -> Void,
-        _ handler: @escaping (XCUIAccessibilityAuditIssue) throws -> Bool
-    ) throws {
-        // A busy host also reports the deadline as an `XCTFuture` timeout (code 1000).
-        func timedOut(_ error: NSError) -> Bool {
-            (error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56)
-                || (error.domain == "com.apple.dt.XCTest.XCTFuture" && error.code == 1000)
-        }
-        do {
-            try app.performAccessibilityAudit(for: types, handler)
-        } catch let error as NSError where timedOut(error) {
-            XCTContext.runActivity(named: "Audit \(name) did not complete in time; retrying once") { _ in }
-            reset()
-            try app.performAccessibilityAudit(for: types, handler)
-        }
     }
 
     /// The static texts between the top ramp and the bottom chrome that do not render
@@ -1452,7 +1419,7 @@ final class SongsChromeJourneyTests: XCTestCase {
                        "\(to) \(incoming.frame) not sized like the floating title \(sectionBar.frame)")
 
         var issues: [String] = []
-        try performAuditRetryingTimeout(
+        try SongsUITestSupport.performAuditRetryingTimeout(
             app, [.dynamicType, .textClipped, .sufficientElementDescription, .trait],
             name: "section push", reset: { issues = [] }
         ) { issue in
@@ -1624,7 +1591,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertLessThanOrEqual(bar.maxX, rail.frame.minX, "The bar is not leading of the rail: \(bar) \(rail.frame)")
 
         // The system audit, for the bar only (other regions have their own journeys).
-        try performAuditRetryingTimeout(
+        try SongsUITestSupport.performAuditRetryingTimeout(
             app, [.dynamicType, .textClipped, .sufficientElementDescription],
             name: "section bar", reset: {}
         ) { issue in

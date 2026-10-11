@@ -53,7 +53,7 @@ import org.robolectric.annotation.Config
  * jump lands the section's top [QuickLinks.LANDING_OFFSET_DP] (32 dp) below the visible top of the page,
  * just under the top app bar, and the entry then names the landed section (the activation line matches
  * the landing line). Covers the compact sheet, the wider top-bar menu, phone landscape and 2.0 text, for
- * lazy lists (Settings, Leaderboards), staggered grids (player page, Compete) and a plain scrolling
+ * lazy lists (Settings, Leaderboards), row-major grids (player page, Compete) and a plain scrolling
  * column (Band). Issue #587: what lands on the line is the section's heading title, not the padded top of
  * its item, so headings that keep their own top padding (Song Detail's 12 dp instrument header and 16 dp
  * section headers, Compete's 8 dp group headers) leave no dead space under the top bar.
@@ -179,11 +179,18 @@ class QuickLinksLandingUiTest {
         val transport = songs(FakeTransport.standard()).apply { ProfileFixtures.register(this) }
         launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true), transport)
         waitForTag("fst.player.available")
-        // Lazily built staggered-grid items: the jump lands after composing the target.
+        val overview = titleIn("fst.player.overview")
+        // Overview is the page's first row since Select moved to the toolbar (#590), so its title rests
+        // above the landing line at the top of the page.
+        val restTop = overview.top()
+        // Lazily built grid items: the jump lands after composing the target.
         assertLands("top-songs", "Top Songs", titleIn("fst.player.top-songs"))
         // The instrument heading row is flush with its section.
         assertLands("instrument:Solo_Bass", "Bass", flush("fst.player.instrument.Solo_Bass"))
-        assertLands("global", "Global Statistics", titleIn("fst.player.overview"))
+        // The first section clamps at the content's top (section-jump-landing R2) and is still current.
+        jump("global")
+        assertEquals("global's title clamps at the top of the page", restTop, overview.top(), 1f)
+        assertTrue("entry names Global Statistics: ${entryLabel()}", entryLabel().endsWith("current section Global Statistics"))
     }
 
     private fun leaderboards() {

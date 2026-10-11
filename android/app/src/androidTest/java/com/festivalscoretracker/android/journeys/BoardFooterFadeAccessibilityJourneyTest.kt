@@ -243,8 +243,7 @@ class BoardFooterFadeAccessibilityJourneyTest {
         checkFade(screen, board, fresh = scale != null)
         peekSliver(board)
         checkFade("$screen-sliver", board, fresh = true, sliver = true)
-        // Scroll back so the hide-on-scroll floating toolbar (always shown under TalkBack) slides
-        // fully in again before ATF's findings are judged.
+        // Scroll back to the top before ATF's findings are judged.
         rule.onNodeWithTag("${board.prefix}.list").performSemanticsAction(SemanticsActions.ScrollBy) {
             it(0f, -rule.activity.resources.displayMetrics.heightPixels.toFloat())
         }

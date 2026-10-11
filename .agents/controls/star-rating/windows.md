@@ -50,6 +50,7 @@ Fixed:
 - Six-star scores were read as "6 stars" (leaderboards, band leaderboards, Score History) or "gold stars" (Suggestions); they now read "5 gold stars", like the control.
 - Seven or more stars drew white; now gold, like the web.
 - `StarRow` had no automation peer, so Suggestions and the profile tile exposed nothing for it; it is now one named `Image` with a state ID and status.
+- That peer then claimed a control element even where the host set `AccessibilityView="Raw"` (leaderboard and band rows, Song Detail band previews, Band Detail, Songs rows), so each row exposed a second `Image "N stars"` inside its one Narrator stop. Its `IsControlElementCore`/`IsContentElementCore` now follow `AutomationProperties.AccessibilityView` (issue #510; regression check `sbl-rows` in `tools/windows/journeys/a11y-song-band-leaderboard.json`). Journeys find stars inside Raw hosts with `raw=`.
 - The gold ring kept its old brush after a contrast-theme switch until you navigated away.
 - Profile (found by this pass): instrument tiles were unnamed siblings of the Overview tiles with the same names; each instrument section is now a named group ([player-profile/windows.md](../../pages/player-profile/windows.md#ids)).
 

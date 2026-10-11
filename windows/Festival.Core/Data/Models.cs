@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Festival.Core.Data;
@@ -82,7 +83,7 @@ public sealed record SongDifficulty
     }
 }
 
-/// <summary>Fields present in the service's <c>/api/songs</c> wire objects (population tiers are ignored).</summary>
+/// <summary>Fields present in the service's <c>/api/songs</c> wire objects.</summary>
 public sealed record Song
 {
     /// <summary>Stable song identifier.</summary>
@@ -109,6 +110,12 @@ public sealed record Song
     [JsonPropertyName("pathArtifactGenerationId")] public string? PathArtifactGenerationId { get; init; }
     /// <summary>Per-chart engine maximum score keyed by service instrument ID.</summary>
     [JsonPropertyName("maxScores")] public IReadOnlyDictionary<string, int>? MaxScores { get; init; }
+    /// <summary>
+    /// Per-chart population curves keyed by service instrument ID, for Filter Invalid Scores totals. Malformed curves are
+    /// dropped (that chart keeps its unfiltered total) rather than failing the catalogue.
+    /// </summary>
+    [JsonPropertyName("populationTiers"), JsonConverter(typeof(PopulationTiersMapConverter))]
+    public IReadOnlyDictionary<string, PopulationTiers>? PopulationTiers { get; init; }
 
     /// <summary>Whether Lead/Pro Lead should use the keys icon.</summary>
     [JsonIgnore] public bool UsesKeyboardIcon => Sig == "Keyboard";
@@ -123,6 +130,13 @@ public sealed record Song
     /// <returns>A positive score, or <see langword="null"/>.</returns>
     public int? MaxScore(Instrument instrument) =>
         MaxScores is not null && MaxScores.TryGetValue(instrument.ServiceId(), out var value) && value > 0 ? value : null;
+
+    /// <summary>A chart's population with scores invalid at a leeway removed (web <c>getFilteredTotal</c>).</summary>
+    /// <param name="instrument">Chart.</param>
+    /// <param name="leeway">Leeway percent.</param>
+    /// <returns>Filtered total, or <see langword="null"/> when the chart has no curve (use the unfiltered total).</returns>
+    public int? FilteredPopulation(Instrument instrument, double leeway) =>
+        PopulationTiers is not null && PopulationTiers.TryGetValue(instrument.ServiceId(), out var curve) ? curve.TotalAt(leeway) : null;
 
     /// <summary>Formats a positive duration as <c>m:ss</c> or <c>h:mm:ss</c>.</summary>
     [JsonIgnore]
@@ -150,6 +164,160 @@ public sealed record Song
             if (FormattedDuration is { } duration) parts.Add(duration);
             return string.Join(" · ", parts.Where(p => p.Length > 0));
         }
+    }
+}
+
+/// <summary>One population changepoint (<c>populationTiers.*.t</c> item: <c>l</c>, <c>t</c>).</summary>
+/// <param name="Leeway">Leeway where this total starts.</param>
+/// <param name="Total">Chart population at that leeway.</param>
+public sealed record PopulationTier(double Leeway, int Total);
+
+/// <summary>
+/// A chart's population curve (<c>{"bc": baseCount, "t": [{"l": leeway, "t": total}]}</c>): the total at the lowest
+/// leeway, then a changepoint wherever more scores become valid.
+/// </summary>
+/// <param name="BaseCount">Total below the first changepoint.</param>
+/// <param name="Tiers">Changepoints, strictly ascending by leeway.</param>
+public sealed record PopulationTiers(int BaseCount, IReadOnlyList<PopulationTier> Tiers)
+{
+    /// <summary>The last changepoint total at or below a leeway, else the base count.</summary>
+    /// <param name="leeway">Leeway percent.</param>
+    /// <returns>Filtered total.</returns>
+    public int TotalAt(double leeway)
+    {
+        var total = BaseCount;
+        foreach (var tier in Tiers)
+        {
+            if (tier.Leeway > leeway) break;
+            total = tier.Total;
+        }
+        return total;
+    }
+
+    /// <summary>Whether counts are non-negative and leeways finite and strictly ascending.</summary>
+    public bool IsWellFormed
+    {
+        get
+        {
+            if (BaseCount < 0) return false;
+            var previous = double.NegativeInfinity;
+            foreach (var tier in Tiers)
+            {
+                if (tier.Total < 0 || !double.IsFinite(tier.Leeway) || tier.Leeway <= previous) return false;
+                previous = tier.Leeway;
+            }
+            return true;
+        }
+    }
+}
+
+/// <summary>
+/// Reads <c>populationTiers</c> leniently by hand (AOT-safe): keeps each well-formed curve and skips any other value, so a
+/// malformed curve only costs that chart its filtered total.
+/// </summary>
+internal sealed class PopulationTiersMapConverter : JsonConverter<IReadOnlyDictionary<string, PopulationTiers>?>
+{
+    /// <inheritdoc />
+    public override bool HandleNull => true;
+
+    /// <inheritdoc />
+    public override IReadOnlyDictionary<string, PopulationTiers>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.StartObject)
+        {
+            reader.Skip();
+            return null;
+        }
+        var map = new Dictionary<string, PopulationTiers>(StringComparer.Ordinal);
+        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+        {
+            var key = reader.GetString() ?? "";
+            reader.Read();
+            if (ReadCurve(ref reader) is { IsWellFormed: true } curve) map[key] = curve;
+        }
+        return map;
+    }
+
+    /// <summary>Reads one curve value, leaving the reader on its last token.</summary>
+    /// <param name="reader">Reader positioned on the value's first token.</param>
+    /// <returns>The curve, or <see langword="null"/> when its shape is wrong.</returns>
+    private static PopulationTiers? ReadCurve(ref Utf8JsonReader reader)
+    {
+        if (reader.TokenType != JsonTokenType.StartObject)
+        {
+            reader.Skip();
+            return null;
+        }
+        int? baseCount = null;
+        List<PopulationTier>? tiers = null;
+        var ok = true;
+        while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+        {
+            var name = reader.GetString();
+            reader.Read();
+            if (name == "bc" && reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out var count)) baseCount = count;
+            else if (name == "t" && reader.TokenType == JsonTokenType.StartArray) tiers = ReadTiers(ref reader, ref ok);
+            else reader.Skip();
+        }
+        return ok && baseCount is { } bc && tiers is not null ? new PopulationTiers(bc, tiers) : null;
+    }
+
+    /// <summary>Reads the changepoint array, leaving the reader on its end token.</summary>
+    /// <param name="reader">Reader positioned on the array start.</param>
+    /// <param name="ok">Cleared when any item is malformed.</param>
+    /// <returns>Changepoints read.</returns>
+    private static List<PopulationTier> ReadTiers(ref Utf8JsonReader reader, ref bool ok)
+    {
+        var tiers = new List<PopulationTier>();
+        while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+        {
+            if (reader.TokenType != JsonTokenType.StartObject)
+            {
+                reader.Skip();
+                ok = false;
+                continue;
+            }
+            double? leeway = null;
+            int? total = null;
+            while (reader.Read() && reader.TokenType == JsonTokenType.PropertyName)
+            {
+                var name = reader.GetString();
+                reader.Read();
+                if (name == "l" && reader.TokenType == JsonTokenType.Number && reader.TryGetDouble(out var l)) leeway = l;
+                else if (name == "t" && reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out var t)) total = t;
+                else reader.Skip();
+            }
+            if (leeway is { } tierLeeway && total is { } tierTotal) tiers.Add(new PopulationTier(tierLeeway, tierTotal));
+            else ok = false;
+        }
+        return tiers;
+    }
+
+    /// <inheritdoc />
+    public override void Write(Utf8JsonWriter writer, IReadOnlyDictionary<string, PopulationTiers>? value, JsonSerializerOptions options)
+    {
+        if (value is null)
+        {
+            writer.WriteNullValue();
+            return;
+        }
+        writer.WriteStartObject();
+        foreach (var (key, curve) in value)
+        {
+            writer.WriteStartObject(key);
+            writer.WriteNumber("bc", curve.BaseCount);
+            writer.WriteStartArray("t");
+            foreach (var tier in curve.Tiers)
+            {
+                writer.WriteStartObject();
+                writer.WriteNumber("l", tier.Leeway);
+                writer.WriteNumber("t", tier.Total);
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+        writer.WriteEndObject();
     }
 }
 

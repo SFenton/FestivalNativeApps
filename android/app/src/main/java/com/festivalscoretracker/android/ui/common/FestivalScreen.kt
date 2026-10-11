@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -33,10 +34,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -61,10 +64,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.navigation.NavBackStackEntry
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.search.PxRect
 import com.festivalscoretracker.android.core.search.SearchPresentation
+import com.festivalscoretracker.android.core.shell.BottomChromeSpacing
 import com.festivalscoretracker.android.core.shell.PxSpan
 import com.festivalscoretracker.android.ui.search.GlobalSearchEntry
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -81,7 +87,10 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @property profileChip The profile chip's action: the selected profile's page (Statistics), or
  *   profile selection when none is selected ([com.festivalscoretracker.android.core.shell.ProfileChipPolicy]).
  * @property selectedPlayer Current selected player.
- * @property bottomPadding Space reserved by the bottom bar / system navigation.
+ * @property bottomPadding Bottom chrome the content does not already clear: the system navigation
+ *   bar beside a rail or drawer (0 above the bottom bar), plus the end safe inset. [FestivalScreen]
+ *   adds the floating toolbar's band while it shows tools and one standard gap
+ *   ([BottomChromeSpacing], `page-tools-and-nav-chrome` R7, issue #578).
  * @property search Global search entry point (`.agents/controls/global-search/android.md`).
  * @property notifications Bell slot between search and the avatar, when notifications exist.
  * @property floatingToolbar The shell's floating toolbar that takes screen actions at every window
@@ -116,6 +125,9 @@ data class SearchChrome(
     val report: (PxRect) -> Unit = {},
 )
 
+/** [FestivalScreen]'s default actions: none, so the page expects no floating toolbar (issue #578). */
+val NoPageActions: @Composable RowScope.() -> Unit = {}
+
 /** Shell hooks for the current screen. */
 val LocalShellActions = staticCompositionLocalOf { ShellActions() }
 
@@ -134,9 +146,11 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  *   `song-header` R4, issue #315) and truncates under Remove animations.
  * @param isRoot Whether this is a tab root.
  * @param modifier Modifier.
- * @param actions Screen actions, placed before search and the avatar.
- * @param pinActions Keep the floating toolbar holding [actions] on screen while the page scrolls
- *   instead of hiding it (Songs, Suggestions: issue #52).
+ * @param actions Screen actions, placed before search and the avatar. The floating toolbar
+ *   holding them stays on screen while the page scrolls (R7, issues #52, #577).
+ * @param primaryAction The page's primary action as its own pill beside the floating toolbar, in
+ *   the same row (owner-approved `page-tools-and-nav-chrome` R6 variant, #590: only the player page
+ *   and Statistics, for Select/Switch); outside the shell it leads the top-bar page actions.
  * @param actionsReadFirst TalkBack and keyboard focus reach the floating toolbar
  *   holding [actions] right after the top app bar instead of after the content: an endless feed
  *   (Suggestions) never ends, so a toolbar read last is unreachable by swiping (issue #112); a
@@ -159,7 +173,9 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  *   as [LocalFadeInWindow] and rushed when the content scrolls (load-transition R5, issue #323).
  *   Pass one created in the page body when the body itself scrolls (a selected-row reveal,
  *   Quick Links); by default the screen creates its own.
- * @param content Content given padding that clears the top bar and bottom chrome.
+ * @param content Content given padding that clears the top bar and bottom chrome: its bottom ends
+ *   one standard gap above the chrome actually shown (the floating toolbar while it shows tools,
+ *   else the bottom bar), so pages add no bottom margin of their own (R7, issue #578).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -167,8 +183,8 @@ fun FestivalScreen(
     title: String,
     isRoot: Boolean,
     modifier: Modifier = Modifier,
-    actions: @Composable RowScope.() -> Unit = {},
-    pinActions: Boolean = false,
+    actions: @Composable RowScope.() -> Unit = NoPageActions,
+    primaryAction: FloatingToolbarAction? = null,
     actionsReadFirst: Boolean = false,
     scrolled: Boolean = false,
     titleIcon: (@Composable (size: Dp) -> Unit)? = null,
@@ -178,6 +194,8 @@ fun FestivalScreen(
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val shell = LocalShellActions.current
+    val splitPane = LocalSplitPane.current
+    val entryId = (LocalViewModelStoreOwner.current as? NavBackStackEntry)?.id
     val ownFadeInWindow = rememberPageFadeInWindow()
     val pageFadeIn = fadeInWindow ?: ownFadeInWindow
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -198,9 +216,23 @@ fun FestivalScreen(
     // screen's pane; global search stays in the top app bar (operator 2026-09-28).
     val pane = remember { mutableStateOf<PxSpan?>(null) }
     val toolbarReadsFirst = shell.floatingToolbar != null && actionsReadFirst
-    if (shell.floatingToolbar != null) {
-        FloatingToolbarContent(pinned = pinActions, readFirst = actionsReadFirst, pane = pane) { actions() }
+    // The toolbar row's drawn height (0 while it shows no tools and no primary action) sets where
+    // the content ends (R7, issue #578). Until it is drawn: its last height on this page (back keeps
+    // place), else the pill's height, or none for a page without actions.
+    var lastToolbarHeight by rememberSaveable { mutableStateOf<Float?>(null) }
+    val expectsNoToolbar = actions === NoPageActions && primaryAction == null
+    val expectedToolbarHeight = lastToolbarHeight ?: if (expectsNoToolbar) 0f else BottomChromeSpacing.TOOLBAR_HEIGHT_DP.toFloat()
+    val toolbarHeight = if (shell.floatingToolbar != null) {
+        FloatingToolbarContent(
+            readFirst = actionsReadFirst,
+            pane = pane,
+            initialHeightDp = expectedToolbarHeight,
+            companion = primaryAction,
+        ) { actions() } ?: expectedToolbarHeight
+    } else {
+        0f
     }
+    if (shell.floatingToolbar != null) SideEffect { lastToolbarHeight = toolbarHeight }
     Scaffold(
         modifier = modifier
             .onSizeChanged { widthPx = it.width }
@@ -249,6 +281,10 @@ fun FestivalScreen(
             }
             val navigationSlot: @Composable () -> Unit = {
                 when {
+                    // The trailing pane's first page closes the pane (Apple SplitPaneChrome, #583).
+                    splitPane != null && splitPane.isRoot(entryId) -> IconButton(onClick = splitPane.close, modifier = Modifier.testTag("fst.split.close")) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close")
+                    }
                     !isRoot -> IconButton(onClick = shell.back, modifier = Modifier.testTag("fst.nav.back")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
@@ -259,14 +295,22 @@ fun FestivalScreen(
             }
             val actionsSlot: @Composable RowScope.() -> Unit = {
                 val global: @Composable RowScope.() -> Unit = {
-                    GlobalSearchEntry(shell.search)
-                    shell.notifications?.invoke()
-                    // Every page, pushed pages included (operator batch 7.12).
-                    ProfileAvatarButton(shell.selectedPlayer, shell.profileChip)
+                    // One search entry, bell and avatar per window: the list page's bar holds them
+                    // while a trailing pane is open beside it (#583).
+                    if (splitPane == null) {
+                        GlobalSearchEntry(shell.search)
+                        shell.notifications?.invoke()
+                        // Every page, pushed pages included (operator batch 7.12).
+                        ProfileAvatarButton(shell.selectedPlayer, shell.profileChip)
+                    }
                 }
                 // Outside the shell (previews, isolated tests) there is no toolbar to float in.
                 if (shell.floatingToolbar == null) {
-                    AdaptiveTopBarActions(inlineActions, onPageWidth = { pageActionsWidth = it }, page = actions, global = global)
+                    val page: @Composable RowScope.() -> Unit = {
+                        primaryAction?.let { FloatingToolbarActionButton(it) }
+                        actions()
+                    }
+                    AdaptiveTopBarActions(inlineActions, onPageWidth = { pageActionsWidth = it }, page = page, global = global)
                 } else {
                     global()
                 }
@@ -319,7 +363,7 @@ fun FestivalScreen(
                         start = inner.calculateStartPadding(direction) + bottom.calculateStartPadding(direction),
                         top = 0.dp,
                         end = inner.calculateEndPadding(direction) + bottom.calculateEndPadding(direction),
-                        bottom = inner.calculateBottomPadding() + bottom.calculateBottomPadding(),
+                        bottom = inner.calculateBottomPadding() + BottomChromeSpacing.contentBottomDp(bottom.calculateBottomPadding().value, toolbarHeight).dp,
                     ),
                 )
             }

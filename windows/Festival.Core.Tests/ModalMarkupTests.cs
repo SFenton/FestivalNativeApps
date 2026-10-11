@@ -56,6 +56,7 @@ public class ModalMarkupTests
     [InlineData("MainWindow.WhatsNew.cs")]
     [InlineData("Pages/LicensesPage.xaml.cs")]
     [InlineData("Pages/SettingsPage.xaml.cs")]
+    [InlineData("Pages/SongsPage.xaml.cs")]
     public void EveryModal_UsesTheSharedFactory(string file)
     {
         var text = Sources(".cs").Single(source => source.Path == file).Text;
@@ -71,7 +72,7 @@ public class ModalMarkupTests
         Assert.Equal(
             ["Controls/FeedbackDialog.cs", "Controls/FirstRunCarousel.xaml.cs", "Controls/PlayerProfileView.xaml.cs",
              "Controls/PrivacyPolicyDialog.cs", "Controls/SongPathsView.xaml.cs", "MainWindow.WhatsNew.cs",
-             "Pages/LicensesPage.xaml.cs", "Pages/SettingsPage.xaml.cs"],
+             "Pages/LicensesPage.xaml.cs", "Pages/SettingsPage.xaml.cs", "Pages/SongsPage.xaml.cs"],
             callers);
     }
 

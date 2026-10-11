@@ -474,22 +474,26 @@ public static class FadeIn
     /// that hasn't started (a drag, wheel, Quick Links jump or programmatic scroll; web <c>useStaggerRush</c>, issue #323).
     /// After <see cref="HoldEntrance"/>, movement is measured from the held position, so a scroll that came first rushes
     /// the entrance at once and its elements enter together.
+    /// An owner that isn't a scroller (a First Run carousel's <c>FlipView</c>, one entrance per slide shown, issue #380)
+    /// follows its nearest scrolling ancestor, so its own paging never rushes the slide it pages to.
     /// </summary>
-    /// <param name="scroller">The page's scroller.</param>
-    public static void BeginEntrance(ScrollViewer scroller)
+    /// <param name="owner">The page's scroller, or another entrance owner.</param>
+    public static void BeginEntrance(FrameworkElement owner)
     {
-        TrackerOf(scroller).Hook();
-        Restagger(scroller);
-        if (scroller.GetValue(HeldAnchorProperty) is not HeldAnchor held)
+        var tracker = TrackerOf(owner);
+        tracker.Hook();
+        Restagger(owner);
+        if (owner.GetValue(HeldAnchorProperty) is not HeldAnchor held)
         {
-            SettleNow(scroller);
+            SettleNow(owner);
             return;
         }
-        scroller.ClearValue(HeldAnchorProperty);
-        var arm = ArmOf(scroller);
+        owner.ClearValue(HeldAnchorProperty);
+        var arm = ArmOf(owner);
         arm.Settle(held.X, held.Y);
         var now = Now;
-        OnScrolled(scroller, arm, arm.Scrolled(scroller.HorizontalOffset, scroller.VerticalOffset, now), now);
+        var (x, y) = tracker.Offset();
+        OnScrolled(owner, arm, arm.Scrolled(x, y, now), now);
     }
 
     /// <summary>

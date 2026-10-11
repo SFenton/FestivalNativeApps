@@ -54,6 +54,11 @@ per-page `pages/<page>/firstRun/**`, `pages/settings/SettingsPage.tsx` (replay U
   a pushed route for the same or a different page must not both present simultaneously.
 - Settings replay must ignore both gates and seen-state (`getAllSlides`), matching the web
   exactly — a platform must not "improve" this by re-applying gates to replay.
+- A closed carousel never re-presents in the same app session (issue #608): navigation, rotation,
+  window resizes and settings changes re-run the check, so a platform must remember what the user
+  closed this session (Windows per page, Android per offered slide). Slides closed without being
+  displayed return on the next launch (operator batch 6.7). Closing a Settings replay early must
+  not bring back slides seen before it (Android keeps earlier seen-state rather than resetting).
 - Native carousels are titled modals (issue #24): a short visible title naming the page the guide
   explains (the Settings row label, e.g. "Songs", "Score History"), announced first by the screen
   reader, on first run and replay alike. The web only labels its overlay (`aria-label` "Feature
@@ -85,6 +90,7 @@ per-page `pages/<page>/firstRun/**`, `pages/settings/SettingsPage.tsx` (replay U
 | Unseen, gate-passing slides | Carousel with only those slides, in catalog order |
 | A slide's gate fails | Excluded from both first-run and (unlike replay) not from replay |
 | Page previously dismissed, one new slide added | Carousel shows only the new slide |
+| Guide closed early, page revisited in the same session (any route, rotation, window size) | No carousel; the undisplayed slides show on the next launch |
 | Two pages become eligible near-simultaneously | Only one carousel shows; the other waits |
 | Settings "Show" for a page | Carousel with every slide for that page, gates/seen-state ignored |
 | Corrupt persisted seen-state | Recovers to empty (or partially valid) rather than blocking FRE |

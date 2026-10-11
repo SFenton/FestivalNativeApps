@@ -27,7 +27,7 @@ public enum SongScoreHistoryPhase
 /// </summary>
 public sealed partial class SongScoreHistoryViewModel : ObservableObject
 {
-    private readonly FestivalSession session;
+    private readonly FestivalSession? session;
     private List<ScoreHistoryEntry> entries = [];
     private Dictionary<Instrument, int> counts = [];
     private Song? song;
@@ -38,11 +38,37 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     /// <param name="songId">Song.</param>
     /// <param name="requested">Chart to show first (route instrument), if any.</param>
     public SongScoreHistoryViewModel(FestivalSession session, string songId, Instrument? requested)
+        : this(session, songId, requested, session.Time)
+    {
+    }
+
+    /// <summary>Creates the section, optionally without a session (<see cref="Demo"/>: never reads).</summary>
+    /// <param name="session">Shared session, or null for fixed plays.</param>
+    /// <param name="songId">Song.</param>
+    /// <param name="requested">Chart to show first.</param>
+    /// <param name="time">Clock for the status presenter.</param>
+    private SongScoreHistoryViewModel(FestivalSession? session, string songId, Instrument? requested, TimeProvider time)
     {
         this.session = session;
         SongId = songId;
         Requested = requested;
-        Status = new ServiceStatusViewModel("song-history", "Score history unavailable", () => LoadAsync(song, pool), session.Time);
+        Status = new ServiceStatusViewModel("song-history", "Score history unavailable", () => LoadAsync(song, pool), time);
+    }
+
+    /// <summary>
+    /// A loaded section over fixed plays that never reads the service: the First Run guide hosts the real
+    /// <c>SongScoreHistoryChart</c> over it (issue #380), so the guide always shows the production chart.
+    /// </summary>
+    /// <param name="songId">Song the plays belong to.</param>
+    /// <param name="chart">The only chart (the plays' instrument).</param>
+    /// <param name="plays">Plays for <paramref name="chart"/>.</param>
+    /// <param name="time">Clock for the status presenter.</param>
+    /// <returns>Loaded model with no bar selected.</returns>
+    public static SongScoreHistoryViewModel Demo(string songId, Instrument chart, IEnumerable<ScoreHistoryEntry> plays, TimeProvider time)
+    {
+        var model = new SongScoreHistoryViewModel(null, songId, chart, time) { pool = [chart] };
+        model.Show(SongScoreHistoryPhase.Loaded, [.. plays]);
+        return model;
     }
 
     /// <summary>Song.</summary>
@@ -179,7 +205,7 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     {
         song = catalogSong;
         pool = visibleCharted;
-        if (session.SelectedPlayer is not { } player)
+        if (session is null || session.SelectedPlayer is not { } player)
         {
             Show(SongScoreHistoryPhase.Hidden, []);
             return;
@@ -232,6 +258,15 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
     {
         ReservesDetail = false;
         Pager.Toggle(index);
+        RefreshPage();
+    }
+
+    /// <summary>Selects a point (never clears it) and pages so its bar shows: the guide's scripted bar selection.</summary>
+    /// <param name="index">Point index; out of range is ignored.</param>
+    public void SelectPoint(int index)
+    {
+        ReservesDetail = false;
+        Pager.Select(index);
         RefreshPage();
     }
 
@@ -324,7 +359,19 @@ public sealed partial class SongScoreHistoryViewModel : ObservableObject
 /// <param name="Index">Point index (for selection).</param>
 /// <param name="Point">Point.</param>
 /// <param name="IsSelected">Whether this bar is selected (purple stroke).</param>
-public sealed record ScoreHistoryBar(int Index, ScoreHistoryPoint Point, bool IsSelected);
+public sealed record ScoreHistoryBar(int Index, ScoreHistoryPoint Point, bool IsSelected)
+{
+    /// <summary>
+    /// Whether a new page of bars differs from the drawn one only in which bar is selected, so the chart can restyle its
+    /// bars in place: rebuilding them would move keyboard focus to a new, not yet laid-out bar (issue #512).
+    /// </summary>
+    /// <param name="drawn">Bars on screen.</param>
+    /// <param name="next">New bars.</param>
+    /// <returns><see langword="true"/> when the same points are drawn in the same order.</returns>
+    public static bool OnlySelectionChanged(IReadOnlyList<ScoreHistoryBar> drawn, IReadOnlyList<ScoreHistoryBar> next) =>
+        drawn.Count > 0 && drawn.Count == next.Count
+        && drawn.Zip(next).All(pair => pair.First.Index == pair.Second.Index && pair.First.Point == pair.Second.Point);
+}
 
 /// <summary>A list or detail row: date, season/difficulty pills, score, accuracy (web <c>LeaderboardEntry</c> with a date label).</summary>
 /// <param name="Point">Point.</param>
@@ -396,6 +443,9 @@ public sealed record ScoreHistoryListRow(ScoreHistoryPoint Point, bool IsBest) :
 
     /// <summary>"S13", or empty.</summary>
     public string Season => Point.Entry.Season is { } s ? "S" + s.ToString(CultureInfo.InvariantCulture) : "";
+
+    /// <inheritdoc />
+    public int? SeasonNumber => Point.Entry.Season;
 
     /// <summary>Whether the season pill shows.</summary>
     public bool HasSeason => Season.Length > 0;

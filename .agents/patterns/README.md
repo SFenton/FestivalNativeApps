@@ -48,5 +48,6 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [catalogue-sort](catalogue-sort.md) | Sorting catalogue songs (Songs, Item Shop): the shared Sort sheet/flyout, direction section, comparator, Reset, trigger state, persistence and missing-data pause |
 | [experimental-ranks](experimental-ranks.md) | Settings → Experimental Ranks as the one gate: which ranking metrics Rank By offers, fallback of saved/routed metrics to Total Score, and the profile tiles, Rivals, notifications, Mac menu and first-run slide it gates |
 | [band-member-lines](band-member-lines.md) | Band card members: one line each, names leading on one shared edge, value and icons trailing, card-wide stack when any member can't fit |
+| [metadata-pills](metadata-pills.md) | Season ("S15") and "Top N%" chips: one shared component each, one size on every page, web colours with the current season inverted, spoken "Current season N" |
 | [shop-offer-status](shop-offer-status.md) | Item Shop New / Leaving Tomorrow on Songs rows, Shop rows and cards: gold outline only for New, a visible indicator only for Leaving, both spoken |
 | [search-scopes](search-scopes.md) | Global search's kinds and the profile search's All · Players · Bands on one engine per platform: native All-first scope controls that start on All and only filter, and what a result opens |

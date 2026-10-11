@@ -346,6 +346,7 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
             {
                 Highlight = highlight, InShop = inShop,
                 Chips = SongInstrumentStatusPolicy.Badges(song, settings.VisibleInstruments, chart => scores.Facts!(song.SongId, chart)),
+                Warning = Warning(song, filterChart),
             };
         }
         if (!scores.Available || metadataChart is not { } chart)
@@ -365,7 +366,24 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
             ChartRaw = fields.Count == 0 ? song.Difficulty?.ChartedValue(chart) : null,
             Metadata = fields,
             ScoreState = fields.Count > 0 ? null : song.Supports(chart) ? "No score" : $"No {chart.Label()} chart",
+            Warning = Warning(song, filterChart),
         };
+    }
+
+    /// <summary>
+    /// The row's invalid-score indicator (web <c>SongRow</c> + <c>InvalidScoreIcon</c>): every visible chart whose shown
+    /// score was replaced, dropped or kept over the CHOpt maximum, narrowed to the single-chart filter when one is set.
+    /// </summary>
+    /// <param name="song">Catalogue row.</param>
+    /// <param name="filterChart">Single-chart filter.</param>
+    /// <returns>Warning, or <see langword="null"/> when no described chart differs (or Filter Invalid Scores is off).</returns>
+    private InvalidScoreWarning? Warning(Song song, Instrument? filterChart)
+    {
+        if (scores.Reason is not { } reason) return null;
+        Dictionary<Instrument, InvalidScoreReason>? reasons = null;
+        foreach (var chart in settings.VisibleInstruments)
+            if (reason(song.SongId, chart) is { } why) (reasons ??= [])[chart] = why;
+        return reasons is null ? null : InvalidScoreWarning.Of(song.Title, reasons, filterChart);
     }
 }
 #endregion
@@ -409,6 +427,19 @@ public sealed partial class SongSortDraft : ObservableObject
     /// <returns>Draft.</returns>
     public static SongSortDraft ForShop(FestivalSession session) =>
         new(() => [.. ShopOfferSort.Modes], () => session.Settings.ShopSort, () => session.Settings.ShopSortAscending);
+
+    /// <summary>
+    /// Creates a detached draft for the First Run <c>songs-sort</c> demo (issue #380): the given modes with the default
+    /// Title ascending sort applied, never live and bound to no settings, so the guide shows the real form without
+    /// touching the user's sort.
+    /// </summary>
+    /// <param name="modes">Modes offered, in menu order.</param>
+    /// <returns>Draft showing the default sort.</returns>
+    public static SongSortDraft ForDemo(IReadOnlyList<SongSortMode> modes)
+    {
+        List<SongSortMode> offered = [.. modes];
+        return new(() => offered, () => SongSortMode.Title, () => true);
+    }
 
     /// <summary>Whether changes commit immediately (set once <see cref="Begin"/> finishes loading).</summary>
     public bool IsLive { get; private set; }
