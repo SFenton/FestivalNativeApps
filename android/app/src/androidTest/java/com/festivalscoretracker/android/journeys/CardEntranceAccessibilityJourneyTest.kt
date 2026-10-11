@@ -88,10 +88,10 @@ class CardEntranceAccessibilityJourneyTest {
 
     /**
      * Launches [route] with [path]'s read held, releases it with the frame clock paused, steps
-     * frames until [loading] has gone and [ROWS] rows of [card] are composed, then returns how far
+     * frames until [loading] has gone and [count] rows of [card] are composed (fewer fit at large text), then returns how far
      * (px) each still sits below its settled place [PROBE_MS] into the entrance.
      */
-    private fun entranceDrifts(route: String, path: String, loading: String, prefix: String, card: String, reduceMotion: Boolean = false, fontScale: Float = 1f): List<Float> {
+    private fun entranceDrifts(route: String, path: String, loading: String, prefix: String, card: String, reduceMotion: Boolean = false, fontScale: Float = 1f, count: Int = ROWS): List<Float> {
         val gate = CompletableDeferred<Unit>()
         val transport = RankingsFixtures.install(
             FakeTransport.standard().apply {
@@ -111,12 +111,12 @@ class CardEntranceAccessibilityJourneyTest {
         try {
             gate.complete(Unit)
             var frames = 0
-            while (exists(loading) || rows(prefix, card).size < ROWS) {
+            while (exists(loading) || rows(prefix, card).size < count) {
                 check(frames++ < 3_000) { "$card never revealed" }
                 Thread.sleep(2)
                 rule.mainClock.advanceTimeByFrame()
             }
-            val tags = rows(prefix, card).take(ROWS)
+            val tags = rows(prefix, card).take(count)
             rule.mainClock.advanceTimeBy(PROBE_MS)
             val mid = tags.map(::top)
             rule.mainClock.advanceTimeBy(2_000)
@@ -166,7 +166,7 @@ class CardEntranceAccessibilityJourneyTest {
     fun fullRankingsCardFadesInAsOne() = fullRankings("card-entrance-full-rankings")
 
     @Test
-    fun fullRankingsCardFadesInAsOneAtLargeText() = fullRankings("card-entrance-full-rankings-font-2", fontScale = 2f)
+    fun fullRankingsCardFadesInAsOneAtLargeText() = fullRankings("card-entrance-full-rankings-font-2", fontScale = 2f, count = 2)
 
     @Test
     fun reduceMotionShowsTheFullRankingsCardInPlace() {
@@ -185,8 +185,8 @@ class CardEntranceAccessibilityJourneyTest {
         assertSettledCard("card-entrance-overview", ROW, card)
     }
 
-    private fun fullRankings(screen: String, fontScale: Float = 1f) {
-        assertOneFade(screen, entranceDrifts("fullRankings:Solo_Guitar", "/api/rankings/Solo_Guitar", "fst.full-rankings.loading", ROW, BOARD_CARD, fontScale = fontScale))
+    private fun fullRankings(screen: String, fontScale: Float = 1f, count: Int = ROWS) {
+        assertOneFade(screen, entranceDrifts("fullRankings:Solo_Guitar", "/api/rankings/Solo_Guitar", "fst.full-rankings.loading", ROW, BOARD_CARD, fontScale = fontScale, count = count))
         assertSettledCard(screen, ROW, BOARD_CARD)
     }
 
