@@ -14,6 +14,8 @@ push (issue #452), the Paths swap (issue #430, also with Animation effects off),
 text table (issue #515, also under a contrast theme) and the Full
 Rankings pinned row (issue #466, also with in-app Reduce Motion), the Leaderboards card "your rank" row (issue #493,
 also with in-app Reduce Motion), the Search All section titles (issue #483, also with in-app Reduce Motion), the
+Search results delayed behind the spinner and the Suggestions cards loaded after the first batch (issue #521, also with
+motion off), the
 Song Band Leaderboard rows, empty and error states (issue #510), the Suggestions cards, keyboard, filter and states
 (issue #513), the real-control First Run demos (issue #498, also with Animation effects off), the profile title row
 (issue #446) and the Score History chart (issue #512, also under Desert contrast) run at default and 225% text, and
@@ -112,6 +114,13 @@ POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-f
 #: The ``a11y-search.json`` All section-title pages (issue #348's titles, #483); the file's other pages are generated runs.
 SEARCH_SECTIONS = "search-all-sections,search-all-sections-keyboard"
 
+#: The ``a11y-search.json`` page for results that waited behind the spinner for a slow player search (issues #260, #521).
+SEARCH_DELAYED_RESULTS = "search-delayed-results"
+
+#: The ``a11y-suggestions.json`` pages for the cards loaded after the first batch (issues #260, #521), also run with
+#: motion off.
+SUGGESTIONS_LOAD_MORE = "suggestions-load-more,suggestions-load-more-keyboard"
+
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
 RUNS: tuple[Run, ...] = (
@@ -201,11 +210,27 @@ RUNS: tuple[Run, ...] = (
         only=SEARCH_SECTIONS),
     Run("search-sections", "a11y-search.json", only=SEARCH_SECTIONS),
     Run("search-sections-text-225", "a11y-search.json", sizes="compact", mode="text-225", only=SEARCH_SECTIONS),
+    # Search results that waited behind the spinner for a slow player search (issues #260, #521): Narrator reads the
+    # named ring while no row or title is there, then the Level 2 "Songs" title before the 40+ epx row; focus stays in
+    # the field and Tab reaches All and the row. Also with in-app Reduce Motion (the rows appear in place, no fade).
+    Run("search-delayed-results-reduced-motion", "a11y-search.json", sizes="medium", mode="app-reduced",
+        only=SEARCH_DELAYED_RESULTS),
+    Run("search-delayed-results", "a11y-search.json", only=SEARCH_DELAYED_RESULTS),
+    Run("search-delayed-results-text-225", "a11y-search.json", sizes="compact", mode="text-225",
+        only=SEARCH_DELAYED_RESULTS),
     # Suggestions (issues #205, #513): each card is one Narrator list item named by its Level 2 title heading, its rows
     # 40+ epx Buttons and one Tab stop per card (Down/Up cross card boundaries, Tab/Shift+Tab between cards, Esc returns
     # to Filter); the filter's named Instruments/General Expanders read their state and help text, and Tab goes straight
     # from an expanded header to its first switch; the syncing and filtered-empty titles are Level 2 headings; and the
     # rival name pill switches to the neutral contrast role live (Desert paint check, medium only, so not at 225%).
+    # The cards loaded after the first ten (issues #260, #521) arrive as whole headed list items read after the first
+    # batch, with 40+ epx rows that Down/Up and Tab reach across the batch boundary: at default and 225% text in the
+    # full runs, and first with in-app Reduce Motion and with Animation effects off (they appear in place, no fade).
+    # (The partial motion-off runs come first: generated_runs reads a file's last explicit run as its coverage.)
+    Run("suggestions-load-more-reduced-motion", "a11y-suggestions.json", sizes="medium", mode="app-reduced", tabs=0,
+        only=SUGGESTIONS_LOAD_MORE),
+    Run("suggestions-load-more-no-animations", "a11y-suggestions.json", sizes="medium", mode="no-animations", tabs=0,
+        only=SUGGESTIONS_LOAD_MORE),
     Run("suggestions", "a11y-suggestions.json"),
     Run("suggestions-text-225", "a11y-suggestions.json", sizes="compact", mode="text-225"),
     # Back from View All or a rival to cached Leaderboards and Rivals (issues #82, #276, #435): the opener and its card

@@ -74,6 +74,13 @@ class FixtureServerTests(unittest.TestCase):
         self.assertGreaterEqual(time.monotonic() - started, f.SLOW_SECONDS - 0.1)
         self.assertEqual((status, [r["accountId"] for r in body["results"]]), (200, [f.ROLLOVER_ID]))
 
+    def test_slow_song_search_finds_no_player_and_matches_a_fixture_song(self):
+        # Issue #521 (#260): "Pulse" holds Global Search's spinner, so the matching song row waits behind it.
+        started = time.monotonic()
+        status, _, body = self.get("/api/account/search?q=Pulse&limit=10")
+        self.assertGreaterEqual(time.monotonic() - started, f.SLOW_SECONDS - 0.1)
+        self.assertEqual((status, body["results"]), (200, []))
+
     def test_other_searches_are_untouched(self):
         status, _, body = self.get("/api/account/search?q=Fixture&limit=10")
         self.assertEqual((status, [r["accountId"] for r in body["results"]]), (200, ["fixture-player-1", "fixture-player-2"]))
