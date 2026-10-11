@@ -359,8 +359,11 @@ class StepTests(unittest.TestCase):
         self.assertEqual(step["selector"], {"kind": "id", "value": "fst.suggestions.category.x"})
         self.assertEqual(step["other"], {"kind": "id", "value": "fst.suggestions.list"})
         self.assertEqual(step["epx"], 8.0)
+        self.assertNotIn("end", step)
+        end = u.parse_step("scrollinset:id=a|id=b|4|end")
+        self.assertEqual((end["other"], end["epx"], end["end"]), ({"kind": "id", "value": "b"}, 4.0, True))
         for bad in ("scrollinset:id=a|id=b", "scrollinset:id=a|id=b|-8", "scrollinset:id=a|1,2|8",
-                    "scrollinset:id=a|id=b|0"):
+                    "scrollinset:id=a|id=b|0", "scrollinset:id=a|id=b|end", "assertinset:id=a|id=b|4|end"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 

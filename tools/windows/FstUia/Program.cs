@@ -2066,7 +2066,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// the scroller's top edge, within 1 epx: a fixed list position for scans, whatever the window size or scale. UIA
     /// clips a partly scrolled-out element's rectangle to the viewport, so a target whose top reads as the viewport's top
     /// is first scrolled half a viewport back; the remaining offset is then converted to a scroll percent from the
-    /// pattern's view size (re-measured each pass, as a virtualized list's extent estimate changes).
+    /// pattern's view size (re-measured each pass, as a virtualized list's extent estimate changes). With <c>end</c>,
+    /// a target near the list's bottom that cannot rise to the inset is accepted at the scroller's end (100%) when its
+    /// top is on screen: the end is equally fixed, and its inset depends on the host's text metrics (issue #571).
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with <c>selector</c> (the target), <c>other</c> (its vertical scroller) and <c>epx</c> (&gt; 0).</param>
@@ -2098,6 +2100,13 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             // A clipped (or unlaid) top gives no real offset: step back half a viewport so the top comes into view.
             var deltaPx = target.IsEmpty || target.Top <= viewport.Top ? -viewport.Height / 2 : target.Top - viewport.Top - expected * scale;
             var next = Math.Clamp(percent + deltaPx / scrollable * 100, 0, 100);
+            if (Math.Abs(next - percent) < 1e-6 && step["end"] is not null && percent >= 100 - 1e-6
+                && !target.IsEmpty && target.Top > viewport.Top && inset > expected)
+            {
+                response["insets"] ??= new JsonArray();
+                response["insets"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["epx"] = Math.Round(inset, 1), ["end"] = true });
+                return;
+            }
             if (Math.Abs(next - percent) < 1e-6)
                 throw new InvalidOperationException($"scrollinset cannot reach a {expected:0.#} epx inset (now {inset:0.#} epx, scroll {percent:0.##}%) ({(string)step["arg"]!})");
             scroll.SetScrollPercent(-1, next);

@@ -331,7 +331,7 @@
     ],
     "tabs": 0,
     "ready": [
-      "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@20"
+      "waitfor:id=fst.leaderboards.card.0f.view-all@20"
     ],
     "after_ready": [
       "expand:id=fst.rankings.rank-by-menu",
@@ -791,7 +791,7 @@
     ],
     "tabs": 8,
     "ready": [
-      "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@20"
+      "waitfor:id=fst.leaderboards.card.0f.view-all@20"
     ],
     "after_ready": [
       "focus:id=fst.quick-links.open",

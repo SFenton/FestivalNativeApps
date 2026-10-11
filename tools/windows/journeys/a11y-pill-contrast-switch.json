@@ -27,7 +27,7 @@
                    "contrast:desert", "wait:2",
                    "assertpaint:raw=fst.player.percentile.Solo_Guitar.4.pill|L6,M0=#FFFAEF~16|L1,M0=#202020~48",
                    "shot:{stem}-desert.png"]},
-  {"name": "pill-contrast-first-run", "tab": "settings",
+  {"name": "pill-contrast-first-run", "note": "The demo is fit-scaled (FirstRunDemo RenderTransform) at 225% text, so at 100% DPI the pill's 1 epx High Contrast stroke falls below a pixel and anti-aliases (CI sampled #575758, #571): after the switch the pill must show Window fill and WindowText ink anywhere in it (area probe); the unscaled Suggestions and Profile pages pin the stroke itself at L1.", "tab": "settings",
    "sizes": ["medium"], "skip_modes": ["hc-aquatic", "hc-desert", "hc-dusk", "hc-night-sky"], "tabs": 0,
    "ready": ["waitfor:id=fst.settings.show-instrument-icons@30"],
    "after_ready": ["scrollinto:id=fst.settings.feedback.feature@20", "scrollinto:id=fst.settings.licenses", "wait:0.5",
@@ -41,8 +41,8 @@
                    "assertpaint:raw=fst.first-run.demo.statistics-top-songs.pill.0|L6,M0!=#FFFAEF~40|L1,M0!=#202020~40",
                    "assertpaint:raw=fst.first-run.demo.statistics-top-songs.pill.3|L6,M0=#223047~16",
                    "contrast:desert", "wait:2",
-                   "assertpaint:raw=fst.first-run.demo.statistics-top-songs.pill.0|L6,M0=#FFFAEF~16|L1,M0=#202020~48",
-                   "assertpaint:raw=fst.first-run.demo.statistics-top-songs.pill.3|L6,M0=#FFFAEF~16|L1,M0=#202020~48",
+                   "assertpaint:raw=fst.first-run.demo.statistics-top-songs.pill.0|L6,M0=#FFFAEF~16|L0,T0,R0,B0=#202020~48",
+                   "assertpaint:raw=fst.first-run.demo.statistics-top-songs.pill.3|L6,M0=#FFFAEF~16|L0,T0,R0,B0=#202020~48",
                    "shot:{stem}-desert.png"],
    "teardown": ["key:esc", "waitgone:id=fst.first-run.dialog@5"]}
 ]
