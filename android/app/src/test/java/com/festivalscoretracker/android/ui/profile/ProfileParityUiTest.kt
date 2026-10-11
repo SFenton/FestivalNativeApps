@@ -36,6 +36,11 @@ import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.window.layout.FoldingFeature.Orientation as FoldOrientation
+import androidx.window.layout.FoldingFeature.State as FoldState
+import androidx.window.testing.layout.FoldingFeature
+import androidx.window.testing.layout.TestWindowLayoutInfo
+import androidx.window.testing.layout.WindowLayoutInfoPublisherRule
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.SelectedPlayer
@@ -600,5 +605,99 @@ class ProfileParityExpandedUiTest {
         journey.waitForTag("fst.quick-links.menu")
         journey.tap("fst.quick-links.item.top-songs")
         journey.waitForTag("fst.player.top-songs")
+    }
+
+    /** Bounds of every node whose test tag starts with [prefix]. */
+    private fun boxes(prefix: String) = rule.onAllNodes(
+        SemanticsMatcher("tag $prefix*") { it.config.getOrElseNullable(SemanticsProperties.TestTag) { null }?.startsWith(prefix) == true },
+        useUnmergedTree = true,
+    ).fetchSemanticsNodes().map { it.boundsInRoot }
+
+    /** Every pair of [prefix] headings that sit side by side starts on one top edge. */
+    private fun assertRowsAligned(prefix: String) {
+        val headings = boxes(prefix)
+        assertTrue("$prefix: no sections side by side in $headings", headings.map { it.left }.distinct().size > 1)
+        headings.forEach { a ->
+            headings.filter { b -> b != a && a.top < b.bottom && b.top < a.bottom }.forEach { b ->
+                assertEquals("$prefix: $a and $b share a row but not its top edge", a.top, b.top, 0.5f)
+            }
+        }
+    }
+
+    /**
+     * #584: sections side by side start on their row's top edge however far the page scrolls
+     * (row-major grid, `hinge-columns` R8), under headings that span the whole width.
+     */
+    @Test
+    fun sideBySideSectionsShareATopEdgeUnderFullWidthHeadings() {
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.waitForTag("fst.player.overview")
+        journey.waitForTag("fst.player.instrument.Solo_Guitar")
+        val grid = rule.onNodeWithTag("fst.player.available").fetchSemanticsNode().boundsInRoot
+        val overview = rule.onNodeWithTag("fst.player.overview").fetchSemanticsNode().boundsInRoot
+        assertEquals("Overview spans the grid", grid.width, overview.width, 2f)
+        assertRowsAligned("fst.player.instrument.")
+
+        journey.scrollTo("fst.player.top-songs")
+        val heading = rule.onNodeWithTag("fst.player.top-songs").fetchSemanticsNode().boundsInRoot
+        assertEquals("Top Songs heading spans the grid", grid.width, heading.width, 2f)
+        journey.scrollTo("fst.player.top-songs.Solo_Bass")
+        assertRowsAligned("fst.player.top-songs.")
+    }
+}
+
+/**
+ * #584 on an unfolded book foldable: flat, Overview and the Top Songs heading span the whole
+ * grid; half open, the heading keeps to the leading panel and Overview fills that panel with
+ * Lead beside it after the hinge (#111), both on one top edge.
+ */
+@RunWith(AndroidJUnit4::class)
+@Config(qualifiers = "w852dp-h883dp-xhdpi")
+class ProfileParityFoldUiTest {
+    @get:Rule(order = 0)
+    val windowInfo = WindowLayoutInfoPublisherRule()
+
+    @get:Rule(order = 1)
+    val rule = createAndroidComposeRule<ComponentActivity>()
+
+    private val journey = ProfileJourney(rule)
+
+    private fun bounds(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInWindow
+
+    /** Publish one vertical fold at the window centre to Jetpack WindowManager. */
+    private fun fold(state: FoldState) {
+        windowInfo.overrideWindowLayoutInfo(
+            TestWindowLayoutInfo(listOf(FoldingFeature(rule.activity, state = state, orientation = FoldOrientation.VERTICAL))),
+        )
+        journey.settle()
+    }
+
+    @Test
+    fun headingsSpanTheGridFlatAndKeepToTheLeadingPanelHalfOpen() {
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.waitForTag("fst.player.overview")
+        val hinge = rule.activity.window.decorView.width / 2f
+
+        fold(FoldState.FLAT)
+        journey.waitForTag("fst.player.instrument.Solo_Guitar")
+        val grid = bounds("fst.player.available")
+        assertEquals("flat: Overview spans the grid", grid.width, bounds("fst.player.overview").width, 2f)
+        assertTrue("flat: Lead sits below Overview", bounds("fst.player.instrument.Solo_Guitar").top >= bounds("fst.player.overview").bottom)
+
+        fold(FoldState.HALF_OPENED)
+        rule.waitUntil(10_000) {
+            journey.settle(100)
+            bounds("fst.player.overview").right <= hinge + 1f
+        }
+        val overview = bounds("fst.player.overview")
+        val lead = bounds("fst.player.instrument.Solo_Guitar")
+        assertTrue("half open: Lead $lead starts after the hinge $hinge", lead.left >= hinge - 1f)
+        assertEquals("half open: Lead $lead and Overview $overview share a top edge", overview.top, lead.top, 1f)
+
+        journey.scrollTo("fst.player.top-songs")
+        val heading = bounds("fst.player.top-songs")
+        assertTrue("half open: the Top Songs heading $heading crosses the hinge $hinge", heading.right <= hinge + 1f)
+        val firstCard = bounds("fst.player.top-songs.Solo_Guitar")
+        assertTrue("half open: the first Top Songs card $firstCard sits beside its heading $heading", firstCard.top >= heading.bottom)
     }
 }

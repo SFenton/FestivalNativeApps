@@ -19,8 +19,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
@@ -81,6 +82,7 @@ import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalScreen
+import com.festivalscoretracker.android.ui.common.FoldLane
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
@@ -141,8 +143,7 @@ internal fun profileHeadingInset(id: String): Dp = if (ProfileSections.isInstrum
 @Composable
 private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, isRoot: Boolean, tag: String) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var splitAtFold by rememberSaveable { mutableStateOf(false) }
-    val gridState = rememberProfileGridState(splitAtFold)
+    val gridState = rememberLazyGridState()
     val loaded = state.phase == ProfilePhase.Loaded
     val visible = state.instruments.map { it.instrument }
     val showIdentity = state.showsIdentityRow
@@ -166,7 +167,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
             actions = { QuickLinksAction(quickLinks, windowWidthDp) },
             modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag(tag),
         ) { padding ->
-            Box(Modifier.fillMaxSize()) { PlayerProfileContent(viewModel, padding, gridState, rows, onSplitChange = { splitAtFold = it }, fadeWindow = fadeWindow) }
+            Box(Modifier.fillMaxSize()) { PlayerProfileContent(viewModel, padding, gridState, rows, fadeWindow = fadeWindow) }
         }
     }
 }
@@ -187,16 +188,14 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
  * @param padding Scaffold padding.
  * @param gridState Grid state shared with Quick Links.
  * @param rows Rows in page order.
- * @param onSplitChange Receives the grid's fold split (see [rememberProfileGridState]).
  * @param fadeWindow The grid's fade window when the caller also scrolls it (Quick Links); by default the content creates it.
  */
 @Composable
 fun PlayerProfileContent(
     viewModel: PlayerProfileViewModel,
     padding: PaddingValues,
-    gridState: LazyStaggeredGridState,
+    gridState: LazyGridState,
     rows: List<ProfileRow>,
-    onSplitChange: (Boolean) -> Unit = {},
     fadeWindow: FadeInWindow? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -224,9 +223,21 @@ fun PlayerProfileContent(
             onRetry = viewModel::retry,
         )
         is ProfilePhase.Failed -> ServiceStatusView(phase.issue, "Profile unavailable", phase.countdown, viewModel::retry, contentPadding = padding)
-        ProfilePhase.Loaded -> LoadedProfile(viewModel, state, padding, gridState, rows, revealed, onSplitChange)
+        ProfilePhase.Loaded -> LoadedProfile(viewModel, state, padding, gridState, rows, revealed)
     }
     }
+}
+
+/**
+ * Wraps a line-spanning profile row in [FoldLane] (leading panel only in book posture); other
+ * rows are one column wide already.
+ *
+ * @param fullWidth Whether the row spans the line.
+ * @param content The row.
+ */
+@Composable
+private fun FullWidthLane(fullWidth: Boolean, content: @Composable () -> Unit) {
+    if (fullWidth) FoldLane(content = content) else content()
 }
 
 @Composable
@@ -234,10 +245,9 @@ private fun LoadedProfile(
     viewModel: PlayerProfileViewModel,
     state: PlayerProfileUiState,
     padding: PaddingValues,
-    gridState: LazyStaggeredGridState,
+    gridState: LazyGridState,
     rows: List<ProfileRow>,
     revealed: Boolean,
-    onSplitChange: (Boolean) -> Unit,
 ) {
     val shell = LocalShellActions.current
     val ranks by viewModel.ranks.collectAsStateWithLifecycle()
@@ -263,11 +273,12 @@ private fun LoadedProfile(
         state = gridState,
         contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
         modifier = Modifier.padding(start = padding.calculateStartPadding(direction) + 16.dp, end = padding.calculateEndPadding(direction) + 16.dp),
-        onSplitChange = onSplitChange,
-    ) { split ->
+    ) { splitAtFold ->
         rows.forEachIndexed { index, row ->
-            val span = if (row.fullWidth && !split) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane
-            item(key = row.key, span = span) {
+            // Full-width rows span the line, their content in the leading panel at a fold (FoldLane, #584).
+            val spans = row.spansLine(splitAtFold)
+            item(key = row.key, span = { if (spans) GridItemSpan(maxLineSpan) else GridItemSpan(1) }) {
+                FullWidthLane(spans) {
                 Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index)).readingGroup()) {
                 when (row) {
                     ProfileRow.Identity -> IdentityActions(state, onSelect = {
@@ -300,6 +311,7 @@ private fun LoadedProfile(
                     is ProfileRow.BandGroup -> Box(Modifier.festivalFadeIn(bandsRevealed, fadeInStagger(ProfileSections.BAND_GROUPS.indexOf(row.group).coerceAtLeast(0)))) {
                         ProfileBandGroupSection(state, row, onNavigate = shell.navigate)
                     }
+                }
                 }
                 }
             }

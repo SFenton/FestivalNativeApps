@@ -251,6 +251,9 @@ class ProfileParityCoreTest {
             rows.map { it.key },
         )
         assertEquals(listOf(true, false, false, true, false, false, true), rows.map { it.fullWidth })
+        // #584: flat, every full-width row spans the line; in book posture Overview fills one pane beside Lead (#111).
+        assertEquals(rows.map { it.fullWidth }, rows.map { it.spansLine(splitAtFold = false) })
+        assertEquals(listOf(false, false, false, true, false, false, true), rows.map { it.spansLine(splitAtFold = true) })
         // Issue #97: no name card; a full-width identity-actions row leads only when Select/Switch or a notice applies.
         val withIdentity = ProfileSections.rows(visible, showIdentity = true)
         assertEquals(listOf("identity") + rows.map { it.key }, withIdentity.map { it.key })
