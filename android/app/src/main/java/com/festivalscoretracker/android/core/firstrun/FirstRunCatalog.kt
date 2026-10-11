@@ -143,7 +143,7 @@ object FirstRunCatalog {
 
     /** Statistics (6). */
     val statistics: List<FirstRunSlide> = listOf(
-        FirstRunSlide("statistics-select-profile", 1, "Select Player Profile", "Press the Select Player Profile button at the top of the screen to select this player profile and see all of their tracked data.", contentKey = "statistics-select-profile"),
+        FirstRunSlide("statistics-select-profile", 1, "Select Player Profile", "Tap Select beside Quick Links at the bottom of this page to make this player your selected profile and see all of their tracked data.", contentKey = "statistics-select-profile"),
         FirstRunSlide("statistics-drill-down", 1, "Drill Into Your Data", "Tap any stat card marked with a chevron to jump to the Songs page with pre-applied filters, instantly showing you all songs for that category."),
         FirstRunSlide("statistics-overview", 2, "Global Statistics", "See a player's overall performance at a glance — songs played, full combos, gold stars, accuracy, and best rank. Tap any stat with an indicator to jump to the relevant songs."),
         FirstRunSlide("statistics-instrument-breakdown", 1, "Per-Instrument Stats", "Scroll down to see detailed stats for each instrument, and tap to immediately be taken to a filtered list of songs for that instrument."),

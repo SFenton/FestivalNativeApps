@@ -110,6 +110,62 @@ class UiCiTests(unittest.TestCase):
                                             "id=fst.full-rankings.spotlight-footer|id=fst.full-rankings.page-first")
                             for step in steps))
 
+    def test_leaderboards_card_jump_runs_at_default_largest_text_and_reduced_motion(self):
+        # Issue #493 (#370): a Leaderboards card's "your rank" row runs in CI at default and 225% text, and its keyboard
+        # jump to Full Rankings with in-app Reduce Motion.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-leaderboards-card-jump.json"}
+        self.assertEqual({"normal", "text-225", "app-reduced"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertEqual("", runs["normal"].only)
+        self.assertEqual("", runs["text-225"].only)
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        self.assertEqual("card-jump-row-keyboard", runs["app-reduced"].only)
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-leaderboards-card-jump.json").read_text(encoding="utf-8"))}
+        self.assertEqual({"card-jump-row", "card-jump-row-keyboard", "card-in-place-row"}, set(pages))
+        spotlight = "id=fst.leaderboards.card.Solo_Guitar.spotlight"
+        jump = pages["card-jump-row"]["after_ready"]
+        self.assertIn(f"assertsize:{spotlight}|40x40", jump)
+        self.assertTrue(any(step.startswith(f"assertread:{spotlight}|~^Your rank, 40th\\. Jump to your position")
+                            for step in jump))
+        keyboard = pages["card-jump-row-keyboard"]["after_ready"]
+        self.assertIn("key:enter", keyboard)
+        self.assertIn("waitfor:id=fst.rankings.row.fixture-rank-40@15", keyboard)
+        self.assertEqual(f"assertfocus:{spotlight}@3", keyboard[-2])
+
+    def test_search_all_section_titles_run_at_default_largest_text_and_reduced_motion(self):
+        # Issue #483 (#348): Search's All section titles run in CI at default and 225% text and with in-app Reduce
+        # Motion, while the file's other pages keep their generated runs.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-search.json" and run.only == ci.SEARCH_SECTIONS
+                and run.mode != "app-reduced"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        reduced = [run for run in ci.RUNS if run.pages == "a11y-search.json" and run.mode == "app-reduced"]
+        self.assertEqual(["search-all-sections,search-all-sections-keyboard"], [run.only for run in reduced])
+        self.assertTrue(all(run.scan for run in (*runs.values(), *reduced)))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        generated = {run.mode: set(run.only.split(",")) for run in ci.RUNS if run.name.startswith("a11y-search-")}
+        self.assertEqual({"normal", "text-225"}, set(generated))
+        for pages in generated.values():
+            self.assertIn("search-results-all", pages)
+            self.assertFalse(pages & set(ci.SEARCH_SECTIONS.split(",")))
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-search.json").read_text(encoding="utf-8"))}
+        steps = pages["search-all-sections"]["after_ready"]
+        for section, title in (("songs", "Songs"), ("players", "Players"), ("bands", "Bands")):
+            self.assertIn(f"assertread:id=fst.global-search.section.{section}|{title}, text", steps)
+            self.assertIn(f"assertstate:id=fst.global-search.section.{section}|heading=2", steps)
+            self.assertIn(f"assertstate:id=fst.global-search.section.{section}|focusable=false", steps)
+        self.assertIn("assertorder:id=fst.global-search.scope.all|id=fst.global-search.section.songs"
+                      "|id=fst.global-search.result.song", steps)
+        keyboard = pages["search-all-sections-keyboard"]
+        self.assertEqual(0, keyboard["tabs"])
+        focus = [step for step in keyboard["after_ready"] if step.startswith("assertfocus:")]
+        self.assertEqual(["scope.all", "result.song", "result.player", "result.band", "result.player", "result.song",
+                          "scope.all"], [step.split("fst.global-search.")[1].split("@")[0] for step in focus])
+        for scope in ("songs", "players", "bands"):
+            single = pages[f"search-results-{scope}"]["after_ready"]
+            self.assertTrue(any(step.startswith(f"waitgone:id=fst.global-search.section.{scope}") for step in single))
+
     def test_first_run_demos_run_at_default_and_largest_text(self):
         """#420 review: the first-run demo journey gates PRs, not just its JSON guard."""
         demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-demos.json"}
