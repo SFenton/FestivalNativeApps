@@ -74,6 +74,13 @@ class FixtureServerTests(unittest.TestCase):
         self.assertGreaterEqual(time.monotonic() - started, f.SLOW_SECONDS - 0.1)
         self.assertEqual((status, [r["accountId"] for r in body["results"]]), (200, [f.ROLLOVER_ID]))
 
+    def test_slow_song_search_finds_no_player_and_matches_a_fixture_song(self):
+        # Issue #521 (#260): "Pulse" holds Global Search's spinner, so the matching song row waits behind it.
+        started = time.monotonic()
+        status, _, body = self.get("/api/account/search?q=Pulse&limit=10")
+        self.assertGreaterEqual(time.monotonic() - started, f.SLOW_SECONDS - 0.1)
+        self.assertEqual((status, body["results"]), (200, []))
+
     def test_other_searches_are_untouched(self):
         status, _, body = self.get("/api/account/search?q=Fixture&limit=10")
         self.assertEqual((status, [r["accountId"] for r in body["results"]]), (200, ["fixture-player-1", "fixture-player-2"]))
@@ -115,7 +122,8 @@ class PagesTests(unittest.TestCase):
 
     def test_every_state_is_covered(self):
         names = {p["name"].removeprefix("profile-") for p in self.pages()}
-        aliases = {"unpinned": "unpinned-profile", "reload": "profile-reload"}
+        # Issue #600: the contract's band-blocked state (the Bands target) now searches bands on Windows.
+        aliases = {"unpinned": "unpinned-profile", "reload": "profile-reload", "bands-scope": "band-blocked"}
         covered = {aliases.get(n, n) for n in names} | {"large-text"}  # large-text: every page with --mode text-200
         self.assertLessEqual(STATES, covered)
         self.assertIn("text-200", m.MODES)

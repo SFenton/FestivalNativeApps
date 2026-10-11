@@ -206,46 +206,28 @@ sealed interface ProfileRow {
     }
 
     /**
-     * A band-size group's header (web `BandGroupHeader`: "Duos", "Trios", "Quads").
+     * One band-size group (owner #596): its header ("Duos", "Trios", "Quads", web `BandGroupHeader`),
+     * then one card of band rows with separators ending in the purple "View All Bands (N)"
+     * (`view-all-cta` R1), or "No Bands Yet" (web `InstrumentEmptyState`) when the group is empty.
+     * One grid column, like the Top Songs cards, so groups sit side by side on wide windows.
      *
-     * @property group Group.
+     * @property group Group the card previews and its View All opens.
+     * @property entries Previewed bands, in service order.
+     * @property total Bands in the group, never fewer than the card shows.
      */
-    data class BandGroupHeader(val group: PlayerBandGroup) : ProfileRow {
+    data class BandGroup(val group: PlayerBandGroup, val entries: List<PlayerBandEntry>, val total: Int) : ProfileRow {
         override val key: String get() = "bands:${group.wireId}"
+
+        /** Whether the card ends with View All: whenever it shows rows (`view-all-cta` R1), never for "No Bands Yet". */
+        val showsViewAll: Boolean get() = entries.isNotEmpty()
     }
 
     /**
-     * One band card (web `PlayerBandCard`, one grid column like the web's `span: false`).
-     *
-     * @property group Group the card belongs to.
-     * @property index Position in the group (fade-in stagger).
-     * @property entry Band.
+     * Whether the row spans the whole grid line (#584): flat or in landscape across every column;
+     * in book posture its content stays in the leading panel (`FoldLane`), so the cards after it
+     * start a new row on one top edge, as under Apple's full-width Overview.
      */
-    data class BandCard(val group: PlayerBandGroup, val index: Int, val entry: PlayerBandEntry) : ProfileRow {
-        override val key: String get() = "bands:${group.wireId}:$index:${entry.key}"
-    }
-
-    /**
-     * "No Bands Yet" for a group without bands (web `InstrumentEmptyState`).
-     *
-     * @property group Group.
-     */
-    data class BandsEmpty(val group: PlayerBandGroup) : ProfileRow {
-        override val key: String get() = "bands:${group.wireId}:empty"
-    }
-
-    /**
-     * "View All Bands (N)" when the group has more bands than its preview.
-     *
-     * @property group Group the full list opens filtered to.
-     * @property total Bands in the group.
-     */
-    data class BandsViewAll(val group: PlayerBandGroup, val total: Int) : ProfileRow {
-        override val key: String get() = "bands:${group.wireId}:view-all"
-    }
-
-    /** Whether the row spans every column when no fold splits them. */
-    val fullWidth: Boolean get() = this !is InstrumentStats && this !is TopSongs && this !is BandCard
+    val fullWidth: Boolean get() = this !is InstrumentStats && this !is TopSongs && this !is BandGroup
 }
 
 /**
@@ -273,46 +255,90 @@ object ProfileSections {
             ProfileRow.TopSongsHeading +
             visible.map { ProfileRow.TopSongs(it) } +
             ProfileRow.Bands +
-            bands.flatMap(::bandRows)
+            bands.map(::bandRow)
 
     /**
-     * One group's rows: header, then its cards or "No Bands Yet", then "View All Bands (N)" when the
-     * group has more bands than the preview shows.
+     * One group's row: a single card of its bands, or "No Bands Yet" (owner #596).
      *
      * @param group Loaded group.
-     * @return Rows in page order.
+     * @return The group's row.
      */
-    fun bandRows(group: ProfileBandGroup): List<ProfileRow> {
+    fun bandRow(group: ProfileBandGroup): ProfileRow.BandGroup {
         val entries = group.page.entries
-        return listOf(ProfileRow.BandGroupHeader(group.group)) +
-            (if (entries.isEmpty()) listOf(ProfileRow.BandsEmpty(group.group)) else entries.mapIndexed { i, e -> ProfileRow.BandCard(group.group, i, e) }) +
-            listOfNotNull(ProfileRow.BandsViewAll(group.group, group.page.totalCount).takeIf { group.page.totalCount > entries.size })
+        return ProfileRow.BandGroup(group.group, entries, maxOf(group.page.totalCount, entries.size))
     }
 
     /** Band-size groups the player page previews, in web order (`PlayerBandsSection` duos, trios, quads). */
     val BAND_GROUPS: List<PlayerBandGroup> = listOf(PlayerBandGroup.Duos, PlayerBandGroup.Trios, PlayerBandGroup.Quads)
 
     /**
-     * Quick Links, in web order: Global Statistics, one per visible chart, Top Songs, Bands.
-     * IDs are the web's (`global`, `instrument:<wire>`, `top-songs`, `bands`) and equal the row keys they jump to.
+     * Quick Links, in page order and matching iOS (#590): Global Statistics; per visible chart its
+     * entry, then nested (depth 1) "Rank History" and "Percentiles" when that chart shows them
+     * (spoken "<Chart> Rank History", "<Chart> Percentiles"); Top Songs; Bands.
+     * IDs are the web's and iOS's (`global`, `instrument:<wire>`, `rank-history:<wire>`,
+     * `percentiles:<wire>`, `top-songs`, `bands`); [rowKey] maps each to the row it lands in.
      *
      * @param visible Settings-visible charts in service order.
      * @param displayName Player name (Bands landmark label).
+     * @param rankHistory Charts whose Rank History card is on the page.
+     * @param percentiles Charts whose percentile table is on the page.
      * @return Sections.
      */
-    fun quickLinks(visible: List<Instrument>, displayName: String): List<QuickLinkSection> =
+    fun quickLinks(
+        visible: List<Instrument>,
+        displayName: String,
+        rankHistory: Set<Instrument> = emptySet(),
+        percentiles: Set<Instrument> = emptySet(),
+    ): List<QuickLinkSection> =
         listOf(QuickLinkSection("global", "Global Statistics", icon = "chart")) +
-            visible.map { QuickLinkSection("instrument:${it.wireId}", it.label, instrument = it, spokenTitle = "${it.label} statistics") } +
+            visible.flatMap { instrument ->
+                listOfNotNull(
+                    QuickLinkSection("instrument:${instrument.wireId}", instrument.label, instrument = instrument, spokenTitle = "${instrument.label} statistics"),
+                    QuickLinkSection("$RANK_HISTORY_PREFIX${instrument.wireId}", "Rank History", icon = "trend", depth = 1, spokenTitle = "${instrument.label} Rank History")
+                        .takeIf { instrument in rankHistory },
+                    QuickLinkSection("$PERCENTILES_PREFIX${instrument.wireId}", "Percentiles", icon = "percentiles", depth = 1, spokenTitle = "${instrument.label} Percentiles")
+                        .takeIf { instrument in percentiles },
+                )
+            } +
             QuickLinkSection("top-songs", "Top Songs", icon = "music", spokenTitle = "Top Songs Per Instrument") +
             QuickLinkSection("bands", "Bands", icon = "people", spokenTitle = "$displayName's Bands")
 
     /**
-     * The row a Quick Link jumps to.
+     * The row a Quick Link jumps to: nested Rank History and Percentiles links land inside their
+     * chart's row, at the card's offset.
      *
      * @param id Section ID.
      * @return Row key.
      */
-    fun rowKey(id: String): String = if (id == "global") ProfileRow.Overview.key else id
+    fun rowKey(id: String): String = when {
+        id == "global" -> ProfileRow.Overview.key
+        id.startsWith(RANK_HISTORY_PREFIX) -> "instrument:" + id.removePrefix(RANK_HISTORY_PREFIX)
+        id.startsWith(PERCENTILES_PREFIX) -> "instrument:" + id.removePrefix(PERCENTILES_PREFIX)
+        else -> id
+    }
+
+    /**
+     * Whether a Quick Link is a card inside its chart's row (Rank History, Percentiles) rather than a whole row.
+     *
+     * @param id Section ID.
+     * @return True for nested links.
+     */
+    fun isNested(id: String): Boolean = id.startsWith(RANK_HISTORY_PREFIX) || id.startsWith(PERCENTILES_PREFIX)
+
+    /** Nested Rank History Quick Link ID prefix (iOS `rank-history:<wire>`). */
+    const val RANK_HISTORY_PREFIX = "rank-history:"
+
+    /** Nested Percentiles Quick Link ID prefix (iOS `percentiles:<wire>`). */
+    const val PERCENTILES_PREFIX = "percentiles:"
+
+    /**
+     * Whether a Quick Links section is a chart's statistics, whose heading (the instrument row) sits
+     * flush with the top of its row; every other section opens with a padded section header.
+     *
+     * @param id Section ID.
+     * @return True for `instrument:<wire>`.
+     */
+    fun isInstrumentId(id: String): Boolean = id.startsWith("instrument:")
 }
 
 // endregion

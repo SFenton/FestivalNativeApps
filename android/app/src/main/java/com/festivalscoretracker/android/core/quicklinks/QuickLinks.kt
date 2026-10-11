@@ -118,7 +118,7 @@ object QuickLinks {
     }
 
     /**
-     * The `scrollOffset` for `LazyListState.scrollToItem` / `LazyStaggeredGridState.scrollToItem` that
+     * The `scrollOffset` for `LazyListState.scrollToItem` / `LazyGridState.scrollToItem` that
      * lands an item's top [landingPx] below the visible viewport top. Lazy offsets are measured from the
      * end of the leading content padding, which content still scrolls through, so the padding is
      * subtracted rather than added on top. Negative values are valid (the list composes earlier items),
@@ -129,6 +129,32 @@ object QuickLinks {
      * @return Scroll offset for `scrollToItem`.
      */
     fun lazyLandingScrollOffset(landingPx: Int, beforeContentPadding: Int): Int = beforeContentPadding - landingPx
+
+    /**
+     * Where a jump lands a section's item so its heading, not the item's top, sits on the landing line:
+     * a heading that keeps its own top padding inside the item (a 16 dp `SectionHeader`) would otherwise
+     * land that much lower, as dead space under the top bar (issue #587).
+     *
+     * @param landingPx Landing line below the viewport top, in pixels.
+     * @param headingInsetPx How far the section's heading sits below its item's top, in pixels.
+     * @return Where the item's top lands, in pixels below the viewport top.
+     */
+    fun itemLandingPx(landingPx: Int, headingInsetPx: Int): Int = landingPx - headingInsetPx.coerceAtLeast(0)
+
+    /**
+     * A section's frame for active-section tracking: from its heading (the item's top plus the heading's
+     * inset) to the item's bottom, so the section becomes current when its heading crosses the line a jump
+     * lands it on (issue #587).
+     *
+     * @param itemTop Item top below the viewport top, in pixels.
+     * @param itemBottom Item bottom, in pixels.
+     * @param headingInsetPx How far the heading sits below the item's top, in pixels.
+     * @return Frame.
+     */
+    fun headingFrame(itemTop: Float, itemBottom: Float, headingInsetPx: Float): QuickLinkFrame {
+        val top = itemTop + headingInsetPx.coerceAtLeast(0f)
+        return QuickLinkFrame(top, maxOf(top, itemBottom))
+    }
 
     /**
      * Scroll position that lands a section of a plain scrolling column [landingPx] below the viewport top.

@@ -9,11 +9,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
-import com.festivalscoretracker.android.ui.profile.rememberProfileGridState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -163,28 +163,30 @@ class QuickLinksControllerUiTest {
 
     // endregion
 
-    // region Staggered grid
+    // region Row-major grid
 
-    private lateinit var gridState: LazyStaggeredGridState
-    private val split = mutableStateOf(true)
+    private lateinit var gridState: LazyGridState
 
-    /** Two lanes like the Statistics grid with its fold-aware state: unequal sections, the first beside the second (full width unless [split]). */
-    private fun setTwoLaneGrid() {
+    /**
+     * Two columns like the Statistics grid (#584): a full-width first row, then unequal sections
+     * paired row by row.
+     */
+    private fun setTwoColumnGrid() {
         rule.setContent {
-            gridState = rememberProfileGridState(split.value)
-            val sections = (0 until 12).map { QuickLinkSection("s$it", "S$it") }
+            gridState = rememberLazyGridState()
+            val sections = (0 until 13).map { QuickLinkSection("s$it", "S$it") }
             controller = rememberQuickLinks(gridState, "Quick Links", sections) { id -> id.removePrefix("s").toIntOrNull() }
             with(LocalDensity.current) {
                 landingPx = QuickLinks.LANDING_OFFSET_DP.dp.roundToPx()
                 thresholdPx = QuickLinks.COMPLETE_THRESHOLD_DP.dp.roundToPx()
             }
-            LazyVerticalStaggeredGrid(
-                columns = StaggeredGridCells.Fixed(2),
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
                 state = gridState,
                 contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                items(12, span = { if (it == 0 && !split.value) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane }) { index ->
+                items(13, span = { if (it == 0) GridItemSpan(maxLineSpan) else GridItemSpan(1) }) { index ->
                     val height = listOf(300, 900, 500, 700, 400, 800)[index % 6].dp
                     Box(Modifier.fillMaxWidth().height(height))
                 }
@@ -195,41 +197,38 @@ class QuickLinksControllerUiTest {
 
     private fun gridItem(index: Int) = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == index }
 
-    private fun assertFirstTwoSideBySide() {
-        val back = gridItem(0)!!
-        val beside = gridItem(1)
-        assertTrue("section 1 is beside section 0 after the jump", beside != null && beside.offset.y == back.offset.y && beside.lane != back.lane)
-        assertFalse(gridState.canScrollBackward)
+    /** Sections [first] and [first] + 1 share one row: same top edge, different columns. */
+    private fun assertSideBySide(first: Int) {
+        val leading = gridItem(first)!!
+        val trailing = gridItem(first + 1)
+        assertTrue("section ${first + 1} starts beside section $first", trailing != null && trailing.offset.y == leading.offset.y && trailing.column != leading.column)
     }
 
     @Test
-    fun jumpBackToTheFirstSectionRealignsTheGridLanes() {
-        setTwoLaneGrid()
-        assertFirstTwoSideBySide()
+    fun jumpBackToTheFirstSectionKeepsRowsAligned() {
+        setTwoColumnGrid()
+        assertSideBySide(1)
 
         rule.runOnIdle { controller.jump("s11") }
         rule.waitForIdle()
         rule.runOnIdle { controller.jump("s0") }
         rule.waitForIdle()
 
-        assertFirstTwoSideBySide()
+        assertSideBySide(1)
+        assertFalse(gridState.canScrollBackward)
         assertEquals("s0", controller.activeId)
     }
 
     @Test
-    fun jumpBackAfterTheFoldSplitsTheFirstSectionRealignsTheGridLanes() {
-        split.value = false
-        setTwoLaneGrid()
-        rule.runOnIdle { controller.jump("s6") }
+    fun sideBySideSectionsShareATopEdgeHoweverFarThePageScrolls() {
+        setTwoColumnGrid()
+        // Unequal heights drifted masonry lanes apart; rows keep every pair on one top edge.
+        rule.runOnIdle { controller.jump("s9") }
         rule.waitForIdle()
 
-        // Unfolded to half-open: the full-width first section now takes one lane at the fold.
-        split.value = true
-        rule.waitForIdle()
-        rule.runOnIdle { controller.jump("s0") }
-        rule.waitForIdle()
-
-        assertFirstTwoSideBySide()
+        assertSideBySide(9)
+        assertEquals(gridItem(9)!!.row, gridItem(10)!!.row)
+        assertTrue(gridItem(11) == null || gridItem(11)!!.offset.y > gridItem(9)!!.offset.y)
     }
 
     // endregion

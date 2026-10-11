@@ -46,7 +46,7 @@
                         <TextBlock x:Name="BandSizeText" Text="Band Size" />
                     </StackPanel>
                     <DropDownButton.Flyout>
-                        <MenuFlyout x:Name="BandTypeMenu" Placement="BottomEdgeAlignedRight" Opening="OnBandTypeMenuOpening" />
+                        <MenuFlyout x:Name="BandTypeMenu" Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True" Opening="OnBandTypeMenuOpening" />
                     </DropDownButton.Flyout>
                 </DropDownButton>
                 <DropDownButton MinHeight="{StaticResource FSTMinTargetSize}" AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
@@ -57,7 +57,7 @@
                         <TextBlock Text="{x:Bind ViewModel.MetricLabel, Mode=OneWay}" />
                     </StackPanel>
                     <DropDownButton.Flyout>
-                        <MenuFlyout x:Name="MetricMenu" Placement="BottomEdgeAlignedRight" Opening="OnMetricMenuOpening" />
+                        <MenuFlyout x:Name="MetricMenu" Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True" Opening="OnMetricMenuOpening" />
                     </DropDownButton.Flyout>
                 </DropDownButton>
             </StackPanel>
@@ -72,7 +72,7 @@
                           controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                           AutomationProperties.AutomationId="fst.band-rankings.list">
                 <ItemsRepeater x:Name="RowsRepeater" XYFocusKeyboardNavigation="Enabled" Margin="0,4,0,0" VerticalAlignment="Top"
-                               ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48"
+                               ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" controls:FadeIn.Together="True" controls:FadeIn.RowHeight="48"
                                controls:GroupedRows.IsEnabled="True" ElementPrepared="OnRowPrepared">
                     <ItemsRepeater.Layout>
                         <StackLayout Spacing="0" />

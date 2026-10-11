@@ -37,6 +37,7 @@ from tools.ios_sim import (
     existing_ci_device,
     output_paths,
     pick_ci_runtime,
+    should_retry_batch,
     skip_problem,
     parse_steps,
     resolve_device,
@@ -185,6 +186,32 @@ class CiDeviceTests(unittest.TestCase):
         devices["ios-27-1"].append({"name": ipad, "udid": "PAD"})
         self.assertEqual(existing_ci_device(devices, "ios-27-1", ipad), "PAD")
 
+    def test_creates_the_ipad_beside_the_iphone(self):
+        import argparse
+        import contextlib
+        import io
+        import json
+        import os
+        import subprocess
+        from unittest import mock
+
+        runtimes = {"runtimes": [{"platform": "iOS", "version": "27.1", "identifier": "ios-27-1",
+                                  "supportedDeviceTypes": [{"name": ios_sim.CI_IPAD_DEVICE_TYPE, "identifier": "dt.ipad"}]}]}
+        devices = {"devices": {"ios-27-1": [{"name": ios_sim.CI_DEVICE_NAME, "udid": "PHONE"}]}}
+        replies = [json.dumps(runtimes), json.dumps(devices), "IPAD\n"]
+        calls = []
+
+        def run(cmd, **_):
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, stdout=replies[len(calls) - 1])
+
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}), mock.patch.object(ios_sim, "_run", run), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(ios_sim.cmd_ci_device(argparse.Namespace(type=ios_sim.CI_IPAD_DEVICE_TYPE)), 0)
+        self.assertEqual(out.getvalue().strip(), "IPAD")
+        self.assertEqual(calls[-1][-4:], ["create", ios_sim.ci_device_name(ios_sim.CI_IPAD_DEVICE_TYPE), "dt.ipad", "ios-27-1"])
+
     def test_refuses_outside_ci(self):
         import argparse
         import os
@@ -209,6 +236,21 @@ class FailOnSkipTests(unittest.TestCase):
 
     def test_unreadable_summary_fails(self):
         self.assertIsNotNone(skip_problem(None))
+
+
+class RetryBatchTests(unittest.TestCase):
+    """`uitest --retries` reruns only a batch whose test failed, at most N more times."""
+
+    def test_a_test_failure_retries_while_attempts_remain(self):
+        self.assertTrue(should_retry_batch(65, 0, 1))
+        self.assertFalse(should_retry_batch(65, 1, 1))
+
+    def test_no_retries_by_default(self):
+        self.assertFalse(should_retry_batch(65, 0, 0))
+
+    def test_success_timeout_and_setup_errors_never_retry(self):
+        for code in (0, 124, 70, 1, ios_sim.EXIT_POSE_MISMATCH):
+            self.assertFalse(should_retry_batch(code, 0, 3), code)
 
 
 class SourceHashTests(unittest.TestCase):
@@ -314,6 +356,39 @@ class DuoPoseTests(unittest.TestCase):
         self.assertEqual(classify_pose(outer_dark=True, inner_dark=False), "unfolded")
         self.assertEqual(classify_pose(outer_dark=True, inner_dark=True), "unknown")
         self.assertEqual(classify_pose(outer_dark=False, inner_dark=False), "unknown")
+
+    def test_pose_screenshots_get_longer_and_retried_on_ci(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}):
+            self.assertEqual(ios_sim.pose_screenshot_policy(), (30.0, 1))
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            self.assertEqual(ios_sim.pose_screenshot_policy(), (180.0, 3))
+
+    def test_detect_pose_retries_a_slow_first_screenshot(self):
+        # #432: a runner's first screenshot after boot timed out, and the folded Duo read as unknown.
+        import os
+        import subprocess
+        from unittest import mock
+
+        calls = []
+
+        def fake_run(argv, **kwargs):
+            calls.append(argv)
+            if len(calls) == 1:
+                raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+            lit = "--display=primary" in argv
+            Path(argv[-1]).write_bytes(_bmp([(200, 200, 200)] if lit else [(0, 0, 0)]))
+            return subprocess.CompletedProcess(argv, 0)
+
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}), \
+                mock.patch.object(ios_sim, "_run", side_effect=fake_run):
+            self.assertEqual(ios_sim.detect_pose("UDID"), "folded")
+        self.assertEqual(len(calls), 3)
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}), \
+                mock.patch.object(ios_sim, "_run", side_effect=subprocess.TimeoutExpired("x", 30)):
+            self.assertEqual(ios_sim.detect_pose("UDID"), "unknown")
 
 
 def _control(title=None, role="AXButton", kind="control", **extra):
@@ -523,6 +598,22 @@ class A11yCommandsTests(unittest.TestCase):
         self.assertEqual(enable[0][4:6], ["defaults", "write"])
         self.assertIn("EnhancedTextLegibilityEnabled", enable[0])
         self.assertEqual(restore[0][4:7], ["defaults", "delete", "com.apple.Accessibility"])
+
+    def test_full_keyboard_access_notifies_after_enabling_and_restoring(self):
+        enable, restore = a11y_commands("UDID", ["full-keyboard-access"])
+        self.assertIn("FullKeyboardAccessUsesSimulatedKeyboardForAutomation", enable[0])
+        self.assertIn("FullKeyboardAccessEnabled", enable[1])
+        self.assertEqual(enable[2][4:], ["notifyutil", "-p", "com.apple.accessibility.fullkeyboardaccess.status"])
+        self.assertEqual([cmd[4:6] for cmd in restore[:2]], [["defaults", "delete"]] * 2)
+        self.assertIn("FullKeyboardAccessEnabled", restore[0])
+        self.assertIn("FullKeyboardAccessUsesSimulatedKeyboardForAutomation", restore[1])
+        self.assertEqual(restore[2], enable[2])
+
+    def test_settings_restore_independently(self):
+        enable, restore = a11y_commands("UDID", ["bold-text", "full-keyboard-access"])
+        self.assertEqual(len(enable), 4)
+        self.assertIn("notifyutil", restore[2])
+        self.assertIn("EnhancedTextLegibilityEnabled", restore[3])
 
     def test_unknown_setting_is_rejected(self):
         with self.assertRaises(ValueError):

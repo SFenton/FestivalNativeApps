@@ -256,6 +256,8 @@ class SongBandLeaderboardJourneyTest {
         assertPagerTargets(screen)
         // Its row is on page 2: the pinned band jumps there.
         assertPinnedBand(screen, SelectedRowLabels.JUMP_TO_BAND)
+        // Only its purple fill floats above the pager, no card around it, in the rows' columns (#579).
+        h.assertPinnedRowFloats(screen, footer, "$prefix.bottom-bar", "$prefix.row.band-1:1".takeUnless { h.exists("$prefix.controls-pane") })
 
         // Reading order: header → band size → rows → pinned band → pager (spec accessibility order).
         val order = h.readingOrder(screen)

@@ -30,7 +30,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ (C/M/W, also 200%; display 100%/150%, issue #197) |
 | Player History (Song Detail Score History, issue #198) | ✅✅✅ | 7/9/9 | UIA (locked console) | ✅ (Night sky, Desert: chart roles) | ✅ (200%: axes scale) |
 | Song Band Leaderboard | ✅✅✅ (+live, #196) | 8/10/10 | UIA only (#196) | ✅ | ✅ (+200% C+M) |
-| Item Shop (grid, list, filter, states) | ✅✅✅ (+live, #206; shop-offers states #224) | 5/8/8 (grid one stop) | ✅ (`kb-shop-*`) | ✅ | ✅ (200% C+M, #206) |
+| Item Shop (grid, list, filter, states) | ✅✅✅ (+live, #206; shop-offers states #224; CI `shop-offers` #516) | 5/8/8 (grid one stop) | ✅ (`kb-shop-*`) | ✅ | ✅ (200% C+M, #206) |
 | Suggestions | ✅✅✅ (AOT crash fixed; filter, empty, end-of-mix, loading, syncing, denied, #205) | 10–15 (20-press, #205) | ✅ (arrows between rows, #205) | ✅ | ✅ (200%; display 100%/150%, #205) |
 | Leaderboards + Quick Links | ✅✅✅ (+live, #207) | 20/21/21 | ✅ | ✅ | ✅ (C+M; rows stack, #207) |
 | Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
@@ -49,7 +49,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Profile flyout | ✅✅✅ | 2 | ✅ | ✅ | ✅ |
 | Notifications flyout | ✅✅✅ (+live, #229) | 1 (list) | ✅ (#229) | ✅ (#229) | ✅ (#229, C+M) |
 | Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ (+profile jumps, `a11y-quick-links-jump.json`, #414) | ✅ | ✅ (pane titles wrap, #230; profile menu 225%, #414) |
-| First-run dialog | ✅✅✅ (+demo placeholder/catalogue states, `a11y-first-run-demos.json`, `windows-ui` CI, #420) | 4 | ✅ (+Settings replay, #420) | ✅ | ✅ (demo clear of title at 225%; body scrolls so the pips stay reachable, #420) |
+| First-run dialog | ✅✅✅ (+demo placeholder/catalogue states, `a11y-first-run-demos.json`, `windows-ui` CI, #420; real-control demos stay out of the control view, `a11y-first-run-real-demos.json`, #498; rival demo rows carry the page row's exact ahead/behind name, no shared count, #522) | 4–5 | ✅ (+Settings replay, #420; Tab skips the inert sort form and chart bars, #498) | ✅ | ✅ (demo clear of title at 225%, rival demos too since the #522 fit-centring fix; body scrolls so the pips stay reachable, #420; auto-scroll held with Reduce Motion and Animation effects off, paused when minimized, hard-edged with transparency effects off, Less Transparency or More Contrast, #498) |
 | What's New dialog (launch, Settings replay) | ✅✅✅ (+max/snap, #235) | 2 (notes, Dismiss) | ✅ (`kb-whats-new-*`, #235) | ✅ (#235) | ✅ (200% C+M, #235) |
 
 ## Fixed in this pass
@@ -80,6 +80,18 @@ Scope: Song Detail only, fixture matrix plus the live public service (SFentonX o
 
 Scope: Song Detail's Duos/Trios/Quads previews (issue #64), on `song_band_preview_fixture.py` (`a11y-song-band-preview.json`: demo rows, ten rows per size with in-place and appended selected bands, loading, failure, scrape freeze, invalid response, navigation, keyboard) and live (SFentonX and anonymous on "Where My Wookiees At?"). Results per configuration in [song-detail/windows.md](../pages/song-detail/windows.md#validation-issue-264). Axe 0 errors at compact, medium, wide, maximized and both snaps; Desert, Night sky, light and dark theme, text 200%, display 100% and 150%; live and fixture. Fixed: row names dropped the members' instruments and read accuracy before FC; View Full Leaderboard's name didn't start with its visible label (WCAG 2.5.3, instrument cards too); the accuracy pill wasn't contrast-aware and rows kept the old theme after a contrast switch; the selected band row and the shared accent View Full / View All buttons drew text backplates inside the Highlight fill; at 200% text the team score truncated beside the badges (now `BandScoreFooterPanel`, badges wrap under the score, Song Band Leaderboard rows too). The active band loading ring reads "Busy …", so tests use `fst.song-detail.band-loading.<type>`.
 
+## Song board end of list (issue #456, for #293, 2026-10-10)
+
+`journeys/a11y-song-board-end.json` covers the end-of-list spacing #293 changed, with Fixture Player 1 (pinned row), Empty Player (no score) and no player. Down from the first row reaches row 25 with the list at its end. The row then sits 4 epx above the footer's first part (`assertgap`), is clear of it, reads before the pinned row and pager, keeps a 40 epx target, and Tab/Shift+Tab move to the footer and back. The fade reports `end`. All pages passed with 0 Axe errors at compact and medium, at 100% and 225% text. No defect was found. `windows-ui` picks the file up through `ui_ci.generated_runs`; `tests/test_song_leaderboard_a11y_journey.py` pins the steps.
+- Reach a far row with single `key:down` steps, not one `keys:` burst. On a locked console the burst is posted and dropped a press, leaving focus one row short.
+
+## Song board states (issue #511, for #197, 2026-10)
+
+`journeys/a11y-song-board-states.json` covers what #197 changed: the pinned row's own UIA ID, an empty board without "0 entries", the contrast-theme footer plate (`hc-desert`) and the trimmed-name tool tip (`app-reduced`). Each page runs only in the mode that shows its state. All passed with 0 Axe errors; details in [song-leaderboard/windows.md](../pages/song-leaderboard/windows.md#accessibility-tests-issue-443). No defect was found.
+- A row's name only trims (and gets a tool tip) while the marquee is stopped and the text is not large: at 225% text names wrap. Test the tool tip at medium with `app-reduced`.
+- Rows move with Up/Down; Tab leaves the list for the pinned row. Close the tool tip (`focus:` the header, `waitgone:class=ToolTip`) before the Axe scan.
+- A paint probe on a hard-edge footer can't see the contrast plate (the mask already hides rows there). Mutation-test such probes with every layer that hides the content removed.
+
 ## Leaderboard row columns validation (issue #242, 2026-10-04)
 
 Scope: the shared row-column fitter (issue #37) on every board, checked against the live public service with SFentonX. Results per configuration are in [song-leaderboard/windows.md](../pages/song-leaderboard/windows.md#validation-issue-242-2026-10-04).
@@ -93,6 +105,9 @@ Scope: the shared row-column fitter (issue #37) on every board, checked against 
   - Shift+Tab re-enters a repeater on its last realized row, which depends on scroll, so assert the hops on either side of it rather than that row.
   - **Failed, fixed:** arrowing down the song board, Band Rankings, the song band board or Player Bands scrolled the focused row or card only to the viewport's bottom edge, under the floating pinned row and pager (WCAG 2.4.11; `assertapart` failed at compact and medium). Only Full Rankings had a guard. `BoardFooter.Inset` now applies it to every board, and a `*-focus-clear` page asserts it on each of its five consumers (each fails at compact and medium with the guard removed).
   - **Pinned band row (issue #461, for #306):** `journeys/a11y-song-band-pinned.json` (CI runs `song-band-pinned` and `song-band-pinned-text-225`) covers the song band board's pinned "your band" row: the Jump and Open band Narrator phrases, the 40 epx pin and pager targets, rows → pin → pager reading and Tab order, Tab/Shift+Tab/Enter, the jumped-to "Your band." row clear of the pin, the size switch (Trios empty hides it), no player and Reduce Motion. **Failed, fixed:** at 225% text the centred jump left the row partly under the pin, because `BoardFooter.Inset` skipped aligned requests. It now grows them as well (Solo and Full Rankings jumps share it). `selected_reveal_journey.py --only solo` fails intermittently on master too (1 in 6; a repeater row logs two `play` lines before the rush, which `check_reveal` counts twice). The request the reveal makes comes after the rush, so this change doesn't cause it.
+  - **Pinned score row's load gate (issue #457, for #295):** `journeys/a11y-song-pinned-reveal.json` (CI runs `song-pinned-reveal`, `-text-225`, `-reduced`, `-no-animations`) covers the song board's pinned "your score" row as it joins the rows' load gate: absent from UIA, the reading order and Tab under the first-load ring and during a Filter Invalid Scores reload (Tab goes header → Next), then its Narrator phrase, rows → pinned row → pager order, 40 epx target, purple fill and Tab stop with the new rows; still under Reduce Motion and with Animation effects off. Passed with 0 Axe errors. No defect found. A test-design finding: the Windows pinned row is created only when the first page commits, so first-load absence checks can't catch a missing gate. Mutation-test a gate on a reload that keeps the row's data (here the leeway change), not only the first load.
+  - **Row height (issue #440, for #90):** `journeys/a11y-leaderboard-row-height.json` checks every board's rows at 48+ epx: overview instrument and band cards with their loading placeholders, Full and Band Rankings, the song board and pinned row, and Song Detail previews. Placeholders sit at the loaded pitch, are raw-view only and are silent to Narrator. Rows read as one Button each in visual order. Passed with 0 Axe errors at compact and medium, and at compact under text 225%. No defect found. At 225% text the first scans failed on test setup: a row clipped at the viewport's bottom edge, and a band row matched in the wrong card because overview row IDs repeat across cards. Both were fixed by pinning the final position with `scrollinset` and waiting for the slow card's View All.
+  - **Spotlight loading row (issue #527, for #281):** the same file's `row-height-card-spotlight-loading` (Tap Vocals card) and `row-height-full-rankings-spotlight-loading` pages hold the own-rank read (`rankings_fixture.py --rank-delay 25`, the card page with `--rank-delay-instrument Solo_Vocals`). The raw-view placeholder is 48 epx and as tall as the "your rank" row that replaces it. The ring reads "Busy Loading your rank, ProgressRing", is not focusable and sits between the rows and View All / the pager. Tab skips it. Passed with 0 Axe errors (mid-load and final) at compact and medium, and at compact under text 225%. No defect found. The first runs failed on test setup. The overview reveals its first four cards only after their spotlights load, so delaying every card hid the page. Leaving focus on **Next page** opened its tooltip at the final scan (open issue 8). Both were fixed in the pages.
   - A focus-clear page must prove its target starts below the fold (`waitgone:<card>@2` before the arrows: the driver resolves only on-screen elements) and check every pager button the target can sit under. The pager is centred, so on Player Bands' two-column grid a left-column card sits under Previous, not Next (`cols-player-bands-focus-clear-grid` passed against Next alone with the guard removed).
 
 ## Item Shop validation (issue #224, 2026-10-04)
@@ -189,6 +204,8 @@ Fixed:
 - The bars kept their old colours after a contrast-theme switch while the app was open; they now re-apply on `ColorValuesChanged`.
 - The unavailable state drew seven empty bars at 40% opacity (the skill says never put `Opacity` on system-colour brushes); it now shows "Difficulty unavailable", and a recycled meter resets its automation ID.
 
+CI rule (issue #514): `tools/windows/journeys/a11y-difficulty-meter.json` keeps these fixes in the `windows-ui` job. It checks the cell and row names, the reading order, that the meter isn't focusable, normal fills, hollow unfilled bars under Desert and the live Desert on/off recolour. The `invalid` state no page reaches runs in the `difficulty-meter` control lab (`meter-lab-*`): its Text role, name, automation ID, missing child and focus, and that re-binding the same meter to a level and back restores the Image role and `fst.songs.difficulty-meter`. A meter change updates these pages. Paint probes must avoid the 62×20 polygon edges (bar *i* centre is x = 9*i*+4 epx at mid-height). Pages that assert normal colours list every `hc-*` mode in `skip_modes`. Page list: [difficulty-meter/windows.md](../controls/difficulty-meter/windows.md#states-and-reachability).
+
 ## Score Accuracy validation (issue #220, 2026-10-03)
 
 Evidence: `a11y_matrix.py --pages tools/windows/journeys/score-accuracy.json --fixture tools/windows/score_accuracy_fixture.py --scan --tabs 15` (chart, offscreen, preview, keyboard and resize pages) at compact, medium, wide, maximized and both snaps, then at compact, medium and wide under Desert, Night sky, light and dark theme, display 100% and 150%, and text 200%: 0 Axe errors in every run, with each badge state asserted by name and column alignment. Live public-service screenshots of "Through the Fire and Flames" Lead. Per-configuration results: [score-accuracy/windows.md](../controls/score-accuracy/windows.md#validation-issue-220-2026-10-03).
@@ -282,6 +299,8 @@ Fixed:
 
 Driver note: `RadioMenuFlyoutItem`s expose Toggle, not Invoke. `invoke:` falls back to a click that misses the popup, so drive menu radio items with `toggle:` or the keyboard.
 
+Driver note (issue #439): `assertorder` walks the window's reading order, which leaves out an open `ComboBox`'s options (they sit in the popup). Check option order with `assertbelow:<later>|<earlier>` pairs on `name=<option>&class=ComboBoxItem`, and a missing option with `waitgone:…@1`.
+
 ## Player Bands validation (issue #210, 2026-10)
 
 Evidence: `a11y_matrix.py --scan --tabs 20` for `player-bands` at compact, medium, wide, snap-left, snap-right and maximized. It was then run at compact and wide under Desert, Night sky, light theme, text 200%, display 100% and 150%: 0 Axe errors in all 18 runs. The live public service (SFentonX, temporary wrapper without `--base-url`) also gave 0 Axe errors at the same five sizes, under Desert, at text 200% and at display 150%. Results per configuration are in [player-bands/windows.md](../pages/player-bands/windows.md#validation-issue-210).
@@ -299,7 +318,7 @@ Tooling finding: after a UIA `focus:` step on a `SelectorBarItem`, arrow keys do
 Evidence: `a11y_matrix.py --scan` (new `text-200` mode) for `rivals`, `compete`, `all-rivals`, `rival-detail` and `rivalry` at compact/medium/wide; the four Rivals pages at medium under all four contrast themes, text 200% (C+M), text 225%, no animations and no transparency: 0 Axe errors. Live public service (SFentonX): Night sky and text 200% render correctly, and UIA trees show one stop per row with no unnamed `Image`. Journeys `empty`, `freeze`, `no-player`, `compete` and `populated` pass.
 
 Fixed:
-- Rival rows (hub, All Rivals) and Rival Detail/Rivalry song rows exposed every rank, name, pill and score `Text`, the instrument icons and `SongArt`'s inner `Image` under the named row, so Narrator scan mode read each row twice. Now all parts are Raw. Rivalry rows read the song, artist and year plus both ranks and scores (`RivalSongItem.FullAccessibleName`).
+- Rival rows (hub, All Rivals) and Rival Detail/Rivalry song rows exposed every rank, name, pill and score `Text`, the instrument icons and `SongArt`'s inner `Image` under the named row, so Narrator scan mode read each row twice. Now all parts are Raw. Since #603 every song row (Rival Detail and Rivalry) reads what it shows: song, artist, chart, both ranks and who leads (`RivalSongItem.AccessibleName`).
 - Anonymous leaderboard rivals (live `accountId: ""`) broke three Leaderboard Rivals cards (also fixed by #213; merged). They now read "Unknown User, rank N, …" as non-actionable rows (see [Rivals Windows notes](../pages/rivals/windows.md)).
 
 Same host constraint as #196 (locked console; display scaling fixed at 300%).
@@ -369,7 +388,7 @@ Fixed:
 5. Narrator has no scripted driver, and lane consoles are locked, so live Narrator can't run there. Announcements are asserted with `listen:announcements`, and reading order and phrases with the Narrator model (`narrate:`/`assertread:`/`assertorder:`, [windows.md](windows.md) "Narrator model"; issue #271 `journeys/a11y-narration.json`). Narrator's own speech (verbosity, scan mode, pronunciation) still needs an operator to run the script (items 20–21 cover #271) in an unlocked session.
 6. The system modes run on a lane host where other lanes' windows share the desktop. If a Tab walk leaves the window (focus theft), re-run it: Search compact did this once and passed on the re-run.
 7. (Resolved 2026-09-29, no repro.) The same viewport-edge clipping (item 3) hits Leaderboards at the 1440×900 `wide` preset after the 2026-09-28 header change: 4 `NameText` findings on rank-3 rows at the bottom edge; 1440×880 and 1440×920 scan clean. Issue #219: the Songs Filter flyout at medium with 150% display scale, after `scrollinto` Percentile, leaves the Karaoke score expander as a sliver at the ScrollViewer's top edge; its header `TextBlock` reports a zero-height rectangle (2 findings). Issue #236: Settings scrolled to the feedback rows at medium with 150% display scale leaves the CHOpt Path View description at the top edge (same zero-height `TextBlock`, 2 findings while the `filing`, `sent` and `error` dialogs are open); the dialog itself scans clean. Issue #260 (live service): Global Search for "the" under Desert and Night sky, at compact and medium, leaves the ninth song row's title exactly on the window's bottom edge (2 findings). The contrast border shifts the rows a few pixels; normal, light, dark, text 200% and display 100%/150% scan clean. Every other size, mode and scroll position scans clean.
-8. Flyout menus (Quick Links at compact and medium, the Rank By menu at medium): Axe `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open; issue #219 on the Songs Filter's instrument selector popup. Issue #223 saw it in the wide Paths dialog when keyboard focus on an Instrument Selector button opens its tooltip. Issue #226 saw it on player pages opened from the profile flyout (View Profile, a result at text 200%): the flyout's popup host lingers after it closes. Issue #229 saw it after Esc returned keyboard focus to the Notifications bell, which opens its tooltip. Issue #234 saw it whenever the title-bar search box's suggestion popup is open (every mode). Issue #261 saw it on Song Detail after an Instrument Selector pick in Score History: focus follows the pick and opens the button's tooltip (0 errors before the pick). Issue #431 saw it on Player Bands after **Next page** kept focus, which opens the pager button's tooltip. The load-swap journeys end focused on a row before the final scan. A gated journey that opens a flyout may drop exactly this finding with the page key `"axe_allow": ["framework-popup"]` (`a11y_matrix.AXE_ALLOW`, predicate `uiwin.framework_popup_finding`; first used by the `windows-ui` Quick Links landing runs, #416); every other finding still fails.
+8. (Resolved for flyouts and suggestion lists 2026-10-09, issue #534; tooltips remain.) WinUI 3 desktop popups are windowed by default: each opens a `PopupWindowSiteBridge` ("PopupHost") whose `InputSiteWindowClass` child is exactly the bridge's size, which Axe reports twice as `BoundingRectangleCompletelyObscuresContainer`, with no app element involved. Every app `Flyout`/`MenuFlyout` now sets `ShouldConstrainToRootBounds="True"` (XAML, or the initializer in code such as `QuickLinksMenuButton`), and every `AutoSuggestBox` sets `controls:PopupHosting.InWindow="True"`, which constrains the template's `SuggestionsPopup` (the template sets it `False`) on `Loaded`, before its first open: WinUI refuses the change once a popup has opened windowed. In-window popups can't extend past the window, so a menu taller than the window scrolls inside it. `PopupHostingMarkupTests` (Core tests) fails on an unconstrained flyout or a suggestion box without the property, and `ui_ci.py` gates the header flyouts (`popups`, `popups-text-225`: Rank By on Leaderboards and Full Rankings, Quick Links, the profile and Notifications flyouts) with no allowance. **Tooltips stay windowed:** WinUI's `ToolTip` always creates a windowed popup (`ToolTip_Partial.cpp`, `CreatePopup` calls `SetIsWindowed()` whenever the platform supports windowed popups) and has no public opt-out, and the bridge lingers after Esc closes the tip. Keyboard focus on a button with a tooltip opens it, so a page that asserts focus on such a button then moves focus to a control without a tooltip before the final scan, as the load-swap pages do (#431): `kb-songs-order` (back on Jump), `kb-notifications-esc` (Esc back to the bell), the `cols-*-focus-clear` pages (Tab to **Next page**) the `qla-*-menu` and `qlj-profile-menu` pages (Esc back to Quick Links; `qlj-profile-menu` scanned 2 errors once #548 lifted its quarantine) and the `press-songs`/`press-quick-links-*` hit-target pages (Esc back to Jump or Quick Links after the last press; 2 errors each in `windows-ui` before) return to a row, tile or switch (agent decision, #534; the guards in `tests/test_a11y.py`, `tests/test_quick_links_landing_a11y.py`, `tests/test_quick_links_jump_journey.py` and `tests/test_hit_targets_journey.py` pin those endings). Keyboard tooltips stay: removing them would lose the shortcut hint. History: Quick Links at compact and medium, the Rank By menu at medium: `BoundingRectangleCompletelyObscuresContainer` on WinUI's windowed popup internals (an `InputSiteWindowClass` exactly the size of its `PopupHost` bridge, no app element involved); other sizes scan clean (issue #207). Issue #208 saw the same finding on Full Rankings while the Instrument/Rank By menu or the pager button tooltip (after Last → Previous) was open; issue #219 on the Songs Filter's instrument selector popup. Issue #223 saw it in the wide Paths dialog when keyboard focus on an Instrument Selector button opens its tooltip. Issue #226 saw it on player pages opened from the profile flyout (View Profile, a result at text 200%): the flyout's popup host lingers after it closes. Issue #229 saw it after Esc returned keyboard focus to the Notifications bell, which opens its tooltip. Issue #234 saw it whenever the title-bar search box's suggestion popup is open (every mode). Issue #261 saw it on Song Detail after an Instrument Selector pick in Score History: focus follows the pick and opens the button's tooltip (0 errors before the pick). Issue #431 saw it on Player Bands after **Next page** kept focus, which opens the pager button's tooltip. The load-swap journeys end focused on a row before the final scan. The page key `"axe_allow": ["framework-popup"]` (`a11y_matrix.AXE_ALLOW`, predicate `uiwin.framework_popup_finding`; first used by the `windows-ui` Quick Links landing runs, #416) drops exactly this finding; every other finding still fails. Since #534 no gated page uses it: the `qla-*-menu` pages dropped it, and a flyout or menu must scan clean without it. `mm-suggestions-scroll` (`a11y-modal-motion.json`) reported 4 Axe errors in one `windows-ui` run (PR #544) and was quarantined under #534; with popups in-window it scanned 0 in 3 consecutive local runs at compact, medium and wide (2026-10-09), so the quarantine was lifted.
 9. (Resolved 2026-09-29.) Red Reset buttons use ButtonFace/ButtonText under contrast themes (`FSTDanger*`).
 10. WinUI's `ProgressRing` template part `LottiePlayer` (an `AnimatedVisualPlayer`) reports Axe `IsControlElementTrueRequired` for about the first second after the ring appears, then settles into an ordinary image (issue #431, seen on Band Rankings and the song band leaderboard mid-load). This is framework start-up with no app element involved, and Narrator still reads the ring by name. Mid-load scans `wait:1` after the spinner appears, and their fixtures hold the read for 10 s so the scan still lands mid-load. The hold starts when the app launches: 6 s ran out before the first-load `assertorder` on the faster `windows-ui` runner (#431 review), and in `SpinnerOut` (opacity 0) the ring reports `IsOffscreen`, so Narrator's order skips it. A first-load hold must outlast launch, driver start-up and every wait before the last mid-load check; give the reload's new-row `waitfor` more than the hold.
 
@@ -442,6 +461,21 @@ Fixed: Feedback field hints were a `TextBox.Description` that clipped at compact
 
 Fixed (test only): the First Run page still asserted the template `CloseButton` ID, but #244 gave that Close `fst.first-run.close`. No app defect was found.
 
+## Modal legibility accessibility tests (issue #518, for #239, 2026-10-12)
+
+The #400 runs above cover the modal shell's names, roles, reading order, targets and keyboard. `journeys/a11y-modal-legibility.json` adds checks for #239's two rendering fixes. `ui_ci.py` runs it as `modal-legibility-desert` (compact, medium), `modal-legibility-night-sky` (compact) and `modal-legibility-text-225` (compact), all with `--scan --tabs 30`. Every page is limited to its `modes`, so default text has no run here; `modals` already covers it.
+- **No contrast backplate.** Under Desert and Night sky, `assertpaint` probes a 24×10 epx area around the label of the First Run Next and the Reset dialog's Cancel and Reset. The probe passes when the area contains the button's own fill colour (`@fill`, sampled at the left padding). The First Run pips are probed too: the selected pill must be Highlight (Desert #903909, Night sky #D6B4FD), its dot HighlightText and an unselected dot WindowText. At this host's 300% scale the pips sit below the fold, so the page first runs `scrollto:id=fst.first-run.body,100`.
+- **Hints wrap.** At 225% text, `assertmarquee …|wrapped|60` checks that the Report an Issue hints for Title, Description and Expected Behavior are wrapping TextBlocks at least 60 epx tall. The Title hint also sits below its header, the edit fields read their hint as HelpText, Tab moves from Expected Behavior to Attach Media, and Esc restores focus to the Settings row.
+
+Negative controls: with `CommandLabelsWithoutBackplate`/`WithoutBackplate` removed, the label probe failed with "0 px within 16 of #903909" (Desert) and "… of #D6B4FD" (Night sky), and the selected pip dot turned WindowText. With the hint as a string `Description`, the hint wait failed ("no on-screen element … class=TextBlock").
+
+| Configuration | Result |
+| --- | --- |
+| Desert (compact, medium), Night sky (compact), text 225% (compact) at this host's 300% scale | Pass, Axe 0 |
+| The same with `+scale-100` (the runner's 100% scale) | Pass, Axe 0 |
+
+No app defect was found.
+
 ## Song leaderboard accessibility tests (issue #443, 2026-10-08)
 
 Backfills CI tests for the #93 Windows change (rows fade above the floating pinned row and pager; paging keeps the header, pinned row and pager). New `journeys/a11y-song-leaderboard.json` (fixture `--song-leaderboard-paging`, Fixture Player 1 selected) and the song-board pages of `a11y-board-footer-fade.json` are now `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
@@ -465,6 +499,177 @@ Every page is Axe-scanned. `song-board-footer` and the footer-fade pages also ge
 | Footer fade rest, mid, end, More Contrast, Less Transparency (compact, medium; compact at 225%) | Pass, Axe 0 |
 
 No accessibility defect was found.
+
+## Full Rankings pinned row accessibility tests (issue #466, 2026-10-11)
+
+Backfills CI tests for the #318 Windows change: the selected player's row stays pinned above the pager on Full Rankings, even on their own page. Before this, its journeys (`full-rankings.json`, `full-rankings-keyboard.json`) weren't `windows-ui` runs. Only `grouped-full-rankings` checked the order and one Tab. New `journeys/a11y-full-rankings.json` (`rankings_fixture.py`) is now a set of `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- on the player's own page (Fixture Player 2, #2): the pinned row reads "Your rank, 2nd. Open your statistics. Fixture Player 2. Total Score …, button"; the pager reads "First page, button, unavailable", "Previous page, button, unavailable", "Page 1 of 48, text", "Next page, button" and "Last page, button";
+- the pinned row and four pager buttons are at least 40×40 epx, and the pinned row doesn't overlap the pager;
+- the reading order is title (Level 1 heading) → the player's own row in the list → pinned row → First → Previous → page text → Next → Last, and the fade layer stays out of the control view while fading rows over 40 epx;
+- the Tab order on the player's page: row → pinned row → Next → Last, Shift+Tab back to the pinned row, and Enter on it opens the profile;
+- off the player's page (Fixture Rank 40): the pinned row reads "Jump to your position". Enter jumps to page 2 and keeps focus on the pinned row, which now reads "Open your statistics". The pager reads "Page 2 of 48" with First and Previous available, the order is row 40 → pinned row → pager, and Tab and Shift+Tab move between the pinned row and First.
+
+`fr-pinned-own-page` also gets the dispatcher's 30-press Tab walk. The two keyboard pages set `tabs: 0` because their ordered traversal replaces it. `tests/test_ui_ci.py` pins the runs and the key checks.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`full-rankings-pinned`, all 3 pages) | Pass, Axe 0 |
+| Text 225% (compact, all 3 pages) | Pass, Axe 0; the pinned row's two lines grow without clipping above the pager |
+| In-app Reduce Motion (medium, jump) | Pass, Axe 0 |
+
+No accessibility defect was found.
+
+## Full Rankings pinned row load gate accessibility tests (issue #524, 2026-10-11)
+
+Backfills CI tests for the #270 Windows change (PR #320): Full Rankings' pinned "your rank" row joined the rows' load gate (`LoadSwapGate`) for Rank By and instrument reloads, but stays beside the spinner on a page-only reload. Before this, only the feature journey `full-rankings-swap.json` (presence checks) covered it. New `journeys/a11y-full-rankings-swap.json` (`rankings_fixture.py --rankings-delay`, Fixture Rank 40 selected, off page 1) is a set of `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- `fr-swap-rank-by`: after Rank By → FC Rate, the pinned row and pager leave UIA; Narrator reads "Busy Loading rankings, ProgressRing" in title → Rank By → ring order; Tab from Rank By goes to the title bar's Back (no hidden pinned row or pager stop) and Shift+Tab returns. The new row then reads "Your rank, 40th. Jump to your position. Fixture Rank 40. FC Rate …, button", is focusable, invokable, 40×40 epx and apart from Next, in rows → pinned row → pager order. An instrument switch repeats the hide and return; Tab and Shift+Tab then move row → pinned row → Next and back. Mid-load and settled Axe scans;
+- `fr-swap-page-keeps-pin`: a page-only reload (Enter on Next) keeps the pinned row readable ("… Total Score …, button"), focusable and 40×40 epx beside the ring, in Rank By → ring → pinned row → pager order and clear of the ring; Shift+Tab from Next reaches it mid-load. Page 2 then scrolls to row 40, and the pinned row reads "Open your statistics" in row 40 → pinned row → pager order;
+- `fr-swap-motion-reduced` (in-app Reduce Motion) and `fr-swap-motion-system` (Windows Animation effects off): the row still hides under the ring, then returns with the FC Rate value and holds still (`assertmotion`).
+
+The pages set `tabs: 0` because their ordered traversals replace the walk. `tests/test_ui_ci.py` pins the runs and the key checks.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`full-rankings-swap`, 2 pages) | Pass, Axe 0 |
+| Text 225% (compact, 2 pages) | Pass, Axe 0 |
+| In-app Reduce Motion (medium, 3 pages) | Pass, Axe 0 |
+| Animation effects off (medium, 3 pages) | Pass, Axe 0 |
+
+No accessibility defect was found.
+
+## Leaderboards card your-rank row accessibility tests (issue #493, 2026-10-11)
+
+Backfills CI tests for the #370 Windows change (PR #403): a Leaderboards card's separate "your rank" row, for a player ranked outside the card's top ten, now opens Full Rankings on the player's page and reveals their row instead of opening the profile. Until now only `selected_reveal_journey.py --only rankings-card` (fade timing) and `LeaderboardsViewModelTests` covered it. New `journeys/a11y-leaderboards-card-jump.json` (`rankings_fixture.py`) is now a set of `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- `card-jump-row` (Fixture Rank 40): the Lead card's row reads "Your rank, 40th. Jump to your position. Fixture Rank 40. Total Score …, button" (Button, Invoke, focusable), is at least 40×40 epx, doesn't overlap View All Rankings (40 epx tall), and reads after the card's Lead group and before View All;
+- `card-jump-row-keyboard`: Shift+Tab from View All reaches the row, Tab goes back. Enter opens Full Rankings on "Page 2 of 48" with row 40 on screen; the pinned row then reads "Open your statistics", and the order is title → row 40 → pinned row → pager. Alt+Left returns to Leaderboards with focus on the card's row;
+- `card-in-place-row` (Fixture Player 2, inside the top ten): no separate row; the highlighted in-list row reads "Your rank, 2nd. …, button" without a jump, is 40 epx tall, and Enter opens the profile.
+
+`card-jump-row` also gets the dispatcher's 30-press Tab walk. At compact the card is taller than the window, so the pages scroll View All into view and check the row against the card's group rather than its heading.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`leaderboards-card-jump`, all 3 pages) | Pass, Axe 0 |
+| Text 225% (compact, all 3 pages) | Pass, Axe 0 |
+| In-app Reduce Motion (compact, medium; all 3 pages) | **Failed, fixed:** Enter opened page 2 but left the list at the top (rows 26–34), so the player's row stayed off screen. Under Reduce Motion `SelectedRowReveal` scrolled at once, before the newly shown list had a layout, so `StartBringIntoView` did nothing. It now waits, as the motion path already did, for the list to realize the selected (or first) row, then scrolls at once with no hold or rush (load-transition R6). Pass, Axe 0 after the fix; `selected_reveal_journey.py` gained `rankings-card-reduce-motion` |
+
+## Search All section titles accessibility tests (issue #483, 2026-10-11)
+
+Backfills CI tests for the #348 Windows change: in the All scope, Search titles each shown section "Songs", "Players" and "Bands" (`FSTSectionHeaderStyle`, Level 2, fading in with the rows). Before this, only the `search.json` feature journey (not a `windows-ui` run) checked all three titles; `search-all-hides-empty-players` checked the Songs title alone. New pages in `journeys/a11y-search.json` (`profile_fixture.py`, `q=fixture`) are explicit `windows-ui` runs in `tools/windows/ui_ci.py` (`search-sections`, `-text-225`, `-reduced-motion`). They assert:
+- `search-all-sections`: All is selected; each title reads "Songs, text", "Players, text", "Bands, text", is a Level 2 heading and isn't keyboard focusable; the reading order is All → Songs title → song rows, then each later title before its own rows (revealed by UIA scrolling, so it holds at 225% text); each title sits above its rows without overlapping them (`assertapart`, `assertbelow`), and the next title sits below the previous list;
+- `search-all-sections-keyboard` (`tabs: 0`): Tab walks field → All → first song → first player → first band card and Shift+Tab walks back, never stopping on a title;
+- `search-results-songs`, `-players`, `-bands` (generated runs): the scope is selected, no section title is shown and its rows follow the scope bar (issue #299).
+
+`tests/test_ui_ci.py` pins the runs, that the file's other pages keep their generated runs, and the key checks.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (both pages; single-scope pages) | Pass, Axe 0 |
+| Text 225% (compact, both pages; single-scope pages compact, medium) | Pass, Axe 0 |
+| In-app Reduce Motion (medium, both pages) | Pass, Axe 0; the titles appear with their rows |
+
+No accessibility defect was found. Harness rule: `assertbelow`, `assertapart` and `assertorder` need both elements on screen, so each later title's checks follow the `reveal:` of its first row (at 225% text the Bands title starts below the fold).
+
+## Song Band Leaderboard accessibility tests (issue #510, 2026-10-11)
+
+Backfills CI tests for the #196 Windows change: each band card on a song's Duos/Trios/Quads board is one Narrator stop named in visual order, the empty and failure states name themselves, and the accuracy pill follows contrast themes. Before this, `windows-ui` checked the header (`a11y-song-leaderboard-header.json`), the pin (`a11y-song-band-pinned.json`), the rank rail and a partial row phrase in the load swap, but not the full row phrase, the row's role, its parts staying out of the control view, the empty state or the pill. New `journeys/a11y-song-band-leaderboard.json` (`rivals_fixture.py`, `Band_Duets`; `Band_Trios` empty; `missing-song` failure) is a set of `windows-ui` runs in `tools/windows/ui_ci.py` (`song-band-board`, `-text-225`). They assert:
+- `sbl-rows`: rows 1 and 2 read "Rank 1. Band 1 Member A, Lead, 94,500 points. Band 1 Member B, Bass, 94,000 points. Team score 94,500 points, full combo, 96.5% accuracy, 5 stars, list item" (row 2 without "full combo"); the row is a `ListItem` with Invoke, focusable and at least 40 epx tall; its `.rank`, `.accuracy` and the star row exist in the raw view only, and no member name, instrument, `.members` or star `Image` is in the control view; reading order header → size switcher → row 1; Down/Up move between rows, Enter opens Band Detail and Back returns to the row;
+- `sbl-empty`: "No band scores found, text" is a Level 2 heading, not focusable, after the switcher (Trios selected) and before its message; no list, pager or entry total is left;
+- `sbl-error`: "Failed to load band leaderboard, text" is a Level 2 heading, then "Retry, button" (40×40 epx, Invoke); Tab and Shift+Tab move between the Trios switcher item and Retry;
+- `sbl-accuracy-pill-contrast` (medium, default theme only; it switches Desert on and off in the running app): the pill paints navy `#223047`, then ButtonFace `#FFFAEF` with a ButtonText `#202020` edge under Desert, then navy again (`assertpaint` on the raw `.accuracy` ID).
+
+`tests/test_ui_ci.py` pins the runs and the key checks. `tabs: 0` on every page: the rows' ordered keyboard steps replace the walk.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`song-band-board`, all 4 pages; the pill page at medium) | Pass, Axe 0 |
+| Text 225% (compact, rows, empty, error) | Pass, Axe 0 |
+| Regression check: `StarRow` fix reverted | `sbl-rows` fails: "element id=fst.star-rating.white-5 is still on screen" |
+
+**Failed, fixed:** every band card (and every Raw `StarRow` host: leaderboard rows, Song Detail band previews, Band Detail gold stars, Songs rows; Suggestions and Songs metadata stars, which aren't Raw, keep their `Image`) exposed its stars as a second control-view `Image "5 stars"` inside the one-stop row, so scan mode read the rating twice. `StarRowPeer.IsControlElementCore` returned `true` regardless of the host's `AccessibilityView="Raw"`; it and `IsContentElementCore` now follow `AutomationProperties.AccessibilityView`. Rule: a custom `AutomationPeer` that overrides `IsControlElementCore`/`IsContentElementCore` must honour the owner's `AccessibilityView`, or Raw in XAML silently stops working. `journeys/star-rating.json` now finds leaderboard stars with `raw=`.
+
+## Suggestions accessibility tests (issue #513, 2026-10-12)
+
+Backfills CI tests for the #205 Windows change (PR #128): named filter `Expander`s, one Tab stop per card with arrow keys across rows, neutral contrast pills, and state titles as headings. Until now only `suggestions_journey.py` and the generated `suggestions` matrix page covered it, outside the `windows-ui` job. New `journeys/a11y-suggestions.json` (`suggestions_fixture_server.py`, seed 1) runs in `tools/windows/ui_ci.py` as `suggestions` (compact, medium) and `suggestions-text-225` (compact). It asserts:
+- `suggestions-cards`: Filter reads "collapsed" and is at least 40 epx tall; the first card title is a Level 2 heading; a row reads its full name as a focusable button, is at least 40×40 and doesn't overlap the next row; Filter reads before the list, and card names read in order (each card is a list item named by its title, its rows read whole); the dispatcher's 30-press Tab walk stays in the app;
+- `suggestions-keyboard`: Down/Up move between rows within a card and across cards without scrolling the list; Tab goes to the next card's first row, Shift+Tab back and then to Filter; Enter opens the flyout on Instruments, and Esc returns focus to Filter, which reads "collapsed";
+- `suggestions-filter`: Filter reads "expanded"; the title is a Level 2 heading and Instrument-Specific Level 3; Instruments and General read their names, state and help text and are at least 40 epx tall, as is Reset; the order is title → Instruments → General → Reset, and Instrument-Specific → picker → Reset (picker arrows 40×40); Enter expands Instruments and Tab lands on "Lead, toggle switch, on" (40×40), then Bass; Space toggles Lead and enables Reset; General expands and reads its switches;
+- `suggestions-syncing` and `suggestions-no-results`: each state title is a Level 2 heading after Filter; no-results turns every type off in the flyout, and Esc leaves focus on Filter with no list;
+- `suggestions-rival-pill-contrast` (medium): in normal mode the rival pill keeps its brand fill; after a live switch to Desert it paints the ButtonFace fill and ButtonText outline, and the brand fill returns after switching back.
+
+`tests/test_ui_ci.py` pins the runs and the key checks; `SuggestionsAccessibilityMarkupTests` guards the fixes in markup.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (all pages; rival contrast at medium) | **Failed, fixed** (two defects, below). Pass, Axe 0 after the fixes |
+| Text 225% (compact, all pages but rival contrast) | **Failed, fixed:** the flyout ran off the window, so Reset was off screen. Pass, Axe 0 after the fix |
+| Desert contrast, switched live (medium) | **Failed, fixed:** the rival pill kept its brand fill (#D9E3F0 sampled). Pass after the fix |
+
+Defects fixed:
+- **Live contrast switch:** `SuggestionSongRow` set its brushes once, so a page left open across a contrast switch kept the brand rival pill, separator, chevron and subtitle colour. It now re-resolves them and rebuilds its metadata on `ContrastTheme.Changed` (as `LeaderboardEntryRow` and `MetadataPill` do; [metadata-pills](../patterns/metadata-pills.md)).
+- **Unnamed Tab stop:** the three filter `ItemsControl`s were Tab stops, so after expanding a section Tab first landed on an unnamed pane. They are now `IsTabStop="False"`, as on Songs and Shop.
+- **Reset off screen:** the filter form didn't fit the space below its button. `OnFilterOpening` now clamps its height and width to the window, as Songs and Shop do.
+
+Harness rules: the flyout's expanded sections push later controls below the fold at 225% text, so each `assertorder`, `focus` or `expand` past the fold follows a `reveal:` (UIA scroll, no input). `assertread` phrases never include the heading level, so headings use `assertstate:…|heading=N`. A card's own Group and title TextBlock are not in the Narrator order (the card list item is named by its title).
+
+## Delayed and loaded-later content accessibility tests (issue #521, for #260, 2026-10-12)
+
+Backfills CI tests for the #260 Windows change (PR #274): Suggestions cards loaded after the first ten fade in on arrival (`FadeIn.Restagger(list, batchStart)` from `CardsAdded`), and Global Search song rows that waited behind the spinner for a slow player search fade in when it clears. The `fade_trace` perf-log journeys (`suggestions_journey.py fade`, `search_journey.py fade-delayed-results`) check the fades themselves, but they're outside `windows-ui`, and no CI page reached a later batch or a delayed result. New pages are explicit `windows-ui` runs in `tools/windows/ui_ci.py`:
+- `a11y-suggestions.json` `suggestions-load-more` (seed 1; batch 2 is cards 11–16): card 12 "Close the Gap vs Rival B0" exists only once batch 2 has loaded, and its title is a Level 2 heading; its first row reads its full name as a focusable button of at least 40×40; card 11's title is a heading, and "New on Pro Lead" (card 10, the last card of batch 1) reads before "Climb Past Rival B4" (card 11);
+- `suggestions-load-more-keyboard` (`tabs: 0`): Down from card 10's last row lands on card 11's first row and Up returns; Tab walks cards 11–16 one stop each into card 17's row (batch 3, loaded by the walk), and Shift+Tab steps back;
+- `a11y-search.json` `search-delayed-results` (`profile_fixture.py`, whose new `SLOW_SONG_PREFIX` "puls" answers player searches after 4 s while "Fixture Pulse" matches at once): while the spinner runs, it reads "Busy Searching, ProgressRing", no song row or section title is shown, and focus stays in the field; afterwards "Songs, text" is a Level 2 heading that isn't focusable, read between All and "Fixture Pulse by Synthetic Quartet, list item" (40×40, clear of the title); no Players section or empty state shows; and Tab goes field → All → row, with Shift+Tab back.
+
+The Suggestions pages run in the full `suggestions` and `suggestions-text-225` runs, then in `suggestions-load-more-reduced-motion` (in-app Reduce Motion) and `-no-animations` (Windows Animation effects off), both at medium. The Search page runs as `search-delayed-results` (compact, medium), `-text-225` (compact) and `-reduced-motion` (medium). `tests/test_ui_ci.py` pins the runs and the key checks, and `tests/test_profile_selection.py` pins the slow song search.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (all three pages; Tab walk 30 on `suggestions-load-more`) | Pass, Axe 0 |
+| Text 225% (compact, all three pages) | Pass, Axe 0 |
+| In-app Reduce Motion (medium, all three pages) | Pass, Axe 0; the cards and rows appear in place |
+| Animation effects off (medium, Suggestions pages) | Pass, Axe 0 |
+
+No accessibility defect was found. Fixed (test only): the first draft of the keyboard page ended its Shift+Tab on a list offset where card 18 sat exactly on the viewport's bottom edge, which gave 6 Axe `BoundingRectangleSizeReasonable` findings ([item 3](#open-issues)). Both Suggestions pages now end on `scrollinset:…|8` before the scan. Harness note: `assertmotion:…|still` can't prove that a 400 ms batch fade didn't play (its captures are 1.2 s apart, and the batch loads with the realization cache before any scripted scroll), so Reduce Motion fade evidence belongs to the perf-log `fade-play … motion=0` lines, not a matrix page.
+
+## Item Shop offers accessibility tests (issue #516, 2026-10-12)
+
+Backfills CI tests for the #224 Windows change (PR #168): Shop tiles named by title, artist · year and state, the List/Grid toggle (wide windows only, same height as Filter), contrast-safe captions and Leaving pill, and only the active ring exposed as "Busy Loading Item Shop". Until now `shop_journey.py` checked these only for visibility, and the generated `shop`/`shop-list` pages checked the Axe scan. New `journeys/a11y-shop-offers.json` (default fixture plus `shop_fixture.py` modes) runs in `tools/windows/ui_ci.py` as `shop-offers` (compact, medium), `shop-offers-text-225` (compact, medium) and `shop-offers-reduced` (medium, app Reduce Motion, the toggle page). It asserts:
+- `shop-offers-grid-read` (medium, wide): tile phrases "Fixture Orbit, Synthetic Quartet · 2026, Leaving Tomorrow, button" and "…, New, button", focusable and invokable; "Item Shop" heading 1; order title → count → Sort → Filter → toggle → tiles; the toggle reads "List View, button", is at least 40 epx tall, is level with Filter and hit-testable at its top and bottom edges (not covered by a tile); tiles 40×40 and apart; no loading ring in UIA;
+- `shop-offers-grid-compact`: no toggle; same tile phrases and order;
+- `shop-offers-view-toggle` (medium): Enter switches to the list and Space back, focus stays on the toggle, its name flips "Grid View" ↔ "List View", it stays level with Filter, the reveal ring leaves UIA, and Tab then lands on the first tile;
+- `shop-offers-text-wrap` (medium, 225% text only): the wrapped toggle keeps its name and 40 epx target, stays in order after Filter, and overlaps neither Sort, Filter nor a tile;
+- `shop-offers-loading`: a slow read shows one ring reading "Busy Loading Item Shop, ProgressRing" with no toggle, Filter or grid, and it leaves UIA once the tiles land;
+- `shop-offers-empty`, `-failed`, `-hidden`: no toggle, Sort or Filter; the empty title reads as text, Retry is 40 epx, and "Item Shop Is Hidden" is heading 2;
+- `shop-offers-contrast-live` (medium, default text): the Leaving pill paints #C62828, after a live switch to Desert it paints Highlight (#903909) with no WindowText backplate and the caption plate paints Window, and the red returns after switching back.
+
+`tests/test_ui_ci.py` pins the runs and key checks; `WrapLineLayoutTests` guards the wrap rule.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium, wide (all pages; contrast at medium) | **Failed, fixed** (two defects, below). Pass, Axe 0 after the fixes |
+| Text 225% (compact, medium) | Pass, Axe 0 |
+| App Reduce Motion (medium, toggle page) | Pass, Axe 0 |
+
+Defects fixed:
+- **List View under the tiles:** at default text in medium and wide windows the toggle sat a line below Filter, and at medium the tile grid covered it. `WrapPanel` measured one line, but layout rounding handed arrange a fraction of a pixel less, so arrange broke the line that measure had kept and drew the toggle outside the reserved height. Measure and arrange now share `WrapLineLayout.Lines` with a 1 epx tolerance ([page-tools-and-nav-chrome](../patterns/page-tools-and-nav-chrome.md) R11). The fix also reaches the other `WrapPanel` consumers: the Rivals page and rows, profile/Statistics title actions, Song Detail and notification rows.
+- **Live contrast switch:** the Leaving pill and the pulse ring took their brushes once, so a page left open across a contrast switch kept the brand red pill (with a Window backplate on its text) and the brand outline. `ShopPulseRing` now repaints on `ContrastTheme.Changed` (Songs rows and first-run demos too), and `ShopPage` re-applies `ApplyBadge` to realized tiles and rows ([shop-offer-status](../patterns/shop-offer-status.md) R6).
+
+Harness rules: the ProgressRing peer prefixes its busy state, so assert ring names as "Busy Loading …" (a `waitgone:name=Loading …` passes trivially). Pages that assert the toggle level with Filter skip `text-225`, where it wraps by design (R11).
+
+## Leaderboard row columns accessibility tests (issue #519, 2026-10-11)
+
+Backfills a CI test for the #242 Windows change: `LeaderboardEntryRow` sets its surface, text and badge brushes in code and re-applies them on `ContrastTheme.Changed`; the selected row's FC badge paints HighlightText under contrast; the pager's disabled brushes are theme dictionaries. The column fitting itself (#37) was already covered by `journeys/a11y-leaderboard-columns.json` (#409: names, 40 epx targets, rows → pinned row → pager order, keyboard, focus not obscured, text 200%/225%), and `a11y-pager-dim.json` covers a cold-launch contrast pager, but nothing switched contrast with a board open. New page `cols-song-board-contrast-switch` (medium, default theme only; it switches Desert on and off in the running app) in the same file runs in the generated `a11y-leaderboard-columns-normal` `windows-ui` run. It asserts:
+- before the switch, row 3 isn't Window `#FFFAEF`, row 2 (the selected player) isn't Highlight `#903909`, and its FC badge is gold `#FFD700`;
+- under Desert, row 3 paints Window, row 2 and the pinned row Highlight, both FC badges HighlightText `#FFF5E3` with no WindowText `#3D3D3D` or gold left, and the disabled First page a WindowText edge with GrayText `#676767` glyph; row 3, the pinned row and First page ("…, button, unavailable") read whole; rows and the pinned row stay at least 40 epx tall and Next page 40×40; order rows → pinned row → First page → Next page; Axe scans the Desert board;
+- after switching back, the default brushes return.
+
+`tests/test_ui_ci.py` (`test_leaderboard_columns_contrast_switch_runs_in_the_normal_pass`) and `test_a11y.test_leaderboard_column_pages` pin the page.
+
+| Configuration | Result |
+| --- | --- |
+| `a11y-leaderboard-columns-normal`, `-text-225`, `-text-200` (existing pages) | **Failed, fixed** (stale expectation, below). Pass, Axe 0 after the fix |
+| `cols-song-board-contrast-switch`, medium, Desert switched live | Pass, Axe 0 |
+| Regression check: `ContrastTheme.Changed` subscription removed | Fails: row 3 keeps the card surface under Desert (0 px of `#FFFAEF`, centre `#464A53`) |
+
+No app accessibility defect was found. **Failed, fixed (test):** since #606 the season pill names the current season "current season 9", but the column pages still expected "season 9", so `cols-song-board` failed. The expectations now say "current season 9"; Fixture Player 2's board row still reads the board's 98% (only the selected player's pinned row reads the profile's 97.9%).
 
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
@@ -492,6 +697,21 @@ The push follows the scroll with no animation of its own, so Reduce Motion has n
 | --- | --- |
 | Compact, medium (3 pages, `--scan`) | Pass, Axe 0 |
 | Text 225% (compact, 3 pages) | Pass, Axe 0 |
+
+## Songs scrolling (issue #520, 2026-10-11)
+
+Accessibility tests for #247's Windows Songs scroll fix (the pinned title re-read after a non-animated jump's last view change). `journeys/a11y-songs-scroll.json` runs on the large fixture catalogue; `tools/windows/ui_ci.py` runs it in `windows-ui` at default text (`songs-scroll`: compact, medium), 225% text (`songs-scroll-text-225`: compact) and Windows Animation effects off (`songs-scroll-no-animations`: compact, where keyboard End/Home are non-animated jumps), all `--scan`; `tests/test_ui_ci.py` keeps the three runs and the key steps. The pages assert:
+- `songs-scroll-far-jumps`: UIA Scroll-pattern jumps (Narrator and scroll-bar moves) to 100, 25, 75 and 50%, each landing in a letter range disjoint from the previous one, so a stale pinned title fails; the title stays a level-2 Text heading, Narrator reads Jump → title → list, and Jump keeps its name and 40×40 epx.
+- `songs-scroll-fling-back`: bottom → top → 3% → top ends at `scroll=0` with the title reading "#, text" before the first row.
+- `songs-scroll-keyboard`: End moves focus to the last row (`fixture-song-105`, 40 epx) with the title in X–Z; Home returns focus to the first row and the title to "#, text".
+
+Ranges, not exact letters, because the letter at a scroll percent depends on window size and text scale (medium: 25% D, 50% K, 75% R, 100% Y). Check: with both re-reads removed (`OnScrollerViewChanged` settle and `RecheckHeaderAfterLayout`), `songs-scroll-far-jumps` fails ("#" pinned after the jump) at compact and medium; with only #247's settle removed it still passes, since #248's after-layout re-read covers the same case. No accessibility defect was found, so no app code changed. The live-only `songs-scroll-a11y.json` (anonymous or SFentonX, no name checks) stays a host check.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (3 pages, `--scan`) | Pass, Axe 0 |
+| Text 225% (compact, 3 pages) | Pass, Axe 0 |
+| Animation effects off (compact, 3 pages) | Pass, Axe 0 |
 
 ## Feedback Form validation (issue #236, 2026-10-05)
 

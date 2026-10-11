@@ -78,11 +78,12 @@ class StepTests(unittest.TestCase):
                 u.parse_step(bad)
 
     def test_assertnoscrollbar_takes_an_element_selector(self):
-        step = u.parse_step("assertnoscrollbar:id=fst.paths.image-scroller")
-        self.assertEqual((step["verb"], step["selector"]), ("assertnoscrollbar", {"kind": "id", "value": "fst.paths.image-scroller"}))
-        for bad in ("assertnoscrollbar:5,6", "assertnoscrollbar:"):
-            with self.assertRaises(ValueError):
-                u.parse_step(bad)
+        for verb in ("assertnoscrollbar", "assertscrollbar"):
+            step = u.parse_step(f"{verb}:id=fst.paths.image-scroller")
+            self.assertEqual((step["verb"], step["selector"]), (verb, {"kind": "id", "value": "fst.paths.image-scroller"}))
+            for bad in (f"{verb}:5,6", f"{verb}:"):
+                with self.assertRaises(ValueError):
+                    u.parse_step(bad)
 
     def test_paths_resize_and_errors(self):
         shot = u.parse_step("shot:out/a.png@screen")
@@ -138,6 +139,11 @@ class StepTests(unittest.TestCase):
                     "assertstate:id=x|heading="):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
+        # Issue #380: a raw-view demo's HelpText census keeps its case and may be a regex (`~`, `|` after the first).
+        census = u.parse_step(r"assertstate:raw=fst.first-run.demo.songs-sort|help=~^controls=(?=.*\bRadioButtons\b)@15")
+        self.assertEqual(census["selector"], {"kind": "raw", "value": "fst.first-run.demo.songs-sort"})
+        self.assertEqual((census["key"], census["value"], census["timeout"]),
+                         ("help", r"~^controls=(?=.*\bRadioButtons\b)", 15.0))
         for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe", "assertstate:id=x|value=",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
                     "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",
@@ -170,6 +176,17 @@ class StepTests(unittest.TestCase):
         for bad in ("foreground:", "foreground:maybe", "foreground:id=x"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
+
+    def test_contrast(self):
+        # Issue #606 review: switch the contrast theme with the app open; only a11y_matrix (which restores it) may.
+        self.assertEqual(u.parse_step("contrast:Desert"), {"verb": "contrast", "arg": "desert"})
+        self.assertEqual(u.parse_step("contrast:off")["arg"], "off")
+        for bad in ("contrast:", "contrast:on", "contrast:High Contrast White"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+        self.assertEqual(len(u.cli_steps(["wait:1", "foreground:on"])), 2)
+        with self.assertRaises(ValueError):
+            u.cli_steps(["wait:1", "contrast:desert"])
 
     def test_listen_and_assertannounced(self):
         # Issue #269: record the app's UIA notifications (what Narrator speaks), then wait for one.
@@ -614,6 +631,14 @@ class OcclusionRobustnessTests(unittest.TestCase):
             self.assertIn(f'"{verb}"', verbs)
         self.assertIn("RestoreIsolated();", source.split("finally", 1)[1][:200])
         self.assertIn('"front" => Front(', source)
+
+    def test_held_motion_statuses_are_read_without_restoring_the_window(self):
+        # #498: a minimized First Run demo's paused auto-scroll (like a held Shop pulse) must be read while still
+        # minimized; restoring the window first would resume it and the assertion could never pass.
+        source = (u.DRIVER_DIR / "Program.cs").read_text(encoding="utf-8")
+        front = source.split("var front = ", 1)[1].split(";", 1)[0]
+        for token in ("not-visible", "=background", "pulse=held", "scroll=paused"):
+            self.assertIn(f'!expected.Contains("{token}"', front)
 
 
 if __name__ == "__main__":

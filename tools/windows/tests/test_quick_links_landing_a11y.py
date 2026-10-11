@@ -29,7 +29,8 @@ _LANDING = float(re.search(r"const double LandingOffset = (\d+(?:\.\d+)?);",
 _HEADER_MARGIN = 8.0
 # Menu order: the first items of each page's Quick Links menu, in page order.
 _SETTINGS_ORDER = ["app-settings", "item-shop", "show-instruments", "show-metadata", "accessibility"]
-_LEADERBOARDS_ORDER = ["instrument:Solo_Guitar", "instrument:Solo_Bass", "instrument:Solo_Drums"]
+# Leaderboards leads with the OG band combo board (web scope order, #602).
+_LEADERBOARDS_ORDER = ["combo:0f", "instrument:Solo_Guitar", "instrument:Solo_Bass", "instrument:Solo_Drums"]
 
 
 def _steps(page: dict) -> list[str]:
@@ -125,8 +126,14 @@ class QuickLinksLandingA11yJourneyTests(unittest.TestCase):
                 self.assertIn("assertsize:id=fst.quick-links.open|40x40", steps)
                 # Scanned before the menu first opens (WinUI's popup host lingers afterwards, open item 8).
                 self.assertLess(steps.index("scan:{stem}-axe/closed"), steps.index("key:enter"))
-                self.assertEqual(steps[-3], "key:esc")
-                self.assertEqual(steps[-1], "assertfocus:id=fst.quick-links.open@3")
+                self.assertEqual(steps[-5], "key:esc")
+                self.assertEqual(steps[-3], "assertfocus:id=fst.quick-links.open@3")
+                # Then focus leaves the button: its keyboard tooltip is always a windowed popup that Axe flags (open
+                # item 8). The menu itself opens in-window since #534, so no Axe allowance is needed.
+                target = steps[-2].removeprefix("focus:")
+                self.assertTrue(steps[-2].startswith("focus:id=") and target != "id=fst.quick-links.open", steps[-2])
+                self.assertEqual(steps[-1], f"assertfocus:{target}@3")
+                self.assertNotIn("axe_allow", _BY_NAME[name])
 
     def test_every_keyboard_walked_menu_item_is_a_40_epx_target(self):
         # Quick Links R6 / page-tools R10 (#416 review): every item the keyboard walks over or picks is measured at
@@ -162,7 +169,7 @@ class QuickLinksLandingA11yJourneyTests(unittest.TestCase):
         self.assertIn("assertfocus:id=fst.rankings.row.fixture-player-1@3", after)
         self.assertLess(after.index(f"assertstate:{drums}|selected=true@5"), after.index("wait:1"))
         self.assertLess(after.index("wait:1"), after.index(f"assertstate:{drums}|selected=true"))
-        self.assertIn(f"assertstate:{_ITEM}instrument:Solo_Guitar|selected=false", after)
+        self.assertIn(f"assertstate:{_ITEM}{_LEADERBOARDS_ORDER[0]}|selected=false", after)
         # Every pane row the keyboard can reach is a full 40x40 epx target (width too), measured before the jump.
         for item in _LEADERBOARDS_ORDER:
             with self.subTest(row=item):

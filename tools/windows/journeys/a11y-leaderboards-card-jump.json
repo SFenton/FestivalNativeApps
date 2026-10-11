@@ -1,0 +1,84 @@
+[
+  {
+    "name": "card-jump-row",
+    "note": "Issue #370 (#493): the selected player's separate row under a Leaderboards card (Fixture Rank 40, outside the top ten) is one 40x40 epx Button stop named with its destination, \"Your rank, 40th. Jump to your position. Fixture Rank 40. Total Score ..., button\"; it reads after the card's rows and before View All Rankings, inside the card's Lead group.",
+    "route": "/leaderboards",
+    "profile": "fixture-rank-40:Fixture Rank 40",
+    "fixture": ["rankings_fixture.py"],
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.0f@20",
+      "scrollinto:id=fst.leaderboards.card.Solo_Guitar.view-all@20",
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar.spotlight@10",
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@10",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:id=fst.leaderboards.card.Solo_Guitar.spotlight|~^Your rank, 40th\\. Jump to your position\\. Fixture Rank 40\\. Total Score .+, button$",
+      "assertstate:id=fst.leaderboards.card.Solo_Guitar.spotlight|type=button",
+      "assertstate:id=fst.leaderboards.card.Solo_Guitar.spotlight|invoke=true",
+      "assertstate:id=fst.leaderboards.card.Solo_Guitar.spotlight|focusable=true",
+      "assertsize:id=fst.leaderboards.card.Solo_Guitar.spotlight|40x40",
+      "assertsize:id=fst.leaderboards.card.Solo_Guitar.view-all|0x40",
+      "assertapart:id=fst.leaderboards.card.Solo_Guitar.spotlight|id=fst.leaderboards.card.Solo_Guitar.view-all",
+      "assertorder:name=Lead&class=AccessibleGroup|id=fst.leaderboards.card.Solo_Guitar.spotlight|id=fst.leaderboards.card.Solo_Guitar.view-all"
+    ]
+  },
+  {
+    "name": "card-jump-row-keyboard",
+    "note": "Issue #370 (#493): by keyboard the card's \"your rank\" row sits between the card's rows and View All Rankings (Shift+Tab / Tab); Enter opens Full Rankings on the player's page (Page 2 of 48) with their row brought on screen (also under in-app Reduce Motion, where the instant reveal once ran before the list's layout and left the row off screen), the pinned row now reading Open your statistics; Back returns to Leaderboards with focus on the row it left from.",
+    "route": "/leaderboards",
+    "profile": "fixture-rank-40:Fixture Rank 40",
+    "fixture": ["rankings_fixture.py"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.0f@20",
+      "scrollinto:id=fst.leaderboards.card.Solo_Guitar.view-all@20",
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar.spotlight@10",
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@10",
+      "wait:1"
+    ],
+    "after_ready": [
+      "focus:id=fst.leaderboards.card.Solo_Guitar.view-all",
+      "assertfocus:id=fst.leaderboards.card.Solo_Guitar.view-all@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.leaderboards.card.Solo_Guitar.spotlight@3",
+      "key:tab",
+      "assertfocus:id=fst.leaderboards.card.Solo_Guitar.view-all@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.leaderboards.card.Solo_Guitar.spotlight@3",
+      "key:enter",
+      "waitfor:id=fst.full-rankings.title@15",
+      "waitfor:id=fst.rankings.row.fixture-rank-40@15",
+      "assertread:id=fst.full-rankings.page-info|Page 2 of 48, text@10",
+      "assertread:id=fst.full-rankings.spotlight-footer|~^Your rank, 40th\\. Open your statistics\\. Fixture Rank 40\\. Total Score .+, button$@10",
+      "assertorder:id=fst.full-rankings.title|id=fst.rankings.row.fixture-rank-40|id=fst.full-rankings.spotlight-footer|id=fst.full-rankings.page-first",
+      "key:alt+left",
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar.spotlight@15",
+      "waitgone:id=fst.full-rankings.title@5",
+      "assertfocus:id=fst.leaderboards.card.Solo_Guitar.spotlight@3",
+      "wait:1"
+    ]
+  },
+  {
+    "name": "card-in-place-row",
+    "note": "Issue #370 (#493): a selected player inside a card's top ten (Fixture Player 2) is highlighted in place with no separate row; that row reads \"Your rank, 2nd.\" without a jump (it is already shown) and Enter opens the player's statistics.",
+    "route": "/leaderboards",
+    "profile": "fixture-player-2:Fixture Player 2",
+    "fixture": ["rankings_fixture.py"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.rankings.row.fixture-player-2@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:id=fst.rankings.row.fixture-player-2|~^Your rank, 2nd\\. Fixture Player 2\\. .+, button$",
+      "assertsize:id=fst.rankings.row.fixture-player-2|40x40",
+      "waitgone:id=fst.leaderboards.card.Solo_Guitar.spotlight@3",
+      "focus:id=fst.rankings.row.fixture-player-2",
+      "assertfocus:id=fst.rankings.row.fixture-player-2@3",
+      "key:enter",
+      "waitfor:id=fst.player@10",
+      "wait:1"
+    ]
+  }
+]

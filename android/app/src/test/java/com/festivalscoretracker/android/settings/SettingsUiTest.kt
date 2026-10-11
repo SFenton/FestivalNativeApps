@@ -21,6 +21,7 @@ import androidx.compose.ui.test.hasTestTag
 import com.festivalscoretracker.android.core.settings.SettingsDetailText
 import com.festivalscoretracker.android.core.settings.SettingsDetail
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -206,7 +207,7 @@ class SettingsUiTest {
         assertTrue(transport.sent("/api/service-info").all { request -> request.headers.keys.none { it.lowercase().startsWith("x-fst-selected") || it.lowercase() == "x-api-key" } })
         rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag("fst.settings.service-version"))
         rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithText("9.9.9").fetchSemanticsNodes().isNotEmpty() }
-        // The list scrolled, so the floating toolbar slid away (hide-on-scroll); activate it semantically.
+        // The toolbar stays on screen while the list scrolls (R7, #577); activate it semantically.
         rule.onNodeWithTag("fst.quick-links.open").performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.quick-links.item.reset")
         rule.onNodeWithTag("fst.quick-links.item.reset").performSemanticsAction(SemanticsActions.OnClick)
@@ -281,24 +282,15 @@ class SettingsUiTest {
         settle()
         rule.onNodeWithTag("fst.first-run.close").performClick()
         waitGone("fst.first-run.dialog")
-        // Only the two displayed slides count as seen (batch 6.7): the next visit shows the other four.
-        rule.onNodeWithTag("fst.nav.tab.settings").performClick()
-        waitForTag("fst.settings.list")
-        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
-        waitForTag("fst.first-run.dialog")
-        assertEquals("Slide 1 of 4", rule.onNodeWithTag("fst.first-run.position").fetchSemanticsNode().config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.StateDescription))
-        repeat(3) {
-            rule.onNodeWithTag("fst.first-run.next").performClick()
-            settle()
+        // Only the two displayed slides count as seen (batch 6.7), but a closed guide never comes
+        // back in the same session (issue #608): the other four wait for the next launch.
+        repeat(2) {
+            rule.onNodeWithTag("fst.nav.tab.settings").performClick()
+            waitForTag("fst.settings.list")
+            rule.onNodeWithTag("fst.nav.tab.songs").performClick()
+            settle(1_000)
+            assertTrue(rule.onAllNodesWithTag("fst.first-run.dialog").fetchSemanticsNodes().isEmpty())
         }
-        rule.onNodeWithTag("fst.first-run.done").performClick()
-        waitGone("fst.first-run.dialog")
-        // Every slide seen now: nothing on the next visit.
-        rule.onNodeWithTag("fst.nav.tab.settings").performClick()
-        waitForTag("fst.settings.list")
-        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
-        settle(1_000)
-        assertTrue(rule.onAllNodesWithTag("fst.first-run.dialog").fetchSemanticsNodes().isEmpty())
         // Replay ignores gates: all nine Songs slides, even the player-gated ones.
         rule.onNodeWithTag("fst.nav.tab.settings").performClick()
         waitForTag("fst.settings.list")
@@ -503,6 +495,18 @@ class ExpandedSettingsUiTest {
         assertFalse(exists("fst.privacy-policy.sheet"))
         val pane = rule.onNodeWithTag("fst.settings.detail-pane").getUnclippedBoundsInRoot()
         assertTrue(rule.onNodeWithTag("fst.privacy-policy.content").getUnclippedBoundsInRoot().left >= pane.left)
+        // Issue #609: the policy reads inside one glass card under the pane header, at the
+        // detail column's readable width, in the same scrolling column as every other detail.
+        rule.onNodeWithTag("fst.settings.detail.privacy-policy").assertExists()
+        val card = rule.onNodeWithTag("fst.privacy-policy.card").getUnclippedBoundsInRoot()
+        val content = rule.onNodeWithTag("fst.privacy-policy.content").getUnclippedBoundsInRoot()
+        assertTrue("content $content inside card $card", content.left >= card.left && content.right <= card.right && content.top >= card.top)
+        assertTrue("card $card inside pane $pane", card.left >= pane.left && card.right <= pane.right)
+        assertTrue("card width ${card.right - card.left}", (card.right - card.left).value <= 840.5f)
+        val title = rule.onAllNodesWithText("Privacy Policy", useUnmergedTree = true).fetchSemanticsNodes()
+            .map { it.boundsInRoot }.first { with(rule.density) { it.left.toDp() } >= pane.left }
+        assertTrue("pane title above the card", with(rule.density) { title.bottom.toDp() } <= card.top)
+        rule.onNodeWithTag("fst.settings.detail.privacy-policy").performScrollToNode(hasTestTag("fst.privacy-policy.section.contact"))
     }
 }
 
@@ -522,6 +526,12 @@ class PhoneSettingsLayoutUiTest {
         rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag("fst.settings.path-default-view.${PathDisplayMode.Image.token}"))
         assertTrue(rule.onAllNodesWithTag(SettingsDetail.ShowInstruments.rowTag).fetchSemanticsNodes().isEmpty())
         assertTrue(rule.onAllNodesWithTag(SettingsDetail.PathDefaultView.rowTag).fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun resetSitsOnThePageWithoutACard() {
+        rule.openSettings()
+        rule.assertResetIsUncarded()
     }
 }
 
@@ -611,7 +621,7 @@ class LargeTextRailProfileUiTest {
     }
 }
 
-/** Medium window list pane: the pinned Songs search field stays one line tall (issue #101). */
+/** Medium window: the pinned Songs search field stays one line tall (issue #101). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w884dp-h1104dp-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -620,7 +630,7 @@ class SongsSearchPlaceholderUiTest {
     val rule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun placeholderStaysOnOneLineInTheListPane() {
+    fun placeholderStaysOnOneLine() {
         val debug = DebugLaunch(stillBackground = true)
         val transport = FakeTransport.standard().apply {
             on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
@@ -629,7 +639,6 @@ class SongsSearchPlaceholderUiTest {
         rule.setContent { FestivalApp(container, debug) }
         fun settle() = repeat(4) { shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100)); rule.waitForIdle() }
         rule.waitUntil(10_000) { settle(); rule.onAllNodesWithTag("fst.songs.search").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("fst.songs.detail-pane").assertExists()
         val field = rule.onNodeWithTag("fst.songs.search").getUnclippedBoundsInRoot()
         assertTrue("search field ${field.right - field.left} wide, ${field.bottom - field.top} tall", (field.bottom - field.top).value <= 64f)
     }
@@ -692,6 +701,33 @@ private fun SettingsRule.openSettings(store: InMemoryPreferences = InMemoryPrefe
     waitUntil(10_000) { settleSettings(); onAllNodesWithTag("fst.settings.list").fetchSemanticsNodes().isNotEmpty() }
 }
 
+/**
+ * Reset (#599, web `resetRow`): its heading, description and red button sit on the section column
+ * itself, edge to edge, with no card (a `GlassCard` would inset them 16 dp and add a traversal group).
+ */
+private fun SettingsRule.assertResetIsUncarded() {
+    onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag("fst.settings.reset"))
+    settleSettings()
+    val inReset = hasAnyAncestor(hasTestTag("fst.settings.section.reset"))
+    val section = onNodeWithTag("fst.settings.section.reset").getUnclippedBoundsInRoot()
+    val button = onNodeWithTag("fst.settings.reset").assertTextEquals("Reset All Settings").getUnclippedBoundsInRoot()
+    val title = onNode(hasText("Reset Settings") and inReset, useUnmergedTree = true)
+        .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading)).getUnclippedBoundsInRoot()
+    val hint = onNode(hasText("Restore all settings to their default values.") and inReset, useUnmergedTree = true).getUnclippedBoundsInRoot()
+    for ((name, box) in listOf("title" to title, "description" to hint, "button" to button)) {
+        assertEquals("$name left edge", section.left.value, box.left.value, 0.5f)
+    }
+    assertEquals("button right edge", section.right.value, button.right.value, 0.5f)
+    assertTrue("title, description, button order", title.bottom <= hint.top && hint.bottom <= button.top)
+    val touch = onNodeWithTag("fst.settings.reset").fetchSemanticsNode().touchBoundsInRoot
+    val buttonHeight = with(density) { touch.height.toDp() }.value
+    assertTrue("button touch target $buttonHeight dp under 48 dp", buttonHeight >= 47.5f)
+    assertTrue(
+        "Reset is inside a card",
+        onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.IsTraversalGroup, true) and inReset, useUnmergedTree = true).fetchSemanticsNodes().isEmpty(),
+    )
+}
+
 /** Scrolls to the Version row [tag] and returns the unmerged bounds of its [label] and of its value text. */
 private fun SettingsRule.valueRowBounds(tag: String, label: String): Pair<androidx.compose.ui.unit.DpRect, androidx.compose.ui.unit.DpRect> {
     onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag(tag))
@@ -715,5 +751,13 @@ class WideSettingsColumnUiTest {
         val section = rule.onNodeWithTag("fst.settings.section.app-settings").getUnclippedBoundsInRoot()
         assertEquals(16f, (section.left - list.left).value, 0.5f)
         assertEquals(16f, (list.right - section.right).value, 0.5f)
+    }
+
+    @Test
+    fun resetStaysInTheListWithoutACard() {
+        rule.openSettings()
+        rule.assertResetIsUncarded()
+        assertTrue(rule.onAllNodesWithTag("fst.settings.detail-pane").fetchSemanticsNodes().isNotEmpty())
+        assertTrue(rule.onAllNodes(hasTestTag("fst.settings.reset") and hasAnyAncestor(hasTestTag("fst.settings.list"))).fetchSemanticsNodes().isNotEmpty())
     }
 }

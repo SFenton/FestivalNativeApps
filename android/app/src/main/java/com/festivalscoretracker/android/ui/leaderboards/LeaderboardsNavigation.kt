@@ -10,6 +10,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.festivalscoretracker.android.AppContainer
+import com.festivalscoretracker.android.core.layout.SplitListPage
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.BandRankingsRoute
@@ -18,6 +19,8 @@ import com.festivalscoretracker.android.core.nav.LeaderboardsRoute
 import com.festivalscoretracker.android.core.nav.LeaderboardsTab
 import com.festivalscoretracker.android.core.rankings.RankHistoryChart
 import com.festivalscoretracker.android.core.rankings.RankingMetric
+import com.festivalscoretracker.android.data.compete.comboRankingsPage
+import com.festivalscoretracker.android.data.compete.playerComboRankingResult
 import com.festivalscoretracker.android.data.rankings.LeaderboardPreferences
 import com.festivalscoretracker.android.data.rankings.bandRankings
 import com.festivalscoretracker.android.data.rankings.playerInstrumentRanking
@@ -28,6 +31,7 @@ import com.festivalscoretracker.android.presentation.leaderboards.BandRankingsVi
 import com.festivalscoretracker.android.presentation.leaderboards.FullRankingsViewModel
 import com.festivalscoretracker.android.presentation.leaderboards.LeaderboardsViewModel
 import com.festivalscoretracker.android.presentation.leaderboards.RankingsReads
+import com.festivalscoretracker.android.ui.common.OnDemandSplit
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 
@@ -46,6 +50,8 @@ fun rankingsReads(container: AppContainer): RankingsReads {
         bandRankings = { bandType, metric, page, size -> api.bandRankings(bandType, metric, page, size) },
         playerRanking = { instrument, accountId -> api.playerInstrumentRanking(instrument, accountId) },
         rankHistory = { instrument, accountId -> api.rankHistory(instrument, accountId, RankHistoryChart.DAYS) },
+        comboRankings = { comboId, metric, page, size -> api.comboRankingsPage(comboId, metric, page, size) },
+        playerComboRanking = { comboId, accountId, metric -> api.playerComboRankingResult(accountId, comboId, metric) },
     )
 }
 
@@ -58,8 +64,9 @@ fun rankingsReads(container: AppContainer): RankingsReads {
  * @param preferences Persisted Rank By.
  */
 fun NavGraphBuilder.leaderboardsGraph(container: AppContainer, shellViewModel: ShellViewModel, preferences: LeaderboardPreferences) {
-    composable<LeaderboardsTab> { Overview(container, shellViewModel, preferences, isRoot = true) }
-    composable<LeaderboardsRoute> { Overview(container, shellViewModel, preferences, isRoot = false) }
+    // Full and Band Rankings open beside the overview where the window splits (#352, #583).
+    composable<LeaderboardsTab> { OnDemandSplit(SplitListPage.Leaderboards) { Overview(container, shellViewModel, preferences, isRoot = true) } }
+    composable<LeaderboardsRoute> { OnDemandSplit(SplitListPage.Leaderboards) { Overview(container, shellViewModel, preferences, isRoot = false) } }
     composable<FullRankingsRoute> { entry ->
         // The entry's saved route arguments are rewritten as the user pages or switches,
         // so a recreated entry (process death) restores the same board and page.
@@ -72,6 +79,7 @@ fun NavGraphBuilder.leaderboardsGraph(container: AppContainer, shellViewModel: S
                 settings = shellViewModel.settings,
                 backoff = container.backoff,
                 initialPage = route.page,
+                initialCombo = route.combo,
             )
         }
         val instrument by viewModel.instrument.collectAsStateWithLifecycle()

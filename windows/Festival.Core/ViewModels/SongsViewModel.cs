@@ -18,6 +18,7 @@ public sealed partial class SongsViewModel : ObservableObject
     private readonly FestivalSession session;
     private CancellationTokenSource? searchDebounce;
     private string appliedSearch = "";
+    private (SongSortMode Mode, bool Ascending)? builtSort;
 
     /// <summary>Creates the page model.</summary>
     /// <param name="session">Shared session.</param>
@@ -288,8 +289,14 @@ public sealed partial class SongsViewModel : ObservableObject
         });
 
         var projector = new SongRowProjector(settings, catalog.CurrentSeason, offers, scores);
-        Sections = [.. result.Sections.Select(s => new SongRowSection(s.Label, [.. s.Songs.Select(projector.Project)],
+        IReadOnlyList<SongRowSection> next = [.. result.Sections.Select(s => new SongRowSection(s.Label, [.. s.Songs.Select(projector.Project)],
             SongListPipeline.SectionAutomationId(result.EffectiveSort, s.Label)))];
+        // An unchanged list keeps its objects: Back to Songs re-runs this, and a rebind would replay the entrance fade
+        // and re-estimate the virtualized layout at the old offset, landing sections away (back-keeps-place, issue #560).
+        // A sort change always replaces it, since the page starts a new sort at the top.
+        var sort = (settings.SongSort, settings.SongSortAscending);
+        if (sort != builtSort || !SongRowSection.SameContent(Sections, next)) Sections = next;
+        builtSort = sort;
         // No quick-jump under the Year sort (operator 2026-09-28): decade headers stay, the zoomed-out index does not.
         HasJumpIndex = settings.SongSort != SongSortMode.Year &&
                        (Sections.Count > 1 || (Sections.Count == 1 && Sections[0].Label.Length > 0));
@@ -299,7 +306,7 @@ public sealed partial class SongsViewModel : ObservableObject
         if (result.SortPaused is { } sortPaused) notices.Add(new(SongNotice.SortPausedId, sortPaused));
         if (result.ShopFilterPaused is { } shopPaused) notices.Add(new(SongNotice.ShopFilterPausedId, shopPaused));
         if (result.ScoreFilterPaused is { } scorePaused) notices.Add(new(SongNotice.ScoreFilterPausedId, scorePaused));
-        Notices = notices;
+        if (!Notices.SequenceEqual(notices)) Notices = notices;
         OnPropertyChanged(nameof(HasNotices));
         State = result.Count == 0 ? LoadState.Empty : LoadState.Loaded;
         OnPropertyChanged(nameof(ShowInvalidFilter));
@@ -339,6 +346,7 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
             {
                 Highlight = highlight, InShop = inShop,
                 Chips = SongInstrumentStatusPolicy.Badges(song, settings.VisibleInstruments, chart => scores.Facts!(song.SongId, chart)),
+                Warning = Warning(song, filterChart),
             };
         }
         if (!scores.Available || metadataChart is not { } chart)
@@ -358,7 +366,24 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
             ChartRaw = fields.Count == 0 ? song.Difficulty?.ChartedValue(chart) : null,
             Metadata = fields,
             ScoreState = fields.Count > 0 ? null : song.Supports(chart) ? "No score" : $"No {chart.Label()} chart",
+            Warning = Warning(song, filterChart),
         };
+    }
+
+    /// <summary>
+    /// The row's invalid-score indicator (web <c>SongRow</c> + <c>InvalidScoreIcon</c>): every visible chart whose shown
+    /// score was replaced, dropped or kept over the CHOpt maximum, narrowed to the single-chart filter when one is set.
+    /// </summary>
+    /// <param name="song">Catalogue row.</param>
+    /// <param name="filterChart">Single-chart filter.</param>
+    /// <returns>Warning, or <see langword="null"/> when no described chart differs (or Filter Invalid Scores is off).</returns>
+    private InvalidScoreWarning? Warning(Song song, Instrument? filterChart)
+    {
+        if (scores.Reason is not { } reason) return null;
+        Dictionary<Instrument, InvalidScoreReason>? reasons = null;
+        foreach (var chart in settings.VisibleInstruments)
+            if (reason(song.SongId, chart) is { } why) (reasons ??= [])[chart] = why;
+        return reasons is null ? null : InvalidScoreWarning.Of(song.Title, reasons, filterChart);
     }
 }
 #endregion
@@ -402,6 +427,19 @@ public sealed partial class SongSortDraft : ObservableObject
     /// <returns>Draft.</returns>
     public static SongSortDraft ForShop(FestivalSession session) =>
         new(() => [.. ShopOfferSort.Modes], () => session.Settings.ShopSort, () => session.Settings.ShopSortAscending);
+
+    /// <summary>
+    /// Creates a detached draft for the First Run <c>songs-sort</c> demo (issue #380): the given modes with the default
+    /// Title ascending sort applied, never live and bound to no settings, so the guide shows the real form without
+    /// touching the user's sort.
+    /// </summary>
+    /// <param name="modes">Modes offered, in menu order.</param>
+    /// <returns>Draft showing the default sort.</returns>
+    public static SongSortDraft ForDemo(IReadOnlyList<SongSortMode> modes)
+    {
+        List<SongSortMode> offered = [.. modes];
+        return new(() => offered, () => SongSortMode.Title, () => true);
+    }
 
     /// <summary>Whether changes commit immediately (set once <see cref="Begin"/> finishes loading).</summary>
     public bool IsLive { get; private set; }

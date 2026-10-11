@@ -3,9 +3,9 @@
    "note": "Shared section columns (issue #37): the pinned row's badge sits in the listed rows' column, every row is one 40+ epx Button stop read in visual order, rows -> pinned row -> pager (issue #409). Keyboard: the rows are one Tab stop with Up/Down between them (Fluent list model), Tab reaches the pinned row then the pager, Shift+Tab walks back to the song header.",
    "ready": ["waitfor:id=fst.song-leaderboard.row.fixture-player-2@30", "waitfor:id=fst.song-leaderboard.spotlight-footer@15", "wait:1"],
    "after_ready": [
-     "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, season 9)?, 5 stars, button$",
-     "assertread:id=fst.song-leaderboard.row.fixture-player-3|~^Rank #3, Fixture Player 3, 99,700 points(, season 9)?, 5 stars, button$",
-     "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, 99,900 points, 97\\.9% accuracy(, season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, current season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.row.fixture-player-3|~^Rank #3, Fixture Player 3, 99,700 points(, current season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, 99,900 points, 97\\.9% accuracy(, current season 9)?, 5 stars, button$",
      "waitgone:raw=fst.score.accuracy.fixture-player-3",
      "assertaligned:raw=fst.score.accuracy.fixture-player-1|raw=fst.score.accuracy.fixture-player-2",
      "assertaligned:raw=fst.score.accuracy.fixture-player-2|raw=fst.score.accuracy.spotlight-footer",
@@ -70,16 +70,16 @@
      "assertaligned:raw=fst.score.season.fixture-player-2|raw=fst.score.season.fixture-player-3",
      "assertaligned:raw=fst.score.season.fixture-player-2|raw=fst.score.season.spotlight-footer",
      "assertaligned:raw=fst.score.accuracy.fixture-player-2|raw=fst.score.accuracy.spotlight-footer",
-     "assertname:id=fst.song-leaderboard.row.fixture-player-3|Rank #3, Fixture Player 3, 99,700 points, season 9, 5 stars",
-     "assertname:id=fst.song-leaderboard.spotlight-footer|Your rank, 1st. Open your statistics. Fixture Player 1, 99,900 points, 97.9% accuracy, season 9, 5 stars"
+     "assertname:id=fst.song-leaderboard.row.fixture-player-3|Rank #3, Fixture Player 3, 99,700 points, current season 9, 5 stars",
+     "assertname:id=fst.song-leaderboard.spotlight-footer|Your rank, 1st. Open your statistics. Fixture Player 1, 99,900 points, 97.9% accuracy, current season 9, 5 stars"
    ]},
   {"name": "cols-song-board-large-text", "route": "/songs/fixture-pulse/Solo_Guitar", "profile": "fixture-player-1:Fixture Player 1", "scan": true, "tabs": 0,
    "sizes": ["compact", "medium"], "modes": ["text-200", "text-225"],
    "note": "Large text: rows (pinned row included) grow or stack their values under the name rather than clipping, stay 40+ epx targets and keep one badge column; names still read every value.",
    "ready": ["waitfor:id=fst.song-leaderboard.row.fixture-player-2@30", "waitfor:id=fst.song-leaderboard.spotlight-footer@15", "wait:1.5"],
    "after_ready": [
-     "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, season 9)?, 5 stars, button$",
-     "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, 99,900 points, 97\\.9% accuracy(, season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, current season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, 99,900 points, 97\\.9% accuracy(, current season 9)?, 5 stars, button$",
      "assertaligned:raw=fst.score.accuracy.fixture-player-1|raw=fst.score.accuracy.fixture-player-2",
      "assertaligned:raw=fst.score.accuracy.fixture-player-2|raw=fst.score.accuracy.spotlight-footer",
      "assertsize:id=fst.song-leaderboard.row.fixture-player-1|0x40",
@@ -146,7 +146,9 @@
      "assertfocus:id=fst.band-rankings.row.fixture-team-12@3",
      "assertapart:id=fst.band-rankings.row.fixture-team-12|id=fst.band-rankings.page-next",
      "key:tab",
-     "assertfocus:id=fst.band-rankings.page-next@3"
+     "assertfocus:id=fst.band-rankings.page-next@3",
+     "focus:id=fst.band-rankings.row.fixture-team-12",
+     "assertfocus:id=fst.band-rankings.row.fixture-team-12@3"
    ]},
   {"name": "cols-song-band-board-focus-clear", "route": "/songs/fixture-pulse/bands/Band_Duets", "profile": "fixture-player-1:Fixture Player 1", "fixture": ["--large-rankings"], "tabs": 0,
    "sizes": ["compact", "medium"], "skip_modes": ["text-150", "text-200", "text-225"],
@@ -176,7 +178,9 @@
      "assertapart:id=fst.player-bands.row.fixture-pband-duo-9|id=fst.player-bands.page-previous",
      "assertapart:id=fst.player-bands.row.fixture-pband-duo-9|id=fst.player-bands.page-next",
      "key:tab",
-     "assertfocus:id=fst.player-bands.page-next@3"
+     "assertfocus:id=fst.player-bands.page-next@3",
+     "focus:id=fst.player-bands.row.fixture-pband-duo-9",
+     "assertfocus:id=fst.player-bands.row.fixture-pband-duo-9@3"
    ]},
   {"name": "cols-player-bands-focus-clear-grid", "route": "/bands/player/fixture-player-1", "tabs": 0,
    "sizes": ["medium"], "skip_modes": ["text-150", "text-200", "text-225"],
@@ -194,6 +198,38 @@
      "assertapart:id=fst.player-bands.row.fixture-pband-duo-13|id=fst.player-bands.page-previous",
      "assertapart:id=fst.player-bands.row.fixture-pband-duo-13|id=fst.player-bands.page-next",
      "key:tab",
-     "assertfocus:id=fst.player-bands.page-next@3"
+     "assertfocus:id=fst.player-bands.page-next@3",
+     "focus:id=fst.player-bands.row.fixture-pband-duo-13",
+     "assertfocus:id=fst.player-bands.row.fixture-pband-duo-13@3"
+   ]},
+  {"name": "cols-song-board-contrast-switch", "route": "/songs/fixture-pulse/Solo_Guitar", "profile": "fixture-player-2:Fixture Player 2", "scan": true, "tabs": 0,
+   "sizes": ["medium"], "skip_modes": ["hc-aquatic", "hc-desert", "hc-dusk", "hc-night-sky", "text-150", "text-200", "text-225"],
+   "note": "Issues #242, #519: LeaderboardEntryRow sets its surface, text and badge brushes in code, so a contrast theme switched with a board open must repaint them. Switches Desert on and off in the running app: a plain row turns Window, the selected row and pinned row Highlight, the selected FC badge HighlightText with no WindowText outline or gold left, and disabled First page the dimmed ButtonFace look; names, 40 epx targets and the rows -> pinned row -> pager order hold, and Axe scans the Desert board.",
+   "ready": ["waitfor:id=fst.song-leaderboard.row.fixture-player-3@30", "waitfor:id=fst.song-leaderboard.spotlight-footer@15",
+             "waitfor:raw=fst.score.accuracy.fixture-player-2@5", "waitfor:raw=fst.score.accuracy.spotlight-footer@5", "wait:1"],
+   "after_ready": [
+     "assertpaint:id=fst.song-leaderboard.row.fixture-player-3|C-30,B5,C30,B3!=#FFFAEF~40",
+     "assertpaint:id=fst.song-leaderboard.row.fixture-player-2|C-30,B5,C30,B3!=#903909~40",
+     "assertpaint:raw=fst.score.accuracy.fixture-player-2|L-5,T-3,R-5,B-3=#FFD700~48|L-5,T-3,R-5,B-3!=#FFF5E3~24",
+     "contrast:desert", "wait:2",
+     "assertpaint:id=fst.song-leaderboard.row.fixture-player-3|C-30,B5,C30,B3=#FFFAEF~16",
+     "assertpaint:id=fst.song-leaderboard.row.fixture-player-2|C-30,B5,C30,B3=#903909~24",
+     "assertpaint:id=fst.song-leaderboard.spotlight-footer|C-30,B5,C30,B3=#903909~24",
+     "assertpaint:raw=fst.score.accuracy.fixture-player-2|L-5,T-3,R-5,B-3=#FFF5E3~24|L-5,T-3,R-5,B-3!=#3D3D3D~40|L-5,T-3,R-5,B-3!=#FFD700~48",
+     "assertpaint:raw=fst.score.accuracy.spotlight-footer|L-5,T-3,R-5,B-3=#FFF5E3~24|L-5,T-3,R-5,B-3!=#3D3D3D~40",
+     "assertpaint:id=fst.song-leaderboard.page-first|C-6,T0,C6,T1=#3D3D3D~48|C-6,M-6,C6,M6=#676767~40|C-6,M-6,C6,M6!=#3D3D3D~24",
+     "assertread:id=fst.song-leaderboard.row.fixture-player-3|~^Rank #3, Fixture Player 3, 99,700 points(, current season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 2nd\\. Open your statistics\\. Fixture Player 2, 99,800 points, 97\\.9% accuracy, full combo(, current season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.page-first|First page, button, unavailable",
+     "assertsize:id=fst.song-leaderboard.row.fixture-player-2|0x40",
+     "assertsize:id=fst.song-leaderboard.spotlight-footer|0x40",
+     "assertsize:id=fst.song-leaderboard.page-next|40x40",
+     "assertorder:id=fst.song-leaderboard.row.fixture-player-2|id=fst.song-leaderboard.row.fixture-player-3|id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-first|id=fst.song-leaderboard.page-next",
+     "scan:{stem}-desert",
+     "shot:{stem}-desert.png",
+     "contrast:off", "wait:2",
+     "assertpaint:id=fst.song-leaderboard.row.fixture-player-3|C-30,B5,C30,B3!=#FFFAEF~40",
+     "assertpaint:id=fst.song-leaderboard.row.fixture-player-2|C-30,B5,C30,B3!=#903909~40",
+     "assertpaint:raw=fst.score.accuracy.fixture-player-2|L-5,T-3,R-5,B-3=#FFD700~48|L-5,T-3,R-5,B-3!=#FFF5E3~24"
    ]}
 ]

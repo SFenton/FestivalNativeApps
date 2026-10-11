@@ -2,6 +2,8 @@ package com.festivalscoretracker.android.ui.songdetail
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
+import com.festivalscoretracker.android.ui.design.LocalCurrentSeason
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -80,9 +82,13 @@ fun SongDetailRouteScreen(container: AppContainer, shellViewModel: ShellViewMode
     }
     var pathsFor by rememberSaveable { mutableStateOf<String?>(null) }
     var pathsOpening by rememberSaveable { mutableIntStateOf(0) }
-    SongDetailScreen(viewModel, extras, api::artworkUrl, container.background, embedded, focus = instrument) {
-        pathsFor = it.songId
-        pathsOpening++
+    val currentSeason by viewModel.currentSeason.collectAsStateWithLifecycle()
+    // Season pills invert for the catalogue's current season (pattern `metadata-pills` R2).
+    CompositionLocalProvider(LocalCurrentSeason provides currentSeason) {
+        SongDetailScreen(viewModel, extras, api::artworkUrl, container.background, embedded, focus = instrument) {
+            pathsFor = it.songId
+            pathsOpening++
+        }
     }
     val scope = rememberCoroutineScope()
     if (song != null && pathsFor == song.songId && extras.pathInstruments.isNotEmpty()) {
@@ -129,7 +135,7 @@ internal fun songDetailExtras(
     current: Int?,
 ): SongDetailExtras {
     val player = settings.selectedPlayer
-    val invalid = if (settings.filterInvalidScores) InvalidScoreContext(settings.leeway, mapOf(song.songId to song)) else null
+    val invalid = if (settings.filterInvalidScores) InvalidScoreContext(settings.leeway, mapOf(song.songId to song), songDetails = true) else null
     val source = if (player == null) null else profile.songScoreSource(catalogPublication, current, invalid)
     val lookup = source?.detail
     val spotlight = if (lookup == null || player == null) {

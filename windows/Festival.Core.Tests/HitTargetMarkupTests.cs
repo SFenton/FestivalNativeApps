@@ -228,6 +228,60 @@ public class HitTargetMarkupTests
     }
 
     [Fact]
+    public void ComboBoxItems_UseMinTarget()
+    {
+        // Issue #439 (#88): WinUI's keyboard/mouse padding drew each drop-down option 38 epx tall (Paths Instrument). One
+        // implicit style gives every ComboBox option a 40 epx pill: the template insets it by 2 epx top and bottom, like
+        // a menu item, so it uses the same FSTMenuItemMinHeight.
+        var styles = Load(Path.Combine("Themes", "Styles.xaml"));
+        var style = styles.Descendants()
+            .Single(e => e.Name.LocalName == "Style" && Attr(e, "TargetType") == "ComboBoxItem" && Attr(e, "Key") is null);
+        Assert.Equal("{StaticResource DefaultComboBoxItemStyle}", Attr(style, "BasedOn"));
+        Assert.Equal("{StaticResource FSTMenuItemMinHeight}",
+            Attr(style.Elements().Single(e => Attr(e, "Property") == "MinHeight"), "Value"));
+        // No ComboBox opts out with its own item container style, and no option sets its own size or style.
+        var xaml = Directory.EnumerateFiles(AppRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => Path.GetRelativePath(AppRoot, path).Split(Path.DirectorySeparatorChar)[0] is not ("bin" or "obj"))
+            .Select(XDocument.Load)
+            .ToList();
+        var boxes = xaml.SelectMany(doc => doc.Descendants().Where(e => e.Name.LocalName == "ComboBox")).ToList();
+        Assert.NotEmpty(boxes);
+        Assert.All(boxes, box => Assert.True(Attr(box, "ItemContainerStyle") is null
+            && !box.Elements().Any(e => e.Name.LocalName == "ComboBox.ItemContainerStyle"),
+            $"ComboBox {Attr(box, "AutomationProperties.AutomationId") ?? Attr(box, "Name")} overrides its item size"));
+        var items = xaml.SelectMany(doc => doc.Descendants().Where(e => e.Name.LocalName == "ComboBoxItem"));
+        Assert.All(items, item => Assert.True(Attr(item, "MinHeight") is null && Attr(item, "Height") is null && Attr(item, "Style") is null,
+            $"ComboBoxItem {Attr(item, "AutomationProperties.AutomationId")} overrides its size"));
+    }
+
+    [Fact]
+    public void RadioButtons_UseMinTarget()
+    {
+        // Issue #430: WinUI draws each RadioButton 32 epx tall (Paths Difficulty/Display, Sort By/Direction, Settings Path
+        // Default View). One implicit style raises every one to FSTMinTargetSize, and the 8 epx row gap moves into the
+        // target (RadioButtonsRowSpacing 0) so one-line lists keep their 40 epx pitch.
+        var styles = Load(Path.Combine("Themes", "Styles.xaml"));
+        var style = styles.Descendants()
+            .Single(e => e.Name.LocalName == "Style" && Attr(e, "TargetType") == "RadioButton" && Attr(e, "Key") is null);
+        Assert.Equal("{StaticResource DefaultRadioButtonStyle}", Attr(style, "BasedOn"));
+        Assert.Equal(Resource, Attr(style.Elements().Single(e => Attr(e, "Property") == "MinHeight"), "Value"));
+        Assert.Equal("8,6,0,6", Attr(style.Elements().Single(e => Attr(e, "Property") == "Padding"), "Value"));
+        Assert.Equal("0", styles.Descendants()
+            .Single(e => e.Name.LocalName == "Double" && Attr(e, "Key") == "RadioButtonsRowSpacing").Value);
+        // No radio or radio group opts out with its own height, padding, style or row spacing.
+        var xaml = Directory.EnumerateFiles(AppRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => Path.GetRelativePath(AppRoot, path).Split(Path.DirectorySeparatorChar)[0] is not ("bin" or "obj"))
+            .Select(XDocument.Load)
+            .ToList();
+        var radios = xaml.SelectMany(doc => doc.Descendants().Where(e => e.Name.LocalName is "RadioButton" or "RadioButtons")).ToList();
+        Assert.NotEmpty(radios);
+        Assert.All(radios, radio => Assert.True(Attr(radio, "MinHeight") is null && Attr(radio, "Height") is null
+            && Attr(radio, "Style") is null && Attr(radio, "Padding") is null,
+            $"{radio.Name.LocalName} {Attr(radio, "Name") ?? Attr(radio, "AutomationProperties.AutomationId")} overrides its size"));
+        Assert.Single(xaml.SelectMany(doc => doc.Descendants().Where(e => Attr(e, "Key") == "RadioButtonsRowSpacing")));
+    }
+
+    [Fact]
     public void QuickLinksPane_RowsUseMinTarget()
     {
         // Issue #230: the wide pane's rows were 36 epx tall; each is a click/touch target like the menu items.
@@ -247,6 +301,16 @@ public class HitTargetMarkupTests
         Assert.DoesNotContain(template.Descendants(), e => e.Name.LocalName == "StackPanel" && Attr(e, "Orientation") == "Horizontal");
         var title = template.Descendants().Single(e => e.Name.LocalName == "TextBlock" && Attr(e, "Text") == "{x:Bind Title}");
         Assert.Equal("Wrap", Attr(title, "TextWrapping"));
+    }
+
+    [Theory]
+    [InlineData("Pages/SongDetailPage.xaml")]
+    [InlineData("Pages/PlayerHistoryPage.xaml")]
+    public void ScoreHistoryRetry_UsesMinTarget(string file)
+    {
+        // Issue #512 (#198): Song Detail's still-syncing Score History Retry was WinUI's 32 epx button height.
+        var retry = Assert.Single(ById(Load(file), "fst.history.retry"));
+        Assert.Equal(Resource, Attr(retry, "MinHeight"));
     }
 
     [Theory]

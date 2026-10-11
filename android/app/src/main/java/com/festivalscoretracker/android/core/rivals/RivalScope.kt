@@ -106,6 +106,16 @@ object RivalCombo {
     fun isValidToken(token: String): Boolean = instrumentsFor(token) != null
 
     /**
+     * Charts of a combo the service ranks (web `isRankingScopeComboId`): a hex ID of a
+     * within-group combo, so the Pro Drums family token and cross-group masks are rejected.
+     *
+     * @param token Candidate combo ID.
+     * @return Charts in service order, or null when the service has no board for it.
+     */
+    fun rankingComboInstruments(token: String?): List<Instrument>? =
+        token?.takeIf { it != PRO_DRUMS_TOKEN }?.let(::instrumentsFor)?.takeIf { isWithinGroup(mask(it)) }
+
+    /**
      * Display label: web `rivals.proDrumsFamily`, else the joined chart names
      * (`comboScopeLabel`), else `rivals.combo`.
      *
@@ -338,6 +348,17 @@ object RivalScopes {
         is RivalScope.Leaderboard -> scope.instrument
         else -> null
     }
+
+    /**
+     * Rival Detail's top app bar subtitle under the rival's name (owner, #604): the list it
+     * belongs to for a single chart ("Lead Rivals", shown after [singleInstrument]'s icon),
+     * else "Rivals" (Common, combos, Settings scopes and deep links without a scope).
+     *
+     * @param scope Route scope.
+     * @return Subtitle.
+     */
+    fun detailSubtitle(scope: RivalScope?): String =
+        if (singleInstrument(scope) != null) listTitle(scope) else RivalText.RIVALS
 }
 
 // endregion

@@ -68,6 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import com.festivalscoretracker.android.core.shell.BottomChromeSpacing
 import com.festivalscoretracker.android.core.rankings.LeaderboardColumnLayout
 import com.festivalscoretracker.android.core.rankings.RankingFormatting
 import com.festivalscoretracker.android.core.rankings.LeaderboardColumnPlan
@@ -136,7 +137,9 @@ import com.festivalscoretracker.android.ui.design.DifficultyMeter
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.RowChevron
+import com.festivalscoretracker.android.ui.design.SeasonPill
 import com.festivalscoretracker.android.ui.design.SectionHeader
+import com.festivalscoretracker.android.ui.design.SECTION_HEADER_TOP_PADDING
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
 import com.festivalscoretracker.android.ui.leaderboards.CardGridRow
@@ -215,9 +218,12 @@ fun SongDetailScreen(
     val headerGone by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
     // The revealed page publishes its items so Quick Links (in the top bar) can find them.
     var plan by remember { mutableStateOf(SongDetailPlan()) }
+    // Page tools wait for the load gate (#585): Paths appears with the revealed page and Quick
+    // Links, and stays while the shown content refreshes (the gate keeps it up).
+    val contentShown = plan.items.isNotEmpty()
     // The page's fade window, here so Quick Links (in the top bar) rush it and the embedded pane has one too.
     val fadeIn = rememberPageFadeInWindow()
-    val quickLinks = rememberQuickLinks(listState, "Quick Links", plan.sections, fadeInWindow = fadeIn) { id -> SongDetailLayout.indexOf(plan.items, id) }
+    val quickLinks = rememberQuickLinks(listState, "Quick Links", plan.sections, fadeInWindow = fadeIn, headingInset = ::songDetailHeadingInset) { id -> SongDetailLayout.indexOf(plan.items, id) }
     val body: @Composable (PaddingValues) -> Unit = { padding ->
         when (val state = songState) {
             LoadState.Loading -> LoadingView("Loading song", Modifier.padding(padding))
@@ -230,18 +236,19 @@ fun SongDetailScreen(
         val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         CompositionLocalProvider(LocalFadeInWindow provides fadeIn) {
             Box(Modifier.fadeInRushOnScroll(fadeIn)) {
-                body(PaddingValues(top = statusTop + 8.dp, bottom = shell.bottomPadding.calculateBottomPadding()))
+                // Clears a floating toolbar over this pane, as the shell padding did before #578.
+                val bottom = BottomChromeSpacing.contentBottomDp(shell.bottomPadding.calculateBottomPadding().value, BottomChromeSpacing.TOOLBAR_HEIGHT_DP.toFloat())
+                body(PaddingValues(top = statusTop + 8.dp, bottom = bottom.dp))
             }
         }
     } else {
-        // Paths lives in the dock (floating toolbar on phones, top bar elsewhere), like the web.
+        // Paths lives in the dock (the shell's floating toolbar at every size, #576), like the web.
         FestivalScreen(
             title = if (headerGone && song != null) song.title else "",
             isRoot = false,
             scrolled = headerGone,
-            marqueeTitle = true,
             actions = {
-                if (song != null && extras.pathInstruments.isNotEmpty()) {
+                if (song != null && contentShown && extras.pathInstruments.isNotEmpty()) {
                     IconButton(onClick = { onOpenPaths(song) }, modifier = Modifier.testTag("fst.song-detail.paths.open")) {
                         Icon(Icons.Filled.Route, contentDescription = "View Paths")
                     }
@@ -374,7 +381,7 @@ private fun SongDetailContent(
         }
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(start = PAGE_GUTTER, end = PAGE_GUTTER, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 24.dp),
+            contentPadding = PaddingValues(start = PAGE_GUTTER, end = PAGE_GUTTER, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxSize().testTag("fst.song-detail.list"),
         ) {
@@ -766,13 +773,36 @@ private fun EmptyState(subtitle: String, tag: String) {
 }
 
 /**
+ * Space the instrument [CardHeader] keeps above its row, inside the instrument item: a Quick Links jump
+ * lands the header row, not this space, on the landing line (issue #587).
+ */
+internal val CARD_HEADER_TOP_PADDING = 12.dp
+
+/**
+ * How far a Song Detail section's heading sits below the top of its list item: the instrument
+ * [CardHeader]'s padding, or the [SectionHeader] that opens Intensity, Score History and each band
+ * preview (`section-jump-landing` R2, issue #587).
+ *
+ * @param id Quick Links section ID.
+ * @return Heading inset.
+ */
+internal fun songDetailHeadingInset(id: String): Dp =
+    if (SongDetailLayout.isInstrumentId(id)) CARD_HEADER_TOP_PADDING else SECTION_HEADER_TOP_PADDING
+
+/**
  * The instrument header above its card (web `InstrumentCard` header): icon, name
  * and the chart's total entries once the preview loads (nothing for an empty chart,
  * whose card shows the empty state).
  */
 @Composable
 internal fun CardHeader(song: Song, instrument: Instrument, totalEntries: Int?) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp, bottom = 6.dp).semantics(mergeDescendants = true) { heading() }) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .padding(top = CARD_HEADER_TOP_PADDING, bottom = 6.dp)
+            .testTag("fst.song-detail.heading.${instrument.wireId}")
+            .semantics(mergeDescendants = true) { heading() },
+    ) {
         InstrumentIcon(instrument, keyboard = song.usesKeyboardIcon, size = 32.dp, decorative = true)
         Column(Modifier.padding(start = 10.dp)) {
             Text(instrument.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary)
@@ -900,7 +930,7 @@ fun ScoreRow(entry: LeaderboardEntry, isSelected: Boolean = false, navigable: Bo
 }
 
 /**
- * The season column (web `SeasonPill` column): `S15` right-aligned in the section's shared
+ * The season column (web `SeasonPill` column): the shared [SeasonPill] right-aligned in the section's shared
  * width, or an empty slot for a row without a season.
  *
  * @param season Season, or null.
@@ -909,16 +939,7 @@ fun ScoreRow(entry: LeaderboardEntry, isSelected: Boolean = false, navigable: Bo
 @Composable
 private fun SeasonCell(season: Int?, width: Float) {
     Box(Modifier.width(width.dp), contentAlignment = Alignment.CenterEnd) {
-        season?.let {
-            Text(
-                LeaderboardColumnLayout.seasonLabel(it),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = BrandTokens.textSecondary,
-                maxLines = 1,
-                modifier = Modifier.semantics { contentDescription = "Season $it" },
-            )
-        }
+        season?.let { SeasonPill(it) }
     }
 }
 
@@ -953,9 +974,8 @@ private fun StackedScoreRow(entry: LeaderboardEntry, plan: LeaderboardColumnPlan
                     color = BrandTokens.textPrimary,
                 )
                 AccuracyPill(entry.accuracy, entry.isFullCombo == true, id = entry.accuracyId, expanded = true)
-                if (plan.showMeta) entry.season?.let {
-                    Text(LeaderboardColumnLayout.seasonLabel(it), style = MaterialTheme.typography.labelLarge, color = BrandTokens.textSecondary, modifier = Modifier.semantics { contentDescription = "Season $it" })
-                }
+                if (plan.showMeta) entry.season?.let { SeasonPill(it) }
+
                 if (plan.showStars) entry.stars?.takeIf { it > 0 }?.let { StarRating(it, Modifier.testTag("fst.stars"), size = 20.dp) }
             }
         }

@@ -9,7 +9,9 @@ import FestivalDesign
 struct BandRankingsScreen: View {
     let session: FestivalSession
     @State private var bandType: BandType
-    @State private var rankBy: BandRankingMetric
+    /// The picked metric; read through ``rankBy``.
+    @State private var selectedRankBy: BandRankingMetric
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @State private var page = 1
     @State private var state: RankLoadState<BandRankingsPayload> = .loading
     /// Ranked-team count and page count for the current size and metric, kept
@@ -51,11 +53,19 @@ struct BandRankingsScreen: View {
     /// - Parameters:
     ///   - session: Shared app session (API client, selected profile, caches).
     ///   - bandType: Band size key (`Band_Duets`, `Band_Trios`, `Band_Quad`).
-    init(session: FestivalSession, bandType: String) {
+    ///   - rankBy: Initial metric's raw value; unknown values fall back to Total Score.
+    ///   - page: Initial 1-based page (Band Detail's rank tiles open the band's page).
+    init(session: FestivalSession, bandType: String, rankBy: String = "totalscore", page: Int = 1) {
         self.session = session
         _bandType = State(initialValue: BandType(rawValue: bandType) ?? .duets)
-        _rankBy = State(initialValue: .totalscore)
+        _selectedRankBy = State(initialValue: BandRankingMetric(rawValue: rankBy) ?? .totalscore)
+        _page = State(initialValue: max(1, page))
     }
+
+    /// The metric in effect: Total Score while Settings › Experimental Ranks is off
+    /// (pattern `experimental-ranks`, web `BandRankingsPage` `coerceBandRankingMetric`);
+    /// turning the switch off restarts on a Total Score board (`onChange(of: rankBy)`).
+    private var rankBy: BandRankingMetric { selectedRankBy.coerced(experimentalRanks: experimentalRanks) }
 
     var body: some View {
         // Read here, not only inside the reload gate's content or the mask's lazy
@@ -126,7 +136,8 @@ struct BandRankingsScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .wideColumnsCount($columns)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // Read after the rows (#461).
+        .boardBottomChrome {
             RankingsFloatingBar(
                 pager: board.map { RankingsPagerState(page: page, totalPages: $0.totalPages) },
                 idPrefix: "fst.band-rankings"
@@ -135,32 +146,35 @@ struct BandRankingsScreen: View {
             } menu: { showsTitle in
                 bandTypeMenu(showsTitle: showsTitle)
             }
-            .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
+            .boardBottomChrome(in: Self.pageSpace) { bottomChromeTop = $0 }
         }
         .coordinateSpace(.named(Self.pageSpace))
         .festivalBackground(.carousel, session: session)
         .festivalNavigationTitle("\(bandType.label) Rankings")
         // Mac: View › Rank By mirrors the toolbar menu.
-        .macRankByCommands($rankBy)
+        .macRankByCommands($selectedRankBy, experimentalRanks: experimentalRanks)
         .toolbar {
             if layout.sectionChrome.isVerticalBar {
                 // `/duo` J1: band size and Rank By as two titled rail items, not one
                 // custom `HStack` item that keeps a horizontal top bar.
                 ToolbarItemGroup(placement: .festivalPageAction) {
                     bandTypeMenu(showsTitle: false)
-                    BandRankByMenu(selection: $rankBy)
+                    // Rank By only with experimental ranks, as on the web.
+                    if experimentalRanks {
+                        BandRankByMenu(selection: $selectedRankBy)
+                    }
                 }
-            } else if pageTools == nil {
+            } else if pageTools == nil && experimentalRanks {
                 ToolbarItem(placement: .festivalPageAction) {
                     HStack(spacing: 4) {
-                        BandRankByMenu(selection: $rankBy)
+                        BandRankByMenu(selection: $selectedRankBy)
                     }
                 }
             }
         }
         // iPhone tab-bar accessory (issue #92): Rank By.
-        .festivalPageTool(token: rankBy, order: PageToolOrder.primary) {
-            BandRankByMenu(selection: $rankBy)
+        .festivalPageTool(token: rankBy, order: PageToolOrder.primary, isEnabled: experimentalRanks) {
+            BandRankByMenu(selection: $selectedRankBy)
         }
         .onChange(of: bandType) { _, _ in
             page = 1
@@ -187,8 +201,7 @@ struct BandRankingsScreen: View {
                 Label(bandType.label, systemImage: "person.3.fill")
             }
             .accessibilityIdentifier("fst.band-rankings.band-type-menu")
-            .accessibilityLabel("Band size")
-            .accessibilityValue(bandType.label)
+            .festivalBarItemAccessibility(label: "Band size", value: bandType.label)
         } else {
             Menu {
                 bandTypeChoices
@@ -221,7 +234,7 @@ struct BandRankingsScreen: View {
         do {
             let payload = try await session.bandRankings(
                 bandType: requested.bandType, rankBy: requested.rankBy,
-                page: requested.page, pageSize: 25
+                page: requested.page, pageSize: PlayerStatLinks.bandRankingsPageSize
             )
             try Task.checkCancellation()
             guard requested == requestKey else { return }

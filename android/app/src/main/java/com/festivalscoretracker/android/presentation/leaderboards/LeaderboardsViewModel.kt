@@ -38,12 +38,17 @@ import kotlinx.coroutines.sync.withPermit
  * @property bandRankings `(bandType, metric, page, pageSize)` band page.
  * @property playerRanking `(instrument, accountId)` own row or unranked.
  * @property rankHistory `(instrument, accountId)` daily rank history over [RankHistoryChart.DAYS].
+ * @property comboRankings `(comboId, metric, page, pageSize)` combo board page in the account shape (#602).
+ * @property playerComboRanking `(comboId, accountId, metric)` own combo row or unranked; a combo row
+ *   carries only the requested metric's rank.
  */
 data class RankingsReads(
     val rankings: suspend (Instrument, RankingMetric, Int, Int) -> RankingsPayload,
     val bandRankings: suspend (BandType, BandRankingMetric, Int, Int) -> BandRankingsPayload,
     val playerRanking: suspend (Instrument, String) -> PlayerRankingResult,
     val rankHistory: suspend (Instrument, String) -> RankHistoryResponse = { instrument, accountId -> RankHistoryResponse(instrument.wireId, accountId) },
+    val comboRankings: suspend (String, RankingMetric, Int, Int) -> RankingsPayload = { _, _, _, _ -> throw UnsupportedOperationException("combo rankings") },
+    val playerComboRanking: suspend (String, String, RankingMetric) -> PlayerRankingResult = { _, _, _ -> PlayerRankingResult.Unranked },
 )
 
 // endregion

@@ -46,14 +46,14 @@
                     <TextBlock Text="Filter" />
                 </StackPanel>
                 <DropDownButton.Flyout>
-                    <Flyout x:Name="FilterFlyout" Placement="BottomEdgeAlignedRight" Opening="OnFilterOpening">
+                    <Flyout x:Name="FilterFlyout" Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True" Opening="OnFilterOpening">
                         <Flyout.FlyoutPresenterStyle>
                             <Style TargetType="FlyoutPresenter">
                                 <Setter Property="MaxWidth" Value="480" />
                                 <Setter Property="Padding" Value="0" />
                             </Style>
                         </Flyout.FlyoutPresenterStyle>
-                        <Grid Width="400" MaxHeight="640" RowSpacing="0" AutomationProperties.AutomationId="fst.suggestions.filter.form">
+                        <Grid x:Name="FilterForm" Width="400" MaxHeight="640" RowSpacing="0" AutomationProperties.AutomationId="fst.suggestions.filter.form">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
@@ -75,7 +75,7 @@
                                                 <TextBlock Text="Choose which instruments appear in your suggestions." Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
                                             </StackPanel>
                                         </Expander.Header>
-                                        <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.InstrumentToggles}">
+                                        <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.InstrumentToggles}" IsTabStop="False">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:SuggestionFilterToggle">
                                                     <Grid ColumnSpacing="12" MinHeight="40">
@@ -104,7 +104,7 @@
                                                 <TextBlock Text="Toggle broad suggestion types on or off." Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" FontSize="12" />
                                             </StackPanel>
                                         </Expander.Header>
-                                        <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.TypeToggles}" ItemTemplate="{StaticResource TypeToggleTemplate}" />
+                                        <ItemsControl ItemsSource="{x:Bind ViewModel.FilterDraft.TypeToggles}" ItemTemplate="{StaticResource TypeToggleTemplate}" IsTabStop="False" />
                                     </Expander>
 
 <!-- Instrument-Specific (web ModalSection + deferSelection InstrumentSelector): pick a chart, its switches expand. -->
@@ -117,7 +117,7 @@
                                         <controls:InstrumentSelector x:Name="InstrumentPicker" DeferSelection="True" IdPrefix="fst.suggestions.filter.instrument-picker"
                                                                      SelectionChanged="OnFilterInstrumentChanged">
                                             <controls:InstrumentSelector.DetailContent>
-                                                <ItemsControl Margin="0,8,0,0" ItemsSource="{x:Bind ViewModel.FilterDraft.InstrumentTypeToggles}" ItemTemplate="{StaticResource TypeToggleTemplate}" />
+                                                <ItemsControl Margin="0,8,0,0" ItemsSource="{x:Bind ViewModel.FilterDraft.InstrumentTypeToggles}" ItemTemplate="{StaticResource TypeToggleTemplate}" IsTabStop="False" />
                                             </controls:InstrumentSelector.DetailContent>
                                         </controls:InstrumentSelector>
                                     </StackPanel>

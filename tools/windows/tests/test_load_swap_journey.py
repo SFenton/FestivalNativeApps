@@ -107,7 +107,7 @@ class LoadSwapJourneyTests(unittest.TestCase):
                 self.assertGreater(float(landed.rsplit("@", 1)[1]), 10, landed)
         reload = _BY_NAME["load-swap-song-leaderboard"]["after_ready"]
         self.assertIn("assertread:name=Busy Loading leaderboard|Busy Loading leaderboard, ProgressRing", reload)
-        self.assertIn("assertread:id=fst.song-leaderboard.song|Fixture Pulse, button, Opens Song Details", reload)
+        self.assertIn("assertread:id=fst.song-leaderboard.song|Fixture Pulse, Synthetic Quartet, Lead, 100 Lead entries, button, Opens Song Details", reload)
 
     def test_focus_stays_on_the_pressed_button(self):
         for name in ("load-swap-full-rankings", "load-swap-band-rankings", "load-swap-song-leaderboard",
@@ -118,6 +118,43 @@ class LoadSwapJourneyTests(unittest.TestCase):
         bands = _BY_NAME["load-swap-player-bands"]["after_ready"]
         self.assertLess(bands.index("assertstate:id=fst.player-bands.page-next|enabled=false"),
                         bands.index("assertfocus:id=fst.player-bands.page-previous"))
+
+    def test_board_switches_hide_the_pager_until_the_new_count_loads(self):
+        # Issue #575 (load-transition R4): a selector that changes the board (instrument, band size, group) hides the
+        # pager from the switch until the new board commits; it never shows the old count or a "1 / 1" placeholder.
+        switches = {
+            "load-swap-full-rankings-switch": ("Busy Loading rankings", "fst.full-rankings",
+                                               "toggle:id=fst.full-rankings.instrument.Solo_Bass", "Page 1 of 48"),
+            "load-swap-band-rankings-switch": ("Busy Loading rankings", "fst.band-rankings",
+                                               "toggle:id=fst.band-rankings.band-type.Band_Trios", "Page 1 of 24"),
+            "load-swap-song-band-leaderboard-switch": ("Busy Loading band scores", "fst.song-band-leaderboard",
+                                                       "select:id=fst.song-band-leaderboard.band-type.Band_Trios", None),
+            "load-swap-player-bands-switch": ("Busy Loading bands", "fst.player-bands",
+                                              "select:id=fst.player-bands.group.duos", None),
+        }
+        for name, (spinner, prefix, switch, settled) in switches.items():
+            with self.subTest(page=name):
+                page = _BY_NAME[name]
+                self.assertTrue(page["scan"])
+                steps = page["after_ready"]
+                paged = next(i for i, st in enumerate(steps)
+                             if st.startswith(f"assertname:id={prefix}.page-info|Page 2 of "))
+                pick = steps.index(switch)
+                self.assertLess(paged, pick)
+                shown = steps.index(f"waitfor:name={spinner}@3", pick)
+                gone = next(i for i, st in enumerate(steps) if i > shown and st.startswith(f"waitgone:name={spinner}@"))
+                between = steps[shown:gone]
+                self.assertIn(f"waitgone:id={prefix}.page-first@3", between)
+                self.assertIn(f"waitgone:id={prefix}.page-info", between)
+                self.assertTrue(any(st.startswith("assertorder:") and st.endswith(f"|name={spinner}") for st in between))
+                # The pager is still hidden partway through the load, not only at its start.
+                self.assertIn(f"waitfor:name={spinner}", between[between.index("wait:3"):])
+                after = steps[gone:]
+                if settled:
+                    self.assertIn(f"assertname:id={prefix}.page-info|{settled}", after)
+                else:  # single-page or empty boards keep the pager hidden, as on the web
+                    self.assertIn(f"waitgone:id={prefix}.page-first", after)
+                self.assertTrue(steps[-2].startswith("focus:id=") and ".page-" not in steps[-2])
 
     def test_overview_metric_reload_shows_the_gate(self):
         steps = _BY_NAME["load-swap-leaderboards"]["after_ready"]

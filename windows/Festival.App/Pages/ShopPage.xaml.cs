@@ -105,10 +105,34 @@ public sealed partial class ShopPage : Page
         AppliedButtonState.Apply(FilterButton, ViewModel.IsFilterActive, ViewModel.FilterStatus);
     }
 
-    /// <summary>Re-resolves the code-set button tints on the UI thread after a system colour (contrast theme) change.</summary>
+    /// <summary>Re-resolves the code-set button tints and Leaving Tomorrow pills on the UI thread after a system colour (contrast theme) change.</summary>
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
-    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(UpdateButtonTints);
+    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(() =>
+    {
+        UpdateButtonTints();
+        RepaintBadges();
+    });
+
+    /// <summary>
+    /// Recolours the realized tiles' and rows' Leaving Tomorrow pills, which take their brushes in code as they are
+    /// prepared; without this a live contrast switch left the brand red pill with a Window backplate (issue #516).
+    /// </summary>
+    private void RepaintBadges()
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(OfferGrid); i++)
+        {
+            if (VisualTreeHelper.GetChild(OfferGrid, i) is not FrameworkElement tile) continue;
+            var index = OfferGrid.GetElementIndex(tile);
+            if (index >= 0 && OfferGrid.ItemsSourceView?.GetAt(index) is ShopOfferItem item) ApplyBadge(tile, item, "BadgePill", "BadgeLabel");
+        }
+        for (var i = 0; i < ViewModel.Offers.Count; i++)
+        {
+            if (OfferList.ContainerFromIndex(i) is not ListViewItem { ContentTemplateRoot: SongRowCard card }) continue;
+            foreach (var child in card.Trailing.Children)
+                if (child is Border { Child: TextBlock label } badge) ApplyBadge(badge, label, ViewModel.Offers[i]);
+        }
+    }
 
     /// <summary>Loads the applied sort into the live draft as the Sort flyout opens.</summary>
     /// <param name="sender">Flyout.</param>
@@ -247,9 +271,10 @@ public sealed partial class ShopPage : Page
         card.Reset();
         AutomationProperties.SetName(container, item.Announcement);
         AutomationProperties.SetAutomationId(container, $"fst.shop.song.{item.Offer.SongId}");
-        // The text badge names the Shop state here, so the Songs bag on the art is not repeated.
+        // Like the web Shop list: New is the gold pulse alone (no pill, no Songs bag; the row's name says "New"), and
+        // Leaving Tomorrow adds its red pill (issue #562).
         card.ApplyShop(item.Pulse, showBag: false);
-        if (item.HasBadge)
+        if (item.ShowsPill)
         {
             var label = new TextBlock { Text = item.BadgeText, FontSize = 12, FontWeight = Microsoft.UI.Text.FontWeights.Bold };
             var badge = new Border { Padding = new Thickness(8, 2, 8, 2), CornerRadius = new CornerRadius(10), VerticalAlignment = VerticalAlignment.Center, Child = label };
@@ -273,29 +298,28 @@ public sealed partial class ShopPage : Page
         _ = LoadArtAsync(container, card.Art, item, SongRowCard.ArtSize);
     }
 
-    /// <summary>Colors a grid tile's New (gold on dark) or Leaving Tomorrow (white on red) badge.</summary>
+    /// <summary>Colors a grid tile's Leaving Tomorrow pill (shown only for <see cref="ShopOfferItem.ShowsPill"/>).</summary>
     /// <param name="root">Template root.</param>
     /// <param name="item">Offer.</param>
     /// <param name="badgeName">Badge border name.</param>
     /// <param name="textName">Badge text name.</param>
     private static void ApplyBadge(FrameworkElement root, ShopOfferItem item, string badgeName, string textName)
     {
-        if (root.FindName(badgeName) is Border badge && root.FindName(textName) is TextBlock text) ApplyBadge(badge, text, item);
+        if (item.ShowsPill && root.FindName(badgeName) is Border badge && root.FindName(textName) is TextBlock text) ApplyBadge(badge, text, item);
     }
 
-    /// <summary>Colors a New (gold on dark) or Leaving Tomorrow (white on red) badge.</summary>
+    /// <summary>Colors a Leaving Tomorrow pill (white on red; HighlightText on Highlight under a contrast theme).</summary>
     /// <param name="badge">Badge pill.</param>
     /// <param name="text">Badge text.</param>
     /// <param name="item">Offer.</param>
     private static void ApplyBadge(Border badge, TextBlock text, ShopOfferItem item)
     {
-        badge.Background = item.IsLeaving ? Brush("FSTShopLeavingBrush")
-            : Brush("FSTShopNewBadgeSurfaceBrush");
-        text.Foreground = item.IsLeaving || Services.ContrastTheme.IsOn ? Brush("FSTShopBadgeTextBrush") : Brush("FSTShopNewBrush");
+        badge.Background = Brush("FSTShopLeavingBrush");
+        text.Foreground = Brush("FSTShopBadgeTextBrush");
         // Under a contrast theme the badge is already the system HighlightText-on-Highlight pair; without this, WinUI's
         // automatic adjustment repaints the text as WindowText on a Window backplate inside the pill.
         text.HighContrastAdjustment = Services.ContrastTheme.IsOn ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
-        AutomationProperties.SetAutomationId(text, item.IsLeaving ? $"fst.shop.badge.leaving.{item.Offer.SongId}" : $"fst.shop.badge.new.{item.Offer.SongId}");
+        AutomationProperties.SetAutomationId(text, $"fst.shop.badge.leaving.{item.Offer.SongId}");
     }
 
     /// <summary>Loads cover art for a card or row.</summary>

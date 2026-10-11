@@ -179,21 +179,25 @@ struct SoloLeaderboardScreen: View {
                             ForEach(WideColumns.indexedRows(entries, columns: columns)) { row in
                                 WideColumnsRow(columns: columns, count: row.items.count, matchesHeights: true) {
                                     ForEach(row.indexed, id: \.item.id) { index, entry in
-                                        entryRow(entry, index: index)
+                                        entryRow(entry)
                                             .festivalGroupSegment(
                                                 .position(index: index, count: entries.count, columns: columns),
                                                 separatorInset: SongLeaderboardRowCard.horizontalPadding
                                             )
+                                            // The card and every row in it fade in as one
+                                            // (owner #614); the page scope decides whether
+                                            // it still fades (R5).
+                                            .festivalCardSegmentFadeIn(cardIndex: BoardCardEntrance.index)
                                     }
                                 }
-                                // The card's top inset is content padding: a lone top
-                                // List row inset also left a gap under the first row
-                                // on macOS.
+                                // The card's top and bottom insets are content padding:
+                                // a lone top List row inset also left a gap under the
+                                // first row on macOS, and macOS dropped a last-row
+                                // bottom inset, resting the last row 4 pt rather than
+                                // one row gap above the footer or pager (#293, #456).
                                 .padding(.top, row.start == 0 ? Self.rowInset : 0)
-                                .listRowInsets(EdgeInsets(
-                                    top: 0, leading: 16,
-                                    bottom: row.start + columns >= entries.count ? Self.rowInset : 0, trailing: 16
-                                ))
+                                .padding(.bottom, row.start + columns >= entries.count ? Self.rowInset : 0)
+                                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                             }
@@ -242,12 +246,12 @@ struct SoloLeaderboardScreen: View {
                                 focusPending = false
                                 return
                             }
-                            // After the row's own entrance (web `navToPlayer`, #323).
+                            // After the card's entrance (web `navToPlayer`, #323, #614).
                             // A pair's identity is its first row's (wide-columns, #353).
                             let rowStart = WideColumns.rowStart(of: targetIndex, columns: columns)
                             if await SelectedRowReveal.reveal(
                                 rows.leaderboard.entries[rowStart].id, proxy: proxy,
-                                reduceMotion: reduceMotion, staggerIndex: targetIndex, scope: fadeScope
+                                reduceMotion: reduceMotion, staggerIndex: BoardCardEntrance.index, scope: fadeScope
                             ) {
                                 focusPending = false
                             }
@@ -279,8 +283,9 @@ struct SoloLeaderboardScreen: View {
         // its LoadGate, issue #93). A bottom safe-area inset, not a VStack sibling: the
         // tab bar minimizes on scroll down, and a sibling made the List's own frame grow
         // and shrink at the end of the page, which read as a bounce. As an inset the
-        // List keeps its frame and only its content inset changes.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // List keeps its frame and only its content inset changes. Read after the
+        // header and rows (#461).
+        .boardBottomChrome {
             bottomChrome
         }
         // One set of columns for the page's rows and the pinned footer (web
@@ -342,11 +347,9 @@ struct SoloLeaderboardScreen: View {
     /// rather than a NavigationLink, so the List draws no second disclosure indicator
     /// outside it.
     ///
-    /// - Parameters:
-    ///   - entry: The row's entry.
-    ///   - index: Its position on the page (fade stagger).
+    /// - Parameter entry: The row's entry.
     /// - Returns: The row, filling its column.
-    private func entryRow(_ entry: LeaderboardEntry, index: Int) -> some View {
+    private func entryRow(_ entry: LeaderboardEntry) -> some View {
         let isSelectedRow = isSelectedAccount(entry.accountId)
         return Button {
             path.append(playerRoute(for: entry))
@@ -358,12 +361,11 @@ struct SoloLeaderboardScreen: View {
             .contentShape(Rectangle())
         }
         .festivalRowButtonStyle()
-        // Accessibility grouping first, fade outermost: wrapping the link in the fade
-        // before `.contain` hid its score texts from the row's descendants.
+        // Accessibility grouping first, fade outermost (on the card segment): wrapping
+        // the link in the fade before `.contain` hid its score texts from the row's
+        // descendants.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.song-leaderboard.row.\(entry.accountId)")
-        // The page scope decides whether it still fades (R5).
-        .festivalFadeIn(staggerIndex: index)
         .frame(maxWidth: .infinity)
     }
 
@@ -426,7 +428,7 @@ struct SoloLeaderboardScreen: View {
                 }
             }
         }
-        .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
+        .boardBottomChrome(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
     /// Padding that rests the last row one row gap above the footer, or above the
@@ -493,10 +495,7 @@ struct SoloLeaderboardScreen: View {
                     .accessibilityIdentifier("fst.song-leaderboard.spotlight-jump")
                 }
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 16)
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("fst.song-leaderboard.spotlight-footer")
+            .pinnedFooterControl(identifier: "fst.song-leaderboard.spotlight-footer")
         }
     }
 
