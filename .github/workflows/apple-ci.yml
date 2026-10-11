@@ -90,6 +90,7 @@ jobs:
             SongsChromeJourneyTests/testRowUnderTheSectionBarFadeKeepsItsAccessibility
             SongsChromeJourneyTests/testSectionPushIsAccessibleAtLargestText
             SongsChromeJourneyTests/testFilterFieldReadyAfterBackFromSongDetail
+            SongsChromeJourneyTests/testFilterFieldIsGlassAtTopAndScrolled
             SongsChromeJourneyTests/testProgrammaticScrollNeverRestsPartWayThroughTheLargeTitle
             SongsChromeJourneyTests/testProgrammaticScrollNeverRestsPartWayOnTheLegacyScrollPath
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
