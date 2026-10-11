@@ -42,10 +42,7 @@ public static class AppRouteParser
             ["bands"] => new AppRoute.Bands(),
             ["bands", var band] => new AppRoute.Band(band, query.GetValueOrDefault("bandType"), query.GetValueOrDefault("teamKey")),
             ["leaderboards"] => new AppRoute.Leaderboards(),
-            ["leaderboards", "all"] => new AppRoute.FullRankings(
-                Chart(query.GetValueOrDefault("instrument")) ?? Instrument.Lead, query.GetValueOrDefault("rankBy") ?? RankingMetricInfo.Default.ServiceId(),
-                int.TryParse(query.GetValueOrDefault("page"), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var page)
-                    && page > 0 ? page : 1, Flag(query.GetValueOrDefault("navToPlayer"))),
+            ["leaderboards", "all"] => FullRankingsRoute(query),
             ["leaderboards", "bands", var type] => new AppRoute.BandRankings(type),
             ["rivals"] => new AppRoute.Rivals(),
             ["rivals", "all"] => RivalScope.FromAllRivalsQuery(query.GetValueOrDefault("category"), query.GetValueOrDefault("mode"),
@@ -94,6 +91,22 @@ public static class AppRouteParser
     /// <param name="value">Query value.</param>
     /// <returns>Chart or <see langword="null"/>.</returns>
     private static Instrument? Chart(string? value) => InstrumentInfo.TryParse(value, out var i) ? i : null;
+
+    /// <summary>
+    /// <c>/leaderboards/all</c>: a valid within-group <c>combo=</c> opens that combo board (web <c>FullRankingsPage</c>
+    /// <c>isRankingScopeComboId</c>, issue #602); otherwise the <c>instrument=</c> board, Lead by default.
+    /// </summary>
+    /// <param name="query">Query pairs.</param>
+    /// <returns>Route.</returns>
+    private static AppRoute.FullRankings FullRankingsRoute(Dictionary<string, string> query)
+    {
+        var rankBy = query.GetValueOrDefault("rankBy") ?? RankingMetricInfo.Default.ServiceId();
+        var page = Page(query.GetValueOrDefault("page"));
+        var reveal = Flag(query.GetValueOrDefault("navToPlayer"));
+        return RankingBoard.Combo(query.GetValueOrDefault("combo")) is { } combo
+            ? AppRoute.FullRankings.For(combo, rankBy, page, reveal)
+            : new AppRoute.FullRankings(Chart(query.GetValueOrDefault("instrument")) ?? Instrument.Lead, rankBy, page, reveal);
+    }
 
     /// <summary>Parses a player-bands <c>group</c> query value, defaulting to All.</summary>
     /// <param name="value">Query value (<c>all</c>, <c>duos</c>, <c>trios</c>, <c>quads</c>).</param>

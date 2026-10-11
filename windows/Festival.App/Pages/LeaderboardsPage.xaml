@@ -88,7 +88,7 @@
                             <StackPanel Spacing="8">
                                 <!-- Header above the card (web RankingCard cardLabel): instrument icon and name only (the Rank By
                                      button already names the metric). -->
-                                <controls:CardHeader Title="{x:Bind Title}" IconFile="{x:Bind IconFile}" TitleAutomationId="{x:Bind AutomationId}" />
+                                <controls:CardHeader Title="{x:Bind Title}" IconFile="{x:Bind IconFile}" IconFiles="{x:Bind IconFiles}" TitleAutomationId="{x:Bind AutomationId}" />
                                 <!-- No card around the rows: each row is its own frosted row (web RankingCard cardBody,
                                      operator batch 7.7); failed boards sit on their own card, empty boards use the shared compact EmptyStateView (#377). -->
                                 <StackPanel Spacing="4">
