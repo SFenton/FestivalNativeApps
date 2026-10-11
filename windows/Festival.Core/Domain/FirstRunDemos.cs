@@ -240,6 +240,22 @@ public static class FirstRunDemoFit
         if (!double.IsFinite(availableHeight) || availableHeight <= 0 || !double.IsFinite(naturalHeight)) return 1;
         return naturalHeight > availableHeight ? availableHeight / naturalHeight : 1;
     }
+
+    /// <summary>
+    /// Top offset, in frame units, that centres a shrunk demo in its frame. The demo is re-laid out wider before it
+    /// shrinks, so wrapped rows (the Rivals pills) can unwrap and the picture ends up shorter than the frame; the offset
+    /// must then be taken in scaled units, because a render scale doesn't move the layout slot. Centring in the
+    /// unscaled slot pushed the picture past the frame into the slide title at large text (issue #522).
+    /// </summary>
+    /// <param name="fittedHeight">Demo height after the wider re-layout, before scaling.</param>
+    /// <param name="scale">Fit scale from <see cref="Scale"/>.</param>
+    /// <param name="frameHeight">Frame height.</param>
+    /// <returns>Offset in [0, <paramref name="frameHeight"/>), 0 when the picture fills or overflows the frame.</returns>
+    public static double Top(double fittedHeight, double scale, double frameHeight)
+    {
+        if (!double.IsFinite(fittedHeight) || !double.IsFinite(scale) || !double.IsFinite(frameHeight)) return 0;
+        return Math.Max(0, (frameHeight - fittedHeight * scale) / 2);
+    }
 }
 #endregion
 
