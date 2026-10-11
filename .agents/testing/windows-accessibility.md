@@ -526,6 +526,30 @@ Backfills CI tests for the #348 Windows change: in the All scope, Search titles 
 
 No accessibility defect was found. Harness rule: `assertbelow`, `assertapart` and `assertorder` need both elements on screen, so each later title's checks follow the `reveal:` of its first row (at 225% text the Bands title starts below the fold).
 
+## Suggestions accessibility tests (issue #513, 2026-10-12)
+
+Backfills CI tests for the #205 Windows change (PR #128): named filter `Expander`s, one Tab stop per card with arrow keys across rows, neutral contrast pills, and state titles as headings. Until now only `suggestions_journey.py` and the generated `suggestions` matrix page covered it, outside the `windows-ui` job. New `journeys/a11y-suggestions.json` (`suggestions_fixture_server.py`, seed 1) runs in `tools/windows/ui_ci.py` as `suggestions` (compact, medium) and `suggestions-text-225` (compact). It asserts:
+- `suggestions-cards`: Filter reads "collapsed" and is at least 40 epx tall; the first card title is a Level 2 heading; a row reads its full name as a focusable button, is at least 40×40 and doesn't overlap the next row; Filter reads before the list, and card names read in order (each card is a list item named by its title, its rows read whole); the dispatcher's 30-press Tab walk stays in the app;
+- `suggestions-keyboard`: Down/Up move between rows within a card and across cards without scrolling the list; Tab goes to the next card's first row, Shift+Tab back and then to Filter; Enter opens the flyout on Instruments, and Esc returns focus to Filter, which reads "collapsed";
+- `suggestions-filter`: Filter reads "expanded"; the title is a Level 2 heading and Instrument-Specific Level 3; Instruments and General read their names, state and help text and are at least 40 epx tall, as is Reset; the order is title → Instruments → General → Reset, and Instrument-Specific → picker → Reset (picker arrows 40×40); Enter expands Instruments and Tab lands on "Lead, toggle switch, on" (40×40), then Bass; Space toggles Lead and enables Reset; General expands and reads its switches;
+- `suggestions-syncing` and `suggestions-no-results`: each state title is a Level 2 heading after Filter; no-results turns every type off in the flyout, and Esc leaves focus on Filter with no list;
+- `suggestions-rival-pill-contrast` (medium): in normal mode the rival pill keeps its brand fill; after a live switch to Desert it paints the ButtonFace fill and ButtonText outline, and the brand fill returns after switching back.
+
+`tests/test_ui_ci.py` pins the runs and the key checks; `SuggestionsAccessibilityMarkupTests` guards the fixes in markup.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (all pages; rival contrast at medium) | **Failed, fixed** (two defects, below). Pass, Axe 0 after the fixes |
+| Text 225% (compact, all pages but rival contrast) | **Failed, fixed:** the flyout ran off the window, so Reset was off screen. Pass, Axe 0 after the fix |
+| Desert contrast, switched live (medium) | **Failed, fixed:** the rival pill kept its brand fill (#D9E3F0 sampled). Pass after the fix |
+
+Defects fixed:
+- **Live contrast switch:** `SuggestionSongRow` set its brushes once, so a page left open across a contrast switch kept the brand rival pill, separator, chevron and subtitle colour. It now re-resolves them and rebuilds its metadata on `ContrastTheme.Changed` (as `LeaderboardEntryRow` and `MetadataPill` do; [metadata-pills](../patterns/metadata-pills.md)).
+- **Unnamed Tab stop:** the three filter `ItemsControl`s were Tab stops, so after expanding a section Tab first landed on an unnamed pane. They are now `IsTabStop="False"`, as on Songs and Shop.
+- **Reset off screen:** the filter form didn't fit the space below its button. `OnFilterOpening` now clamps its height and width to the window, as Songs and Shop do.
+
+Harness rules: the flyout's expanded sections push later controls below the fold at 225% text, so each `assertorder`, `focus` or `expand` past the fold follows a `reveal:` (UIA scroll, no input). `assertread` phrases never include the heading level, so headings use `assertstate:…|heading=N`. A card's own Group and title TextBlock are not in the Narrator order (the card list item is named by its title).
+
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
 Accessibility tests for #77. The no-profile Filter pages moved into `journeys/a11y-songs-filter.json` (`songs-filter-anonymous`, `songs-filter-anonymous-year`, `kb-songs-filter-anonymous`), which `tools/windows/ui_ci.py` runs in `windows-ui` at default text (compact, medium) and 225% text (compact); `tests/test_ui_ci.py` keeps both runs. They assert Narrator phrases, reading order, 40×40 epx targets, the toggle and expand states, the applied "Filters applied" status and the keyboard walk ([songs-filter windows](../controls/songs-filter/windows.md#accessibility-tests-issue-432-no-profile)).
