@@ -30,7 +30,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ (C/M/W, also 200%; display 100%/150%, issue #197) |
 | Player History (Song Detail Score History, issue #198) | ✅✅✅ | 7/9/9 | UIA (locked console) | ✅ (Night sky, Desert: chart roles) | ✅ (200%: axes scale) |
 | Song Band Leaderboard | ✅✅✅ (+live, #196) | 8/10/10 | UIA only (#196) | ✅ | ✅ (+200% C+M) |
-| Item Shop (grid, list, filter, states) | ✅✅✅ (+live, #206; shop-offers states #224) | 5/8/8 (grid one stop) | ✅ (`kb-shop-*`) | ✅ | ✅ (200% C+M, #206) |
+| Item Shop (grid, list, filter, states) | ✅✅✅ (+live, #206; shop-offers states #224; CI `shop-offers` #516) | 5/8/8 (grid one stop) | ✅ (`kb-shop-*`) | ✅ | ✅ (200% C+M, #206) |
 | Suggestions | ✅✅✅ (AOT crash fixed; filter, empty, end-of-mix, loading, syncing, denied, #205) | 10–15 (20-press, #205) | ✅ (arrows between rows, #205) | ✅ | ✅ (200%; display 100%/150%, #205) |
 | Leaderboards + Quick Links | ✅✅✅ (+live, #207) | 20/21/21 | ✅ | ✅ | ✅ (C+M; rows stack, #207) |
 | Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
@@ -49,7 +49,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Profile flyout | ✅✅✅ | 2 | ✅ | ✅ | ✅ |
 | Notifications flyout | ✅✅✅ (+live, #229) | 1 (list) | ✅ (#229) | ✅ (#229) | ✅ (#229, C+M) |
 | Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ (+profile jumps, `a11y-quick-links-jump.json`, #414) | ✅ | ✅ (pane titles wrap, #230; profile menu 225%, #414) |
-| First-run dialog | ✅✅✅ (+demo placeholder/catalogue states, `a11y-first-run-demos.json`, `windows-ui` CI, #420; real-control demos stay out of the control view, `a11y-first-run-real-demos.json`, #498) | 4–5 | ✅ (+Settings replay, #420; Tab skips the inert sort form and chart bars, #498) | ✅ | ✅ (demo clear of title at 225%; body scrolls so the pips stay reachable, #420; auto-scroll held with Reduce Motion and Animation effects off, paused when minimized, hard-edged with transparency effects off, Less Transparency or More Contrast, #498) |
+| First-run dialog | ✅✅✅ (+demo placeholder/catalogue states, `a11y-first-run-demos.json`, `windows-ui` CI, #420; real-control demos stay out of the control view, `a11y-first-run-real-demos.json`, #498; rival demo rows carry the page row's exact ahead/behind name, no shared count, #522) | 4–5 | ✅ (+Settings replay, #420; Tab skips the inert sort form and chart bars, #498) | ✅ | ✅ (demo clear of title at 225%, rival demos too since the #522 fit-centring fix; body scrolls so the pips stay reachable, #420; auto-scroll held with Reduce Motion and Animation effects off, paused when minimized, hard-edged with transparency effects off, Less Transparency or More Contrast, #498) |
 | What's New dialog (launch, Settings replay) | ✅✅✅ (+max/snap, #235) | 2 (notes, Dismiss) | ✅ (`kb-whats-new-*`, #235) | ✅ (#235) | ✅ (200% C+M, #235) |
 
 ## Fixed in this pass
@@ -518,6 +518,24 @@ Backfills CI tests for the #318 Windows change: the selected player's row stays 
 
 No accessibility defect was found.
 
+## Full Rankings pinned row load gate accessibility tests (issue #524, 2026-10-11)
+
+Backfills CI tests for the #270 Windows change (PR #320): Full Rankings' pinned "your rank" row joined the rows' load gate (`LoadSwapGate`) for Rank By and instrument reloads, but stays beside the spinner on a page-only reload. Before this, only the feature journey `full-rankings-swap.json` (presence checks) covered it. New `journeys/a11y-full-rankings-swap.json` (`rankings_fixture.py --rankings-delay`, Fixture Rank 40 selected, off page 1) is a set of `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- `fr-swap-rank-by`: after Rank By → FC Rate, the pinned row and pager leave UIA; Narrator reads "Busy Loading rankings, ProgressRing" in title → Rank By → ring order; Tab from Rank By goes to the title bar's Back (no hidden pinned row or pager stop) and Shift+Tab returns. The new row then reads "Your rank, 40th. Jump to your position. Fixture Rank 40. FC Rate …, button", is focusable, invokable, 40×40 epx and apart from Next, in rows → pinned row → pager order. An instrument switch repeats the hide and return; Tab and Shift+Tab then move row → pinned row → Next and back. Mid-load and settled Axe scans;
+- `fr-swap-page-keeps-pin`: a page-only reload (Enter on Next) keeps the pinned row readable ("… Total Score …, button"), focusable and 40×40 epx beside the ring, in Rank By → ring → pinned row → pager order and clear of the ring; Shift+Tab from Next reaches it mid-load. Page 2 then scrolls to row 40, and the pinned row reads "Open your statistics" in row 40 → pinned row → pager order;
+- `fr-swap-motion-reduced` (in-app Reduce Motion) and `fr-swap-motion-system` (Windows Animation effects off): the row still hides under the ring, then returns with the FC Rate value and holds still (`assertmotion`).
+
+The pages set `tabs: 0` because their ordered traversals replace the walk. `tests/test_ui_ci.py` pins the runs and the key checks.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`full-rankings-swap`, 2 pages) | Pass, Axe 0 |
+| Text 225% (compact, 2 pages) | Pass, Axe 0 |
+| In-app Reduce Motion (medium, 3 pages) | Pass, Axe 0 |
+| Animation effects off (medium, 3 pages) | Pass, Axe 0 |
+
+No accessibility defect was found.
+
 ## Leaderboards card your-rank row accessibility tests (issue #493, 2026-10-11)
 
 Backfills CI tests for the #370 Windows change (PR #403): a Leaderboards card's separate "your rank" row, for a player ranked outside the card's top ten, now opens Full Rankings on the player's page and reveals their row instead of opening the profile. Until now only `selected_reveal_journey.py --only rankings-card` (fade timing) and `LeaderboardsViewModelTests` covered it. New `journeys/a11y-leaderboards-card-jump.json` (`rankings_fixture.py`) is now a set of `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
@@ -592,6 +610,66 @@ Defects fixed:
 
 Harness rules: the flyout's expanded sections push later controls below the fold at 225% text, so each `assertorder`, `focus` or `expand` past the fold follows a `reveal:` (UIA scroll, no input). `assertread` phrases never include the heading level, so headings use `assertstate:…|heading=N`. A card's own Group and title TextBlock are not in the Narrator order (the card list item is named by its title).
 
+## Delayed and loaded-later content accessibility tests (issue #521, for #260, 2026-10-12)
+
+Backfills CI tests for the #260 Windows change (PR #274): Suggestions cards loaded after the first ten fade in on arrival (`FadeIn.Restagger(list, batchStart)` from `CardsAdded`), and Global Search song rows that waited behind the spinner for a slow player search fade in when it clears. The `fade_trace` perf-log journeys (`suggestions_journey.py fade`, `search_journey.py fade-delayed-results`) check the fades themselves, but they're outside `windows-ui`, and no CI page reached a later batch or a delayed result. New pages are explicit `windows-ui` runs in `tools/windows/ui_ci.py`:
+- `a11y-suggestions.json` `suggestions-load-more` (seed 1; batch 2 is cards 11–16): card 12 "Close the Gap vs Rival B0" exists only once batch 2 has loaded, and its title is a Level 2 heading; its first row reads its full name as a focusable button of at least 40×40; card 11's title is a heading, and "New on Pro Lead" (card 10, the last card of batch 1) reads before "Climb Past Rival B4" (card 11);
+- `suggestions-load-more-keyboard` (`tabs: 0`): Down from card 10's last row lands on card 11's first row and Up returns; Tab walks cards 11–16 one stop each into card 17's row (batch 3, loaded by the walk), and Shift+Tab steps back;
+- `a11y-search.json` `search-delayed-results` (`profile_fixture.py`, whose new `SLOW_SONG_PREFIX` "puls" answers player searches after 4 s while "Fixture Pulse" matches at once): while the spinner runs, it reads "Busy Searching, ProgressRing", no song row or section title is shown, and focus stays in the field; afterwards "Songs, text" is a Level 2 heading that isn't focusable, read between All and "Fixture Pulse by Synthetic Quartet, list item" (40×40, clear of the title); no Players section or empty state shows; and Tab goes field → All → row, with Shift+Tab back.
+
+The Suggestions pages run in the full `suggestions` and `suggestions-text-225` runs, then in `suggestions-load-more-reduced-motion` (in-app Reduce Motion) and `-no-animations` (Windows Animation effects off), both at medium. The Search page runs as `search-delayed-results` (compact, medium), `-text-225` (compact) and `-reduced-motion` (medium). `tests/test_ui_ci.py` pins the runs and the key checks, and `tests/test_profile_selection.py` pins the slow song search.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (all three pages; Tab walk 30 on `suggestions-load-more`) | Pass, Axe 0 |
+| Text 225% (compact, all three pages) | Pass, Axe 0 |
+| In-app Reduce Motion (medium, all three pages) | Pass, Axe 0; the cards and rows appear in place |
+| Animation effects off (medium, Suggestions pages) | Pass, Axe 0 |
+
+No accessibility defect was found. Fixed (test only): the first draft of the keyboard page ended its Shift+Tab on a list offset where card 18 sat exactly on the viewport's bottom edge, which gave 6 Axe `BoundingRectangleSizeReasonable` findings ([item 3](#open-issues)). Both Suggestions pages now end on `scrollinset:…|8` before the scan. Harness note: `assertmotion:…|still` can't prove that a 400 ms batch fade didn't play (its captures are 1.2 s apart, and the batch loads with the realization cache before any scripted scroll), so Reduce Motion fade evidence belongs to the perf-log `fade-play … motion=0` lines, not a matrix page.
+
+## Item Shop offers accessibility tests (issue #516, 2026-10-12)
+
+Backfills CI tests for the #224 Windows change (PR #168): Shop tiles named by title, artist · year and state, the List/Grid toggle (wide windows only, same height as Filter), contrast-safe captions and Leaving pill, and only the active ring exposed as "Busy Loading Item Shop". Until now `shop_journey.py` checked these only for visibility, and the generated `shop`/`shop-list` pages checked the Axe scan. New `journeys/a11y-shop-offers.json` (default fixture plus `shop_fixture.py` modes) runs in `tools/windows/ui_ci.py` as `shop-offers` (compact, medium), `shop-offers-text-225` (compact, medium) and `shop-offers-reduced` (medium, app Reduce Motion, the toggle page). It asserts:
+- `shop-offers-grid-read` (medium, wide): tile phrases "Fixture Orbit, Synthetic Quartet · 2026, Leaving Tomorrow, button" and "…, New, button", focusable and invokable; "Item Shop" heading 1; order title → count → Sort → Filter → toggle → tiles; the toggle reads "List View, button", is at least 40 epx tall, is level with Filter and hit-testable at its top and bottom edges (not covered by a tile); tiles 40×40 and apart; no loading ring in UIA;
+- `shop-offers-grid-compact`: no toggle; same tile phrases and order;
+- `shop-offers-view-toggle` (medium): Enter switches to the list and Space back, focus stays on the toggle, its name flips "Grid View" ↔ "List View", it stays level with Filter, the reveal ring leaves UIA, and Tab then lands on the first tile;
+- `shop-offers-text-wrap` (medium, 225% text only): the wrapped toggle keeps its name and 40 epx target, stays in order after Filter, and overlaps neither Sort, Filter nor a tile;
+- `shop-offers-loading`: a slow read shows one ring reading "Busy Loading Item Shop, ProgressRing" with no toggle, Filter or grid, and it leaves UIA once the tiles land;
+- `shop-offers-empty`, `-failed`, `-hidden`: no toggle, Sort or Filter; the empty title reads as text, Retry is 40 epx, and "Item Shop Is Hidden" is heading 2;
+- `shop-offers-contrast-live` (medium, default text): the Leaving pill paints #C62828, after a live switch to Desert it paints Highlight (#903909) with no WindowText backplate and the caption plate paints Window, and the red returns after switching back.
+
+`tests/test_ui_ci.py` pins the runs and key checks; `WrapLineLayoutTests` guards the wrap rule.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium, wide (all pages; contrast at medium) | **Failed, fixed** (two defects, below). Pass, Axe 0 after the fixes |
+| Text 225% (compact, medium) | Pass, Axe 0 |
+| App Reduce Motion (medium, toggle page) | Pass, Axe 0 |
+
+Defects fixed:
+- **List View under the tiles:** at default text in medium and wide windows the toggle sat a line below Filter, and at medium the tile grid covered it. `WrapPanel` measured one line, but layout rounding handed arrange a fraction of a pixel less, so arrange broke the line that measure had kept and drew the toggle outside the reserved height. Measure and arrange now share `WrapLineLayout.Lines` with a 1 epx tolerance ([page-tools-and-nav-chrome](../patterns/page-tools-and-nav-chrome.md) R11). The fix also reaches the other `WrapPanel` consumers: the Rivals page and rows, profile/Statistics title actions, Song Detail and notification rows.
+- **Live contrast switch:** the Leaving pill and the pulse ring took their brushes once, so a page left open across a contrast switch kept the brand red pill (with a Window backplate on its text) and the brand outline. `ShopPulseRing` now repaints on `ContrastTheme.Changed` (Songs rows and first-run demos too), and `ShopPage` re-applies `ApplyBadge` to realized tiles and rows ([shop-offer-status](../patterns/shop-offer-status.md) R6).
+
+Harness rules: the ProgressRing peer prefixes its busy state, so assert ring names as "Busy Loading …" (a `waitgone:name=Loading …` passes trivially). Pages that assert the toggle level with Filter skip `text-225`, where it wraps by design (R11).
+
+## Leaderboard row columns accessibility tests (issue #519, 2026-10-11)
+
+Backfills a CI test for the #242 Windows change: `LeaderboardEntryRow` sets its surface, text and badge brushes in code and re-applies them on `ContrastTheme.Changed`; the selected row's FC badge paints HighlightText under contrast; the pager's disabled brushes are theme dictionaries. The column fitting itself (#37) was already covered by `journeys/a11y-leaderboard-columns.json` (#409: names, 40 epx targets, rows → pinned row → pager order, keyboard, focus not obscured, text 200%/225%), and `a11y-pager-dim.json` covers a cold-launch contrast pager, but nothing switched contrast with a board open. New page `cols-song-board-contrast-switch` (medium, default theme only; it switches Desert on and off in the running app) in the same file runs in the generated `a11y-leaderboard-columns-normal` `windows-ui` run. It asserts:
+- before the switch, row 3 isn't Window `#FFFAEF`, row 2 (the selected player) isn't Highlight `#903909`, and its FC badge is gold `#FFD700`;
+- under Desert, row 3 paints Window, row 2 and the pinned row Highlight, both FC badges HighlightText `#FFF5E3` with no WindowText `#3D3D3D` or gold left, and the disabled First page a WindowText edge with GrayText `#676767` glyph; row 3, the pinned row and First page ("…, button, unavailable") read whole; rows and the pinned row stay at least 40 epx tall and Next page 40×40; order rows → pinned row → First page → Next page; Axe scans the Desert board;
+- after switching back, the default brushes return.
+
+`tests/test_ui_ci.py` (`test_leaderboard_columns_contrast_switch_runs_in_the_normal_pass`) and `test_a11y.test_leaderboard_column_pages` pin the page.
+
+| Configuration | Result |
+| --- | --- |
+| `a11y-leaderboard-columns-normal`, `-text-225`, `-text-200` (existing pages) | **Failed, fixed** (stale expectation, below). Pass, Axe 0 after the fix |
+| `cols-song-board-contrast-switch`, medium, Desert switched live | Pass, Axe 0 |
+| Regression check: `ContrastTheme.Changed` subscription removed | Fails: row 3 keeps the card surface under Desert (0 px of `#FFFAEF`, centre `#464A53`) |
+
+No app accessibility defect was found. **Failed, fixed (test):** since #606 the season pill names the current season "current season 9", but the column pages still expected "season 9", so `cols-song-board` failed. The expectations now say "current season 9"; Fixture Player 2's board row still reads the board's 98% (only the selected player's pinned row reads the profile's 97.9%).
+
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
 Accessibility tests for #77. The no-profile Filter pages moved into `journeys/a11y-songs-filter.json` (`songs-filter-anonymous`, `songs-filter-anonymous-year`, `kb-songs-filter-anonymous`), which `tools/windows/ui_ci.py` runs in `windows-ui` at default text (compact, medium) and 225% text (compact); `tests/test_ui_ci.py` keeps both runs. They assert Narrator phrases, reading order, 40×40 epx targets, the toggle and expand states, the applied "Filters applied" status and the keyboard walk ([songs-filter windows](../controls/songs-filter/windows.md#accessibility-tests-issue-432-no-profile)).
@@ -618,6 +696,21 @@ The push follows the scroll with no animation of its own, so Reduce Motion has n
 | --- | --- |
 | Compact, medium (3 pages, `--scan`) | Pass, Axe 0 |
 | Text 225% (compact, 3 pages) | Pass, Axe 0 |
+
+## Songs scrolling (issue #520, 2026-10-11)
+
+Accessibility tests for #247's Windows Songs scroll fix (the pinned title re-read after a non-animated jump's last view change). `journeys/a11y-songs-scroll.json` runs on the large fixture catalogue; `tools/windows/ui_ci.py` runs it in `windows-ui` at default text (`songs-scroll`: compact, medium), 225% text (`songs-scroll-text-225`: compact) and Windows Animation effects off (`songs-scroll-no-animations`: compact, where keyboard End/Home are non-animated jumps), all `--scan`; `tests/test_ui_ci.py` keeps the three runs and the key steps. The pages assert:
+- `songs-scroll-far-jumps`: UIA Scroll-pattern jumps (Narrator and scroll-bar moves) to 100, 25, 75 and 50%, each landing in a letter range disjoint from the previous one, so a stale pinned title fails; the title stays a level-2 Text heading, Narrator reads Jump → title → list, and Jump keeps its name and 40×40 epx.
+- `songs-scroll-fling-back`: bottom → top → 3% → top ends at `scroll=0` with the title reading "#, text" before the first row.
+- `songs-scroll-keyboard`: End moves focus to the last row (`fixture-song-105`, 40 epx) with the title in X–Z; Home returns focus to the first row and the title to "#, text".
+
+Ranges, not exact letters, because the letter at a scroll percent depends on window size and text scale (medium: 25% D, 50% K, 75% R, 100% Y). Check: with both re-reads removed (`OnScrollerViewChanged` settle and `RecheckHeaderAfterLayout`), `songs-scroll-far-jumps` fails ("#" pinned after the jump) at compact and medium; with only #247's settle removed it still passes, since #248's after-layout re-read covers the same case. No accessibility defect was found, so no app code changed. The live-only `songs-scroll-a11y.json` (anonymous or SFentonX, no name checks) stays a host check.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (3 pages, `--scan`) | Pass, Axe 0 |
+| Text 225% (compact, 3 pages) | Pass, Axe 0 |
+| Animation effects off (compact, 3 pages) | Pass, Axe 0 |
 
 ## Feedback Form validation (issue #236, 2026-10-05)
 

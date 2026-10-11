@@ -384,6 +384,9 @@ public sealed record ScoreHistoryListRow(ScoreHistoryPoint Point, bool IsBest) :
     /// <summary>Date in the name column.</summary>
     public string Name => Date;
 
+    /// <summary>A short date label reserves one large-text line (<see cref="LeaderboardRowMetrics.LabelNameLines"/>).</summary>
+    public int LargeTextNameLines => LeaderboardRowMetrics.LabelNameLines;
+
     /// <summary>The personal best is drawn like the selected player's row (web <c>scoreListCardBestStyle</c>).</summary>
     public bool IsSelected => IsBest;
 

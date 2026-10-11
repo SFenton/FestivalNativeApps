@@ -7,17 +7,24 @@ A run with a system ``mode`` (e.g. ``text-225``) changes the runner's own deskto
 
 This is the one registry of Windows accessibility journeys that gate pull requests: a journey is in CI only when it has a
 :data:`RUNS` entry (``only`` limits a run to some of a file's pages). ``tests/test_ui_ci.py`` checks the entries and
-that the modal journey (issue #400) and its contrast-backplate and hint-wrap legibility pages (issue #518), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
+that the modal journey (issue #400) and its contrast-backplate and hint-wrap legibility pages (issue #518), the Songs Jump
+backward-pick pages (issue #415), the Songs Jump open, Escape and Item Shop label pages (issues #231, #517, also with
+in-app Reduce Motion), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
-push (issue #452), the Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438), the Paths
-text table (issue #515, also under a contrast theme) and the Full
+push (issue #452), the Songs scroll far jumps and keyboard End/Home (issue #520, also with Animation effects off), the
+Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438), the Paths text table (issue
+#515, also under a contrast theme), long leaderboard names (issue #455, also with Animation effects off) and the Full
 Rankings pinned row (issue #466, also with in-app Reduce Motion), the Leaderboards card "your rank" row (issue #493,
 also with in-app Reduce Motion), the Search All section titles (issue #483, also with in-app Reduce Motion), the
+Search results delayed behind the spinner and the Suggestions cards loaded after the first batch (issue #521, also with
+motion off), the
 Song Band Leaderboard rows, empty and error states (issue #510), the Suggestions cards, keyboard, filter and states
-(issue #513), the real-control First Run demos (issue #498, also with Animation effects off), the profile title row
-(issue #446) and the Score History chart (issue #512, also under Desert contrast) run at default and 225% text, and
-that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
+(issue #513), the Item Shop offers grid, List/Grid toggle, rings and states (issue #516, also with in-app Reduce
+Motion), the real-control First Run demos (issue #498, also with Animation effects off), the profile title row
+(issue #446) and the Score History chart (issue #512, also under Desert contrast) run at default and 225% text, that the
+generated leaderboard-columns normal run switches a contrast theme with a song board open (issue #519), and that the
+generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -90,6 +97,10 @@ class Run:
 #: host checks).
 SECTION_INDEX_BACKWARD = "index-backward-after-scroll,index-backward-after-scroll-keyboard"
 
+#: The ``a11y-section-index.json`` fixture pages for issue #231's Jump changes (#517): focus on open, Escape from the
+#: index and from Jump, Ctrl+Minus, the hide/show path, and Item Shop labels at the widest label's width.
+SECTION_INDEX_JUMP = "index-open-escape,index-shop-labels"
+
 #: The ``a11y-profile-title.json`` fixture pages (issues #97, #285, #446); its ``pt-live-*`` pages need the public service.
 PROFILE_TITLE_FIXTURE = ("pt-switch,pt-anonymous,pt-selected,pt-notice,pt-actions-row,pt-actions-wrap,"
                          "pt-keyboard-switch,pt-keyboard-selected")
@@ -111,6 +122,13 @@ POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-f
 
 #: The ``a11y-search.json`` All section-title pages (issue #348's titles, #483); the file's other pages are generated runs.
 SEARCH_SECTIONS = "search-all-sections,search-all-sections-keyboard"
+
+#: The ``a11y-search.json`` page for results that waited behind the spinner for a slow player search (issues #260, #521).
+SEARCH_DELAYED_RESULTS = "search-delayed-results"
+
+#: The ``a11y-suggestions.json`` pages for the cards loaded after the first batch (issues #260, #521), also run with
+#: motion off.
+SUGGESTIONS_LOAD_MORE = "suggestions-load-more,suggestions-load-more-keyboard"
 
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
@@ -147,12 +165,28 @@ RUNS: tuple[Run, ...] = (
     # "B, text", stays a Level 2 heading, Jump -> title -> list order, Jump's name and 40x40 target, by pointer and keys.
     Run("section-index-backward", "a11y-section-index.json", only=SECTION_INDEX_BACKWARD),
     Run("section-index-backward-text-225", "a11y-section-index.json", mode="text-225", only=SECTION_INDEX_BACKWARD),
+    # Songs Jump open and close (issues #231, #517): Jump hides with no results and returns, its 40x40 target; opening
+    # focuses the current label; the index is the "Jump to section" list of invokable 40x40 list items in order; Escape
+    # from the index or from Jump closes it with focus back on Jump; Ctrl+Minus opens it; Item Shop labels (after a sort
+    # change) keep the widest label's width, so none is trimmed. Again with the app's Reduce Motion (Jump's fade off).
+    Run("section-index-jump", "a11y-section-index.json", tabs=0, only=SECTION_INDEX_JUMP),
+    Run("section-index-jump-text-225", "a11y-section-index.json", sizes="compact", mode="text-225", tabs=0,
+        only=SECTION_INDEX_JUMP),
+    Run("section-index-jump-reduced", "a11y-section-index.json", sizes="medium", mode="app-reduced", tabs=0,
+        only=SECTION_INDEX_JUMP),
     # Songs section push (issues #288, #452): mid-push, scrolling down into the boundary and back up, the bar still reads
     # the outgoing section as a Level 2 heading, the incoming in-list title (transparent under the drawn copy) stays the
     # Level 2 heading in order Jump -> bar -> title, and the copy is drawn but never a second Narrator stop; by keys,
     # focus moves row -> group header -> previous row through the band and never lands on the copy.
     Run("songs-section-push", "a11y-songs-section-push.json", tabs=0),
     Run("songs-section-push-text-225", "a11y-songs-section-push.json", sizes="compact", mode="text-225", tabs=0),
+    # Songs scrolling (issues #247, #520): after a UIA Scroll-pattern far jump (Narrator, scroll bar) the pinned title
+    # names the section now in view (a stale "#" fails), a fling back to the top reads "#, text" again, keyboard
+    # End/Home move focus to the last/first row (40 epx) with the title following, and Jump -> title -> list order
+    # holds; also with Windows' Animation effects off, where End/Home are non-animated jumps.
+    Run("songs-scroll", "a11y-songs-scroll.json", tabs=0),
+    Run("songs-scroll-text-225", "a11y-songs-scroll.json", sizes="compact", mode="text-225", tabs=0),
+    Run("songs-scroll-no-animations", "a11y-songs-scroll.json", sizes="compact", mode="no-animations", tabs=0),
     # Song leaderboard footer and paging (issues #93, #443): pinned row and pager names, states and 40x40 targets,
     # header -> rows -> pinned row -> pager order, the fade layer kept out of the control view, the Tab/Shift+Tab order
     # at rest, mid-load and on page 2, and a keyboard page change that keeps the header, pinned row and pager in order
@@ -185,6 +219,16 @@ RUNS: tuple[Run, ...] = (
         only="fr-pinned-jump-keyboard"),
     Run("full-rankings-pinned", "a11y-full-rankings.json"),
     Run("full-rankings-pinned-text-225", "a11y-full-rankings.json", sizes="compact", mode="text-225"),
+    # Full Rankings pinned row's load gate (issues #270, #524): a Rank By or instrument reload drops it from UIA, the
+    # reading order and Tab with the rows and pager (only "Busy Loading rankings, ProgressRing" is read; Tab goes from
+    # Rank By to the title bar), then the new value returns as a 40x40 Button in rows -> pinned row -> pager order; a
+    # page-only reload keeps it readable, focusable and reachable by Shift+Tab beside the ring. At 225% text, with in-app
+    # Reduce Motion and with Windows' Animation effects off (the pinned row returns still).
+    Run("full-rankings-swap", "a11y-full-rankings-swap.json", tabs=0),
+    Run("full-rankings-swap-text-225", "a11y-full-rankings-swap.json", sizes="compact", mode="text-225", tabs=0),
+    Run("full-rankings-swap-reduced", "a11y-full-rankings-swap.json", sizes="medium", mode="app-reduced", tabs=0),
+    Run("full-rankings-swap-no-animations", "a11y-full-rankings-swap.json", sizes="medium", mode="no-animations",
+        tabs=0),
     # A Leaderboards card's "your rank" row (issues #370, #493): outside the top ten it reads "Your rank, 40th. Jump to
     # your position" and Button, keeps 40x40 apart from View All and sits between the rows and View All in reading and
     # Tab order; Enter opens Full Rankings on the player's page with their row in view (also with in-app Reduce Motion)
@@ -201,11 +245,27 @@ RUNS: tuple[Run, ...] = (
         only=SEARCH_SECTIONS),
     Run("search-sections", "a11y-search.json", only=SEARCH_SECTIONS),
     Run("search-sections-text-225", "a11y-search.json", sizes="compact", mode="text-225", only=SEARCH_SECTIONS),
+    # Search results that waited behind the spinner for a slow player search (issues #260, #521): Narrator reads the
+    # named ring while no row or title is there, then the Level 2 "Songs" title before the 40+ epx row; focus stays in
+    # the field and Tab reaches All and the row. Also with in-app Reduce Motion (the rows appear in place, no fade).
+    Run("search-delayed-results-reduced-motion", "a11y-search.json", sizes="medium", mode="app-reduced",
+        only=SEARCH_DELAYED_RESULTS),
+    Run("search-delayed-results", "a11y-search.json", only=SEARCH_DELAYED_RESULTS),
+    Run("search-delayed-results-text-225", "a11y-search.json", sizes="compact", mode="text-225",
+        only=SEARCH_DELAYED_RESULTS),
     # Suggestions (issues #205, #513): each card is one Narrator list item named by its Level 2 title heading, its rows
     # 40+ epx Buttons and one Tab stop per card (Down/Up cross card boundaries, Tab/Shift+Tab between cards, Esc returns
     # to Filter); the filter's named Instruments/General Expanders read their state and help text, and Tab goes straight
     # from an expanded header to its first switch; the syncing and filtered-empty titles are Level 2 headings; and the
     # rival name pill switches to the neutral contrast role live (Desert paint check, medium only, so not at 225%).
+    # The cards loaded after the first ten (issues #260, #521) arrive as whole headed list items read after the first
+    # batch, with 40+ epx rows that Down/Up and Tab reach across the batch boundary: at default and 225% text in the
+    # full runs, and first with in-app Reduce Motion and with Animation effects off (they appear in place, no fade).
+    # (The partial motion-off runs come first: generated_runs reads a file's last explicit run as its coverage.)
+    Run("suggestions-load-more-reduced-motion", "a11y-suggestions.json", sizes="medium", mode="app-reduced", tabs=0,
+        only=SUGGESTIONS_LOAD_MORE),
+    Run("suggestions-load-more-no-animations", "a11y-suggestions.json", sizes="medium", mode="no-animations", tabs=0,
+        only=SUGGESTIONS_LOAD_MORE),
     Run("suggestions", "a11y-suggestions.json"),
     Run("suggestions-text-225", "a11y-suggestions.json", sizes="compact", mode="text-225"),
     # Back from View All or a rival to cached Leaderboards and Rivals (issues #82, #276, #435): the opener and its card
@@ -231,6 +291,16 @@ RUNS: tuple[Run, ...] = (
     Run("shop-filter-keyboard", "a11y-keyboard.json", tabs=0, only=SHOP_FILTER_KEYBOARD),
     Run("shop-filter-keyboard-text-225", "a11y-keyboard.json", sizes="compact", mode="text-225", tabs=0,
         only=SHOP_FILTER_KEYBOARD),
+    # Item Shop offers (issues #224, #516): tile phrases (title, artist · year, Leaving Tomorrow / New, Button), the
+    # List/Grid toggle's name, 40 epx target and level with Filter (never wrapped under the tiles at default text, kept
+    # clear of them at 225%), hidden at compact, empty, failed and Shop-hidden; Enter/Space switch the layout with focus
+    # kept on the toggle; only the active ring reads "Busy Loading Item Shop"; and the Leaving pill follows a live
+    # contrast switch (Desert paint check, medium only). Also with the app's Reduce Motion (the reveal is instant).
+    # (The partial reduced-motion run comes first: generated_runs reads a file's last explicit run as its coverage.)
+    Run("shop-offers-reduced", "a11y-shop-offers.json", sizes="medium", mode="app-reduced",
+        only="shop-offers-view-toggle"),
+    Run("shop-offers", "a11y-shop-offers.json"),
+    Run("shop-offers-text-225", "a11y-shop-offers.json", mode="text-225"),
     # The pinned "your band" row on a song's full Duos/Trios/Quads board (issues #306, #461): Narrator phrases for
     # Jump / Open band, 40 epx targets, rows -> pin -> pager order, Tab/Enter jump clear of the pin, size switch,
     # no-player and reduced-motion states.
@@ -299,6 +369,18 @@ RUNS: tuple[Run, ...] = (
     # pinned combo rank) and Back restores focus; rows stay 40+ epx stops with Down between them.
     Run("combo-boards", "a11y-combo-boards.json", tabs=0),
     Run("combo-boards-text-225", "a11y-combo-boards.json", sizes="compact", mode="text-225", tabs=0),
+    # Long leaderboard names (issues #292, #455): on Full Rankings and the Leaderboards overview a name too wide for its
+    # column scrolls on one line while one that fits stays still, the row reads the whole name once, stays a 40+ epx
+    # stop in visual order with Up/Down between rows; at 150%, 200% and 225% text the name wraps and the row grows,
+    # still, even with Reduce Motion, while every row and a loading card's placeholders keep the section's shared name
+    # budget (one pitch for short, 16-character and placeholder rows); at 100% under the app's Reduce Motion (in the
+    # normal run) and Windows' Animation effects off it stops on an ellipsis.
+    Run("leaderboard-names", "a11y-leaderboard-names.json", tabs=0),
+    Run("leaderboard-names-text-150", "a11y-leaderboard-names.json", mode="text-150", tabs=0),
+    Run("leaderboard-names-text-200", "a11y-leaderboard-names.json", mode="text-200", tabs=0),
+    Run("leaderboard-names-text-225", "a11y-leaderboard-names.json", mode="text-225", tabs=0),
+    Run("leaderboard-names-no-animations", "a11y-leaderboard-names.json", sizes="compact", mode="no-animations",
+        tabs=0),
     # Song Detail Score History as one card (issue #588): selector -> heading -> subtitle -> chart, then the best scores
     # as in-card rows that touch (0 epx) in score order, ending on a 40+ epx View All Scores named for the chart.
     Run("score-history-card", "a11y-score-history-card.json", tabs=0),
@@ -339,6 +421,8 @@ RUNS: tuple[Run, ...] = (
     # collapsed set, and focus moves to the counterpart (circle <-> instrument box) both ways, with Axe scans.
     # The compact Instrument ComboBox (issues #88, #439) opens to "Lead, list item, selected", Bass, Drums, Tap Vocals
     # (no Karaoke), each a 40 epx option, and switches by pointer and Alt+Down/Up/Enter with focus kept, Axe-scanned open.
+    # The compact Display ComboBox at the row's right edge keeps its whole keyboard focus ring (issues #269, #523): the
+    # dialog content is the dialog less its padding and border, so the ring's right, top and bottom match its left side.
     Run("paths-swap", "a11y-paths-swap.json", sizes="compact,medium,wide"),
     Run("paths-swap-text-225", "a11y-paths-swap.json", sizes="compact,wide", mode="text-225"),
     Run("paths-swap-no-animations", "a11y-paths-swap.json", sizes="compact", mode="no-animations"),

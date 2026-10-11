@@ -189,6 +189,29 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual([p["name"] for p in m.live_pages(pages)], ["shop", "real"])
         scrolled = m.launch_args(None, {"name": "s", "args": ["--auto-scroll-span", "500"]}, Path("/s.json"))
         self.assertEqual(scrolled[-2:], ["--auto-scroll-span", "500"])
+        self.assertFalse(any(a.startswith("--perf-log") for a in scrolled))
+        traced = m.launch_args(None, {"name": "s"}, Path("/s.json"), Path("/state/perf.log"))
+        self.assertIn(f"--perf-log={Path('/state/perf.log')}", traced)
+
+    def test_fade_trace_follows_the_mode_motion_switch(self):
+        """#517: Reduce Motion and Animation effects off require motion=0; other modes leave it to the host."""
+        self.assertIsNone(m.mode_motion("normal"))
+        self.assertIsNone(m.mode_motion("text-225"))
+        self.assertFalse(m.mode_motion("app-reduced"))
+        self.assertFalse(m.mode_motion("no-animations"))
+        self.assertFalse(m.mode_motion("hc-desert+no-animations"))
+        page = {"name": "p", "fade_trace": {"JumpButton": ["show", "hide", "show"]}}
+        still = ["fade-show list=JumpButton played=0 motion=0 at=1", "fade-hide list=JumpButton armed=0 motion=0 at=2",
+                 "fade-show list=JumpButton played=0 motion=0 at=3"]
+        moving = [line.replace("=0 motion=0", "=1 motion=1") for line in still]
+        self.assertEqual([], m.fade_trace_problems(page, "app-reduced", still))
+        self.assertEqual([], m.fade_trace_problems(page, "normal", moving))
+        self.assertEqual([], m.fade_trace_problems(page, "normal", still))  # a host with Animation effects off
+        self.assertTrue(m.fade_trace_problems(page, "app-reduced", moving))
+        armed = [still[0], "fade-hide list=JumpButton armed=1 motion=0 at=2", still[2]]
+        self.assertIn("armed=1 with motion=0", "\n".join(m.fade_trace_problems(page, "app-reduced", armed)))
+        self.assertTrue(m.fade_trace_problems(page, "app-reduced", still[:2]))  # never shown again
+        self.assertEqual([], m.fade_trace_problems({"name": "q"}, "app-reduced", []))
 
     def test_mode_pages(self):
         pages = [{"name": "any"}, {"name": "normal-text", "skip_modes": ["text-200"]},
@@ -358,7 +381,8 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(set(pages), {"cols-song-board", "cols-song-board-narrow", "cols-song-board-season",
                                       "cols-song-board-large-text", "cols-full-rankings", "cols-song-board-focus-clear",
                                       "cols-band-rankings-focus-clear", "cols-song-band-board-focus-clear",
-                                      "cols-full-rankings-focus-clear", "cols-player-bands-focus-clear", "cols-player-bands-focus-clear-grid"})
+                                      "cols-full-rankings-focus-clear", "cols-player-bands-focus-clear", "cols-player-bands-focus-clear-grid",
+                                      "cols-song-board-contrast-switch"})
         for page in pages.values():
             for size in page.get("sizes", []):
                 self.assertIn(size, u.PRESETS, page["name"])

@@ -99,6 +99,61 @@ public sealed class LeaderboardSkeletonTests
         var band = vm.BandCards[0];
         Assert.Equal(5, band.SkeletonRows.Count);
         Assert.Equal(band.AutomationId + ".skeleton.4", band.SkeletonRows[4].AutomationId);
-        Assert.Equal(LeaderboardRowMetrics.SkeletonSection(band.Metric.ToRankingMetric()), band.SkeletonRows[0].Section);
+        Assert.Equal(LeaderboardRowMetrics.SkeletonSection(band.Metric.ToRankingMetric(), LeaderboardRowMetrics.BandNameLines(band.BandType.MemberCount())),
+            band.SkeletonRows[0].Section);
+    }
+
+    [Fact]
+    public void NameBudgetIsTwoLinesForPlayersOnePerBandMemberAndOneForLabels()
+    {
+        // Issue #455 (R2): at 150%+ text names wrap, and every row of a section reserves the same lines.
+        Assert.Equal(2, LeaderboardRowMetrics.PlayerNameLines);
+        Assert.Equal(1, LeaderboardRowMetrics.LabelNameLines);
+        Assert.Equal([2, 3, 4], BandTypeInfo.All.Select(t => LeaderboardRowMetrics.BandNameLines(t.MemberCount())));
+        Assert.Equal(2, LeaderboardRowMetrics.BandNameLines(1));
+        Assert.Equal(2, LeaderboardRowMetrics.SkeletonSection(RankingMetric.TotalScore).NameLines);
+        Assert.Equal(4, LeaderboardRowMetrics.SkeletonSection(RankingMetric.TotalScore, 4).NameLines);
+        Assert.Equal(2, LeaderboardColumns.Measure([]).NameLines);
+    }
+
+    [Fact]
+    public void PlayerRowsPinnedRowAndSkeletonShareTheNameBudget()
+    {
+        var visible = new[] { RankingsWire.Account(1, "a"), RankingsWire.Account(2, "b") };
+        var rows = visible.Select(e => new RankingRowViewModel(e, RankingMetric.TotalScore, false)).ToList();
+        var pinned = new RankingRowViewModel(RankingsWire.Account(40, "me"), RankingMetric.TotalScore, true);
+        RankingRowViewModel.ShareColumns(rows, pinned);
+        Assert.All(rows, r => Assert.Equal(LeaderboardRowMetrics.PlayerNameLines, r.Section!.NameLines));
+        Assert.Equal(rows[0].Section!.NameLines, pinned.Section!.NameLines);
+        Assert.Equal(rows[0].Section!.NameLines, LeaderboardRowMetrics.SkeletonRows(RankingMetric.TotalScore, "p")[0].LargeTextNameLines);
+
+        var spotlight = new RankingSpotlightViewModel(Instrument.Lead, null, new FakeTimeProvider(), "t");
+        spotlight.Apply("me", visible, RankingMetric.TotalScore);
+        Assert.Equal(LeaderboardRowMetrics.PlayerNameLines, spotlight.LoadingRow!.Section!.NameLines);
+    }
+
+    [Theory]
+    [InlineData(BandType.Duets, "Band_Duets", 2)]
+    [InlineData(BandType.Trios, "Band_Trios", 3)]
+    [InlineData(BandType.Quad, "Band_Quad", 4)]
+    public void BandRowsReserveOneNameLinePerMember(BandType bandType, string serviceId, int lines)
+    {
+        var board = FestivalApiClient.Decode(System.Text.Encoding.UTF8.GetBytes(RankingsWire.BandBoard(serviceId, 1, 25, 30, [1, 12])),
+            RankingsJsonContext.Default.BandRankingsResponse);
+        var rows = board.Entries.Select(e => new BandRankingRowViewModel(e, bandType, BandRankingMetric.TotalScore)).ToList();
+        BandRankingRowViewModel.ShareColumns(rows);
+        Assert.All(rows, r => Assert.Equal(lines, r.Section!.NameLines));
+    }
+
+    [Fact]
+    public void SectionReservesTheMostLinesAnyRowAsksFor()
+    {
+        CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        var point = new ScoreHistoryPoint(new ScoreHistoryEntry { NewScore = 5000, Season = 4, ChangedAt = "x" },
+            new DateTimeOffset(2026, 3, 30, 12, 5, 9, TimeSpan.Zero));
+        // Date-labelled history rows reserve one line; a placeholder in a band section carries its section's budget.
+        Assert.Equal(1, LeaderboardColumns.Measure([new ScoreHistoryListRow(point, true)]).NameLines);
+        var quad = LeaderboardRowMetrics.SkeletonRows(RankingMetric.TotalScore, "q", 4)[0];
+        Assert.Equal(4, LeaderboardColumns.Measure([LeaderboardRowMetrics.SkeletonRows(RankingMetric.TotalScore, "p")[0], quad]).NameLines);
     }
 }
