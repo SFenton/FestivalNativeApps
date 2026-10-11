@@ -120,7 +120,7 @@ fun DrawerContent(
             }
             DrawerPolicy.entries(profile, showShop).forEach { entry ->
                 val active = DrawerPolicy.isSelected(entry, selected)
-                DrawerItem(entry.title, entry.icon(active), selected = active, tag = entry.tag(tabTags)) {
+                DrawerItem(entry.title, entry.icon(active), selected = active, tag = entry.tag(tabTags && entry.section in visible)) {
                     open(DrawerPolicy.target(entry, visible))
                 }
             }
@@ -175,9 +175,9 @@ internal const val PAGE_CONTENT_TOP_DP = 64
 private fun DrawerEntry.icon(active: Boolean): ImageVector =
     section?.icon(active) ?: if (active) Icons.Filled.ShoppingBag else Icons.Outlined.ShoppingBag
 
-/** Test tag: `fst.nav.tab.<section>` for tab rows of the permanent drawer, else `fst.nav.drawer.<entry>`. */
-private fun DrawerEntry.tag(tabTags: Boolean): String =
-    section?.takeIf { tabTags }?.let { "fst.nav.tab.${it.name.lowercase()}" } ?: "fst.nav.drawer.${name.lowercase()}"
+/** Test tag: `fst.nav.tab.<section>` for rows of the permanent drawer that are tabs now, else `fst.nav.drawer.<entry>`. */
+private fun DrawerEntry.tag(tab: Boolean): String =
+    section?.takeIf { tab }?.let { "fst.nav.tab.${it.name.lowercase()}" } ?: "fst.nav.drawer.${name.lowercase()}"
 
 /**
  * One drawer row.

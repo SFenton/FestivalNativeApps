@@ -301,18 +301,17 @@ class SongsInstrumentStatusChipsUiTest {
 
     @Test
     @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
-    fun twoPaneSelectedRowBalancesChipsInTheListColumn() {
+    fun twoColumnCellKeepsEveryChipInsideItsCard() {
         launch()
         waitForTag("fst.songs.instrument-status.s-alpha")
-        rule.onNodeWithTag("fst.songs.row.s-alpha").performSemanticsAction(SemanticsActions.OnClick)
-        rule.waitUntil(10_000) {
-            settle(100)
-            rule.onNodeWithTag("fst.songs.row.s-alpha").fetchSemanticsNode().config.getOrElseNullable(SemanticsProperties.Selected) { null } == true
-        }
-        // The selected (purple) row keeps every chip; its rings lighten to clear 3:1 (SongChipContrastTest).
-        // The two-pane list column is narrower than nine chips, so they balance 5 + 4.
-        rule.onNodeWithTag("fst.songs.instrument-status.s-alpha", useUnmergedTree = true).assertHeightIsEqualTo(72.dp)
+        // Songs never splits list/detail (#581): the wide window lays rows in two columns, and each
+        // half-width card keeps every chip, in order, inside its own bounds.
         assertEquals(alphaStatuses, chips("s-alpha"))
+        val node = rule.onNodeWithTag("fst.songs.instrument-status.s-alpha", useUnmergedTree = true).fetchSemanticsNode()
+        val row = rule.onNodeWithTag("fst.songs.row.s-alpha").fetchSemanticsNode()
+        val list = rule.onNodeWithTag("fst.songs.list").fetchSemanticsNode()
+        assertTrue("a half-width column cell (${row.boundsInRoot} in ${list.boundsInRoot})", row.boundsInRoot.width < list.boundsInRoot.width / 2)
+        assertTrue("chips inside the card", node.boundsInRoot.left >= row.boundsInRoot.left && node.boundsInRoot.right <= row.boundsInRoot.right)
     }
 
     @Test

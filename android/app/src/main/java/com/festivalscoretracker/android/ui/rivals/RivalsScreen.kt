@@ -307,7 +307,7 @@ fun FindRivalSheet(
             Box(Modifier.fillMaxWidth().heightIn(min = 160.dp).padding(top = 12.dp)) {
                 when (val current = state) {
                     // Find Rival searches players only; the band-mode state never applies.
-                    ProfileSearchState.Hint, ProfileSearchState.BandsUnavailable -> Text(
+                    ProfileSearchState.Hint -> Text(
                         "Enter at least 2 characters",
                         color = BrandTokens.textSecondary,
                         textAlign = TextAlign.Center,

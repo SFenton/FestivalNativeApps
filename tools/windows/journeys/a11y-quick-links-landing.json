@@ -83,7 +83,7 @@
     "tabs": 0,
     "ready": [
       "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@20",
-      "assertstate:id=fst.quick-links.open|name=Leaderboards Quick Links, current section Lead@10"
+      "assertstate:id=fst.quick-links.open|name=Leaderboards Quick Links, current section Lead + Bass + Drums + Tap Vocals@10"
     ],
     "after_ready": [
       "assertsize:id=fst.quick-links.open|40x40",
@@ -92,10 +92,13 @@
       "focus:id=fst.quick-links.open",
       "key:enter",
       "waitfor:id=fst.quick-links.item.instrument:Solo_Drums@5",
-      "assertfocus:id=fst.quick-links.item.instrument:Solo_Guitar@3",
+      "assertfocus:id=fst.quick-links.item.combo:0f@3",
+      "assertstate:id=fst.quick-links.item.combo:0f|name=Lead + Bass + Drums + Tap Vocals, current section",
+      "assertsize:id=fst.quick-links.item.combo:0f|40x40",
       "assertsize:id=fst.quick-links.item.instrument:Solo_Guitar|40x40",
       "assertsize:id=fst.quick-links.item.instrument:Solo_Bass|40x40",
       "assertsize:id=fst.quick-links.item.instrument:Solo_Drums|40x40",
+      "key:down",
       "key:down",
       "key:down",
       "assertfocus:id=fst.quick-links.item.instrument:Solo_Drums@3",
@@ -137,9 +140,10 @@
     "ready": [
       "waitfor:id=fst.quick-links.list@20",
       "waitgone:id=fst.quick-links.open@3",
-      "assertstate:id=fst.quick-links.item.instrument:Solo_Guitar|selected=true@10"
+      "assertstate:id=fst.quick-links.item.combo:0f|selected=true@10"
     ],
     "after_ready": [
+      "assertsize:id=fst.quick-links.item.combo:0f|40x40",
       "assertsize:id=fst.quick-links.item.instrument:Solo_Guitar|40x40",
       "assertsize:id=fst.quick-links.item.instrument:Solo_Bass|40x40",
       "assertsize:id=fst.quick-links.item.instrument:Solo_Drums|40x40",
@@ -155,7 +159,7 @@
       "assertstate:id=fst.quick-links.item.instrument:Solo_Drums|selected=true@5",
       "wait:1",
       "assertstate:id=fst.quick-links.item.instrument:Solo_Drums|selected=true",
-      "assertstate:id=fst.quick-links.item.instrument:Solo_Guitar|selected=false",
+      "assertstate:id=fst.quick-links.item.combo:0f|selected=false",
       "assertinset:name=Drums&class=AccessibleGroup|id=fst.leaderboards|32",
       "shot:{stem}-drums.png"
     ]

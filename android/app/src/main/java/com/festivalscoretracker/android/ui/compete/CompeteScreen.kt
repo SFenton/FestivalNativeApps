@@ -106,7 +106,7 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
     val sections = if (swap.showsContent && content.fullPageIssue == null) RivalQuickLinks.compete() else emptyList()
     // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
     val fadeIn = rememberPageFadeInWindow()
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeIn) { id ->
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeIn, headingInset = { GROUP_HEADER_TOP_PADDING }) { id ->
         when (id) {
             RivalQuickLinks.COMPETE_LEADERBOARDS -> 0
             RivalQuickLinks.COMPETE_RIVALS -> rivalsIndex
@@ -170,6 +170,12 @@ private fun CompeteGrid(content: CompeteContent, padding: PaddingValues, gridSta
     }
 }
 
+/**
+ * Space a Compete group header keeps above its title: Quick Links jumps land the title, not this space,
+ * on the landing line (`section-jump-landing` R2, issue #587).
+ */
+private val GROUP_HEADER_TOP_PADDING = 8.dp
+
 private fun LazyStaggeredGridScope.groupHeader(id: String, title: String, revealed: Boolean, stagger: Int) {
     // Full-line, but kept in the leading pane while the grid splits at a hinge (issue #343).
     foldLaneItem(key = "header:$id") {
@@ -179,7 +185,7 @@ private fun LazyStaggeredGridScope.groupHeader(id: String, title: String, reveal
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = BrandTokens.textPrimary,
-                modifier = Modifier.padding(top = 8.dp).testTag("fst.compete.section.$id").semantics { heading() },
+                modifier = Modifier.padding(top = GROUP_HEADER_TOP_PADDING).testTag("fst.compete.section.$id").semantics { heading() },
             )
         }
     }

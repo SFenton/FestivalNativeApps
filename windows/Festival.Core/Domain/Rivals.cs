@@ -73,8 +73,13 @@ public static class RivalCombo
     {
         var mask = Mask(visible);
         if (mask == ProDrumsFamilyMask) return ProDrumsToken;
-        return int.PopCount(mask) >= 2 && GroupMasks.Any(g => (mask & ~g) == 0) ? ComboId(FromMask(mask)) : null;
+        return IsWithinGroup(mask) ? ComboId(FromMask(mask)) : null;
     }
+
+    /// <summary>Whether a mask names two or more instruments of one combo group (web <c>isWithinGroupComboId</c>).</summary>
+    /// <param name="mask">Instrument mask.</param>
+    /// <returns><see langword="true"/> for an OG band or Pro Strings combo.</returns>
+    public static bool IsWithinGroup(int mask) => int.PopCount(mask) >= 2 && GroupMasks.Any(g => (mask & ~g) == 0);
 
     /// <summary>Instruments named by a combo token.</summary>
     /// <param name="token"><see cref="ProDrumsToken"/> or a 1–4 digit hex ID over the nine charts.</param>
@@ -318,6 +323,35 @@ public static class RivalCategorization
         ["barely_winning"] = ("Barely Winning", "You're just ahead — don't let them catch up.", RivalCategorySentiment.Positive),
         ["pulling_forward"] = ("Pulling Forward", "You have a solid lead on these songs.", RivalCategorySentiment.Positive),
         ["dominating_them"] = ("Dominating Them", "You're far ahead — these are your strongest matchups.", RivalCategorySentiment.Positive),
+    };
+
+    /// <summary>Every category key in page order (web <c>categorizeRivalSongs</c>).</summary>
+    public static IReadOnlyList<string> Keys { get; } =
+        ["closest_battles", "almost_passed", "slipping_away", "barely_winning", "pulling_forward", "dominating_them"];
+
+    /// <summary>
+    /// Segoe Fluent glyph for a key outside <see cref="Keys"/> (People, as the Rivals hub's Common Rivals entry), so
+    /// the Quick Links group keeps an icon on every row.
+    /// </summary>
+    public const string FallbackQuickLinkGlyph = "\uE716";
+
+    /// <summary>
+    /// The Segoe Fluent Icons glyph of one category's Rival Detail Quick Links entry (#605; shared category list in
+    /// pattern <c>quick-links</c> R9). Each shows what the category means: neck and neck (Switch), closing in
+    /// (Market), losing ground (Rewind), a narrow win (Flag), a growing lead (FastForward), a commanding lead
+    /// (FavoriteStar; Segoe has no crown). All six also exist in Segoe MDL2 Assets, the Windows 10 fallback.
+    /// </summary>
+    /// <param name="key">Category key (<see cref="RivalCategory.Key"/>).</param>
+    /// <returns>A glyph; <see cref="FallbackQuickLinkGlyph"/> for an unknown key.</returns>
+    public static string QuickLinkGlyph(string key) => key switch
+    {
+        "closest_battles" => "\uE8AB",
+        "almost_passed" => "\uEAFC",
+        "slipping_away" => "\uEB9E",
+        "barely_winning" => "\uE7C1",
+        "pulling_forward" => "\uEB9D",
+        "dominating_them" => "\uE734",
+        _ => FallbackQuickLinkGlyph,
     };
 
     /// <summary>Title for a category key, or the key itself when unknown (as on the web).</summary>
