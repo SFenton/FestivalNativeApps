@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import a11y_matrix  # noqa: E402  (sibling module)
 import ui_ci  # noqa: E402  (sibling module)
 import uiwin  # noqa: E402  (sibling module)
 
@@ -130,6 +131,16 @@ class SectionIndexJourneyTests(unittest.TestCase):
             "assertfocus:name=Not In Shop&class=GridViewItem@3", "key:esc", f"assertfocus:{JUMP}@3"], "index-shop-labels")
         for label in SHOP_LABELS:
             self.assertIn(f"assertsize:name={label}&class=GridViewItem|180x40", drive)
+
+    def test_jump_pages_judge_the_show_hide_fade_trace(self):
+        """#517 review (load-transition R6): UIA waits pass whether or not Jump fades, so the pages judge its
+        ``fade-show``/``fade-hide`` trace: under ``app-reduced`` the hide and the return must not animate."""
+        pages = load()
+        self.assertEqual(pages["index-open-escape"].get("fade_trace"), {"JumpButton": ["show", "hide", "show"]})
+        self.assertEqual(pages["index-shop-labels"].get("fade_trace"), {"JumpButton": ["show"]})
+        self.assertFalse(a11y_matrix.mode_motion("app-reduced"))
+        self.assertTrue(any(run.mode == "app-reduced" and run.pages == JOURNEY.name and "index-open-escape" in run.only
+                            for run in ui_ci.RUNS))
 
     def test_windows_ui_ci_runs_jump_pages_with_text_scaling_and_reduced_motion(self):
         """#517: the ``windows-ui`` job runs the #231 pages Axe-scanned at 100% (compact and medium), 225% text and

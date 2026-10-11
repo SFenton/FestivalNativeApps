@@ -179,6 +179,7 @@
     "name": "index-open-escape",
     "tab": "songs",
     "fixture": ["--large-catalogue"],
+    "fade_trace": {"JumpButton": ["show", "hide", "show"]},
     "ready": [
       "waitfor:id=fst.songs.row.fixture-song-1@40",
       "assertname:id=fst.songs.section-header|#"
@@ -229,6 +230,7 @@
     "name": "index-shop-labels",
     "tab": "songs",
     "fixture": ["--large-catalogue"],
+    "fade_trace": {"JumpButton": ["show"]},
     "profile": "fixture-player-1:Fixture Player 1",
     "ready": [
       "waitfor:id=fst.songs.row.fixture-song-1@40"
