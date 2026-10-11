@@ -176,6 +176,16 @@ RUNS: tuple[Run, ...] = (
     # no-player and reduced-motion states.
     Run("song-band-pinned", "a11y-song-band-pinned.json", tabs=0),
     Run("song-band-pinned-text-225", "a11y-song-band-pinned.json", sizes="compact", mode="text-225", tabs=0),
+    # The song board's pinned "your score" row joins the rows' load gate (issues #295, #457): on the first load only the
+    # spinner is exposed; on a Filter Invalid Scores reload the pinned row leaves UIA and the Tab order (Tab goes from
+    # the header to Next) while the header and pager stay; then it reads "Your rank, 1st. Open your statistics. …,
+    # button" after the rows, keeps a 40 epx target and the purple fill, and takes Tab focus after the rows. At 225%
+    # text, with in-app Reduce Motion and with Windows' Animation effects off (the pinned row arrives still).
+    Run("song-pinned-reveal", "a11y-song-pinned-reveal.json", tabs=0),
+    Run("song-pinned-reveal-text-225", "a11y-song-pinned-reveal.json", sizes="compact", mode="text-225", tabs=0),
+    Run("song-pinned-reveal-reduced", "a11y-song-pinned-reveal.json", sizes="medium", mode="app-reduced", tabs=0),
+    Run("song-pinned-reveal-no-animations", "a11y-song-pinned-reveal.json", sizes="medium", mode="no-animations",
+        tabs=0),
     # Board load swap (issues #71, #431): spinner "Busy Loading …, ProgressRing", stale rows leave UIA, selectors ->
     # spinner -> pager order, enabled 40x40 selectors and pager, focus kept on the pager, mid-load Axe scans; then the
     # same swap at 225% text and with Windows' Animation effects off. Every page is medium-only (pager plus spinner).
