@@ -1,0 +1,90 @@
+[
+  {"name": "lb-names-full-rankings", "route": "/leaderboards/all?instrument=Solo_Guitar", "fixture": ["leaderboards_fixture.py", "--long-name"], "scan": true, "tabs": 0, "sizes": ["compact"], "modes": ["normal"],
+   "note": "Long leaderboard names scroll in their column instead of overflowing (issue #292; tests issue #455). A name wider than its column scrolls (marquee) on one line while a name that fits stays still; Narrator reads the whole name once in the row's single Button name (the raw MarqueeText adds nothing); every row is one 40+ epx stop in visual order, Up/Down between rows.",
+   "ready": ["waitfor:id=fst.rankings.row.fixture-player-2@30", "wait:1"],
+   "after_ready": [
+     "assertmarquee:raw=fst.rankings.row.fixture-player-2.name|moving|30",
+     "assertmarquee:raw=fst.rankings.row.fixture-player-1.name|fits|30",
+     "assertread:id=fst.rankings.row.fixture-player-2|Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs, button",
+     "assertread:id=fst.rankings.row.fixture-player-1|Rank #1, Fixture Player 1. Total Score 89,000,000, 39 / 50 songs, button",
+     "assertsize:id=fst.rankings.row.fixture-player-2|0x40",
+     "assertapart:id=fst.rankings.row.fixture-player-1|id=fst.rankings.row.fixture-player-2",
+     "assertapart:id=fst.rankings.row.fixture-player-2|id=fst.rankings.row.fixture-rank-3",
+     "assertorder:id=fst.full-rankings.title|id=fst.rankings.row.fixture-player-1|id=fst.rankings.row.fixture-player-2|id=fst.rankings.row.fixture-rank-3",
+     "focus:id=fst.rankings.row.fixture-player-1",
+     "assertfocus:id=fst.rankings.row.fixture-player-1@3",
+     "key:down",
+     "assertfocus:id=fst.rankings.row.fixture-player-2@3",
+     "assertmarquee:raw=fst.rankings.row.fixture-player-2.name|moving|30",
+     "key:down",
+     "assertfocus:id=fst.rankings.row.fixture-rank-3@3",
+     "key:up",
+     "assertfocus:id=fst.rankings.row.fixture-player-2@3",
+     "shot:{stem}.png"
+   ]},
+  {"name": "lb-names-full-rankings-text", "route": "/leaderboards/all?instrument=Solo_Guitar", "fixture": ["leaderboards_fixture.py", "--long-name"], "tabs": 0, "sizes": ["compact", "medium"], "modes": ["text-150", "text-200", "text-225"],
+   "note": "Issue #455 text scaling (leaderboard-row R3, Windows large text = 150%, LargeText.Scale): at 150-225% text the long name wraps onto several still lines inside its column instead of scrolling (it never overflows into the songs label, score or chevron); a short name stays one still line; the row grows (R2), stays a 40+ epx stop read in full once, in rank order.",
+   "ready": ["waitfor:id=fst.rankings.row.fixture-player-2@30", "wait:1"],
+   "after_ready": [
+     "assertmarquee:raw=fst.rankings.row.fixture-player-2.name|wrapped|50",
+     "assertmarquee:raw=fst.rankings.row.fixture-player-1.name|fits|48",
+     "assertread:id=fst.rankings.row.fixture-player-2|Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs, button",
+     "assertsize:id=fst.rankings.row.fixture-player-2|0x40",
+     "assertapart:id=fst.rankings.row.fixture-player-1|id=fst.rankings.row.fixture-player-2",
+     "assertapart:id=fst.rankings.row.fixture-player-2|id=fst.rankings.row.fixture-rank-3",
+     "assertorder:id=fst.rankings.row.fixture-player-1|id=fst.rankings.row.fixture-player-2|id=fst.rankings.row.fixture-rank-3",
+     "focus:id=fst.rankings.row.fixture-player-1",
+     "key:down",
+     "assertfocus:id=fst.rankings.row.fixture-player-2@3",
+     "shot:{stem}.png"
+   ]},
+  {"name": "lb-names-full-rankings-text-reduced", "route": "/leaderboards/all?instrument=Solo_Guitar", "settings": {"reduceMotion": true}, "fixture": ["leaderboards_fixture.py", "--long-name"], "tabs": 0, "sizes": ["compact"], "modes": ["text-225"],
+   "note": "Issue #455 large text with Reduce Motion (the defect it found): before, a long name at 225% text with motion off was cut to an ellipsis (full name only in the tooltip); now it wraps onto several still lines like the other platforms (leaderboard-row R3).",
+   "ready": ["waitfor:id=fst.rankings.row.fixture-player-2@30", "wait:1"],
+   "after_ready": [
+     "assertmarquee:raw=fst.rankings.row.fixture-player-2.name|wrapped|50",
+     "assertmotion:id=fst.rankings.row.fixture-player-2|still",
+     "assertread:id=fst.rankings.row.fixture-player-2|Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs, button",
+     "assertsize:id=fst.rankings.row.fixture-player-2|0x40",
+     "assertapart:id=fst.rankings.row.fixture-player-2|id=fst.rankings.row.fixture-rank-3",
+     "shot:{stem}.png"
+   ]},
+  {"name": "lb-names-full-rankings-reduced", "route": "/leaderboards/all?instrument=Solo_Guitar", "settings": {"reduceMotion": true}, "fixture": ["leaderboards_fixture.py", "--long-name"], "tabs": 0, "sizes": ["compact"], "modes": ["normal"],
+   "note": "Issue #455 reduced motion: with the app's Reduce Motion on the long name stops scrolling and ends in an ellipsis; the row still reads the whole name once (the full-name tooltip adds no help text).",
+   "ready": ["waitfor:id=fst.rankings.row.fixture-player-2@30", "wait:1"],
+   "after_ready": [
+     "assertmarquee:raw=fst.rankings.row.fixture-player-2.name|static|30",
+     "assertmotion:id=fst.rankings.row.fixture-player-2|still",
+     "assertread:id=fst.rankings.row.fixture-player-2|Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs, button",
+     "assertsize:id=fst.rankings.row.fixture-player-2|0x40",
+     "shot:{stem}.png"
+   ]},
+  {"name": "lb-names-full-rankings-system", "route": "/leaderboards/all?instrument=Solo_Guitar", "fixture": ["leaderboards_fixture.py", "--long-name"], "tabs": 0, "sizes": ["compact"], "modes": ["no-animations"],
+   "note": "Issue #455 reduced motion: with Windows' Animation effects off the long name stops scrolling and ends in an ellipsis; the row still reads the whole name once.",
+   "ready": ["waitfor:id=fst.rankings.row.fixture-player-2@30", "wait:1"],
+   "after_ready": [
+     "assertmarquee:raw=fst.rankings.row.fixture-player-2.name|static|30",
+     "assertmotion:id=fst.rankings.row.fixture-player-2|still",
+     "assertread:id=fst.rankings.row.fixture-player-2|Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs, button"
+   ]},
+  {"name": "lb-names-overview", "route": "/leaderboards", "fixture": ["leaderboards_fixture.py", "--long-name"], "scan": true, "tabs": 0, "sizes": ["compact", "medium"], "modes": ["normal"],
+   "note": "Issue #455 on the Leaderboards overview: the Lead card's long name scrolls inside its card row, the row reads the whole name once, keeps its 40+ epx target and reads in card order (rows, then View All).",
+   "ready": ["waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@30", "wait:1"],
+   "after_ready": [
+     "assertmotion:name=Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs|moving",
+     "assertsize:name=Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs|0x40",
+     "assertread:name=Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs|Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs, button",
+     "assertorder:id=fst.leaderboards.card.Solo_Guitar|name=Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs|id=fst.leaderboards.card.Solo_Guitar.view-all",
+     "shot:{stem}.png"
+   ]},
+  {"name": "lb-names-overview-text", "route": "/leaderboards", "fixture": ["leaderboards_fixture.py", "--long-name"], "tabs": 0, "sizes": ["compact", "medium"], "modes": ["text-225"],
+   "note": "Issue #455 on the Leaderboards overview at 225% text: the Lead card's long-name row grows to show the wrapped name (at least two lines), stays still, reads the whole name once and    keeps card order (heading, rows, View All). The Lead card starts below the fold at this size, so the page scrolls View All into view first.",
+      "ready": ["scrollinto:id=fst.leaderboards.card.Solo_Guitar.view-all@30", "wait:1"],
+   "after_ready": [
+     "assertsize:name=Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs|0x80",
+     "assertmotion:name=Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs|still",
+     "assertread:name=Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs|Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs, button",
+     "assertorder:id=fst.leaderboards.card.Solo_Guitar|name=Rank #2, Fixture Player With An Extraordinarily Long Display Name That Never Fits. Total Score 88,000,000, 38 / 50 songs|id=fst.leaderboards.card.Solo_Guitar.view-all",
+     "shot:{stem}.png"
+   ]}
+]

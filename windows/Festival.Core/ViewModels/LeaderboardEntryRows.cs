@@ -214,6 +214,23 @@ public static class LeaderboardScoreRowIds
         (badgeAutomationId.StartsWith(AccuracyPrefix, StringComparison.Ordinal) ? badgeAutomationId[AccuracyPrefix.Length..] : badgeAutomationId);
 }
 
+/// <summary>UIA IDs of raw-view parts every leaderboard row has, whatever its kind.</summary>
+public static class LeaderboardRowIds
+{
+    /// <summary>Suffix of the name text's ID (issue #455).</summary>
+    public const string NameSuffix = ".name";
+
+    /// <summary>
+    /// The name text's raw-view ID, paired with the row's own ID: <c>fst.rankings.row.&lt;accountId&gt;</c> becomes
+    /// <c>fst.rankings.row.&lt;accountId&gt;.name</c>, so journeys can check its marquee (leaderboard-row R3) while
+    /// Narrator still reads the name once, in the row's name.
+    /// </summary>
+    /// <param name="rowAutomationId">The row button's ID; empty for a row without one.</param>
+    /// <returns>Name ID, or empty when the row has no ID.</returns>
+    public static string Name(string? rowAutomationId) =>
+        string.IsNullOrEmpty(rowAutomationId) ? "" : rowAutomationId + NameSuffix;
+}
+
 /// <summary>A rankings row (web <c>RankingEntry</c>): songs label, then the rating with an optional Bayesian value.</summary>
 public interface ILeaderboardRankingRow : ILeaderboardEntryRow
 {

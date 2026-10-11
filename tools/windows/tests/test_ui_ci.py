@@ -393,6 +393,22 @@ class UiCiTests(unittest.TestCase):
             self.assertIn(check, chart[zoomed:restored])
         self.assertIn("assertaligned:id=fst.paths.image|id=fst.paths.image-scroller", chart[restored:])
 
+    def test_leaderboard_names_runs_every_page(self):
+        # Issue #455 (#292): every long-name page (moving, fits, 150-225% text, Reduce Motion, Animation effects off)
+        # runs in windows-ui, Axe-scanned, at a size where the name overflows, and no page is generated twice.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-leaderboard-names.json"]
+        self.assertEqual({"normal", "text-225", "no-animations"}, {run.mode for run in runs})
+        self.assertTrue(all(run.scan and not run.only for run in runs))
+        pages = json.loads((ci.JOURNEYS / "a11y-leaderboard-names.json").read_text(encoding="utf-8"))
+        covered = {page["name"] for run in runs for page in m.mode_pages(pages, run.mode)
+                   if m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({page["name"] for page in pages}, covered)
+        steps = {page["name"]: page["after_ready"] for page in pages}
+        self.assertIn("assertmarquee:raw=fst.rankings.row.fixture-player-2.name|moving|30", steps["lb-names-full-rankings"])
+        self.assertIn("assertmarquee:raw=fst.rankings.row.fixture-player-1.name|fits|30", steps["lb-names-full-rankings"])
+        for reduced in ("lb-names-full-rankings-reduced", "lb-names-full-rankings-system"):
+            self.assertIn("assertmarquee:raw=fst.rankings.row.fixture-player-2.name|static|30", steps[reduced])
+
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)
         argv = run.argv(Path("C:/out"), "debug")

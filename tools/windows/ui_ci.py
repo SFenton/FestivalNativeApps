@@ -10,8 +10,8 @@ This is the one registry of Windows accessibility journeys that gate pull reques
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
-push (issue #452), the Paths swap (issue #430, also with Animation effects off) and the Paths chart (issue #438) run at
-default and 225% text, and
+push (issue #452), the Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438) and long
+leaderboard names (issue #455, also with Animation effects off) run at default and 225% text, and
 that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
@@ -202,6 +202,15 @@ RUNS: tuple[Run, ...] = (
     # pinned combo rank) and Back restores focus; rows stay 40+ epx stops with Down between them.
     Run("combo-boards", "a11y-combo-boards.json", tabs=0),
     Run("combo-boards-text-225", "a11y-combo-boards.json", sizes="compact", mode="text-225", tabs=0),
+    # Long leaderboard names (issues #292, #455): on Full Rankings and the Leaderboards overview a name too wide for its
+    # column scrolls on one line while one that fits stays still, the row reads the whole name once, stays a 40+ epx
+    # stop in visual order with Up/Down between rows; at 225% text (150%+) the name wraps and the row grows, still, even
+    # with Reduce Motion; at 100% under the app's Reduce Motion (in the normal run) and Windows' Animation effects off it
+    # stops on an ellipsis.
+    Run("leaderboard-names", "a11y-leaderboard-names.json", tabs=0),
+    Run("leaderboard-names-text-225", "a11y-leaderboard-names.json", mode="text-225", tabs=0),
+    Run("leaderboard-names-no-animations", "a11y-leaderboard-names.json", sizes="compact", mode="no-animations",
+        tabs=0),
     # Song Detail Score History as one card (issue #588): selector -> heading -> subtitle -> chart, then the best scores
     # as in-card rows that touch (0 epx) in score order, ending on a 40+ epx View All Scores named for the chart.
     Run("score-history-card", "a11y-score-history-card.json", tabs=0),
