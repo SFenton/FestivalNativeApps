@@ -66,7 +66,7 @@ private actor ScrollingNotificationsTransport: HTTPTransport {
 /// defaults, keeps 200 IDs per account and is filled by every sheet that disappears.
 /// Call ``forgetScrollingAccount(_:)`` when done.
 @MainActor
-private func scrollingNotificationsSession(
+func scrollingNotificationsSession(
     newCount: Int, olderCount: Int
 ) async -> (session: FestivalSession, accountId: String) {
     let accountId = "scroll\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
@@ -103,7 +103,7 @@ private func scrollingNotificationsSession(
 
 /// Drop a scrolling fixture account's seen IDs and selection suite.
 @MainActor
-private func forgetScrollingAccount(_ accountId: String) {
+func forgetScrollingAccount(_ accountId: String) {
     let key = "fst.notifications.seen"
     if var store = UserDefaults.standard.dictionary(forKey: key) {
         store[accountId] = nil
@@ -116,9 +116,9 @@ private func forgetScrollingAccount(_ accountId: String) {
 
 /// The List's own scroll view: the deepest scroll view whose document is a table.
 @MainActor
-private func listScrollView(in view: NSView) -> NSScrollView? {
+func notificationsListScrollView(in view: NSView) -> NSScrollView? {
     for subview in view.subviews {
-        if let found = listScrollView(in: subview) { return found }
+        if let found = notificationsListScrollView(in: subview) { return found }
     }
     if let scroll = view as? NSScrollView, scroll.documentView is NSTableView { return scroll }
     return nil
@@ -145,7 +145,7 @@ func notificationsRowsDoNotDrawUnderThePinnedSectionHeader(offset: Double, pinne
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     _ = try await nativeHostedSettle(host, untilText: ["New"])
-    let scroll = try #require(listScrollView(in: host))
+    let scroll = try #require(notificationsListScrollView(in: host))
 
     let clip = scroll.contentView
     clip.scroll(to: NSPoint(x: 0, y: CGFloat(offset) - scroll.contentInsets.top))
@@ -188,7 +188,7 @@ func notificationsRowsDoNotDrawUnderThePinnedSectionHeader(offset: Double, pinne
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     _ = try await nativeHostedSettle(host, untilText: ["New"])
-    let scroll = try #require(listScrollView(in: host))
+    let scroll = try #require(notificationsListScrollView(in: host))
     let table = try #require(scroll.documentView as? NSTableView)
     let headerRow = table.rect(ofRow: 0).height
     #expect(headerRow > 20)
