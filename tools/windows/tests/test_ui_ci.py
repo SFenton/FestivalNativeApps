@@ -158,6 +158,21 @@ class UiCiTests(unittest.TestCase):
         self.assertIn("compact", demos["text-225"].sizes.split(","))
         self.assertEqual({"compact", "medium"}, set(demos["normal"].sizes.split(",")))
 
+    def test_real_control_first_run_demos_run_with_text_and_motion_off(self):
+        """#498: the #380 real-control demos gate PRs at default and 225% text, and hold still with animations off."""
+        demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-real-demos.json"}
+        self.assertEqual({"normal", "text-225", "no-animations"}, set(demos))
+        self.assertTrue(all(run.scan for run in demos.values()))
+        self.assertFalse(demos["normal"].only or demos["text-225"].only)
+        self.assertEqual("frrd-infinite-scroll-static", demos["no-animations"].only)
+
+    def test_a_full_run_covers_its_file_despite_a_partial_run(self):
+        """#498: a reduced-motion ``only`` run must not make the generator re-run the file's pages a second time."""
+        generated = {run.name for run in ci.RUNS}
+        for stem in ("a11y-grouped-boards", "a11y-first-run-real-demos"):
+            self.assertNotIn(f"{stem}-normal", generated)
+            self.assertNotIn(f"{stem}-text-225", generated)
+
     def test_modals_run_at_default_and_largest_text(self):
         modal = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-modals.json"}
         self.assertEqual({("normal", True), ("text-225", True)}, modal)

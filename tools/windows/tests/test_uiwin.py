@@ -631,6 +631,14 @@ class OcclusionRobustnessTests(unittest.TestCase):
         self.assertIn("RestoreIsolated();", source.split("finally", 1)[1][:200])
         self.assertIn('"front" => Front(', source)
 
+    def test_held_motion_statuses_are_read_without_restoring_the_window(self):
+        # #498: a minimized First Run demo's paused auto-scroll (like a held Shop pulse) must be read while still
+        # minimized; restoring the window first would resume it and the assertion could never pass.
+        source = (u.DRIVER_DIR / "Program.cs").read_text(encoding="utf-8")
+        front = source.split("var front = ", 1)[1].split(";", 1)[0]
+        for token in ("not-visible", "=background", "pulse=held", "scroll=paused"):
+            self.assertIn(f'!expected.Contains("{token}"', front)
+
 
 if __name__ == "__main__":
     unittest.main()
