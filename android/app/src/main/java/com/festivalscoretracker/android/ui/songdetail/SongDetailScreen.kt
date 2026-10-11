@@ -136,6 +136,7 @@ import com.festivalscoretracker.android.ui.design.DifficultyMeter
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.RowChevron
+import com.festivalscoretracker.android.ui.design.SeasonPill
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.design.SECTION_HEADER_TOP_PADDING
 import com.festivalscoretracker.android.ui.design.StarRating
@@ -926,7 +927,7 @@ fun ScoreRow(entry: LeaderboardEntry, isSelected: Boolean = false, navigable: Bo
 }
 
 /**
- * The season column (web `SeasonPill` column): `S15` right-aligned in the section's shared
+ * The season column (web `SeasonPill` column): the shared [SeasonPill] right-aligned in the section's shared
  * width, or an empty slot for a row without a season.
  *
  * @param season Season, or null.
@@ -935,16 +936,7 @@ fun ScoreRow(entry: LeaderboardEntry, isSelected: Boolean = false, navigable: Bo
 @Composable
 private fun SeasonCell(season: Int?, width: Float) {
     Box(Modifier.width(width.dp), contentAlignment = Alignment.CenterEnd) {
-        season?.let {
-            Text(
-                LeaderboardColumnLayout.seasonLabel(it),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = BrandTokens.textSecondary,
-                maxLines = 1,
-                modifier = Modifier.semantics { contentDescription = "Season $it" },
-            )
-        }
+        season?.let { SeasonPill(it) }
     }
 }
 
@@ -979,9 +971,8 @@ private fun StackedScoreRow(entry: LeaderboardEntry, plan: LeaderboardColumnPlan
                     color = BrandTokens.textPrimary,
                 )
                 AccuracyPill(entry.accuracy, entry.isFullCombo == true, id = entry.accuracyId, expanded = true)
-                if (plan.showMeta) entry.season?.let {
-                    Text(LeaderboardColumnLayout.seasonLabel(it), style = MaterialTheme.typography.labelLarge, color = BrandTokens.textSecondary, modifier = Modifier.semantics { contentDescription = "Season $it" })
-                }
+                if (plan.showMeta) entry.season?.let { SeasonPill(it) }
+
                 if (plan.showStars) entry.stars?.takeIf { it > 0 }?.let { StarRating(it, Modifier.testTag("fst.stars"), size = 20.dp) }
             }
         }

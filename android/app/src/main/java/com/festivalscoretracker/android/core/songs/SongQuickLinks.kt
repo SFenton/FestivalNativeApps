@@ -101,6 +101,18 @@ object SongQuickLinkBuckets {
     fun title(mode: SongSortMode): String = "${mode.label} Quick Links"
 
     /**
+     * The headers Quick Links offers: none where the right-edge section index navigates
+     * (Title/Artist), so the menu never repeats the index (quick-links ios.md, issue #582);
+     * every header otherwise.
+     *
+     * @param mode Applied sort.
+     * @param headers The list's section headers.
+     * @return Quick Links targets.
+     */
+    fun quickLinkHeaders(mode: SongSortMode, headers: List<SongListHeader>): List<SongListHeader> =
+        if (mode.usesSectionIndex) emptyList() else headers
+
+    /**
      * Bucket for one song.
      *
      * @param song Song.

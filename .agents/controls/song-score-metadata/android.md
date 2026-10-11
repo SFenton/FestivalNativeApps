@@ -6,7 +6,7 @@
 
 - Chart: the filtered chart, else the first **visible** chart (`AppSettings.orderedVisibleInstruments`); a non-Lead chart shows and speaks "{chart} chart".
 - Order: `songRowVisualOrder` when Enable Visual Order is on, else the web default; visibility from `visibleMetadata`. With Percentage hidden an FC still yields an **FC** pill.
-- Pills: bold grouped score in tabular figures (`tnum`, end-aligned); accuracy tinted red→green at 25% (FC: gold outline, "98.7% FC"); percentile Top 1% gold fill, Top 5% gold outline, else neutral; 1–5 white stars in web `MiniStars` circles (service 6 = five gold with the gold ring; [star rating](../star-rating/android.md)); `S15` inverted for the current catalogue season; intensity meter (raw + 1); E/M/H/X difficulty (dark glyphs on Easy/Hard).
+- Pills: bold grouped score in tabular figures (`tnum`, end-aligned); accuracy tinted red→green at 25% (FC: gold outline, "98.7% FC"); percentile and season use the shared `PercentilePill`/`SeasonPill` ([metadata-pills](../../patterns/metadata-pills.md)): Top 1% skewed gold outline, Top 5% gold outline, else neutral; 1–5 white stars in web `MiniStars` circles (service 6 = five gold with the gold ring; [star rating](../star-rating/android.md)); `S15` inverted for the current catalogue season; intensity meter (raw + 1); E/M/H/X difficulty (dark glyphs on Easy/Hard).
 - Last Played follows the web: it appears only under the Last Played sort, as the **primary** value. The pill text is the date ("1 Sep 2026"), and the row speaks "Last played 1 Sep 2026". With icons on, the trailing entry is the played chart's icon plus the date. The spec's "toggle-controlled date under Title" native deviation is superseded on Android now that the sort ships.
 - The first pill (or Last Played entry, or the Max Distance "score / max" dual) sits top-trailing beside the title in a box capped at `PRIMARY_MAX_FRACTION` (50%) of the header width; text wraps inside it rather than squeezing the title. The rest wrap right-aligned in a `FlowRow` (`fst.songs.metadata.<songId>`, per-field `fst.songs.metadata.<field>.<songId>`). Pill text may wrap (no `maxLines`), so 2.0 text grows rather than clips.
 - Zero score, missing chart, loading/202/failed/paused scores and Filter Invalid Scores show explicit text instead (`fst.songs.score-state.<songId>`). Filter Invalid Scores adds the invalid-score icon as a second 48 dp TalkBack stop; a corrupt saved filter shows the paused state until Reset.
@@ -14,7 +14,7 @@
 
 ## Validation (issue #135, 2026-10-06, live public service)
 
-Live: profile `SFentonX` (debug profile launch, no selected-profile headers), Show Instrument Icons off unless noted. All configurations show the Score primary top-trailing and the pills right-aligned: 100% FC (gold outline), Top 1% (gold fill) / Top 4% (gold outline), five gold Mini stars, S15 inverted / older seasons muted, the intensity meter, the X difficulty pill and the Shop badge.
+Live: profile `SFentonX` (debug profile launch, no selected-profile headers), Show Instrument Icons off unless noted. All configurations show the Score primary top-trailing and the pills right-aligned: 100% FC (gold outline), Top 1% (skewed gold outline, #606) / Top 4% (gold outline), five gold Mini stars, S15 inverted / older seasons muted, the intensity meter, the X difficulty pill and the Shop badge.
 
 | Configuration | Result |
 |---|---|

@@ -27,6 +27,8 @@ import com.festivalscoretracker.android.core.rankings.LeaderboardColumnPlan
 import com.festivalscoretracker.android.core.rankings.LeaderboardRowKind
 import com.festivalscoretracker.android.core.rankings.LeaderboardSection
 import com.festivalscoretracker.android.core.rankings.ScoreSectionTexts
+import com.festivalscoretracker.android.ui.design.METADATA_PILL_PADDING_H
+import com.festivalscoretracker.android.ui.design.SEASON_PILL_MIN_WIDTH
 
 // region Section columns
 
@@ -97,7 +99,8 @@ fun rememberScoreColumns(entries: List<LeaderboardEntry>, minRankWidth: Dp = 0.d
         LeaderboardSection(
             kind = LeaderboardRowKind.Score,
             rankWidth = maxOf(widest(texts.ranks, typography.labelLarge), minRankWidth.value),
-            metaWidth = widest(texts.seasons, typography.labelLarge),
+            // The season column holds the shared [SeasonPill]: its label plus padding, never below the pill's minimum.
+            metaWidth = widest(texts.seasons, typography.labelLarge).let { if (it == 0f) 0f else maxOf(it + 2 * METADATA_PILL_PADDING_H.value, SEASON_PILL_MIN_WIDTH.value) },
             valueWidth = widest(texts.scores, typography.bodyMedium),
             hasAccuracy = texts.hasAccuracy,
             hasStars = texts.hasStars,

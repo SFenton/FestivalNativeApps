@@ -128,9 +128,8 @@ internal fun SuggestionsScreenContent(
         title = "Suggestions",
         isRoot = isRoot,
         modifier = Modifier.semantics { testTagsAsResourceId = true },
-        // Filter stays reachable while the cards scroll (issue #52), and TalkBack reaches it before
-        // the endless feed rather than after it (issue #112).
-        pinActions = true,
+        // TalkBack reaches Filter before the endless feed rather than after it (issue #112); like
+        // every page's toolbar it stays on screen while the cards scroll (R7, issues #52, #577).
         actionsReadFirst = true,
         actions = {
             if (state.phase != SuggestionsPhase.NoPlayer) {

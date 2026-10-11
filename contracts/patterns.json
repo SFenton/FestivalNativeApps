@@ -414,7 +414,7 @@
       "title": "Section headers",
       "status": "current",
       "doc": ".agents/patterns/section-headers.md",
-      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap, and the list end lets the last push finish.",
+      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap, the list end lets the last push finish, and Songs titles its sections in every sort, A–Z included.",
       "keywords": [
         "section header",
         "section title",
@@ -618,7 +618,7 @@
       "title": "Surface materials",
       "status": "current",
       "doc": ".agents/patterns/surface-materials.md",
-      "summary": "Use one native frosted material surface for content cards, rows and custom floating controls; reserve Liquid Glass and system materials for navigation and chrome; opaque fallbacks win for contrast and reduced transparency.",
+      "summary": "Use one native frosted material surface for content cards, rows and custom floating controls; reserve Liquid Glass and system materials for navigation and chrome; opaque fallbacks win for contrast and reduced transparency. Owner-approved #596 variant: the Apple profile's Duos, Trios and Quads band previews are one grouped card each (rows with hairlines, purple View All inside), unlike the web's per-band frosted cards.",
       "keywords": [
         "material",
         "glass",
@@ -715,12 +715,12 @@
         {
           "id": "apple-glass-effect",
           "glob": "apple/Sources/**/*.swift",
-          "regex": "\\.glassEffect\\s*\\(",
+          "regex": "\\.glassEffect\\s*\\(|UIGlassEffect\\s*\\(",
           "allow": [
             "apple/Sources/FestivalUI/Design/GlassSurface.swift"
           ],
           "debt": [],
-          "message": "Liquid Glass implementation belongs only to GlassSurface (surface-materials R2)."
+          "message": "Liquid Glass implementation (SwiftUI glassEffect or UIKit UIGlassEffect, including the #559 drawer search field backing) belongs only to GlassSurface (surface-materials R2)."
         },
         {
           "id": "apple-glass-consumers",
@@ -805,7 +805,8 @@
         319,
         381,
         461,
-        588
+        588,
+        596
       ]
     },
     {
@@ -992,6 +993,10 @@
             "symbol": "RadioButtonsRowSpacing"
           },
           {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "DefaultComboBoxItemStyle"
+          },
+          {
             "path": "windows/Festival.App/Controls/WrapPanel.cs",
             "symbol": "WrapPanel"
           },
@@ -1024,6 +1029,13 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt"
           ],
           "message": "The shell alone renders the floating toolbar, at every window size (page-tools-and-nav-chrome R4, R6)."
+        },
+        {
+          "id": "android-floating-toolbar-stays-on-screen",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "exitAlwaysScrollBehavior|FloatingToolbarScrollState|pinActions\\b",
+          "allow": [],
+          "message": "The floating toolbar never hides on scroll, on any page (page-tools-and-nav-chrome R7, agent decision #577)."
         },
         {
           "id": "windows-titlebar-content",
@@ -1065,7 +1077,7 @@
             "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
             "apple/Sources/FestivalUI/Features/Profile/ProfileSelectionSheet.swift"
           ],
-          "message": "A pushing page's search drawer goes through SongsSystemFilterField so SearchDrawerTransitionFill draws its capsule during push and pop (page-tools-and-nav-chrome R19); the Profile sheet never pushes."
+          "message": "A pushing page's search drawer goes through SongsSystemFilterField so SearchDrawerTransitionFill gives it the glass backing at every scroll position (#559) and draws its capsule during push and pop (page-tools-and-nav-chrome R19); the Profile sheet never pushes and keeps the system look."
         },
         {
           "id": "android-one-top-app-bar",
@@ -1124,7 +1136,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586).",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586), and no sheet or dialog draws a line under the shared header (owner, #607); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612).",
       "keywords": [
         "modal",
         "sheet",
@@ -1203,6 +1215,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
             "symbol": "FestivalAlertDialog"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "symbol": "FestivalModalHeader"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/HingeSide.kt",
@@ -1338,7 +1354,8 @@
         360,
         368,
         400,
-        420
+        420,
+        607
       ]
     },
     {
@@ -1397,6 +1414,10 @@
         {
           "path": "components/bands/SongBandScoreFooter.tsx",
           "symbol": "getSongBandScoreWidth"
+        },
+        {
+          "path": "pages/leaderboard/player/PlayerHistoryPage.tsx",
+          "symbol": "scoreWidth"
         }
       ],
       "canonical": {
@@ -1456,6 +1477,10 @@
           {
             "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
             "symbol": "FestivalGroupSegment"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/LeaderboardColumnSlot.swift",
+            "symbol": "LeaderboardColumnSlot"
           }
         ],
         "android": [
@@ -1715,7 +1740,8 @@
         370,
         381,
         409,
-        461
+        461,
+        594
       ]
     },
     {
@@ -2984,7 +3010,7 @@
       "title": "View all call to action",
       "status": "current",
       "doc": ".agents/patterns/view-all-cta.md",
-      "summary": "A card of preview rows ends with one full-width brand-purple button after the rows (on Apple inside the group card as FestivalGlassSection's action, a flat opaque purple and never Liquid Glass, agent decision #382; on Android inside the GlassCard of Song Detail's instrument, band and Score History cards, #588; on the Windows and Android profile each Duos/Trios/Quads group is one card ending in it, owner-approved variant #596) (View Full Leaderboard, View All Rivals, View All on Rival Detail categories, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours. The preview keeps its capped length: the button navigates to the full list's own page (pushed, or the trailing pane in a split; Song Detail View All Scores opens Player History with its sorts) and never expands the card in place (R8, owner #324); Leaderboards' View All Rankings opens Full Rankings beside the overview (#352).",
+      "summary": "A card of preview rows ends with one full-width brand-purple button after the rows (on Apple inside the group card as FestivalGlassSection's action, a flat opaque purple and never Liquid Glass, agent decision #382; on Android inside the GlassCard of Song Detail's instrument, band and Score History cards, #588; on the Windows, Android and Apple profile each Duos/Trios/Quads group is one card ending in it, owner-approved variant #596) (View Full Leaderboard, View All Rivals, View All on Rival Detail categories, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours. The preview keeps its capped length: the button navigates to the full list's own page (pushed, or the trailing pane in a split; Song Detail View All Scores opens Player History with its sorts) and never expands the card in place (R8, owner #324); Leaderboards' View All Rankings opens Full Rankings beside the overview (#352).",
       "keywords": [
         "view all",
         "view full leaderboard",
@@ -3378,7 +3404,8 @@
         82,
         276,
         347,
-        369
+        369,
+        410
       ]
     },
     {
@@ -3537,8 +3564,28 @@
             "symbol": "InvalidScorePolicy"
           },
           {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "ResolveFiltered"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "InvalidScoreWarning"
+          },
+          {
+            "path": "windows/Festival.Core/Data/Models.cs",
+            "symbol": "FilteredPopulation"
+          },
+          {
             "path": "windows/Festival.Core/ViewModels/SongScoreSource.cs",
             "symbol": "ForSongs"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongScoreSource.cs",
+            "symbol": "ForDetail"
+          },
+          {
+            "path": "windows/Festival.App/Controls/InvalidScoreIndicator.cs",
+            "symbol": "InvalidScoreIndicator"
           }
         ]
       },
@@ -4109,7 +4156,7 @@
       "title": "Experimental ranks",
       "status": "current",
       "doc": ".agents/patterns/experimental-ranks.md",
-      "summary": "Settings → Enable Experimental Leaderboard Ranks (off by default, reset by Reset) is the one gate for the experimental ranking metrics app-wide like the web: while off, Rank By offers Total Score only and is hidden in-page (the Mac View › Rank By submenu lists only Total Score); saved, routed and selected metrics are coerced to Total Score at read time, never rewritten; turning it off returns open pages to Total Score; on offers Adjusted, Weighted, FC Rate and Max Score (bands without Max Score); Rivals Rank By, profile rank tiles, rank notifications (web projection) and the first-run slide follow it (#541).",
+      "summary": "Settings \u2192 Enable Experimental Leaderboard Ranks (off by default, reset by Reset) is the one gate for the experimental ranking metrics app-wide like the web: while off, Rank By offers Total Score only and is hidden in-page (the Mac View \u203a Rank By submenu lists only Total Score); saved, routed and selected metrics are coerced to Total Score at read time, never rewritten; turning it off returns open pages to Total Score; on offers Adjusted, Weighted, FC Rate and Max Score (bands without Max Score); Rivals Rank By, profile rank tiles, rank notifications (web projection) and the first-run slide follow it (#541).",
       "keywords": [
         "experimental ranks",
         "experimental leaderboard ranks",
@@ -4255,7 +4302,7 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/firstrun/FirstRunRotatingDemos.kt"
           ],
           "debt": [],
-          "message": "Rank By menus and metric lists offer RankingMetric.enabled / BandRankingMetric.enabled (or a view model's gated options), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1)."
+          "message": "Rank By menus and metric lists offer RankingMetric.enabled / BandRankingMetric.enabled (or a view model's gated options), never every metric, so Settings \u2192 Experimental Ranks gates them (experimental-ranks R1)."
         },
         {
           "id": "apple-ungated-metric-list",
@@ -4277,7 +4324,7 @@
             "windows/Festival.Core/ViewModels/RivalsViewModels.cs"
           ],
           "debt": [],
-          "message": "Rank By menus offer RankingMetricInfo.Enabled / BandRankingMetricInfo.Enabled (a view model's gated MetricOptions), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1). Band Detail and the Rivals hub list every metric only behind ShowRankBy / ShowMetricPicker."
+          "message": "Rank By menus offer RankingMetricInfo.Enabled / BandRankingMetricInfo.Enabled (a view model's gated MetricOptions), never every metric, so Settings \u2192 Experimental Ranks gates them (experimental-ranks R1). Band Detail and the Rivals hub list every metric only behind ShowRankBy / ShowMetricPicker."
         }
       ],
       "supersedes": [],
@@ -4579,7 +4626,7 @@
       "title": "Search scopes: global and profile search",
       "status": "current",
       "doc": ".agents/patterns/search-scopes.md",
-      "summary": "Every song/player/band search runs the platform's global-search engine with the kinds it needs as targets; the profile search offers All · Players · Bands and starts on All with players and bands searched together (owner #600, web SearchModal targets players|bands), reuses global search's rows, order and All-only titles, opens a player or a band's page (no gate message), and uses a native scope control with an explicit All (Apple scope bar, Android M3 segmented buttons, Windows SelectorBar; agent decision #600). Find Rival stays players-only.",
+      "summary": "Every song/player/band search runs the platform's global-search engine with the kinds it needs as targets; the profile search offers All · Players · Bands and starts on All with players and bands searched together (owner #600, web SearchModal targets players|bands), names the scope's targets in its prompt (\"Search players or bands\"), reuses global search's rows, order and All-only titles, opens a player or a band's page (no gate message), and uses a native scope control with an explicit All (Apple scope bar, Android M3 segmented buttons, Windows SelectorBar; agent decision #600). Find Rival stays players-only.",
       "keywords": [
         "search scope",
         "scope bar",
@@ -4589,9 +4636,18 @@
         "players and bands",
         "segmented button",
         "selectorbar",
-        "all players bands"
+        "all players bands",
+        "global search",
+        "band search",
+        "player search",
+        "segmented control",
+        "targets"
       ],
       "web": [
+        {
+          "path": "App.tsx",
+          "symbol": "PROFILE_SEARCH_CONFIG"
+        },
         {
           "path": "components/search/SearchModal.tsx",
           "symbol": "SearchModal"
@@ -4604,12 +4660,20 @@
       "canonical": {
         "apple": [
           {
+            "path": "apple/Sources/FestivalCore/GlobalSearch.swift",
+            "symbol": "GlobalSearchTargets"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchModel.swift",
             "symbol": "GlobalSearchModel"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
             "symbol": "GlobalSearchResults"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
+            "symbol": "GlobalSearchIdentifiers"
           }
         ],
         "android": [
@@ -4636,6 +4700,10 @@
         ],
         "windows": [
           {
+            "path": "windows/Festival.Core/Domain/GlobalSearchResults.cs",
+            "symbol": "SearchScopes"
+          },
+          {
             "path": "windows/Festival.Core/ViewModels/GlobalSearchViewModel.cs",
             "symbol": "GlobalSearchViewModel"
           }
@@ -4652,6 +4720,7 @@
         ],
         "pages": []
       },
+      "guards": [],
       "issues": [
         299,
         320,
@@ -4659,6 +4728,94 @@
         573,
         600
       ]
+    },
+    {
+      "id": "metadata-pills",
+      "title": "Metadata pills",
+      "status": "current",
+      "doc": ".agents/patterns/metadata-pills.md",
+      "summary": "The season chip (S15) and percentile chip (Top N%) are one shared component each per platform, one size everywhere (chip label style, 24 dp tall, 8 dp corners, season >= 48 dp, percentile >= 5.5 em), with the web colours: seasons textSecondary on surfaceSubtle with a borderSubtle outline and the catalogue's current season inverted; Top 1% skewed gold outline, Top 5% gold outline, else 10% white. Season pills read 'Season N' / 'Current season N' (#606).",
+      "keywords": [
+        "season pill",
+        "season chip",
+        "current season",
+        "percentile pill",
+        "top x%",
+        "top 1%",
+        "top 5%",
+        "chip contrast",
+        "metadata pill"
+      ],
+      "web": [
+        {
+          "path": "components/songs/metadata/SeasonPill.tsx",
+          "symbol": "SeasonPill"
+        },
+        {
+          "path": "components/songs/metadata/PercentilePill.tsx",
+          "symbol": "PercentilePill"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/ScoreSeasonPill.swift",
+            "symbol": "ScoreSeasonPill"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerPercentileTable.swift",
+            "symbol": "PercentilePill"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/MetadataPills.kt",
+            "symbol": "SeasonPill"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/MetadataPills.kt",
+            "symbol": "PercentilePill"
+          }
+        ],
+        "windows": []
+      },
+      "related": {
+        "patterns": [
+          "leaderboard-row",
+          "surface-materials",
+          "shop-offer-status"
+        ],
+        "pages": [
+          "songs",
+          "suggestions",
+          "song-detail",
+          "song-leaderboard",
+          "player-history",
+          "player-profile",
+          "statistics",
+          "band-detail"
+        ],
+        "controls": [
+          "song-score-metadata",
+          "score-accuracy"
+        ]
+      },
+      "guards": [
+        {
+          "id": "android-private-pill",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "fun\\s+\\w*(SeasonPill|PercentilePill)\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/design/MetadataPills.kt"
+          ],
+          "message": "Season and percentile chips use the shared ui/design/MetadataPills.kt components (metadata-pills R1)."
+        }
+      ],
+      "issues": [
+        606
+      ],
+      "supersedes": [],
+      "supersededBy": null
     }
   ]
 }

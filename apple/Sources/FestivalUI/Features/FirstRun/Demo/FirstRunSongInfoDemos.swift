@@ -154,6 +154,7 @@ struct FirstRunSongInfoViewAllDemo: View {
             FirstRunViewAllRow(title: "View All Scores")
                 .firstRunStagger(FirstRunDemoPool.ownHistory.count)
         }
+        .leaderboardSectionColumns(.scoreHistory(FirstRunDemoPool.ownHistory.map(\.newScore)))
         .accessibilityHidden(true)
     }
 }

@@ -196,7 +196,8 @@ class SongsWideColumnsUiTest {
         // Folded (taller than wide, no fold): one column. Scroll so M's second song leads.
         assertOneColumn()
         val m = SectionIndexFixtures.labels.indexOf("M")
-        rule.onNodeWithTag("fst.songs.list").performScrollToIndex(m * 2 + 1)
+        // Each section is its title then its two songs (issue #582).
+        rule.onNodeWithTag("fst.songs.list").performScrollToIndex(m * 3 + 2)
         settle()
         assertEquals("fst.songs.row.s-$m-2", firstRow())
         // Unfold: two columns, and M's line (holding that song) stays first.

@@ -56,8 +56,9 @@ public sealed partial class SongDetailViewModel : ObservableObject
             // The band read carries the player as accountId (their best band per size), so it re-reads too.
             if (BandPreviews.Count > 0) _ = LoadBandsAsync();
         }
-        if (!SongScoreSource.AffectsRows(e.PropertyName) && e.PropertyName != nameof(FestivalSession.Catalog)) return;
-        var scores = SongScoreSource.For(session);
+        if (!SongScoreSource.AffectsRows(e.PropertyName) && e.PropertyName is not (nameof(FestivalSession.Catalog) or nameof(FestivalSession.Settings))) return;
+        // Settings too: Filter Invalid Scores and its leeway change row eleven's effective score in place.
+        var scores = SongScoreSource.ForDetail(session, Song);
         foreach (var card in Leaderboards) card.UpdatePlayer(scores);
     }
 
@@ -186,14 +187,14 @@ public sealed partial class SongDetailViewModel : ObservableObject
             BandPreviews = bands;
             _ = LoadBandsAsync();
             await SongScoreSource.LoadAsync(session);
-            var scores = SongScoreSource.For(session);
+            var scores = SongScoreSource.ForDetail(session, found);
             var charted = VisibleCharted();
             var cards = charted.Select(i => new LeaderboardPreviewViewModel(session, found, i, scores)).ToList();
             await Task.WhenAll(cards.Count == 0 ? Task.CompletedTask : LoadBoardsAsync(found, cards), History.LoadAsync(found, charted));
             // Publish the cards before the final score read: a score change after this point reaches them through
             // OnSessionChanged, and one before it is covered by the read below (else row eleven could be missed).
             Leaderboards = cards;
-            var latest = SongScoreSource.For(session);
+            var latest = SongScoreSource.ForDetail(session, found);
             foreach (var card in cards) card.UpdatePlayer(latest);
             PathInstruments = [.. charted.Where(i => i.HasPaths())];
             State = LoadState.Loaded;

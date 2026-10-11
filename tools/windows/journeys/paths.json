@@ -1077,7 +1077,7 @@
     ]
   },
   {
-    "name": "paths-selectors-reflow",
+    "name": "paths-selectors-icon-only",
     "fixture": ["paths_fixture.py"],
     "route": "/songs/fixture-pulse",
     "settings": {
@@ -1088,20 +1088,34 @@
       "invoke:id=fst.song-detail.paths",
       "waitfor:id=fst.paths@10",
       "waitfor:id=fst.paths.image@15",
-      "assertbelow:id=fst.paths.difficulty.compact|id=fst.paths.instrument.compact",
+      "assertlevel:id=fst.paths.instrument.compact|id=fst.paths.difficulty.compact",
       "assertlevel:id=fst.paths.difficulty.compact|id=fst.paths.display.compact",
+      "assertstate:id=fst.paths.instrument.compact|value=Lead",
+      "assertstate:id=fst.paths.display.compact|value=Image",
+      "assertread:id=fst.paths.instrument.compact|Instrument, combo box, collapsed",
+      "assertread:id=fst.paths.display.compact|Display, combo box, collapsed",
+      "assertsize:id=fst.paths.instrument.compact|40x40",
+      "assertsize:id=fst.paths.display.compact|40x40",
       "focus:id=fst.paths.instrument.compact",
       "key:tab",
       "assertfocus:id=fst.paths.difficulty.compact",
       "key:tab",
       "assertfocus:id=fst.paths.display.compact",
+      "wait:1",
+      "shot:{stem}-icon-only.png",
       "expand:id=fst.paths.instrument.compact",
       "waitfor:name=Drums&class=ComboBoxItem@5",
       "select:name=Drums&class=ComboBoxItem",
       "waitfor:id=fst.paths.empty@15",
-      "assertbelow:id=fst.paths.difficulty.compact|id=fst.paths.instrument.compact",
+      "assertstate:id=fst.paths.instrument.compact|value=Drums",
+      "assertlevel:id=fst.paths.instrument.compact|id=fst.paths.difficulty.compact",
+      "expand:id=fst.paths.display.compact",
+      "waitfor:name=Text&class=ComboBoxItem@5",
+      "select:name=Text&class=ComboBoxItem",
+      "assertstate:id=fst.paths.display.compact|value=Text",
+      "assertlevel:id=fst.paths.difficulty.compact|id=fst.paths.display.compact",
       "wait:1",
-      "shot:{stem}-reflow.png"
+      "shot:{stem}-icon-only-text.png"
     ],
     "sizes": [
       "compact"
