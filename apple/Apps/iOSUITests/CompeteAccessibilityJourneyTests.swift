@@ -20,7 +20,9 @@ import XCTest
 /// ellipsis, no clipped word), render glyphs more than 1.35× taller than at the default size
 /// (recognized line height), and every row and button must be hittable there, the buttons at
 /// least 44 × 44 pt. A scoped audit covers Dynamic Type, clipped text, hit regions and
-/// descriptions on Compete's own elements. macOS hosting cannot scale text, so this journey is
+/// descriptions on Compete's own elements. A second journey goes Back from View Full
+/// Leaderboard at AX5 and checks that the same page returns without its spinner (#39, #410).
+/// macOS hosting cannot scale text, so this journey is
 /// the AX5 evidence; `FestivalUITests/CompeteLoadingAccessibilityTests` covers the spinner's
 /// name, role and the VoiceOver tree in `apple-ci`.
 ///
@@ -166,7 +168,78 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
         }
         attach("compete-ax5-growth", growth.joined(separator: "\n"))
         record(app, name: "compete-ax5-end")
+        try auditCompete(app, size: "AX5")
+    }
 
+    // MARK: - Back from View Full Leaderboard (issue #39, backfilled by #410)
+
+    /// How long Compete is watched after Back for a spinner or a moved button.
+    private static let returnWatch: TimeInterval = 2
+    /// How far, in points, the View Full Leaderboard button may sit from where it was.
+    private static let returnTolerance: CGFloat = 1
+
+    /// Back from a board's View Full Leaderboard (#39) returns to the same loaded Compete
+    /// at AX5: the page spinner never comes back, the button the reader left from is where
+    /// it was (no reload jitter), still a hittable button of at least 44 × 44 pt, the page
+    /// reads in the same order with the same heading traits, and the scoped audit is clean.
+    ///
+    /// HIG VoiceOver: "be sure to keep labels current as interface and content change";
+    /// HIG Progress indicators show only while an operation is ongoing.
+    @MainActor
+    func testBackFromFullLeaderboardKeepsCompeteReadableAtAX5() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+
+        let app = launch(contentSize: UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue)
+        guard let bass = Self.readingOrder.last(where: { $0.kind == .action }) else {
+            return XCTFail("the reading order ends with a board's View Full Leaderboard")
+        }
+        let (button, before) = reveal(bass, in: app)
+        XCTAssertTrue(button.isHittable, "\(bass) is reachable before leaving")
+        assertReadingOrder(app, size: "AX5 before View Full Leaderboard")
+        record(app, name: "compete-ax5-before-full-leaderboard")
+
+        button.tap()
+        XCTAssertTrue(app.navigationBars["Bass Rankings"].waitForExistence(timeout: FestivalApp.budget(15)),
+                      "View Full Leaderboard, Bass pushes Bass Rankings")
+        let back = app.buttons["BackButton"]
+        (back.exists && back.isHittable ? back : app.navigationBars.buttons.firstMatch).tap()
+        XCTAssertTrue(app.navigationBars["Compete"].waitForExistence(timeout: FestivalApp.budget(15)), "Back returns to Compete")
+        XCTAssertTrue(app.navigationBars["Bass Rankings"].waitForNonExistence(timeout: FestivalApp.budget(5)),
+                      "the full leaderboard has left")
+
+        let spinner = app.descendants(matching: .any)["fst.compete.loading"]
+        let deadline = Date().addingTimeInterval(FestivalApp.budget(Self.returnWatch))
+        var samples: [String] = []
+        repeat {
+            XCTAssertFalse(spinner.exists, "Compete does not show its spinner again after Back")
+            XCTAssertTrue(button.exists, "\(bass) stays on the page after Back")
+            samples.append("\(button.frame)")
+        } while Date() < deadline
+        attach("compete-ax5-return-frames", samples.joined(separator: "\n"))
+
+        let after = button.frame
+        XCTAssertEqual(after.minY, before.minY, accuracy: Self.returnTolerance, "\(bass) keeps its place: \(after) vs \(before)")
+        XCTAssertEqual(after.minX, before.minX, accuracy: Self.returnTolerance, "\(bass) keeps its place: \(after) vs \(before)")
+        XCTAssertEqual(after.height, before.height, accuracy: Self.returnTolerance, "\(bass) keeps its size: \(after) vs \(before)")
+        XCTAssertTrue(button.isHittable, "\(bass) is reachable after Back")
+        XCTAssertGreaterThanOrEqual(after.height, 44, "\(bass) is at least 44 pt tall after Back: \(after)")
+        XCTAssertGreaterThanOrEqual(after.width, 44, "\(bass) is at least 44 pt wide after Back: \(after)")
+        assertReadingOrder(app, size: "AX5 after Back")
+        record(app, name: "compete-ax5-after-back")
+        try auditCompete(app, size: "AX5 after Back")
+    }
+
+    // MARK: - Audit
+
+    /// Run the scoped audit (Dynamic Type, clipped text, hit regions, descriptions) and fail on
+    /// any issue in Compete's own elements.
+    ///
+    /// - Parameters:
+    ///   - app: The launched, loaded app showing Compete.
+    ///   - size: Label for failure messages.
+    @MainActor
+    private func auditCompete(_ app: XCUIApplication, size: String) throws {
         var issues: [String] = []
         let labels = Set(Self.readingOrder.filter { $0.kind != .row }.map(\.label))
         try app.performAccessibilityAudit(
@@ -180,7 +253,7 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
             issues.append("\(id) '\(label)': \(issue.compactDescription)")
             return true
         }
-        XCTAssertEqual(issues, [], "Compete audit issues at AX5")
+        XCTAssertEqual(issues, [], "Compete audit issues at \(size)")
     }
 
     // MARK: - Reading order

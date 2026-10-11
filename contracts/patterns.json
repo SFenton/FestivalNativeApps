@@ -713,12 +713,12 @@
         {
           "id": "apple-glass-effect",
           "glob": "apple/Sources/**/*.swift",
-          "regex": "\\.glassEffect\\s*\\(",
+          "regex": "\\.glassEffect\\s*\\(|UIGlassEffect\\s*\\(",
           "allow": [
             "apple/Sources/FestivalUI/Design/GlassSurface.swift"
           ],
           "debt": [],
-          "message": "Liquid Glass implementation belongs only to GlassSurface (surface-materials R2)."
+          "message": "Liquid Glass implementation (SwiftUI glassEffect or UIKit UIGlassEffect, including the #559 drawer search field backing) belongs only to GlassSurface (surface-materials R2)."
         },
         {
           "id": "apple-glass-consumers",
@@ -991,6 +991,10 @@
             "symbol": "RadioButtonsRowSpacing"
           },
           {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "DefaultComboBoxItemStyle"
+          },
+          {
             "path": "windows/Festival.App/Controls/WrapPanel.cs",
             "symbol": "WrapPanel"
           },
@@ -1064,7 +1068,7 @@
             "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
             "apple/Sources/FestivalUI/Features/Profile/ProfileSelectionSheet.swift"
           ],
-          "message": "A pushing page's search drawer goes through SongsSystemFilterField so SearchDrawerTransitionFill draws its capsule during push and pop (page-tools-and-nav-chrome R19); the Profile sheet never pushes."
+          "message": "A pushing page's search drawer goes through SongsSystemFilterField so SearchDrawerTransitionFill gives it the glass backing at every scroll position (#559) and draws its capsule during push and pop (page-tools-and-nav-chrome R19); the Profile sheet never pushes and keeps the system look."
         },
         {
           "id": "android-one-top-app-bar",
@@ -1123,7 +1127,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612).",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586), and no sheet or dialog draws a line under the shared header (owner, #607); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612).",
       "keywords": [
         "modal",
         "sheet",
@@ -1202,6 +1206,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
             "symbol": "FestivalAlertDialog"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "symbol": "FestivalModalHeader"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/HingeSide.kt",
@@ -1337,7 +1345,8 @@
         360,
         368,
         400,
-        420
+        420,
+        607
       ]
     },
     {
@@ -1397,6 +1406,10 @@
         {
           "path": "components/bands/SongBandScoreFooter.tsx",
           "symbol": "getSongBandScoreWidth"
+        },
+        {
+          "path": "pages/leaderboard/player/PlayerHistoryPage.tsx",
+          "symbol": "scoreWidth"
         }
       ],
       "canonical": {
@@ -1460,6 +1473,10 @@
           {
             "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
             "symbol": "FestivalGroupSegment"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/LeaderboardColumnSlot.swift",
+            "symbol": "LeaderboardColumnSlot"
           }
         ],
         "android": [
@@ -1719,7 +1736,8 @@
         370,
         381,
         409,
-        461
+        461,
+        594
       ]
     },
     {
@@ -3382,7 +3400,8 @@
         82,
         276,
         347,
-        369
+        369,
+        410
       ]
     },
     {
@@ -3541,8 +3560,28 @@
             "symbol": "InvalidScorePolicy"
           },
           {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "ResolveFiltered"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "InvalidScoreWarning"
+          },
+          {
+            "path": "windows/Festival.Core/Data/Models.cs",
+            "symbol": "FilteredPopulation"
+          },
+          {
             "path": "windows/Festival.Core/ViewModels/SongScoreSource.cs",
             "symbol": "ForSongs"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongScoreSource.cs",
+            "symbol": "ForDetail"
+          },
+          {
+            "path": "windows/Festival.App/Controls/InvalidScoreIndicator.cs",
+            "symbol": "InvalidScoreIndicator"
           }
         ]
       },

@@ -94,6 +94,18 @@ import Testing
     #expect(none.scoreLabel == nil && none.scoreCharacters == 1)
 }
 
+/// Score History lists share only the score width (#594): no rank, rating or songs
+/// labels, and the season column stays with `ScoreRowSeasonPolicy`.
+@Test func scoreHistoryColumnsShareOnlyTheLongestScore() {
+    let columns = LeaderboardRowColumns.scoreHistory([99_800, 1_234_567, 708_315, -1])
+    #expect(columns.scoreLabel == LeaderboardRowColumns.scoreLabel(1_234_567))
+    var withoutScore = columns
+    withoutScore.scoreLabel = nil
+    #expect(withoutScore == .unconstrained)
+    #expect(LeaderboardRowColumns.scoreHistory([]).scoreLabel == nil)
+    #expect(LeaderboardRowColumns.scoreHistory([-1]).scoreLabel == nil)
+}
+
 @Test func ratingColumnUsesTheLongestRatingLabel() {
     let ratings = ["Top 1%", "Top 0.03%", "Top 12%"]
     let columns = LeaderboardRowColumns.fit(.rankings, width: 402, ranks: [1, 2, 3], ratings: ratings)

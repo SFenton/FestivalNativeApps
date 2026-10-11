@@ -282,6 +282,8 @@ Fixed:
 
 Driver note: `RadioMenuFlyoutItem`s expose Toggle, not Invoke. `invoke:` falls back to a click that misses the popup, so drive menu radio items with `toggle:` or the keyboard.
 
+Driver note (issue #439): `assertorder` walks the window's reading order, which leaves out an open `ComboBox`'s options (they sit in the popup). Check option order with `assertbelow:<later>|<earlier>` pairs on `name=<option>&class=ComboBoxItem`, and a missing option with `waitgone:…@1`.
+
 ## Player Bands validation (issue #210, 2026-10)
 
 Evidence: `a11y_matrix.py --scan --tabs 20` for `player-bands` at compact, medium, wide, snap-left, snap-right and maximized. It was then run at compact and wide under Desert, Night sky, light theme, text 200%, display 100% and 150%: 0 Axe errors in all 18 runs. The live public service (SFentonX, temporary wrapper without `--base-url`) also gave 0 Axe errors at the same five sizes, under Desert, at text 200% and at display 150%. Results per configuration are in [player-bands/windows.md](../pages/player-bands/windows.md#validation-issue-210).
