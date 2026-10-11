@@ -52,7 +52,7 @@ struct SoloLeaderboardScreen: View {
     /// or error) fills it, so a page change never lets the List clamp the header back
     /// into view (issue #316).
     @State private var listHeight: CGFloat = 0
-    /// The selected player's row height and the board's, for ``SelectedRowPinning`` (R11).
+    /// The selected player's row height and the board's, for ``SelectedRowPinning`` (R12).
     @State private var selectedRowHeight: CGFloat = 0
     @State private var boardHeight: CGFloat = 0
 
@@ -205,7 +205,7 @@ struct SoloLeaderboardScreen: View {
                                 .listRowSeparator(.hidden)
                             }
                             // Too tall to pin at this text size: the player's row
-                            // follows the rows (leaderboard-row R11, #386).
+                            // follows the rows (leaderboard-row R12, #386).
                             if !pinsFooter, rows != nil, hasFooter {
                                 selectedPlayerFooter(horizontalPadding: 0)
                                     .listRowInsets(EdgeInsets(
@@ -529,7 +529,7 @@ struct SoloLeaderboardScreen: View {
 
     /// Whether the player's row is pinned above the pager; at accessibility text sizes a
     /// row that would cover more than a third of the board follows the rows instead
-    /// (leaderboard-row R11, #386).
+    /// (leaderboard-row R12, #386).
     private var pinsFooter: Bool {
         SelectedRowPinning.pins(
             isAccessibilitySize: dynamicTypeSize.isAccessibilitySize,

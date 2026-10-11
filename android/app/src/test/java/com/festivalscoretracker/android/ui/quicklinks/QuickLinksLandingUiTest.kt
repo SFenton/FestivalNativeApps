@@ -53,7 +53,7 @@ import org.robolectric.annotation.Config
  * jump lands the section's top [QuickLinks.LANDING_OFFSET_DP] (32 dp) below the visible top of the page,
  * just under the top app bar, and the entry then names the landed section (the activation line matches
  * the landing line). Covers the compact sheet, the wider top-bar menu, phone landscape and 2.0 text, for
- * lazy lists (Settings, Leaderboards), staggered grids (player page, Compete) and a plain scrolling
+ * lazy lists (Settings, Leaderboards), row-major grids (player page, Compete) and a plain scrolling
  * column (Band). Issue #587: what lands on the line is the section's heading title, not the padded top of
  * its item, so headings that keep their own top padding (Song Detail's 12 dp instrument header and 16 dp
  * section headers, Compete's 8 dp group headers) leave no dead space under the top bar.
@@ -179,7 +179,7 @@ class QuickLinksLandingUiTest {
         val transport = songs(FakeTransport.standard()).apply { ProfileFixtures.register(this) }
         launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true), transport)
         waitForTag("fst.player.available")
-        // Lazily built staggered-grid items: the jump lands after composing the target.
+        // Lazily built grid items: the jump lands after composing the target.
         assertLands("top-songs", "Top Songs", titleIn("fst.player.top-songs"))
         // The instrument heading row is flush with its section.
         assertLands("instrument:Solo_Bass", "Bass", flush("fst.player.instrument.Solo_Bass"))

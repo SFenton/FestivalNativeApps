@@ -44,7 +44,7 @@ extension View {
     ///   - identifier: The footer container's identifier
     ///     (`fst.<board>.spotlight-footer`).
     ///   - horizontalPadding: 16 pinned; 0 when the row follows the rows at accessibility
-    ///     text sizes (R11), where the page already insets it.
+    ///     text sizes (R12), where the page already insets it.
     /// - Returns: The styled footer.
     func pinnedFooterControl(identifier: String, horizontalPadding: CGFloat = 16) -> some View {
         festivalRowButtonStyle()
@@ -151,7 +151,7 @@ struct PinnedFooterBacking: ViewModifier {
 
 extension View {
     /// Report the selected row's height wherever the board draws it (pinned above the
-    /// pager or after the rows), for ``SelectedRowPinning`` (leaderboard-row R11, #386).
+    /// pager or after the rows), for ``SelectedRowPinning`` (leaderboard-row R12, #386).
     ///
     /// - Parameter height: Receives the row's height.
     /// - Returns: The row, measured.

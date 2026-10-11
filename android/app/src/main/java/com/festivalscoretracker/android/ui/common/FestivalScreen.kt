@@ -134,9 +134,8 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  *   `song-header` R4, issue #315) and truncates under Remove animations.
  * @param isRoot Whether this is a tab root.
  * @param modifier Modifier.
- * @param actions Screen actions, placed before search and the avatar.
- * @param pinActions Keep the floating toolbar holding [actions] on screen while the page scrolls
- *   instead of hiding it (Songs, Suggestions: issue #52).
+ * @param actions Screen actions, placed before search and the avatar. The floating toolbar
+ *   holding them stays on screen while the page scrolls (R7, issues #52, #577).
  * @param actionsReadFirst TalkBack and keyboard focus reach the floating toolbar
  *   holding [actions] right after the top app bar instead of after the content: an endless feed
  *   (Suggestions) never ends, so a toolbar read last is unreachable by swiping (issue #112); a
@@ -168,7 +167,6 @@ fun FestivalScreen(
     isRoot: Boolean,
     modifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit = {},
-    pinActions: Boolean = false,
     actionsReadFirst: Boolean = false,
     scrolled: Boolean = false,
     titleIcon: (@Composable (size: Dp) -> Unit)? = null,
@@ -199,7 +197,7 @@ fun FestivalScreen(
     val pane = remember { mutableStateOf<PxSpan?>(null) }
     val toolbarReadsFirst = shell.floatingToolbar != null && actionsReadFirst
     if (shell.floatingToolbar != null) {
-        FloatingToolbarContent(pinned = pinActions, readFirst = actionsReadFirst, pane = pane) { actions() }
+        FloatingToolbarContent(readFirst = actionsReadFirst, pane = pane) { actions() }
     }
     Scaffold(
         modifier = modifier

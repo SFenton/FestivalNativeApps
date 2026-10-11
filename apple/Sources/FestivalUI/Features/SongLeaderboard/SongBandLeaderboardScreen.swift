@@ -96,7 +96,7 @@ struct SongBandLeaderboardContent: View {
     @State private var headerHidden = false
     /// Visible height of the scroll view, for the reload gate's spinner area.
     @State private var viewportHeight: CGFloat = 0
-    /// The selected band row's height and the board's, for ``SelectedRowPinning`` (R11).
+    /// The selected band row's height and the board's, for ``SelectedRowPinning`` (R12).
     @State private var selectedRowHeight: CGFloat = 0
     @State private var boardHeight: CGFloat = 0
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -415,7 +415,7 @@ struct SongBandLeaderboardContent: View {
 
     /// Whether the band's row is pinned above the pager; at accessibility text sizes a
     /// row that would cover more than a third of the board follows the cards instead
-    /// (leaderboard-row R11, #386).
+    /// (leaderboard-row R12, #386).
     private var pinsFooter: Bool {
         SelectedRowPinning.pins(
             isAccessibilitySize: dynamicTypeSize.isAccessibilitySize,
@@ -594,7 +594,7 @@ struct SongBandLeaderboardContent: View {
                     }
                 }
                 // Too tall to pin at this text size: the band's row follows the cards
-                // (leaderboard-row R11, #386).
+                // (leaderboard-row R12, #386).
                 if !pinsFooter, !payload.leaderboard.entries.isEmpty, let entry = footerEntry {
                     selectedBandFooter(entry, horizontalPadding: 0)
                 }

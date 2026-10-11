@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -101,22 +102,24 @@ class JourneyHarness(private val rule: JourneyRule) {
      *   after a switch (sheets and dialogs are separate windows) render at it too. The
      *   activity's original scale comes back when the activity is destroyed at the end of the
      *   test, so a journey that ends at 200% does not leak it into the next test's activity.
+     * @param wrap Wraps the app's composition, e.g. to provide a test-only composition local.
      */
     fun launch(
         debug: DebugLaunch,
         transport: FakeTransport,
         preferences: DataStore<Preferences> = MemoryPreferences(),
         fontScale: (() -> Float)? = null,
+        wrap: @Composable (@Composable () -> Unit) -> Unit = { it() },
     ) {
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = preferences)
         rule.setContent {
             key(generation) {
                 if (fontScale == null) {
-                    FestivalApp(container, debug)
+                    wrap { FestivalApp(container, debug) }
                 } else {
                     val scale = fontScale()
                     SideEffect { applyWindowFontScale(scale) }
-                    DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(scale)) { FestivalApp(container, debug) }
+                    DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(scale)) { wrap { FestivalApp(container, debug) } }
                 }
             }
         }
@@ -293,7 +296,7 @@ class JourneyHarness(private val rule: JourneyRule) {
         val nodes = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes()
         if (nodes.isNotEmpty() && nodes.all { it.size.height >= min && it.size.width >= min }) return true
         // A Material icon button draws 40 dp and extends its touch bounds to 48 dp; partly
-        // scrolled off (the hide-on-scroll floating toolbar) ATF measures the cut-off part. Its
+        // off screen (a node mid-transition) ATF measures the cut-off part. Its
         // accessibility node, once fully shown, reports the real touch bounds (issue #171).
         if (nodes.isEmpty()) return false
         fun fullSize() = visibleAccessibilityNodes(tag).let { shown ->
