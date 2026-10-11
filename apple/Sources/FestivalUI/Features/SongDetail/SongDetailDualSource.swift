@@ -166,6 +166,8 @@ private struct SongHistoryCard: View {
                     ForEach(Array(sorted.enumerated().suffix(3)), id: \.offset) { index, entry in
                         ScoreHistoryListRow(entry: entry, isBest: index == best)
                     }
+                    // One score column for the shown rows (#594).
+                    .leaderboardSectionColumns(.scoreHistory(sorted.suffix(3).map(\.newScore)))
                     .festivalFadeInOnAppear()
                     Text("\(sorted.count) score \(sorted.count == 1 ? "change" : "changes") tracked")
                         .font(.caption)
