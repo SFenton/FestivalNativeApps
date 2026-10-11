@@ -1,13 +1,14 @@
 package com.festivalscoretracker.android.ui.rivals
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridScope
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -33,18 +34,18 @@ import com.festivalscoretracker.android.ui.common.shellPosture
 // region Adaptive card grid
 
 /**
- * Staggered cells with precomputed widths (so a column boundary can sit on a hinge).
+ * Grid cells with precomputed widths (so a column boundary can sit on a hinge).
  *
  * @property spec Column widths and spacing.
  */
-private class SpecCells(private val spec: ColumnSpec) : StaggeredGridCells {
-    override fun Density.calculateCrossAxisCellSizes(availableSize: Int, spacing: Int): IntArray {
+internal class SpecCells(private val spec: ColumnSpec) : GridCells {
+    override fun Density.calculateCrossAxisCellSizes(availableSize: Int, spacing: Int): List<Int> {
         val total = spec.widths.sum() + spec.spacing * (spec.count - 1)
-        if (total == availableSize) return spec.widths.toIntArray()
+        if (total == availableSize) return spec.widths
         // Width changed since the spec was measured (one frame): fall back to equal columns.
         val count = spec.count
         val width = (availableSize - spacing * (count - 1)).coerceAtLeast(count) / count
-        return IntArray(count) { width }
+        return List(count) { width }
     }
 
     override fun equals(other: Any?): Boolean = other is SpecCells && other.spec == spec
@@ -53,11 +54,14 @@ private class SpecCells(private val spec: ColumnSpec) : StaggeredGridCells {
 }
 
 /**
- * A masonry card grid for Rivals/Compete: 1–[maxColumns] columns of at least
- * [minColumn], or exactly two columns meeting at a separating vertical hinge
- * (book/passport foldables half-open) so no card straddles the fold. Only the
- * WindowManager hinge and the grid's own window bounds are used. Full-line items
- * belong in `foldLaneItem`, which keeps them in the leading pane while split.
+ * The row-major card grid for Rivals/Compete (`hinge-columns` R8, #584): 1–[maxColumns]
+ * columns of at least [minColumn], or exactly two columns meeting at a separating vertical
+ * hinge (book/passport foldables half-open) so no card straddles the fold. Cards fill each
+ * line start to end and every card in a line starts at the line's top edge, however far the
+ * page scrolls (a masonry grid let the columns drift apart). Only the WindowManager hinge
+ * and the grid's own window bounds are used. Full-line items (section headers, messages)
+ * belong in `foldLaneItem`: they span every column, and keep their content in the leading
+ * pane while split.
  *
  * @param contentPadding Padding inside the scrolling area (top clears the app bar, bottom the nav bar).
  * @param modifier Modifier.
@@ -66,6 +70,7 @@ private class SpecCells(private val spec: ColumnSpec) : StaggeredGridCells {
  * @param horizontalPadding Side gutter outside the columns.
  * @param state Scroll state.
  * @param testTag Test tag for the grid.
+ * @param verticalItemSpacing Gap between items; 0 for a list drawn as one card of lazy segments (RivalCardSegment).
  * @param content Grid items.
  */
 @Composable
@@ -75,9 +80,10 @@ fun AdaptiveCardGrid(
     minColumn: Dp = 360.dp,
     maxColumns: Int = 3,
     horizontalPadding: Dp = 16.dp,
-    state: LazyStaggeredGridState = rememberLazyStaggeredGridState(),
+    state: LazyGridState = rememberLazyGridState(),
     testTag: String? = null,
-    content: LazyStaggeredGridScope.() -> Unit,
+    verticalItemSpacing: Dp = 16.dp,
+    content: LazyGridScope.() -> Unit,
 ) {
     val density = LocalDensity.current
     val hinge = shellPosture().hingeList.firstOrNull { it.isSeparating && it.isVertical }
@@ -96,17 +102,17 @@ fun AdaptiveCardGrid(
     } ?: ColumnSpec(listOf(0), gutter)
     // One column under TalkBack or at large text (see rememberSingleColumn).
     val singleColumn = rememberSingleColumn()
-    val cells = remember(spec, singleColumn) { if (bounds == null || singleColumn) StaggeredGridCells.Fixed(1) else SpecCells(spec) }
+    val cells = remember(spec, singleColumn) { if (bounds == null || singleColumn) GridCells.Fixed(1) else SpecCells(spec) }
     // Full-line items (foldLaneItem) stay in the leading pane while the columns split at the hinge.
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val leadingPane = if (bounds == null || singleColumn) null else spec.leadingPane(rtl)?.let { with(density) { it.toDp() } }
     ProvideFoldLane(leadingPane) {
-        LazyVerticalStaggeredGrid(
+        LazyVerticalGrid(
             columns = cells,
             state = state,
             contentPadding = contentPadding,
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(with(density) { spec.spacing.toDp() }),
-            verticalItemSpacing = 16.dp,
+            horizontalArrangement = Arrangement.spacedBy(with(density) { spec.spacing.toDp() }),
+            verticalArrangement = Arrangement.spacedBy(verticalItemSpacing),
             modifier = modifier
                 .fillMaxSize()
                 .padding(horizontal = horizontalPadding)

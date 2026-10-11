@@ -142,5 +142,64 @@ class SongLeaderboardJourneyTests(unittest.TestCase):
             self.assertIn(f"assertstatus:{FADE}|hard-edge@5", steps(pages[name]))
 
 
+END_JOURNEY = JOURNEYS / "a11y-song-board-end.json"
+LAST = f"{BOARD}.row.fixture-player-25"
+
+
+class SongBoardEndJourneyTests(unittest.TestCase):
+    """``journeys/a11y-song-board-end.json`` (issue #456): the end of the list that #293 changed."""
+
+    def test_every_step_parses(self):
+        for page in load(END_JOURNEY).values():
+            for step in steps(page):
+                uiwin.parse_step(step)
+
+    def test_pages_cover_pinned_row_no_score_and_no_player(self):
+        pages = load(END_JOURNEY)
+        self.assertEqual(set(pages), {"song-board-end-player", "song-board-end-no-score", "song-board-end-anonymous"})
+        self.assertTrue(pages["song-board-end-player"]["profile"].startswith("fixture-player-1:"))
+        self.assertTrue(pages["song-board-end-no-score"]["profile"].startswith("fixture-empty:"))
+        self.assertNotIn("profile", pages["song-board-end-anonymous"])
+        for name in ("song-board-end-no-score", "song-board-end-anonymous"):
+            self.assertIn(f"waitgone:{PINNED}@5", steps(pages[name]), name)
+        for page in pages.values():
+            self.assertTrue(page["scan"], page["name"])
+
+    def test_last_row_reached_by_keyboard_sits_one_row_gap_above_the_footer(self):
+        """#293: the list ends one 4 epx row gap above the footer's first part (pinned row, else the pager), the last
+        row is clear of it (WCAG 2.4.11), reads before it, keeps a 40 epx target, and the fade is gone at the end."""
+        for name, page in load(END_JOURNEY).items():
+            drive = steps(page)
+            first = PINNED if name == "song-board-end-player" else PAGER[0]
+            self.assertEqual(drive.count("key:down"), 24, name)
+            self.assertIn(f"assertfocus:{LAST}@3", drive, name)
+            self.assertIn(f"assertstate:{BOARD}.list|scroll=100@3", drive, name)
+            self.assertIn(f"assertgap:{LAST}|{first}|4", drive, name)
+            self.assertIn(f"assertapart:{LAST}|{PAGER[2]}" if first == PAGER[0] else f"assertapart:{LAST}|{PINNED}",
+                          drive, name)
+            self.assertIn(f"assertsize:{LAST}|0x40", drive, name)
+            self.assertIn(f"assertstatus:{FADE}|end@5", drive, name)
+            order = next(s for s in drive if s.startswith("assertorder:")).split(":", 1)[1].split("|")
+            expected = [f"{BOARD}.row.fixture-player-24", LAST, *([PINNED] if first == PINNED else []),
+                        PAGER[0], PAGER[1], f"{BOARD}.page-info", PAGER[2], PAGER[3]]
+            self.assertEqual(order, expected, name)
+
+    def test_tab_leaves_the_last_row_for_the_footer_and_shift_tab_returns(self):
+        pages = load(END_JOURNEY)
+        hops = {"song-board-end-player": [PINNED, PAGER[2], PINNED, LAST],
+                "song-board-end-no-score": [PAGER[2], LAST], "song-board-end-anonymous": [PAGER[2], LAST]}
+        for name, expected in hops.items():
+            drive = steps(pages[name])
+            start = drive.index(f"assertstatus:{FADE}|end@5")
+            walk = [s.split("@")[0][len("assertfocus:"):] for s in drive[start:] if s.startswith("assertfocus:")]
+            self.assertEqual(walk, expected, name)
+
+    def test_windows_ui_runs_every_page_at_100_and_225_percent_text(self):
+        runs = covered(END_JOURNEY.name)
+        for page in load(END_JOURNEY):
+            for size, mode in (("compact", "normal"), ("medium", "normal"), ("compact", "text-225")):
+                self.assertIn((page, size, mode), runs)
+
+
 if __name__ == "__main__":
     unittest.main()

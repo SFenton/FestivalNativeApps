@@ -1,6 +1,7 @@
 package com.festivalscoretracker.android.ui.bands
 
 import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
+import com.festivalscoretracker.android.ui.common.isSplitPaneRoot
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.leaderboards.awaitSelectedRowEntrance
 import androidx.compose.foundation.BorderStroke
@@ -22,7 +23,7 @@ import com.festivalscoretracker.android.ui.leaderboards.AnchoredFooter
 import com.festivalscoretracker.android.ui.leaderboards.AnchoredRowCard
 import com.festivalscoretracker.android.ui.songdetail.RowSeparator
 import com.festivalscoretracker.android.ui.leaderboards.SelectedRowAnchor
-import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.BOARD_CARD_INDEX
 import com.festivalscoretracker.android.ui.songdetail.selectedRowHighlight
 import androidx.compose.foundation.clickable
 import com.festivalscoretracker.android.ui.leaderboards.LeaderboardSectionMember
@@ -194,8 +195,9 @@ fun SongBandLeaderboardScreen(
     // Opened (or jumped) to the band's page: centre its highlighted row once it shows.
     LaunchedEffect(revealPending, pageShown, shown) {
         if (!revealPending || !pageShown) return@LaunchedEffect
-        // Like the web's navToBand: scroll once the row's own entrance has finished (issue #323).
-        if (selectedIndex >= 0 && awaitSelectedRowEntrance(fadeIn, fadeInStagger(selectedIndex), reduceMotion)) {
+        // Like the web's navToBand: scroll once the row's own entrance has finished (issue #323);
+        // the row enters with the board's card (load-transition R11, #614).
+        if (selectedIndex >= 0 && awaitSelectedRowEntrance(fadeIn, fadeInStagger(BOARD_CARD_INDEX), reduceMotion)) {
             withFrameNanos { }
             val bounds = anchor.bounds()
             // Single pane: the header and size switcher are the list's first item.
@@ -208,12 +210,14 @@ fun SongBandLeaderboardScreen(
     // Like the solo board (pattern `song-leaderboard-header` R3, issue #317): the song header and band size
     // scroll with the rows and the top bar takes the song title, over the band size (no icon, issue #580),
     // once they have scrolled away. Across a hinge the header stays in the leading pane, so the bar stays empty.
+    // Beside Song Detail in a split there is no song header and the bar takes the band size (#342, Android #583).
+    val besideList = isSplitPaneRoot()
     val headerGone by remember(listState) { derivedStateOf { !twoPane && listState.firstVisibleItemIndex > 0 } }
     FestivalScreen(
-        title = if (headerGone) song?.title.orEmpty() else "",
+        title = if (!headerGone) "" else if (besideList) type.label else song?.title.orEmpty(),
         isRoot = false,
         scrolled = headerGone,
-        subtitle = type.label,
+        subtitle = if (besideList) null else type.label,
         modifier = Modifier.testTag("fst.song-band-leaderboard.screen"),
         fadeInWindow = fadeIn,
     ) { padding ->
@@ -228,7 +232,7 @@ fun SongBandLeaderboardScreen(
                 controls = {
                     // The solo board's header, with the band size where the instrument goes (web `SongInfoHeader`;
                     // its `onTitleClick` opens Song Detail, issue #315).
-                    song?.let {
+                    song?.takeUnless { besideList }?.let {
                         SongHeader(
                             it,
                             artworkUrl(it.albumArt),
@@ -306,13 +310,14 @@ fun SongBandLeaderboardScreen(
                         val selected = response.selectedPlayerEntry
                         // One card for the page's bands with hairlines between them, like the solo
                         // board (owner #543, `leaderboard-row` R10); padded like the pinned row's card
-                        // so the ranks line up (R1). The reveal anchor sits outside the fade-in.
+                        // so the ranks line up (R1). It fades in as one with all its rows, never row by
+                        // row (load-transition R11, owner #614).
                         if (response.entries.isNotEmpty()) item(key = BAND_ROWS_KEY) {
-                            GlassCard(anchor.item.fillMaxWidth().then(swap.contentModifier).testTag("fst.song-band-leaderboard.rows")) {
+                            GlassCard(anchor.item.fillMaxWidth().then(with(swap) { Modifier.card() }).testTag("fst.song-band-leaderboard.rows")) {
                                 Column(Modifier.padding(horizontal = ANCHORED_ROW_CARD_PADDING, vertical = 6.dp)) {
                                     response.entries.forEachIndexed { index, entry ->
                                         val isSelected = selected?.sameBand(entry) == true
-                                        Column((if (isSelected) anchor.row else Modifier).festivalFadeIn(swap.revealed, fadeInStagger(index))) {
+                                        Column(if (isSelected) anchor.row else Modifier) {
                                             if (index > 0) RowSeparator()
                                             // The selected player's band keeps the purple treatment in place and opens the Band page.
                                             BandScoreRow(entry, song, selected = isSelected, columns = rowColumns) { onNavigate(entry.bandRoute()) }
@@ -361,7 +366,7 @@ internal fun SongBandLeaderboardLayout(
     rows: LazyListScope.() -> Unit,
 ) {
     val top = padding.calculateTopPadding()
-    val bottom = padding.calculateBottomPadding() + 24.dp
+    val bottom = padding.calculateBottomPadding()
     val leading = split.leadingWidth
     if (split.twoPane && leading != null) {
         Row(Modifier.fillMaxSize()) {

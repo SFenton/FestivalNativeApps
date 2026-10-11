@@ -63,14 +63,17 @@ class SongsSectionIndexDeviceTest {
 
     /**
      * TalkBack reads the rail once, as "Section index, <section>", and none of its letters is a
-     * stop of its own. Retries while UiAutomation's node cache catches up with Compose.
+     * stop of its own; the list's section titles (issue #582) are the only letter stops.
+     * Retries while UiAutomation's node cache catches up with Compose.
      */
     private fun assertOneRailStop(screen: String, section: String) {
-        var order = emptyList<String>()
+        var stops = emptyList<JourneyHarness.ReadingStop>()
         val expected = listOf("Section index, $section")
-        runCatching { rule.waitUntil(10_000) { order = h.readingOrder(screen); order.filter { it.startsWith("Section index") } == expected } }
-        assertEquals("one rail stop: $order", expected, order.filter { it.startsWith("Section index") })
-        assertFalse("no letter stops: $order", order.any { it in labels })
+        val rail = { stops.map { it.label }.filter { it.startsWith("Section index") } }
+        runCatching { rule.waitUntil(10_000) { stops = h.readingStops(screen); rail() == expected } }
+        assertEquals("one rail stop: ${stops.map { it.label }}", expected, rail())
+        val letters = stops.filter { it.label in labels && it.id?.startsWith(SECTION_TITLE_PREFIX) != true }
+        assertTrue("no rail letter stops: ${letters.map { "${it.id}=${it.label}" }}", letters.isEmpty())
     }
 
     /**
@@ -184,5 +187,6 @@ class SongsSectionIndexDeviceTest {
     private companion object {
         const val RAIL = "fst.songs.section-index"
         const val INDICATOR = "fst.songs.section-index.indicator"
+        const val SECTION_TITLE_PREFIX = "fst.songs.section."
     }
 }

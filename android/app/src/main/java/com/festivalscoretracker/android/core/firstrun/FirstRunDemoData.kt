@@ -443,7 +443,7 @@ data class FirstRunMetadataRotation(
                         SongMetadataPill(field, "★".repeat(display.count), display.label, starCount = display.count, goldStars = display.gold)
                     }
                     MetadataField.Percentile -> SongMetadataPill(field, meta.percentile, meta.percentile, percentile = FirstRunDemoPools.percentileTier(meta.percentile))
-                    MetadataField.Season -> SongMetadataPill(field, "S${meta.season}", "Season ${meta.season}")
+                    MetadataField.Season -> SongMetadataPill(field, "S${meta.season}", "Season ${meta.season}", season = meta.season)
                     else -> SongMetadataPill(MetadataField.Intensity, "", "Song intensity", intensityRaw = meta.intensity.toDouble())
                 }
             }

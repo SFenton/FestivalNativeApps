@@ -66,7 +66,8 @@ import org.junit.runner.RunWith
  * - **Fold split after a jump.** Unfolded (flat) → Top Songs → half open → Quick Links back to
  *   Global Statistics used to keep stale lanes: a gap beside Overview and the Lead card off
  *   screen and out of TalkBack's reach. After the posture change Overview stays in the leading
- *   pane, Lead sits beside it after the hinge, and TalkBack reads Overview then Lead.
+ *   pane, Lead starts the next row before the hinge (#584: Overview spans the line, its content
+ *   in the leading pane), and TalkBack reads Overview then Lead.
  *
  * ATF (labels, 48 dp targets, contrast) runs on every step. Fixtures only; `android-device`
  * runs the class (`@DeviceCi`). The fold case needs a window that is two lanes wide when flat
@@ -243,11 +244,11 @@ class StatisticsAccessibilityJourneyTest {
 
     /**
      * Flat → Top Songs → half open → Global Statistics: Overview stays in the leading pane and
-     * the Lead card sits beside it after the hinge, where TalkBack reaches it next.
+     * the Lead card starts the row under it (#584), where TalkBack reaches it next.
      */
     @Test
     @HalfOpenFoldJourney
-    fun quickLinksBackToGlobalAfterHalfOpeningKeepLeadBesideOverview() {
+    fun quickLinksBackToGlobalAfterHalfOpeningKeepLeadNextToOverview() {
         launchStatistics(transport()) { 1f }
         publish(State.FLAT) { h.exists(OVERVIEW) && h.exists(LEAD) }
         h.publishTalkBackTree()
@@ -267,7 +268,7 @@ class StatisticsAccessibilityJourneyTest {
         try {
             rule.waitUntil(10_000) { h.exists(LEAD) }
         } catch (failure: Throwable) {
-            throw AssertionError("half open: Lead never appeared beside Overview (stale lanes left a gap): ${h.readingOrder("statistics-fold-stale", fresh = true)}", failure)
+            throw AssertionError("half open: Lead never appeared after Overview (stale lanes left a gap): ${h.readingOrder("statistics-fold-stale", fresh = true)}", failure)
         }
         rule.waitForIdle()
 
@@ -276,8 +277,8 @@ class StatisticsAccessibilityJourneyTest {
         val grid = bounds(GRID)
         Log.i(JourneyHarness.READING_ORDER_TAG, "statistics-fold | fold $fold | overview $overview | lead $lead | grid $grid")
         assertTrue("half open: Overview $overview runs past the hinge $fold", overview.right <= fold + 1f)
-        assertTrue("half open: Lead $lead is not after the hinge $fold", lead.left >= fold - 1f)
-        assertTrue("half open: Lead $lead is not beside Overview $overview (a lane gap hid it)", lead.top < overview.bottom && lead.top >= grid.top)
+        assertTrue("half open: Lead $lead runs past the hinge $fold", lead.right <= fold + 1f)
+        assertTrue("half open: Lead $lead doesn't start the row under Overview $overview (a gap hid it)", lead.top >= overview.bottom - 1f && lead.top < grid.bottom)
 
         val order = h.readingOrder("statistics-fold-global", fresh = true)
         val overviewAt = order.indexOf(OVERVIEW_LABEL)

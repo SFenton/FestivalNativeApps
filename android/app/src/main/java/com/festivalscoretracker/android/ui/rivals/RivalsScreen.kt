@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -90,7 +90,7 @@ import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 fun RivalsScreen(viewModel: RivalsHubViewModel?, isRoot: Boolean, visibleCount: Int, searchViewModel: ProfileSearchViewModel) {
     val shell = LocalShellActions.current
     var findOpen by rememberSaveable { mutableStateOf(false) }
-    val gridState = rememberLazyStaggeredGridState()
+    val gridState = rememberLazyGridState()
     val tab = viewModel?.tab?.collectAsStateWithLifecycle()?.value ?: RivalsHubTab.Song
     val content = viewModel?.let {
         (if (tab == RivalsHubTab.Song) it.songContent else it.leaderboardContent).collectAsStateWithLifecycle().value
@@ -192,7 +192,7 @@ private fun HubBody(
     tab: RivalsHubTab,
     content: RivalsHubContent,
     visibleCount: Int,
-    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
     bottomPadding: androidx.compose.ui.unit.Dp,
     navigate: (AppRoute) -> Unit,
 ) {
@@ -218,7 +218,7 @@ private fun HubContent(
     issue: ServiceIssue?,
     pageRevealed: Boolean,
     visibleCount: Int,
-    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
     bottomPadding: androidx.compose.ui.unit.Dp,
     navigate: (AppRoute) -> Unit,
 ) {
@@ -230,7 +230,7 @@ private fun HubContent(
             RivalsMessage(RivalText.LEADERBOARD_EMPTY, null, "fst.rivals.empty")
         }
         else -> AdaptiveCardGrid(
-            contentPadding = PaddingValues(top = 12.dp, bottom = bottomPadding + 24.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = bottomPadding),
             state = gridState,
             testTag = "fst.rivals.grid",
         ) {

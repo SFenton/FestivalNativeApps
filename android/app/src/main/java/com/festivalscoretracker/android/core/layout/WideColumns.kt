@@ -136,6 +136,21 @@ class WideColumnLines private constructor(
     fun itemOfHeader(ordinal: Int): Int? = lineOfHeader.getOrNull(ordinal)?.let { leading + it }
 
     /**
+     * List index a jump to the section starting at [row] lands on: the section's header when
+     * one directly precedes the row's line (it pins there, section-jump-landing R3), else the
+     * row's line.
+     *
+     * @param row The section's first row.
+     * @return The item index.
+     */
+    fun itemOfSection(row: Int): Int {
+        val line = lineOfRow.getOrNull(row) ?: return itemOfRow(row)
+        val cells = lines[line] as? WideLine.Cells
+        val titled = cells?.start == row && line > 0 && lines[line - 1] is WideLine.Header
+        return leading + if (titled) line - 1 else line
+    }
+
+    /**
      * The row a list item stands for: a line's first row, the first row below a header,
      * row 0 for the leading items and the last row past the end.
      *
