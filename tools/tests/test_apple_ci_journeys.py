@@ -297,6 +297,15 @@ class AppleCIJourneysTests(unittest.TestCase):
         # #288/#452: the only iOS Dynamic Type and audit evidence for the Songs section push.
         self.assertIn("SongsChromeJourneyTests/testSectionPushIsAccessibleAtLargestText", self.journeys)
 
+    def test_section_jump_ax5_journeys_run_in_ci(self) -> None:
+        # #451 (for #286): the only iOS Dynamic Type and audit evidence for a Songs index jump's landing.
+        iphone, ipad = self.blocks
+        for method in ("testSectionJumpIsAccessibleAtLargestText", "testSectionJumpIsAccessibleAtLargestTextDuoFolded"):
+            self.assertIn(f"SongsChromeJourneyTests/{method}", iphone)
+        # The Duo window is simulated on an iPhone only; its selector skips on an iPad.
+        self.assertIn("SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestText", ipad)
+        self.assertNotIn("SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestTextDuoFolded", ipad)
+
     def test_large_title_rest_journeys_run_in_ci(self) -> None:
         # #560: the only device evidence that a programmatic scroll never rests part-way through the large title,
         # on the current scroll-geometry path and the forced iOS 17 `PlatformScrollObserver` path.

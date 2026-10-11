@@ -102,6 +102,8 @@ jobs:
             SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
             SongsChromeJourneyTests/testRowUnderTheSectionBarFadeKeepsItsAccessibility
             SongsChromeJourneyTests/testSectionPushIsAccessibleAtLargestText
+            SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestText
+            SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestTextDuoFolded
             SongsChromeJourneyTests/testFilterFieldReadyAfterBackFromSongDetail
             SongsChromeJourneyTests/testFilterFieldIsGlassAtTopAndScrolled
             SongsChromeJourneyTests/testProgrammaticScrollNeverRestsPartWayThroughTheLargeTitle
@@ -199,6 +201,7 @@ jobs:
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
+            SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestText
         run: |
           python3 tools/ios_sim.py shutdown --device "$(python3 tools/ios_sim.py ci-device)"
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service_ipad.log" 2>&1 &
