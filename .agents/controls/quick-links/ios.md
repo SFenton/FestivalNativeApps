@@ -70,6 +70,7 @@ ScrollView { LazyVStack { ForEach(items) { card($0).quickLinkSection(section($0)
 
   Neither test found a defect.
 - **Accessory slot** (#395, for #15). In `apple-ci`, the hosted `NavButtonAccessibilityTests` render the real tab-bar accessory: in it the entry is an `AXButton` named "Quick Links" with the current section as value, a whole 44 pt slot between Filter Songs and the bell that overlaps neither, the same at AX5 and in the 222 pt inline width, and pressing it opens `PageToolInlineMenuSheet` with page-order choices and the current one checked. No defect found.
+- **Alone and apart from the field** (#442, for #89). The hosted `quickLinksAloneIsOneIconSlot` requires a page whose only tool is Quick Links (Leaderboards) to show one 44 pt icon slot named "Quick Links" with its section as value and no title text, at default size and AX5, with and without the bell. The simulator `PageToolsSearchFieldJourneyTests` (`apple-ci`) checks Songs and Leaderboards in production chrome: Quick Links is one named button no wider than an icon, never inside or overlapping Songs' Filter Songs field, read in drawn order, and clean in the hit-region, description, Dynamic Type and clipping audit. No defect found.
 - Measured frames are `@ObservationIgnored`, so scrolling redraws only when the active section changes.
 
 ## Adoption checklist (owning lanes)
