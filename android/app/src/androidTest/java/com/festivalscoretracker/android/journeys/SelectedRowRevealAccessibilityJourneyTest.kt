@@ -51,9 +51,15 @@ import org.junit.runner.RunWith
  *   pinned footer, then the pager.
  *
  * Runs on the solo song board (animations on, 200 % text and the in-app Reduce Motion setting,
- * whose reveal is instant with no fades), the song band board and Full Rankings. `@DeviceCi`:
- * the `android-device` job runs it on a plain phone
- * (`device.py test com.festivalscoretracker.android.journeys.SelectedRowRevealAccessibilityJourneyTest --avd …`).
+ * whose reveal is instant with no fades), the song band board and Full Rankings. These checks
+ * run after the reveal settles; the arrival phase itself (the reveal waits for the card's fade,
+ * rushes the page's fade window before it scrolls, and reached rows arrive through that fade)
+ * is asserted frame by frame on a paused clock by the Robolectric `SelectedRowArrivalUiTest`.
+ *
+ * CI's `android-device` job runs this journey because it lives in `androidTest`: that job runs
+ * the whole instrumented suite. `@DeviceCi` only adds it to the local stable-phone subset
+ * (`device.py test --device-ci`). Locally:
+ * `device.py test com.festivalscoretracker.android.journeys.SelectedRowRevealAccessibilityJourneyTest --avd …`.
  */
 @DeviceCi
 @RunWith(AndroidJUnit4::class)
