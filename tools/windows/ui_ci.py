@@ -13,8 +13,8 @@ in-app Reduce Motion), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
 push (issue #452), the Songs scroll far jumps and keyboard End/Home (issue #520, also with Animation effects off), the
-Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438), the Paths
-text table (issue #515, also under a contrast theme) and the Full
+Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438), the Paths text table (issue
+#515, also under a contrast theme), long leaderboard names (issue #455, also with Animation effects off) and the Full
 Rankings pinned row (issue #466, also with in-app Reduce Motion), the Leaderboards card "your rank" row (issue #493,
 also with in-app Reduce Motion), the Search All section titles (issue #483, also with in-app Reduce Motion), the
 Search results delayed behind the spinner and the Suggestions cards loaded after the first batch (issue #521, also with
@@ -219,6 +219,16 @@ RUNS: tuple[Run, ...] = (
         only="fr-pinned-jump-keyboard"),
     Run("full-rankings-pinned", "a11y-full-rankings.json"),
     Run("full-rankings-pinned-text-225", "a11y-full-rankings.json", sizes="compact", mode="text-225"),
+    # Full Rankings pinned row's load gate (issues #270, #524): a Rank By or instrument reload drops it from UIA, the
+    # reading order and Tab with the rows and pager (only "Busy Loading rankings, ProgressRing" is read; Tab goes from
+    # Rank By to the title bar), then the new value returns as a 40x40 Button in rows -> pinned row -> pager order; a
+    # page-only reload keeps it readable, focusable and reachable by Shift+Tab beside the ring. At 225% text, with in-app
+    # Reduce Motion and with Windows' Animation effects off (the pinned row returns still).
+    Run("full-rankings-swap", "a11y-full-rankings-swap.json", tabs=0),
+    Run("full-rankings-swap-text-225", "a11y-full-rankings-swap.json", sizes="compact", mode="text-225", tabs=0),
+    Run("full-rankings-swap-reduced", "a11y-full-rankings-swap.json", sizes="medium", mode="app-reduced", tabs=0),
+    Run("full-rankings-swap-no-animations", "a11y-full-rankings-swap.json", sizes="medium", mode="no-animations",
+        tabs=0),
     # A Leaderboards card's "your rank" row (issues #370, #493): outside the top ten it reads "Your rank, 40th. Jump to
     # your position" and Button, keeps 40x40 apart from View All and sits between the rows and View All in reading and
     # Tab order; Enter opens Full Rankings on the player's page with their row in view (also with in-app Reduce Motion)
@@ -359,6 +369,18 @@ RUNS: tuple[Run, ...] = (
     # pinned combo rank) and Back restores focus; rows stay 40+ epx stops with Down between them.
     Run("combo-boards", "a11y-combo-boards.json", tabs=0),
     Run("combo-boards-text-225", "a11y-combo-boards.json", sizes="compact", mode="text-225", tabs=0),
+    # Long leaderboard names (issues #292, #455): on Full Rankings and the Leaderboards overview a name too wide for its
+    # column scrolls on one line while one that fits stays still, the row reads the whole name once, stays a 40+ epx
+    # stop in visual order with Up/Down between rows; at 150%, 200% and 225% text the name wraps and the row grows,
+    # still, even with Reduce Motion, while every row and a loading card's placeholders keep the section's shared name
+    # budget (one pitch for short, 16-character and placeholder rows); at 100% under the app's Reduce Motion (in the
+    # normal run) and Windows' Animation effects off it stops on an ellipsis.
+    Run("leaderboard-names", "a11y-leaderboard-names.json", tabs=0),
+    Run("leaderboard-names-text-150", "a11y-leaderboard-names.json", mode="text-150", tabs=0),
+    Run("leaderboard-names-text-200", "a11y-leaderboard-names.json", mode="text-200", tabs=0),
+    Run("leaderboard-names-text-225", "a11y-leaderboard-names.json", mode="text-225", tabs=0),
+    Run("leaderboard-names-no-animations", "a11y-leaderboard-names.json", sizes="compact", mode="no-animations",
+        tabs=0),
     # Song Detail Score History as one card (issue #588): selector -> heading -> subtitle -> chart, then the best scores
     # as in-card rows that touch (0 epx) in score order, ending on a 40+ epx View All Scores named for the chart.
     Run("score-history-card", "a11y-score-history-card.json", tabs=0),
@@ -398,6 +420,8 @@ RUNS: tuple[Run, ...] = (
     # (no Karaoke), each a 40 epx option, and switches by pointer and Alt+Down/Up/Enter with focus kept, Axe-scanned open.
     # Sized for its longest option (issues #280, #526), it and its siblings keep their place and width on one line when
     # the selection changes to the longest name (Tap Vocals) and back.
+    # The compact Display ComboBox at the row's right edge keeps its whole keyboard focus ring (issues #269, #523): the
+    # dialog content is the dialog less its padding and border, so the ring's right, top and bottom match its left side.
     Run("paths-swap", "a11y-paths-swap.json", sizes="compact,medium,wide"),
     Run("paths-swap-text-225", "a11y-paths-swap.json", sizes="compact,wide", mode="text-225"),
     Run("paths-swap-no-animations", "a11y-paths-swap.json", sizes="compact", mode="no-animations"),

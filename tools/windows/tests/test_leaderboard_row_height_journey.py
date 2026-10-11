@@ -76,6 +76,9 @@ class LeaderboardRowHeightJourneyTests(unittest.TestCase):
             self.assertIn(f"waitgone:id={CARD}.skeleton.{i}@1", drive)
         loading, loaded = [s for s in drive if s.startswith("assertorder:")]
         self.assertEqual(order(loading), [f"id={CARD}", "id=fst.leaderboards.card.Solo_PeripheralBass"])
+        # #455: at 225% text the compact loading card fills the window, so the order is read in the medium window.
+        self.assertLess(drive.index("resize:medium"), drive.index(loading))
+        self.assertLess(span, drive.index("resize:medium"))
         self.assertEqual(order(loaded), [f"id={CARD}", f"id={CARD}.view-all", "id=fst.leaderboards.card.Solo_PeripheralBass"])
         self.assertLess(drive.index(f"waitgone:raw={CARD}.skeleton.0@5"), drive.index(loaded))
 

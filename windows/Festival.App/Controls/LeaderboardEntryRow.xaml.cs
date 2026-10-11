@@ -230,7 +230,10 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
                 seasonPill.ClearValue(AutomationProperties.AutomationIdProperty);
                 break;
         }
-        AutomationProperties.SetAutomationId(RowButton, string.IsNullOrEmpty(rowAutomationId) ? row.AutomationId : rowAutomationId);
+        var buttonId = string.IsNullOrEmpty(rowAutomationId) ? row.AutomationId : rowAutomationId;
+        AutomationProperties.SetAutomationId(RowButton, buttonId);
+        // Raw-view test ID (like PillText's badge ID) so journeys can check the name's marquee (issue #455).
+        AutomationProperties.SetAutomationId(NameText, LeaderboardRowIds.Name(buttonId));
         // Rows without a usable identity (production serves some empty account IDs) are shown but not interactive, and
         // UIA reads them as text rather than an invokable button.
         var actionable = row.Route is not null || command?.CanExecute(null) == true;
@@ -398,6 +401,8 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
         var section = row.Section ?? LeaderboardColumns.Measure(new[] { row });
         var score = row as ILeaderboardScoreRow;
         var plan = LeaderboardColumnLayout.Fit(section, width, TextScaleLayout.Factor, score?.PinsSeason == true);
+        // Large text: every row of the section (and its skeleton) reserves the same name lines (R2, issue #455).
+        NameText.MinLines = section.NameLines;
         RowGrid.ColumnSpacing = plan.Gap;
         RankColumn.MinWidth = RankText.Text.Length == 0 ? 0 : plan.RankWidth;
         MetaColumn.MinWidth = plan.Stacked ? 0 : plan.MetaWidth;
