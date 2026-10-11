@@ -16,12 +16,14 @@ jobs:
     runs-on: windows-latest
     # The modal journey (11 pages x 3 runs) takes about 11 minutes here. Six shards ran 41-55 minutes and one hit the
     # limit (issue #571), so there were seven; after master's song-pinned-reveal and header runs seven ran 40-55
-    # minutes and one was cancelled, so there are eight, balanced by each run's page x size count (ui_ci.run_weight).
+    # minutes and one was cancelled, so there were eight; after master's Paths-chart (#525) and spotlight-loading (#527)
+    # pages eight ran 47-55 minutes and three were cancelled, so there are ten, balanced by each run's page x size count
+    # (ui_ci.run_weight).
     timeout-minutes: 55
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     env:
       PYTHONUTF8: '1'
       FST_CI: '1'
@@ -46,7 +48,7 @@ jobs:
         shell: pwsh
         run: ./tools/windows/build.ps1
       - name: Accessibility journeys
-        run: python tools/windows/ui_ci.py --tier full --shard ${{ matrix.shard }} --shards 8 --out "${{ runner.temp }}/windows-ui"
+        run: python tools/windows/ui_ci.py --tier full --shard ${{ matrix.shard }} --shards 10 --out "${{ runner.temp }}/windows-ui"
       - name: Upload journey results
         if: always()
         uses: actions/upload-artifact@v4
