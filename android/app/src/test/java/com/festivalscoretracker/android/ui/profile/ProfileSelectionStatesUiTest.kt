@@ -384,7 +384,7 @@ class ProfileSelectionPageStatesUiTest {
         journey.waitForTag("fst.player.select")
         rule.onNodeWithTag("fst.player.select").assert(hasText("Select Profile"))
         assertEquals(0, rule.onAllNodesWithTag("fst.player.reload").fetchSemanticsNodes().size)
-        assertEquals(0, rule.onAllNodesWithTag("fst.nav.tab.statistics").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.tab.shop").fetchSemanticsNodes().size)
         assertTrue(rule.onNodeWithTag("fst.player.select").getUnclippedBoundsInRoot().height >= 48.dp)
         assertKeyless()
     }
@@ -406,7 +406,7 @@ class ProfileSelectionPageStatesUiTest {
     fun selectedSyncingProfileRetriesOnStatistics() {
         journey.transport.on("/api/player/${Fixtures.ACCOUNT_A}", status = 202) { ProfileFixtures.syncing() }
         journey.launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), stillBackground = true))
-        journey.tap("fst.nav.tab.statistics")
+        journey.tap("fst.nav.profile")
         journey.waitForTag("fst.player.syncing")
         val before = journey.transport.sent("/api/player/${Fixtures.ACCOUNT_A}").size
         journey.tap("fst.player.retry")
@@ -460,14 +460,14 @@ class ProfileSelectionPageStatesUiTest {
         journey.waitGone("fst.player.reload")
         assertEquals(before + 1, journey.transport.sent("/api/player/${Fixtures.ACCOUNT_B}").size)
         journey.tap("fst.player.select")
-        journey.waitForTag("fst.nav.tab.statistics")
+        journey.waitForTag("fst.nav.tab.shop")
         assertKeyless()
     }
 
     @Test
     fun selectedProfileReloadsOnANewPublication() {
         journey.launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), stillBackground = true))
-        journey.tap("fst.nav.tab.statistics")
+        journey.tap("fst.nav.profile")
         journey.waitForTag("fst.player.overview")
         val before = journey.transport.sent("/api/player/${Fixtures.ACCOUNT_A}").size
         advancePublication()

@@ -948,6 +948,14 @@
             "symbol": "FestivalScreen"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/FestivalSection.kt",
+            "symbol": "FestivalTabPolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/DrawerPolicy.kt",
+            "symbol": "DrawerPolicy"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
             "symbol": "FestivalBarTitle"
           }
