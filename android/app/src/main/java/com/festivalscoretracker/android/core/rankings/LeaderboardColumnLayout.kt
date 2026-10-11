@@ -303,3 +303,61 @@ object LeaderboardColumnLayout {
 }
 
 // endregion
+
+// region History columns
+
+/**
+ * The texts a rank-history list's columns are measured from (issue #594; web
+ * `RankHistoryChart` / `BandRankHistoryChart`: "stable column widths derived from ALL chart
+ * history points"): every day of the chart, not only the listed rows, so the rank and value
+ * columns hold for the tapped bar's detail row and whichever days the list shows.
+ *
+ * @property dates Date labels.
+ * @property ranks Rank labels (`#1,234`).
+ * @property values Value labels (score, percentage or percentile).
+ */
+data class HistoryColumnTexts(val dates: List<String>, val ranks: List<String>, val values: List<String>)
+
+/** How one rank-history row places its date, rank and value. */
+enum class HistoryRowLayout {
+    /** Date, then the rank and value columns, on one line. */
+    Line,
+
+    /** The date on its own line over the rank and value columns (large text). */
+    DateAbove,
+
+    /** Date, rank and value each on their own line, rank and value right-aligned (extreme text sizes). */
+    Lines,
+}
+
+/**
+ * A rank-history list's shared columns in dp (`leaderboard-row` R1, issue #594): the rank and
+ * value get one right-aligned width each, measured from every day of the chart in bold (the
+ * newest row's weight) at the current font scale, so every row and the detail row line up
+ * like the web's fixed-width `tabular-nums` columns. The date takes the rest of the row and
+ * never shrinks below its widest label: when it would, every row of the list moves the date
+ * above the columns instead ([layoutFor]; rows have one width, so they all decide alike).
+ *
+ * @property dateWidth Widest date label.
+ * @property rankWidth Rank column width.
+ * @property valueWidth Value column width.
+ * @property gap Space between columns.
+ */
+data class HistoryColumnPlan(val dateWidth: Float, val rankWidth: Float, val valueWidth: Float, val gap: Float) {
+    /**
+     * The layout a row of this content width uses.
+     *
+     * @param rowWidth Row content width in dp (inside its padding); NaN or 0 before the first layout.
+     * @return [HistoryRowLayout.Line] when the widest date fits beside both columns (or the width
+     *   is unknown), [HistoryRowLayout.DateAbove] when only the two columns fit on a line, else
+     *   [HistoryRowLayout.Lines].
+     */
+    fun layoutFor(rowWidth: Float): HistoryRowLayout = when {
+        !rowWidth.isFinite() || rowWidth <= 0f -> HistoryRowLayout.Line
+        dateWidth + gap + rankWidth + gap + valueWidth <= rowWidth -> HistoryRowLayout.Line
+        rankWidth + gap + valueWidth <= rowWidth -> HistoryRowLayout.DateAbove
+        else -> HistoryRowLayout.Lines
+    }
+}
+
+// endregion

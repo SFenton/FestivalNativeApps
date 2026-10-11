@@ -1,5 +1,8 @@
 package com.festivalscoretracker.android.ui.bands
 
+import com.festivalscoretracker.android.ui.leaderboards.HistoryCell
+import com.festivalscoretracker.android.ui.leaderboards.HistoryColumnsRow
+import com.festivalscoretracker.android.ui.leaderboards.rememberHistoryColumns
 import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ScrollState
@@ -30,6 +33,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -399,6 +403,9 @@ private fun RankByMenu(metric: BandRankingMetric, options: List<BandRankingMetri
 
 // region Rank history
 
+/** Gap between a history row's date, rank and value. */
+private val HISTORY_GAP = 12.dp
+
 @Composable
 private fun HistorySection(state: LoadState<BandRankHistoryResponse>, metric: BandRankingMetric, onRetry: () -> Unit) {
     SectionHeader("Band Rank History", Modifier.testTag("fst.band.history-section"))
@@ -420,22 +427,30 @@ private fun HistorySection(state: LoadState<BandRankHistoryResponse>, metric: Ba
             }
             val points = remember(ranked, metric) { BandDetailProjection.points(ranked, metric) }
             val rows = remember(ranked, metric) { BandDetailProjection.recentRows(ranked, metric) }
+            // One rank and value width over every snapshot, so the rows line up (web BandRankHistoryChart, issue #594).
+            val texts = remember(ranked, metric) { BandDetailProjection.columnTexts(ranked, metric) }
+            val style = LocalTextStyle.current
+            val columns = rememberHistoryColumns(texts, style, HISTORY_GAP)
             GlassCard(Modifier.fillMaxWidth()) {
                 RankHistoryChart(points.map { Offset(it.x, it.y) }, ranked.first().rank(metric), ranked.last().rank(metric), ranked.size)
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-                    rows.forEach { row ->
-                        Row(
-                            Modifier
+                    rows.forEachIndexed { index, row ->
+                        // The newest snapshot is bold, the others' rank semibold (web `i === 0`).
+                        val weight = if (index == 0) FontWeight.Bold else FontWeight.Normal
+                        HistoryColumnsRow(
+                            plan = columns,
+                            date = HistoryCell(row.dateText, BrandTokens.textSecondary, weight),
+                            rank = HistoryCell(row.rankText, BrandTokens.textPrimary, if (index == 0) FontWeight.Bold else FontWeight.SemiBold),
+                            value = HistoryCell(row.valueText, BrandTokens.textSecondary, weight),
+                            style = style,
+                            modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(min = 40.dp)
                                 .testTag("fst.band.history-row.${row.date}")
-                                .clearAndSetSemantics { contentDescription = "${row.dateText}, rank ${row.rankText}, ${row.valueText}" },
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(row.dateText, color = BrandTokens.textSecondary, modifier = Modifier.weight(1f))
-                            Text(row.rankText, color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                            Text(row.valueText, color = BrandTokens.textSecondary)
-                        }
+                                .clearAndSetSemantics { contentDescription = "${row.dateText}, rank ${row.rankText}, ${row.valueText}" }
+                                .padding(vertical = 4.dp),
+                            probeKey = "band.${row.date}",
+                        )
                     }
                 }
             }
