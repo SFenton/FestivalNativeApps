@@ -335,6 +335,19 @@ class BandsCoreTest {
     }
 
     @Test
+    fun detailRowsPairSectionsInWebReadingOrder() {
+        // #584: two-pane rows read row by row in the web's section order, each section once.
+        val order = BandLayout.DETAIL_ROWS.flatMap { listOf(it.first, it.second) }
+        assertEquals(
+            listOf(BandLayout.MEMBERS, BandLayout.SUMMARY, BandLayout.STATISTICS, BandLayout.RANK_HISTORY, BandLayout.BEST_SONGS, BandLayout.WORST_SONGS),
+            order,
+        )
+        // Every Quick Links target but Songs (Five Best/Worst share one row) names a section here.
+        val links = com.festivalscoretracker.android.core.bands.BandQuickLinks.sections().map { it.id }
+        assertEquals(links.dropLast(1), order.take(links.size - 1))
+    }
+
+    @Test
     fun songBandLeaderboardSplitsOnlyAcrossASeparatingHinge() {
         // Half-open book fold: controls pane ends at the fold, rows start after it.
         assertEquals(BandLayout.Panes(true, 452f, 0f), BandLayout.listSplit(BandLayout.Hinge(452f, 452f, true)))
