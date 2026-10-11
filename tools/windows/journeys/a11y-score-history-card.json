@@ -1,0 +1,27 @@
+[
+  {"name": "score-history-card", "route": "/songs/fixture-pulse", "profile": "fixture-history-multi:History Multi", "scan": true, "tabs": 0,
+   "axe_allow": ["framework-popup"],
+   "note": "Issue #588: Score History is one card (selector, title, chart, pager, best scores, View All Scores). The best scores are in-card GroupedRows slices that touch (hairlines between them), read as text in score order after the chart (selector -> heading -> subtitle -> chart checked down the card's top, rows -> View All at its foot: assertorder needs on-screen elements), and View All Scores is the card's last stop: a 40+ epx button named for the chart. Tab from the pager's last enabled button lands on View All (rows are text, no Tab stop).",
+   "ready": ["scrollinto:id=fst.history.chart@40", "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|72", "wait:1.5"],
+   "after_ready": [
+     "assertorder:id=fst.history.instrument.Solo_Guitar|id=fst.history|id=fst.history.subtitle",
+     "shot:{stem}-top.png",
+     "scrollinset:id=fst.history.subtitle|id=fst.song-detail|72",
+     "wait:0.5",
+     "assertorder:id=fst.history.subtitle|id=fst.history.chart",
+     "scrollinset:id=fst.song-detail.history.row.20240208000000|id=fst.song-detail|72",
+     "wait:0.5",
+     "assertgap:id=fst.song-detail.history.row.20240208000000|id=fst.song-detail.history.row.20240207000000|0",
+     "assertgap:id=fst.song-detail.history.row.20240207000000|id=fst.song-detail.history.row.20240206000000|0",
+     "assertbelow:id=fst.history.view-all|id=fst.song-detail.history.row.20240204000000",
+     "assertsize:id=fst.history.view-all|0x40",
+     "assertname:id=fst.history.view-all|View All Scores, Lead",
+     "assertorder:id=fst.song-detail.history.row.20240208000000|id=fst.song-detail.history.row.20240207000000|id=fst.song-detail.history.row.20240204000000|id=fst.history.view-all",
+     "shot:{stem}.png",
+     "focus:id=fst.history.view-all",
+     "assertfocus:id=fst.history.view-all@3",
+     "key:shift+tab",
+     "key:tab",
+     "assertfocus:id=fst.history.view-all@3"
+   ]}
+]

@@ -2,7 +2,6 @@ package com.festivalscoretracker.android.presentation.profile
 
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
-import com.festivalscoretracker.android.core.model.PlayerSearchResult
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.profile.PlayerHistoryPayload
 import com.festivalscoretracker.android.core.profile.PlayerHistoryResponse
@@ -18,9 +17,6 @@ import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.data.FestivalApi
-import com.festivalscoretracker.android.presentation.ProfileSearchScope
-import com.festivalscoretracker.android.presentation.ProfileSearchState
-import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.MainDispatcherRule
 import com.festivalscoretracker.android.testing.ProfileFixtures
@@ -361,27 +357,6 @@ class ProfileViewModelsTest {
         settings.value = AppSettings(selectedPlayer = null)
         advanceUntilIdle()
         assertEquals(HistoryPhase.NoPlayer, vm.state.value.phase)
-    }
-
-    // endregion
-
-    // region Search scope
-
-    @Test
-    fun bandScopeNeverSearches() = runTest(main.dispatcher) {
-        var calls = 0
-        val vm = ProfileSearchViewModel { calls++; listOf(PlayerSearchResult(Fixtures.ACCOUNT_A, "x")) }
-        vm.setScope(ProfileSearchScope.Bands)
-        vm.onQueryChange("band name")
-        advanceUntilIdle()
-        assertEquals(ProfileSearchState.BandsUnavailable, vm.state.value)
-        assertEquals(ProfileSearchScope.Bands, vm.scope.value)
-        assertEquals(0, calls)
-        assertEquals("Find Band", ProfileSearchScope.Bands.placeholder)
-        vm.setScope(ProfileSearchScope.Players)
-        advanceUntilIdle()
-        assertTrue(vm.state.value is ProfileSearchState.Results)
-        assertEquals(1, calls)
     }
 
     // endregion

@@ -274,7 +274,7 @@
       "title": "Section-jump landing",
       "status": "current",
       "doc": ".agents/patterns/section-jump-landing.md",
-      "summary": "Quick Links and Songs section-index jumps land ordinary targets 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear; a section index fits the height it is given, condensing its labels rather than growing the page, and its labels follow the text size within that fit.",
+      "summary": "Quick Links and Songs section-index jumps land ordinary targets 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear and never leave a large title resting part-way collapsed; a section index fits the height it is given, condensing its labels rather than growing the page, and its labels follow the text size within that fit.",
       "keywords": [
         "quick links",
         "section jump",
@@ -314,6 +314,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongSectionIndexScrubber.swift",
             "symbol": "SongSectionIndexScrubber"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/LargeTitleRest.swift",
+            "symbol": "LargeTitleRest"
           }
         ],
         "android": [
@@ -401,7 +405,8 @@
         286,
         298,
         336,
-        393
+        393,
+        560
       ]
     },
     {
@@ -584,7 +589,8 @@
         "controls": [
           "quick-links",
           "songs-section-index",
-          "global-search"
+          "global-search",
+          "profile-selection"
         ],
         "pages": [
           "songs"
@@ -601,7 +607,8 @@
         343,
         348,
         557,
-        560
+        560,
+        600
       ]
     },
     {
@@ -620,7 +627,9 @@
         "transparency",
         "view all",
         "grouped list",
-        "group card"
+        "group card",
+        "uncarded section",
+        "reset row"
       ],
       "web": [
         {
@@ -634,6 +643,10 @@
         {
           "path": "pages/player/components/PlayerBandsSection.tsx",
           "symbol": "BandViewAllCard"
+        },
+        {
+          "path": "pages/settings/SettingsPage.tsx",
+          "symbol": "resetRow"
         }
       ],
       "canonical": {
@@ -686,10 +699,13 @@
             "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
             "symbol": "LeaderboardsPager"
           },
-
           {
             "path": "windows/Festival.App/Controls/GroupedRows.cs",
             "symbol": "GroupedRows"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/GroupedRowSlice.cs",
+            "symbol": "GroupedRowSlice"
           }
         ]
       },
@@ -786,7 +802,8 @@
         312,
         319,
         381,
-        461
+        461,
+        588
       ]
     },
     {
@@ -929,6 +946,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
             "symbol": "FestivalScreen"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/FestivalSection.kt",
+            "symbol": "FestivalTabPolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/DrawerPolicy.kt",
+            "symbol": "DrawerPolicy"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
@@ -1093,7 +1118,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586); the Windows Paths compact selectors show only the instrument and Image/Text icons when icon + name do not fit on one line, like the web mobile PathsModal (ComboBoxFaceTemplateSelector; owner-approved, #612).",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612).",
       "keywords": [
         "modal",
         "sheet",
@@ -1692,7 +1717,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse.",
+      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant).",
       "keywords": [
         "loading",
         "spinner",
@@ -1764,6 +1789,10 @@
           {
             "path": "apple/Sources/FestivalUI/Common/FadeInOnLoad.swift",
             "symbol": "FestivalFadeInScope"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/FadeInOnLoad.swift",
+            "symbol": "festivalCardSegmentFadeIn"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SelectedRowReveal.swift",
@@ -2081,6 +2110,101 @@
         316,
         323,
         380,
+        561,
+        614
+      ]
+    },
+    {
+      "id": "accordion",
+      "title": "Accordion",
+      "status": "current",
+      "doc": ".agents/patterns/accordion.md",
+      "summary": "Every in-place expand/collapse (filter-sheet disclosure groups, switch-revealed blocks, selector panels, Settings choice rows) opens the container first and then fades its content in, and fades the content out before collapsing (150 ms each, web QUICK_FADE_MS; owner #561). Steps are interruptible, Reduce Motion keeps only the fade, VoiceOver hears the requested state at once and transparent content is hidden and takes no touches. One shared component per platform.",
+      "keywords": [
+        "accordion",
+        "disclosure",
+        "DisclosureGroup",
+        "expand",
+        "collapse",
+        "expander",
+        "reveal",
+        "fade in",
+        "fade out",
+        "Reduce Motion",
+        "filter sheet",
+        "choice row"
+      ],
+      "web": [
+        {
+          "path": "components/common/Accordion.tsx",
+          "symbol": "Accordion"
+        },
+        {
+          "path": "components/page/CollapseOnExit.tsx",
+          "symbol": "CollapseOnExit"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
+            "symbol": "AccordionChoreography"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
+            "symbol": "FestivalAccordionState"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
+            "symbol": "FestivalAccordionContent"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
+            "symbol": "FestivalDisclosureGroup"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
+            "symbol": "FestivalAccordionAccessibility"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsSheets.kt",
+            "symbol": "Accordion"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "load-transition",
+          "settings-value-row"
+        ],
+        "controls": [
+          "songs-filter",
+          "instrument-selector"
+        ],
+        "pages": [
+          "songs",
+          "suggestions",
+          "settings"
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-raw-disclosure-group",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "(?<![A-Za-z])DisclosureGroup\\s*[({]",
+          "allow": [
+            "apple/Sources/FestivalUI/Design/FestivalAccordion.swift"
+          ],
+          "debt": [],
+          "message": "Accordions share one motion: use FestivalDisclosureGroup (or FestivalAccordionState + festivalAccordion(_:follows:) + FestivalAccordionContent for a reveal) instead of a raw DisclosureGroup (accordion R1, R5)."
+        }
+      ],
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        20,
         561
       ]
     },
@@ -2171,6 +2295,10 @@
           {
             "path": "windows/Festival.App/Controls/ServiceStatusView.xaml",
             "symbol": "ServiceStatusView"
+          },
+          {
+            "path": "windows/Festival.Core/Data/FestivalApiClient.cs",
+            "symbol": "ReadPinnedResponseAsync"
           }
         ]
       },
@@ -2385,7 +2513,8 @@
         ],
         "pages": [
           "songs",
-          "rivalry"
+          "rivalry",
+          "rival-detail"
         ]
       },
       "supersedes": [],
@@ -2398,7 +2527,8 @@
         286,
         303,
         313,
-        545
+        545,
+        605
       ]
     },
     {
@@ -3241,7 +3371,7 @@
       "title": "Songs profile panel",
       "status": "current",
       "doc": ".agents/patterns/songs-profile-panel.md",
-      "summary": "On wide Songs rows (iPad, iPhone Duo inner display, Mac) with a selected player or band whose score index is available and publication-matched, the row splits: song on the left, that profile's compact score cards (per scored instrument, or one band card) on the right. Compact cards keep one line or the row stays plain; loading, paused, failed, Filter Invalid Scores, accessibility sizes and Shop rows keep today's row. Card fields follow the saved Song Row Visual Order only while Independent Visual Order is on, else the web default order (MetadataField.songRowOrder).",
+      "summary": "On wide Songs rows (iPad, iPhone Duo inner display, Mac) with a selected player or band whose score index is available and publication-matched, the row splits: song on the left, that profile's compact score cards (per scored instrument, or one band card) on the right. Compact cards keep one line or the row stays plain; loading, paused, failed, accessibility sizes and Shop rows keep today's row; with Filter Invalid Scores on the cards show effective scores (invalid-scores, #613). Card fields follow the saved Song Row Visual Order only while Independent Visual Order is on, else the web default order (MetadataField.songRowOrder).",
       "keywords": [
         "profile panel",
         "wide row",
@@ -3301,7 +3431,8 @@
         "patterns": [
           "surface-materials",
           "load-transition",
-          "hinge-columns"
+          "hinge-columns",
+          "invalid-scores"
         ],
         "pages": [
           "songs"
@@ -3312,6 +3443,116 @@
         ]
       },
       "guards": []
+    },
+    {
+      "id": "invalid-scores",
+      "title": "Invalid scores (Filter Invalid Scores)",
+      "status": "current",
+      "doc": ".agents/patterns/invalid-scores.md",
+      "summary": "With Settings > Filter Invalid Scores on and a player selected, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details uses the web's filterPlayerScores rule.",
+      "keywords": [
+        "filter invalid scores",
+        "invalid score",
+        "leeway",
+        "validScores",
+        "minLeeway",
+        "over chopt threshold",
+        "filtered score",
+        "effective score",
+        "populationTiers"
+      ],
+      "web": [
+        {
+          "path": "pages/songs/SongsPage.tsx",
+          "symbol": "effectiveScores"
+        },
+        {
+          "path": "hooks/data/useScoreFilter.ts",
+          "symbol": "filterPlayerScores"
+        },
+        {
+          "path": "pages/songs/components/InvalidScoreIcon.tsx",
+          "symbol": "InvalidScoreIcon"
+        },
+        {
+          "path": "pages/songs/modals/FilterModal.tsx",
+          "symbol": "overThreshold"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/InvalidScorePolicy.swift",
+            "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/InvalidScorePolicy.swift",
+            "symbol": "InvalidScoreWarning"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/InvalidScorePolicy.swift",
+            "symbol": "SongPopulationTierTable"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/InvalidScoreIndicator.swift",
+            "symbol": "songInvalidScoreIndicator"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/SongPlayerScoreFilter.swift",
+            "symbol": "overThreshold"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt",
+            "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongScoreAdapter.kt",
+            "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt",
+            "symbol": "InvalidScoreIcon"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongScoreSource.cs",
+            "symbol": "ForSongs"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "songs-profile-panel",
+          "catalogue-sort"
+        ],
+        "pages": [
+          "songs",
+          "song-detail",
+          "settings"
+        ],
+        "controls": [
+          "songs-filter",
+          "song-score-metadata",
+          "songs-instrument-status-chips"
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-invalid-score-pause",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "not available yet|paused while Filter Invalid Scores",
+          "allow": [],
+          "debt": [],
+          "message": "Filter Invalid Scores substitutes effective scores (invalid-scores R3, #613); never pause rows, panels, filters or sorts. Use InvalidScorePolicy."
+        }
+      ]
     },
     {
       "id": "hinge-columns",
@@ -4284,6 +4525,92 @@
       ],
       "supersedes": [],
       "supersededBy": null
+    },
+    {
+      "id": "search-scopes",
+      "title": "Search scopes: global and profile search",
+      "status": "current",
+      "doc": ".agents/patterns/search-scopes.md",
+      "summary": "Every song/player/band search runs the platform's global-search engine with the kinds it needs as targets; the profile search offers All · Players · Bands and starts on All with players and bands searched together (owner #600, web SearchModal targets players|bands), reuses global search's rows, order and All-only titles, opens a player or a band's page (no gate message), and uses a native scope control with an explicit All (Apple scope bar, Android M3 segmented buttons, Windows SelectorBar; agent decision #600). Find Rival stays players-only.",
+      "keywords": [
+        "search scope",
+        "scope bar",
+        "profile search",
+        "select profile",
+        "find a profile",
+        "players and bands",
+        "segmented button",
+        "selectorbar",
+        "all players bands"
+      ],
+      "web": [
+        {
+          "path": "components/search/SearchModal.tsx",
+          "symbol": "SearchModal"
+        },
+        {
+          "path": "hooks/data/useUnifiedSearch.ts",
+          "symbol": "useUnifiedSearch"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchModel.swift",
+            "symbol": "GlobalSearchModel"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
+            "symbol": "GlobalSearchResults"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/search/GlobalSearchViewModel.kt",
+            "symbol": "GlobalSearchViewModel"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/search/GlobalSearch.kt",
+            "symbol": "profileScopes"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/search/GlobalSearch.kt",
+            "symbol": "searchResultItems"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/search/GlobalSearch.kt",
+            "symbol": "SearchAnnouncement"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/ProfileSheet.kt",
+            "symbol": "ScopeRow"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/ViewModels/GlobalSearchViewModel.cs",
+            "symbol": "GlobalSearchViewModel"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "section-headers",
+          "empty-error-states"
+        ],
+        "controls": [
+          "global-search",
+          "profile-selection"
+        ],
+        "pages": []
+      },
+      "issues": [
+        299,
+        320,
+        348,
+        573,
+        600
+      ]
     }
   ]
 }
