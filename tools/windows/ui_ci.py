@@ -13,7 +13,8 @@ in-app Reduce Motion), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
 push (issue #452), the Songs scroll far jumps and keyboard End/Home (issue #520, also with Animation effects off), the
-Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438), the Paths
+Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438, also with "Always show
+scrollbars" on, issue #525), the Paths
 text table (issue #515, also under a contrast theme) and the Full
 Rankings pinned row (issue #466, also with in-app Reduce Motion), the Leaderboards card "your rank" row (issue #493,
 also with in-app Reduce Motion), the Search All section titles (issue #483, also with in-app Reduce Motion), the
@@ -401,9 +402,15 @@ RUNS: tuple[Run, ...] = (
     Run("paths-swap-no-animations", "a11y-paths-swap.json", sizes="compact", mode="no-animations"),
     # Paths chart (issues #87, #279, #438): "Path chart, pane" holds "<instrument> <difficulty> CHOpt path, image" in
     # zoom -> chart -> image -> Close order, centred in its scroller with no scroll bar at rest, zoomed (keyboard Enter on
-    # Zoom in, then End/Home on the focused chart) and back at 100% with Zoom out unavailable, and after Image <-> Text.
+    # Zoom in, then End/Home on the focused chart) and back at 100% with Zoom out unavailable and focus moved on to Zoom
+    # in, and after Image <-> Text. With Windows' "Always show scrollbars" on (#279's exception, issue #525) the chart
+    # shows its bar instead, still centred, the bar never a Tab stop, at default and 225% text.
     Run("paths-chart", "a11y-paths-chart.json", sizes="compact,medium,wide", tabs=0),
     Run("paths-chart-text-225", "a11y-paths-chart.json", sizes="compact,wide", mode="text-225", tabs=0),
+    Run("paths-chart-scrollbars", "a11y-paths-chart.json", sizes="compact,medium,wide", mode="scrollbars-always", tabs=0,
+        only="paths-chart-scrollbars"),
+    Run("paths-chart-scrollbars-text-225", "a11y-paths-chart.json", sizes="compact,wide",
+        mode="scrollbars-always+text-225", tabs=0, only="paths-chart-scrollbars"),
     # Paths text table (issues #223, #515): "Path table, pane" (a Tab stop that keeps focus on End/Home) holds one
     # "Activation n: …, group" per card in selectors -> table -> cards -> Close order, with the column captions and
     # values Raw (read once), the compact stack and wide grid with values apart; a live Desert switch repaints the frets

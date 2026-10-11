@@ -731,15 +731,18 @@ class UiCiTests(unittest.TestCase):
         # Issue #438 (#87, #279): the chart's centring, hidden scroll bars, names, order and keyboard panning are checked
         # in windows-ui at default and 225% text, every page, Axe-scanned.
         runs = [run for run in ci.RUNS if run.pages == "a11y-paths-chart.json"]
-        self.assertEqual({"normal", "text-225"}, {run.mode for run in runs})
-        self.assertTrue(all(run.scan and not run.only for run in runs))
-        pages = json.loads((ci.JOURNEYS / "a11y-paths-chart.json").read_text(encoding="utf-8"))
+        full = [run for run in runs if not run.only]
+        self.assertEqual({"normal", "text-225"}, {run.mode for run in full})
+        self.assertTrue(all(run.scan for run in runs))
+        pages = [page for page in json.loads((ci.JOURNEYS / "a11y-paths-chart.json").read_text(encoding="utf-8"))
+                 if not page.get("modes")]
         for mode in ("normal", "text-225"):
-            covered = {page["name"] for run in runs if run.mode == mode for page in m.mode_pages(pages, run.mode)
+            covered = {page["name"] for run in full if run.mode == mode for page in m.mode_pages(pages, run.mode)
                        if m.page_sizes(page, run.sizes.split(","), run.mode)}
             self.assertEqual({page["name"] for page in pages}, covered)
         for page in pages:
             steps = page["after_ready"]
+            self.assertIn("scrollbars-always", page["skip_modes"])
             for check in ("assertread:id=fst.paths.image-scroller|Path chart, pane",
                           "assertread:id=fst.paths.image|Lead Expert CHOpt path, image",
                           "assertnoscrollbar:id=fst.paths.image-scroller",
@@ -751,7 +754,42 @@ class UiCiTests(unittest.TestCase):
         for check in ("assertfocus:id=fst.paths.image-scroller@3", "key:end",
                       "assertstate:id=fst.paths.image-scroller|scroll=100@3", "assertnoscrollbar:id=fst.paths.image-scroller"):
             self.assertIn(check, chart[zoomed:restored])
-        self.assertIn("assertaligned:id=fst.paths.image|id=fst.paths.image-scroller", chart[restored:])
+        # Zoom out disables at 100% (#279's NormalizeZoom); keyboard focus moves on to Zoom in rather than being lost.
+        for check in ("assertstate:id=fst.paths.zoom-out|enabled=false", "assertfocus:id=fst.paths.zoom-in@3",
+                      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"):
+            self.assertIn(check, chart[restored:])
+
+    def test_paths_chart_always_shows_scroll_bars_when_windows_asks(self):
+        # Issue #525 (#279's exception): with Settings > Accessibility > Visual effects > "Always show scrollbars" on,
+        # the chart holds its scroll bar at rest, zoomed and panned, stays centred, the bar is never a Tab stop, and the
+        # zoom round trip keeps names, 40 epx targets and focus; windows-ui runs it at default and 225% text.
+        self.assertEqual(m.MODES["scrollbars-always"]["system"], {"always_show_scrollbars": True})
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-chart.json" and run.only]
+        self.assertEqual({"scrollbars-always", "scrollbars-always+text-225"}, {run.mode for run in runs})
+        self.assertTrue(all(run.scan and run.only == "paths-chart-scrollbars" for run in runs))
+        for run in runs:
+            self.assertEqual(["paths-chart-scrollbars"], [page["name"] for page in ci.run_pages(run)])
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-chart.json").read_text(encoding="utf-8"))
+        page = next(page for page in pages if page["name"] == "paths-chart-scrollbars")
+        self.assertEqual(["scrollbars-always"], page["modes"])
+        steps = page["after_ready"]
+        self.assertNotIn("assertnoscrollbar:id=fst.paths.image-scroller", steps)
+        zoomed = steps.index("waitfor:name=225%@5")
+        restored = steps.index("waitfor:name=100%@5")
+        for part in (steps[:zoomed], steps[zoomed:restored], steps[restored:]):
+            self.assertIn("assertscrollbar:id=fst.paths.image-scroller", part)
+        for check in ("assertread:id=fst.paths.image-scroller|Path chart, pane",
+                      "assertread:id=fst.paths.zoom-out|Zoom out, button, unavailable",
+                      "assertorder:id=fst.paths.zoom-out|id=fst.paths.zoom-in|id=fst.paths.image-scroller|id=fst.paths.image|id=CloseButton",
+                      "assertsize:id=fst.paths.zoom-in|40x40", "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"):
+            self.assertIn(check, steps[:zoomed])
+        # Tab goes zoom -> chart -> Close: the bar's parts are not Tab stops.
+        tab = steps.index("key:tab", zoomed)
+        self.assertEqual("assertfocus:id=fst.paths.image-scroller@3", steps[tab + 1])
+        self.assertIn("assertfocus:id=CloseButton@3", steps[steps.index("key:tab", tab + 1) + 1])
+        for check in ("assertstate:id=fst.paths.zoom-out|enabled=false", "assertfocus:id=fst.paths.zoom-in@3",
+                      "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"):
+            self.assertIn(check, steps[restored:])
 
     def test_paths_text_runs_and_checks_the_table(self):
         # Issue #515 (#223): the Paths text table reads each card once (captions and values Raw), keeps the
