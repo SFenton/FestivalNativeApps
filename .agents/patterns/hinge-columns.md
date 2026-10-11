@@ -2,7 +2,7 @@
 
 > **What:** where two-column layouts (grids, side-by-side rows) put their centre gutter and where full-width titles wrap when a foldable is partially folded with a vertical fold (iPhone Duo book pose, Android book posture). **Read when:** adding a grid, a two-up row or a full-width title to a page that can show on a foldable's inner display, or changing column counts on the Duo inner display.
 
-Status: **current**, 2026-10-12. Provenance: #343 (split from #332), #365 (R8), #584 (R8 on Android), #366 (Song Detail band previews), #373 (feedback form and photo library panes); Android precedent from the Rivals, Shop, Songs and Settings hinge work; owner rule #361 (flat divides at the free space's midpoint); owner rule #368 (Paths Side by Side panes).
+Status: **current**, 2026-10-10. Provenance: #343 (split from #332), #365 (R8), #584 (R8 on Android), #366 (Song Detail band previews), #373 (feedback form and photo library panes); Android precedent from the Rivals, Shop, Songs and Settings hinge work; owner rule #361 (flat divides at the free space's midpoint); owner rule #368 (Paths Side by Side panes).
 
 ## Intent
 
@@ -50,7 +50,7 @@ Question: owner, "Why aren't Duos/Trios/Quads leaderboards preview multi-col?" S
 
 Chose **A**: same column rule, the web's grouping and order, and the Android and Windows layout. Owner may override with `/choose B` or `/choose C`.
 
-## Agent decision (#584, 2026-10-12): Android grids are row-major; Band Detail panes become paired rows
+## Agent decision (#584, 2026-10-10): Android grids are row-major; Band Detail panes become paired rows
 
 Question: the owner reported that on unfolded and landscape Android, Profile and Band sections side by side drift apart as you scroll, and that headers should span the whole width. Should Android keep its masonry grids and independent Band Detail panes, or follow Apple's rows?
 
@@ -59,7 +59,7 @@ Question: the owner reported that on unfolded and landscape Android, Profile and
 | **A (chosen)** | Row-major grids: cards side by side share a top edge; full-width headings span the window flat and in landscape and keep to the leading pane in book posture. Band Detail scrolls as one page of paired rows under a full-width header. | Material 3 foldables: "Never place interactive content or critical information across the hinge area" (must); Material 3 window size classes: expanded windows use the full width; HIG Layout: "Align components to aid scanning" (should). | Apple `HingeGrid` / `HingeRow` (R8, #365); Android Leaderboards `CardGridRow`; web grids are row-major CSS grids. | A short card leaves space under it until the taller neighbour ends; Band Detail's two sides no longer scroll on their own. |
 | B | Keep masonry (shortest-lane) grids and independent Band Detail panes, only widening the headers. | Same clauses. | Previous Android layout. | The drift the owner reported stays. |
 
-Chose **A**: it is the owner's request, the Apple precedent and the web's grid. In book posture Profile's Overview fills the leading pane as one cell with Lead beside it after the hinge (keeping #111's no-gap rule), while its headings span the line with their text in the leading pane. Band Detail keeps the #361 pane geometry (equal halves 24 dp apart when flat, meeting at the hinge in book posture), splits Five Best and Five Worst into a pair, and now offers Quick Links in two-pane mode too. Owner may override with `/choose B`.
+Chose **A**: it is the owner's request, the Apple precedent and the web's grid. In book posture Profile's Overview and headings span the line with their content in the leading pane (`FoldLane`), and the instrument cards start the next row, Lead before the hinge and Bass after it, as under Apple's full-width Overview above its `HingeGrid`. An earlier draft let Overview fill the leading pane as one cell with Lead beside it; on a real profile Lead's tall card then sat beside an empty leading pane, so it was dropped. Band Detail keeps the #361 pane geometry (equal halves 24 dp apart when flat, meeting at the hinge in book posture), splits Five Best and Five Worst into a pair, and now offers Quick Links in two-pane mode too. Owner may override with `/choose B`.
 
 ## Canonical implementation
 

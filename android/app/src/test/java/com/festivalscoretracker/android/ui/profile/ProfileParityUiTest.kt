@@ -648,8 +648,9 @@ class ProfileParityExpandedUiTest {
 
 /**
  * #584 on an unfolded book foldable: flat, Overview and the Top Songs heading span the whole
- * grid; half open, the heading keeps to the leading panel and Overview fills that panel with
- * Lead beside it after the hinge (#111), both on one top edge.
+ * grid; half open, they keep their content to the leading panel and the instrument cards start
+ * the next row, Lead before the hinge and Bass after it on one top edge (like Apple's
+ * full-width Overview above its `HingeGrid`).
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w852dp-h883dp-xhdpi")
@@ -691,8 +692,12 @@ class ProfileParityFoldUiTest {
         }
         val overview = bounds("fst.player.overview")
         val lead = bounds("fst.player.instrument.Solo_Guitar")
-        assertTrue("half open: Lead $lead starts after the hinge $hinge", lead.left >= hinge - 1f)
-        assertEquals("half open: Lead $lead and Overview $overview share a top edge", overview.top, lead.top, 1f)
+        assertTrue("half open: Lead $lead doesn't start the row under Overview $overview", lead.top >= overview.bottom - 1f && lead.right <= hinge + 1f)
+        journey.scrollTo("fst.player.instrument.Solo_Bass")
+        val leadRow = bounds("fst.player.instrument.Solo_Guitar")
+        val bass = bounds("fst.player.instrument.Solo_Bass")
+        assertTrue("half open: Bass $bass starts before the hinge $hinge", bass.left >= hinge - 1f)
+        assertEquals("half open: Lead $leadRow and Bass $bass don't share a top edge", leadRow.top, bass.top, 1f)
 
         journey.scrollTo("fst.player.top-songs")
         val heading = bounds("fst.player.top-songs")

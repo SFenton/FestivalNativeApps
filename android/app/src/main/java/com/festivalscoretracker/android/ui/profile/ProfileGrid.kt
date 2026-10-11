@@ -41,15 +41,15 @@ import kotlin.math.roundToInt
  * Cards fill each line start to end and start at the line's top edge, however far the page
  * scrolls (`hinge-columns` R8, #584: a masonry grid let side-by-side sections drift apart).
  * Full-width rows (identity, Overview, headings) span the whole line flat or in landscape; in
- * book posture the caller keeps them to the leading panel ([FoldLane][com.festivalscoretracker.android.ui.common.FoldLane])
- * or lets a tall one fill one panel, told by the `splitAtFold` argument of [content].
+ * book posture they keep their content in the leading panel through
+ * [FoldLane][com.festivalscoretracker.android.ui.common.FoldLane], which this grid provides.
  *
  * @param state Scroll state (shared with Quick Links).
  * @param contentPadding Padding inside the scrolling area.
  * @param modifier Modifier (horizontal page padding belongs here, outside the columns).
  * @param minColumn Minimum column width.
  * @param maxColumns Upper bound on columns without hinges.
- * @param content Items; its argument is whether the columns split at a fold (book posture).
+ * @param content Items.
  */
 @Composable
 fun ProfileGrid(
@@ -58,7 +58,7 @@ fun ProfileGrid(
     modifier: Modifier = Modifier,
     minColumn: Dp = 340.dp,
     maxColumns: Int = 3,
-    content: LazyGridScope.(splitAtFold: Boolean) -> Unit,
+    content: LazyGridScope.() -> Unit,
 ) {
     val density = LocalDensity.current
     val hinges = shellPosture().hingeList
@@ -89,7 +89,7 @@ fun ProfileGrid(
                     if (next != bounds) bounds = next
                 }
                 .testTag("fst.player.available"),
-            content = { content(leadingPane != null) },
+            content = content,
         )
     }
 }

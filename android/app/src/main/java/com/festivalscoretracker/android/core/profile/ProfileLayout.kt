@@ -222,19 +222,12 @@ sealed interface ProfileRow {
         val showsViewAll: Boolean get() = entries.isNotEmpty()
     }
 
-    /** Whether the row spans every column when no fold splits them. */
-    val fullWidth: Boolean get() = this !is InstrumentStats && this !is TopSongs && this !is BandGroup
-
     /**
-     * Whether the row spans the whole grid line (#584). Flat or in landscape every [fullWidth]
-     * row does. In book posture the headings and identity still span it, their text kept to the
-     * leading panel, while Overview's tall tile block fills the leading panel as one cell so Lead
-     * starts beside it after the hinge instead of leaving that panel empty (#111).
-     *
-     * @param splitAtFold Whether the columns split at a fold (book posture).
-     * @return True when the row takes the whole line.
+     * Whether the row spans the whole grid line (#584): flat or in landscape across every column;
+     * in book posture its content stays in the leading panel (`FoldLane`), so the cards after it
+     * start a new row on one top edge, as under Apple's full-width Overview.
      */
-    fun spansLine(splitAtFold: Boolean): Boolean = fullWidth && !(splitAtFold && this == Overview)
+    val fullWidth: Boolean get() = this !is InstrumentStats && this !is TopSongs && this !is BandGroup
 }
 
 /**

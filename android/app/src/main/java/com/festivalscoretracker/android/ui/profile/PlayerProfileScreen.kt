@@ -273,10 +273,10 @@ private fun LoadedProfile(
         state = gridState,
         contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
         modifier = Modifier.padding(start = padding.calculateStartPadding(direction) + 16.dp, end = padding.calculateEndPadding(direction) + 16.dp),
-    ) { splitAtFold ->
+    ) {
         rows.forEachIndexed { index, row ->
             // Full-width rows span the line, their content in the leading panel at a fold (FoldLane, #584).
-            val spans = row.spansLine(splitAtFold)
+            val spans = row.fullWidth
             item(key = row.key, span = { if (spans) GridItemSpan(maxLineSpan) else GridItemSpan(1) }) {
                 FullWidthLane(spans) {
                 Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index)).readingGroup()) {

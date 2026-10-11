@@ -41,9 +41,10 @@ import org.junit.runner.RunWith
  * - **Flat, two columns:** Overview spans the grid; Lead and Bass share a top edge beneath it;
  *   TalkBack reads Overview, then Lead, then Bass (row by row, each cell whole); the Top Songs
  *   heading spans the grid, is a heading and its text is unclipped.
- * - **Half open (book posture):** Overview fills the leading panel with Lead beside it after the
- *   hinge on the same top edge (#111), read Overview then Lead; the Top Songs heading keeps to
- *   the leading panel and nothing straddles the hinge.
+ * - **Half open (book posture):** Overview and the Top Songs heading keep to the leading panel
+ *   (like Apple's full-width Overview above its `HingeGrid`); the instrument cards start the next
+ *   row, Lead before the hinge and Bass after it on one top edge, read Overview, Lead, Bass;
+ *   nothing straddles the hinge.
  * - **One column (phone):** portrait and compact windows are unchanged: Lead sits below
  *   Overview and is read after it.
  *
@@ -116,8 +117,8 @@ class ProfileRowsAccessibilityJourneyTest {
 
     /**
      * Flat: full-width Overview over a row of Lead | Bass on one top edge, read row by row; half
-     * open: Overview in the leading panel with Lead beside it after the hinge and the Top Songs
-     * heading kept to the leading panel. A one-column window keeps Lead below Overview.
+     * open: Overview and the Top Songs heading in the leading panel, Lead | Bass on the next row
+     * either side of the hinge. A one-column window keeps Lead below Overview.
      */
     @Test
     fun sideBySideSectionsShareARowUnderFullWidthHeadings() {
@@ -157,13 +158,19 @@ class ProfileRowsAccessibilityJourneyTest {
 
         val fold = foldX()
         h.scrollTo(GRID, OVERVIEW)
-        publish(State.HALF_OPENED) { h.exists(OVERVIEW) && h.exists(LEAD) && bounds(OVERVIEW).right <= fold + 1f && bounds(LEAD).left >= fold - 1f }
+        publish(State.HALF_OPENED) { h.exists(OVERVIEW) && h.exists(LEAD) && bounds(OVERVIEW).right <= fold + 1f && bounds(LEAD).right <= fold + 1f }
         h.awaitAccessibilityTree(present = LEAD)
         val halfOverview = bounds(OVERVIEW)
         val halfLead = bounds(LEAD)
         Log.i(JourneyHarness.READING_ORDER_TAG, "profile-rows half open | fold $fold | overview $halfOverview | lead $halfLead")
-        assertEquals("half open: Lead $halfLead and Overview $halfOverview don't share a top edge", halfOverview.top, halfLead.top, 1f)
+        assertTrue("half open: Lead $halfLead doesn't start the row under Overview $halfOverview", halfLead.top >= halfOverview.bottom - 1f)
         assertReadInOrder(h.readingOrder("profile-rows-half-open", fresh = true), listOf(OVERVIEW_LABEL, Instrument.Lead.label), "half open")
+        h.scrollTo(GRID, BASS)
+        h.awaitAccessibilityTree(present = BASS)
+        val bass = bounds(BASS)
+        assertTrue("half open: Bass $bass doesn't start after the hinge $fold", bass.left >= fold - 1f)
+        assertEquals("half open: Lead ${bounds(LEAD)} and Bass $bass don't share a top edge", bounds(LEAD).top, bass.top, 1f)
+        h.assertNothingStraddles(LEAD, BASS)
         h.scrollTo(GRID, TOP_SONGS)
         h.awaitAccessibilityTree(present = TOP_SONGS)
         assertTrue("half open: the Top Songs heading ${bounds(TOP_SONGS)} crosses the hinge $fold", bounds(TOP_SONGS).right <= fold + 1f)
