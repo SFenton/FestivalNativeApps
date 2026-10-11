@@ -128,15 +128,15 @@ class RivalRowUiTest {
 
         val lead = Instrument.Lead.label
         assertEquals(
-            "Behind Song, $lead, Player rank 57, Rival rank 56, Rival leads by 1 rank, your score is 94 points lower",
+            "Behind Song, $lead, Player rank 57, Rival rank 56, Rival leads by 1 rank",
             description("fst.rivals.song.s-behind.Solo_Guitar"),
         )
         assertEquals(
-            "Ahead Song, $lead, You rank 3, Them rank 15,403, you lead by 15,400 ranks, your score is 1 point higher",
+            "Ahead Song, $lead, You rank 3, Them rank 15,403, you lead by 15,400 ranks",
             description("fst.rivals.song.s-ahead.Solo_Guitar"),
         )
         assertEquals(
-            "Tied Song, $lead, Player rank 4, Rival rank 4, tied, same score",
+            "Tied Song, $lead, Player rank 4, Rival rank 4, tied",
             description("fst.rivals.song.s-tied.Solo_Guitar"),
         )
         rule.onNodeWithTag("fst.rivals.song.s-behind.Solo_Guitar").performSemanticsAction(SemanticsActions.OnClick)

@@ -738,8 +738,8 @@ private fun SettingsDetailPlaceholder(modifier: Modifier) {
 
 /**
  * One setting's options in the detail pane: its header and the same card the phone list shows
- * (whole sections), or the extracted control (App Settings sub-settings). Licenses and Privacy
- * Policy are their own scrolling lists in the pane.
+ * (whole sections), or the extracted control (App Settings sub-settings). Privacy Policy reads in
+ * one card in the same scrolling column (issue #609). Licenses is its own scrolling list in the pane.
  */
 @Composable
 private fun SettingsDetailContent(
@@ -755,7 +755,6 @@ private fun SettingsDetailContent(
 ) {
     when (detail) {
         SettingsDetail.Licenses -> return LicensesPane(padding, header = { Header(detail) })
-        SettingsDetail.PrivacyPolicy -> return PrivacyPolicyPane(padding, header = { Header(detail) })
         else -> Unit
     }
     Column(
@@ -779,7 +778,8 @@ private fun SettingsDetailContent(
                 SettingsDetail.PathColumnOrder -> PaneCard(detail) { Column(Modifier.padding(16.dp)) { PathColumnOrderControl(settings, vm) } }
                 SettingsDetail.SongRowOrder -> PaneCard(detail) { Column(Modifier.padding(16.dp)) { SongRowOrderControl(settings, vm) } }
                 SettingsDetail.Leeway -> PaneCard(detail) { LeewayControl(settings.leeway, vm::setLeeway, inPane = true) }
-                SettingsDetail.Licenses, SettingsDetail.PrivacyPolicy -> Unit
+                SettingsDetail.PrivacyPolicy -> PrivacyPolicyPane(header = { Header(detail) })
+                SettingsDetail.Licenses -> Unit
             }
         }
     }

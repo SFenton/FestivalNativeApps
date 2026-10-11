@@ -11,9 +11,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridScope
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
-import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.LazyGridScope
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -99,7 +99,7 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
     val latest by viewModel.content.collectAsStateWithLifecycle()
     val swap = rememberLoadSwap(latest, latest.ready)
     val content = swap.shown
-    val gridState = rememberLazyStaggeredGridState()
+    val gridState = rememberLazyGridState()
     val rivalsIndex = 1 + content.sections.size
     // Web: the two groups once the page's content is in (no full-page failure).
     val sections = if (swap.showsContent && content.fullPageIssue == null) RivalQuickLinks.compete() else emptyList()
@@ -145,7 +145,7 @@ fun CompeteScreen(viewModel: CompeteViewModel, isRoot: Boolean) {
  * @param revealed The page swap's reveal flag ([festivalFadeIn]).
  */
 @Composable
-private fun CompeteGrid(content: CompeteContent, padding: PaddingValues, gridState: LazyStaggeredGridState, viewModel: CompeteViewModel, revealed: Boolean) {
+private fun CompeteGrid(content: CompeteContent, padding: PaddingValues, gridState: LazyGridState, viewModel: CompeteViewModel, revealed: Boolean) {
     val shell = LocalShellActions.current
     val selected = shell.selectedPlayer?.accountId
     val order = content.stagger
@@ -175,7 +175,7 @@ private fun CompeteGrid(content: CompeteContent, padding: PaddingValues, gridSta
  */
 private val GROUP_HEADER_TOP_PADDING = 8.dp
 
-private fun LazyStaggeredGridScope.groupHeader(id: String, title: String, revealed: Boolean, stagger: Int) {
+private fun LazyGridScope.groupHeader(id: String, title: String, revealed: Boolean, stagger: Int) {
     // Full-line, but kept in the leading pane while the grid splits at a hinge (issue #343).
     foldLaneItem(key = "header:$id") {
         Box(Modifier.festivalFadeIn(revealed, fadeInStagger(stagger))) {
@@ -238,8 +238,9 @@ private fun EmptyCard(title: String, subtitle: String, modifier: Modifier = Modi
 }
 
 /**
- * One scope's leaderboard card: its header, then rows, the player's row and View Full
- * Leaderboards (or empty copy, or an inline error), each fading in at its place in the page order.
+ * One scope's leaderboard card: its header, then one card of rows, the player's row and View
+ * Full Leaderboards (one fade, load-transition R11, owner #614; or empty copy, or an inline
+ * error), each fading in at its place in the page order.
  *
  * @param section Scope state.
  * @param selected Selected account, highlighted in the rows.
@@ -270,7 +271,8 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                 if (!value.hasNavigation) {
                     EmptyCard(CompeteText.NO_RANKINGS_TITLE, CompeteText.noRankings(scope.label), Modifier.festivalFadeIn(revealed, fadeInStagger(body)))
                 } else {
-                    GlassCard(Modifier.fillMaxWidth()) {
+                    // The card fades in as one with its rows and the player's row, never row by row (load-transition R11, owner #614).
+                    GlassCard(Modifier.fillMaxWidth().festivalFadeIn(revealed, fadeInStagger(body))) {
                         // Rows fill this column, so its inner width is the row width the songs column must fit in (issue #38).
                         var rowWidth by rememberRankingRowWidth()
                         val density = LocalDensity.current
@@ -278,7 +280,7 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                         CompositionLocalProvider(LocalRankingColumns provides columns) {
                         Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }) {
                             value.entries.forEachIndexed { index, entry ->
-                                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(body + index))) {
+                                Box {
                                     if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                                     AccountRankingRow(
                                         entry = entry,
@@ -291,7 +293,7 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                                 }
                             }
                             value.spotlight?.let { own ->
-                                Column(Modifier.festivalFadeIn(revealed, fadeInStagger(body + value.entries.size))) {
+                                Column {
                                     HorizontalDivider(color = BrandTokens.glassBorder, modifier = Modifier.padding(vertical = 4.dp))
                                     // Like Song Detail's appended row (`leaderboard-row` R7, owner variant #370): it opens
                                     // the scope's full board (a combo's included, #602) on the player's page and reveals the row.
@@ -307,16 +309,18 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                             }
                         }
                         }
-                    }
-                    if (fullBoard != null) {
-                        val rows = value.entries.size + (if (value.spotlight != null) 1 else 0)
-                        ViewFullLeaderboardButton(
-                            onClick = fullBoard,
-                            modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(body + rows)),
-                            label = CompeteText.VIEW_FULL_LEADERBOARDS,
-                            testTag = "fst.compete.view-full-leaderboards",
-                            cardName = scope.label,
-                        )
+                        // `view-all-cta` R1 (Android, #603): the CTA ends the card inside it, inset 12 dp like
+                        // the rivals card beside it and Song Detail's previews (the rows' 8 dp padding is above it).
+                        // It fades in with the card, never after it (load-transition R11, owner #614).
+                        if (fullBoard != null) {
+                            ViewFullLeaderboardButton(
+                                onClick = fullBoard,
+                                modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
+                                label = CompeteText.VIEW_FULL_LEADERBOARDS,
+                                testTag = "fst.compete.view-full-leaderboards",
+                                cardName = scope.label,
+                            )
+                        }
                     }
                 }
             }
@@ -325,8 +329,8 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
 }
 
 /**
- * One scope's rivals card: its header, then three above / three below and View All Rivals (or
- * empty copy, or an inline error), each fading in at its place in the page order.
+ * One scope's rivals card: its header, then one card of three above / three below ending in View
+ * All Rivals (or empty copy, or an inline error), fading in at its place in the page order.
  *
  * @param section Scope state.
  * @param viewModel Page logic (retry).

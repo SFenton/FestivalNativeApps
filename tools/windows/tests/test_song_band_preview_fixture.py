@@ -61,6 +61,39 @@ class PayloadTests(unittest.TestCase):
         self.assertEqual(modes, set(f.MODES))
         self.assertTrue(any("fixture" not in p and not str(p.get("profile", "")).startswith("fixture-") for p in pages))
 
+    def test_far_board_pages_mix_rank_widths(self):
+        # Issue #594: page 40 holds #976-#1,000 and page 400 #9,976-#10,000, so one page crosses a rank-width boundary.
+        for page, first, last in ((40, 976, 1_000), (400, 9_976, 10_000)):
+            body = f.far_board_payload("fixture-pulse", 25, (page - 1) * 25, "fixture-player-1")
+            self.assertEqual([e["rank"] for e in body["entries"]], list(range(first, last + 1)))
+            self.assertEqual(body["count"], 25)
+            self.assertEqual(body["totalEntries"], f.FAR_BOARD_TOTAL)
+            self.assertTrue(all(e["bandType"] == "Band_Duets" and len(e["members"]) == 2 for e in body["entries"]))
+            self.assertEqual(body["selectedPlayerEntry"]["rank"], 1_234)
+        last_page = f.far_board_payload("fixture-pulse", 25, 10_000, None)
+        self.assertEqual([e["rank"] for e in last_page["entries"]], list(range(10_001, f.FAR_BOARD_TOTAL + 1)))
+        self.assertIsNone(last_page["selectedPlayerEntry"])
+        own = f.far_board_payload("fixture-pulse", 25, 1_225, "fixture-player-1")["entries"][8]
+        self.assertEqual((own["rank"], own["members"][0]["accountId"]), (1_234, "fixture-player-1"))
+
+    def test_rank_column_journey_guards_the_full_board_rail(self):
+        # The full Song Band Leaderboard's rank rail (issue #594) is gated in CI at default and 225% text: each page
+        # asserts a mixed-width rank pair's rank cells and member lists line up.
+        from tools.windows import ui_ci
+        journey = JOURNEY.with_name("a11y-song-band-rank-column.json")
+        pages = {p["name"]: p for p in json.loads(journey.read_text(encoding="utf-8"))}
+        pairs = {"sbl-rank-column-1000": ("999:999", "1000:1000"), "sbl-rank-column-10000": ("9999:9999", "10000:10000")}
+        runs = {(r.mode, name) for r in ui_ci.RUNS if r.pages == journey.name for name in r.only.split(",")}
+        for base, (low, high) in pairs.items():
+            for name, mode in ((base, "normal"), (base + "-large-text", "text-225")):
+                with self.subTest(page=name):
+                    page = pages[name]
+                    self.assertEqual(page["fixture"], ["song_band_preview_fixture.py", "--bands", "far"])
+                    self.assertIn((mode, name), runs)
+                    row = "raw=fst.song-band-leaderboard.row.band-fixture-band_duets-"
+                    for part in ("rank", "members"):
+                        self.assertIn(f"assertaligned:{row}{low}.{part}|{row}{high}.{part}", page["after_ready"])
+
     def test_surface_pages_pin_the_opaque_bordered_fallback(self):
         # surface-materials R4 (issue #426, for #64): transparency off, in-app Less Transparency or Increase Contrast make
         # every plain band row's FSTCardSurfaceBrush opaque #121826 with a visible rim; with transparency on the fill stays
@@ -137,6 +170,16 @@ class FixtureServerTests(unittest.TestCase):
         status, _, body = self.get(path)
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["bands"][0]["selectedPlayerEntry"]["rank"], 14)
+        self.state.mode = "far"
+        far = json.loads(self.get(path)[2])["bands"]
+        self.assertEqual(far[0]["selectedPlayerEntry"]["rank"], 1_234)
+        self.assertEqual([e["rank"] for e in far[0]["entries"]], list(range(1, 11)))
+        board = "/api/leaderboard/fixture-pulse/bands/Band_Duets?top=25&offset=975&accountId=fixture-player-1"
+        status, _, body = self.get(board)
+        self.assertEqual(status, 200)
+        self.assertEqual([e["rank"] for e in json.loads(body)["entries"]][-2:], [999, 1_000])
+        self.state.mode = "full"
+        self.assertEqual(json.loads(self.get(board)[2])["totalEntries"], 29)  # Other modes leave the mock's board.
         self.state.mode = "invalid"
         self.assertEqual(json.loads(self.get(path)[2])["songId"], "fixture-other-song")
         self.state.mode = "frozen"

@@ -15,10 +15,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.automirrored.outlined.CompareArrows
 import androidx.compose.material.icons.automirrored.outlined.Toc
+import androidx.compose.material.icons.automirrored.outlined.TrendingDown
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
+import androidx.compose.material.icons.outlined.FastForward
+import androidx.compose.material.icons.outlined.MilitaryTech
+import androidx.compose.material.icons.outlined.SportsScore
 import androidx.compose.material.icons.outlined.Accessibility
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Delete
@@ -98,7 +104,7 @@ internal data class QuickLinkItem(val index: Int, val top: Int, val bottom: Int)
  */
 internal data class QuickLinkLayout(val items: List<QuickLinkItem>, val viewportHeight: Float)
 
-/** The scrolling surface a controller drives: a `LazyColumn` or a staggered grid. */
+/** The scrolling surface a controller drives: a `LazyColumn` or a `LazyVerticalGrid`. */
 internal interface QuickLinkScroller {
     /** Current layout; reads snapshot state, so `snapshotFlow` follows it. */
     fun layout(): QuickLinkLayout
@@ -159,8 +165,8 @@ private class ListScroller(private val state: LazyListState) : QuickLinkScroller
     override val position: Long get() = lazyPosition(state.firstVisibleItemIndex, state.firstVisibleItemScrollOffset)
 }
 
-/** [QuickLinkScroller] over a `LazyVerticalStaggeredGrid` (several items can share a row). */
-private class StaggeredScroller(private val state: LazyStaggeredGridState) : QuickLinkScroller {
+/** [QuickLinkScroller] over a `LazyVerticalGrid` (several items can share a row and its top edge). */
+private class GridScroller(private val state: LazyGridState) : QuickLinkScroller {
     override fun layout(): QuickLinkLayout {
         val info = state.layoutInfo
         val start = info.viewportStartOffset
@@ -182,7 +188,7 @@ private class StaggeredScroller(private val state: LazyStaggeredGridState) : Qui
 }
 
 /**
- * Quick Links state for one page backed by a lazy list or staggered grid whose
+ * Quick Links state for one page backed by a lazy list or grid whose
  * sections are items. Layout is observed only through `snapshotFlow` of the
  * layout info, and [activeId] changes only when the active section changes, so
  * scrolling does not recompose the page.
@@ -362,7 +368,7 @@ fun rememberQuickLinks(
     rememberQuickLinks(remember(listState) { ListScroller(listState) }, title, sections, pinnedHeaders, fadeInWindow, headingInset, indexOf)
 
 /**
- * Remember a Quick Links controller for a page laid out as a staggered grid.
+ * Remember a Quick Links controller for a page laid out as a row-major card grid.
  *
  * @param gridState The page's grid state.
  * @param title Quick Links title.
@@ -374,14 +380,14 @@ fun rememberQuickLinks(
  */
 @Composable
 fun rememberQuickLinks(
-    gridState: LazyStaggeredGridState,
+    gridState: LazyGridState,
     title: String,
     sections: List<QuickLinkSection>,
     fadeInWindow: FadeInWindow? = LocalFadeInWindow.current,
     headingInset: (String) -> Dp = NO_HEADING_INSET,
     indexOf: (String) -> Int?,
 ): QuickLinksController =
-    rememberQuickLinks(remember(gridState) { StaggeredScroller(gridState) }, title, sections, pinnedHeaders = false, fadeInWindow = fadeInWindow, headingInset = headingInset, indexOf = indexOf)
+    rememberQuickLinks(remember(gridState) { GridScroller(gridState) }, title, sections, pinnedHeaders = false, fadeInWindow = fadeInWindow, headingInset = headingInset, indexOf = indexOf)
 
 /** Sections whose headings sit flush with their items' tops (Settings, Leaderboards). */
 internal val NO_HEADING_INSET: (String) -> Dp = { 0.dp }
@@ -458,14 +464,31 @@ fun quickLinkIcon(token: String?): ImageVector = when (token) {
     "people" -> Icons.Outlined.People
     "chart" -> Icons.Outlined.BarChart
     "timer" -> Icons.Outlined.Timer
+    "compare" -> Icons.AutoMirrored.Outlined.CompareArrows
+    "trending-up" -> Icons.AutoMirrored.Outlined.TrendingUp
+    "trending-down" -> Icons.AutoMirrored.Outlined.TrendingDown
+    "finish-flag" -> Icons.Outlined.SportsScore
+    "fast-forward" -> Icons.Outlined.FastForward
+    "medal" -> Icons.Outlined.MilitaryTech
     else -> Icons.AutoMirrored.Outlined.Toc
 }
 
+/**
+ * A chooser row's decorative leading icon: the section's instrument artwork or its Material icon.
+ * The tag carries no label or role, so TalkBack still reads only the row's name; render tests
+ * use it to find the glyph's pixels (pattern `quick-links` R9).
+ *
+ * @param section Section.
+ */
 @Composable
 private fun SectionIcon(section: QuickLinkSection) {
     val instrument = section.instrument
-    if (instrument != null) InstrumentIcon(instrument, size = 24.dp, decorative = true) else Icon(quickLinkIcon(section.icon), contentDescription = null)
+    val tag = Modifier.testTag(QUICK_LINK_ICON_TAG)
+    if (instrument != null) InstrumentIcon(instrument, tag, size = 24.dp, decorative = true) else Icon(quickLinkIcon(section.icon), contentDescription = null, modifier = tag)
 }
+
+/** Test tag of a chooser row's leading icon (inside the row's `fst.quick-links.item.*` node). */
+internal const val QUICK_LINK_ICON_TAG = "fst.quick-links.icon"
 
 /**
  * A menu item's visible label: the title, bold with a "Current" line beneath it for the current

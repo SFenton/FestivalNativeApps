@@ -69,6 +69,7 @@ import kotlinx.coroutines.withContext
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
 import com.festivalscoretracker.android.ui.common.FestivalModalSheet
+import com.festivalscoretracker.android.ui.design.GlassCard
 
 // region Screen
 
@@ -196,8 +197,10 @@ private fun LicensesBody(
                         Modifier.staggered(0),
                     )
                 }
+                // The packages are one grouped card drawn as lazy segments: every segment shares the
+                // card's one fade, never row by row (load-transition R11, owner #614).
                 itemsIndexed(current.packages, key = { _, item -> item.id }) { index, item ->
-                    PackageRow(item, index, current.packages.size, selected = if (detailPane) item.id == shown?.id else null, Modifier.staggered(index + 1)) { openId = item.id }
+                    PackageRow(item, index, current.packages.size, selected = if (detailPane) item.id == shown?.id else null, Modifier.staggered(1)) { openId = item.id }
                 }
             }
             if (detailPane) {
@@ -212,7 +215,12 @@ private fun LicensesBody(
                     if (shown == null) {
                         FestivalEmptyState("No packages", Modifier.fillMaxSize().testTag("fst.licenses.detail-empty"))
                     } else {
-                        LicenseDetail(shown, current.text(shown), Modifier.fillMaxSize().verticalScroll(rememberScrollState()))
+                        // One card under the license text, so it stays legible over any artwork (issue #609).
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
+                            GlassCard(Modifier.fillMaxWidth().testTag("fst.licenses.detail-card")) {
+                                LicenseDetail(shown, current.text(shown), Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp))
+                            }
+                        }
                     }
                 }
             }

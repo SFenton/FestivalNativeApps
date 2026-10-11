@@ -282,24 +282,15 @@ class SettingsUiTest {
         settle()
         rule.onNodeWithTag("fst.first-run.close").performClick()
         waitGone("fst.first-run.dialog")
-        // Only the two displayed slides count as seen (batch 6.7): the next visit shows the other four.
-        rule.onNodeWithTag("fst.nav.tab.settings").performClick()
-        waitForTag("fst.settings.list")
-        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
-        waitForTag("fst.first-run.dialog")
-        assertEquals("Slide 1 of 4", rule.onNodeWithTag("fst.first-run.position").fetchSemanticsNode().config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.StateDescription))
-        repeat(3) {
-            rule.onNodeWithTag("fst.first-run.next").performClick()
-            settle()
+        // Only the two displayed slides count as seen (batch 6.7), but a closed guide never comes
+        // back in the same session (issue #608): the other four wait for the next launch.
+        repeat(2) {
+            rule.onNodeWithTag("fst.nav.tab.settings").performClick()
+            waitForTag("fst.settings.list")
+            rule.onNodeWithTag("fst.nav.tab.songs").performClick()
+            settle(1_000)
+            assertTrue(rule.onAllNodesWithTag("fst.first-run.dialog").fetchSemanticsNodes().isEmpty())
         }
-        rule.onNodeWithTag("fst.first-run.done").performClick()
-        waitGone("fst.first-run.dialog")
-        // Every slide seen now: nothing on the next visit.
-        rule.onNodeWithTag("fst.nav.tab.settings").performClick()
-        waitForTag("fst.settings.list")
-        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
-        settle(1_000)
-        assertTrue(rule.onAllNodesWithTag("fst.first-run.dialog").fetchSemanticsNodes().isEmpty())
         // Replay ignores gates: all nine Songs slides, even the player-gated ones.
         rule.onNodeWithTag("fst.nav.tab.settings").performClick()
         waitForTag("fst.settings.list")
@@ -504,6 +495,18 @@ class ExpandedSettingsUiTest {
         assertFalse(exists("fst.privacy-policy.sheet"))
         val pane = rule.onNodeWithTag("fst.settings.detail-pane").getUnclippedBoundsInRoot()
         assertTrue(rule.onNodeWithTag("fst.privacy-policy.content").getUnclippedBoundsInRoot().left >= pane.left)
+        // Issue #609: the policy reads inside one glass card under the pane header, at the
+        // detail column's readable width, in the same scrolling column as every other detail.
+        rule.onNodeWithTag("fst.settings.detail.privacy-policy").assertExists()
+        val card = rule.onNodeWithTag("fst.privacy-policy.card").getUnclippedBoundsInRoot()
+        val content = rule.onNodeWithTag("fst.privacy-policy.content").getUnclippedBoundsInRoot()
+        assertTrue("content $content inside card $card", content.left >= card.left && content.right <= card.right && content.top >= card.top)
+        assertTrue("card $card inside pane $pane", card.left >= pane.left && card.right <= pane.right)
+        assertTrue("card width ${card.right - card.left}", (card.right - card.left).value <= 840.5f)
+        val title = rule.onAllNodesWithText("Privacy Policy", useUnmergedTree = true).fetchSemanticsNodes()
+            .map { it.boundsInRoot }.first { with(rule.density) { it.left.toDp() } >= pane.left }
+        assertTrue("pane title above the card", with(rule.density) { title.bottom.toDp() } <= card.top)
+        rule.onNodeWithTag("fst.settings.detail.privacy-policy").performScrollToNode(hasTestTag("fst.privacy-policy.section.contact"))
     }
 }
 

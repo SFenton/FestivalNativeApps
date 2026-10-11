@@ -38,8 +38,6 @@ import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.fillEmptyRegion
 import com.festivalscoretracker.android.ui.common.rememberEmptyRegion
 import com.festivalscoretracker.android.ui.common.LocalShellActions
-import com.festivalscoretracker.android.ui.common.fadeInStagger
-import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.loadSwapSpinnerItem
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
@@ -129,13 +127,14 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
                     }
                 }
             } else item(key = "rows") {
-                GlassCard(Modifier.fillMaxWidth().then(swap.contentModifier)) {
+                // The card fades in as one with all its rows, never row by row (load-transition R11, owner #614).
+                GlassCard(Modifier.fillMaxWidth().then(with(swap) { Modifier.card() })) {
                     // Rows fill this column; below the roster's minimum width they stack (issue #116).
                     var rowWidth by rememberRankingRowWidth()
                     val density = LocalDensity.current
                     Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }) {
                         CompositionLocalProvider(LocalRankingColumns provides rememberBandColumns(entries, metric, stackBelow = rowWidth)) { entries.forEachIndexed { index, entry ->
-                            Box(Modifier.festivalFadeIn(swap.revealed, fadeInStagger(index))) {
+                            Box {
                                 if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                                 BandRankingRow(entry, metric, entry.includes(selectedAccountId), RankingNavigation.bandRoute(entry, bandType), navigate)
                             }

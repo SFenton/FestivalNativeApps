@@ -111,6 +111,19 @@ internal class NavigationHarness(private val rule: androidx.compose.ui.test.juni
     }
 
     /**
+     * Wait until the top app bar's title reads [title] (`fst.nav.title`).
+     *
+     * @param title Page title.
+     */
+    fun waitForTitle(title: String) {
+        val matcher = (hasTestTag("fst.nav.title") and hasText(title)) or (hasText(title) and hasAnyAncestor(hasTestTag("fst.nav.title")))
+        rule.waitUntil(10_000) {
+            settle(100)
+            rule.onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    /**
      * Tab tags in composition order (`fst.nav.tab.<section>`).
      *
      * @return Section names, lowercase, in reading order.
@@ -244,6 +257,51 @@ class AppNavigationStatesUiTest {
         rule.onNodeWithTag("fst.nav.tab.songs").assertIsSelected()
     }
 
+    /**
+     * #610: on a phone, the drawer's Rivals and Leaderboards open as children of Compete: the
+     * bar selects Compete, Back returns to Compete's root, and per-tab history keeps place (Songs
+     * comes back as left, Compete comes back on Rivals).
+     */
+    @Test
+    fun drawerRivalsAndLeaderboardsOpenUnderCompeteAndBackKeepsPlace() {
+        harness.launch(DebugLaunch(profile = navigationPlayer, stillBackground = true))
+        rule.onNodeWithTag("fst.nav.drawer").performClick()
+        harness.waitForTag("fst.nav.drawer.rivals")
+        rule.onNodeWithTag("fst.nav.drawer.rivals").performSemanticsAction(SemanticsActions.OnClick)
+        harness.waitForTitle("Rivals")
+        harness.waitForNoTag("fst.songs.row.s-alpha")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.tab.songs").assertIsNotSelected()
+        rule.onNodeWithTag("fst.nav.back").assertIsDisplayed()
+
+        // Switching tabs keeps each tab's place: Songs as left, Compete still on Rivals.
+        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
+        harness.waitForTag("fst.songs.row.s-alpha")
+        rule.onNodeWithTag("fst.nav.tab.songs").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.tab.compete").performClick()
+        harness.waitForTitle("Rivals")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+
+        // Back returns to Compete's root, not to the tab the drawer was opened from.
+        rule.onNodeWithTag("fst.nav.back").performClick()
+        harness.waitForTitle("Compete")
+        harness.waitForNoTag("fst.nav.back")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+
+        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
+        harness.waitForTag("fst.songs.row.s-alpha")
+        rule.onNodeWithTag("fst.nav.drawer").performClick()
+        harness.waitForTag("fst.nav.drawer.leaderboards")
+        rule.onNodeWithTag("fst.nav.drawer.leaderboards").performSemanticsAction(SemanticsActions.OnClick)
+        harness.waitForTag("fst.leaderboards")
+        harness.waitForTitle("Leaderboards")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.back").performClick()
+        harness.waitForTitle("Compete")
+        harness.waitForNoTag("fst.leaderboards")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+    }
+
     @Test
     fun largeTextBarIsIconOnlyWithSpokenNames() {
         RuntimeEnvironment.setFontScale(2f)
@@ -317,6 +375,19 @@ class MediumAppNavigationStatesUiTest {
         harness.settle()
         harness.waitForTag("fst.leaderboards")
         rule.onNodeWithTag("fst.nav.tab.leaderboards").assertIsSelected()
+    }
+
+    /** #610: regular widths are unchanged; the drawer's Rivals row selects the Rivals tab. */
+    @Test
+    fun railDrawerRivalsSelectsTheRivalsTab() {
+        harness.launch(DebugLaunch(profile = navigationPlayer, stillBackground = true))
+        rule.onNodeWithTag("fst.nav.drawer").performClick()
+        harness.waitForTag("fst.nav.drawer.rivals")
+        rule.onNodeWithTag("fst.nav.drawer.rivals").performSemanticsAction(SemanticsActions.OnClick)
+        harness.waitForTitle("Rivals")
+        rule.onNodeWithTag("fst.nav.tab.rivals").assertIsSelected()
+        assertTrue(rule.onAllNodesWithTag("fst.nav.tab.compete").fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodesWithTag("fst.nav.back").fetchSemanticsNodes().isEmpty())
     }
 }
 
