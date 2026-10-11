@@ -327,6 +327,10 @@ public class BandDetailViewModelTests
         Assert.Equal("222,222,222", vm.HistoryRows[0].Value);
         Assert.Equal("fst.band.history-row.2026-09-27", vm.HistoryRows[0].AutomationId);
         Assert.Equal("Sep 27, rank #1, 222,222,222", vm.HistoryRows[0].Announcement);
+        // #594: one rank column for the list, sized by the widest charted rank (web computeRankWidth).
+        var railRank = Assert.Single(vm.HistoryRows.Select(r => r.RailRank).Distinct());
+        Assert.All(vm.HistoryRows, r => Assert.True(r.Rank.Length <= railRank.Length));
+        Assert.Equal("fst.band.history-row.2026-09-27.rank", vm.HistoryRows[0].RankAutomationId);
 
         Assert.True(vm.ShowSongs);
         var best = vm.Best.Single();
@@ -514,6 +518,11 @@ public class SongBandLeaderboardViewModelTests
         Assert.All(own.Members, m => Assert.True(m.OnPlayerRow));
         Assert.All(vm.Rows.Where(r => !r.IsSelected).SelectMany(r => r.Members), m => Assert.False(m.OnPlayerRow));
         Assert.StartsWith("Your band. Rank 30. ", own.PageAnnouncement, StringComparison.Ordinal);
+        // #594: every row of the page shares one rank rail sized by the page's widest rank.
+        Assert.All(vm.Rows, r => Assert.Equal(SongBandRow.WidestRank(vm.Rows.Select(x => x.Entry)), r.RailRank));
+        Assert.Equal(3, own.RailRank.Length); // "#26"–"#50"
+        Assert.Equal("#1,000", SongBandRow.WidestRank([own.Entry with { Rank = 1 }, own.Entry with { Rank = 1000 }]));
+        Assert.EndsWith(".members", own.MembersAutomationId, StringComparison.Ordinal);
         Assert.True(vm.ShowSpotlight); // Still pinned on the band's own page (web hasSelectedFooter), now opening Band Detail.
         Assert.False(vm.CanJump);
         Assert.StartsWith("Your band's rank, 30th. Open band. ", vm.Spotlight!.Announcement, StringComparison.Ordinal);

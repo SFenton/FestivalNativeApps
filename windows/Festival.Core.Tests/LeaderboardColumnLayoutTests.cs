@@ -8,6 +8,19 @@ public class LeaderboardColumnLayoutTests
     private static readonly LeaderboardSection Scores = new(LeaderboardRowKind.Score, RankChars: 4, MetaChars: 3, ValueChars: 9, HasAccuracy: true, HasStars: true);
 
     [Fact]
+    public void WidestRank_IsTheLongestRankText_WhichSizesTheSharedColumn()
+    {
+        // Issue #594 (web computeRankWidth): the longest rank sizes every row's column; tabular digits draw equal lengths equally wide.
+        Assert.Equal("#10", LeaderboardColumnLayout.WidestRank(["#9", "#10", "#11"]));
+        Assert.Equal("#1,234", LeaderboardColumnLayout.WidestRank(["#1", "#2", "#1,234"]));
+        Assert.Equal("", LeaderboardColumnLayout.WidestRank([]));
+        Assert.Equal(28, LeaderboardColumnLayout.RankColumnWidth(-3));
+        Assert.Equal(60, LeaderboardColumnLayout.RankColumnWidth(7)); // ceil(7 × 8.5)
+        // The section fitter uses the same width, scaled with the text size.
+        Assert.Equal(LeaderboardColumnLayout.RankColumnWidth(4) * 2, LeaderboardColumnLayout.Fit(Scores, 360, textScale: 2).RankWidth);
+    }
+
+    [Fact]
     public void NarrowScoreRow_TightensGapsAndHidesSeasonAndStarsButReservesAccuracy()
     {
         var plan = LeaderboardColumnLayout.Fit(Scores, 360);
