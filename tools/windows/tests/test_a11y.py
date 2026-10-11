@@ -310,6 +310,27 @@ class MatrixTests(unittest.TestCase):
                 with self.subTest(page=page["name"], step=step):
                     u.parse_step(step.replace("{stem}", "out"))
 
+    def test_search_empty_state_pages(self):
+        """Issue #99 (#449): each scope's empty state is a centred level-2 title then subtitle, with no Retry, and All
+        hides an empty Players section when songs match."""
+        import json
+        pages = {p["name"]: p for p in json.loads((m.PAGES.parent / "a11y-search.json").read_text(encoding="utf-8"))}
+        for name, title in (("search-empty", "No results found"), ("search-empty-players", "No players found"),
+                            ("search-empty-songs", "No songs found")):
+            with self.subTest(page=name):
+                steps = pages[name]["after_ready"]
+                self.assertTrue(any(s.startswith("assertname:id=fst.global-search.empty.title") and s.endswith(f"|{title}")
+                                    for s in steps))
+                self.assertIn("assertstate:id=fst.global-search.empty.title|heading=2", steps)
+                self.assertIn("assertcentred:id=fst.global-search.empty|id=fst.global-search.empty.title"
+                              "|id=fst.global-search.empty.subtitle", steps)
+                self.assertTrue(any(s.startswith("assertorder:") and s.endswith(
+                    "|id=fst.global-search.empty.title|id=fst.global-search.empty.subtitle") for s in steps))
+                self.assertIn("waitgone:id=fst.global-search.retry", steps)
+        hidden = pages["search-all-hides-empty-players"]["after_ready"]
+        self.assertIn("waitgone:id=fst.global-search.section.players@5", hidden)
+        self.assertIn("waitgone:id=fst.global-search.empty.title", hidden)
+
     def test_titlebar_button_pages(self):
         """Issue #253: bell and avatar stay separate, named, reachable buttons at every window size."""
         import json

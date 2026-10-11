@@ -193,6 +193,10 @@ RUNS: tuple[Run, ...] = (
     Run("grouped-boards-text-225", "a11y-grouped-boards.json", sizes="compact", mode="text-225", tabs=0),
     Run("grouped-boards-reduced", "a11y-grouped-boards.json", sizes="medium", mode="app-reduced", tabs=0,
         only="grouped-song-board-one-card"),
+    # Rivals lists as one card (issue #603, rival-rows R3, R6): Rivalry and All Rivals rows touch (0 epx), each stays one
+    # named 40+ epx stop in visual order (iOS-design song rows read title, artist, instrument, ranks, who leads), Up/Down.
+    Run("rivals-cards", "a11y-rivals-cards.json", tabs=0),
+    Run("rivals-cards-text-225", "a11y-rivals-cards.json", sizes="compact", mode="text-225", tabs=0),
     # Combo boards (issue #602): the OG band combo card is a level-2 heading group before Lead, its View All Rankings is
     # a 40+ epx Button named with the board label, Enter opens combo Full Rankings (no instrument picker, combo title,
     # pinned combo rank) and Back restores focus; rows stay 40+ epx stops with Down between them.
@@ -225,6 +229,8 @@ RUNS: tuple[Run, ...] = (
     # the selectors and Close, the selectors stay enabled and show the new value, "Loading …" then "… loaded" are
     # announced; Image <-> Text; keyboard switches (ComboBox, wide RadioButtons) keep focus on the selector; 40 epx zoom,
     # selectors and Close; mid-swap Axe scans; at 225% text, with in-app Reduce Motion and with Animation effects off.
+    # The compact Instrument ComboBox (issues #88, #439) opens to "Lead, list item, selected", Bass, Drums, Tap Vocals
+    # (no Karaoke), each a 40 epx option, and switches by pointer and Alt+Down/Up/Enter with focus kept, Axe-scanned open.
     Run("paths-swap", "a11y-paths-swap.json", sizes="compact,medium,wide"),
     Run("paths-swap-text-225", "a11y-paths-swap.json", sizes="compact,wide", mode="text-225"),
     Run("paths-swap-no-animations", "a11y-paths-swap.json", sizes="compact", mode="no-animations"),

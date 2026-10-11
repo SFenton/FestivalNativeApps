@@ -157,6 +157,18 @@ class WideColumnsTest {
     }
 
     @Test
+    fun sectionJumpsLandOnTheirTitleSoItPinsAboveTheFirstRow() {
+        val lines = WideColumnLines.build(rowCount = 5, headerStarts = listOf(0, 3), breaks = listOf(0, 3), columns = 2, leading = 1)
+        assertEquals(1, lines.itemOfSection(0))
+        assertEquals(lines.itemOfHeader(1), lines.itemOfSection(3))
+        // A row inside a section (not its start) and a section without a title land on the row's line.
+        assertEquals(lines.itemOfRow(4), lines.itemOfSection(4))
+        val untitled = WideColumnLines.build(rowCount = 6, headerStarts = emptyList(), breaks = listOf(0, 3), columns = 1, leading = 0)
+        assertEquals(untitled.itemOfRow(3), untitled.itemOfSection(3))
+        assertEquals(untitled.itemOfRow(0), untitled.itemOfSection(99))
+    }
+
+    @Test
     fun firstRowOfItemCoversLeadingHeadersLinesAndTheEnd() {
         val lines = WideColumnLines.build(rowCount = 5, headerStarts = listOf(0, 3), breaks = emptyList(), columns = 2, leading = 1)
         assertEquals(0, lines.firstRowOfItem(0))
