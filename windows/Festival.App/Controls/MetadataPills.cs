@@ -96,7 +96,11 @@ public static class MetadataPills
     /// <returns>Label.</returns>
     public static TextBlock LabelOf(MetadataPill pill) => (TextBlock)pill.Children[0];
 
-    /// <summary>Applies a look: fill, stroke, label brush, weight, italic and the −8° skew of the Top 1% badge.</summary>
+    /// <summary>
+    /// Applies a look: fill, stroke, label brush, weight, italic and the −8° skew of the Top 1% badge. The pill keeps the
+    /// look and re-resolves its role brushes itself when the contrast theme changes (<see cref="MetadataPill.ApplyLook"/>),
+    /// so no consumer subscribes for it.
+    /// </summary>
     /// <param name="pill">Pill.</param>
     /// <param name="text">Label.</param>
     /// <param name="look">Theme roles.</param>
@@ -104,12 +108,10 @@ public static class MetadataPills
     private static void Apply(MetadataPill pill, string text, MetadataPillLook look, double minWidth)
     {
         pill.MinWidth = minWidth;
-        pill.Background = Services.ContrastTheme.Brush(look.FillKey);
-        pill.BorderBrush = Services.ContrastTheme.Brush(look.StrokeKey);
         pill.RenderTransform = look.Skewed ? new SkewTransform { AngleX = -8 } : null;
         var label = LabelOf(pill);
         label.Text = text;
-        label.Foreground = Services.ContrastTheme.Brush(look.TextKey);
+        pill.ApplyLook(look);
         label.FontWeight = look.Bold ? FontWeights.Bold : FontWeights.SemiBold;
         label.FontStyle = look.Italic ? FontStyle.Italic : FontStyle.Normal;
     }

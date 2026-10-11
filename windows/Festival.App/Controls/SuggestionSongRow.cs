@@ -158,12 +158,12 @@ public sealed partial class SuggestionSongRow : Button
             case SuggestionRowLayout.Season when p.SeasonText is { } season:
                 var current = MetadataPillStyle.IsCurrent(p.SeasonNumber, App.Session.Catalog?.CurrentSeason);
                 var seasonPill = MetadataPills.Season(season, current);
-                seasonPill.Label(p.SeasonNumber is { } n ? MetadataPillStyle.SeasonAnnouncement(n, current) : season, null);
+                seasonPill.Label(p.SeasonNumber is { } n ? MetadataPillStyle.SeasonAnnouncement(n, current) : season, PillId(item, "season"));
                 metadata.Children.Add(seasonPill);
                 break;
             case SuggestionRowLayout.Percentile when p.PercentileText is { } percentile:
                 var percentilePill = MetadataPills.Percentile(percentile, MetadataPillStyle.Tier(p.PercentileTier));
-                percentilePill.Label(percentile, null);
+                percentilePill.Label(percentile, PillId(item, "percentile"));
                 metadata.Children.Add(percentilePill);
                 break;
             case SuggestionRowLayout.SingleInstrument when p.StarCount > 0:
@@ -197,6 +197,15 @@ public sealed partial class SuggestionSongRow : Button
     /// <param name="key">Resource key.</param>
     /// <returns>Brush.</returns>
     private static Brush Role(string key) => Services.ContrastTheme.Brush(key);
+
+    /// <summary>
+    /// Raw-view test ID of a row's shared pill, <c>fst.suggestions.row.&lt;song&gt;.&lt;instrument&gt;.&lt;kind&gt;</c>: the row
+    /// ID with its <c>|</c> made a dot, so a UI step (which splits on <c>|</c>) can select it.
+    /// </summary>
+    /// <param name="item">Row.</param>
+    /// <param name="kind"><c>season</c> or <c>percentile</c>.</param>
+    /// <returns>Automation ID.</returns>
+    private static string PillId(SuggestionRowItem item, string kind) => $"{item.AutomationId.Replace('|', '.')}.{kind}";
 
     /// <summary>A plain pill in the contrast-theme role (ButtonFace fill, ButtonText text and outline; design/windows.md).</summary>
     /// <param name="text">Text.</param>

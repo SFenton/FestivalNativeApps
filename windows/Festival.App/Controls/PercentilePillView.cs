@@ -1,4 +1,3 @@
-using Festival.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
@@ -32,15 +31,8 @@ public sealed partial class PercentilePillView : Grid
         VerticalAlignment = VerticalAlignment.Center;
         AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
         Children.Add(pill);
+        // The shared pill re-resolves its own role brushes on a contrast-theme switch (MetadataPill.ApplyLook).
         Apply();
-        // Pill brushes are assigned in code, so a contrast-theme switch must re-resolve them (theme-accessibility).
-        Loaded += (_, _) =>
-        {
-            ContrastTheme.Changed -= OnColorsChanged;
-            ContrastTheme.Changed += OnColorsChanged;
-            Apply();
-        };
-        Unloaded += (_, _) => ContrastTheme.Changed -= OnColorsChanged;
     }
 
     /// <summary>Label.</summary>
@@ -56,11 +48,6 @@ public sealed partial class PercentilePillView : Grid
         get => (SongPercentileTier)GetValue(TierProperty);
         set => SetValue(TierProperty, value);
     }
-
-    /// <summary>Re-resolves the pill's theme brushes on the UI thread after a system colour change.</summary>
-    /// <param name="sender">Unused.</param>
-    /// <param name="e">Unused.</param>
-    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(Apply);
 
     /// <summary>Restyles the pill for the current label and tier.</summary>
     private void Apply() => MetadataPills.ApplyPercentile(pill, Text ?? "", Tier);

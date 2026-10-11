@@ -75,6 +75,8 @@ public sealed partial class PlayerPercentileRowView : ContentControl
         if (Row is not { } row) return;
         // Web PlayerPercentileTable renders the shared PercentilePill, so the tier comes from the label like everywhere else.
         MetadataPills.ApplyPercentile(pillBox, row.Label, MetadataPillStyle.Tier(SuggestionRowPresentation.TierFor(row.Label)));
+        // Raw-view test ID only (the host row speaks the value); the pill re-resolves its roles on a contrast-theme switch.
+        pillBox.Label(row.Label, row.AutomationId + ".pill");
         count.Text = row.CountText;
         chevron.Visibility = row.IsLinked ? Visibility.Visible : Visibility.Collapsed;
         if (builtLinked != row.IsLinked)
