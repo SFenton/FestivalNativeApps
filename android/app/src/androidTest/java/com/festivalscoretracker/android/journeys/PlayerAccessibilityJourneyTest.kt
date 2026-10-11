@@ -1,17 +1,28 @@
 package com.festivalscoretracker.android.journeys
 
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
+import com.festivalscoretracker.android.core.nav.RivalDetailRoute
 import com.festivalscoretracker.android.core.nav.RivalsRoute
+import com.festivalscoretracker.android.core.rivals.RivalCategorization
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.testing.RankingsFixtures
 import com.festivalscoretracker.android.testing.RivalsFixtures
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -87,6 +98,65 @@ class PlayerAccessibilityJourneyTest {
         h.assertAccessible()
     }
 
+    /** Rival Detail's chooser at 100% text: a distinct decorative icon per category (#605). */
+    @Test
+    @DeviceCi
+    fun rivalDetailQuickLinksIconsAreDecorative() = rivalDetailQuickLinks(1f)
+
+    /** The same at 200% text: rows stay 48 dp, in order and named only by their category. */
+    @Test
+    @DeviceCi
+    fun rivalDetailQuickLinksIconsAreDecorativeAtDoubleText() = rivalDetailQuickLinks(2f)
+
+    /**
+     * Opens Rival Detail's Quick Links (sheet on phones, menu when wide) and checks every
+     * category row: it reads only its category name (the icon adds nothing to TalkBack), the
+     * rows read in page order, no node inside a row is an image or has its own label, each row
+     * lays out exactly one sized icon, and each row is a 48 dp target (pattern `quick-links` R6, R9).
+     *
+     * @param scale Font scale.
+     */
+    private fun rivalDetailQuickLinks(scale: Float) {
+        val config = "${scale}x"
+        h.enableAccessibilityChecks()
+        val transport = RivalsFixtures.transport().apply(songs)
+        h.launch(DebugLaunch(route = RivalDetailRoute(RivalsFixtures.RIVALS[1]), profile = SelectedPlayer(RivalsFixtures.PLAYER, "Synthetic Player"), stillBackground = true), transport, fontScale = { scale })
+        h.waitForTag("fst.rival-detail.title")
+        h.waitForTag(OPEN)
+        h.publishTalkBackTree()
+        h.tap(OPEN)
+        rule.waitUntil(10_000) { h.exists(SHEET) || h.exists(MENU) }
+        val rows = rule.onAllNodes(categoryRow, useUnmergedTree = true).fetchSemanticsNodes()
+            .sortedBy { it.positionInWindow.y }
+            .map { it.config[SemanticsProperties.TestTag].removePrefix(ROW_PREFIX) }
+        assertTrue("$config: fewer than two category rows: $rows", rows.size >= 2)
+        assertEquals("$config: rows out of page order: $rows", rows.sortedBy(RivalCategorization.keys::indexOf), rows)
+        rows.forEach { key ->
+            val tag = "$ROW_PREFIX$key"
+            rule.onNodeWithTag(tag).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf(RivalCategorization.title(key))))
+            val inner = rule.onAllNodes(hasAnyAncestor(hasTestTag(tag)) and (SemanticsMatcher.keyIsDefined(SemanticsProperties.ContentDescription) or SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Image)), useUnmergedTree = true)
+                .fetchSemanticsNodes()
+            assertTrue("$config: $key's icon is exposed to TalkBack: ${inner.map { it.config }}", inner.isEmpty())
+            // The row still lays out its one icon (the glyph itself is matched in RivalDetailQuickLinkIconsUiTest).
+            val icons = rule.onAllNodes(hasAnyAncestor(hasTestTag(tag)) and hasTestTag(ICON), useUnmergedTree = true).fetchSemanticsNodes()
+            assertEquals("$config: $key has ${icons.size} icons", 1, icons.size)
+            assertTrue("$config: $key's icon has no size: ${icons[0].size}", icons[0].size.width > 0 && icons[0].size.height > 0)
+        }
+        val stops = h.readingStops("rival-detail-quick-links-$config").filter { it.id?.startsWith(ROW_PREFIX) == true }
+        val read = stops.map { it.id!!.removePrefix(ROW_PREFIX) }
+        assertEquals("$config: TalkBack reads the shown rows out of page order: $read", rows.filter { it in read }, read)
+        assertTrue("$config: fewer than two rows read: $read", read.size >= 2)
+        stops.forEach { stop ->
+            val title = RivalCategorization.title(stop.id!!.removePrefix(ROW_PREFIX))
+            assertTrue("$config: row reads more than its name: ${stop.label}", stop.label == title || stop.label == "$title, $CURRENT")
+        }
+        stops.filter { it.bounds.height() > 0 }.take(2).forEach { h.assertTouchTarget("rival-detail-quick-links-$config", it.id!!) }
+        h.assertAccessible()
+    }
+
+    /** Rival Detail's category rows in the open chooser. */
+    private val categoryRow = SemanticsMatcher("Rival Detail category row") { it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith(ROW_PREFIX) == true }
+
     @Test
     fun compete() {
         h.enableAccessibilityChecks()
@@ -96,5 +166,14 @@ class PlayerAccessibilityJourneyTest {
         h.waitForTag("fst.compete.grid")
         h.readingOrder("compete")
         h.assertAccessible()
+    }
+
+    private companion object {
+        const val OPEN = "fst.quick-links.open"
+        const val SHEET = "fst.quick-links.sheet"
+        const val MENU = "fst.quick-links.menu"
+        const val ROW_PREFIX = "fst.quick-links.item.rival-category:"
+        const val ICON = "fst.quick-links.icon"
+        const val CURRENT = "Current section"
     }
 }

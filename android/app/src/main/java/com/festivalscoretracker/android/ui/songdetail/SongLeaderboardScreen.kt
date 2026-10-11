@@ -80,6 +80,7 @@ import com.festivalscoretracker.android.presentation.SongLeaderboardViewModel
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileState
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
+import com.festivalscoretracker.android.ui.common.isSplitPaneRoot
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.loadSwapSpinnerItem
@@ -228,13 +229,17 @@ fun SongLeaderboardScreen(
 
     // The song header (art, title, artist, instrument) scrolls with the rows; the top bar
     // takes the title once it has scrolled away (operator 7.8, like Song Detail), over the
-    // board's instrument led by its icon (`song-header` R4, issue #580).
+    // board's instrument led by its icon (`song-header` R4, issue #580). Beside Song Detail in a
+    // split the song is already on screen: no song header, and the bar takes the instrument
+    // (`song-leaderboard-header` variant #342, Android #583).
+    val besideList = isSplitPaneRoot()
     val headerGone by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
     FestivalScreen(
-        title = if (headerGone) title else "",
+        title = if (!headerGone) "" else if (besideList) viewModel.instrument.label else title,
         isRoot = false,
         scrolled = headerGone,
-        subtitle = viewModel.instrument.label,
+        titleIcon = if (besideList) ({ size -> InstrumentIcon(viewModel.instrument, size = size, decorative = true) }) else null,
+        subtitle = if (besideList) null else viewModel.instrument.label,
         subtitleIcon = { size -> InstrumentIcon(viewModel.instrument, size = size, decorative = true) },
         modifier = Modifier.semantics { testTagsAsResourceId = true },
         fadeInWindow = fadeIn,
@@ -250,7 +255,7 @@ fun SongLeaderboardScreen(
             idPrefix = "fst.song-leaderboard",
             controls = {
                 val loadedSong = (song as? LoadState.Loaded)?.value
-                loadedSong?.let { SongHeader(it, artworkUrl(it.albumArt), artSize = 64.dp) }
+                loadedSong?.takeUnless { besideList }?.let { SongHeader(it, artworkUrl(it.albumArt), artSize = 64.dp) }
                 val charts = loadedSong?.let { current -> Instrument.entries.filter { it in visibleInstruments && current.supports(it) } }.orEmpty()
                 InstrumentSwitcher(viewModel.instrument, charts) { chart ->
                     loadedSong?.let { navigate(SongLeaderboardRoute(it.songId, chart.wireId)) }

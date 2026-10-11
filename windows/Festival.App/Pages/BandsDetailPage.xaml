@@ -63,10 +63,7 @@
                         <controls:MarqueeText Text="{x:Bind Subtitle}" TextStyle="{StaticResource FSTMarqueeSecondaryStyle}" />
                     </StackPanel>
                     <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
-                        <Border CornerRadius="4" Padding="7,1" Background="{ThemeResource FSTPercentilePillFillBrush}" HorizontalAlignment="Right"
-                                BorderBrush="{ThemeResource FSTNeutralPillStrokeBrush}" BorderThickness="1">
-                            <TextBlock Text="{x:Bind PercentileText}" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource FSTPercentilePillTextBrush}" />
-                        </Border>
+                        <controls:PercentilePillView Text="{x:Bind PercentileText}" Tier="{x:Bind PercentileTier}" HorizontalAlignment="Right" />
                         <TextBlock Text="{x:Bind RankText}" FontSize="12" HorizontalAlignment="Right"
                                    Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                     </StackPanel>
@@ -85,10 +82,7 @@
                     <controls:BandsArtworkThumb Raw="{x:Bind AlbumArt}" />
                     <controls:MarqueeText Grid.Column="1" Text="{x:Bind Title}" VerticalAlignment="Center" TextStyle="{StaticResource FSTMarqueeTitleStyle}" />
                     <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Spacing="2">
-                        <Border CornerRadius="4" Padding="7,1" Background="{ThemeResource FSTPercentilePillFillBrush}" HorizontalAlignment="Right"
-                                BorderBrush="{ThemeResource FSTNeutralPillStrokeBrush}" BorderThickness="1">
-                            <TextBlock Text="{x:Bind PercentileText}" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource FSTPercentilePillTextBrush}" />
-                        </Border>
+                        <controls:PercentilePillView Text="{x:Bind PercentileText}" Tier="{x:Bind PercentileTier}" HorizontalAlignment="Right" />
                         <TextBlock Text="{x:Bind RankText}" FontSize="12" HorizontalAlignment="Right"
                                    Foreground="{ThemeResource FSTSecondaryTextBrush}" />
                     </StackPanel>

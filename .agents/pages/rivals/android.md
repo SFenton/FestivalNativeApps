@@ -96,3 +96,7 @@ Checked that every View All Rivals button (hub cards on both tabs, Compete Rival
 - Rivals first-run slides and TalkBack pass belong to the accessibility phase.
 - Book Fold half-open (`fold-[1038,…]`): re-measured 2026-09-29 (and-next): the card edges sit 27 px either side of the fold (1011 | 1038 | 1065), so the earlier ~17 px offset no longer reproduces.
 - Screenshots per form factor (fixture mode): `rivals-*-{phone,bookfold-unfolded,bookfold-half,bookfold-folded,tablet}.png`, `compete-{phone,bookfold-unfolded,tablet}.png`, quantized to 256 colours to stay under 300 KB.
+
+## On-demand split (owner-approved, #583)
+
+Rival Detail (and Rivalry pushed from it) opens in a trailing pane beside Rivals and All Rivals, as on the iPhone Duo. Opens only on a landscape window at least 600 × 480 dp that leaves 360 dp per pane (360 × font scale at 130%+ text; flat: split at the content midpoint) or across a separating vertical fold in book posture (split at the fold, 240 dp per side); portrait, phones and flat near-square foldables push full width. No divider line; the pane root shows Close (`fst.split.close`) instead of Back, and system Back pops the pane, then closes it, then leaves the page. Policy `core/layout/OnDemandSplitPolicy.kt`, host `ui/common/OnDemandSplit.kt` ([split-panes](../../patterns/split-panes.md) R7). Tests: `OnDemandSplitPolicyTest`, `OnDemandSplitUiTest`, `RivalsSplitUiTest`, device journey `journeys/SplitPaneAccessibilityJourneyTest`.

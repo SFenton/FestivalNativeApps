@@ -6,6 +6,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.festivalscoretracker.android.AppContainer
+import com.festivalscoretracker.android.core.layout.SplitListPage
 import com.festivalscoretracker.android.core.nav.AllRivalsRoute
 import com.festivalscoretracker.android.core.nav.RivalDetailRoute
 import com.festivalscoretracker.android.core.nav.RivalryRoute
@@ -19,6 +20,7 @@ import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
 import com.festivalscoretracker.android.presentation.rivals.AllRivalsViewModel
 import com.festivalscoretracker.android.presentation.rivals.RivalDetailViewModel
 import com.festivalscoretracker.android.presentation.rivals.RivalsHubViewModel
+import com.festivalscoretracker.android.ui.common.OnDemandSplit
 
 // region Destinations
 
@@ -31,8 +33,9 @@ import com.festivalscoretracker.android.presentation.rivals.RivalsHubViewModel
  * @param settings Current settings.
  */
 fun NavGraphBuilder.rivalsDestinations(container: AppContainer, settings: AppSettings) {
-    composable<RivalsTab> { RivalsHub(container, settings, isRoot = true) }
-    composable<RivalsRoute> { RivalsHub(container, settings, isRoot = false) }
+    // Rival Detail opens beside the hub and All Rivals where the window splits (#583).
+    composable<RivalsTab> { OnDemandSplit(SplitListPage.Rivals) { RivalsHub(container, settings, isRoot = true) } }
+    composable<RivalsRoute> { OnDemandSplit(SplitListPage.Rivals) { RivalsHub(container, settings, isRoot = false) } }
     composable<AllRivalsRoute> { entry ->
         val route = entry.toRoute<AllRivalsRoute>()
         val player = settings.selectedPlayer
@@ -43,7 +46,7 @@ fun NavGraphBuilder.rivalsDestinations(container: AppContainer, settings: AppSet
             val viewModel: AllRivalsViewModel = viewModel(key = "all-rivals:${player.accountId}:${scope?.routeToken}:${settings.visibleInstruments}") {
                 AllRivalsViewModel(player.accountId, scope, settings.visibleInstruments, container.rivals, container.backoff)
             }
-            AllRivalsScreen(viewModel)
+            OnDemandSplit(SplitListPage.Rivals) { AllRivalsScreen(viewModel) }
         }
     }
     composable<RivalDetailRoute> { entry ->
