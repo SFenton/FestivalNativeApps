@@ -73,8 +73,13 @@ public static class RivalCombo
     {
         var mask = Mask(visible);
         if (mask == ProDrumsFamilyMask) return ProDrumsToken;
-        return int.PopCount(mask) >= 2 && GroupMasks.Any(g => (mask & ~g) == 0) ? ComboId(FromMask(mask)) : null;
+        return IsWithinGroup(mask) ? ComboId(FromMask(mask)) : null;
     }
+
+    /// <summary>Whether a mask names two or more instruments of one combo group (web <c>isWithinGroupComboId</c>).</summary>
+    /// <param name="mask">Instrument mask.</param>
+    /// <returns><see langword="true"/> for an OG band or Pro Strings combo.</returns>
+    public static bool IsWithinGroup(int mask) => int.PopCount(mask) >= 2 && GroupMasks.Any(g => (mask & ~g) == 0);
 
     /// <summary>Instruments named by a combo token.</summary>
     /// <param name="token"><see cref="ProDrumsToken"/> or a 1–4 digit hex ID over the nine charts.</param>

@@ -62,38 +62,32 @@ private func chipFixtureScores() throws -> [Instrument: PlayerScore] {
     #expect(statuses[4].status == .unavailable)
     #expect(SongInstrumentStatusPolicy.showsChips(
         hasSelectedPlayer: true, scoresAvailable: true, iconsEnabled: true,
-        instrumentFilter: nil, filterInvalidScores: false,
-        visibleInstruments: visible
+        instrumentFilter: nil, visibleInstruments: visible
     ))
     #expect(!SongInstrumentStatusPolicy.showsChips(
         hasSelectedPlayer: false, scoresAvailable: true, iconsEnabled: true,
-        instrumentFilter: nil, filterInvalidScores: false,
-        visibleInstruments: visible
+        instrumentFilter: nil, visibleInstruments: visible
     ))
     #expect(!SongInstrumentStatusPolicy.showsChips(
         hasSelectedPlayer: true, scoresAvailable: false, iconsEnabled: true,
-        instrumentFilter: nil, filterInvalidScores: false,
-        visibleInstruments: visible
+        instrumentFilter: nil, visibleInstruments: visible
     ))
     #expect(!SongInstrumentStatusPolicy.showsChips(
         hasSelectedPlayer: true, scoresAvailable: true, iconsEnabled: false,
-        instrumentFilter: nil, filterInvalidScores: false,
-        visibleInstruments: visible
+        instrumentFilter: nil, visibleInstruments: visible
     ))
     #expect(!SongInstrumentStatusPolicy.showsChips(
         hasSelectedPlayer: true, scoresAvailable: true, iconsEnabled: true,
-        instrumentFilter: .bass, filterInvalidScores: false,
-        visibleInstruments: visible
+        instrumentFilter: .bass, visibleInstruments: visible
+    ))
+    // Filter Invalid Scores no longer hides the chips: they show effective scores (#613).
+    #expect(SongInstrumentStatusPolicy.showsChips(
+        hasSelectedPlayer: true, scoresAvailable: true, iconsEnabled: true,
+        instrumentFilter: nil, visibleInstruments: visible
     ))
     #expect(!SongInstrumentStatusPolicy.showsChips(
         hasSelectedPlayer: true, scoresAvailable: true, iconsEnabled: true,
-        instrumentFilter: nil, filterInvalidScores: true,
-        visibleInstruments: visible
-    ))
-    #expect(!SongInstrumentStatusPolicy.showsChips(
-        hasSelectedPlayer: true, scoresAvailable: true, iconsEnabled: true,
-        instrumentFilter: nil, filterInvalidScores: false,
-        visibleInstruments: []
+        instrumentFilter: nil, visibleInstruments: []
     ))
 }
 

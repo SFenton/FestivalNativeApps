@@ -42,7 +42,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -61,6 +63,8 @@ import com.festivalscoretracker.android.core.profile.RankHistoryChartModel
 import com.festivalscoretracker.android.core.profile.RankHistoryColors
 import com.festivalscoretracker.android.core.profile.RankHistoryPlot
 import com.festivalscoretracker.android.core.profile.RankHistoryWindow
+import com.festivalscoretracker.android.core.shell.ChartPage
+import com.festivalscoretracker.android.ui.common.rememberChartPageSlide
 import com.festivalscoretracker.android.ui.leaderboards.FrostedPagerButton
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlin.math.abs
@@ -136,6 +140,11 @@ private fun Legend() {
 @Composable
 private fun Plot(window: RankHistoryWindow, totalAccounts: Int, onChange: (RankHistoryWindow) -> Unit) {
     val plot = remember(window, totalAccounts) { RankHistoryPlot.build(window, totalAccounts) }
+    val slide = rememberChartPageSlide(
+        ChartPage(window.pageStart, window.visible.size, window.points.size),
+        RankHistoryPlot.valueTop(window).toFloat(),
+        key = window.points,
+    )
     val current by rememberUpdatedState(window)
     val change by rememberUpdatedState(onChange)
     var dragged by remember { mutableFloatStateOf(0f) }
@@ -176,30 +185,11 @@ private fun Plot(window: RankHistoryWindow, totalAccounts: Int, onChange: (RankH
                     val y = tick.y * size.height
                     drawLine(BrandTokens.glassBorder.copy(alpha = 0.3f), Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
                 }
-                plot.bars.forEach { bar ->
-                    val rect = ChartGeometry.bandBar(bar.bar, plot.bars.size, size.width, size.height, MAX_BAR_WIDTH.dp.toPx())
-                    drawRoundRect(
-                        rgb(bar.color, RankHistoryColors.BAR_ALPHA),
-                        topLeft = Offset(rect.left, rect.top),
-                        size = Size(rect.width, rect.height),
-                        cornerRadius = CornerRadius(4.dp.toPx()),
-                    )
-                    if (bar.selected) {
-                        drawRoundRect(
-                            BrandTokens.accentPurple,
-                            topLeft = Offset(rect.left, rect.top),
-                            size = Size(rect.width, rect.height),
-                            cornerRadius = CornerRadius(4.dp.toPx()),
-                            style = Stroke(width = 3.dp.toPx()),
-                        )
-                    }
-                }
-                val points = plot.line.map { ChartGeometry.point(it, size.width, size.height, 0f).let { p -> Offset(p.x, p.y) } }
-                val path = Path()
-                points.forEachIndexed { i, p -> if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y) }
-                val blue = rgb(RankHistoryColors.RANK_LINE)
-                drawPath(path, blue, style = Stroke(width = 2.dp.toPx()))
-                points.forEachIndexed { i, p -> drawCircle(blue, radius = (if (plot.line[i].highlight) 6 else 4).dp.toPx(), center = p) }
+                drawRankHistoryMarks(
+                    RankHistoryPlot.marks(window, totalAccounts, slide.start, slide.valueTop.toDouble()),
+                    bands = window.visible.size,
+                    maxBarWidth = MAX_BAR_WIDTH.dp.toPx(),
+                )
             }
             AxisColumn(plot.rankTicks, TextAlign.Start)
         }
@@ -210,7 +200,47 @@ private fun Plot(window: RankHistoryWindow, totalAccounts: Int, onChange: (RankH
             style = MaterialTheme.typography.labelSmall,
             color = BrandTokens.textMuted,
             modifier = Modifier.padding(vertical = 4.dp).testTag("fst.player.rank-history.dates"),
+            shift = { slide.labelShift },
         )
+    }
+}
+
+/**
+ * Draw a rank-history window's bars (selected bar outlined) and rank line, clipped to the
+ * plot's width so bars sliding in or out of a page (`load-transition` R12) stop at its edges.
+ * Shared by the Profile and Leaderboards rank-history charts.
+ *
+ * @param marks Bars and line ([RankHistoryPlot.marks]).
+ * @param bands Bars the plot shows at once.
+ * @param maxBarWidth Widest bar in pixels.
+ */
+internal fun DrawScope.drawRankHistoryMarks(marks: RankHistoryPlot.Marks, bands: Int, maxBarWidth: Float) {
+    // Clip sideways only: a #1 rank dot sits on the top edge and must stay whole.
+    clipRect(left = 0f, top = -size.height, right = size.width, bottom = size.height * 2) {
+        marks.bars.forEach { bar ->
+            val rect = ChartGeometry.bandBar(bar.bar, bands, size.width, size.height, maxBarWidth)
+            drawRoundRect(
+                rgb(bar.color, RankHistoryColors.BAR_ALPHA),
+                topLeft = Offset(rect.left, rect.top),
+                size = Size(rect.width, rect.height),
+                cornerRadius = CornerRadius(4.dp.toPx()),
+            )
+            if (bar.selected) {
+                drawRoundRect(
+                    BrandTokens.accentPurple,
+                    topLeft = Offset(rect.left, rect.top),
+                    size = Size(rect.width, rect.height),
+                    cornerRadius = CornerRadius(4.dp.toPx()),
+                    style = Stroke(width = 3.dp.toPx()),
+                )
+            }
+        }
+        val points = marks.line.map { ChartGeometry.point(it, size.width, size.height, 0f).let { p -> Offset(p.x, p.y) } }
+        val path = Path()
+        points.forEachIndexed { i, p -> if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y) }
+        val blue = rgb(RankHistoryColors.RANK_LINE)
+        drawPath(path, blue, style = Stroke(width = 2.dp.toPx()))
+        points.forEachIndexed { i, p -> drawCircle(blue, radius = (if (marks.line[i].highlight) 6 else 4).dp.toPx(), center = p) }
     }
 }
 

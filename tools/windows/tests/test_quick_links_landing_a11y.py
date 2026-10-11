@@ -29,7 +29,8 @@ _LANDING = float(re.search(r"const double LandingOffset = (\d+(?:\.\d+)?);",
 _HEADER_MARGIN = 8.0
 # Menu order: the first items of each page's Quick Links menu, in page order.
 _SETTINGS_ORDER = ["app-settings", "item-shop", "show-instruments", "show-metadata", "accessibility"]
-_LEADERBOARDS_ORDER = ["instrument:Solo_Guitar", "instrument:Solo_Bass", "instrument:Solo_Drums"]
+# Leaderboards leads with the OG band combo board (web scope order, #602).
+_LEADERBOARDS_ORDER = ["combo:0f", "instrument:Solo_Guitar", "instrument:Solo_Bass", "instrument:Solo_Drums"]
 
 
 def _steps(page: dict) -> list[str]:
@@ -168,7 +169,7 @@ class QuickLinksLandingA11yJourneyTests(unittest.TestCase):
         self.assertIn("assertfocus:id=fst.rankings.row.fixture-player-1@3", after)
         self.assertLess(after.index(f"assertstate:{drums}|selected=true@5"), after.index("wait:1"))
         self.assertLess(after.index("wait:1"), after.index(f"assertstate:{drums}|selected=true"))
-        self.assertIn(f"assertstate:{_ITEM}instrument:Solo_Guitar|selected=false", after)
+        self.assertIn(f"assertstate:{_ITEM}{_LEADERBOARDS_ORDER[0]}|selected=false", after)
         # Every pane row the keyboard can reach is a full 40x40 epx target (width too), measured before the jump.
         for item in _LEADERBOARDS_ORDER:
             with self.subTest(row=item):

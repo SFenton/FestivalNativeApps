@@ -89,6 +89,13 @@ fun GlassCard(
 // region Section header
 
 /**
+ * Space a [SectionHeader] keeps above its title, inside its own bounds. A Quick Links section that starts
+ * with one declares it as its heading inset so a jump lands the title, not this space, on the landing
+ * line (`section-jump-landing` R2, issue #587).
+ */
+val SECTION_HEADER_TOP_PADDING = 16.dp
+
+/**
  * White Title Case section header announced as a heading.
  *
  * @param title Title Case text.
@@ -103,7 +110,7 @@ fun SectionHeader(title: String, modifier: Modifier = Modifier) {
         color = BrandTokens.textPrimary,
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 16.dp, bottom = 8.dp)
+            .padding(top = SECTION_HEADER_TOP_PADDING, bottom = 8.dp)
             .semantics { heading() },
     )
 }
