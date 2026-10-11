@@ -1544,6 +1544,10 @@
             "symbol": "SongBandSpotlightRow"
           },
           {
+            "path": "windows/Festival.Core/ViewModels/BandsSongLeaderboardViewModel.cs",
+            "symbol": "SongBandRow"
+          },
+          {
             "path": "windows/Festival.Core/ViewModels/LeaderboardsRows.cs",
             "symbol": "RankingSpotlightViewModel"
           },
@@ -1709,7 +1713,8 @@
         370,
         381,
         409,
-        461
+        461,
+        594
       ]
     },
     {
