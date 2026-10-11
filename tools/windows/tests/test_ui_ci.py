@@ -175,6 +175,39 @@ class UiCiTests(unittest.TestCase):
         self.assertIn("contrast:desert", contrast["after_ready"])
         self.assertEqual("contrast:off", [s for s in contrast["after_ready"] if s.startswith("contrast:")][-1])
 
+    def test_shop_offers_run_at_default_largest_text_and_reduced_motion(self):
+        # Issue #516 (#224): the Item Shop tiles, List/Grid toggle, rings and states run in CI at default and 225% text
+        # and with in-app Reduce Motion, with an Axe scan, and pin the regressions #516 fixed.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-shop-offers.json"}
+        self.assertEqual({"normal", "text-225", "app-reduced"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertFalse(runs["normal"].only or runs["text-225"].only)
+        self.assertEqual({"compact", "medium"}, set(runs["text-225"].sizes.split(",")))
+        self.assertEqual("shop-offers-view-toggle", runs["app-reduced"].only)
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-shop-offers.json").read_text(encoding="utf-8"))}
+        read = pages["shop-offers-grid-read"]["after_ready"]
+        # The toggle sat a line below Filter (layout rounding wrapped it) under the tiles.
+        self.assertIn("assertinset:id=fst.shop.view-toggle|id=fst.shop.filter|0", read)
+        self.assertIn("assertat:id=fst.shop.view-toggle|0,-18.5", read)
+        self.assertIn("assertread:id=fst.shop.song.fixture-orbit|"
+                      "Fixture Orbit, Synthetic Quartet · 2026, Leaving Tomorrow, button", read)
+        self.assertEqual(["text-225"], pages["shop-offers-text-wrap"]["modes"])
+        self.assertIn("assertapart:id=fst.shop.view-toggle|id=fst.shop.song.fixture-orbit",
+                      pages["shop-offers-text-wrap"]["after_ready"])
+        self.assertIn("waitgone:id=fst.shop.view-toggle", pages["shop-offers-grid-compact"]["after_ready"])
+        self.assertIn("assertread:id=fst.shop.loading|Busy Loading Item Shop, ProgressRing",
+                      pages["shop-offers-loading"]["after_ready"])
+        toggle = pages["shop-offers-view-toggle"]["after_ready"]
+        self.assertEqual(2, toggle.count("assertfocus:id=fst.shop.view-toggle@3"))
+        # The Leaving pill kept the brand red under a live contrast switch.
+        contrast = pages["shop-offers-contrast-live"]
+        self.assertEqual((["medium"], ["normal"]), (contrast["sizes"], contrast["modes"]))
+        self.assertIn("contrast:desert", contrast["after_ready"])
+        self.assertEqual("contrast:off", [s for s in contrast["after_ready"] if s.startswith("contrast:")][-1])
+        self.assertTrue(any(s.startswith("assertpaint:id=fst.shop.badge.leaving.fixture-orbit|L-4,M0=#903909")
+                            for s in contrast["after_ready"]))
+
     def test_search_all_section_titles_run_at_default_largest_text_and_reduced_motion(self):
         # Issue #483 (#348): Search's All section titles run in CI at default and 225% text and with in-app Reduce
         # Motion, while the file's other pages keep their generated runs.

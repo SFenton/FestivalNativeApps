@@ -30,7 +30,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Song Leaderboard | ✅✅✅ | 8/10/10 | ✅ | ✅ | ✅ (C/M/W, also 200%; display 100%/150%, issue #197) |
 | Player History (Song Detail Score History, issue #198) | ✅✅✅ | 7/9/9 | UIA (locked console) | ✅ (Night sky, Desert: chart roles) | ✅ (200%: axes scale) |
 | Song Band Leaderboard | ✅✅✅ (+live, #196) | 8/10/10 | UIA only (#196) | ✅ | ✅ (+200% C+M) |
-| Item Shop (grid, list, filter, states) | ✅✅✅ (+live, #206; shop-offers states #224) | 5/8/8 (grid one stop) | ✅ (`kb-shop-*`) | ✅ | ✅ (200% C+M, #206) |
+| Item Shop (grid, list, filter, states) | ✅✅✅ (+live, #206; shop-offers states #224; CI `shop-offers` #516) | 5/8/8 (grid one stop) | ✅ (`kb-shop-*`) | ✅ | ✅ (200% C+M, #206) |
 | Suggestions | ✅✅✅ (AOT crash fixed; filter, empty, end-of-mix, loading, syncing, denied, #205) | 10–15 (20-press, #205) | ✅ (arrows between rows, #205) | ✅ | ✅ (200%; display 100%/150%, #205) |
 | Leaderboards + Quick Links | ✅✅✅ (+live, #207) | 20/21/21 | ✅ | ✅ | ✅ (C+M; rows stack, #207) |
 | Full Rankings / Rank By menu | ✅✅✅ (+live, #208) | 9–13/12–15/12–15 | ✅ (#208) | ✅ | ✅ (+200% C/M/W) |
@@ -574,6 +574,31 @@ Defects fixed:
 - **Reset off screen:** the filter form didn't fit the space below its button. `OnFilterOpening` now clamps its height and width to the window, as Songs and Shop do.
 
 Harness rules: the flyout's expanded sections push later controls below the fold at 225% text, so each `assertorder`, `focus` or `expand` past the fold follows a `reveal:` (UIA scroll, no input). `assertread` phrases never include the heading level, so headings use `assertstate:…|heading=N`. A card's own Group and title TextBlock are not in the Narrator order (the card list item is named by its title).
+
+## Item Shop offers accessibility tests (issue #516, 2026-10-12)
+
+Backfills CI tests for the #224 Windows change (PR #168): Shop tiles named by title, artist · year and state, the List/Grid toggle (wide windows only, same height as Filter), contrast-safe captions and Leaving pill, and only the active ring exposed as "Busy Loading Item Shop". Until now `shop_journey.py` checked these only for visibility, and the generated `shop`/`shop-list` pages checked the Axe scan. New `journeys/a11y-shop-offers.json` (default fixture plus `shop_fixture.py` modes) runs in `tools/windows/ui_ci.py` as `shop-offers` (compact, medium), `shop-offers-text-225` (compact, medium) and `shop-offers-reduced` (medium, app Reduce Motion, the toggle page). It asserts:
+- `shop-offers-grid-read` (medium, wide): tile phrases "Fixture Orbit, Synthetic Quartet · 2026, Leaving Tomorrow, button" and "…, New, button", focusable and invokable; "Item Shop" heading 1; order title → count → Sort → Filter → toggle → tiles; the toggle reads "List View, button", is at least 40 epx tall, is level with Filter and hit-testable at its top and bottom edges (not covered by a tile); tiles 40×40 and apart; no loading ring in UIA;
+- `shop-offers-grid-compact`: no toggle; same tile phrases and order;
+- `shop-offers-view-toggle` (medium): Enter switches to the list and Space back, focus stays on the toggle, its name flips "Grid View" ↔ "List View", it stays level with Filter, the reveal ring leaves UIA, and Tab then lands on the first tile;
+- `shop-offers-text-wrap` (medium, 225% text only): the wrapped toggle keeps its name and 40 epx target, stays in order after Filter, and overlaps neither Sort, Filter nor a tile;
+- `shop-offers-loading`: a slow read shows one ring reading "Busy Loading Item Shop, ProgressRing" with no toggle, Filter or grid, and it leaves UIA once the tiles land;
+- `shop-offers-empty`, `-failed`, `-hidden`: no toggle, Sort or Filter; the empty title reads as text, Retry is 40 epx, and "Item Shop Is Hidden" is heading 2;
+- `shop-offers-contrast-live` (medium, default text): the Leaving pill paints #C62828, after a live switch to Desert it paints Highlight (#903909) with no WindowText backplate and the caption plate paints Window, and the red returns after switching back.
+
+`tests/test_ui_ci.py` pins the runs and key checks; `WrapLineLayoutTests` guards the wrap rule.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium, wide (all pages; contrast at medium) | **Failed, fixed** (two defects, below). Pass, Axe 0 after the fixes |
+| Text 225% (compact, medium) | Pass, Axe 0 |
+| App Reduce Motion (medium, toggle page) | Pass, Axe 0 |
+
+Defects fixed:
+- **List View under the tiles:** at default text in medium and wide windows the toggle sat a line below Filter, and at medium the tile grid covered it. `WrapPanel` measured one line, but layout rounding handed arrange a fraction of a pixel less, so arrange broke the line that measure had kept and drew the toggle outside the reserved height. Measure and arrange now share `WrapLineLayout.Lines` with a 1 epx tolerance ([page-tools-and-nav-chrome](../patterns/page-tools-and-nav-chrome.md) R11). The fix also reaches the other `WrapPanel` consumers: the Rivals page and rows, profile/Statistics title actions, Song Detail and notification rows.
+- **Live contrast switch:** the Leaving pill and the pulse ring took their brushes once, so a page left open across a contrast switch kept the brand red pill (with a Window backplate on its text) and the brand outline. `ShopPulseRing` now repaints on `ContrastTheme.Changed` (Songs rows and first-run demos too), and `ShopPage` re-applies `ApplyBadge` to realized tiles and rows ([shop-offer-status](../patterns/shop-offer-status.md) R6).
+
+Harness rules: the ProgressRing peer prefixes its busy state, so assert ring names as "Busy Loading …" (a `waitgone:name=Loading …` passes trivially). Pages that assert the toggle level with Filter skip `text-225`, where it wraps by design (R11).
 
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
