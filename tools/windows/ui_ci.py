@@ -10,8 +10,8 @@ This is the one registry of Windows accessibility journeys that gate pull reques
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
-push (issue #452), the Paths swap (issue #430, also with Animation effects off) and the Paths chart (issue #438) run at
-default and 225% text, and
+push (issue #452), the Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438) and the Full
+Rankings pinned row (issue #466, also with in-app Reduce Motion) run at default and 225% text, and
 that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
@@ -148,6 +148,15 @@ RUNS: tuple[Run, ...] = (
     Run("song-leaderboard-footer-fade", "a11y-board-footer-fade.json", only=SONG_BOARD_FOOTER_FADE),
     Run("song-leaderboard-footer-fade-text-225", "a11y-board-footer-fade.json", sizes="compact", mode="text-225",
         only=SONG_BOARD_FOOTER_FADE),
+    # Full Rankings pinned row (issues #318, #466): pinned even on the player's own page; Narrator reads its rank,
+    # Open your statistics or Jump to your position and Button; 40x40 pinned row and pager kept apart; title -> rows ->
+    # pinned row -> pager order; Tab/Shift+Tab rows -> pinned row -> pager; Enter jumps to page 2 keeping focus on the
+    # pinned row (now Open your statistics) and opens the profile; also with in-app Reduce Motion. (The partial
+    # reduced-motion run comes first: generated_runs reads a file's last explicit run as its coverage.)
+    Run("full-rankings-pinned-reduced-motion", "a11y-full-rankings.json", sizes="medium", mode="app-reduced", tabs=0,
+        only="fr-pinned-jump-keyboard"),
+    Run("full-rankings-pinned", "a11y-full-rankings.json"),
+    Run("full-rankings-pinned-text-225", "a11y-full-rankings.json", sizes="compact", mode="text-225"),
     # Back from View All or a rival to cached Leaderboards and Rivals (issues #82, #276, #435): the opener and its card
     # stay put, focus returns to the opener, it reads "<name>, button" after its card and heading, keeps a 40 epx target,
     # and Tab/Shift+Tab continue from it; by keys (Enter, Alt+Left) and pointer (the title-bar Back).

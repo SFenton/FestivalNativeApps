@@ -474,6 +474,25 @@ Every page is Axe-scanned. `song-board-footer` and the footer-fade pages also ge
 
 No accessibility defect was found.
 
+## Full Rankings pinned row accessibility tests (issue #466, 2026-10-11)
+
+Backfills CI tests for the #318 Windows change: the selected player's row stays pinned above the pager on Full Rankings, even on their own page. Before this, its journeys (`full-rankings.json`, `full-rankings-keyboard.json`) weren't `windows-ui` runs. Only `grouped-full-rankings` checked the order and one Tab. New `journeys/a11y-full-rankings.json` (`rankings_fixture.py`) is now a set of `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- on the player's own page (Fixture Player 2, #2): the pinned row reads "Your rank, 2nd. Open your statistics. Fixture Player 2. Total Score …, button"; the pager reads "First page, button, unavailable", "Previous page, button, unavailable", "Page 1 of 48, text", "Next page, button" and "Last page, button";
+- the pinned row and four pager buttons are at least 40×40 epx, and the pinned row doesn't overlap the pager;
+- the reading order is title (Level 1 heading) → the player's own row in the list → pinned row → First → Previous → page text → Next → Last, and the fade layer stays out of the control view while fading rows over 40 epx;
+- the Tab order on the player's page: row → pinned row → Next → Last, Shift+Tab back to the pinned row, and Enter on it opens the profile;
+- off the player's page (Fixture Rank 40): the pinned row reads "Jump to your position". Enter jumps to page 2 and keeps focus on the pinned row, which now reads "Open your statistics". The pager reads "Page 2 of 48" with First and Previous available, the order is row 40 → pinned row → pager, and Tab and Shift+Tab move between the pinned row and First.
+
+`fr-pinned-own-page` also gets the dispatcher's 30-press Tab walk. The two keyboard pages set `tabs: 0` because their ordered traversal replaces it. `tests/test_ui_ci.py` pins the runs and the key checks.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`full-rankings-pinned`, all 3 pages) | Pass, Axe 0 |
+| Text 225% (compact, all 3 pages) | Pass, Axe 0; the pinned row's two lines grow without clipping above the pager |
+| In-app Reduce Motion (medium, jump) | Pass, Axe 0 |
+
+No accessibility defect was found.
+
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
 Accessibility tests for #77. The no-profile Filter pages moved into `journeys/a11y-songs-filter.json` (`songs-filter-anonymous`, `songs-filter-anonymous-year`, `kb-songs-filter-anonymous`), which `tools/windows/ui_ci.py` runs in `windows-ui` at default text (compact, medium) and 225% text (compact); `tests/test_ui_ci.py` keeps both runs. They assert Narrator phrases, reading order, 40×40 epx targets, the toggle and expand states, the applied "Filters applied" status and the keyboard walk ([songs-filter windows](../controls/songs-filter/windows.md#accessibility-tests-issue-432-no-profile)).
