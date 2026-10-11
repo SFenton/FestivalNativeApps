@@ -15,7 +15,9 @@ struct SongMetadataVisibility: Equatable, Sendable {
     var lastPlayed = true
 }
 
-/// Selected-player score state under an ordinary catalogue Song row.
+/// Selected-player score state under an ordinary catalogue Song row. `score` is the
+/// chart's effective score: Songs resolves Filter Invalid Scores first
+/// (``InvalidScorePolicy``), so a dropped invalid score reads as no score.
 struct SongProfileSummary: View {
     let player: SelectedPlayerIdentity
     let chart: Instrument?
@@ -23,7 +25,6 @@ struct SongProfileSummary: View {
     let score: PlayerScore?
     let state: SelectedPlayerLoadState
     let visibility: SongMetadataVisibility
-    let filterInvalidScores: Bool
     let songId: String
 
     var body: some View {
@@ -42,10 +43,7 @@ struct SongProfileSummary: View {
                 Label("Player scores unavailable", systemImage: "exclamationmark.triangle")
                     .foregroundStyle(BrandTokens.gold)
             case .available:
-                if filterInvalidScores {
-                    Text("Filtered player score display is not available yet")
-                        .foregroundStyle(BrandTokens.gold)
-                } else if let chart, !chartAvailable {
+                if let chart, !chartAvailable {
                     Text("\(chart.label) is not charted for this song")
                         .foregroundStyle(FestivalText.primary)
                 } else if let chart, let score, score.score > 0 {

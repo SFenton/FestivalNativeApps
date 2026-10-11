@@ -119,6 +119,7 @@ import com.festivalscoretracker.android.core.nav.StatisticsTab
 import com.festivalscoretracker.android.core.search.GlobalSearchLayout
 import com.festivalscoretracker.android.core.search.PxRect
 import com.festivalscoretracker.android.core.search.SearchDestination
+import com.festivalscoretracker.android.core.search.SearchScope
 import com.festivalscoretracker.android.core.search.ShellShortcut
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.core.shell.DrawerTarget
@@ -135,7 +136,6 @@ import com.festivalscoretracker.android.data.notifications.playerNotifications
 import com.festivalscoretracker.android.data.serviceinfo.serviceInfo
 import com.festivalscoretracker.android.data.serviceinfo.serviceVersion
 import com.festivalscoretracker.android.data.songs.watchDeselection
-import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
 import com.festivalscoretracker.android.presentation.ShellViewModel
 import com.festivalscoretracker.android.presentation.notifications.NotificationsViewModel
 import com.festivalscoretracker.android.presentation.search.GlobalSearchViewModel
@@ -672,13 +672,27 @@ private fun FestivalShell(
         onOpen = openDestination,
     )
     if (showProfile) {
-        val searchViewModel: ProfileSearchViewModel = viewModel { ProfileSearchViewModel { query -> container.api.searchPlayers(query) } }
+        // Global search's engine narrowed to players and bands (issue #600, pattern search-scopes).
+        val profileSearch: GlobalSearchViewModel = viewModel(key = "profile-search") {
+            GlobalSearchViewModel(
+                loadCatalog = { emptyList() },
+                searchPlayers = { query, limit -> container.api.searchPlayers(query, limit) },
+                searchBands = { query, limit -> container.api.searchBands(query, limit) },
+                selectedAccountId = { shellViewModel.settings.value?.selectedPlayer?.accountId },
+                backoff = container.backoff,
+                savedState = createSavedStateHandle(),
+                targets = SearchScope.profileTargets,
+            )
+        }
+        LaunchedEffect(profileSearch) { profileSearch.open() }
         ProfileSheet(
             player = settings.selectedPlayer,
-            searchViewModel = searchViewModel,
+            searchViewModel = profileSearch,
+            onOpen = openDestination,
             onViewPlayer = { accountId, name -> actions.navigate(PlayerRoute(accountId, name)) },
             onDeselect = shellViewModel::deselectPlayer,
-            onDismiss = { showProfile = false },
+            // Like the web SearchModal, closing forgets the query and scope.
+            onDismiss = { showProfile = false; profileSearch.close() },
         )
     }
     if (showNotifications) {
