@@ -100,7 +100,7 @@ STEP_VERBS = {
     "click": "selector", "rightclick": "selector", "hover": "selector", "invoke": "selector",
     "toggle": "selector", "select": "selector", "expand": "selector",
     "collapse": "selector", "focus": "selector", "reveal": "selector", "waitfor": "selector", "waitgone": "selector",
-    "scrollinto": "selector", "assertnoscrollbar": "selector",
+    "scrollinto": "selector", "assertnoscrollbar": "selector", "assertscrollbar": "selector",
     "type": "text", "key": "keys", "keys": "keyseq", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
@@ -271,7 +271,8 @@ def parse_step(step: str) -> dict:
     ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column);
     ``assertnoscrollbar:<sel>`` fails if the scroller contains a UIA ScrollBar, shown or idle: a WinUI ``Auto`` bar
     stays in the tree (drawn as soon as pointer input scrolls), a ``Hidden`` one is collapsed out of it, so this
-    proves no indicator can render even on a locked console where no pointer input reaches the app;
+    proves no indicator can render even on a locked console where no pointer input reaches the app, and
+    ``assertscrollbar:<sel>`` is its inverse (a scroller that honours Windows' "Always show scrollbars", issue #525);
     ``assertbelow:<sel>|<sel>`` fails unless the first element's vertical centre is at least 8 px below the second's,
     and ``assertlevel:<sel>|<sel>`` unless both vertical centres are within 4 px (a line);
     ``assertgap:<sel>|<sel>|<epx>`` fails unless the gap from the first element's bottom edge to the second's top

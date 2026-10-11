@@ -37,7 +37,7 @@ Fixture: `windows/reports/screenshots/full-rankings-{medium,compact,selected-wid
 
 ## IDs
 
-`fst.full-rankings.title`, `.list`, `.instrument-menu`, `.instrument.<instrument>`, `.page-first|page-previous|page-info|page-next|page-last`, `.spotlight-footer` (the pinned row's Button), `.spotlight-footer.loading` (the ring), `.spotlight-footer.unranked`, `.spotlight-footer.retry` (no `.spotlight-jump` since #318: the pinned row is the jump), shared `fst.rankings.rank-by-menu`, `fst.rankings.rank-by.<metric>`, `fst.rankings.row.<accountId>`.
+`fst.full-rankings.title`, `.list`, `.instrument-menu`, `.instrument.<instrument>`, `.page-first|page-previous|page-info|page-next|page-last`, `.spotlight-footer` (the pinned row's Button), `.spotlight-footer.loading` (the ring), `.spotlight-footer.loading-row` (raw view only: the placeholder row under the ring, #527), `.spotlight-footer.unranked`, `.spotlight-footer.retry` (no `.spotlight-jump` since #318: the pinned row is the jump), shared `fst.rankings.rank-by-menu`, `fst.rankings.rank-by.<metric>`, `fst.rankings.row.<accountId>`.
 
 ## Validation (issue #208)
 
