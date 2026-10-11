@@ -158,6 +158,35 @@ class UiCiTests(unittest.TestCase):
                                             "id=fst.full-rankings.spotlight-footer|id=fst.full-rankings.page-first")
                             for step in steps))
 
+    def test_full_rankings_swap_runs_in_every_motion_and_text_mode(self):
+        # Issue #524 (#270): Full Rankings' pinned row load gate runs in CI at default and 225% text, with in-app Reduce
+        # Motion and with Windows' Animation effects off.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-full-rankings-swap.json"}
+        self.assertEqual({"normal", "text-225", "app-reduced", "no-animations"}, set(runs))
+        self.assertTrue(all(run.scan and not run.only for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-full-rankings-swap.json").read_text(encoding="utf-8"))}
+        self.assertEqual({"fr-swap-rank-by", "fr-swap-page-keeps-pin", "fr-swap-motion-reduced", "fr-swap-motion-system"},
+                         set(pages))
+        self.assertEqual(["app-reduced"], pages["fr-swap-motion-reduced"]["modes"])
+        self.assertEqual(["no-animations"], pages["fr-swap-motion-system"]["modes"])
+        footer = "id=fst.full-rankings.spotlight-footer"
+        swap = pages["fr-swap-rank-by"]["after_ready"]
+        self.assertIn(f"waitgone:{footer}@2", swap)
+        self.assertIn("assertorder:id=fst.full-rankings.title|id=fst.rankings.rank-by-menu|name=Busy Loading rankings",
+                      swap)
+        self.assertIn("assertfocus:id=PART_BackButton@3", swap)
+        self.assertIn(f"assertsize:{footer}|40x40", swap)
+        self.assertTrue(any(step.startswith(f"assertread:{footer}|~^Your rank, 40th\\. Jump to your position\\. "
+                                            "Fixture Rank 40\\. FC Rate") for step in swap))
+        page = pages["fr-swap-page-keeps-pin"]["after_ready"]
+        self.assertIn(f"assertstate:{footer}|focusable=true", page)
+        self.assertTrue(any(step.startswith(f"assertorder:id=fst.rankings.rank-by-menu|name=Busy Loading rankings|{footer}")
+                            for step in page))
+        for name in ("fr-swap-motion-reduced", "fr-swap-motion-system"):
+            self.assertIn(f"assertmotion:{footer}|still", pages[name]["after_ready"])
+
     def test_leaderboards_card_jump_runs_at_default_largest_text_and_reduced_motion(self):
         # Issue #493 (#370): a Leaderboards card's "your rank" row runs in CI at default and 225% text, and its keyboard
         # jump to Full Rankings with in-app Reduce Motion.
