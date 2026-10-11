@@ -137,6 +137,10 @@ class FixtureServerTests(unittest.TestCase):
         status, _, body = self.get(path)
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["bands"][0]["selectedPlayerEntry"]["rank"], 14)
+        self.state.mode = "far"
+        far = json.loads(self.get(path)[2])["bands"]
+        self.assertEqual(far[0]["selectedPlayerEntry"]["rank"], 1_234)
+        self.assertEqual([e["rank"] for e in far[0]["entries"]], list(range(1, 11)))
         self.state.mode = "invalid"
         self.assertEqual(json.loads(self.get(path)[2])["songId"], "fixture-other-song")
         self.state.mode = "frozen"
