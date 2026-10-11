@@ -141,7 +141,7 @@ fun AllRivalsScreen(viewModel: AllRivalsViewModel) {
                 // One card of rows (#603, iOS `AllRivalsScreen`): full-line lazy segments with no gap,
                 // kept in the leading pane at a separating hinge (`foldLaneItem`).
                 AdaptiveCardGrid(
-                    contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+                    contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding()),
                     minColumn = 360.dp,
                     maxColumns = 1,
                     testTag = "fst.all-rivals.list",
@@ -223,7 +223,7 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
                 val content = current.value
                 val player = shell.selectedPlayer?.displayName
                 AdaptiveCardGrid(
-                    contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+                    contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding()),
                     state = gridState,
                     testTag = "fst.rival-detail.grid",
                 ) {
@@ -372,7 +372,7 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
                 val player = shell.selectedPlayer?.displayName
                 // One card of rows (#603, iOS `RivalryScreen`): full-line lazy segments with no gap.
                 AdaptiveCardGrid(
-                    contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+                    contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding()),
                     maxColumns = 1,
                     state = gridState,
                     testTag = "fst.rivalry.list",

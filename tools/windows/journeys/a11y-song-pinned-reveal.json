@@ -1,0 +1,158 @@
+[
+  {
+    "name": "pinned-reveal-first-load",
+    "note": "Issue #295: on the first load only the ring is exposed (no pinned row in UIA, the Tab order or sight); the pinned row then reads, orders, paints and takes focus with the rows.",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "fixture": [
+      "leaderboards_fixture.py",
+      "--slow-song-board",
+      "fixture-pulse/Solo_Guitar",
+      "--song-leaderboard-paging"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:name=Busy Loading leaderboard@20",
+      "wait:1"
+    ],
+    "scan": true,
+    "after_ready": [
+      "assertread:name=Busy Loading leaderboard|Busy Loading leaderboard, ProgressRing",
+      "waitgone:id=fst.song-leaderboard.spotlight-footer@1",
+      "waitgone:id=fst.song-leaderboard.row.fixture-player-1@1",
+      "waitgone:id=fst.song-leaderboard.page-next@1",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-1@25",
+      "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, .+, button$@2",
+      "assertorder:id=fst.song-leaderboard.song|id=fst.song-leaderboard.row.fixture-player-1|id=fst.song-leaderboard.row.fixture-player-2|id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-first|id=fst.song-leaderboard.page-info|id=fst.song-leaderboard.page-next",
+      "assertstate:id=fst.song-leaderboard.spotlight-footer|focusable=true",
+      "assertstate:id=fst.song-leaderboard.spotlight-footer|invoke=true",
+      "assertsize:id=fst.song-leaderboard.spotlight-footer|40x40",
+      "assertapart:id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-next",
+      "assertpaint:id=fst.song-leaderboard.spotlight-footer|bg:L-6,M0|L40,T6!=@bg~20",
+      "waitgone:name=Busy Loading leaderboard@5",
+      "focus:id=fst.song-leaderboard.song",
+      "assertfocus:id=fst.song-leaderboard.song@3",
+      "key:tab",
+      "assertfocus:id=fst.song-leaderboard.row.fixture-player-1@3",
+      "key:tab",
+      "assertfocus:id=fst.song-leaderboard.spotlight-footer@3",
+      "key:tab",
+      "assertfocus:id=fst.song-leaderboard.page-next@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.song-leaderboard.spotlight-footer@3",
+      "focus:id=fst.song-leaderboard.song",
+      "waitgone:class=ToolTip@5",
+      "shot:{stem}.png"
+    ]
+  },
+  {
+    "name": "pinned-reveal-leeway-reload",
+    "note": "Issue #295: a Filter Invalid Scores change reloads the board; the pinned row leaves UIA and the Tab order with the old rows, keeps the header and pager, then returns with the new rows.",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "fixture": [
+      "leaderboards_fixture.py",
+      "--slow-song-board",
+      "fixture-pulse/Solo_Guitar",
+      "--slow-leeway-only",
+      "--song-leaderboard-paging"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.song-leaderboard.spotlight-footer@25",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, .+, button$@2",
+      "key:ctrl+comma",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.filter-invalid-scores@10",
+      "toggle:id=fst.settings.filter-invalid-scores",
+      "assertstate:id=fst.settings.filter-invalid-scores|toggle=on@3",
+      "key:ctrl+1",
+      "waitfor:id=fst.song-leaderboard.song@10",
+      "waitgone:id=fst.song-leaderboard.spotlight-footer@3",
+      "waitgone:id=fst.song-leaderboard.row.fixture-player-1@1",
+      "assertread:name=Busy Loading leaderboard|Busy Loading leaderboard, ProgressRing@2",
+      "assertorder:id=fst.song-leaderboard.song|name=Busy Loading leaderboard|id=fst.song-leaderboard.page-next",
+      "focus:id=fst.song-leaderboard.song",
+      "assertfocus:id=fst.song-leaderboard.song@3",
+      "key:tab",
+      "assertfocus:id=fst.song-leaderboard.page-next@3",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-1@25",
+      "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, .+, button$@5",
+      "assertorder:id=fst.song-leaderboard.row.fixture-player-1|id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-next",
+      "assertpaint:id=fst.song-leaderboard.spotlight-footer|bg:L-6,M0|L40,T6!=@bg~20",
+      "waitgone:name=Busy Loading leaderboard@5",
+      "focus:id=fst.song-leaderboard.song",
+      "key:tab",
+      "assertfocus:id=fst.song-leaderboard.row.fixture-player-1@3",
+      "key:tab",
+      "assertfocus:id=fst.song-leaderboard.spotlight-footer@3",
+      "focus:id=fst.song-leaderboard.song",
+      "waitgone:class=ToolTip@5",
+      "shot:{stem}.png"
+    ],
+    "scan": true
+  },
+  {
+    "name": "pinned-reveal-motion-reduced",
+    "modes": [
+      "app-reduced"
+    ],
+    "note": "Issue #295 with in-app Reduce Motion: the pinned row is hidden under the ring, then shown with the rows and holds still.",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "fixture": [
+      "leaderboards_fixture.py",
+      "--slow-song-board",
+      "fixture-pulse/Solo_Guitar",
+      "--song-leaderboard-paging"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:name=Busy Loading leaderboard@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:name=Busy Loading leaderboard|Busy Loading leaderboard, ProgressRing",
+      "waitgone:id=fst.song-leaderboard.spotlight-footer@1",
+      "waitgone:id=fst.song-leaderboard.row.fixture-player-1@1",
+      "waitgone:id=fst.song-leaderboard.page-next@1",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-1@25",
+      "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, .+, button$@2",
+      "assertmotion:id=fst.song-leaderboard.spotlight-footer|still",
+      "assertpaint:id=fst.song-leaderboard.spotlight-footer|bg:L-6,M0|L40,T6!=@bg~20"
+    ]
+  },
+  {
+    "name": "pinned-reveal-motion-system",
+    "modes": [
+      "no-animations"
+    ],
+    "note": "Issue #295 with Windows animation effects off: the same as pinned-reveal-motion-reduced.",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "fixture": [
+      "leaderboards_fixture.py",
+      "--slow-song-board",
+      "fixture-pulse/Solo_Guitar",
+      "--song-leaderboard-paging"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:name=Busy Loading leaderboard@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:name=Busy Loading leaderboard|Busy Loading leaderboard, ProgressRing",
+      "waitgone:id=fst.song-leaderboard.spotlight-footer@1",
+      "waitgone:id=fst.song-leaderboard.row.fixture-player-1@1",
+      "waitgone:id=fst.song-leaderboard.page-next@1",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-1@25",
+      "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, .+, button$@2",
+      "assertmotion:id=fst.song-leaderboard.spotlight-footer|still",
+      "assertpaint:id=fst.song-leaderboard.spotlight-footer|bg:L-6,M0|L40,T6!=@bg~20"
+    ]
+  }
+]

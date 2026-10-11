@@ -88,7 +88,7 @@ import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
-import com.festivalscoretracker.android.ui.leaderboards.AnchoredRowCard
+import com.festivalscoretracker.android.ui.leaderboards.PinnedSelectedRow
 import com.festivalscoretracker.android.ui.leaderboards.LeaderboardSectionMember
 import com.festivalscoretracker.android.ui.leaderboards.rememberScoreColumns
 import com.festivalscoretracker.android.ui.leaderboards.RankingsBoardScaffold
@@ -267,7 +267,7 @@ fun SongLeaderboardScreen(
             // beside the spinner (issue #149) and re-reveals it with the new rows.
             footer = {
                 footer?.let { entry ->
-                    AnchoredRowCard(with(swap) { Modifier.pinnedStaggered(0) }.then(swap.pinnedContentModifier)) {
+                    PinnedSelectedRow(with(swap) { Modifier.pinnedStaggered(0) }.then(swap.pinnedContentModifier)) {
                         LeaderboardSectionMember(columns, "footer") {
                             SelectedScoreFooterRow(
                                 entry = entry,
@@ -297,7 +297,7 @@ fun SongLeaderboardScreen(
             } else item(key = "rows") {
                 // The card fades in as one with all its rows, never row by row (load-transition R11, owner #614).
                 GlassCard(anchor.item.fillMaxWidth().then(with(swap) { Modifier.card() })) {
-                    // Same 8 dp horizontal inset as AnchoredRowCard, so the pinned row's columns line up (issue #37).
+                    // Same 8 dp horizontal inset as PinnedSelectedRow, so the pinned row's columns line up (issue #37).
                     LeaderboardSectionMember(columns, "rows", Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
                         when {
                             loaded.entries.isEmpty() -> Text("No scores yet", color = BrandTokens.textPrimary, modifier = Modifier.padding(16.dp))
