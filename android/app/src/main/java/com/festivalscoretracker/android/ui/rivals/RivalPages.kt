@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -177,7 +177,7 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
     val state by viewModel.state.collectAsStateWithLifecycle()
     val name by viewModel.displayName.collectAsStateWithLifecycle()
     val catalog by viewModel.catalog.collectAsStateWithLifecycle()
-    val gridState = rememberLazyStaggeredGridState()
+    val gridState = rememberLazyGridState()
     val categories = (state as? LoadState.Loaded)?.value?.categories.orEmpty()
     // Web: one per category once loaded; the grid's first item is the "You vs. Rival" header.
     // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
@@ -294,7 +294,7 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
     val catalog by viewModel.catalog.collectAsStateWithLifecycle()
     val sort by viewModel.sort.collectAsStateWithLifecycle()
     var sortOpen by rememberSaveable { mutableStateOf(false) }
-    val gridState = rememberLazyStaggeredGridState()
+    val gridState = rememberLazyGridState()
     // No Quick Links: one link per song only repeated the list (owner, #545; quick-links variant).
     val fadeIn = rememberPageFadeInWindow()
     FestivalScreen(
