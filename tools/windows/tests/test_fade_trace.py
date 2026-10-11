@@ -283,6 +283,39 @@ class CascadeTests(unittest.TestCase):
         self.assertEqual(3, len(f.check_cascade(self.lines([0, 125, 250], owner="Other"), "Slides", self.CARDS, 125, True)))
 
 
+class ShowHideTests(unittest.TestCase):
+    """``FadeIn.OnShow``/``OnHide`` lines (Songs Jump, R6, issue #517)."""
+
+    def lines(self, motion=1, ran=None, kinds=("show", "hide", "show"), name="JumpButton"):
+        ran = motion if ran is None else ran
+        return events(*(f"fade-{k} list={name} {'played' if k == 'show' else 'armed'}={ran} motion={motion} at={i}"
+                        for i, k in enumerate(kinds)))
+
+    def test_parses_show_and_hide(self):
+        parsed = self.lines()
+        self.assertEqual(["show", "hide", "show"], [e.kind for e in parsed])
+        self.assertEqual({"armed": 1, "motion": 1, "at": 1}, parsed[1].values)
+
+    def test_consistent_traces_pass(self):
+        seq = ["show", "hide", "show"]
+        self.assertEqual([], f.check_show_hide(self.lines(), "JumpButton", seq, None))
+        self.assertEqual([], f.check_show_hide(self.lines(0), "JumpButton", seq, False))
+        self.assertEqual([], f.check_show_hide(self.lines(0), "JumpButton", seq, None))
+        self.assertEqual([], f.check_show_hide(self.lines(1), "JumpButton", ["hide", "show"], None))
+
+    def test_each_regression_is_caught(self):
+        seq = ["show", "hide", "show"]
+        # Motion.Allowed gate removed: the fade still runs (or the hide is still armed) under Reduce Motion.
+        self.assertEqual(3, len(f.check_show_hide(self.lines(0, ran=1), "JumpButton", seq, False)))
+        # Reduce Motion never reached Motion.Allowed.
+        self.assertEqual(3, len(f.check_show_hide(self.lines(1), "JumpButton", seq, False)))
+        # OnShow/OnHide dropped from Jump: no lines at all.
+        self.assertIn("no fade-show", f.check_show_hide([], "JumpButton", seq, False)[0])
+        self.assertIn("no fade-show", f.check_show_hide(self.lines(0, kinds=("show", "hide")), "JumpButton", seq, False)[0])
+        self.assertIn("no fade-show after []", f.check_show_hide(self.lines(0, name="Other"), "JumpButton", seq, False)[0])
+        self.assertIn("no fade with motion on", f.check_show_hide(self.lines(1, ran=0), "JumpButton", seq, None)[0])
+
+
 class RevealTests(unittest.TestCase):
     def test_the_reveal_rushes_the_board_then_scrolls(self):
         self.assertEqual([], f.check_reveal(events(*BOARD), "RowsRepeater", 16, ["SpotlightPanel"]))
