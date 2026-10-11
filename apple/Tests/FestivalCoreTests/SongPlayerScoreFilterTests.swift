@@ -155,3 +155,66 @@ private func filterScores() throws -> [String: [Instrument: PlayerScore]] {
         }
     }
 }
+
+/// Web Over CHOpt Threshold: a chart check passes only for a score above the CHOpt
+/// ceiling at the leeway, is inert while Filter Invalid Scores is off, and persists
+/// without changing older saved bytes.
+@Test func overThresholdChecksNeedFilterInvalidScoresAndAScoreAboveTheCeiling() throws {
+    let songs = try JSONDecoder().decode(SongsResponse.self, from: Data("""
+    {"count":2,"songs":[
+      {"songId":"pulse","title":"Pulse","artist":"Fixture","difficulty":{"guitar":4,"drums":3},
+       "maxScores":{"Solo_Guitar":100000,"Solo_Drums":100000}},
+      {"songId":"orbit","title":"Orbit","artist":"Fixture","difficulty":{"guitar":3,"drums":2},
+       "maxScores":{"Solo_Guitar":100000,"Solo_Drums":100000}}
+    ]}
+    """.utf8)).songs
+    let player = try JSONDecoder().decode(PlayerProfileResponse.self, from: Data("""
+    {"accountId":"fixture-over","totalScores":3,"scores":[
+      {"si":"pulse","ins":"01","sc":102000,"fc":true},
+      {"si":"orbit","ins":"01","sc":100500,"fc":true},
+      {"si":"orbit","ins":"04","sc":105000,"fc":false}
+    ]}
+    """.utf8))
+    let index = try player.scoreIndex(requestedAccountId: "fixture-over")
+    let visible: Set<Instrument> = [.lead, .drums]
+    let lead = SongPlayerScoreFilter().settingOverThreshold(.lead, enabled: true)
+    #expect(lead.isActive)
+    #expect(lead.containsOverThreshold(.lead))
+    #expect(try lead.filtered(
+        songs, scoresBySong: index, visibleInstruments: visible, selectedInstrument: nil,
+        overThresholdLeeway: 1
+    ).map(\.songId) == ["pulse"])
+    #expect(try lead.filtered(
+        songs, scoresBySong: index, visibleInstruments: visible, selectedInstrument: nil,
+        overThresholdLeeway: 3
+    ).isEmpty)
+    #expect(try lead.filtered(
+        songs, scoresBySong: index, visibleInstruments: visible, selectedInstrument: nil
+    ).map(\.songId) == ["pulse", "orbit"])
+    let fcAndOver = lead.setting(.hasFCs, for: .lead, enabled: true)
+    #expect(try fcAndOver.filtered(
+        songs, scoresBySong: index, visibleInstruments: visible, selectedInstrument: nil,
+        overThresholdLeeway: 1
+    ).map(\.songId) == ["pulse"])
+    let all = SongPlayerScoreFilter().settingAllOverThreshold(visibleInstruments: visible, enabled: true)
+    #expect(all.allVisibleOverThreshold(visibleInstruments: visible))
+    #expect(try all.filtered(
+        songs, scoresBySong: index, visibleInstruments: visible, selectedInstrument: .drums,
+        overThresholdLeeway: 1
+    ).map(\.songId) == ["orbit"])
+    #expect(!all.clearingOverThreshold.isActive)
+    #expect(all.scoped(to: [.lead]).overThreshold == [.lead])
+
+    let encoded = try all.encoded()
+    #expect(String(decoding: encoded, as: UTF8.self).contains(
+        #""overThreshold":["Solo_Guitar","Solo_Drums"]"#
+    ))
+    #expect(try SongPlayerScoreFilter.decodeSaved(encoded) == all)
+    #expect(!String(decoding: try SongPlayerScoreFilter(hasFCs: [.lead]).encoded(), as: UTF8.self)
+        .contains("overThreshold"))
+    #expect(throws: FestivalAPIError.invalidSongFilter) {
+        try SongPlayerScoreFilter.decodeSaved(Data(
+            #"{"missingScores":[],"hasScores":[],"missingFCs":[],"hasFCs":[],"overThreshold":["Solo_Guitar","Solo_Guitar"]}"#.utf8
+        ))
+    }
+}

@@ -341,7 +341,7 @@ private func hostedSongsState(
             restorePlayerLoading: true
         ),
         HostedSongsScenario(
-            name: "score-paused-invalid-mode", shop: .populated, mode: .title,
+            name: "score-invalid-mode", shop: .populated, mode: .title,
             hideShop: false, search: "", filter: nil, stale: false,
             size: CGSize(width: 390, height: 844),
             playerScoreFilter: SongPlayerScoreFilter(hasScores: [.drums]),
@@ -379,7 +379,9 @@ private func hostedSongsState(
     #expect(images["filter-empty"] != images["filter-unavailable-paused"])
     #expect(images["score-has-drums"] != images["score-missing-pro-lead"])
     #expect(images["score-has-drums"] != images["score-paused-loading"])
-    #expect(images["score-has-drums"] != images["score-paused-invalid-mode"])
+    // Filter Invalid Scores applies score filters to effective scores instead of
+    // pausing them (#613); every fixture score is valid, so nothing changes.
+    #expect(images["score-has-drums"] == images["score-invalid-mode"])
     #expect(images["score-invalid-saved"] != images["filter-selected-default"])
 }
 

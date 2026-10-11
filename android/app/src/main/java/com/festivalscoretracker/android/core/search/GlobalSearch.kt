@@ -48,6 +48,15 @@ enum class SearchScope(val title: String) {
         /** Chips in display order (no chip for [All]). */
         val chips: List<SearchScope> = listOf(Songs, Players, Bands)
 
+        /** What global search searches (web `SEARCH_TARGETS`). */
+        val globalTargets: Set<SearchScope> = setOf(Songs, Players, Bands)
+
+        /** What profile search searches (web `SearchModal` `availableTargets` `players|bands`, issue #600). */
+        val profileTargets: Set<SearchScope> = setOf(Players, Bands)
+
+        /** Profile search's segmented scopes in display order, starting broad (issue #600). */
+        val profileScopes: List<SearchScope> = listOf(All, Players, Bands)
+
         /**
          * Parse a saved token.
          *
@@ -174,14 +183,24 @@ object GlobalSearchResults {
     /** Short-query hint in Bands. */
     const val ENTER_QUERY_HINT_BANDS = "Enter at least two characters to search for bands."
 
+    /** Short-query hint in profile search's All (issue #600). */
+    const val ENTER_QUERY_HINT_PROFILES = "Enter at least two characters to search for players or bands."
+
+    /** Profile search placeholder (web `search.placeholders.playersBands`, issue #600). */
+    const val PROFILE_PLACEHOLDER = "Search players or bands"
+
+    /** Profile search field accessible name. */
+    const val PROFILE_FIELD_NAME = "Search players and bands"
+
     /**
      * Short-query hint for a scope (issue #299).
      *
      * @param scope Selected scope.
+     * @param targets What this search searches; All names only those (profile search: players or bands).
      * @return The hint ending in what that scope searches.
      */
-    fun enterQueryHint(scope: SearchScope): String = when (scope) {
-        SearchScope.All -> ENTER_QUERY_HINT_ALL
+    fun enterQueryHint(scope: SearchScope, targets: Set<SearchScope> = SearchScope.globalTargets): String = when (scope) {
+        SearchScope.All -> if (SearchScope.Songs in targets) ENTER_QUERY_HINT_ALL else ENTER_QUERY_HINT_PROFILES
         SearchScope.Songs -> ENTER_QUERY_HINT_SONGS
         SearchScope.Players -> ENTER_QUERY_HINT_PLAYERS
         SearchScope.Bands -> ENTER_QUERY_HINT_BANDS
@@ -195,6 +214,9 @@ object GlobalSearchResults {
 
     /** All-scope empty-state subtitle. */
     const val EMPTY_ALL_SUBTITLE = "Check the spelling or try a different song, artist, player or band."
+
+    /** Profile search's All empty-state subtitle (no songs searched, issue #600). */
+    const val EMPTY_PROFILES_SUBTITLE = "Check the spelling or try a different player or band."
 
     /** Songs-scope empty-state title. */
     const val EMPTY_SONGS_TITLE = "No songs found"
