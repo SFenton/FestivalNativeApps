@@ -1,0 +1,134 @@
+[
+  {
+    "name": "modal-contrast-first-run-desert",
+    "tab": "songs",
+    "first_run": "force",
+    "modes": ["hc-desert"],
+    "tabs": 6,
+    "ready": [
+      "wait:15",
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertname:id=PrimaryButton|Next",
+      "assertname:id=fst.first-run.close|Close"
+    ],
+    "after_ready": [
+      "waitfor:name=Songs@5",
+      "waitfor:id=fst.first-run.slides@5",
+      "assertread:id=PrimaryButton|Next, button",
+      "assertread:id=SecondaryButton|Back, button, unavailable",
+      "assertread:id=fst.first-run.close|Close, button",
+      "assertpaint:id=PrimaryButton|fill:L6,M0|C-12,M-5,C12,M5=@fill~16",
+      "scrollto:id=fst.first-run.body,100",
+      "wait:1",
+      "assertpaint:id=fst.first-run.pips|L6,M-8=#903909~24|L6,M0=#FFFAEF~40|L18,M0=#202020~40",
+      "focus:id=PrimaryButton",
+      "key:tab",
+      "assertfocus:id=fst.first-run.close@3"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.first-run.dialog@5"
+    ]
+  },
+  {
+    "name": "modal-contrast-first-run-night-sky",
+    "tab": "songs",
+    "first_run": "force",
+    "modes": ["hc-night-sky"],
+    "tabs": 6,
+    "ready": [
+      "wait:15",
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertname:id=PrimaryButton|Next",
+      "assertname:id=fst.first-run.close|Close"
+    ],
+    "after_ready": [
+      "waitfor:name=Songs@5",
+      "waitfor:id=fst.first-run.slides@5",
+      "assertread:id=PrimaryButton|Next, button",
+      "assertread:id=SecondaryButton|Back, button, unavailable",
+      "assertread:id=fst.first-run.close|Close, button",
+      "assertpaint:id=PrimaryButton|fill:L6,M0|C-12,M-5,C12,M5=@fill~16",
+      "scrollto:id=fst.first-run.body,100",
+      "wait:1",
+      "assertpaint:id=fst.first-run.pips|L6,M-8=#D6B4FD~24|L6,M0=#2B2B2B~40|L18,M0=#FFEE32~40",
+      "focus:id=PrimaryButton",
+      "key:tab",
+      "assertfocus:id=fst.first-run.close@3"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.first-run.dialog@5"
+    ]
+  },
+  {
+    "name": "modal-contrast-settings-reset",
+    "tab": "settings",
+    "modes": ["hc-desert", "hc-night-sky"],
+    "tabs": 4,
+    "ready": [
+      "wait:15",
+      "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.reset",
+      "focus:id=fst.settings.reset",
+      "key:enter",
+      "waitfor:id=fst.settings.reset.dialog@10",
+      "assertname:id=CloseButton|Cancel",
+      "assertname:id=PrimaryButton|Reset"
+    ],
+    "after_ready": [
+      "waitfor:name=Reset Settings@5",
+      "assertread:id=CloseButton|Cancel, button",
+      "assertread:id=PrimaryButton|Reset, button",
+      "assertpaint:id=CloseButton|fill:L6,M0|C-12,M-5,C12,M5=@fill~16",
+      "assertpaint:id=PrimaryButton|fill:L6,M0|C-12,M-5,C12,M5=@fill~16",
+      "focus:id=PrimaryButton",
+      "key:tab",
+      "assertfocus:id=CloseButton@3"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.settings.reset.dialog@5",
+      "assertfocus:id=fst.settings.reset@3"
+    ]
+  },
+  {
+    "name": "modal-feedback-hints-wrap",
+    "tab": "settings",
+    "modes": ["text-225"],
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.feedback.bug",
+      "focus:id=fst.settings.feedback.bug",
+      "key:enter",
+      "waitfor:id=fst.settings.feedback.bug.dialog@10",
+      "assertname:id=fst.settings.feedback.cancel|Cancel"
+    ],
+    "after_ready": [
+      "waitfor:name=Report an Issue@5",
+      "waitfor:id=fst.settings.feedback.title@5",
+      "assertread:id=fst.settings.feedback.title|Title, edit, [Bug] , A short summary of the problem, after [Bug].",
+      "waitfor:name=A short summary of the problem, after [Bug].&class=TextBlock@5",
+      "assertmarquee:name=A short summary of the problem, after [Bug].&class=TextBlock|wrapped|60",
+      "assertbelow:name=A short summary of the problem, after [Bug].&class=TextBlock|name=Title&class=TextBlock",
+      "scrollinto:id=fst.settings.feedback.repro",
+      "waitfor:name=What went wrong? Include the page, song, instrument or player involved.&class=TextBlock@5",
+      "assertmarquee:name=What went wrong? Include the page, song, instrument or player involved.&class=TextBlock|wrapped|60",
+      "scrollinto:id=fst.settings.feedback.expected",
+      "waitfor:name=What did you expect to happen instead?&class=TextBlock@5",
+      "assertmarquee:name=What did you expect to happen instead?&class=TextBlock|wrapped|60",
+      "assertread:id=fst.settings.feedback.expected|Expected Behavior, edit, What did you expect to happen instead?",
+      "focus:id=fst.settings.feedback.expected",
+      "key:tab",
+      "assertfocus:id=fst.settings.feedback.attach@3"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.settings.feedback.bug.dialog@5",
+      "assertfocus:id=fst.settings.feedback.bug@3"
+    ]
+  }
+]

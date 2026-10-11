@@ -109,6 +109,14 @@
           {
             "path": "windows/Festival.App/Controls/BoardFooterFade.cs",
             "symbol": "Attach"
+          },
+          {
+            "path": "windows/Festival.App/Controls/TopEdgeFade.cs",
+            "symbol": "AutoScrollEdgeFade"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/FirstRunDemoContent.cs",
+            "symbol": "FirstRunAutoScroll"
           }
         ]
       },
@@ -274,7 +282,7 @@
       "title": "Section-jump landing",
       "status": "current",
       "doc": ".agents/patterns/section-jump-landing.md",
-      "summary": "Quick Links and Songs section-index jumps land ordinary targets' titles (not their headers' padding) 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear and never leave a large title resting part-way collapsed; a section index fits the height it is given, condensing its labels rather than growing the page, and its labels follow the text size within that fit.",
+      "summary": "Quick Links and Songs section-index jumps land ordinary targets' titles (not their headers' padding) 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear and never leave a large title resting part-way collapsed; a section index fits the height it is given, condensing its labels rather than growing the page, and its labels follow the text size within that fit; the index is one adjustable control assistive technologies can name and step.",
       "keywords": [
         "quick links",
         "section jump",
@@ -820,7 +828,7 @@
       "title": "Page tools and navigation chrome",
       "status": "current",
       "doc": ".agents/patterns/page-tools-and-nav-chrome.md",
-      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android and Windows Rival pages name the rival and the section in the bar (Windows: the page header): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too.",
+      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android, Windows and Apple Rival pages name the rival and the section in the bar (Windows: the page header; Apple: R18's in-list InstrumentPageTitle with a subtitle line, pinned title over subtitle once it scrolls away): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too.",
       "keywords": [
         "navigation",
         "page tools",
@@ -894,6 +902,10 @@
           {
             "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
             "symbol": "VerticalBarActionItem"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
+            "symbol": "BarItemSpokenState"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/Search/BottomSearchField.swift",
@@ -1237,6 +1249,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackFormPanes.swift",
             "symbol": "FeedbackFormPanes"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/SheetStyle.swift",
+            "symbol": "festivalFormIdentifier"
           }
         ],
         "android": [
@@ -2020,6 +2036,10 @@
           {
             "path": "windows/Festival.App/Controls/FadeIn.cs",
             "symbol": "FadeIn"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/FirstRunDemoContent.cs",
+            "symbol": "FirstRunEntrance"
           },
           {
             "path": "windows/Festival.Core/Domain/MotionPolicy.cs",

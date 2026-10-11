@@ -480,6 +480,28 @@ public class SongScoreHistoryViewModelTests
     }
 
     [Fact]
+    public async Task Bars_ASelectionOnlyRestylesTheDrawnPage()
+    {
+        // Issue #512: the chart restyles its bars in place for a selection, so keyboard focus stays on the drawn bar.
+        var (_, session, _, _) = Setup();
+        var vm = new SongScoreHistoryViewModel(session, "s1", Instrument.Lead);
+        await vm.LoadAsync(Song(), [Instrument.Lead]);
+        vm.SetPlotWidth(2 * 96 + 8 + 50); // two bars
+        var drawn = vm.Bars;
+        vm.ToggleBar(drawn[0].Index);
+        Assert.True(ScoreHistoryBar.OnlySelectionChanged(drawn, vm.Bars));
+        Assert.True(vm.Bars[0].IsSelected);
+        var selected = vm.Bars;
+        vm.ToggleBar(selected[0].Index); // clearing it is a selection change too
+        Assert.True(ScoreHistoryBar.OnlySelectionChanged(selected, vm.Bars));
+        var page = vm.Bars;
+        vm.BackEntry(); // another page: the bars are rebuilt
+        Assert.False(ScoreHistoryBar.OnlySelectionChanged(page, vm.Bars));
+        Assert.False(ScoreHistoryBar.OnlySelectionChanged([], vm.Bars)); // nothing drawn yet
+        Assert.False(ScoreHistoryBar.OnlySelectionChanged(vm.Bars, [.. vm.Bars.Take(1)]));
+    }
+
+    [Fact]
     public async Task PagerSlot_StaysReservedWhileAnyChartPages()
     {
         var (_, session, _, _) = Setup();
