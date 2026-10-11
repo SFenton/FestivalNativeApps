@@ -623,6 +623,35 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue([s for s in switch[desert:off] if s.startswith("assertpaint:id=fst.paths.activation.1|")])
         self.assertTrue([s for s in switch[off:] if s.startswith("assertpaint:id=fst.paths.activation.1|")])
 
+    def test_leaderboard_columns_contrast_switch_runs_in_the_normal_pass(self):
+        # Issue #519 (#242): a live contrast switch with a song board open repaints the code-set row, pinned-row,
+        # selected FC badge and disabled pager brushes; the page runs once at medium in the generated normal pass.
+        pages = json.loads((ci.JOURNEYS / "a11y-leaderboard-columns.json").read_text(encoding="utf-8"))
+        page = next(item for item in pages if item["name"] == "cols-song-board-contrast-switch")
+        self.assertTrue(page["scan"])
+        self.assertEqual(["medium"], page["sizes"])
+        run = next(run for run in ci.RUNS if run.name == "a11y-leaderboard-columns-normal")
+        self.assertIn(page, m.mode_pages(pages, run.mode))
+        self.assertTrue(m.page_sizes(page, run.sizes.split(","), run.mode))
+        for mode in ("text-225", "hc-desert"):
+            self.assertNotIn(page, m.mode_pages(pages, mode))
+        steps = page["after_ready"]
+        desert, off = steps.index("contrast:desert"), steps.index("contrast:off")
+        self.assertLess(desert, off)
+        self.assertEqual("contrast:off", [s for s in steps if s.startswith("contrast:")][-1])
+        for target in ("id=fst.song-leaderboard.row.fixture-player-3", "id=fst.song-leaderboard.row.fixture-player-2",
+                       "raw=fst.score.accuracy.fixture-player-2"):
+            for span in (steps[:desert], steps[desert:off], steps[off:]):
+                self.assertTrue([s for s in span if s.startswith(f"assertpaint:{target}|")], target)
+        self.assertTrue([s for s in steps[desert:off] if s.startswith("assertpaint:id=fst.song-leaderboard.page-first|")])
+        self.assertIn("scan:{stem}-desert", steps[desert:off])
+        self.assertTrue([s for s in steps[desert:off] if s.startswith("assertorder:") and s.endswith(
+            "id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-first|id=fst.song-leaderboard.page-next")])
+        # #606 MetadataPills speak the current season as "current season 9"; the column rows must not drift back.
+        text = json.dumps(pages)
+        self.assertNotIn("(, season 9)?", text)
+        self.assertNotIn(", season 9, 5 stars", text)
+
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)
         argv = run.argv(Path("C:/out"), "debug")

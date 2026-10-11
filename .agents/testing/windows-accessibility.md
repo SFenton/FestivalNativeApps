@@ -577,6 +577,23 @@ Defects fixed:
 
 Harness rules: the flyout's expanded sections push later controls below the fold at 225% text, so each `assertorder`, `focus` or `expand` past the fold follows a `reveal:` (UIA scroll, no input). `assertread` phrases never include the heading level, so headings use `assertstate:…|heading=N`. A card's own Group and title TextBlock are not in the Narrator order (the card list item is named by its title).
 
+## Leaderboard row columns accessibility tests (issue #519, 2026-10-11)
+
+Backfills a CI test for the #242 Windows change: `LeaderboardEntryRow` sets its surface, text and badge brushes in code and re-applies them on `ContrastTheme.Changed`; the selected row's FC badge paints HighlightText under contrast; the pager's disabled brushes are theme dictionaries. The column fitting itself (#37) was already covered by `journeys/a11y-leaderboard-columns.json` (#409: names, 40 epx targets, rows → pinned row → pager order, keyboard, focus not obscured, text 200%/225%), and `a11y-pager-dim.json` covers a cold-launch contrast pager, but nothing switched contrast with a board open. New page `cols-song-board-contrast-switch` (medium, default theme only; it switches Desert on and off in the running app) in the same file runs in the generated `a11y-leaderboard-columns-normal` `windows-ui` run. It asserts:
+- before the switch, row 3 isn't Window `#FFFAEF`, row 2 (the selected player) isn't Highlight `#903909`, and its FC badge is gold `#FFD700`;
+- under Desert, row 3 paints Window, row 2 and the pinned row Highlight, both FC badges HighlightText `#FFF5E3` with no WindowText `#3D3D3D` or gold left, and the disabled First page a WindowText edge with GrayText `#676767` glyph; row 3, the pinned row and First page ("…, button, unavailable") read whole; rows and the pinned row stay at least 40 epx tall and Next page 40×40; order rows → pinned row → First page → Next page; Axe scans the Desert board;
+- after switching back, the default brushes return.
+
+`tests/test_ui_ci.py` (`test_leaderboard_columns_contrast_switch_runs_in_the_normal_pass`) and `test_a11y.test_leaderboard_column_pages` pin the page.
+
+| Configuration | Result |
+| --- | --- |
+| `a11y-leaderboard-columns-normal`, `-text-225`, `-text-200` (existing pages) | **Failed, fixed** (stale expectation, below). Pass, Axe 0 after the fix |
+| `cols-song-board-contrast-switch`, medium, Desert switched live | Pass, Axe 0 |
+| Regression check: `ContrastTheme.Changed` subscription removed | Fails: row 3 keeps the card surface under Desert (0 px of `#FFFAEF`, centre `#464A53`) |
+
+No app accessibility defect was found. **Failed, fixed (test):** since #606 the season pill names the current season "current season 9", but the column pages still expected "season 9", so `cols-song-board` failed. The expectations now say "current season 9".
+
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
 Accessibility tests for #77. The no-profile Filter pages moved into `journeys/a11y-songs-filter.json` (`songs-filter-anonymous`, `songs-filter-anonymous-year`, `kb-songs-filter-anonymous`), which `tools/windows/ui_ci.py` runs in `windows-ui` at default text (compact, medium) and 225% text (compact); `tests/test_ui_ci.py` keeps both runs. They assert Narrator phrases, reading order, 40×40 epx targets, the toggle and expand states, the applied "Filters applied" status and the keyboard walk ([songs-filter windows](../controls/songs-filter/windows.md#accessibility-tests-issue-432-no-profile)).

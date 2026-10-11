@@ -16,7 +16,8 @@ Rankings pinned row (issue #466, also with in-app Reduce Motion), the Leaderboar
 also with in-app Reduce Motion), the Search All section titles (issue #483, also with in-app Reduce Motion), the
 Song Band Leaderboard rows, empty and error states (issue #510), the Suggestions cards, keyboard, filter and states
 (issue #513), the real-control First Run demos (issue #498, also with Animation effects off) and the profile title row
-(issue #446) run at default and 225% text, and that the generated work-behind-dialogs runs (issues #83, #436) gate PRs
+(issue #446) run at default and 225% text, that the generated leaderboard-columns normal run switches a contrast theme
+with a song board open (issue #519), and that the generated work-behind-dialogs runs (issues #83, #436) gate PRs
 and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
