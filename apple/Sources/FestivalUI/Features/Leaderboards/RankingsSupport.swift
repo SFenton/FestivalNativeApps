@@ -1053,11 +1053,17 @@ struct RankingsFloatingBar<SwitcherMenu: View>: View {
 /// Buttons are SF Symbols with spoken titles ("First Page" …) and keep their
 /// existing `<idPrefix>.page-*` identifiers. The label is one adjustable element
 /// ("Page, 1 of 34,757"): VoiceOver swipes up/down to page.
+///
+/// Like ``RankingsPagerView``, the arrows keep a fixed 44 pt target while their symbols
+/// and the label grow with Dynamic Type, and the label shrinks to fit: the targets used
+/// to scale to 124 pt at AX5, which pushed First Page and Last Page off an iPhone screen
+/// (issue #454).
 struct RankingsGlassPager: View {
     let state: RankingsPagerState
     let idPrefix: String
     let onChange: (Int) -> Void
-    @ScaledMetric(relativeTo: .body) private var buttonSize: CGFloat = 44
+    /// HIG Accessibility: iOS, iPadOS default control size 44×44 pt.
+    private let buttonSize: CGFloat = 44
 
     var body: some View {
         HStack(spacing: 0) {
@@ -1068,7 +1074,7 @@ struct RankingsGlassPager: View {
                 .monospacedDigit()
                 .foregroundStyle(FestivalText.primary)
                 .lineLimit(1)
-                .fixedSize()
+                .minimumScaleFactor(0.5)
                 .padding(.horizontal, 6)
                 .frame(minWidth: buttonSize, minHeight: buttonSize)
                 // The shape makes the 44 pt frame the element's frame; without it the
@@ -1104,7 +1110,7 @@ struct RankingsGlassPager: View {
     /// One symbol button; disabled at the matching edge.
     ///
     /// - Parameter action: Pager step.
-    /// - Returns: A 44 pt (scaled) plain button with a spoken title and stable id.
+    /// - Returns: A 44 pt plain button with a spoken title and stable id.
     private func button(_ action: RankingsPagerAction) -> some View {
         let enabled = state.destination(for: action) != nil
         return Button { go(action) } label: {
@@ -1149,6 +1155,11 @@ struct RankingsGlassPager: View {
 
 /// Material pill label for a board switcher menu in ``RankingsFloatingBar``: the
 /// board's icon, plus its name when there is room (web instrument pill).
+///
+/// The pill is one accessibility element that the menu names ("Band size, Duos"). Without
+/// that, macOS turned the icon and the title into two separate 28 × 14 pt menu buttons,
+/// so VoiceOver read the menu twice and drew a focus ring smaller than the 44 pt pill
+/// (issue #454).
 struct RankingsSwitcherPillLabel<Icon: View>: View {
     let title: String
     let showsTitle: Bool
@@ -1171,6 +1182,7 @@ struct RankingsSwitcherPillLabel<Icon: View>: View {
         .frame(minWidth: height, minHeight: height)
         .contentShape(Capsule())
         .festivalCardCapsule()
+        .accessibilityElement(children: .ignore)
     }
 }
 
