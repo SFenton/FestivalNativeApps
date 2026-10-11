@@ -105,17 +105,45 @@ class ProfileViewModelsTest {
     // region Player profile
 
     @Test
-    fun identityRowShowsOnlyForSelectSwitchNoticeOrError() {
-        // Issue #97: the name card is gone; the row appears only when it has something to act on or say.
+    fun identityRowShowsOnlyForPausedNoticeOrError() {
+        // Issue #97: the name card is gone; the row appears only when it has something to say.
+        // Issue #590: Select/Switch moved to the floating toolbar row, so they no longer add a row.
         PlayerIdentityAction.entries.forEach { action ->
-            val expected = action in setOf(
-                PlayerIdentityAction.Select, PlayerIdentityAction.Switch,
-                PlayerIdentityAction.Unverified, PlayerIdentityAction.Changed,
-            )
+            val expected = action in setOf(PlayerIdentityAction.Unverified, PlayerIdentityAction.Changed)
             assertEquals(action.name, expected, PlayerProfileUiState(identity = action).showsIdentityRow)
         }
         assertTrue(PlayerProfileUiState(identity = PlayerIdentityAction.Deselect, actionError = "failed").showsIdentityRow)
+        assertTrue(PlayerProfileUiState(identity = PlayerIdentityAction.Select, actionError = "failed").showsIdentityRow)
         assertFalse(PlayerProfileUiState(identity = PlayerIdentityAction.None, actionError = null).showsIdentityRow)
+    }
+
+    @Test
+    fun identityPillOffersSelectSwitchOrDeselectOnALoadedPage() {
+        // Issue #590 acceptance: Select/Switch/Deselect is the page's own pill beside Quick Links;
+        // paused reads (Unverified, Changed) offer none.
+        PlayerIdentityAction.entries.forEach { action ->
+            val expected = action in setOf(PlayerIdentityAction.Select, PlayerIdentityAction.Switch, PlayerIdentityAction.Deselect)
+            assertEquals(action.name, expected, PlayerProfileUiState(phase = ProfilePhase.Loaded, identity = action).offersIdentityAction)
+        }
+        assertFalse(PlayerProfileUiState(phase = ProfilePhase.Loading, identity = PlayerIdentityAction.Select).offersIdentityAction)
+        assertFalse(PlayerProfileUiState(phase = ProfilePhase.Loading, identity = PlayerIdentityAction.Deselect).offersIdentityAction)
+        assertEquals("Select", PlayerProfileUiState(identity = PlayerIdentityAction.Select).identityShortLabel)
+        assertEquals("Select Profile", PlayerProfileUiState(identity = PlayerIdentityAction.Select).identityLabel)
+        assertEquals("Switch", PlayerProfileUiState(identity = PlayerIdentityAction.Switch).identityShortLabel)
+        assertEquals("Switch to This Profile", PlayerProfileUiState(identity = PlayerIdentityAction.Switch).identityLabel)
+        assertEquals("Deselect", PlayerProfileUiState(identity = PlayerIdentityAction.Deselect).identityShortLabel)
+        assertEquals("Deselect Profile", PlayerProfileUiState(identity = PlayerIdentityAction.Deselect).identityLabel)
+    }
+
+    @Test
+    fun rankHistoryCardAndQuickLinkShowUnlessLoadedWithoutSnapshots() {
+        // Issue #590: the Rank History Quick Link follows the card.
+        val played = PlayerInstrumentSection(Instrument.Lead, hasScores = true, stats = emptyList(), percentiles = emptyList())
+        assertTrue(RankHistoryLoad.showsCard(played, null))
+        assertTrue(RankHistoryLoad.showsCard(played, RankHistoryLoad.Loading))
+        assertTrue(RankHistoryLoad.showsCard(played, RankHistoryLoad.Failed(ServiceIssue.Offline)))
+        assertFalse(RankHistoryLoad.showsCard(played, RankHistoryLoad.Loaded(null)))
+        assertFalse(RankHistoryLoad.showsCard(played.copy(hasScores = false), RankHistoryLoad.Loading))
     }
 
     @Test
@@ -138,7 +166,7 @@ class ProfileViewModelsTest {
         assertEquals(ProfilePhase.Loaded, state.phase)
         assertEquals("Synthetic Player", state.displayName)
         assertEquals(PlayerIdentityAction.Select, state.identity)
-        assertEquals("Select Profile", state.selectLabel)
+        assertEquals("Select Profile", state.identityLabel)
         assertEquals(listOf("Songs Played", "Full Combos", "Gold Stars", "Avg Accuracy", "Best Song Rank"), state.overview.map { it.label })
         assertEquals(listOf("songs-played", "full-combos", "gold-stars", "avg-accuracy", "best-rank"), state.overview.map { it.id })
         assertEquals("3", state.overview.first().value)
@@ -180,7 +208,7 @@ class ProfileViewModelsTest {
         val vm = viewModel(store, Fixtures.ACCOUNT_A)
         advanceUntilIdle()
         assertEquals(PlayerIdentityAction.Switch, vm.state.value.identity)
-        assertEquals("Switch to This Profile", vm.state.value.selectLabel)
+        assertEquals("Switch to This Profile", vm.state.value.identityLabel)
         publications.value = 8
         advanceUntilIdle()
         assertEquals(PlayerIdentityAction.Changed, vm.state.value.identity)

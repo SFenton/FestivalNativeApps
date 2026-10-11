@@ -193,7 +193,7 @@ final class PathsSwitchAccessibilityJourneyTests: XCTestCase {
         var issues: [String] = []
         var measured: [String] = []
         try SongsUITestSupport.performAuditRetryingTimeout(
-            app, run.auditTypes, name: "paths switch \(run.name)",
+            app, run.auditTypes, name: "paths switch \(run.name) \(form.rawValue)",
             reset: { issues.removeAll(); measured.removeAll() }
         ) { issue in
             let node = issue.element

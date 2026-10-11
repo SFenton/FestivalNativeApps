@@ -376,6 +376,9 @@ public sealed record SongBandRow
     /// <summary>Raw-view ID of the board row's member list (<c>&lt;row&gt;.members</c>), for column-alignment checks.</summary>
     public string MembersAutomationId => AutomationId + ".members";
 
+    /// <summary>Raw-view ID of the board row's accuracy pill text (<c>&lt;row&gt;.accuracy</c>), for contrast-theme paint checks.</summary>
+    public string AccuracyAutomationId => AutomationId + ".accuracy";
+
     /// <summary>Screen-reader summary.</summary>
     public string Announcement => $"Rank {Entry.Rank}, {Names}, {Score} points" +
                                   (HasAccuracy ? $", {Accuracy} accuracy" : "") + (IsFullCombo ? ", full combo" : "") +

@@ -2,7 +2,7 @@
 
 > **What:** the ordered per-page section navigator, including its entry point, jump ownership, icons, and accessible current state. **Read when:** adding section navigation to a page or changing a section list.
 
-Status: **current**, 2026-10-10. Provenance: #6, #11, #12, #15, #286, #303, #313, #389, #392, #416, #545, #586, #587, #605.
+Status: **current**, 2026-10-10. Provenance: #6, #11, #12, #15, #286, #303, #313, #389, #392, #416, #545, #586, #587, #590, #605.
 
 ## Intent
 
@@ -37,6 +37,7 @@ Quick Links presents sections in page order and moves directly to the selected s
    | `dominating_them` | Dominating Them | commanding lead | `crown` | `crown` (or `military_tech`) | nearest glyph, own lane |
 
    Apple: `RivalCategorization.quickLinkSymbol(forKey:)` / `RivalCategory.quickLinkSection` (`FestivalCore/Rivals.swift`), used by `RivalDetailScreen` on iPhone, iPad, Duo and Mac. Tests: `RivalsTests.rivalCategoryQuickLinkSymbolsAreDistinctPerCategory` and hosted `QuickLinksAccessibilityTests.rivalDetailCategoryRowsHaveDistinctDecorativeIcons` (distinct real symbols; rows read only the names in order as full-width buttons; no image elements). Android and Windows map the same keys below the canonical implementation table.
+10. **R10. Nested sections land on their card, inside a parent row (#590).** A nested section (depth 1) may be a card inside its parent's list or grid item rather than an item of its own. The player page's Quick Links match iOS: Global Statistics; per Settings-visible chart its entry, then nested "Rank History" (`rank-history:<wire>`, trend icon, while the chart's Rank History card is on the page: played, and loading, failed or loaded with snapshots) and "Percentiles" (`percentiles:<wire>`, stacked-bar icon, when the chart has a percentile table), each spoken "<Chart> Rank History" / "<Chart> Percentiles"; then Top Songs and Bands (Android keeps Top Songs, which iOS's page lacks). Android: `ProfileSections.quickLinks`/`rowKey`/`isNested` (`core/profile/ProfileLayout.kt`); a nested card reports its offset in its row with `Modifier.quickLinkAnchor(QuickLinkAnchors, id)`, and `rememberQuickLinks(offsetOf = …)` adds it to both the jump and the tracked frame (a nested section with no measured offset is skipped by the tracker). The Android menu indents nested rows 16 dp per depth like the sheet. Tests: `ProfileParityCoreTest.quickLinksNestRankHistoryAndPercentilesUnderTheirChartLikeIos`, `ProfileParityUiTest.nestedQuickLinksLandOnRankHistoryAndPercentiles` and the ATF journey `ProfileQuickLinksAccessibilityJourneyTest` (nested rows under their chart, read in order).
 
 ### Owner-approved variant: no Quick Links on Rivalry (#545)
 

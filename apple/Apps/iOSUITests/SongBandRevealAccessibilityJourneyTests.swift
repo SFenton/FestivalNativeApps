@@ -280,7 +280,9 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
     ) throws {
         SongsUITestSupport.record(app, name: "song-band-reveal-\(name)")
         let badge = systemBadgeFrame(in: app)
-        try SongsUITestSupport.performAuditRetryingTimeout(app, types.subtracting(.contrast), name: name) { issue in
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            app, types.subtracting(.contrast), name: name, reset: {}
+        ) { issue in
             let detail = self.attach(issue, name: name)
             if issue.auditType == .dynamicType, let frame = issue.element?.frame, Self.isSystemBadge(frame, in: badge) {
                 return true
@@ -294,7 +296,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         let content = CGRect(
             x: window.minX, y: barBottom + 8, width: window.width, height: chromeTop - 36 - barBottom - 8
         )
-        try SongsUITestSupport.performAuditRetryingTimeout(app, .contrast, name: "\(name) contrast") { issue in
+        try SongsUITestSupport.performAuditRetryingTimeout(app, .contrast, name: "\(name) contrast", reset: {}) { issue in
             let detail = self.attach(issue, name: name)
             guard let element = issue.element, element.exists, !element.frame.isEmpty else {
                 try self.assertRenderedContrastFloor(in: app, content: content)
