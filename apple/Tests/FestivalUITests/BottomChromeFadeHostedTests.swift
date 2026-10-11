@@ -151,7 +151,7 @@ enum BottomChromeFadeMode: String, CaseIterable, CustomTestStringConvertible {
 
 /// The board's own scroll view: the deepest one whose content runs past its height.
 @MainActor
-private func boardScrollView(in view: NSView) -> NSScrollView? {
+func boardScrollView(in view: NSView) -> NSScrollView? {
     for subview in view.subviews {
         if let found = boardScrollView(in: subview) { return found }
     }
@@ -167,7 +167,7 @@ private func boardScrollView(in view: NSView) -> NSScrollView? {
 /// Mean channel value (0–255) above which a sample is row text: the rows' light grey
 /// text measures ~140 on cards of ~35. Within 10 pt of the chrome the fade leaves text
 /// at most ~28% opaque (~65), well under it.
-private let rowTextThreshold = 100
+let rowTextThreshold = 100
 
 /// The two band boards, each with its row identifiers.
 enum BottomChromeBandBoard: String, CaseIterable, CustomTestStringConvertible {
@@ -208,7 +208,7 @@ enum BottomChromeBandBoard: String, CaseIterable, CustomTestStringConvertible {
 /// Scroll the board's clip view so `offset` points of content sit above its top, and
 /// let the scroll-driven fade height and mask settle.
 @MainActor
-private func scrollBoard(
+func scrollBoard(
     _ scroll: NSScrollView, to offset: CGFloat, host: NSHostingView<some View>
 ) async throws -> CGImage {
     let clip = scroll.contentView
@@ -296,7 +296,7 @@ func bandBoardRowsFadeAbovePagerWithoutPlayerFooter(board: BottomChromeBandBoard
 // MARK: - Accessibility (issue #473, for #329)
 
 /// One realized accessibility element: identifier, spoken text, role, state and frame.
-private struct BoardAccessibilityNode {
+struct BoardAccessibilityNode {
     let identifier: String
     /// Label, then value, joined (what VoiceOver reads first).
     let text: String
@@ -319,7 +319,7 @@ private struct BoardAccessibilityNode {
 /// - Parameter host: The window's hosting view.
 /// - Returns: The elements, depth first.
 @MainActor
-private func boardAccessibilityNodes(in host: NSView) -> [BoardAccessibilityNode] {
+func boardAccessibilityNodes(in host: NSView) -> [BoardAccessibilityNode] {
     var nodes: [BoardAccessibilityNode] = []
     var seen = Set<ObjectIdentifier>()
     func read(_ object: NSObject, _ key: String) -> Any? {
