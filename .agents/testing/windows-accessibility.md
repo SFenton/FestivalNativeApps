@@ -49,7 +49,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Profile flyout | ✅✅✅ | 2 | ✅ | ✅ | ✅ |
 | Notifications flyout | ✅✅✅ (+live, #229) | 1 (list) | ✅ (#229) | ✅ (#229) | ✅ (#229, C+M) |
 | Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ (+profile jumps, `a11y-quick-links-jump.json`, #414) | ✅ | ✅ (pane titles wrap, #230; profile menu 225%, #414) |
-| First-run dialog | ✅✅✅ (+demo placeholder/catalogue states, `a11y-first-run-demos.json`, `windows-ui` CI, #420) | 4 | ✅ (+Settings replay, #420) | ✅ | ✅ (demo clear of title at 225%; body scrolls so the pips stay reachable, #420) |
+| First-run dialog | ✅✅✅ (+demo placeholder/catalogue states, `a11y-first-run-demos.json`, `windows-ui` CI, #420; real-control demos stay out of the control view, `a11y-first-run-real-demos.json`, #498) | 4–5 | ✅ (+Settings replay, #420; Tab skips the inert sort form and chart bars, #498) | ✅ | ✅ (demo clear of title at 225%; body scrolls so the pips stay reachable, #420; auto-scroll held with Reduce Motion and Animation effects off, paused when minimized, hard-edged with transparency effects off, Less Transparency or More Contrast, #498) |
 | What's New dialog (launch, Settings replay) | ✅✅✅ (+max/snap, #235) | 2 (notes, Dismiss) | ✅ (`kb-whats-new-*`, #235) | ✅ (#235) | ✅ (200% C+M, #235) |
 
 ## Fixed in this pass
@@ -84,6 +84,13 @@ Scope: Song Detail's Duos/Trios/Quads previews (issue #64), on `song_band_previe
 
 `journeys/a11y-song-board-end.json` covers the end-of-list spacing #293 changed, with Fixture Player 1 (pinned row), Empty Player (no score) and no player. Down from the first row reaches row 25 with the list at its end. The row then sits 4 epx above the footer's first part (`assertgap`), is clear of it, reads before the pinned row and pager, keeps a 40 epx target, and Tab/Shift+Tab move to the footer and back. The fade reports `end`. All pages passed with 0 Axe errors at compact and medium, at 100% and 225% text. No defect was found. `windows-ui` picks the file up through `ui_ci.generated_runs`; `tests/test_song_leaderboard_a11y_journey.py` pins the steps.
 - Reach a far row with single `key:down` steps, not one `keys:` burst. On a locked console the burst is posted and dropped a press, leaving focus one row short.
+
+## Song board states (issue #511, for #197, 2026-10)
+
+`journeys/a11y-song-board-states.json` covers what #197 changed: the pinned row's own UIA ID, an empty board without "0 entries", the contrast-theme footer plate (`hc-desert`) and the trimmed-name tool tip (`app-reduced`). Each page runs only in the mode that shows its state. All passed with 0 Axe errors; details in [song-leaderboard/windows.md](../pages/song-leaderboard/windows.md#accessibility-tests-issue-443). No defect was found.
+- A row's name only trims (and gets a tool tip) while the marquee is stopped and the text is not large: at 225% text names wrap. Test the tool tip at medium with `app-reduced`.
+- Rows move with Up/Down; Tab leaves the list for the pinned row. Close the tool tip (`focus:` the header, `waitgone:class=ToolTip`) before the Axe scan.
+- A paint probe on a hard-edge footer can't see the contrast plate (the mask already hides rows there). Mutation-test such probes with every layer that hides the content removed.
 
 ## Leaderboard row columns validation (issue #242, 2026-10-04)
 
@@ -474,6 +481,57 @@ Every page is Axe-scanned. `song-board-footer` and the footer-fade pages also ge
 | Footer fade rest, mid, end, More Contrast, Less Transparency (compact, medium; compact at 225%) | Pass, Axe 0 |
 
 No accessibility defect was found.
+
+## Full Rankings pinned row accessibility tests (issue #466, 2026-10-11)
+
+Backfills CI tests for the #318 Windows change: the selected player's row stays pinned above the pager on Full Rankings, even on their own page. Before this, its journeys (`full-rankings.json`, `full-rankings-keyboard.json`) weren't `windows-ui` runs. Only `grouped-full-rankings` checked the order and one Tab. New `journeys/a11y-full-rankings.json` (`rankings_fixture.py`) is now a set of `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- on the player's own page (Fixture Player 2, #2): the pinned row reads "Your rank, 2nd. Open your statistics. Fixture Player 2. Total Score …, button"; the pager reads "First page, button, unavailable", "Previous page, button, unavailable", "Page 1 of 48, text", "Next page, button" and "Last page, button";
+- the pinned row and four pager buttons are at least 40×40 epx, and the pinned row doesn't overlap the pager;
+- the reading order is title (Level 1 heading) → the player's own row in the list → pinned row → First → Previous → page text → Next → Last, and the fade layer stays out of the control view while fading rows over 40 epx;
+- the Tab order on the player's page: row → pinned row → Next → Last, Shift+Tab back to the pinned row, and Enter on it opens the profile;
+- off the player's page (Fixture Rank 40): the pinned row reads "Jump to your position". Enter jumps to page 2 and keeps focus on the pinned row, which now reads "Open your statistics". The pager reads "Page 2 of 48" with First and Previous available, the order is row 40 → pinned row → pager, and Tab and Shift+Tab move between the pinned row and First.
+
+`fr-pinned-own-page` also gets the dispatcher's 30-press Tab walk. The two keyboard pages set `tabs: 0` because their ordered traversal replaces it. `tests/test_ui_ci.py` pins the runs and the key checks.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`full-rankings-pinned`, all 3 pages) | Pass, Axe 0 |
+| Text 225% (compact, all 3 pages) | Pass, Axe 0; the pinned row's two lines grow without clipping above the pager |
+| In-app Reduce Motion (medium, jump) | Pass, Axe 0 |
+
+No accessibility defect was found.
+
+## Leaderboards card your-rank row accessibility tests (issue #493, 2026-10-11)
+
+Backfills CI tests for the #370 Windows change (PR #403): a Leaderboards card's separate "your rank" row, for a player ranked outside the card's top ten, now opens Full Rankings on the player's page and reveals their row instead of opening the profile. Until now only `selected_reveal_journey.py --only rankings-card` (fade timing) and `LeaderboardsViewModelTests` covered it. New `journeys/a11y-leaderboards-card-jump.json` (`rankings_fixture.py`) is now a set of `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- `card-jump-row` (Fixture Rank 40): the Lead card's row reads "Your rank, 40th. Jump to your position. Fixture Rank 40. Total Score …, button" (Button, Invoke, focusable), is at least 40×40 epx, doesn't overlap View All Rankings (40 epx tall), and reads after the card's Lead group and before View All;
+- `card-jump-row-keyboard`: Shift+Tab from View All reaches the row, Tab goes back. Enter opens Full Rankings on "Page 2 of 48" with row 40 on screen; the pinned row then reads "Open your statistics", and the order is title → row 40 → pinned row → pager. Alt+Left returns to Leaderboards with focus on the card's row;
+- `card-in-place-row` (Fixture Player 2, inside the top ten): no separate row; the highlighted in-list row reads "Your rank, 2nd. …, button" without a jump, is 40 epx tall, and Enter opens the profile.
+
+`card-jump-row` also gets the dispatcher's 30-press Tab walk. At compact the card is taller than the window, so the pages scroll View All into view and check the row against the card's group rather than its heading.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`leaderboards-card-jump`, all 3 pages) | Pass, Axe 0 |
+| Text 225% (compact, all 3 pages) | Pass, Axe 0 |
+| In-app Reduce Motion (compact, medium; all 3 pages) | **Failed, fixed:** Enter opened page 2 but left the list at the top (rows 26–34), so the player's row stayed off screen. Under Reduce Motion `SelectedRowReveal` scrolled at once, before the newly shown list had a layout, so `StartBringIntoView` did nothing. It now waits, as the motion path already did, for the list to realize the selected (or first) row, then scrolls at once with no hold or rush (load-transition R6). Pass, Axe 0 after the fix; `selected_reveal_journey.py` gained `rankings-card-reduce-motion` |
+
+## Search All section titles accessibility tests (issue #483, 2026-10-11)
+
+Backfills CI tests for the #348 Windows change: in the All scope, Search titles each shown section "Songs", "Players" and "Bands" (`FSTSectionHeaderStyle`, Level 2, fading in with the rows). Before this, only the `search.json` feature journey (not a `windows-ui` run) checked all three titles; `search-all-hides-empty-players` checked the Songs title alone. New pages in `journeys/a11y-search.json` (`profile_fixture.py`, `q=fixture`) are explicit `windows-ui` runs in `tools/windows/ui_ci.py` (`search-sections`, `-text-225`, `-reduced-motion`). They assert:
+- `search-all-sections`: All is selected; each title reads "Songs, text", "Players, text", "Bands, text", is a Level 2 heading and isn't keyboard focusable; the reading order is All → Songs title → song rows, then each later title before its own rows (revealed by UIA scrolling, so it holds at 225% text); each title sits above its rows without overlapping them (`assertapart`, `assertbelow`), and the next title sits below the previous list;
+- `search-all-sections-keyboard` (`tabs: 0`): Tab walks field → All → first song → first player → first band card and Shift+Tab walks back, never stopping on a title;
+- `search-results-songs`, `-players`, `-bands` (generated runs): the scope is selected, no section title is shown and its rows follow the scope bar (issue #299).
+
+`tests/test_ui_ci.py` pins the runs, that the file's other pages keep their generated runs, and the key checks.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (both pages; single-scope pages) | Pass, Axe 0 |
+| Text 225% (compact, both pages; single-scope pages compact, medium) | Pass, Axe 0 |
+| In-app Reduce Motion (medium, both pages) | Pass, Axe 0; the titles appear with their rows |
+
+No accessibility defect was found. Harness rule: `assertbelow`, `assertapart` and `assertorder` need both elements on screen, so each later title's checks follow the `reveal:` of its first row (at 225% text the Bands title starts below the fold).
 
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 

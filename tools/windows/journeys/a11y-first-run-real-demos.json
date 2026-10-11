@@ -1,0 +1,401 @@
+[
+  {
+    "name": "frrd-songs-sort",
+    "tab": "settings",
+    "scan": true,
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@30"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.first-run.songs",
+      "focus:id=fst.settings.first-run.songs",
+      "key:enter",
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertfocus:name=Song List&class=FlipViewItem@5",
+      "key:enter",
+      "wait:0.6",
+      "wait:1",
+      "assertstatus:id=fst.first-run.demo.songs-sort|~^catalogue( |$)@30",
+      "assertstate:raw=fst.first-run.demo.songs-sort|help=~^controls=(?=.*\\bDropDownButton\\b)(?=.*\\bRadioButtons\\b)(?=.*\\bSongSortForm\\b)@15",
+      "waitgone:id=fst.first-run.demo.songs-sort@1",
+      "assertread:name=Sort Songs&class=FlipViewItem|Sort Songs, list item, selected",
+      "assertapart:raw=fst.first-run.demo.songs-sort|name=Sort Songs&class=TextBlock",
+      "focus:name=Sort Songs&class=FlipViewItem",
+      "key:tab",
+      "assertfocus:name=Page 2&class=Button@3",
+      "scrollinto:id=fst.first-run.pips",
+      "assertorder:name=Sort Songs&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close",
+      "assertsize:id=fst.first-run.close|40x40"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.first-run.dialog@5",
+      "assertfocus:id=fst.settings.first-run.songs@3"
+    ]
+  },
+  {
+    "name": "frrd-songinfo-chart",
+    "tab": "settings",
+    "scan": true,
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@30"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.first-run.songinfo",
+      "focus:id=fst.settings.first-run.songinfo",
+      "key:enter",
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertfocus:name=Score History Chart&class=FlipViewItem@5",
+      "wait:1",
+      "assertstate:raw=fst.first-run.demo.songinfo-chart|help=~^controls=(?=.*\\bSongScoreHistoryChart\\b)@15",
+      "assertstate:raw=fst.first-run.demo.songinfo-chart.fst.history.bar.2|toggle=off@15",
+      "waitgone:id=fst.first-run.demo.songinfo-chart.fst.history.chart@1",
+      "waitgone:id=fst.first-run.demo.songinfo-chart.fst.history.bar.2@1",
+      "waitgone:id=fst.first-run.demo.songinfo-chart@1",
+      "assertread:name=Score History Chart&class=FlipViewItem|Score History Chart, list item, selected",
+      "assertapart:raw=fst.first-run.demo.songinfo-chart|name=Score History Chart&class=TextBlock",
+      "focus:name=Score History Chart&class=FlipViewItem",
+      "key:tab",
+      "assertfocus:name=Page 1&class=Button@3",
+      "scrollinto:id=fst.first-run.pips",
+      "assertorder:name=Score History Chart&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close",
+      "assertsize:id=fst.first-run.close|40x40"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.first-run.dialog@5",
+      "assertfocus:id=fst.settings.first-run.songinfo@3"
+    ]
+  },
+  {
+    "name": "frrd-infinite-scroll",
+    "tab": "settings",
+    "scan": true,
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@30"
+    ],
+    "skip_modes": [
+      "no-animations",
+      "app-reduced",
+      "no-transparency",
+      "app-contrast",
+      "hc-aquatic",
+      "hc-desert",
+      "hc-dusk",
+      "hc-night-sky"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.first-run.suggestions",
+      "focus:id=fst.settings.first-run.suggestions",
+      "key:enter",
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertfocus:name=Suggestion Cards&class=FlipViewItem@5",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "wait:1",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=running pos=mid wraps=0 fade=top\\+bottom$@15",
+      "assertstate:raw=fst.first-run.demo.suggestions-infinite-scroll|help=~^controls=(?=.*\\bScrollViewer\\b)(?=.*\\bSuggestionSongRow\\b)@15",
+      "waitgone:id=fst.first-run.demo.suggestions-infinite-scroll.card.0@1",
+      "waitgone:id=fst.first-run.demo.suggestions-infinite-scroll@1",
+      "assertread:name=More Suggestions&class=FlipViewItem|More Suggestions, list item, selected",
+      "assertapart:raw=fst.first-run.demo.suggestions-infinite-scroll|name=More Suggestions&class=TextBlock",
+      "focus:name=More Suggestions&class=FlipViewItem",
+      "key:tab",
+      "assertfocus:name=Page 4&class=Button@3",
+      "scrollinto:id=fst.first-run.pips",
+      "assertorder:name=More Suggestions&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close",
+      "assertsize:id=fst.first-run.close|40x40"
+    ],
+    "teardown": [
+      "resize:minimized",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=paused pos=\\w+ wraps=\\d+ fade=[a-z+]+$@10",
+      "resize:restored",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=running pos=\\w+ wraps=\\d+ fade=[a-z+]+$@10",
+      "key:esc",
+      "waitgone:id=fst.first-run.dialog@5",
+      "assertfocus:id=fst.settings.first-run.suggestions@3"
+    ]
+  },
+  {
+    "name": "frrd-infinite-scroll-reduced",
+    "tab": "settings",
+    "scan": true,
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@30"
+    ],
+    "settings": {
+      "reduceMotion": true
+    },
+    "skip_modes": [
+      "no-transparency",
+      "app-contrast",
+      "hc-aquatic",
+      "hc-desert",
+      "hc-dusk",
+      "hc-night-sky"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.first-run.suggestions",
+      "focus:id=fst.settings.first-run.suggestions",
+      "key:enter",
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertfocus:name=Suggestion Cards&class=FlipViewItem@5",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "wait:1",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=held pos=top wraps=0 fade=bottom$@15",
+      "wait:3",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=held pos=top wraps=0 fade=bottom$",
+      "waitgone:id=fst.first-run.demo.suggestions-infinite-scroll.card.0@1",
+      "waitgone:id=fst.first-run.demo.suggestions-infinite-scroll@1",
+      "assertread:name=More Suggestions&class=FlipViewItem|More Suggestions, list item, selected",
+      "assertapart:raw=fst.first-run.demo.suggestions-infinite-scroll|name=More Suggestions&class=TextBlock",
+      "focus:name=More Suggestions&class=FlipViewItem",
+      "key:tab",
+      "assertfocus:name=Page 4&class=Button@3",
+      "scrollinto:id=fst.first-run.pips",
+      "assertorder:name=More Suggestions&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close",
+      "assertsize:id=fst.first-run.close|40x40"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.first-run.dialog@5",
+      "assertfocus:id=fst.settings.first-run.suggestions@3"
+    ]
+  },
+  {
+    "name": "frrd-infinite-scroll-static",
+    "tab": "settings",
+    "scan": true,
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@30"
+    ],
+    "modes": [
+      "no-animations"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.first-run.suggestions",
+      "focus:id=fst.settings.first-run.suggestions",
+      "key:enter",
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertfocus:name=Suggestion Cards&class=FlipViewItem@5",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "wait:1",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=held pos=top wraps=0 fade=bottom$@15",
+      "wait:3",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=held pos=top wraps=0 fade=bottom$",
+      "waitgone:id=fst.first-run.demo.suggestions-infinite-scroll.card.0@1",
+      "waitgone:id=fst.first-run.demo.suggestions-infinite-scroll@1",
+      "assertread:name=More Suggestions&class=FlipViewItem|More Suggestions, list item, selected",
+      "assertapart:raw=fst.first-run.demo.suggestions-infinite-scroll|name=More Suggestions&class=TextBlock",
+      "focus:name=More Suggestions&class=FlipViewItem",
+      "key:tab",
+      "assertfocus:name=Page 4&class=Button@3",
+      "scrollinto:id=fst.first-run.pips",
+      "assertorder:name=More Suggestions&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close",
+      "assertsize:id=fst.first-run.close|40x40"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.first-run.dialog@5",
+      "assertfocus:id=fst.settings.first-run.suggestions@3"
+    ]
+  },
+  {
+    "name": "frrd-infinite-scroll-no-transparency",
+    "tab": "settings",
+    "scan": true,
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@30"
+    ],
+    "modes": [
+      "no-transparency"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.first-run.suggestions",
+      "focus:id=fst.settings.first-run.suggestions",
+      "key:enter",
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertfocus:name=Suggestion Cards&class=FlipViewItem@5",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "wait:1",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=running pos=\\w+ wraps=0 fade=off$@15",
+      "wait:2",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=running pos=mid wraps=0 fade=off$@15",
+      "assertstate:raw=fst.first-run.demo.suggestions-infinite-scroll|help=~^controls=(?=.*\\bScrollViewer\\b)(?=.*\\bSuggestionSongRow\\b)@15",
+      "waitgone:id=fst.first-run.demo.suggestions-infinite-scroll.card.0@1",
+      "waitgone:id=fst.first-run.demo.suggestions-infinite-scroll@1",
+      "assertread:name=More Suggestions&class=FlipViewItem|More Suggestions, list item, selected",
+      "assertapart:raw=fst.first-run.demo.suggestions-infinite-scroll|name=More Suggestions&class=TextBlock",
+      "focus:name=More Suggestions&class=FlipViewItem",
+      "key:tab",
+      "assertfocus:name=Page 4&class=Button@3",
+      "scrollinto:id=fst.first-run.pips",
+      "assertorder:name=More Suggestions&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close",
+      "assertsize:id=fst.first-run.close|40x40"
+    ],
+    "teardown": [
+      "resize:minimized",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=paused pos=\\w+ wraps=\\d+ fade=off$@10",
+      "resize:restored",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=running pos=\\w+ wraps=\\d+ fade=off$@10",
+      "key:esc",
+      "waitgone:id=fst.first-run.dialog@5",
+      "assertfocus:id=fst.settings.first-run.suggestions@3"
+    ]
+  },
+  {
+    "name": "frrd-infinite-scroll-less-transparency",
+    "tab": "settings",
+    "scan": true,
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@30"
+    ],
+    "settings": {
+      "lessTransparency": true
+    },
+    "skip_modes": [
+      "no-animations",
+      "app-reduced"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.first-run.suggestions",
+      "focus:id=fst.settings.first-run.suggestions",
+      "key:enter",
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertfocus:name=Suggestion Cards&class=FlipViewItem@5",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "wait:1",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=running pos=\\w+ wraps=0 fade=off$@15",
+      "wait:2",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=running pos=mid wraps=0 fade=off$@15",
+      "assertstate:raw=fst.first-run.demo.suggestions-infinite-scroll|help=~^controls=(?=.*\\bScrollViewer\\b)(?=.*\\bSuggestionSongRow\\b)@15",
+      "waitgone:id=fst.first-run.demo.suggestions-infinite-scroll.card.0@1",
+      "waitgone:id=fst.first-run.demo.suggestions-infinite-scroll@1",
+      "assertread:name=More Suggestions&class=FlipViewItem|More Suggestions, list item, selected",
+      "assertapart:raw=fst.first-run.demo.suggestions-infinite-scroll|name=More Suggestions&class=TextBlock",
+      "focus:name=More Suggestions&class=FlipViewItem",
+      "key:tab",
+      "assertfocus:name=Page 4&class=Button@3",
+      "scrollinto:id=fst.first-run.pips",
+      "assertorder:name=More Suggestions&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close",
+      "assertsize:id=fst.first-run.close|40x40"
+    ],
+    "teardown": [
+      "resize:minimized",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=paused pos=\\w+ wraps=\\d+ fade=off$@10",
+      "resize:restored",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=running pos=\\w+ wraps=\\d+ fade=off$@10",
+      "key:esc",
+      "waitgone:id=fst.first-run.dialog@5",
+      "assertfocus:id=fst.settings.first-run.suggestions@3"
+    ]
+  },
+  {
+    "name": "frrd-infinite-scroll-more-contrast",
+    "tab": "settings",
+    "scan": true,
+    "tabs": 8,
+    "ready": [
+      "waitfor:id=fst.settings.show-instrument-icons@30"
+    ],
+    "settings": {
+      "moreContrast": true
+    },
+    "skip_modes": [
+      "no-animations",
+      "app-reduced"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.licenses",
+      "wait:0.5",
+      "scrollinto:id=fst.settings.first-run.suggestions",
+      "focus:id=fst.settings.first-run.suggestions",
+      "key:enter",
+      "waitfor:id=fst.first-run.dialog@20",
+      "assertfocus:name=Suggestion Cards&class=FlipViewItem@5",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "key:enter",
+      "wait:0.6",
+      "wait:1",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=running pos=\\w+ wraps=0 fade=off$@15",
+      "wait:2",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=running pos=mid wraps=0 fade=off$@15",
+      "assertstate:raw=fst.first-run.demo.suggestions-infinite-scroll|help=~^controls=(?=.*\\bScrollViewer\\b)(?=.*\\bSuggestionSongRow\\b)@15",
+      "waitgone:id=fst.first-run.demo.suggestions-infinite-scroll.card.0@1",
+      "waitgone:id=fst.first-run.demo.suggestions-infinite-scroll@1",
+      "assertread:name=More Suggestions&class=FlipViewItem|More Suggestions, list item, selected",
+      "assertapart:raw=fst.first-run.demo.suggestions-infinite-scroll|name=More Suggestions&class=TextBlock",
+      "focus:name=More Suggestions&class=FlipViewItem",
+      "key:tab",
+      "assertfocus:name=Page 4&class=Button@3",
+      "scrollinto:id=fst.first-run.pips",
+      "assertorder:name=More Suggestions&class=FlipViewItem|id=fst.first-run.pips|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close",
+      "assertsize:id=fst.first-run.close|40x40"
+    ],
+    "teardown": [
+      "resize:minimized",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=paused pos=\\w+ wraps=\\d+ fade=off$@10",
+      "resize:restored",
+      "assertstatus:id=fst.first-run.demo.suggestions-infinite-scroll|~^catalogue scroll=running pos=\\w+ wraps=\\d+ fade=off$@10",
+      "key:esc",
+      "waitgone:id=fst.first-run.dialog@5",
+      "assertfocus:id=fst.settings.first-run.suggestions@3"
+    ]
+  }
+]

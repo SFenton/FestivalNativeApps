@@ -15,7 +15,7 @@ scenario must reveal at once and hold, rush or fade nothing. Journeys never touc
 
 Usage::
 
-    python tools/windows/selected_reveal_journey.py [--only band] [--shots DIR] [--exe aot]
+    python tools/windows/selected_reveal_journey.py [--only rankings-card-reduce-motion] [--shots DIR] [--exe aot]
 """
 
 from __future__ import annotations
@@ -71,6 +71,12 @@ SCENARIOS = (
     # and reveals the player's row, the 10th on that page.
     Scenario("rankings-card", "/leaderboards", "fixture-rank-60:Fixture Rank 60", "RowsRepeater", 9,
              "id=fst.rankings.row.fixture-rank-60", "Your rank, 60th. *",
+             opener="id=fst.leaderboards.card.Solo_Guitar.spotlight",
+             opener_page="id=fst.leaderboards.card.Solo_Guitar"),
+    # Issue #493: under Reduce Motion the reveal must still wait for the newly shown list's layout before it scrolls.
+    Scenario("rankings-card-reduce-motion", "/leaderboards", "fixture-rank-60:Fixture Rank 60", "RowsRepeater", 9,
+             "id=fst.rankings.row.fixture-rank-60", "Your rank, 60th. *",
+             motion=False, args=["--reduce-motion"],
              opener="id=fst.leaderboards.card.Solo_Guitar.spotlight",
              opener_page="id=fst.leaderboards.card.Solo_Guitar"),
 )

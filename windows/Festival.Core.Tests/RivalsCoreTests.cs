@@ -1,4 +1,5 @@
 using System.Net;
+using Festival.Core.ViewModels;
 
 namespace Festival.Core.Tests;
 
@@ -22,6 +23,35 @@ public class RivalsCoreTests
 
     public static RivalSongComparison Song(string id, int delta, string? title = null, string instrument = "Solo_Guitar") =>
         new(id, title ?? id, "Artist", instrument, null, null, 10, 10 + delta, delta, 1000, 900);
+
+    #region Page titles
+    /// <summary>
+    /// #604 (page-tools-and-nav-chrome R18): only a one-chart scope (song or leaderboard rivals) leads the Rival Detail
+    /// subtitle with its icon and names it "{Instrument} Rivals"; every multi-chart or unscoped page reads "Rivals".
+    /// </summary>
+    [Fact]
+    public void SingleInstrument_DrivesTheRivalDetailSubtitle()
+    {
+        IReadOnlyList<Instrument> visible = [Instrument.Lead, Instrument.Bass];
+        Assert.Equal(Instrument.Bass, new RivalScope.Song([Instrument.Bass]).SingleInstrument);
+        Assert.Equal(Instrument.Drums, new RivalScope.Leaderboard(Instrument.Drums, RankingMetric.TotalScore).SingleInstrument);
+        Assert.Null(new RivalScope.Song([Instrument.Lead, Instrument.Bass]).SingleInstrument);
+        Assert.Null(new RivalScope.Song([]).SingleInstrument);
+        Assert.Null(new RivalScope.Combo("03").SingleInstrument);
+        Assert.Null(new RivalScope.FromSettings(RivalSettingsScope.Common).SingleInstrument);
+
+        Assert.Equal(("Bass Rivals", Instrument.Bass.IconFile()),
+            (RivalDetailText.Subtitle(new RivalScope.Song([Instrument.Bass]), visible), RivalDetailText.SubtitleIconFile(new RivalScope.Song([Instrument.Bass]), visible)));
+        var board = new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.Weighted);
+        Assert.Equal(("Lead Rivals", Instrument.Lead.IconFile()), (RivalDetailText.Subtitle(board, visible), RivalDetailText.SubtitleIconFile(board, visible)));
+        foreach (var scope in new RivalScope?[] { null, new RivalScope.Song(visible), new RivalScope.Combo("03"),
+                     new RivalScope.FromSettings(RivalSettingsScope.Common), new RivalScope.FromSettings(RivalSettingsScope.Combo), new RivalScope.Song([]) })
+        {
+            Assert.Equal("Rivals", RivalDetailText.Subtitle(scope, visible));
+            Assert.Equal("", RivalDetailText.SubtitleIconFile(scope, visible));
+        }
+    }
+    #endregion
 
     #region Endpoints
     [Fact]

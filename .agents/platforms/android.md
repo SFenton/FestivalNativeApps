@@ -96,6 +96,7 @@ Compose `testTag`s appear as resource ids only when the app sets `testTagsAsReso
 - FST emulators always use console port **5580** (`emulator-5580`). Only `FST_*` AVDs, or whatever holds port 5580, are ever stopped. Any other running emulator makes `boot` refuse (exit 3) rather than kill it.
 - Shutdown runs `sync` + `reboot -p`, then `emu kill`, then kills leftover qemu processes. A hard `emu kill` can lose recent `/data` writes such as a fresh install. Install and shoot in one hold with `--apk`.
 - Every lane installs its own build of the same package on the shared AVDs. A `drive` or `launch` without `--apk` runs whatever another session installed last. In issue #149 that misled one capture: a stale build showed a misalignment the current branch had already fixed. Pass `--apk` for every evidence or validation run.
+- Build before you queue: run `gradlew :app:assembleDebug :app:assembleDebugAndroidTest` first, so `device.py test` spends its 300 s hold on the device rather than compiling. In issue #579 (2026-10-10), a hold timeout killed Gradle mid-install. FST_Phone's package manager then kept a phantom pending install, and every later install by any lane failed with `INSTALL_FAILED_DUPLICATE_PACKAGE … in pending install requests` until the emulator restarted.
 - Emulator logs: `~/.fst-locks/emulator-<AVD>.log`.
 # Android architecture and devices
 
