@@ -817,7 +817,9 @@ struct RankingsPagerView: View {
         // frosted circle arrows around a "page / total" badge (operator batch 7.5).
         HStack(spacing: 10) {
             arrow("chevron.backward.2", "First page", id: "page-first", enabled: page > 1) { onChange(1) }
+                .accessibilitySortPriority(RankingsPagerReadingOrder.first)
             arrow("chevron.backward", "Previous page", id: "page-previous", enabled: page > 1) { onChange(page - 1) }
+                .accessibilitySortPriority(RankingsPagerReadingOrder.previous)
             Text("\(page) / \(totalPages)")
                 .font(.body.weight(.semibold))
                 .monospacedDigit()
@@ -843,9 +845,14 @@ struct RankingsPagerView: View {
                     }
                 }
                 .accessibilityIdentifier("\(idPrefix).page-info")
+                .accessibilitySortPriority(RankingsPagerReadingOrder.badge)
             arrow("chevron.forward", "Next page", id: "page-next", enabled: page < totalPages) { onChange(page + 1) }
+                .accessibilitySortPriority(RankingsPagerReadingOrder.next)
             arrow("chevron.forward.2", "Last page", id: "page-last", enabled: page < totalPages) { onChange(totalPages) }
+                .accessibilitySortPriority(RankingsPagerReadingOrder.last)
         }
+        // Read left to right even when the badge is taller than the arrows (issue #462).
+        .accessibilityElement(children: .contain)
         .padding(.horizontal, 16)
         .pagerScreenPlacement()
         .padding(.top, topPadding)
@@ -882,6 +889,22 @@ struct RankingsPagerView: View {
         .accessibilityLabel(label)
         .accessibilityIdentifier("\(idPrefix).\(id)")
     }
+}
+
+// MARK: - Pager reading order
+
+/// VoiceOver priorities that keep both pagers reading First, Previous, Page, Next, Last.
+///
+/// SwiftUI orders a container's elements by their frames, top edge first. At the largest
+/// accessibility text sizes the `page / total` badge grows taller than the fixed 44 pt
+/// arrows, so its top sat above theirs and VoiceOver read "Page" before First and
+/// Previous (issue #462). Higher priorities are read first.
+enum RankingsPagerReadingOrder {
+    static let first: Double = 5
+    static let previous: Double = 4
+    static let badge: Double = 3
+    static let next: Double = 2
+    static let last: Double = 1
 }
 
 // MARK: - Pager screen placement
@@ -1043,7 +1066,9 @@ struct RankingsGlassPager: View {
     var body: some View {
         HStack(spacing: 0) {
             button(.first)
+                .accessibilitySortPriority(RankingsPagerReadingOrder.first)
             button(.previous)
+                .accessibilitySortPriority(RankingsPagerReadingOrder.previous)
             Text(state.label)
                 .font(.subheadline.weight(.semibold))
                 .monospacedDigit()
@@ -1066,8 +1091,11 @@ struct RankingsGlassPager: View {
                     }
                 }
                 .accessibilityIdentifier("\(idPrefix).page-info")
+                .accessibilitySortPriority(RankingsPagerReadingOrder.badge)
             button(.next)
+                .accessibilitySortPriority(RankingsPagerReadingOrder.next)
             button(.last)
+                .accessibilitySortPriority(RankingsPagerReadingOrder.last)
         }
         .padding(.horizontal, 4)
         .festivalCardCapsule()
