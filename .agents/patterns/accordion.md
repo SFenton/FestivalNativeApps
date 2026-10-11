@@ -37,7 +37,7 @@ An accordion should read as one deliberate motion, never a snap. The owner's ask
 
 Apple consumers: Songs Filter (`SongsFilterSheet`: Year, Duration, Item Shop, Double Bass, Season, Percentile, Stars, Intensity, the per-instrument Individual charts groups, the Player Scores sections that open with "Player Score and FC Filters", the bucket sections that open with a chart, and the Select All / Clear All header shown while a bucket is open), Suggestions Filter Instrument-Specific (`SuggestionsFilterSheet`, also the First Run demo that shows the real sheet), Settings (`SettingsChoiceRow`; the Song Row Visual Order block under its switch and the Maximum Score Leeway block under Filter Invalid Scores in `SettingsScreen`) and the `InstrumentSelector` panel. Shared code covers iPhone, iPad, iPhone Duo and macOS.
 
-Tests: `FestivalAccordionTests` (plan, phases, interruption, Reduce Motion, hidden-until-faded accessibility, transparent rows take no clicks, Collapsed spoken before the fade ends, driven sequence order), `SuggestionsJourneyTests.testSuggestionsFilterInstrumentSelectorRevealsPerInstrumentToggles` (reveal, hittable 44 pt switches, collapse on deselect).
+Tests: `FestivalAccordionTests` (plan, phases, interruption, Reduce Motion, hidden-until-faded accessibility, transparent rows take no clicks, Collapsed spoken before the fade ends, driven sequence order), `SuggestionsJourneyTests.testSuggestionsFilterInstrumentSelectorRevealsPerInstrumentToggles` (reveal, hittable 44 pt switches, collapse on deselect), `SongsFilterAccessibilityJourneyTests` (Year header actions: named, 44 pt, a real tap changes the decades' reported state, default size and AX5).
 
 ## Known debt
 
@@ -45,6 +45,7 @@ Tests: `FestivalAccordionTests` (plan, phases, interruption, Reduce Motion, hidd
 |---|---|---|
 | Android `Accordion` (Songs Filter/Sort) and `InstrumentSelector` panel use `expandVertically() + fadeIn()` / `shrinkVertically() + fadeOut()` together, not in sequence | R1 | Android check of #561 |
 | Windows `Expander`s (Songs, Suggestions, Settings, Song Paths) use WinUI's built-in expand animation without the sequenced fade | R1 | Windows check of #561 |
+| iOS 27 beta (simulator 24A5355p): a List section header's `FestivalAccordionContent` (Songs Filter Year's Select All / Clear All) that fades in while scrolled under the sheet's bar can stay out of the accessibility hit test (VoiceOver touch exploration) until its next state change; swipe navigation and real touches work. Whether opacity or `.allowsHitTesting` keeps the stale hit test is unproven | R4 | Open finding from #432; `SongsFilterAccessibilityJourneyTests` proves those actions by a real tap and their reported state. Recheck on the iOS 27 release runtime before changing the component |
 
 ## Guards (`tools/pattern_guard.py`)
 

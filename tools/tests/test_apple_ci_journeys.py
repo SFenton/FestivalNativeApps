@@ -8,10 +8,14 @@ the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape)
 (iPad bundle, on the iPhone and the iPad) must keep the Score History AX5 journeys (#385, the region #302 changed);
 ``PLAIN_JOURNEYS`` (iPhone bundle, on the iPhone in the plain-fixture step) must keep the Filter Invalid Scores score-check
 journey (#615); ``UNPINNED_JOURNEYS`` (iPhone bundle, on its own unpinned listener) must keep the player
-profile's pause-notice AX5 journey (#446, the region #97 changed).
+profile's pause-notice AX5 journey (#446, the region #97 changed). The Songs Filter journeys (#432) must run on
+the iPhone, the iPad and the folded iPhone Duo on release-branch dispatches, gated by the required ``apple-ci`` job.
 """
 
+from __future__ import annotations
+
 import re
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -20,6 +24,12 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "apple-ci.yml"
 UITESTS = ROOT / "apple" / "Apps" / "iOSUITests"
 IPAD_UITESTS = ROOT / "apple" / "Apps" / "iPadOSUITests"
+PROJECT = ROOT / "apple" / "project.yml"
+FILTER_JOURNEYS = (
+    "SongsFilterAccessibilityJourneyTests/testNoProfileGeneralFiltersPassAccessibilityAudit",
+    "SongsFilterAccessibilityJourneyTests/testDynamicTypeAuditWithShopHidden",
+    "SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText",
+)
 
 #: Folded selector block names in ``apple-ci.yml`` and the UI-test bundle each runs.
 BLOCKS = {
@@ -69,18 +79,82 @@ def ci_journeys(text: str, key: str = "JOURNEYS") -> list[str]:
     return ci_journey_blocks(text, key)[0]
 
 
+def matrix_legs(text: str) -> dict[str, list[str]]:
+    """Read the Songs Filter journey matrix: each ``leg`` with its ``journeys`` block.
+
+    Args:
+        text: The workflow source.
+
+    Returns:
+        Leg name → selectors.
+    """
+    legs = re.findall(r"^\s*- leg: (\S+)$", text, flags=re.MULTILINE)
+    blocks = ci_journey_blocks(text, "journeys")
+    if len(legs) != len(blocks):
+        raise ValueError(f"{len(legs)} legs but {len(blocks)} journeys blocks")
+    return dict(zip(legs, blocks))
+
+
+def ipad_target_sources() -> list[Path]:
+    """The ``FestivalMobileIPadUITests`` target's source paths from ``apple/project.yml``.
+
+    Returns:
+        Absolute paths (a folder or a file).
+    """
+    text = PROJECT.read_text(encoding="utf-8")
+    block = text.split("  FestivalMobileIPadUITests:", 1)[1].split("    dependencies:", 1)[0]
+    return [ROOT / "apple" / path for path in re.findall(r"- path: (\S+)", block)]
+
+
+def source_for(cls: str, roots: list[Path]) -> Path | None:
+    """Find ``<cls>.swift`` among source folders and files.
+
+    Args:
+        cls: XCTestCase class name.
+        roots: Folders or files a target compiles.
+
+    Returns:
+        The file, or ``None``.
+    """
+    for root in roots:
+        candidate = root / f"{cls}.swift" if root.is_dir() else root
+        if candidate.name == f"{cls}.swift" and candidate.exists():
+            return candidate
+    return None
+
+
 class AppleCIJourneysTests(unittest.TestCase):
     def setUp(self) -> None:
         self.workflow = WORKFLOW.read_text(encoding="utf-8")
         self.journeys = ci_journeys(self.workflow)
         self.blocks = ci_journey_blocks(self.workflow)
         self.history = {key: ci_journeys(self.workflow, key) for key in ("HISTORY_JOURNEYS", "HISTORY_IPAD_JOURNEYS")}
+        self.legs = matrix_legs(self.workflow)
+
+    def assert_selectors_exist(self, selectors: list[str], roots: list[Path]) -> None:
+        self.assertTrue(selectors)
+        self.assertEqual(len(selectors), len(set(selectors)), "duplicate journeys")
+        for selector in selectors:
+            cls, _, method = selector.partition("/")
+            source = source_for(cls, roots)
+            self.assertIsNotNone(source, f"{selector}: {cls}.swift not compiled by its leg's UI-test target")
+            text = source.read_text(encoding="utf-8")
+            self.assertRegex(text, rf"\bclass {re.escape(cls)}\b", selector)
+            if method:
+                self.assertRegex(text, rf"\bfunc {re.escape(method)}\(\)", selector)
 
     def test_reads_the_folded_block(self) -> None:
         sample = "      env:\n        JOURNEYS: >-\n          A/a\n          B/b\n      run: x\n"
         self.assertEqual(ci_journeys(sample), ["A/a", "B/b"])
         self.assertEqual(ci_journey_blocks(sample + sample.replace("A/a", "C/c")), [["A/a", "B/b"], ["C/c", "B/b"]])
         self.assertEqual(ci_journeys(sample.replace("JOURNEYS", "HISTORY_JOURNEYS"), "HISTORY_JOURNEYS"), ["A/a", "B/b"])
+
+    def test_reads_matrix_legs(self) -> None:
+        sample = (
+            "          - leg: one\n            journeys: >-\n              A/a\n"
+            "          - leg: two\n            journeys: >-\n              B/b\n              C/c\n    steps:\n"
+        )
+        self.assertEqual(matrix_legs(sample), {"one": ["A/a"], "two": ["B/b", "C/c"]})
 
     def test_every_selector_names_an_existing_test_method(self) -> None:
         self.assertEqual(len(self.blocks), 2, "one JOURNEYS block per simulator step (iPhone, iPad)")
@@ -98,6 +172,73 @@ class AppleCIJourneysTests(unittest.TestCase):
                     self.assertRegex(text, rf"\bclass {re.escape(cls)}\b", selector)
                     if method:
                         self.assertRegex(text, rf"\bfunc {re.escape(method)}\(\)", selector)
+
+    def test_every_leg_selector_names_a_test_its_target_compiles(self) -> None:
+        for leg, selectors in self.legs.items():
+            with self.subTest(leg=leg):
+                roots = ipad_target_sources() if leg == "ipad" else [UITESTS]
+                self.assert_selectors_exist(selectors, roots)
+
+    def test_songs_filter_journeys_run_on_every_touch_form_factor(self) -> None:
+        self.assertEqual(set(self.legs), {"iphone", "ipad", "duo-folded"})
+        for leg, selectors in self.legs.items():
+            for journey in FILTER_JOURNEYS:
+                self.assertIn(journey, selectors, leg)
+        self.assertIn("SongsFilterKeyboardJourneyTests/testCommandPeriodClosesFilter", self.legs["ipad"])
+        self.assertRegex(self.workflow, r"leg: ipad\n\s+device_type: iPad[^\n]*\n\s+uitest_args: --app ipad\n")
+        self.assertRegex(self.workflow, r"leg: duo-folded\n\s+device_type: iPhone Duo\n\s+uitest_args: --pose folded\n")
+        self.assertIn("--fail-on-skip", self.workflow.split("songs-filter-journeys:", 1)[1])
+
+    def test_songs_filter_legs_retry_a_failed_batch_once(self) -> None:
+        legs = self.workflow.split("songs-filter-journeys:", 1)[1].split("\n  apple-ci:", 1)[0]
+        self.assertIn("--retries 1", legs)
+        self.assertNotIn("--retries", self.workflow.split("songs-filter-journeys:", 1)[0])
+
+    def test_songs_filter_legs_run_only_on_release_dispatch(self) -> None:
+        # Release train: pull requests and master run the build and unit tests only.
+        legs = self.workflow.split("  songs-filter-journeys:", 1)[1].split("    strategy:", 1)[0]
+        self.assertIn("if: github.event_name == 'workflow_dispatch'", legs)
+
+    def test_required_check_needs_every_job(self) -> None:
+        required = self.workflow.split("\n  apple-ci:\n", 1)[1]
+        self.assertIn("name: apple-ci\n", required)
+        self.assertIn("needs: [build, songs-filter-journeys]", required)
+        self.assertIn("if: always()", required)
+        job_names = re.findall(r"^    name: (.+)$", self.workflow, flags=re.MULTILINE)
+        self.assertEqual(job_names.count("apple-ci"), 1, "only the gate job is named apple-ci")
+        jobs = re.findall(r"^  ([a-z][\w-]*):$", self.workflow.split("\njobs:\n", 1)[1], flags=re.MULTILINE)
+        self.assertEqual(sorted(jobs), sorted(["build", "songs-filter-journeys", "apple-ci"]),
+                         "a new job must join the gate's needs")
+
+    def test_gate_passes_only_when_every_job_passed_or_the_legs_are_not_due(self) -> None:
+        script = self.gate_script()
+        cases = {
+            ("workflow_dispatch", "success", "success"): True,
+            ("pull_request", "success", "skipped"): True,
+            ("push", "success", "skipped"): True,
+            ("workflow_dispatch", "success", "skipped"): False,
+            ("workflow_dispatch", "success", "failure"): False,
+            ("workflow_dispatch", "success", "cancelled"): False,
+            ("pull_request", "success", "cancelled"): False,
+            ("pull_request", "failure", "skipped"): False,
+            ("workflow_dispatch", "failure", "success"): False,
+        }
+        for (event, build, journeys), passes in cases.items():
+            env = {"EVENT": event, "BUILD": build, "JOURNEYS": journeys, "PATH": "/usr/bin:/bin"}
+            result = subprocess.run(["bash", "-e", "-c", script], env=env, capture_output=True, check=False)
+            self.assertEqual(result.returncode == 0, passes, (event, build, journeys))
+
+    def gate_script(self) -> str:
+        """The gate job's ``run`` script, dedented from its ``run: |`` block."""
+        gate = self.workflow.split("\n  apple-ci:\n", 1)[1]
+        block = gate.split("        run: |\n", 1)[1]
+        return "\n".join(line[10:] for line in block.splitlines() if line.startswith("          "))
+
+    def test_mac_keyboard_tests_run_alone_and_required(self) -> None:
+        step = self.workflow.split("Mac keyboard navigation tests, alone", 1)[1].split("- name:", 1)[0]
+        self.assertIn('FST_REQUIRE_KEYBOARD_NAVIGATION: "1"', step)
+        self.assertIn("defaults write -g AppleKeyboardUIMode -int 2", step)
+        self.assertIn("--filter SongsFilterKeyboardTests", step)
 
     def test_account_button_reading_order_journeys_run_in_ci(self) -> None:
         for method in (
@@ -122,6 +263,7 @@ class AppleCIJourneysTests(unittest.TestCase):
         import ios_sim
 
         self.assertEqual(self.workflow.count(f'ci-device --type "{ios_sim.CI_IPAD_DEVICE_TYPE}"'), 2)
+        self.assertRegex(self.workflow, rf"leg: ipad\n\s+device_type: {re.escape(ios_sim.CI_IPAD_DEVICE_TYPE)}\n")
 
     def test_score_history_ax5_journeys_run_on_iphone_and_ipad(self) -> None:
         page = "ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5"
@@ -130,8 +272,8 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split])
         self.assertEqual(self.workflow.count("uitest --app ipad"), 2)
         # iPhone journeys, the unpinned profile-notice run (#446), two Score History runs, the plain-fixture iPhone run
-        # (#615), the iPad journeys and the iPad keyboard batch (#473).
-        self.assertEqual(self.workflow.count("--fail-on-skip"), 7)
+        # (#615), the iPad journeys and the iPad keyboard batch (#473), and the Songs Filter legs (#432).
+        self.assertEqual(self.workflow.count("--fail-on-skip"), 8)
 
     def test_invalid_score_filter_journey_runs_on_the_plain_fixture(self) -> None:
         # #615: the only device evidence for the Filter sheet's score checks under Filter Invalid Scores. It needs

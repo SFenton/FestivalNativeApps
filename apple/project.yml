@@ -122,6 +122,9 @@ targets:
       - path: Apps/iOSUITests/FeedbackUITestSupport.swift
       # Issue #565: a filed report closes its form, then the sent alert shows.
       - path: Apps/iOSUITests/FeedbackSentJourneyTests.swift
+      # Issue #432 Songs Filter accessibility journey (no profile), run on iPad too.
+      - path: Apps/iOSUITests/SongsFilterAccessibilityJourneyTests.swift
+      - path: Apps/iOSUITests/SongsUITestSupport.swift
       # Issue #434 What's New at AX5, portrait and landscape, run on iPad too.
       - path: Apps/iOSUITests/WhatsNewAccessibilityJourneyTests.swift
       - path: Apps/iOSUITests/RecognizedText.swift

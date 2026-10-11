@@ -71,6 +71,35 @@ class UiCiTests(unittest.TestCase):
         names = {page["name"] for page in pages}
         self.assertTrue({"song-band-pin-jump", "song-band-pin-open", "song-band-pin-no-player"} <= names)
 
+    def test_song_band_board_runs_at_default_and_largest_text(self):
+        # Issue #510 (#196): the full band board's single-stop rows, empty and error states run in CI at default and
+        # 225% text, and its accuracy pill's contrast-theme colours at default size.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-song-band-leaderboard.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan and run.only == "" for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        self.assertIn("medium", runs["normal"].sizes.split(","))
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-song-band-leaderboard.json").read_text(encoding="utf-8"))}
+        self.assertEqual({"sbl-rows", "sbl-empty", "sbl-error", "sbl-accuracy-pill-contrast"}, set(pages))
+        for page in pages.values():
+            self.assertNotIn("axe_allow", page)
+        row = "fst.song-band-leaderboard.row.fixture-band-1:1"
+        steps = pages["sbl-rows"]["after_ready"]
+        self.assertTrue(any(step.startswith(f"assertread:id={row}|Rank 1. Band 1 Member A, Lead, 94,500 points.")
+                            for step in steps))
+        self.assertIn(f"assertstate:id={row}|type=listitem", steps)
+        self.assertIn(f"assertstate:id={row}|invoke=true", steps)
+        self.assertIn(f"assertsize:id={row}|0x40", steps)
+        self.assertIn("waitfor:raw=fst.star-rating.white-5@3", steps)
+        self.assertIn("waitgone:id=fst.star-rating.white-5@1", steps)
+        self.assertIn(f"waitgone:id={row}.accuracy@1", steps)
+        self.assertIn("assertstate:id=fst.song-band-leaderboard.empty|heading=2", pages["sbl-empty"]["after_ready"])
+        self.assertIn("assertsize:id=fst.service-status.retry|40x40", pages["sbl-error"]["after_ready"])
+        pill = pages["sbl-accuracy-pill-contrast"]
+        self.assertIn("contrast:desert", pill["after_ready"])
+        self.assertIn("contrast:off", pill["after_ready"])
+
     def test_full_rankings_pinned_runs_at_default_largest_text_and_reduced_motion(self):
         # Issue #466 (#318): Full Rankings' pinned "your rank" row (also on the player's own page) runs in CI at default
         # and 225% text, and its keyboard jump with in-app Reduce Motion.
@@ -299,6 +328,23 @@ class UiCiTests(unittest.TestCase):
         for target in ("fst.songs.filter|", "fst.songs.filter.reset|", "fst.songs.filter.year.select-all|",
                        "fst.songs.filter.year.clear-all|"):
             self.assertIn(f"assertsize:id={target}40x40", steps)
+
+    def test_profile_title_runs_at_default_and_largest_text(self):
+        # Issue #446 (#97): the avatar-free profile title row runs in CI at default and 225% text, fixture pages only.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-profile-title.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = json.loads((ci.JOURNEYS / "a11y-profile-title.json").read_text(encoding="utf-8"))
+        fixture = {page["name"] for page in pages} - {page["name"] for page in m.live_pages(pages)}
+        for run in runs.values():
+            with self.subTest(run=run.name):
+                only = set(run.only.split(","))
+                self.assertFalse({name for name in only if name.startswith("pt-live")}, "CI makes no service calls")
+                self.assertTrue({"pt-switch", "pt-anonymous", "pt-selected", "pt-notice"} <= only)
+                self.assertLessEqual(fixture, only)
+        large = [page["name"] for page in m.mode_pages(pages, "text-225") if page["name"] in runs["text-225"].only]
+        self.assertIn("pt-actions-wrap", large)
 
     def test_experimental_ranks_runs_at_default_and_largest_text(self):
         """#541: the Experimental Ranks toggle and the Rank By gate it drives gate pull requests at 100% and 225% text."""
