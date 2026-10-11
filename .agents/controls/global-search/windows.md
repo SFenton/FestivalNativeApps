@@ -106,6 +106,8 @@ State matrix: `python tools/windows/a11y_matrix.py --pages tools/windows/journey
 
 Empty states (issues #99, #449): `search-empty` (All), `search-empty-players` and `search-empty-songs` assert the scope's exact title and subtitle, a level-2 title and a non-heading subtitle, Narrator order field → scope → title → subtitle, the block centred in `fst.global-search.empty` (`assertcentred`), and no Retry or section heading; `search-all-hides-empty-players` (`orbit`: songs only) asserts no Players heading, rows or empty state in All. `windows-ui` runs them at normal and 225% text (compact, medium); `test_search_empty_state_pages` keeps those assertions in place.
 
+All section titles (issues #348, #483): `search-all-sections` asserts each title's Narrator phrase ("Songs, text" …), Level 2 heading, no keyboard focus, title-before-rows order and no overlap with its rows; `search-all-sections-keyboard` asserts Tab/Shift+Tab walk All → songs → players → bands without stopping on a title; the single-scope pages assert no title. `windows-ui` runs the two All pages explicitly (`ui_ci.py` `search-sections`, `-text-225`, `-reduced-motion`; [windows-accessibility](../../testing/windows-accessibility.md#search-all-section-titles-accessibility-tests-issue-483-2026-10-11)).
+
 | Configuration | Result |
 |---|---|
 | Compact, medium, wide, maximized, snapped (normal) | Pass at every size, Axe 0 errors. Tab walks: 6–9 distinct stops, none outside the window or repeated. On this 300%-scale host, `wide` is clamped to ~1270 epx and `snap-left` (640 epx) is compact (button + Search page). |

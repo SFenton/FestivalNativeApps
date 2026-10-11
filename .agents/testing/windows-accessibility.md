@@ -494,6 +494,23 @@ Backfills CI tests for the #318 Windows change: the selected player's row stays 
 
 No accessibility defect was found.
 
+## Search All section titles accessibility tests (issue #483, 2026-10-11)
+
+Backfills CI tests for the #348 Windows change: in the All scope, Search titles each shown section "Songs", "Players" and "Bands" (`FSTSectionHeaderStyle`, Level 2, fading in with the rows). Before this, only the `search.json` feature journey (not a `windows-ui` run) checked all three titles; `search-all-hides-empty-players` checked the Songs title alone. New pages in `journeys/a11y-search.json` (`profile_fixture.py`, `q=fixture`) are explicit `windows-ui` runs in `tools/windows/ui_ci.py` (`search-sections`, `-text-225`, `-reduced-motion`). They assert:
+- `search-all-sections`: All is selected; each title reads "Songs, text", "Players, text", "Bands, text", is a Level 2 heading and isn't keyboard focusable; the reading order is All → Songs title → song rows, then each later title before its own rows (revealed by UIA scrolling, so it holds at 225% text); each title sits above its rows without overlapping them (`assertapart`, `assertbelow`), and the next title sits below the previous list;
+- `search-all-sections-keyboard` (`tabs: 0`): Tab walks field → All → first song → first player → first band card and Shift+Tab walks back, never stopping on a title;
+- `search-results-songs`, `-players`, `-bands` (generated runs): the scope is selected, no section title is shown and its rows follow the scope bar (issue #299).
+
+`tests/test_ui_ci.py` pins the runs, that the file's other pages keep their generated runs, and the key checks.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (both pages; single-scope pages) | Pass, Axe 0 |
+| Text 225% (compact, both pages; single-scope pages compact, medium) | Pass, Axe 0 |
+| In-app Reduce Motion (medium, both pages) | Pass, Axe 0; the titles appear with their rows |
+
+No accessibility defect was found. Harness rule: `assertbelow`, `assertapart` and `assertorder` need both elements on screen, so each later title's checks follow the `reveal:` of its first row (at 225% text the Bands title starts below the fold).
+
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
 Accessibility tests for #77. The no-profile Filter pages moved into `journeys/a11y-songs-filter.json` (`songs-filter-anonymous`, `songs-filter-anonymous-year`, `kb-songs-filter-anonymous`), which `tools/windows/ui_ci.py` runs in `windows-ui` at default text (compact, medium) and 225% text (compact); `tests/test_ui_ci.py` keeps both runs. They assert Narrator phrases, reading order, 40×40 epx targets, the toggle and expand states, the applied "Filters applied" status and the keyboard walk ([songs-filter windows](../controls/songs-filter/windows.md#accessibility-tests-issue-432-no-profile)).
