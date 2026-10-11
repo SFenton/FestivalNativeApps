@@ -223,9 +223,11 @@ struct SuggestionSongRowView: View {
 
     /// A rival category's badge (web `rivalBadge`): the name, truncated past 12
     /// characters, in a tinted capsule. Song rivals are blue; there is no
-    /// leaderboard-rival source yet to need the web's gold variant.
+    /// leaderboard-rival source yet to need the web's gold variant. VoiceOver reads the
+    /// full name, not the truncated one (#404).
     private func rivalBadge(_ name: String) -> some View {
         Text(name.count > 12 ? "\(name.prefix(11))\u{2026}" : name)
+            .accessibilityLabel(name)
             .font(.caption2.weight(.semibold))
             .lineLimit(1)
             .padding(.horizontal, 8)

@@ -55,6 +55,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
@@ -90,6 +91,7 @@ import com.festivalscoretracker.android.ui.common.rememberSingleColumn
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
+import com.festivalscoretracker.android.ui.design.SECTION_HEADER_TOP_PADDING
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.ScrollQuickLinkSections
 import com.festivalscoretracker.android.ui.quicklinks.rememberScrollQuickLinks
@@ -98,6 +100,21 @@ import com.festivalscoretracker.android.ui.common.rememberMeasuredPx
 import com.festivalscoretracker.android.ui.common.shellPosture
 
 // region Screen
+
+/** Space above the Band Statistics heading row when it carries the Rank By button. */
+private val STATISTICS_ROW_TOP_PADDING = 8.dp
+
+/**
+ * How far a Band Detail section's heading sits below the top of its marked section: every section opens
+ * with a [SectionHeader], and Band Statistics' heading row adds its own inset when it carries Rank By
+ * (`section-jump-landing` R2, issue #587).
+ *
+ * @param id Quick Links section ID.
+ * @param statisticsRow Whether Band Statistics shows its heading and Rank By in one row.
+ * @return Heading inset.
+ */
+internal fun bandHeadingInset(id: String, statisticsRow: Boolean): Dp =
+    if (id == "statistics" && statisticsRow) STATISTICS_ROW_TOP_PADDING + SECTION_HEADER_TOP_PADDING else SECTION_HEADER_TOP_PADDING
 
 /**
  * `/bands/:bandId` (web `BandPage`): Members, Band Summary, Band Statistics (Rank
@@ -122,7 +139,15 @@ fun BandDetailScreen(viewModel: BandDetailViewModel, routeName: String?, artwork
     val twoPane = BandLayout.splits(windowWidthDp(), separatingHinge, rememberSingleColumn())
     // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
     val fadeIn = rememberPageFadeInWindow()
-    val (quickLinks, anchors) = rememberScrollQuickLinks(scroll, "Quick Links", if (detail != null && !twoPane) BandQuickLinks.sections() else emptyList(), fadeIn)
+    val experimentalRanks by viewModel.experimentalRanks.collectAsStateWithLifecycle()
+    val statisticsRow = experimentalRanks && !isLargeText()
+    val (quickLinks, anchors) = rememberScrollQuickLinks(
+        scroll,
+        "Quick Links",
+        if (detail != null && !twoPane) BandQuickLinks.sections() else emptyList(),
+        fadeIn,
+        headingInset = { id -> bandHeadingInset(id, statisticsRow) },
+    )
     FestivalScreen(
         title = "Band",
         isRoot = false,
@@ -190,7 +215,7 @@ private fun BandDetailContent(
                 Spacer(Modifier.height(8.dp))
             } else {
                 // The 48 dp Rank By button is as tall as the heading row; the top inset keeps it off the tiles above.
-                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.padding(top = STATISTICS_ROW_TOP_PADDING), verticalAlignment = Alignment.CenterVertically) {
                     SectionHeader("Band Statistics", Modifier.weight(1f).testTag("fst.band.statistics-section"))
                     RankByMenu(metric, BandRankingMetric.enabled(experimentalRanks), viewModel::selectMetric)
                 }

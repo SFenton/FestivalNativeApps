@@ -162,7 +162,7 @@ fun FestivalModalCloseButton(onClick: () -> Unit, tag: String, modifier: Modifie
 /**
  * Shared modal header: a Title Case heading that takes the free width, optional actions,
  * then [FestivalModalCloseButton] at the end. No line separates it from the body
- * (modal-shell R14, issue #607): callers never start their body with a divider.
+ * (modal-shell R15, issue #607): callers never start their body with a divider.
  *
  * @param title Heading text.
  * @param closeTag Close button test tag.

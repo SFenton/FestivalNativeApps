@@ -117,7 +117,7 @@ class ModalCloseJourneyTest {
     }
 
     /**
-     * No line under the shared header (modal-shell R14, issue #607): within a few dp of the
+     * No line under the shared header (modal-shell R15, issue #607): within a few dp of the
      * header row's bottom edge, no pixel row is a thin band of one colour, other than the
      * surface's own, across the header's full width. A divider there is exactly that; padded
      * body content (cards, chips, text) never spans the width, and a full-bleed block is

@@ -31,7 +31,7 @@ class FloatingToolbarPlacementTest {
 
     @Test
     fun splitKeepsTheToolbarOverTheOwningPane() {
-        // Songs' list pane is 80..440 of the content 80..1280; the detail pane has no tools.
+        // A list pane is 80..440 of the content 80..1280; the detail pane has no tools.
         assertEquals(ToolbarInsets(16, 1280 - 440 + 16), insets(PxSpan(80, 1280), pane = PxSpan(80, 440)))
     }
 

@@ -151,7 +151,7 @@ class SuggestionsUiTest {
 
     @Test
     fun filterSheetHasNoLineUnderItsHeader() {
-        // Issue #607 (modal-shell R14): the form starts right at the shared header's bottom
+        // Issue #607 (modal-shell R15): the form starts right at the shared header's bottom
         // edge; a divider there put a 1 dp gap (and a gray line) between them.
         launch()
         waitForTag("fst.suggestions.list")

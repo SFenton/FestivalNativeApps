@@ -218,3 +218,123 @@ private func filterScores() throws -> [String: [Instrument: PlayerScore]] {
         ))
     }
 }
+
+// MARK: - Filter Invalid Scores (#615)
+
+/// Two charted songs with CHOpt maxima, so raw scores can be invalid.
+///
+/// - Returns: Valid Songs with Lead and Drums maxima of 100,000.
+/// - Throws: Invalid locally authored catalogue.
+private func invalidFilterSongs() throws -> [Song] {
+    let songs = try JSONDecoder().decode(SongsResponse.self, from: Data("""
+    {"count":2,"songs":[
+      {"songId":"pulse","title":"Pulse","artist":"Fixture","difficulty":{"guitar":4,"drums":3},
+       "maxScores":{"Solo_Guitar":100000,"Solo_Drums":100000}},
+      {"songId":"orbit","title":"Orbit","artist":"Fixture","difficulty":{"guitar":3,"drums":2},
+       "maxScores":{"Solo_Guitar":100000,"Solo_Drums":100000}}
+    ]}
+    """.utf8))
+    try songs.validate()
+    return songs.songs
+}
+
+/// Raw scores covering each effective-score outcome: Pulse Lead falls back to a valid
+/// FC variant at 0.5%; Orbit Lead has no variant valid under 2% (raw valid from 4%);
+/// Orbit Drums falls back to the legacy `validScore*` fields; Pulse Drums is valid.
+///
+/// - Returns: The raw selected-player index.
+/// - Throws: Invalid locally authored selected-player wire data.
+private func invalidFilterScores() throws -> [String: [Instrument: PlayerScore]] {
+    let player = try JSONDecoder().decode(PlayerProfileResponse.self, from: Data("""
+    {"accountId":"fixture-invalid-filter","totalScores":4,"scores":[
+      {"si":"pulse","ins":"01","sc":120000,"fc":false,"st":6,"sn":9,"rk":1,"te":30,"ml":3,
+       "vs":[{"sc":99500,"fc":true,"ml":0.5,"rt":[{"l":0.5,"r":9}]}]},
+      {"si":"orbit","ins":"01","sc":130000,"fc":true,"st":6,"sn":8,"rk":1,"te":30,"ml":4,
+       "vs":[{"sc":101500,"ml":2}]},
+      {"si":"orbit","ins":"04","sc":150000,"fc":false,"st":6,"sn":7,"rk":1,"te":30,
+       "validScore":98000,"validStars":4,"validIsFullCombo":true,"validRank":3,
+       "validTotalEntries":30},
+      {"si":"pulse","ins":"04","sc":90000,"fc":false,"st":5,"sn":7,"rk":4,"te":30}
+    ]}
+    """.utf8))
+    return try player.scoreIndex(requestedAccountId: "fixture-invalid-filter")
+}
+
+/// Songs with Filter Invalid Scores on (#615): saved Score/FC, Over CHOpt Threshold
+/// and season/percentile/stars checks apply to each chart's effective score (raw if
+/// valid at the leeway, else the best valid fallback, else none), like the web's
+/// `useFilteredSongs` over `SongsPage.effectiveScores`. The same saved filter re-applies
+/// in place when the leeway changes or the setting turns off.
+@Test func savedScoreFiltersApplyToEffectiveScoresAtEveryLeeway() throws {
+    let songs = try invalidFilterSongs()
+    let raw = try invalidFilterScores()
+    let songsById = Dictionary(uniqueKeysWithValues: songs.map { ($0.songId, $0) })
+    let visible: Set<Instrument> = [.lead, .drums]
+    // SongsScreen: the effective index while the setting is on (nil leeway = off),
+    // keeping raw scores on charts whose Over CHOpt Threshold check is on.
+    func shown(
+        _ filter: SongPlayerScoreFilter, leeway: Double?, instrument: Instrument? = nil
+    ) throws -> [String] {
+        let index = leeway.map {
+            InvalidScorePolicy.resolve(
+                index: raw, songsById: songsById, leeway: $0,
+                overThreshold: filter.scoped(to: visible).overThreshold
+            )
+        } ?? raw
+        return try filter.filtered(
+            songs, scoresBySong: index, visibleInstruments: visible,
+            selectedInstrument: instrument, overThresholdLeeway: leeway
+        ).map(\.songId)
+    }
+
+    let hasLead = SongPlayerScoreFilter(hasScores: [.lead])
+    #expect(try shown(hasLead, leeway: nil) == ["pulse", "orbit"])
+    #expect(try shown(hasLead, leeway: 1) == ["pulse"])
+    #expect(try shown(hasLead, leeway: 2) == ["pulse", "orbit"])
+    #expect(try shown(hasLead, leeway: 5) == ["pulse", "orbit"])
+
+    let missingLead = SongPlayerScoreFilter(missingScores: [.lead])
+    #expect(try shown(missingLead, leeway: nil).isEmpty)
+    #expect(try shown(missingLead, leeway: 1) == ["orbit"])
+
+    // FCs follow the substituted score: the variant's and the legacy fields' FC flags.
+    let fcLead = SongPlayerScoreFilter(hasFCs: [.lead])
+    #expect(try shown(fcLead, leeway: nil) == ["orbit"])
+    #expect(try shown(fcLead, leeway: 1) == ["pulse"])
+    #expect(try shown(fcLead, leeway: 5) == ["orbit"])
+    let fcDrums = SongPlayerScoreFilter(hasFCs: [.drums])
+    #expect(try shown(fcDrums, leeway: nil).isEmpty)
+    #expect(try shown(fcDrums, leeway: 1) == ["orbit"])
+    let missingFCDrums = SongPlayerScoreFilter(missingFCs: [.drums])
+    #expect(try shown(missingFCDrums, leeway: 1) == ["pulse"])
+
+    // Over CHOpt Threshold keeps raw scores over max + leeway; inert while off.
+    let overLead = SongPlayerScoreFilter().settingOverThreshold(.lead, enabled: true)
+    #expect(try shown(overLead, leeway: 1) == ["pulse", "orbit"])
+    #expect(try shown(overLead, leeway: 25) == ["orbit"])
+    #expect(try shown(overLead, leeway: nil) == ["pulse", "orbit"])
+    #expect(overLead.containsOverThreshold(.lead))
+
+    // Season, percentile and stars buckets read the same effective score.
+    let noSeasonLead = SongPlayerScoreFilter().settingExcluded(.season, [0])
+    #expect(try shown(noSeasonLead, leeway: nil, instrument: .lead) == ["pulse", "orbit"])
+    #expect(try shown(noSeasonLead, leeway: 1, instrument: .lead) == ["pulse"])
+    #expect(SongStarsBucket.key(for: raw["orbit"]?[.drums]) == 6)
+    let noGold = SongPlayerScoreFilter().settingStars(6, included: false)
+    #expect(try shown(noGold, leeway: nil, instrument: .drums) == ["pulse"])
+    #expect(try shown(noGold, leeway: 1, instrument: .drums) == ["pulse", "orbit"])
+    // Raw Orbit Drums is rank 1 of 30 (top 4%); its legacy fallback is rank 3 (top 10%).
+    let noTop4 = SongPlayerScoreFilter().settingPercentile(4, included: false)
+    #expect(try shown(noTop4, leeway: nil, instrument: .drums) == ["pulse"])
+    #expect(try shown(noTop4, leeway: 1, instrument: .drums) == ["pulse", "orbit"])
+    let noTop10 = SongPlayerScoreFilter().settingPercentile(10, included: false)
+    #expect(try shown(noTop10, leeway: 1, instrument: .drums) == ["pulse"])
+
+    // The saved filter itself never changes with the setting or the leeway.
+    let saved = hasLead.setting(.hasFCs, for: .drums, enabled: true)
+        .settingOverThreshold(.lead, enabled: true)
+    let bytes = try saved.encoded()
+    for leeway in [nil, 1, 2, 5] as [Double?] { _ = try shown(saved, leeway: leeway) }
+    #expect(try SongPlayerScoreFilter.decodeSaved(bytes) == saved)
+    #expect(saved.isActive && !saved.clearingOverThreshold.overThreshold.contains(.lead))
+}

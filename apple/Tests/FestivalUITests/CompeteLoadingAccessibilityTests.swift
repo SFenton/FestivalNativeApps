@@ -15,8 +15,9 @@ import Testing
 // is the same SwiftUI on each: while any leaderboard read runs, the page is one named
 // busy indicator, with no section heading, instrument header, card, per-card spinner or
 // unnamed element behind it; once every read settles the spinner leaves the tree and the
-// sections read in visual order (Leaderboards heading, each instrument heading, its rows
-// and its 44 pt View Full Leaderboard button, then the Rivals heading); when every
+// sections read in visual order (Leaderboards heading, each board's heading (the Lead +
+// Bass combo, #602, then each instrument), its rows and its 44 pt View Full Leaderboard
+// button, then the Rivals heading); when every
 // leaderboard fails, the spinner gives way to a heading and a named 44 pt Retry. Reduce
 // Motion (system or in-app) and the largest accessibility text size change none of it.
 // macOS keeps the font size, so the AX5 cases pin the tree only; the iPhone XCUITest
@@ -73,6 +74,12 @@ struct CompeteLoadingAccessibilityTests {
     static let spinnerID = "fst.compete.loading"
     /// The instruments the fixture shows, in Settings order.
     static let instruments = ["Lead", "Bass"]
+    /// The page's leaderboard cards in order (``CompetePageLoadKey/scopes``): the
+    /// within-group combo of the shown instruments first (#602), then each instrument.
+    /// `id` is the card's ``RankingScope/id``.
+    static let boards: [(name: String, id: String)] = [
+        ("Lead + Bass", "03"), ("Lead", "Solo_Guitar"), ("Bass", "Solo_Bass"),
+    ]
     static let visibleKeys: Set<String> = ["fst.settings.showLead", "fst.settings.showBass"]
     static let allInstrumentKeys = [
         "fst.settings.showLead", "fst.settings.showBass", "fst.settings.showDrums",
@@ -156,10 +163,13 @@ struct CompeteLoadingAccessibilityTests {
     ///   - mode: What the leaderboard reads do at first.
     ///   - typeSize: Dynamic Type size for the page.
     ///   - motion: Fade and Reduce Motion settings.
+    ///   - layout: An injected device layout (e.g. the iPhone Duo inner display), or nil
+    ///     for the host's own.
+    ///   - size: The window's size.
     /// - Returns: The host; the first load is still running.
     static func host(
         _ mode: HeldCompeteRankingsTransport.Mode = .hold, typeSize: DynamicTypeSize = .large,
-        motion: Motion = .instant
+        motion: Motion = .instant, layout: DeviceLayout? = nil, size: CGSize = CGSize(width: 402, height: 1400)
     ) async throws -> Hosted {
         let transport = HeldCompeteRankingsTransport(mode)
         let baseURL = try await RivalsMockService.shared.baseURL()
@@ -171,10 +181,12 @@ struct CompeteLoadingAccessibilityTests {
         for key in allInstrumentKeys { storage.set(visibleKeys.contains(key), forKey: key) }
         storage.set(motion == .appReduceMotion, forKey: "fst.accessibility.reduceMotion")
         let session = FestivalSession(factory: { client }, selectionStorage: storage)
-        let size = CGSize(width: 402, height: 1400)
+        let page = NavigationStack { CompeteScreen(session: session) }
         let host = nativeHostedView(
             AnyView(
-                NavigationStack { CompeteScreen(session: session) }
+                Group {
+                    if let layout { page.environment(\.deviceLayout, layout) } else { page }
+                }
                     .environment(\.festivalFadeInEnabled, motion != .instant)
                     .environment(\._accessibilityReduceMotion, motion == .systemReduceMotion)
                     .environment(\.dynamicTypeSize, typeSize)
@@ -269,9 +281,9 @@ struct CompeteLoadingAccessibilityTests {
     /// The first load reads as one named spinner, at the standard and the largest
     /// accessibility text size and with Reduce Motion from the system or the app. Once
     /// every read settles the spinner leaves the tree, and the page reads in visual
-    /// order: the Leaderboards heading; each instrument's heading, its rows top to bottom
-    /// and its View Full Leaderboard button (a named 44 pt button); then the Rivals
-    /// heading and its instrument headings.
+    /// order: the Leaderboards heading; each board's heading (the combo, then each
+    /// instrument), its rows top to bottom and its View Full Leaderboard button (a named
+    /// 44 pt button); then the Rivals heading and its board headings.
     @Test(arguments: [DynamicTypeSize.large, .accessibility5], Motion.allCases)
     func firstLoadReadsOneNamedSpinnerThenSectionsInOrder(_ typeSize: DynamicTypeSize, _ motion: Motion) async throws {
         let context = "\(typeSize), \(motion)"
@@ -292,14 +304,16 @@ struct CompeteLoadingAccessibilityTests {
         let loaded = framed.map(\.node)
         #expect(Self.busyIndicators(reachable).isEmpty, "\(context): the spinner leaves:\n\(Self.dump(loaded))")
         #expect(!loaded.contains { $0.spokenName.hasPrefix("Loading") }, "\(context):\n\(Self.dump(loaded))")
+        let boards = Self.boards.map(\.name)
         #expect(loaded.filter { $0.role == "AXHeading" }.map(\.spokenName)
-            == ["Leaderboards", "Lead", "Bass", "Rivals", "Lead Rivals", "Bass Rivals"],
+            == ["Leaderboards"] + boards + ["Rivals"] + boards.map { "\($0) Rivals" },
             "\(context): headings in page order:\n\(Self.dump(loaded))")
-        for (index, instrument) in Self.instruments.enumerated() {
+        for (index, board) in Self.boards.enumerated() {
+            let instrument = board.name
             let heading = try #require(loaded.firstIndex { $0.role == "AXHeading" && $0.spokenName == instrument })
             let button = try #require(loaded.firstIndex { $0.spokenName == "View Full Leaderboard, \(instrument)" },
                                       "\(context): \(instrument)'s View Full Leaderboard:\n\(Self.dump(loaded))")
-            let next = index + 1 < Self.instruments.count ? Self.instruments[index + 1] : "Rivals"
+            let next = index + 1 < boards.count ? boards[index + 1] : "Rivals"
             let end = try #require(loaded.firstIndex { $0.role == "AXHeading" && $0.spokenName == next })
             #expect(loaded[button].role == "AXButton", "\(context): \(loaded[button])")
             let rows = loaded[(heading + 1)..<button]
@@ -309,8 +323,7 @@ struct CompeteLoadingAccessibilityTests {
             let tops = framed[(heading + 1)..<button].compactMap(\.frame?.minY)
             #expect(tops.count == rows.count && tops == tops.sorted(),
                     "\(context): \(instrument)'s rows read top to bottom: \(tops)")
-            let card = "fst.compete.leaderboard-card.\(index == 0 ? "Solo_Guitar" : "Solo_Bass").view-all"
-            Self.expectTarget(hosted, card, context)
+            Self.expectTarget(hosted, "fst.compete.leaderboard-card.\(board.id).view-all", context)
         }
         #expect(loaded.allSatisfy { !$0.spokenName.isEmpty }, "\(context): nothing unnamed:\n\(Self.dump(loaded))")
         #expect(macAccessibilityFindings(hosted.tree()).isEmpty, "\(context)")
@@ -358,7 +371,8 @@ struct CompeteLoadingAccessibilityTests {
                 && tree.contains { $0.spokenName == "View Full Leaderboard, Bass" }
         }
         let reloaded = Self.content(hosted)
-        #expect(reloaded.filter { $0.role == "AXHeading" }.prefix(3).map(\.spokenName) == ["Leaderboards", "Lead", "Bass"],
+        #expect(reloaded.filter { $0.role == "AXHeading" }.prefix(4).map(\.spokenName)
+                == ["Leaderboards"] + Self.boards.map(\.name),
                 "\(Self.dump(reloaded))")
         #expect(!reloaded.contains { $0.identifier.hasPrefix("fst.service-status.") }, "\(Self.dump(reloaded))")
     }

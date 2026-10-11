@@ -71,4 +71,38 @@ public class GroupedRowSliceTests
         var slice = GroupedRowSlice.For(index, count, false, false);
         Assert.Equal((first, last), (slice.IsFirst, slice.IsLast));
     }
+
+    [Fact]
+    public void BoardRows_DrawTheCardsSides()
+    {
+        Assert.False(GroupedRowSlice.For(3, 5, false, false).InCard);
+        Assert.Equal(1, GroupedRowSlice.For(3, 5, false, false).SideStroke);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    [InlineData(4)]
+    public void InCardRows_DrawNoOutlineOfTheirOwn(int index)
+    {
+        // Issue #588: Score History's rows sit inside the history card, which owns the surface and outline.
+        var slice = GroupedRowSlice.For(index, 5, selected: false, previousSelected: false, inCard: true);
+        Assert.True(slice.InCard);
+        Assert.Equal((0, 0, 0), (slice.TopStroke, slice.BottomStroke, slice.SideStroke));
+        Assert.Equal((4, 4), (slice.TopRadius, slice.BottomRadius));
+        Assert.Equal(index > 0, slice.ShowSeparator);
+    }
+
+    [Fact]
+    public void InCardSelectedRow_KeepsItsOutlineAndHidesTheHairlineBelow()
+    {
+        var best = GroupedRowSlice.For(0, 5, selected: true, previousSelected: false, inCard: true);
+        Assert.Equal((1, 1, 1), (best.TopStroke, best.BottomStroke, best.SideStroke));
+        Assert.Equal((4, 4), (best.TopRadius, best.BottomRadius));
+        Assert.False(best.ShowSeparator);
+
+        var below = GroupedRowSlice.For(1, 5, selected: false, previousSelected: true, inCard: true);
+        Assert.False(below.ShowSeparator);
+        Assert.Equal(0, below.SideStroke);
+    }
 }
