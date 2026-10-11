@@ -1032,9 +1032,10 @@
           "regex": "\\bFloatingToolbar\\s*\\(",
           "allow": [
             "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FloatingToolbar.kt",
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/OnDemandSplit.kt"
           ],
-          "message": "The shell alone renders the floating toolbar, at every window size (page-tools-and-nav-chrome R4, R6)."
+          "message": "The shell alone renders the floating toolbar, at every window size, plus the on-demand split's trailing pane for its own page (page-tools-and-nav-chrome R4, R6; split-panes R7)."
         },
         {
           "id": "android-floating-toolbar-stays-on-screen",
@@ -2721,7 +2722,7 @@
       "title": "Song leaderboard header",
       "status": "current",
       "doc": ".agents/patterns/song-leaderboard-header.md",
-      "summary": "A song-scoped leaderboard (instrument or band size) names the song first in an in-page header with the board on the line under the artist, keeps that header on screen through board, page and player reloads (only the rows reload), keeps the bar title empty until the header scrolls away, and sits on the song's static dimmed album art. Owner-approved variant (#342): a board opened beside Song Detail in a split's trailing pane drops the song header and is titled by its instrument icon and name (or band size).",
+      "summary": "A song-scoped leaderboard (instrument or band size) names the song first in an in-page header with the board on the line under the artist, keeps that header on screen through board, page and player reloads (only the rows reload), keeps the bar title empty until the header scrolls away, and sits on the song's static dimmed album art. Owner-approved variant (#342): a board opened beside Song Detail in a split's trailing pane drops the song header and is titled by its instrument icon and name (or band size). Android adopts the variant with its on-demand split (#583).",
       "keywords": [
         "song header",
         "band leaderboard",
@@ -2752,7 +2753,8 @@
         324,
         342,
         542,
-        580
+        580,
+        583
       ],
       "web": [
         {
@@ -2807,6 +2809,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/background/SongCoverBackdrop.kt",
             "symbol": "SongCoverBackdrop"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/OnDemandSplit.kt",
+            "symbol": "isSplitPaneRoot"
           }
         ],
         "windows": [
@@ -3345,7 +3351,7 @@
       "title": "Back keeps place",
       "status": "current",
       "doc": ".agents/patterns/back-keeps-place.md",
-      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it. A player or band profile is a full page that covers the split, and its Back returns to the kept split (#352).",
+      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it. A player or band profile is a full page that covers the split, and its Back returns to the kept split (#352). Android (#583) follows the same order: system Back pops the pane's stack, then closes the pane, then leaves the page.",
       "keywords": [
         "back",
         "back navigation",
@@ -3393,6 +3399,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/compete/CompeteViewModel.kt",
             "symbol": "CompeteViewModel"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/OnDemandSplit.kt",
+            "symbol": "SplitBackRegistry"
           }
         ],
         "windows": [
@@ -3440,7 +3450,8 @@
         276,
         347,
         369,
-        410
+        410,
+        583
       ]
     },
     {
@@ -3791,6 +3802,7 @@
         366,
         368,
         373,
+        583,
         584
       ]
     },
@@ -3926,7 +3938,7 @@
       "title": "Split panes",
       "status": "current",
       "doc": ".agents/patterns/split-panes.md",
-      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band. Owner-approved variant R6 (#371; iPad, iPhone Duo inner landscape and Android tablets/foldables): Settings always splits, showing a vertically centred placeholder (Settings icon, \"Settings\", \"Select a setting to see more options here\") until a chevron row opens its options on the right; plain toggles act in the list.",
+      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band. Owner-approved variant R6 (#371; iPad, iPhone Duo inner landscape and Android tablets/foldables): Settings always splits, showing a vertically centred placeholder (Settings icon, \"Settings\", \"Select a setting to see more options here\") until a chevron row opens its options on the right; plain toggles act in the list. Owner-approved Android variant R7 (#583): Android tablets, foldables and wide windows use the iPhone Duo's on-demand split: Rivals/All Rivals/Compete open Rival Detail, Leaderboards opens Full/Band Rankings and Song Detail opens its boards and Score History in a trailing pane when the window is landscape, regular and leaves 360 dp a pane, or at the fold in book posture; everything else stays one page, and Back closes the pane first.",
       "keywords": [
         "split view",
         "split",
@@ -3944,7 +3956,10 @@
         "settings placeholder",
         "settings topic",
         "settings list detail",
-        "select a setting"
+        "select a setting",
+        "on-demand split",
+        "trailing pane",
+        "book posture"
       ],
       "web": [],
       "canonical": {
@@ -3975,6 +3990,14 @@
           }
         ],
         "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/layout/OnDemandSplitPolicy.kt",
+            "symbol": "OnDemandSplitPolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/OnDemandSplit.kt",
+            "symbol": "OnDemandSplit"
+          },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/FestivalSection.kt",
             "symbol": "listPaneWidth"
@@ -4038,7 +4061,8 @@
         344,
         361,
         369,
-        371
+        371,
+        583
       ]
     },
     {

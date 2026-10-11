@@ -163,3 +163,7 @@ The detail row was tapped on the phone and on each fold and Resizable posture; i
 ## Open
 
 Promoted (selected-band) band previews need a selected-band identity.
+
+## On-demand split (owner-approved, #583)
+
+The song's instrument board, band board and Score History open in a trailing pane beside Song Detail, as on the iPhone Duo. At the pane root the board draws no song header: the board line leads it, and the bar shows the instrument or band size once it scrolls away ([song-leaderboard-header](../../patterns/song-leaderboard-header.md), Android #583). Opens only on a landscape window at least 600 × 480 dp that leaves 360 dp per pane (360 × font scale at 130%+ text; flat: split at the content midpoint) or across a separating vertical fold in book posture (split at the fold, 240 dp per side); portrait, phones and flat near-square foldables push full width. No divider line; the pane root shows Close (`fst.split.close`) instead of Back, and system Back pops the pane, then closes it, then leaves the page. Policy `core/layout/OnDemandSplitPolicy.kt`, host `ui/common/OnDemandSplit.kt` ([split-panes](../../patterns/split-panes.md) R7). Tests: `OnDemandSplitPolicyTest`, `OnDemandSplitUiTest`, `RivalsSplitUiTest`, device journey `journeys/SplitPaneAccessibilityJourneyTest`.
