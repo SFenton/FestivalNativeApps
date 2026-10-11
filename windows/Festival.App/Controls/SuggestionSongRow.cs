@@ -23,10 +23,6 @@ public sealed partial class SuggestionSongRow : Button
 
     private const double ArtSize = 44;
     private const double NarrowWidth = 440;
-    private static readonly SolidColorBrush Gold = new(Color.FromArgb(0xFF, 0xFF, 0xD7, 0x00));
-    private static readonly SolidColorBrush GoldStroke = new(Color.FromArgb(0xFF, 0xCF, 0xA5, 0x00));
-    private static readonly SolidColorBrush GoldBackground = new(Color.FromArgb(0xFF, 0x33, 0x29, 0x15));
-    private static readonly SolidColorBrush SubtleFill = new(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF));
     private static readonly SolidColorBrush RivalFill = new(Color.FromArgb(0x33, 0x42, 0x85, 0xF4));
     private static readonly SolidColorBrush RivalText = new(Color.FromArgb(0xFF, 0x6E, 0xA8, 0xFF));
 
@@ -157,18 +153,18 @@ public sealed partial class SuggestionSongRow : Button
                     ? NeutralPill(p.AccuracyText!)
                     : Pill(p.AccuracyText!, new SolidColorBrush(Color.FromArgb(0x40, r, g, b)), null, null));
                 break;
+            // The shared season and percentile pills (pattern metadata-pills, issue #606): the same size as Songs rows and
+            // leaderboards, and the current season is the inverted pill. The row's name already speaks the value.
             case SuggestionRowLayout.Season when p.SeasonText is { } season:
-                metadata.Children.Add(Pill(season, (Brush)Application.Current.Resources["FSTSurfaceMutedBrush"], null, null));
+                var current = MetadataPillStyle.IsCurrent(p.SeasonNumber, App.Session.Catalog?.CurrentSeason);
+                var seasonPill = MetadataPills.Season(season, current);
+                seasonPill.Label(p.SeasonNumber is { } n ? MetadataPillStyle.SeasonAnnouncement(n, current) : season, null);
+                metadata.Children.Add(seasonPill);
                 break;
             case SuggestionRowLayout.Percentile when p.PercentileText is { } percentile:
-                metadata.Children.Add(p.PercentileTier switch
-                {
-                    PercentileTier.Top1 when Services.ContrastTheme.IsOn => Pill(percentile, Role("FSTTopOneFillBrush"), null, Role("FSTTopOneTextBrush"), italic: true),
-                    PercentileTier.Top1 => Pill(percentile, GoldBackground, GoldStroke, Gold, italic: true),
-                    PercentileTier.Top5 => Pill(percentile, null, Role("FSTEmphasisStrokeBrush"), Role("FSTEmphasisBrush")),
-                    _ when Services.ContrastTheme.IsOn => NeutralPill(percentile),
-                    _ => Pill(percentile, SubtleFill, null, null),
-                });
+                var percentilePill = MetadataPills.Percentile(percentile, MetadataPillStyle.Tier(p.PercentileTier));
+                percentilePill.Label(percentile, null);
+                metadata.Children.Add(percentilePill);
                 break;
             case SuggestionRowLayout.SingleInstrument when p.StarCount > 0:
                 metadata.Children.Add(new StarRow { Stars = p.GoldStars ? StarRating.GoldValue : p.StarCount, StarSize = 20 });
@@ -213,13 +209,11 @@ public sealed partial class SuggestionSongRow : Button
     /// <param name="fill">Fill, or none.</param>
     /// <param name="stroke">Outline, or none.</param>
     /// <param name="foreground">Text brush, or the default.</param>
-    /// <param name="italic">Italic text.</param>
     /// <returns>Pill.</returns>
-    private static Border Pill(string text, Brush? fill, Brush? stroke, Brush? foreground, bool italic = false)
+    private static Border Pill(string text, Brush? fill, Brush? stroke, Brush? foreground)
     {
         var label = new TextBlock { Text = text, FontWeight = FontWeights.SemiBold, FontSize = 14, HorizontalAlignment = HorizontalAlignment.Center };
         if (foreground is not null) label.Foreground = foreground;
-        if (italic) label.FontStyle = Windows.UI.Text.FontStyle.Italic;
         return new Border
         {
             Child = label, Background = fill, BorderBrush = stroke, BorderThickness = new Thickness(stroke is null ? 0 : 2),

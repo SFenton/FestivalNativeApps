@@ -29,7 +29,7 @@ public enum PercentileTier
     Default,
     /// <summary>Top 5% (gold outline).</summary>
     Top5,
-    /// <summary>Top 1% (filled gold).</summary>
+    /// <summary>Top 1% (skewed gold outline).</summary>
     Top1,
 }
 
@@ -62,6 +62,8 @@ public sealed record SuggestionRowPresentation
     public double? AccuracyExpanded { get; init; }
     /// <summary>Season pill text (e.g. "S6").</summary>
     public string? SeasonText { get; init; }
+    /// <summary>Season number behind <see cref="SeasonText"/>, compared with the current season for the inverted pill.</summary>
+    public int? SeasonNumber { get; init; }
     /// <summary>Percentile pill text (e.g. "Top 3%").</summary>
     public string? PercentileText { get; init; }
     /// <summary>Percentile pill tier.</summary>
@@ -199,7 +201,7 @@ public sealed record SuggestionRowPresentation
                 }
                 if (season > 0)
                 {
-                    result = result with { SeasonText = $"S{season.ToString(CultureInfo.InvariantCulture)}" };
+                    result = result with { SeasonText = MetadataPillStyle.SeasonText(season), SeasonNumber = season };
                     details.Add($"last played season {season}");
                 }
                 break;
