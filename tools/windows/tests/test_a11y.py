@@ -381,7 +381,8 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(set(pages), {"cols-song-board", "cols-song-board-narrow", "cols-song-board-season",
                                       "cols-song-board-large-text", "cols-full-rankings", "cols-song-board-focus-clear",
                                       "cols-band-rankings-focus-clear", "cols-song-band-board-focus-clear",
-                                      "cols-full-rankings-focus-clear", "cols-player-bands-focus-clear", "cols-player-bands-focus-clear-grid"})
+                                      "cols-full-rankings-focus-clear", "cols-player-bands-focus-clear", "cols-player-bands-focus-clear-grid",
+                                      "cols-song-board-contrast-switch"})
         for page in pages.values():
             for size in page.get("sizes", []):
                 self.assertIn(size, u.PRESETS, page["name"])

@@ -20,8 +20,9 @@ also with in-app Reduce Motion), the Search All section titles (issue #483, also
 Song Band Leaderboard rows, empty and error states (issue #510), the Suggestions cards, keyboard, filter and states
 (issue #513), the Item Shop offers grid, List/Grid toggle, rings and states (issue #516, also with in-app Reduce
 Motion), the real-control First Run demos (issue #498, also with Animation effects off), the profile title row
-(issue #446) and the Score History chart (issue #512, also under Desert contrast) run at default and 225% text, and
-that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
+(issue #446) and the Score History chart (issue #512, also under Desert contrast) run at default and 225% text, that the
+generated leaderboard-columns normal run switches a contrast theme with a song board open (issue #519), and that the
+generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
