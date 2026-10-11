@@ -20,7 +20,6 @@ import com.festivalscoretracker.android.data.rankings.rankings
 import com.festivalscoretracker.android.data.rivals.RivalsRepository
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.RetryingLoader
-import com.festivalscoretracker.android.presentation.valueOrNull
 import com.festivalscoretracker.android.presentation.rivals.map
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
@@ -151,27 +150,21 @@ data class CompeteStaggerPlan(val leaderboardsHeader: Int, val boards: List<Int>
         fun of(sections: List<CompeteSection>): CompeteStaggerPlan {
             var next = 0
             val leaderboardsHeader = next++
-            val boards = sections.map { section -> next.also { next += 1 + boardItems(section) } }
+            val boards = sections.map { next.also { next += 1 + BOARD_CARD_ITEMS } }
             val rivalsHeader = next++
-            val rivals = sections.map { section -> next.also { next += 1 + rivalItems(section) } }
+            val rivals = sections.map { next.also { next += 1 + RIVAL_CARD_ITEMS } }
             return CompeteStaggerPlan(leaderboardsHeader, boards, rivalsHeader, rivals)
         }
 
         /**
-         * The board card, which fades in as one with its rows and the player's row
-         * (load-transition R11, owner #614), then View Full Leaderboards; otherwise one empty or error card.
+         * A board card is one entrance: its rows, the player's row and View Full Leaderboards
+         * (inside the card since #603) fade in with it (load-transition R11, owner #614), as does an
+         * empty or error card.
          */
-        private fun boardItems(section: CompeteSection): Int {
-            section.board.valueOrNull?.takeIf { it.hasNavigation } ?: return 1
-            // Every scope ends with View Full Leaderboards, combos included (#602).
-            return 2
-        }
+        private const val BOARD_CARD_ITEMS = 1
 
-        /** Rival rows and View All Rivals; otherwise one empty or error card. */
-        private fun rivalItems(section: CompeteSection): Int {
-            val rows = section.rivals?.valueOrNull?.takeIf { it.isNotEmpty() } ?: return 1
-            return rows.size + 1
-        }
+        /** A rivals card is one entrance: its rows and View All Rivals fade in with it (`load-transition` R11), as does an empty or error card. */
+        private const val RIVAL_CARD_ITEMS = 1
     }
 }
 

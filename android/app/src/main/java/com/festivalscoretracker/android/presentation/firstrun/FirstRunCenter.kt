@@ -9,6 +9,7 @@ import com.festivalscoretracker.android.core.firstrun.FirstRunSlide
 import com.festivalscoretracker.android.core.firstrun.FirstRunSlideEvaluator
 import com.festivalscoretracker.android.core.settings.AppSettings
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,6 +62,14 @@ class FirstRunCenter(
 
     private val claimFlow = MutableStateFlow<String?>(null)
 
+    /**
+     * Slides offered by a carousel the user has closed this process (Windows `closedThisSession`,
+     * per slide). Closing persists only the displayed slides (operator batch 6.7), so without this
+     * the rest re-presented on every later visit, rotation or resize (issue #608); they now
+     * return on the next launch instead.
+     */
+    private val dismissedThisSession: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
     /** The carousel currently shown, if any. */
     val active: StateFlow<FirstRunCarousel?> = activeFlow.asStateFlow()
 
@@ -104,16 +113,19 @@ class FirstRunCenter(
     }
 
     /**
-     * Slides a page visit would show now (nothing while [FirstRunMode.Off]).
+     * Slides a page visit would show now (nothing while [FirstRunMode.Off]): unseen, gate-passing
+     * slides not already offered by a carousel closed this session ([FirstRunMode.Force] ignores both).
      *
      * @param page Page.
      * @param settings Current settings.
      * @param compact Compact window width.
-     * @return Unseen gate-passing slides.
+     * @return Slides to present.
      */
-    suspend fun pendingSlides(page: FirstRunPageKey, settings: AppSettings, compact: Boolean): List<FirstRunSlide> =
-        if (mode == FirstRunMode.Off) emptyList()
-        else FirstRunSlideEvaluator.unseenSlides(FirstRunCatalog.slides(page, compact), context(page, settings), store.load())
+    suspend fun pendingSlides(page: FirstRunPageKey, settings: AppSettings, compact: Boolean): List<FirstRunSlide> {
+        if (mode == FirstRunMode.Off) return emptyList()
+        val unseen = FirstRunSlideEvaluator.unseenSlides(FirstRunCatalog.slides(page, compact), context(page, settings), store.load())
+        return if (mode == FirstRunMode.Force) unseen else unseen.filterNot { it.id in dismissedThisSession }
+    }
 
     /**
      * Claim the single carousel slot for a page visit.
@@ -137,8 +149,10 @@ class FirstRunCenter(
     }
 
     /**
-     * Settings "Show": reset the page and show every slide, ignoring gates and
-     * seen-state (web `useFirstRunReplay.open` + `getAllSlides`).
+     * Settings "Show": show every slide, ignoring gates and seen-state (web
+     * `useFirstRunReplay.open` + `getAllSlides`). Unlike the web's `resetPage`, earlier seen-state
+     * is kept, so closing the replay early never brings back slides the user already saw (issue #608);
+     * closing it marks the displayed slides seen as usual.
      *
      * @param page Page to replay.
      * @param compact Compact window width.
@@ -147,7 +161,6 @@ class FirstRunCenter(
     suspend fun beginReplay(page: FirstRunPageKey, compact: Boolean): FirstRunCarousel? = mutex.withLock {
         if (activeFlow.value != null || claimFlow.value != null) return null
         val slides = FirstRunSlideEvaluator.allSlides(FirstRunCatalog.slides(page, compact))
-        store.resetPage(slides.map { it.id })
         FirstRunCarousel(ids.incrementAndGet(), page, slides, isReplay = true).also { activeFlow.value = it }
     }
 
@@ -175,8 +188,9 @@ class FirstRunCenter(
 
     /**
      * Close (close button, Skip, Done, back or a tap outside alike): mark only the slides the
-     * user actually displayed as seen (operator batch 6.7 — unseen slides show on the next
-     * visit) and free the slot. Completing a stale carousel is a no-op.
+     * user actually displayed as seen (operator batch 6.7 — undisplayed slides show on the next
+     * launch, never again this session; issue #608) and free the slot. Completing a stale
+     * carousel is a no-op.
      *
      * @param carousel Closing carousel.
      * @param viewedCount Slides displayed, counted from the first (the pager only moves one
@@ -185,6 +199,7 @@ class FirstRunCenter(
     suspend fun complete(carousel: FirstRunCarousel, viewedCount: Int = carousel.slides.size) = mutex.withLock {
         if (activeFlow.value?.id != carousel.id) return
         store.markSeen(carousel.slides.take(viewedCount.coerceIn(1, carousel.slides.size)), clock())
+        dismissedThisSession += carousel.slides.map { it.id }
         activeFlow.value = null
     }
 }

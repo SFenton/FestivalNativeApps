@@ -541,13 +541,15 @@
         {
           "id": "android-fold-lane",
           "glob": "android/app/src/main/**/*.kt",
-          "regex": "StaggeredGridItemSpan\\.FullLine",
+          "regex": "GridItemSpan\\(maxLineSpan\\)",
           "allow": [
             "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FoldLane.kt",
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/PlayerProfileScreen.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/PlayerProfileScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/shop/ShopScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandListScreens.kt"
           ],
           "debt": [],
-          "message": "Full-line items in hinge-splitting staggered grids use foldLaneItem so titles stay on their side of the fold (section-headers R10, #343). Player Profile drops full-line rows to one lane when split."
+          "message": "Full-line items in hinge-splitting grids use foldLaneItem so titles stay on their side of the fold (section-headers R10, #343, #584). Player Profile wraps its line-spanning rows in FoldLane (Overview fills one pane at a fold); the Shop header is a FoldLane; Player Bands moves its controls to their own pane at a hinge."
         },
         {
           "id": "windows-view-all-copy",
@@ -616,7 +618,7 @@
       "title": "Surface materials",
       "status": "current",
       "doc": ".agents/patterns/surface-materials.md",
-      "summary": "Use one native frosted material surface for content cards, rows and custom floating controls; reserve Liquid Glass and system materials for navigation and chrome; opaque fallbacks win for contrast and reduced transparency. Owner-approved #596 variant: the Apple profile's Duos, Trios and Quads band previews are one grouped card each (rows with hairlines, purple View All inside), unlike the web's per-band frosted cards.",
+      "summary": "Use one native frosted material surface for content cards, rows and custom floating controls; reserve Liquid Glass and system materials for navigation and chrome; opaque fallbacks win for contrast and reduced transparency. Owner-approved #596 variant: the Apple profile's Duos, Trios and Quads band previews are one grouped card each (rows with hairlines, purple View All inside), unlike the web's per-band frosted cards. Android draws a long lazy list as one card from GlassCardSegment pieces (All Rivals, Rivalry, #603).",
       "keywords": [
         "material",
         "glass",
@@ -672,6 +674,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt",
             "symbol": "GlassCard"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt",
+            "symbol": "GlassCardSegment"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/theme/FestivalTheme.kt",
@@ -1594,6 +1600,10 @@
           {
             "path": "windows/Festival.Core/ViewModels/BandsSongLeaderboardViewModel.cs",
             "symbol": "SongBandSpotlightRow"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/BandsSongLeaderboardViewModel.cs",
+            "symbol": "SongBandRow"
           },
           {
             "path": "windows/Festival.Core/ViewModels/LeaderboardsRows.cs",
@@ -3577,8 +3587,20 @@
             "symbol": "InvalidScorePolicy"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt",
+            "symbol": "resolveFiltered"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt",
+            "symbol": "exceedsCeiling"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongScoreAdapter.kt",
             "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongScoreAdapter.kt",
+            "symbol": "songDetails"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt",
@@ -3648,7 +3670,7 @@
       "title": "Hinge columns",
       "status": "current",
       "doc": ".agents/patterns/hinge-columns.md",
-      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; fully unfolded (flat), splits and page rows divide at the midpoint of the free content area, never on the flat hinge line (owner-approved, #361); cells sharing a row start at its top edge (#365); two-pane viewers (Paths Side by Side) use HingePanes, meeting at the fold in book pose and as equal halves when flat (owner-approved, #368).",
+      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; fully unfolded (flat), splits and page rows divide at the midpoint of the free content area, never on the flat hinge line (owner-approved, #361); cells sharing a row start at its top edge (#365; Android card grids are row-major LazyVerticalGrids and Band Detail pairs its sections in top-aligned rows under a full-width header, never masonry lanes, #584); two-pane viewers (Paths Side by Side) use HingePanes, meeting at the fold in book pose and as equal halves when flat (owner-approved, #368).",
       "keywords": [
         "hinge",
         "fold",
@@ -3705,6 +3727,10 @@
             "symbol": "AdaptiveCardGrid"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/ProfileGrid.kt",
+            "symbol": "ProfileGrid"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/HingeSplit.kt",
             "symbol": "rememberHingeSplit"
           },
@@ -3748,6 +3774,14 @@
           ],
           "debt": [],
           "message": "Page grids use HingeGrid so their gutter sits on an iPhone Duo fold in book pose (hinge-columns R1, R6); the First Run Shop demo is a fixed miniature inside a slide."
+        },
+        {
+          "id": "android-masonry-grid",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "LazyVerticalStaggeredGrid|LazyStaggeredGrid|StaggeredGridCells",
+          "allow": [],
+          "debt": [],
+          "message": "Card grids are row-major (LazyVerticalGrid through AdaptiveCardGrid, ProfileGrid or the Suggestions grid) so sections side by side start on their row's top edge however far the page scrolls; masonry lanes drift apart (hinge-columns R8, #584)."
         }
       ],
       "supersedes": [],
@@ -3758,7 +3792,8 @@
         365,
         366,
         368,
-        373
+        373,
+        584
       ]
     },
     {
@@ -4170,7 +4205,7 @@
       "title": "Experimental ranks",
       "status": "current",
       "doc": ".agents/patterns/experimental-ranks.md",
-      "summary": "Settings \u2192 Enable Experimental Leaderboard Ranks (off by default, reset by Reset) is the one gate for the experimental ranking metrics app-wide like the web: while off, Rank By offers Total Score only and is hidden in-page (the Mac View \u203a Rank By submenu lists only Total Score); saved, routed and selected metrics are coerced to Total Score at read time, never rewritten; turning it off returns open pages to Total Score; on offers Adjusted, Weighted, FC Rate and Max Score (bands without Max Score); Rivals Rank By, profile rank tiles, rank notifications (web projection) and the first-run slide follow it (#541).",
+      "summary": "Settings → Enable Experimental Leaderboard Ranks (off by default, reset by Reset) is the one gate for the experimental ranking metrics app-wide like the web: while off, Rank By offers Total Score only and is hidden in-page (the Mac View › Rank By submenu lists only Total Score); saved, routed and selected metrics are coerced to Total Score at read time, never rewritten; turning it off returns open pages to Total Score; on offers Adjusted, Weighted, FC Rate and Max Score (bands without Max Score); Rivals Rank By, profile rank tiles, rank notifications (web projection) and the first-run slide follow it (#541).",
       "keywords": [
         "experimental ranks",
         "experimental leaderboard ranks",
@@ -4316,7 +4351,7 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/firstrun/FirstRunRotatingDemos.kt"
           ],
           "debt": [],
-          "message": "Rank By menus and metric lists offer RankingMetric.enabled / BandRankingMetric.enabled (or a view model's gated options), never every metric, so Settings \u2192 Experimental Ranks gates them (experimental-ranks R1)."
+          "message": "Rank By menus and metric lists offer RankingMetric.enabled / BandRankingMetric.enabled (or a view model's gated options), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1)."
         },
         {
           "id": "apple-ungated-metric-list",
@@ -4338,7 +4373,7 @@
             "windows/Festival.Core/ViewModels/RivalsViewModels.cs"
           ],
           "debt": [],
-          "message": "Rank By menus offer RankingMetricInfo.Enabled / BandRankingMetricInfo.Enabled (a view model's gated MetricOptions), never every metric, so Settings \u2192 Experimental Ranks gates them (experimental-ranks R1). Band Detail and the Rivals hub list every metric only behind ShowRankBy / ShowMetricPicker."
+          "message": "Rank By menus offer RankingMetricInfo.Enabled / BandRankingMetricInfo.Enabled (a view model's gated MetricOptions), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1). Band Detail and the Rivals hub list every metric only behind ShowRankBy / ShowMetricPicker."
         }
       ],
       "supersedes": [],
@@ -4469,7 +4504,7 @@
       "title": "Rival rows",
       "status": "current",
       "doc": ".agents/patterns/rival-rows.md",
-      "summary": "Rows inside Rivals cards: the hub's rival rows and the song comparison rows on Rival Detail, Rivalry and the Duo category cards. One row component per kind on every surface, one shared red/green status capsule with text (readable red text), album art leading every song row through the shared ArtworkTile (art vertically centred alone, above the instrument icon when both, owner #558), one spoken element per row that names who leads, and pills that stack and wrap at accessibility sizes. Apple and Windows song rows show '#rank Name' pills for both sides, the leader green and the trailer red (agent decisions #558, #603, owner may override). Each rival list is one card of rows with hairlines, never a card per row (R6, #603).",
+      "summary": "Rows inside Rivals cards: the hub's rival rows and the song comparison rows on Rival Detail, Rivalry and the Duo category cards. One row component per kind on every surface, one shared red/green status capsule with text (readable red text), album art leading every song row through the shared ArtworkTile (art vertically centred alone, above the instrument icon when both, owner #558), one spoken element per row that names who leads, and pills that stack and wrap at accessibility sizes. Apple, Android and Windows song rows show '#rank Name' pills for both sides, the leader green and the trailer red, with a rank-delta badge and no scores (agent decisions #558, #603, owner may override). Each rival list is one card of rows with hairlines, never a card per row (R6, owner #603): the hub and Compete rivals cards with View All inside, each Rival Detail category, and All Rivals and Rivalry (Android lazy card segments, Windows grouped ListView slices).",
       "keywords": [
         "rival",
         "rivals",
@@ -4480,7 +4515,10 @@
         "behind",
         "pill",
         "status pill",
-        "album art"
+        "album art",
+        "one card",
+        "card segment",
+        "closest battles"
       ],
       "web": [
         {
@@ -4527,6 +4565,22 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
             "symbol": "RivalSongRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalPreviewRows"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalCardSegment"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalDeltaBadge"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rivals/RivalAnalysis.kt",
+            "symbol": "RivalSongStanding"
           }
         ],
         "windows": [
@@ -4561,7 +4615,8 @@
           "rivals",
           "all-rivals",
           "rival-detail",
-          "rivalry"
+          "rivalry",
+          "compete"
         ]
       },
       "guards": []

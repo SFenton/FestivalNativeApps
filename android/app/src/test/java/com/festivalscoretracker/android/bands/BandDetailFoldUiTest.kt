@@ -33,7 +33,9 @@ import org.robolectric.annotation.Config
 /**
  * Band Detail on an unfolded book foldable (issue #361, owner override): flat, its two panes
  * divide the free content area beside the rail at its midpoint, not the fold; half open (book
- * posture) they meet at the hinge; folding and unfolding reflows the same page in place.
+ * posture) they meet at the hinge; folding and unfolding reflows the same page in place. The
+ * panes are the sides of one scrolling page's rows (#584): the header spans both flat and keeps
+ * to the leading pane half open.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w852dp-h883dp-xhdpi")
@@ -63,7 +65,7 @@ class BandDetailFoldUiTest {
         rule.setContent { FestivalApp(container, debug) }
         rule.waitUntil(10_000) {
             settle()
-            rule.onAllNodesWithTag("fst.band.pane.leading", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+            rule.onAllNodesWithTag(LEADING, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
         }
     }
 
@@ -81,11 +83,13 @@ class BandDetailFoldUiTest {
 
     /** Flat: equal panes centred on the content area beside the rail, so their gap lies trailing of the fold. */
     private fun assertPanesMeetAtTheContentMidpoint(hinge: Float) {
-        val leading = bounds("fst.band.pane.leading")
-        val trailing = bounds("fst.band.pane.trailing")
+        val leading = bounds(LEADING)
+        val trailing = bounds(TRAILING)
         assertEquals("equal panes $leading | $trailing", leading.width, trailing.width, 2f)
         val gapCentre = (leading.right + trailing.left) / 2
         assertTrue("gap $gapCentre should leave the fold $hinge (rail on the leading edge)", gapCentre > hinge + 20f)
+        // Flat: the header spans both panes.
+        assertEquals("header ${bounds(HEADER)} spans both panes", trailing.right - leading.left, bounds(HEADER).width, 2f)
     }
 
     @Test
@@ -97,14 +101,28 @@ class BandDetailFoldUiTest {
         val requests = bandRequests()
 
         fold(State.HALF_OPENED)
-        val leading = bounds("fst.band.pane.leading")
-        val trailing = bounds("fst.band.pane.trailing")
+        val leading = bounds(LEADING)
+        val trailing = bounds(TRAILING)
         assertTrue("leading pane $leading ends before the hinge $hinge", leading.right <= hinge && abs(leading.right - hinge) <= 40f)
         assertTrue("trailing pane $trailing starts after the hinge $hinge", trailing.left >= hinge && abs(trailing.left - hinge) <= 40f)
+
+        // Book posture: the header stays on its side of the fold and wraps there (FoldLane).
+        assertTrue("header ${bounds(HEADER)} crosses the hinge $hinge", bounds(HEADER).right <= hinge + 1f)
 
         fold(State.FLAT)
         assertPanesMeetAtTheContentMidpoint(hinge)
         // Reflow in place (#346): folding and unfolding never reloads the band.
         assertEquals(requests, bandRequests())
+    }
+
+    private companion object {
+        /** The first row's leading side (Members). */
+        const val LEADING = "fst.band.row.0.leading"
+
+        /** The first row's trailing side (Band Summary). */
+        const val TRAILING = "fst.band.row.0.trailing"
+
+        /** The page header (band name and size). */
+        const val HEADER = "fst.band.header"
     }
 }
