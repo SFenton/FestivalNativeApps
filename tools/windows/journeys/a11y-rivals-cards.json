@@ -17,11 +17,12 @@
      "assertfocus:id=fst.rivalry.song.fixture-pulse.Solo_Guitar@3"
    ]},
   {"name": "rivals-cards-all-rivals", "route": "/rivals/all", "profile": "fixture-player-1:Demo Player", "scan": true, "tabs": 0,
-   "note": "Issue #603 (rival-rows R6): All Rivals' rows form one grouped card (rows touch, hairlines between them); each stays one 40+ epx stop named like the hub row, and Up/Down move between rows.",
+   "note": "Issue #603 (rival-rows R6): All Rivals' rows form one grouped card (rows touch, hairlines between them); each stays one 40+ epx stop named like the hub row, and Up/Down move between rows. The exact name ends with the behind count: no shared-song count (#67, #267, #522).",
    "ready": ["waitfor:id=fst.all-rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@30", "wait:1.5"],
    "after_ready": [
      "assertsize:id=fst.all-rivals.row.f1c749eb07c32578cfa3e59ec38c03a8|0x40",
      "assertread:id=fst.all-rivals.row.f1c749eb07c32578cfa3e59ec38c03a8|~^Demo Rival 1, ahead of you, 128 songs ahead, 243 songs behind",
+     "assertname:id=fst.all-rivals.row.f1c749eb07c32578cfa3e59ec38c03a8|Demo Rival 1, ahead of you, 128 songs ahead, 243 songs behind",
      "focus:id=fst.all-rivals.row.f1c749eb07c32578cfa3e59ec38c03a8",
      "assertfocus:id=fst.all-rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@3",
      "key:down",
@@ -59,10 +60,11 @@
      "key:down",
      "assertfocus:id=fst.rivalry.song.fixture-pulse.Solo_Guitar@3"
    ]},  {"name": "rivals-cards-hub", "route": "/rivals", "profile": "fixture-player-1:Demo Player", "scan": true, "tabs": 0,
-   "note": "Issue #603 (rival-rows R6): the hub's section card (also Compete's rivals) keeps its rows in one card, now with hairlines between them; each row stays one 40+ epx Button stop named with the rival and standing, before the section's View All.",
+   "note": "Issue #603 (rival-rows R6): the hub's section card (also Compete's rivals) keeps its rows in one card, now with hairlines between them; each row stays one 40+ epx Button stop named with the rival and standing, before the section's View All. The exact name ends with the behind count: no shared-song count (#67, #267, #522).",
    "ready": ["waitfor:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@30", "wait:1.5"],
    "after_ready": [
      "assertsize:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8|0x40",
-     "assertread:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8|~^Demo Rival 1, ahead of you, 128 songs ahead, 243 songs behind"
+     "assertread:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8|~^Demo Rival 1, ahead of you, 128 songs ahead, 243 songs behind",
+     "assertname:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8|Demo Rival 1, ahead of you, 128 songs ahead, 243 songs behind"
    ]}
 ]
