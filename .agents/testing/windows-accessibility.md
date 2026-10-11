@@ -203,6 +203,8 @@ Fixed:
 - The bars kept their old colours after a contrast-theme switch while the app was open; they now re-apply on `ColorValuesChanged`.
 - The unavailable state drew seven empty bars at 40% opacity (the skill says never put `Opacity` on system-colour brushes); it now shows "Difficulty unavailable", and a recycled meter resets its automation ID.
 
+CI rule (issue #514): `tools/windows/journeys/a11y-difficulty-meter.json` keeps these fixes in the `windows-ui` job. It checks the cell and row names, the reading order, that the meter isn't focusable, normal fills, hollow unfilled bars under Desert and the live Desert on/off recolour. A meter change updates this page. Paint probes must avoid the 62×20 polygon edges (bar *i* centre is x = 9*i*+4 epx at mid-height). Pages that assert normal colours list every `hc-*` mode in `skip_modes`. Page list: [difficulty-meter/windows.md](../controls/difficulty-meter/windows.md#states-and-reachability).
+
 ## Score Accuracy validation (issue #220, 2026-10-03)
 
 Evidence: `a11y_matrix.py --pages tools/windows/journeys/score-accuracy.json --fixture tools/windows/score_accuracy_fixture.py --scan --tabs 15` (chart, offscreen, preview, keyboard and resize pages) at compact, medium, wide, maximized and both snaps, then at compact, medium and wide under Desert, Night sky, light and dark theme, display 100% and 150%, and text 200%: 0 Axe errors in every run, with each badge state asserted by name and column alignment. Live public-service screenshots of "Through the Fire and Flames" Lead. Per-configuration results: [score-accuracy/windows.md](../controls/score-accuracy/windows.md#validation-issue-220-2026-10-03).
