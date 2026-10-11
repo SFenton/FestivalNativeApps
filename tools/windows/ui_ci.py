@@ -220,6 +220,16 @@ RUNS: tuple[Run, ...] = (
         only="fr-pinned-jump-keyboard"),
     Run("full-rankings-pinned", "a11y-full-rankings.json"),
     Run("full-rankings-pinned-text-225", "a11y-full-rankings.json", sizes="compact", mode="text-225"),
+    # Full Rankings pinned row's load gate (issues #270, #524): a Rank By or instrument reload drops it from UIA, the
+    # reading order and Tab with the rows and pager (only "Busy Loading rankings, ProgressRing" is read; Tab goes from
+    # Rank By to the title bar), then the new value returns as a 40x40 Button in rows -> pinned row -> pager order; a
+    # page-only reload keeps it readable, focusable and reachable by Shift+Tab beside the ring. At 225% text, with in-app
+    # Reduce Motion and with Windows' Animation effects off (the pinned row returns still).
+    Run("full-rankings-swap", "a11y-full-rankings-swap.json", tabs=0),
+    Run("full-rankings-swap-text-225", "a11y-full-rankings-swap.json", sizes="compact", mode="text-225", tabs=0),
+    Run("full-rankings-swap-reduced", "a11y-full-rankings-swap.json", sizes="medium", mode="app-reduced", tabs=0),
+    Run("full-rankings-swap-no-animations", "a11y-full-rankings-swap.json", sizes="medium", mode="no-animations",
+        tabs=0),
     # A Leaderboards card's "your rank" row (issues #370, #493): outside the top ten it reads "Your rank, 40th. Jump to
     # your position" and Button, keeps 40x40 apart from View All and sits between the rows and View All in reading and
     # Tab order; Enter opens Full Rankings on the player's page with their row in view (also with in-app Reduce Motion)
@@ -409,6 +419,8 @@ RUNS: tuple[Run, ...] = (
     # selectors and Close; mid-swap Axe scans; at 225% text, with in-app Reduce Motion and with Animation effects off.
     # The compact Instrument ComboBox (issues #88, #439) opens to "Lead, list item, selected", Bass, Drums, Tap Vocals
     # (no Karaoke), each a 40 epx option, and switches by pointer and Alt+Down/Up/Enter with focus kept, Axe-scanned open.
+    # The compact Display ComboBox at the row's right edge keeps its whole keyboard focus ring (issues #269, #523): the
+    # dialog content is the dialog less its padding and border, so the ring's right, top and bottom match its left side.
     Run("paths-swap", "a11y-paths-swap.json", sizes="compact,medium,wide"),
     Run("paths-swap-text-225", "a11y-paths-swap.json", sizes="compact,wide", mode="text-225"),
     Run("paths-swap-no-animations", "a11y-paths-swap.json", sizes="compact", mode="no-animations"),

@@ -159,6 +159,35 @@ class UiCiTests(unittest.TestCase):
                                             "id=fst.full-rankings.spotlight-footer|id=fst.full-rankings.page-first")
                             for step in steps))
 
+    def test_full_rankings_swap_runs_in_every_motion_and_text_mode(self):
+        # Issue #524 (#270): Full Rankings' pinned row load gate runs in CI at default and 225% text, with in-app Reduce
+        # Motion and with Windows' Animation effects off.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-full-rankings-swap.json"}
+        self.assertEqual({"normal", "text-225", "app-reduced", "no-animations"}, set(runs))
+        self.assertTrue(all(run.scan and not run.only for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-full-rankings-swap.json").read_text(encoding="utf-8"))}
+        self.assertEqual({"fr-swap-rank-by", "fr-swap-page-keeps-pin", "fr-swap-motion-reduced", "fr-swap-motion-system"},
+                         set(pages))
+        self.assertEqual(["app-reduced"], pages["fr-swap-motion-reduced"]["modes"])
+        self.assertEqual(["no-animations"], pages["fr-swap-motion-system"]["modes"])
+        footer = "id=fst.full-rankings.spotlight-footer"
+        swap = pages["fr-swap-rank-by"]["after_ready"]
+        self.assertIn(f"waitgone:{footer}@2", swap)
+        self.assertIn("assertorder:id=fst.full-rankings.title|id=fst.rankings.rank-by-menu|name=Busy Loading rankings",
+                      swap)
+        self.assertIn("assertfocus:id=PART_BackButton@3", swap)
+        self.assertIn(f"assertsize:{footer}|40x40", swap)
+        self.assertTrue(any(step.startswith(f"assertread:{footer}|~^Your rank, 40th\\. Jump to your position\\. "
+                                            "Fixture Rank 40\\. FC Rate") for step in swap))
+        page = pages["fr-swap-page-keeps-pin"]["after_ready"]
+        self.assertIn(f"assertstate:{footer}|focusable=true", page)
+        self.assertTrue(any(step.startswith(f"assertorder:id=fst.rankings.rank-by-menu|name=Busy Loading rankings|{footer}")
+                            for step in page))
+        for name in ("fr-swap-motion-reduced", "fr-swap-motion-system"):
+            self.assertIn(f"assertmotion:{footer}|still", pages[name]["after_ready"])
+
     def test_leaderboards_card_jump_runs_at_default_largest_text_and_reduced_motion(self):
         # Issue #493 (#370): a Leaderboards card's "your rank" row runs in CI at default and 225% text, and its keyboard
         # jump to Full Rankings with in-app Reduce Motion.
@@ -726,6 +755,23 @@ class UiCiTests(unittest.TestCase):
                       "key:alt+down", "assertannounced:Loading Lead Expert path@5",
                       "assertfocus:id=fst.paths.instrument.compact@3", "assertfocus:id=fst.paths.difficulty.compact@3"):
             self.assertIn(check, steps[select:])
+
+    def test_paths_display_focus_ring_runs_in_ci(self):
+        # Issue #523 (#269): the dialog content is the dialog less its padding and border, so the compact Display box at
+        # the row's right edge keeps its whole keyboard focus ring. Checked in windows-ui at compact and medium, default
+        # and 225% text and Animation effects off: the ring's right, top and bottom match its left side.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-swap.json"]
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-swap.json").read_text(encoding="utf-8"))
+        page = next(page for page in pages if page["name"] == "paths-display-focus-ring")
+        covered = {(run.mode, size) for run in runs if page in m.mode_pages(pages, run.mode)
+                   for size in m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({("normal", "compact"), ("normal", "medium"), ("text-225", "compact"),
+                          ("no-animations", "compact")}, covered)
+        steps = page["after_ready"]
+        self.assertLess(steps.index("key:tab"), steps.index("assertfocus:id=fst.paths.display.compact@3"))
+        paint = next(step for step in steps if step.startswith("assertpaint:id=fst.paths.display.compact|"))
+        for probe in ("ring:L1,M0", "R1,M0=@ring~48", "C0,T1=@ring~48", "C0,B1=@ring~48", "R-8,M0!=@ring~48"):
+            self.assertIn(probe, paint.split("|"))
 
     def test_paths_chart_runs_every_page(self):
         # Issue #438 (#87, #279): the chart's centring, hidden scroll bars, names, order and keyboard panning are checked
