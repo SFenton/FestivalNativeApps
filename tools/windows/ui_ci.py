@@ -186,6 +186,15 @@ RUNS: tuple[Run, ...] = (
     Run("song-pinned-reveal-reduced", "a11y-song-pinned-reveal.json", sizes="medium", mode="app-reduced", tabs=0),
     Run("song-pinned-reveal-no-animations", "a11y-song-pinned-reveal.json", sizes="medium", mode="no-animations",
         tabs=0),
+    # Selected-row reveal (issues #323, #470): Song Details' "your score" row and the Leaderboards card's "your rank" row
+    # open their boards by keyboard and the reveal centres the player's row after its entrance: "Your rank, …" names,
+    # purple fill, a 40 epx target clear of the pinned row, rows -> pinned row -> pager order, Down/Up/Tab in place.
+    # With motion off (app-reduced, no-animations) the reveal still lands on the row and nothing moves.
+    Run("selected-row-reveal", "a11y-selected-row-reveal.json", tabs=0),
+    Run("selected-row-reveal-text-225", "a11y-selected-row-reveal.json", sizes="compact", mode="text-225", tabs=0),
+    Run("selected-row-reveal-reduced", "a11y-selected-row-reveal.json", sizes="medium", mode="app-reduced", tabs=0),
+    Run("selected-row-reveal-no-animations", "a11y-selected-row-reveal.json", sizes="medium", mode="no-animations",
+        tabs=0),
     # Board load swap (issues #71, #431): spinner "Busy Loading …, ProgressRing", stale rows leave UIA, selectors ->
     # spinner -> pager order, enabled 40x40 selectors and pager, focus kept on the pager, mid-load Axe scans; then the
     # same swap at 225% text and with Windows' Animation effects off. Every page is medium-only (pager plus spinner).

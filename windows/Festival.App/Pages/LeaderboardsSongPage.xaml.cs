@@ -82,10 +82,11 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         else if (e.PropertyName == nameof(SongLeaderboardViewModel.Rows))
         {
             shownPage = ViewModel.Page;
-            Scroller.ChangeView(null, 0, null, true);
             // The reveal waits for the load gate to show the rows and the row's own entrance (OnContentRevealed).
             var selected = ViewModel.Rows.FindIndex(r => r.IsSelected);
             pendingReveal = selected >= 0 ? selected : null;
+            // A pending scroll-to-top can land after the centring and leave the board at the top (#318, #470).
+            if (pendingReveal is null) Scroller.ChangeView(null, 0, null, true);
         }
     }
 
@@ -108,8 +109,10 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
             var rows = ViewModel.Rows;
             SelectedRowReveal.Start(RowsRepeater, selected, () =>
             {
-                if (ReferenceEquals(ViewModel.Rows, rows) && RowsRepeater.GetOrCreateElement(selected) is UIElement row)
-                    row.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
+                if (!ReferenceEquals(ViewModel.Rows, rows) || RowsRepeater.GetOrCreateElement(selected) is not UIElement row) return;
+                // A freshly realized row has no arranged position yet; bringing it into view before layout is a no-op (#470).
+                row.UpdateLayout();
+                row.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
             });
         });
 
