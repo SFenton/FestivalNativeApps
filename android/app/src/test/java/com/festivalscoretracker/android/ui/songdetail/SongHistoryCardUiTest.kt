@@ -316,6 +316,82 @@ class SongHistoryCardUiTest {
     /** Lead pages on a phone (8 > 3 bars), Bass and Drums don't. */
     private val mixed get() = rows("Solo_Guitar", 8) + rows("Solo_Bass", 2) + rows("Solo_Drums", 3, goldLast = true)
 
+    /** The pager's Forward one page button is enabled (a Back one page click has landed). */
+    private fun forwardEnabled() =
+        !rule.onNodeWithTag("fst.song-detail.history.forward-page").fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+
+    /** The Score History chart as drawn this frame, cropped from a full-window draw. */
+    private fun chartFrame(): Bitmap {
+        val root = rule.activity.window.decorView
+        val full = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
+        rule.runOnUiThread { root.draw(Canvas(full)) }
+        val r = rule.onNodeWithTag("fst.song-detail.history.chart").fetchSemanticsNode().boundsInWindow
+        return Bitmap.createBitmap(full, r.left.toInt(), r.top.toInt(), r.width.toInt(), r.height.toInt())
+    }
+
+    /**
+     * Page the 30-score Lead chart back with the clock paused and capture its chart before,
+     * [midMillis] into the 400 ms slide and settled, checking the graph and chart keep their size.
+     *
+     * @return (before, mid, settled) chart frames.
+     */
+    private fun pageBack(midMillis: Long): Triple<Bitmap, Bitmap, Bitmap> {
+        rule.waitForIdle()
+        val height = graphHeight()
+        val chart = rule.onNodeWithTag("fst.song-detail.history.chart").getBoundsInRoot()
+        rule.mainClock.autoAdvance = false
+        try {
+            val before = chartFrame()
+            rule.onNodeWithContentDescription("Back one page").performClick()
+            // With the clock paused the click lands a few frames later: time the slide from then.
+            rule.mainClock.advanceTimeUntil(timeoutMillis = 2_000) { forwardEnabled() }
+            rule.mainClock.advanceTimeBy(midMillis)
+            val mid = chartFrame()
+            assertEquals("graph keeps its height mid-slide", height, graphHeight())
+            assertEquals("chart keeps its bounds mid-slide", chart, rule.onNodeWithTag("fst.song-detail.history.chart").getBoundsInRoot())
+            rule.mainClock.advanceTimeBy(800)
+            val settled = chartFrame()
+            assertEquals("graph keeps its height once settled", height, graphHeight())
+            assertEquals("chart keeps its bounds once settled", chart, rule.onNodeWithTag("fst.song-detail.history.chart").getBoundsInRoot())
+            rule.onNodeWithContentDescription("Forward one page").assertIsEnabled()
+            return Triple(before, mid, settled)
+        } finally {
+            rule.mainClock.autoAdvance = true
+        }
+    }
+
+    @Test
+    fun pagingSlidesTheChartWithoutResizingTheGraph() {
+        show(rows("Solo_Guitar", 30, goldLast = true))
+        val (before, mid, settled) = pageBack(midMillis = 200)
+        // Mid-slide (load-transition R12): the plot is between the two windows, matching neither.
+        assertFalse("the new window was not drawn", settled.sameAs(before))
+        assertFalse("the chart snapped: mid-slide already equals the new window", mid.sameAs(settled))
+        assertFalse("the chart did not move 200 ms into the slide", mid.sameAs(before))
+    }
+
+    @Test
+    fun removeAnimationsPagesTheChartAtOnce() {
+        // Accessibility › Remove animations sets the animator duration scale to 0 (R6).
+        android.provider.Settings.Global.putFloat(rule.activity.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
+        show(rows("Solo_Guitar", 30, goldLast = true))
+        val (before, mid, settled) = pageBack(midMillis = 50)
+        assertFalse("the new window was not drawn", settled.sameAs(before))
+        assertTrue("with animations removed the new window is drawn at once", mid.sameAs(settled))
+    }
+
+    @Test
+    fun appReduceMotionPagesTheChartAtOnce() {
+        rule.setContent {
+            FestivalTheme(appReduceMotion = true) {
+                SongHistoryCard(rows("Solo_Guitar", 30, goldLast = true), visible = Instrument.entries.toSet(), keyboard = false, initialInstrument = null, onViewAll = {})
+            }
+        }
+        val (before, mid, settled) = pageBack(midMillis = 50)
+        assertFalse("the new window was not drawn", settled.sameAs(before))
+        assertTrue("with Reduce Motion the new window is drawn at once", mid.sameAs(settled))
+    }
+
     @Test
     fun switchingChartFadesOutSwapsAndFadesInWithoutResizingTheGraph() {
         show(mixed)

@@ -157,4 +157,33 @@ class RankHistoryWindowTest {
         // Wider than the whole row: pinned at the left edge.
         assertEquals(listOf(0f), ChartGeometry.bandLabelLefts(listOf(300f), 0f, 200f, 200f, 8f))
     }
+
+    @Test
+    fun slidingMarksRestOnTheBuiltPlotAndShiftMidSlide() {
+        val w = RankHistoryWindow(ten, maxBars = 4).toggle(1)
+        val plot = RankHistoryPlot.build(w, 100)
+        val rest = RankHistoryPlot.marks(w, 100, w.pageStart.toFloat(), RankHistoryPlot.valueTop(w))
+        assertEquals(plot.bars.size, rest.bars.size)
+        plot.bars.zip(rest.bars).forEach { (built, slid) ->
+            assertEquals(built.bar.x, slid.bar.x, 1e-6f)
+            assertEquals(built.bar.height, slid.bar.height, 1e-6f)
+            assertEquals(built.color, slid.color)
+            assertEquals(built.selected, slid.selected)
+        }
+        plot.line.zip(rest.line).forEach { (built, slid) ->
+            assertEquals(built.x, slid.x, 1e-6f)
+            assertEquals(built.y, slid.y, 1e-6f)
+            assertEquals(built.highlight, slid.highlight)
+        }
+        // Mid-slide (start 4.5 of a 4-bar window) points 3–9 are drawn, a band apart, the edge
+        // ones partly outside the plot; the selection follows its point and bars scale to the easing top.
+        val mid = RankHistoryPlot.marks(w, 100, 4.5f, 10_000.0)
+        assertEquals(7, mid.bars.size)
+        assertEquals(-0.25f, mid.bars.first().bar.x, 1e-6f)
+        assertEquals(0.25f, mid.bars[1].bar.x - mid.bars[0].bar.x, 1e-6f)
+        assertEquals(0.6f, mid.bars[2].bar.height, 1e-6f)
+        assertEquals(listOf(7 - 3), mid.bars.indices.filter { mid.bars[it].selected })
+        assertEquals(listOf(7 - 3), mid.line.indices.filter { mid.line[it].highlight })
+        assertEquals(0.0, RankHistoryPlot.valueTop(RankHistoryWindow(ten.map { it.copy(totalScore = 0L) }, 4)), 0.0)
+    }
 }

@@ -54,11 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -72,6 +68,9 @@ import com.festivalscoretracker.android.core.profile.ChartGeometry
 import com.festivalscoretracker.android.core.rankings.RankHistoryChart
 import com.festivalscoretracker.android.core.rankings.RankHistoryRow
 import com.festivalscoretracker.android.core.rankings.RankingMetric
+import com.festivalscoretracker.android.core.shell.ChartPage
+import com.festivalscoretracker.android.ui.common.rememberChartPageSlide
+import com.festivalscoretracker.android.ui.profile.drawRankHistoryMarks
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.leaderboards.LeaderboardsViewModel
 import com.festivalscoretracker.android.ui.common.LoadSwap
@@ -211,6 +210,11 @@ private fun HistoryChart(chart: RankHistoryChart) {
 @Composable
 private fun HistoryPlot(chart: RankHistoryChart, window: RankHistoryWindow, onChange: (RankHistoryWindow) -> Unit) {
     val plot = remember(window, chart) { chart.plot(window) }
+    val slide = rememberChartPageSlide(
+        ChartPage(window.pageStart, window.visible.size, window.points.size),
+        chart.valueTop(window).toFloat(),
+        key = chart,
+    )
     val valueTicks = plot.scoreTicks
     val description = remember(window, chart) { chart.windowDescription(window) }
     val current by rememberUpdatedState(window)
@@ -248,30 +252,7 @@ private fun HistoryPlot(chart: RankHistoryChart, window: RankHistoryWindow, onCh
                     val y = tick.y * size.height
                     drawLine(BrandTokens.glassBorder.copy(alpha = 0.5f), Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
                 }
-                plot.bars.forEach { bar ->
-                    val rect = ChartGeometry.bandBar(bar.bar, plot.bars.size, size.width, size.height, 72.dp.toPx())
-                    drawRoundRect(
-                        rgb(bar.color, RankHistoryColors.BAR_ALPHA),
-                        topLeft = Offset(rect.left, rect.top),
-                        size = Size(rect.width, rect.height),
-                        cornerRadius = CornerRadius(4.dp.toPx()),
-                    )
-                    if (bar.selected) {
-                        drawRoundRect(
-                            BrandTokens.accentPurple,
-                            topLeft = Offset(rect.left, rect.top),
-                            size = Size(rect.width, rect.height),
-                            cornerRadius = CornerRadius(4.dp.toPx()),
-                            style = Stroke(width = 3.dp.toPx()),
-                        )
-                    }
-                }
-                val points = plot.line.map { ChartGeometry.point(it, size.width, size.height, 0f).let { p -> Offset(p.x, p.y) } }
-                val path = Path()
-                points.forEachIndexed { i, p -> if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y) }
-                val blue = rgb(RankHistoryColors.RANK_LINE)
-                drawPath(path, blue, style = Stroke(width = 2.dp.toPx()))
-                points.forEachIndexed { i, p -> drawCircle(blue, radius = (if (plot.line[i].highlight) 6 else 4).dp.toPx(), center = p) }
+                drawRankHistoryMarks(chart.marks(window, slide.start, slide.valueTop.toDouble()), bands = window.visible.size, maxBarWidth = 72.dp.toPx())
             }
             AxisLabels(plot.rankTicks, TextAlign.Start)
         }
@@ -282,6 +263,7 @@ private fun HistoryPlot(chart: RankHistoryChart, window: RankHistoryWindow, onCh
             style = MaterialTheme.typography.labelSmall,
             color = BrandTokens.textPrimary,
             modifier = Modifier.padding(vertical = 4.dp).testTag("fst.leaderboards.rank-history.dates"),
+            shift = { slide.labelShift },
         )
     }
 }
