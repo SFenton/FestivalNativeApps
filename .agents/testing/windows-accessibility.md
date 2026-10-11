@@ -85,6 +85,13 @@ Scope: Song Detail's Duos/Trios/Quads previews (issue #64), on `song_band_previe
 `journeys/a11y-song-board-end.json` covers the end-of-list spacing #293 changed, with Fixture Player 1 (pinned row), Empty Player (no score) and no player. Down from the first row reaches row 25 with the list at its end. The row then sits 4 epx above the footer's first part (`assertgap`), is clear of it, reads before the pinned row and pager, keeps a 40 epx target, and Tab/Shift+Tab move to the footer and back. The fade reports `end`. All pages passed with 0 Axe errors at compact and medium, at 100% and 225% text. No defect was found. `windows-ui` picks the file up through `ui_ci.generated_runs`; `tests/test_song_leaderboard_a11y_journey.py` pins the steps.
 - Reach a far row with single `key:down` steps, not one `keys:` burst. On a locked console the burst is posted and dropped a press, leaving focus one row short.
 
+## Song board states (issue #511, for #197, 2026-10)
+
+`journeys/a11y-song-board-states.json` covers what #197 changed: the pinned row's own UIA ID, an empty board without "0 entries", the contrast-theme footer plate (`hc-desert`) and the trimmed-name tool tip (`app-reduced`). Each page runs only in the mode that shows its state. All passed with 0 Axe errors; details in [song-leaderboard/windows.md](../pages/song-leaderboard/windows.md#accessibility-tests-issue-443). No defect was found.
+- A row's name only trims (and gets a tool tip) while the marquee is stopped and the text is not large: at 225% text names wrap. Test the tool tip at medium with `app-reduced`.
+- Rows move with Up/Down; Tab leaves the list for the pinned row. Close the tool tip (`focus:` the header, `waitgone:class=ToolTip`) before the Axe scan.
+- A paint probe on a hard-edge footer can't see the contrast plate (the mask already hides rows there). Mutation-test such probes with every layer that hides the content removed.
+
 ## Leaderboard row columns validation (issue #242, 2026-10-04)
 
 Scope: the shared row-column fitter (issue #37) on every board, checked against the live public service with SFentonX. Results per configuration are in [song-leaderboard/windows.md](../pages/song-leaderboard/windows.md#validation-issue-242-2026-10-04).
@@ -493,6 +500,21 @@ Backfills CI tests for the #318 Windows change: the selected player's row stays 
 | In-app Reduce Motion (medium, jump) | Pass, Axe 0 |
 
 No accessibility defect was found.
+
+## Leaderboards card your-rank row accessibility tests (issue #493, 2026-10-11)
+
+Backfills CI tests for the #370 Windows change (PR #403): a Leaderboards card's separate "your rank" row, for a player ranked outside the card's top ten, now opens Full Rankings on the player's page and reveals their row instead of opening the profile. Until now only `selected_reveal_journey.py --only rankings-card` (fade timing) and `LeaderboardsViewModelTests` covered it. New `journeys/a11y-leaderboards-card-jump.json` (`rankings_fixture.py`) is now a set of `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- `card-jump-row` (Fixture Rank 40): the Lead card's row reads "Your rank, 40th. Jump to your position. Fixture Rank 40. Total Score …, button" (Button, Invoke, focusable), is at least 40×40 epx, doesn't overlap View All Rankings (40 epx tall), and reads after the card's Lead group and before View All;
+- `card-jump-row-keyboard`: Shift+Tab from View All reaches the row, Tab goes back. Enter opens Full Rankings on "Page 2 of 48" with row 40 on screen; the pinned row then reads "Open your statistics", and the order is title → row 40 → pinned row → pager. Alt+Left returns to Leaderboards with focus on the card's row;
+- `card-in-place-row` (Fixture Player 2, inside the top ten): no separate row; the highlighted in-list row reads "Your rank, 2nd. …, button" without a jump, is 40 epx tall, and Enter opens the profile.
+
+`card-jump-row` also gets the dispatcher's 30-press Tab walk. At compact the card is taller than the window, so the pages scroll View All into view and check the row against the card's group rather than its heading.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`leaderboards-card-jump`, all 3 pages) | Pass, Axe 0 |
+| Text 225% (compact, all 3 pages) | Pass, Axe 0 |
+| In-app Reduce Motion (compact, medium; all 3 pages) | **Failed, fixed:** Enter opened page 2 but left the list at the top (rows 26–34), so the player's row stayed off screen. Under Reduce Motion `SelectedRowReveal` scrolled at once, before the newly shown list had a layout, so `StartBringIntoView` did nothing. It now waits, as the motion path already did, for the list to realize the selected (or first) row, then scrolls at once with no hold or rush (load-transition R6). Pass, Axe 0 after the fix; `selected_reveal_journey.py` gained `rankings-card-reduce-motion` |
 
 ## Search All section titles accessibility tests (issue #483, 2026-10-11)
 
