@@ -420,7 +420,7 @@ class UiCiTests(unittest.TestCase):
         # Issue #455 (#292): every long-name page (moving, fits, 150-225% text, Reduce Motion, Animation effects off)
         # runs in windows-ui, Axe-scanned, at a size where the name overflows, and no page is generated twice.
         runs = [run for run in ci.RUNS if run.pages == "a11y-leaderboard-names.json"]
-        self.assertEqual({"normal", "text-225", "no-animations"}, {run.mode for run in runs})
+        self.assertEqual({"normal", "text-150", "text-200", "text-225", "no-animations"}, {run.mode for run in runs})
         self.assertTrue(all(run.scan and not run.only for run in runs))
         pages = json.loads((ci.JOURNEYS / "a11y-leaderboard-names.json").read_text(encoding="utf-8"))
         covered = {page["name"] for run in runs for page in m.mode_pages(pages, run.mode)
@@ -431,6 +431,24 @@ class UiCiTests(unittest.TestCase):
         self.assertIn("assertmarquee:raw=fst.rankings.row.fixture-player-1.name|fits|30", steps["lb-names-full-rankings"])
         for reduced in ("lb-names-full-rankings-reduced", "lb-names-full-rankings-system"):
             self.assertIn("assertmarquee:raw=fst.rankings.row.fixture-player-2.name|static|30", steps[reduced])
+
+    def test_leaderboard_name_budget_runs_at_every_large_text_size(self):
+        # Issue #455 review (leaderboard-row R2): short, 16-character and placeholder rows keep one pitch at 150-225%.
+        pages = {page["name"]: page for page in json.loads((ci.JOURNEYS / "a11y-leaderboard-names.json").read_text(encoding="utf-8"))}
+        runs = [run for run in ci.RUNS if run.pages == "a11y-leaderboard-names.json"]
+        for name in ("lb-names-budget-full-rankings", "lb-names-budget-overview-skeleton"):
+            page = pages[name]
+            self.assertIn("--max-name", page["fixture"])
+            for mode in ("text-150", "text-200", "text-225"):
+                self.assertTrue(any(page in m.mode_pages([page], run.mode) for run in runs if run.mode == mode), (name, mode))
+        rows = pages["lb-names-budget-full-rankings"]["after_ready"]
+        self.assertIn("markspan:id=fst.rankings.row.fixture-player-1|id=fst.rankings.row.fixture-player-2|pitch", rows)
+        self.assertIn("assertspan:id=fst.rankings.row.fixture-player-2|id=fst.rankings.row.fixture-rank-3|pitch", rows)
+        card = "fst.leaderboards.card.Solo_PeripheralGuitar"
+        skeleton = pages["lb-names-budget-overview-skeleton"]["after_ready"]
+        mark = skeleton.index("markspan:id=fst.rankings.row.fixture-player-1|id=fst.rankings.row.fixture-player-2|pitch")
+        self.assertLess(mark, skeleton.index(f"assertspan:raw={card}.skeleton.0|raw={card}.skeleton.1|pitch"))
+        self.assertIn("Solo_PeripheralGuitar", pages["lb-names-budget-overview-skeleton"]["fixture"])
 
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)

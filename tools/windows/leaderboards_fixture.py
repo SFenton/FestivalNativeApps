@@ -5,7 +5,9 @@ failed states, so this wrapper can answer chosen top-level boards with an empty 
 scrape-freeze 503 with ``Retry-After: 30`` (``--frozen-board``). Board names are the service IDs used in the path:
 ``Solo_Bass`` for ``/api/rankings/Solo_Bass`` and ``Band_Trios`` for ``/api/rankings/bands/Band_Trios``. Player
 spotlight reads (``/api/rankings/{instrument}/{accountId}``) and every other route are the unchanged mock service.
-``--long-name`` renames every rank-2 player to a name too long for any row, for the name marquee (issue #292).
+``--long-name`` renames every rank-2 player to a name too long for any row, for the name marquee (issue #292);
+``--max-name`` renames them to :data:`MAX_NAME`, a name as long as an Epic display name gets (16 characters), which wraps
+at large text but within the rows' shared name budget (issue #455, ``leaderboard-row`` R2).
 ``--slow-board`` answers a chosen board normally after :data:`SLOW_SECONDS`, so its card's loading rows stay on screen
 next to loaded cards (issue #281: placeholder rows as tall as loaded rows).
 ``--slow-song-board <songId>/<instrument>`` answers that song board's first page (``offset`` 0) after
@@ -33,6 +35,8 @@ import mock_service  # noqa: E402  (path set above)
 
 BOARD = re.compile(r"^/api/rankings/(?:(bands)/)?([A-Za-z_]+)$")
 LONG_NAME = "Fixture Player With An Extraordinarily Long Display Name That Never Fits"
+#: A longest-possible Epic display name (16 characters, with spaces to wrap at), for the large-text name budget.
+MAX_NAME = "Max Fixture Name"
 LONG_NAME_RANK = 2
 #: Delay before a ``--slow-board`` read is answered.
 SLOW_SECONDS = 25.0
@@ -151,8 +155,11 @@ def install(empty: set[str], frozen: set[str], slow: set[str] = frozenset(),
     mock_service.FixtureServer.request_queue_size = 128
 
 
-def install_long_name() -> None:
-    """Give every rank-2 rankings entry :data:`LONG_NAME`, for the overflowing-name marquee (issue #292).
+def install_long_name(name: str = LONG_NAME) -> None:
+    """Give every rank-2 rankings entry a long name, for the overflowing-name marquee (issue #292).
+
+    Args:
+        name: The name (:data:`LONG_NAME`, or :data:`MAX_NAME` for the large-text name budget, issue #455).
 
     Patches ``mock_service._ranking_entry``, so board pages, Full Rankings pages and the rank-2 player's spotlight
     read agree on the name.
@@ -160,7 +167,7 @@ def install_long_name() -> None:
     original = mock_service._ranking_entry
 
     def entry(rank: int, account_id: str, display_name: str) -> dict:
-        return original(rank, account_id, LONG_NAME if rank == LONG_NAME_RANK else display_name)
+        return original(rank, account_id, name if rank == LONG_NAME_RANK else display_name)
 
     mock_service._ranking_entry = entry
 
@@ -171,6 +178,7 @@ def main() -> None:
     parser.add_argument("--empty-board", action="append", default=[])
     parser.add_argument("--frozen-board", action="append", default=[])
     parser.add_argument("--long-name", action="store_true")
+    parser.add_argument("--max-name", action="store_true")
     parser.add_argument("--slow-board", action="append", default=[])
     parser.add_argument("--slow-song-board", action="append", default=[])
     parser.add_argument("--slow-leeway-only", action="store_true")
@@ -179,6 +187,8 @@ def main() -> None:
             options.slow_leeway_only)
     if options.long_name:
         install_long_name()
+    elif options.max_name:
+        install_long_name(MAX_NAME)
     sys.argv = [sys.argv[0], *rest]
     mock_service.main()
 

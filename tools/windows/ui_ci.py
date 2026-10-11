@@ -230,10 +230,13 @@ RUNS: tuple[Run, ...] = (
     Run("combo-boards-text-225", "a11y-combo-boards.json", sizes="compact", mode="text-225", tabs=0),
     # Long leaderboard names (issues #292, #455): on Full Rankings and the Leaderboards overview a name too wide for its
     # column scrolls on one line while one that fits stays still, the row reads the whole name once, stays a 40+ epx
-    # stop in visual order with Up/Down between rows; at 225% text (150%+) the name wraps and the row grows, still, even
-    # with Reduce Motion; at 100% under the app's Reduce Motion (in the normal run) and Windows' Animation effects off it
-    # stops on an ellipsis.
+    # stop in visual order with Up/Down between rows; at 150%, 200% and 225% text the name wraps and the row grows,
+    # still, even with Reduce Motion, while every row and a loading card's placeholders keep the section's shared name
+    # budget (one pitch for short, 16-character and placeholder rows); at 100% under the app's Reduce Motion (in the
+    # normal run) and Windows' Animation effects off it stops on an ellipsis.
     Run("leaderboard-names", "a11y-leaderboard-names.json", tabs=0),
+    Run("leaderboard-names-text-150", "a11y-leaderboard-names.json", mode="text-150", tabs=0),
+    Run("leaderboard-names-text-200", "a11y-leaderboard-names.json", mode="text-200", tabs=0),
     Run("leaderboard-names-text-225", "a11y-leaderboard-names.json", mode="text-225", tabs=0),
     Run("leaderboard-names-no-animations", "a11y-leaderboard-names.json", sizes="compact", mode="no-animations",
         tabs=0),
