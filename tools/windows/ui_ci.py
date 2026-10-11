@@ -11,7 +11,8 @@ that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
 push (issue #452), the Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438) and the Full
-Rankings pinned row (issue #466, also with in-app Reduce Motion) run at default and 225% text, and
+Rankings pinned row (issue #466, also with in-app Reduce Motion) and the Search All section titles (issue #483, also
+with in-app Reduce Motion) run at default and 225% text, and
 that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
@@ -100,6 +101,9 @@ HISTORY_SWAP_REDUCED = "history-swap-reduced-access"
 #: may open a windowed ``PopupHost``; the file's other pages stay host matrix checks).
 POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-flyout,notifications-flyout"
 
+#: The ``a11y-search.json`` All section-title pages (issue #348's titles, #483); the file's other pages are generated runs.
+SEARCH_SECTIONS = "search-all-sections,search-all-sections-keyboard"
+
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
 RUNS: tuple[Run, ...] = (
@@ -157,6 +161,14 @@ RUNS: tuple[Run, ...] = (
         only="fr-pinned-jump-keyboard"),
     Run("full-rankings-pinned", "a11y-full-rankings.json"),
     Run("full-rankings-pinned-text-225", "a11y-full-rankings.json", sizes="compact", mode="text-225"),
+    # Search's All section titles (issues #348, #483): "Songs", "Players" and "Bands" read as text at heading level 2,
+    # never Tab stops, each before its own rows and clear of them; Tab/Shift+Tab walk All -> songs -> players -> bands;
+    # also with in-app Reduce Motion (the titles fade with their rows). The file's other pages stay generated runs.
+    # (The partial reduced-motion run comes first: generated_runs reads a file's last explicit run as its coverage.)
+    Run("search-sections-reduced-motion", "a11y-search.json", sizes="medium", mode="app-reduced",
+        only=SEARCH_SECTIONS),
+    Run("search-sections", "a11y-search.json", only=SEARCH_SECTIONS),
+    Run("search-sections-text-225", "a11y-search.json", sizes="compact", mode="text-225", only=SEARCH_SECTIONS),
     # Back from View All or a rival to cached Leaderboards and Rivals (issues #82, #276, #435): the opener and its card
     # stay put, focus returns to the opener, it reads "<name>, button" after its card and heading, keeps a 40 epx target,
     # and Tab/Shift+Tab continue from it; by keys (Enter, Alt+Left) and pointer (the title-bar Back).
