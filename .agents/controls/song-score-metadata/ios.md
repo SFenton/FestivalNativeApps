@@ -10,4 +10,4 @@
 - Native FC cue is visible and spoken ("FC 97.9%"); no gold skew.
 - Hosted AX5 `ImageRenderer` passed with broken UIKit geometry once — keep device assertions and read real screenshots.
 - Edge fixture: pinned port 8776 `--metadata-edge` (long title, 1,234,567 score, Shop New) — [fixtures](../../testing/fixtures.md).
-- Open: Last Played sort, the sort's editable Metadata Priority (the order rows use with Independent Visual Order off), invalid-score substitution, band cards, representative-catalogue performance.
+- Open: Last Played sort, the sort's editable Metadata Priority (the order rows use with Independent Visual Order off), band cards, representative-catalogue performance.

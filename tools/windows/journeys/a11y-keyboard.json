@@ -174,7 +174,7 @@
       "focus:id=fst.shell.profile",
       "key:enter",
       "waitfor:id=fst.profile.search@5",
-      "assertfocus:name=Find Player@3",
+      "assertfocus:name=Search players or bands@3",
       "key:esc",
       "assertfocus:id=fst.shell.profile@3"
     ]
@@ -537,6 +537,7 @@
       "focus:id=fst.quick-links.open",
       "key:enter",
       "waitfor:id=fst.quick-links.item.instrument:Solo_Drums@5",
+      "key:down",
       "key:down",
       "key:down",
       "assertfocus:id=fst.quick-links.item.instrument:Solo_Drums@3",

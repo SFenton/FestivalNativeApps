@@ -39,8 +39,11 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <controls:InstrumentIcon File="{x:Bind ViewModel.IconFile, Mode=OneWay}" Width="32" Height="32"
-                                         AutomationProperties.AccessibilityView="Raw" />
+                                         Visibility="{x:Bind ViewModel.ShowInstrumentIcon}" AutomationProperties.AccessibilityView="Raw" />
                 <StackPanel Grid.Column="1">
+                    <!-- A combo board (issue #602) shows its instruments' icons above the title, as the web's combo
+                         FullRankingsPage title; the visible title keeps naming the combo. -->
+                    <controls:InstrumentIconRow Files="{x:Bind ViewModel.IconFiles}" IconSize="32" Margin="0,0,0,4" />
                     <TextBlock Text="{x:Bind ViewModel.Title, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}"
                                AutomationProperties.HeadingLevel="Level1" TextWrapping="Wrap"
                                AutomationProperties.AutomationId="fst.full-rankings.title" />
@@ -49,6 +52,7 @@
             </Grid>
             <StackPanel x:Name="Actions" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <DropDownButton MinHeight="{StaticResource FSTMinTargetSize}" AutomationProperties.Name="{x:Bind ViewModel.InstrumentButtonName, Mode=OneWay}"
+                                Visibility="{x:Bind ViewModel.ShowInstrumentPicker}"
                                 AutomationProperties.AutomationId="fst.full-rankings.instrument-menu">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <controls:InstrumentIcon File="{x:Bind ViewModel.IconFile, Mode=OneWay}" Width="18" Height="18"

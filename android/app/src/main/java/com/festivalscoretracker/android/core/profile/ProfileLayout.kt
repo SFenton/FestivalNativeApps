@@ -206,46 +206,24 @@ sealed interface ProfileRow {
     }
 
     /**
-     * A band-size group's header (web `BandGroupHeader`: "Duos", "Trios", "Quads").
+     * One band-size group (owner #596): its header ("Duos", "Trios", "Quads", web `BandGroupHeader`),
+     * then one card of band rows with separators ending in the purple "View All Bands (N)"
+     * (`view-all-cta` R1), or "No Bands Yet" (web `InstrumentEmptyState`) when the group is empty.
+     * One grid column, like the Top Songs cards, so groups sit side by side on wide windows.
      *
-     * @property group Group.
+     * @property group Group the card previews and its View All opens.
+     * @property entries Previewed bands, in service order.
+     * @property total Bands in the group, never fewer than the card shows.
      */
-    data class BandGroupHeader(val group: PlayerBandGroup) : ProfileRow {
+    data class BandGroup(val group: PlayerBandGroup, val entries: List<PlayerBandEntry>, val total: Int) : ProfileRow {
         override val key: String get() = "bands:${group.wireId}"
-    }
 
-    /**
-     * One band card (web `PlayerBandCard`, one grid column like the web's `span: false`).
-     *
-     * @property group Group the card belongs to.
-     * @property index Position in the group (fade-in stagger).
-     * @property entry Band.
-     */
-    data class BandCard(val group: PlayerBandGroup, val index: Int, val entry: PlayerBandEntry) : ProfileRow {
-        override val key: String get() = "bands:${group.wireId}:$index:${entry.key}"
-    }
-
-    /**
-     * "No Bands Yet" for a group without bands (web `InstrumentEmptyState`).
-     *
-     * @property group Group.
-     */
-    data class BandsEmpty(val group: PlayerBandGroup) : ProfileRow {
-        override val key: String get() = "bands:${group.wireId}:empty"
-    }
-
-    /**
-     * "View All Bands (N)" when the group has more bands than its preview.
-     *
-     * @property group Group the full list opens filtered to.
-     * @property total Bands in the group.
-     */
-    data class BandsViewAll(val group: PlayerBandGroup, val total: Int) : ProfileRow {
-        override val key: String get() = "bands:${group.wireId}:view-all"
+        /** Whether the card ends with View All: whenever it shows rows (`view-all-cta` R1), never for "No Bands Yet". */
+        val showsViewAll: Boolean get() = entries.isNotEmpty()
     }
 
     /** Whether the row spans every column when no fold splits them. */
-    val fullWidth: Boolean get() = this !is InstrumentStats && this !is TopSongs && this !is BandCard
+    val fullWidth: Boolean get() = this !is InstrumentStats && this !is TopSongs && this !is BandGroup
 }
 
 /**
@@ -273,20 +251,17 @@ object ProfileSections {
             ProfileRow.TopSongsHeading +
             visible.map { ProfileRow.TopSongs(it) } +
             ProfileRow.Bands +
-            bands.flatMap(::bandRows)
+            bands.map(::bandRow)
 
     /**
-     * One group's rows: header, then its cards or "No Bands Yet", then "View All Bands (N)" when the
-     * group has more bands than the preview shows.
+     * One group's row: a single card of its bands, or "No Bands Yet" (owner #596).
      *
      * @param group Loaded group.
-     * @return Rows in page order.
+     * @return The group's row.
      */
-    fun bandRows(group: ProfileBandGroup): List<ProfileRow> {
+    fun bandRow(group: ProfileBandGroup): ProfileRow.BandGroup {
         val entries = group.page.entries
-        return listOf(ProfileRow.BandGroupHeader(group.group)) +
-            (if (entries.isEmpty()) listOf(ProfileRow.BandsEmpty(group.group)) else entries.mapIndexed { i, e -> ProfileRow.BandCard(group.group, i, e) }) +
-            listOfNotNull(ProfileRow.BandsViewAll(group.group, group.page.totalCount).takeIf { group.page.totalCount > entries.size })
+        return ProfileRow.BandGroup(group.group, entries, maxOf(group.page.totalCount, entries.size))
     }
 
     /** Band-size groups the player page previews, in web order (`PlayerBandsSection` duos, trios, quads). */
@@ -313,6 +288,15 @@ object ProfileSections {
      * @return Row key.
      */
     fun rowKey(id: String): String = if (id == "global") ProfileRow.Overview.key else id
+
+    /**
+     * Whether a Quick Links section is a chart's statistics, whose heading (the instrument row) sits
+     * flush with the top of its row; every other section opens with a padded section header.
+     *
+     * @param id Section ID.
+     * @return True for `instrument:<wire>`.
+     */
+    fun isInstrumentId(id: String): Boolean = id.startsWith("instrument:")
 }
 
 // endregion

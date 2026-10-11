@@ -14,6 +14,8 @@ public sealed class RankingsFake
     public int TotalTeams { get; set; } = 30;
     public HashSet<string> Failing { get; } = [];
     public Func<HttpRequestMessage, HttpResponseMessage?>? Extra { get; set; }
+    /// <summary>Selected player's combo rank (<see langword="null"/> answers 404, unranked).</summary>
+    public int? PlayerComboRank { get; set; } = 120;
 
     public RankingsFake()
     {
@@ -26,15 +28,21 @@ public sealed class RankingsFake
             if (!path.StartsWith("/api/rankings/", StringComparison.Ordinal)) return null;
             if (Failing.Contains(path)) return Wire.Response(HttpStatusCode.ServiceUnavailable);
             var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            var parts = path.Split('/');
+            if (parts[3] == "combo" && parts.Length == 5)
+                return PlayerComboRank is { } own
+                    ? Wire.Ok(RankingsWire.PlayerCombo(query["combo"]!, own, parts[4], query["rankBy"]!), pub)
+                    : Wire.Response(HttpStatusCode.NotFound);
             var page = int.Parse(query["page"]!, CultureInfo.InvariantCulture);
             var size = int.Parse(query["pageSize"]!, CultureInfo.InvariantCulture);
-            var parts = path.Split('/');
             if (parts[3] == "bands")
             {
                 var ranks = Enumerable.Range((page - 1) * size + 1, Math.Max(0, Math.Min(size, TotalTeams - (page - 1) * size)));
                 return Wire.Ok(RankingsWire.BandBoard(parts[4], page, size, TotalTeams, ranks), pub);
             }
             var accountRanks = Enumerable.Range((page - 1) * size + 1, Math.Max(0, Math.Min(size, TotalAccounts - (page - 1) * size)));
+            if (parts[3] == "combo")
+                return Wire.Ok(RankingsWire.ComboBoard(query["combo"]!, page, size, TotalAccounts, accountRanks, query["rankBy"]!), pub);
             return Wire.Ok(RankingsWire.Board(parts[3], page, size, TotalAccounts, accountRanks, query["rankBy"]!), pub);
         };
     }
@@ -75,9 +83,22 @@ public sealed class LeaderboardsOverviewTests
         var vm = new LeaderboardsViewModel(session, new FakeReader().Read);
         await vm.ActivateAsync();
 
-        Assert.Equal([Instrument.Lead, Instrument.Bass], vm.InstrumentCards.Select(c => c.Instrument));
+        // Web resolveSupportedRankingScopes (#602): the OG band combo comes before its instruments.
+        Assert.Equal(["03", "Solo_Guitar", "Solo_Bass"], vm.InstrumentCards.Select(c => c.Board.Id));
         Assert.Equal(BandTypeInfo.All, vm.BandCards.Select(c => c.BandType));
-        var lead = vm.InstrumentCards[0];
+        var combo = vm.InstrumentCards[0];
+        Assert.True(combo.ShowRows);
+        Assert.Equal(10, combo.Rows.Count);
+        Assert.Equal("Lead + Bass", combo.Title);
+        Assert.Equal(["instrument_guitar.png", "instrument_bass.png"], combo.IconFiles);
+        Assert.Equal("fst.leaderboards.card.03", combo.AutomationId);
+        Assert.Equal("fst.leaderboards.card.03.view-all", combo.ViewAllAutomationId);
+        Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "totalscore", Combo: "03"), combo.ViewAllRoute);
+        Assert.Equal("/leaderboards/all?combo=03&rankBy=totalscore", combo.ViewAllRoute.ToPath());
+        Assert.Equal("View All Rankings (60), Lead + Bass", combo.ViewAllName);
+        Assert.Equal("Player 1", combo.Rows[0].Name);
+        var lead = vm.InstrumentCards[1];
+        Assert.Empty(lead.IconFiles);
         Assert.True(lead.ShowRows);
         Assert.Equal(10, lead.Rows.Count);
         Assert.Equal("Lead", lead.Title);
@@ -99,12 +120,15 @@ public sealed class LeaderboardsOverviewTests
         Assert.Equal(band.ViewAllText + ", Quads", band.ViewAllName);
         Assert.StartsWith("View All Rankings", band.ViewAllName, StringComparison.Ordinal);
         Assert.Equal("Leaderboards Quick Links", vm.QuickLinks.Title);
-        Assert.Equal(["instrument:Solo_Guitar", "instrument:Solo_Bass", "band:Band_Duets", "band:Band_Trios", "band:Band_Quad"],
+        Assert.Equal(["combo:03", "instrument:Solo_Guitar", "instrument:Solo_Bass", "band:Band_Duets", "band:Band_Trios", "band:Band_Quad"],
             vm.QuickLinks.Items.Select(i => i.Section.Id));
-        Assert.Equal(Instrument.Lead, vm.QuickLinks.Items[0].Section.Instrument);
-        Assert.Equal(LeaderboardsViewModel.BandQuickLinkGlyph, vm.QuickLinks.Items[4].Glyph);
+        Assert.Equal("Lead + Bass", vm.QuickLinks.Items[0].Section.Title);
+        Assert.Equal(LeaderboardsViewModel.ComboQuickLinkGlyph, vm.QuickLinks.Items[0].Glyph);
+        Assert.Equal(Instrument.Lead, vm.QuickLinks.Items[1].Section.Instrument);
+        Assert.Equal(LeaderboardsViewModel.BandQuickLinkGlyph, vm.QuickLinks.Items[5].Glyph);
         Assert.All(fake.Service.Handler.Requests.Where(r => r.Uri.AbsolutePath.StartsWith("/api/rankings", StringComparison.Ordinal)),
             r => Assert.Contains("pageSize=10", r.Uri.Query, StringComparison.Ordinal));
+        Assert.Contains(fake.Service.Handler.Requests, r => r.Uri.AbsolutePath == "/api/rankings/combo" && r.Uri.Query.Contains("combo=03", StringComparison.Ordinal));
 
         // Activating again with nothing changed does not reload.
         var before = fake.Service.Handler.Requests.Count;
@@ -170,8 +194,10 @@ public sealed class LeaderboardsOverviewTests
         await vm.LoadAsync();
 
         Assert.True(vm.InstrumentCards[0].ShowEmpty);
-        Assert.Equal("No ranked Lead players yet.", vm.InstrumentCards[0].EmptyText);
-        var bass = vm.InstrumentCards[1];
+        Assert.Equal("No ranked Lead + Bass players yet.", vm.InstrumentCards[0].EmptyText);
+        Assert.True(vm.InstrumentCards[1].ShowEmpty);
+        Assert.Equal("No ranked Lead players yet.", vm.InstrumentCards[1].EmptyText);
+        var bass = vm.InstrumentCards[2];
         Assert.True(bass.ShowError);
         Assert.False(bass.IsLoading);
         Assert.True(bass.Status.HasIssue);
@@ -250,7 +276,7 @@ public sealed class LeaderboardsOverviewTests
         var vm = new LeaderboardsViewModel(session, reader.Read);
         await vm.ActivateAsync();
 
-        var lead = vm.InstrumentCards[0].Spotlight;
+        var lead = vm.InstrumentCards[1].Spotlight;
         Assert.True(lead.ShowRow);
         Assert.True(lead.IsVisible);
         Assert.Equal("#120", lead.Row!.RankText);
@@ -262,13 +288,18 @@ public sealed class LeaderboardsOverviewTests
         Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "totalscore", 5, RevealSelected: true), lead.Row.Route);
         Assert.StartsWith("Your rank, 120th. Jump to your position. Player 120.", lead.Row.Announcement);
         // The pinned "#120" widens every rank column of the card so names line up (operator batch 7.9).
-        Assert.All(vm.InstrumentCards[0].Rows, r => Assert.Equal(4, r.Section!.RankChars));
-        Assert.Same(vm.InstrumentCards[0].Rows[0].Section, lead.Row.Section);
-        var bass = vm.InstrumentCards[1].Spotlight;
-        Assert.All(vm.InstrumentCards[1].Rows, r => Assert.Equal(3, r.Section!.RankChars));
+        Assert.All(vm.InstrumentCards[1].Rows, r => Assert.Equal(4, r.Section!.RankChars));
+        Assert.Same(vm.InstrumentCards[1].Rows[0].Section, lead.Row.Section);
+        var bass = vm.InstrumentCards[2].Spotlight;
+        Assert.All(vm.InstrumentCards[2].Rows, r => Assert.Equal(3, r.Section!.RankChars));
         Assert.True(bass.ShowUnranked);
         Assert.Equal("Not yet ranked on Bass.", bass.UnrankedText);
         Assert.Equal(2, reader.Calls.Count);
+        // The combo card reads the player's combo row through the public combo read and opens the combo board (#602).
+        var combo = vm.InstrumentCards[0].Spotlight;
+        Assert.True(combo.ShowRow);
+        Assert.Equal("#120", combo.Row!.RankText);
+        Assert.Equal(new AppRoute.FullRankings(Instrument.Lead, "totalscore", 5, true, "03"), combo.Row.Route);
     }
 
     [Fact]
@@ -397,10 +428,14 @@ public sealed class LeaderboardsOverviewTests
             },
         };
         var session = fake.Session(RankingsFake.Selected("me", [Instrument.Lead, Instrument.Bass]));
+        fake.PlayerComboRank = null;
         var vm = new LeaderboardsViewModel(session);
         await vm.ActivateAsync();
-        Assert.Equal("#77", vm.InstrumentCards[0].Spotlight.Row!.RankText);
-        Assert.True(vm.InstrumentCards[1].Spotlight.ShowUnranked);
+        Assert.Equal("#77", vm.InstrumentCards[1].Spotlight.Row!.RankText);
+        Assert.True(vm.InstrumentCards[2].Spotlight.ShowUnranked);
+        // The combo's 404 reads as unranked too.
+        Assert.True(vm.InstrumentCards[0].Spotlight.ShowUnranked);
+        Assert.Equal("Not yet ranked on Lead + Bass.", vm.InstrumentCards[0].Spotlight.UnrankedText);
     }
 
     [Fact]
