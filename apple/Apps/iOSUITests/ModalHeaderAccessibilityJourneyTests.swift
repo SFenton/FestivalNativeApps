@@ -8,13 +8,21 @@ import XCTest
 /// Issue #94 (PR #182) let sheet content scroll under a glass-free inline header and fade to
 /// clear before it (`FestivalModal` → `ModalTopEdgeFadeModifier`, `scroll-edge` R2/R3 and
 /// `modal-shell`). This journey is the iOS evidence for that change: at the default size and
-/// at AX5, at rest and scrolled, the sheet's title is read before its content, the system
-/// Close stays named, enabled and hittable over the faded content, visible rows and
-/// selectors keep 44 pt targets, and `performAccessibilityAudit` passes on the scrolled
-/// state (every type at the default size, every type but contrast at AX5;
-/// `testing/apple/accessibility.md`). The audit may flag text in the 40 pt ramp under the
-/// header for contrast: that text is fading out by design (R2), so the journey accepts a
-/// contrast issue only for an element that starts inside the ramp and fails on any other.
+/// at AX5, at rest and scrolled, the sheet reads its title, then Close, then its content
+/// (only the system sheet grabber may read before the title), the system Close stays named,
+/// enabled and hittable over the faded content, visible rows and selectors keep 44 pt
+/// targets, and `performAccessibilityAudit` passes on the scrolled state (every type at the
+/// default size, every type but contrast at AX5; `testing/apple/accessibility.md`). The audit
+/// may flag text in the 40 pt ramp under the header for contrast: that text is fading out by
+/// design (R2), so the journey accepts a contrast issue only for an element that starts inside
+/// the ramp and fails on any other.
+///
+/// Text scaling: each AX5 test first launches at the default size, then at AX5, and measures
+/// the inline title (ink height, read back whole) and a body element at rest, clear of the
+/// header and hittable (the first Notifications row, its message read back whole; the first
+/// Paths activation card, its Beat and Time read back whole). At AX5 the title grows at least
+/// 1.15× (the capped system bar title, `system-bar-title-size`) and the body's recognized
+/// line height more than 1.35× (shared ``RecognizedText``).
 ///
 /// The hosted `FestivalUITests/ModalTopEdgeFadeAccessibilityTests` prove the mask adds no
 /// readable element, rows under the header keep their names, roles and order, and every
@@ -52,41 +60,50 @@ final class ModalHeaderAccessibilityJourneyTests: XCTestCase {
 
     // MARK: - Journeys
 
-    /// Notifications at the default size: title first, Close reachable, rows named 44 pt
-    /// buttons, a clean audit.
+    /// Notifications at the default size: title then Close then rows, Close reachable, rows
+    /// named 44 pt buttons, the title and a row read back whole, a clean audit.
     @MainActor
     func testNotificationsHeaderAtDefaultSize() throws {
-        try notificationsJourney(Self.defaultRun)
+        _ = try notificationsJourney(Self.defaultRun)
     }
 
-    /// Notifications at AX5, where the two rows outgrow the sheet: scrolled under the
-    /// header, the title still reads first and Close stays reachable.
+    /// Notifications at AX5, where the two rows outgrow the sheet: the title and the first
+    /// row grow from a default-size launch and read back whole clear of the header; scrolled
+    /// under the header, the title and Close still read first and Close stays reachable.
     @MainActor
     func testNotificationsHeaderAtAX5() throws {
-        try notificationsJourney(Self.ax5Run)
+        let baseline = try notificationsJourney(Self.defaultRun, measureOnly: true)
+        _ = try notificationsJourney(Self.ax5Run, baseline: baseline)
     }
 
     /// Paths (Text) at the default size, scrolled under the header.
     @MainActor
     func testPathsHeaderAtDefaultSize() throws {
-        try pathsJourney(Self.defaultRun)
+        _ = try pathsJourney(Self.defaultRun)
     }
 
-    /// Paths (Text) at AX5, scrolled under the header.
+    /// Paths (Text) at AX5: the title and the first activation card grow from a default-size
+    /// launch and read back whole clear of the header, then the table scrolls under it.
     @MainActor
     func testPathsHeaderAtAX5() throws {
-        try pathsJourney(Self.ax5Run)
+        let baseline = try pathsJourney(Self.defaultRun, measureOnly: true)
+        _ = try pathsJourney(Self.ax5Run, baseline: baseline)
     }
 
     // MARK: - Notifications
 
-    /// Open the Notifications sheet on `fixture-player-1` (two rows) and check it at rest
-    /// and, when the rows outgrow the sheet, scrolled under the header.
+    /// Open the Notifications sheet on `fixture-player-1` (two rows), measure the title and
+    /// the first row, and check it at rest and, when the rows outgrow the sheet, scrolled
+    /// under the header.
     ///
-    /// - Parameter run: Launch settings.
+    /// - Parameters:
+    ///   - run: Launch settings.
+    ///   - baseline: The default-size measurement this launch's text must outgrow (AX5).
+    ///   - measureOnly: Stop after measuring (the AX5 test's default-size launch).
+    /// - Returns: The title and row measurement.
     /// - Throws: A failed requirement or audit.
     @MainActor
-    private func notificationsJourney(_ run: Run) throws {
+    private func notificationsJourney(_ run: Run, baseline: TextSizes? = nil, measureOnly: Bool = false) throws -> TextSizes {
         let app = launch(run, profile: true)
         defer { app.terminate() }
         let bell = app.buttons["fst.shell.notifications"]
@@ -97,29 +114,40 @@ final class ModalHeaderAccessibilityJourneyTests: XCTestCase {
         let rows = ["fst.notifications.row.fixture-notif-1", "fst.notifications.row.fixture-notif-2"]
         XCTAssertTrue(app.buttons[rows[0]].waitForExistence(timeout: FestivalApp.budget(15)), "No rows")
         settle()
-        let sheet = Sheet(bar: bar, close: app.buttons["fst.notifications.close"], title: "Notifications",
+        let sheet = Sheet(bar: bar, close: app.buttons["fst.notifications.close"],
+                          closeIdentifier: "fst.notifications.close", title: "Notifications",
                           content: rows, targets: rows)
+        let first = app.buttons[rows[0]]
+        // The row reads "title. message flags." (`NotificationRow.accessibilityLabel`); its
+        // message's first sentence is drawn as wrapping text.
+        let message = Self.firstSentence(after: ". ", in: first.label)
+        let sizes = try measure(sheet, content: first, drawn: [message], in: app, run: run, baseline: baseline)
+        if measureOnly { return sizes }
         try check(sheet, in: app, run: run, state: "rest")
         record(app, name: "notifications-\(run.name)-rest")
 
-        let first = app.buttons[rows[0]]
         guard scrollUnderHeader(first, bar: bar, in: app) else {
             XCTAssertNotEqual(run.name, Self.ax5Run.name, "The AX5 rows never scrolled under the header")
-            return
+            return sizes
         }
         try check(sheet, in: app, run: run, state: "scrolled")
         record(app, name: "notifications-\(run.name)-scrolled")
+        return sizes
     }
 
     // MARK: - Paths
 
-    /// Open Paths for `fixture-pulse` in Text and check it at rest and with the Expert
-    /// table scrolled under the header.
+    /// Open Paths for `fixture-pulse` in Text, measure the title and the first activation
+    /// card, and check it at rest and with the Expert table scrolled under the header.
     ///
-    /// - Parameter run: Launch settings.
+    /// - Parameters:
+    ///   - run: Launch settings.
+    ///   - baseline: The default-size measurement this launch's text must outgrow (AX5).
+    ///   - measureOnly: Stop after measuring (the AX5 test's default-size launch).
+    /// - Returns: The title and card measurement.
     /// - Throws: A failed requirement or audit.
     @MainActor
-    private func pathsJourney(_ run: Run) throws {
+    private func pathsJourney(_ run: Run, baseline: TextSizes? = nil, measureOnly: Bool = false) throws -> TextSizes {
         let app = launch(run, profile: false)
         defer { app.terminate() }
         openPaths(in: app)
@@ -129,15 +157,128 @@ final class ModalHeaderAccessibilityJourneyTests: XCTestCase {
         settle()
         let bar = app.navigationBars.matching(NSPredicate(format: "identifier BEGINSWITH %@", "Paths")).firstMatch
         XCTAssertTrue(bar.exists, "No Paths header")
-        let sheet = Sheet(bar: bar, close: app.buttons["fst.paths.close"], title: bar.identifier,
+        let sheet = Sheet(bar: bar, close: app.buttons["fst.paths.close"], closeIdentifier: "fst.paths.close",
+                          title: bar.identifier,
                           content: ["fst.paths.text.Solo_Guitar.expert"] + Self.pathsSelectors,
                           targets: Self.pathsSelectors)
-        try check(sheet, in: app, run: run, state: "rest")
-        record(app, name: "paths-\(run.name)-rest")
+        if !measureOnly {
+            try check(sheet, in: app, run: run, state: "rest")
+            record(app, name: "paths-\(run.name)-rest")
+        }
+        // The first activation card draws its Beat and Time captions over their values; its
+        // value reads "Frets …, beat <beat>, time <time>, …" (`SongPathsSheet.spokenValue`).
+        let card = element("fst.paths.activation.1", in: app)
+        XCTAssertTrue(card.waitForExistence(timeout: FestivalApp.budget(5)), "No first activation card")
+        let spoken = (card.value as? String ?? "").components(separatedBy: ", ")
+        let beat = try XCTUnwrap(spoken.first { $0.hasPrefix("beat ") }?.dropFirst(5), "Card beat: \(spoken)")
+        let time = try XCTUnwrap(spoken.first { $0.hasPrefix("time ") }?.dropFirst(5), "Card time: \(spoken)")
+        reveal(card, bar: bar, in: app)
+        let sizes = try measure(sheet, content: card, drawn: ["Beat", String(beat), "Time", String(time)],
+                                in: app, run: run, baseline: baseline)
+        if measureOnly { return sizes }
 
         XCTAssertTrue(scrollUnderHeader(table, bar: bar, in: app), "The Expert table never scrolled under the header")
         try check(sheet, in: app, run: run, state: "scrolled")
         record(app, name: "paths-\(run.name)-scrolled")
+        return sizes
+    }
+
+    // MARK: - Text scaling
+
+    /// The title's ink height and a body element's recognized line height, in one launch.
+    private struct TextSizes {
+        /// The inline title's drawn glyph height, in pixels.
+        let title: CGFloat
+        /// The body element's median recognized line height, in points.
+        let body: CGFloat
+    }
+
+    /// Minimum growth of the inline sheet title from the default size to AX5.
+    ///
+    /// The title is the system inline navigation title (`FestivalModal`), whose size UIKit
+    /// caps (`testing/apple/accessibility.md` `system-bar-title-size`: 1.22–1.23× measured on
+    /// the first-run guide); it offers the Large Content Viewer instead. The floor fails a title
+    /// drawn at a fixed size (precedent `FirstRunJourneyTests.guideTitleMinimumGrowth`).
+    private static let titleMinimumGrowth: CGFloat = 1.15
+
+    /// Measure the title and one body element clear of the header, and, given a default-size
+    /// baseline, require their growth.
+    ///
+    /// The title reads back whole from its capture (``RecognizedText``) and lies wholly on
+    /// screen in the header; the body element, at rest, starts at or below the header (where
+    /// nothing is dimmed), ends on screen, is hittable, and draws every `drawn` text whole. At AX5 the
+    /// title's ink is at least ``titleMinimumGrowth`` and the body's recognized line height
+    /// more than ``RecognizedText/minimumGrowth`` times the baseline's.
+    ///
+    /// - Parameters:
+    ///   - sheet: The sheet.
+    ///   - content: A body element (a row or card) at rest.
+    ///   - drawn: Texts it must draw whole.
+    ///   - app: The running app.
+    ///   - run: Launch settings, for messages.
+    ///   - baseline: The default-size measurement, or nil at the default size.
+    /// - Returns: This launch's measurement.
+    /// - Throws: An unrecognized title or body.
+    @MainActor
+    private func measure(
+        _ sheet: Sheet, content: XCUIElement, drawn: [String], in app: XCUIApplication, run: Run, baseline: TextSizes?
+    ) throws -> TextSizes {
+        let context = "\(sheet.title) \(run.name)"
+        let window = app.windows.firstMatch.frame
+        let heading = sheet.bar.staticTexts.matching(NSPredicate(format: "label == %@", sheet.title)).firstMatch
+        XCTAssertTrue(heading.exists, "No title: \(context)")
+        let titleFrame = heading.frame
+        XCTAssertTrue(window.contains(titleFrame), "Title wholly on screen: \(titleFrame) (\(context))")
+        XCTAssertTrue(sheet.bar.frame.insetBy(dx: -1, dy: -1).contains(titleFrame),
+                      "Title in the header: \(titleFrame) in \(sheet.bar.frame) (\(context))")
+        let titleReading = RecognizedText.recognize(heading, label: sheet.title, frame: titleFrame)
+        XCTAssertTrue(RecognizedText.showsWhole(sheet.title, in: titleReading.text),
+                      "'\(sheet.title)' reads back whole: '\(titleReading.text ?? "nil")' (\(context))")
+        let titleInk = CGFloat(try SongsUITestSupport.brightGlyphHeight(in: heading))
+        XCTAssertGreaterThan(titleInk, 8, "Title has measurable ink: \(context)")
+
+        let frame = content.frame
+        let edge = sheet.bar.frame.maxY
+        // At rest nothing below the header is dimmed (`ModalTopEdgeFade`: the ramp grows only
+        // with scrolling), so the element is clear once it starts at or below the header.
+        XCTAssertGreaterThanOrEqual(frame.minY, edge - 0.5,
+                                    "\(content.identifier) clear of the header: \(frame), edge \(edge) (\(context))")
+        XCTAssertLessThanOrEqual(frame.maxY, window.maxY + 0.5, "\(content.identifier) wholly on screen: \(frame) (\(context))")
+        XCTAssertTrue(content.isHittable, "\(content.identifier) is reachable: \(context)")
+        let expected = drawn.joined(separator: " ")
+        let reading = RecognizedText.recognize(content, label: drawn.first ?? expected, frame: frame)
+        for text in drawn {
+            XCTAssertTrue(RecognizedText.showsWhole(text, in: reading.text),
+                          "\(content.identifier) draws '\(text)' whole: '\(reading.text ?? "nil")' (\(context))")
+        }
+        let body = try XCTUnwrap(reading.lineHeight, "\(content.identifier) recognized: \(context)")
+        XCTAssertGreaterThan(body, 4, "\(content.identifier) has a measurable line height: \(context)")
+        record(app, name: "\(sheet.title.lowercased())-\(run.name)-measured")
+
+        let sizes = TextSizes(title: titleInk, body: body)
+        guard let baseline else {
+            attach("\(sheet.title)-\(run.name)-text", String(format: "title %.0f px, %@ %.1f pt: '%@'",
+                                                             titleInk, content.identifier, body, reading.text ?? ""))
+            return sizes
+        }
+        let titleGrowth = titleInk / baseline.title
+        let bodyGrowth = body / baseline.body
+        attach("\(sheet.title)-\(run.name)-growth", String(
+            format: "title %.0f → %.0f px (%.2f×)\n%@ %.1f → %.1f pt (%.2f×): '%@'",
+            baseline.title, titleInk, titleGrowth, content.identifier, baseline.body, body, bodyGrowth, reading.text ?? ""
+        ))
+        XCTAssertGreaterThanOrEqual(titleGrowth, Self.titleMinimumGrowth,
+                                    "'\(sheet.title)' glyphs grow: \(baseline.title) → \(titleInk) px (\(context))")
+        XCTAssertGreaterThan(bodyGrowth, RecognizedText.minimumGrowth,
+                             "\(content.identifier) glyphs grow: \(baseline.body) → \(body) pt (\(context))")
+        return sizes
+    }
+
+    /// The first sentence of `label` after the first `separator`.
+    private static func firstSentence(after separator: String, in label: String) -> String {
+        let rest = label.range(of: separator).map { String(label[$0.upperBound...]) } ?? label
+        guard let stop = rest.firstIndex(of: ".") else { return rest }
+        return String(rest[..<stop])
     }
 
     // MARK: - Checks
@@ -146,6 +287,8 @@ final class ModalHeaderAccessibilityJourneyTests: XCTestCase {
     private struct Sheet {
         let bar: XCUIElement
         let close: XCUIElement
+        /// Close's identifier, for the reading-order walk.
+        let closeIdentifier: String
         /// The inline title.
         let title: String
         /// Content landmarks (identifiers) the title must read before.
@@ -169,7 +312,7 @@ final class ModalHeaderAccessibilityJourneyTests: XCTestCase {
         XCTAssertTrue(sheet.bar.exists, "Header gone: \(context)")
         XCTAssertEqual(sheet.bar.staticTexts.matching(NSPredicate(format: "label == %@", sheet.title)).count, 1,
                        "One title '\(sheet.title)' in the header: \(context)")
-        assertTitleFirst(sheet, in: app, context)
+        assertHeaderFirst(sheet, in: app, context)
 
         let close = sheet.close
         XCTAssertTrue(close.exists, "No Close: \(context)")
@@ -216,26 +359,44 @@ final class ModalHeaderAccessibilityJourneyTests: XCTestCase {
         try audit(sheet, in: app, run: run, state: state)
     }
 
-    /// The header (title and Close) comes before every content landmark in the hierarchy's
-    /// depth-first order, which VoiceOver follows (precedent `NavButtonHitRegionJourneyTests`).
+    /// The sheet reads its title, then Close, then its content, in the hierarchy's depth-first
+    /// order, which VoiceOver follows (`modal-shell` R2; precedent
+    /// `FirstRunJourneyTests.assertGuideReadingOrder`).
+    ///
+    /// Across the whole app snapshot, the only readable element allowed ahead of the title is
+    /// the system sheet grabber ("Sheet Grabber", UIKit's own chrome ahead of every grabber
+    /// sheet's content). The landmark sequence must be exactly the title, Close, then every
+    /// content landmark present (in any order among themselves): a Close moved after a row,
+    /// selector or table fails, as does a title read after Close.
     @MainActor
-    private func assertTitleFirst(_ sheet: Sheet, in app: XCUIApplication, _ context: String) {
+    private func assertHeaderFirst(_ sheet: Sheet, in app: XCUIApplication, _ context: String) {
         guard let root = try? app.snapshot() else {
             XCTFail("No snapshot: \(context)")
             return
         }
         var order: [String] = []
+        var ahead: [String] = []
         func walk(_ node: XCUIElementSnapshot, inBar: Bool) {
             let bar = inBar || node.elementType == .navigationBar && node.identifier == sheet.bar.identifier
+            let name = node.identifier.isEmpty ? node.label : node.identifier
             if bar, node.elementType == .staticText, node.label == sheet.title, !order.contains("title") {
                 order.append("title")
+            } else if node.identifier == sheet.closeIdentifier, !order.contains("close") {
+                order.append("close")
             } else if sheet.content.contains(node.identifier), !order.contains(node.identifier) {
                 order.append(node.identifier)
+            } else if !order.contains("title"), node.elementType == .staticText || node.elementType == .button,
+                      !name.isEmpty, !(node.elementType == .button && node.label == "Sheet Grabber") {
+                ahead.append("\(node.elementType.rawValue) \(name)")
             }
             node.children.forEach { walk($0, inBar: bar) }
         }
         walk(root, inBar: false)
-        XCTAssertEqual(order.first, "title", "The title is read first: \(order) (\(context))")
+        attach("\(sheet.title)-\(context)-reading-order", (ahead.map { "ahead: \($0)" } + order).joined(separator: "\n"))
+        XCTAssertEqual(ahead, [], "Only the sheet grabber reads before the title: \(context)")
+        XCTAssertEqual(Array(order.prefix(2)), ["title", "close"], "Title, then Close: \(order) (\(context))")
+        XCTAssertGreaterThan(order.count, 2, "Content follows the header: \(order) (\(context))")
+        XCTAssertEqual(Set(order.dropFirst(2)).count, order.count - 2, "Content after the header: \(order) (\(context))")
     }
 
     /// Run the audit. A contrast issue is accepted only for an element whose top lies in
@@ -266,6 +427,28 @@ final class ModalHeaderAccessibilityJourneyTests: XCTestCase {
     }
 
     // MARK: - Scrolling
+
+    /// Drag the content up slowly, without letting `element` reach the header, until its
+    /// bottom is on screen (a card below the fold at AX5).
+    ///
+    /// - Parameters:
+    ///   - element: A body element below the header.
+    ///   - bar: The sheet header.
+    ///   - app: The running app.
+    @MainActor
+    private func reveal(_ element: XCUIElement, bar: XCUIElement, in app: XCUIApplication) {
+        let window = app.windows.firstMatch
+        for _ in 0..<4 {
+            let frame = element.frame
+            let needed = frame.maxY - (window.frame.maxY - 24)
+            let room = frame.minY - bar.frame.maxY - 8
+            guard needed > 0, room > 8 else { return }
+            let start = window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8))
+            start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -min(needed, room))),
+                        withVelocity: .slow, thenHoldForDuration: 0.3)
+            settle()
+        }
+    }
 
     /// Drag the content up slowly until `anchor` starts above the header's bottom edge.
     ///
