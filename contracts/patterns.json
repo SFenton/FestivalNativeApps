@@ -541,13 +541,15 @@
         {
           "id": "android-fold-lane",
           "glob": "android/app/src/main/**/*.kt",
-          "regex": "StaggeredGridItemSpan\\.FullLine",
+          "regex": "GridItemSpan\\(maxLineSpan\\)",
           "allow": [
             "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FoldLane.kt",
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/PlayerProfileScreen.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/PlayerProfileScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/shop/ShopScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandListScreens.kt"
           ],
           "debt": [],
-          "message": "Full-line items in hinge-splitting staggered grids use foldLaneItem so titles stay on their side of the fold (section-headers R10, #343). Player Profile drops full-line rows to one lane when split."
+          "message": "Full-line items in hinge-splitting grids use foldLaneItem so titles stay on their side of the fold (section-headers R10, #343, #584). Player Profile wraps its line-spanning rows in FoldLane (Overview fills one pane at a fold); the Shop header is a FoldLane; Player Bands moves its controls to their own pane at a hinge."
         },
         {
           "id": "windows-view-all-copy",
@@ -3572,7 +3574,7 @@
       "title": "Hinge columns",
       "status": "current",
       "doc": ".agents/patterns/hinge-columns.md",
-      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; fully unfolded (flat), splits and page rows divide at the midpoint of the free content area, never on the flat hinge line (owner-approved, #361); cells sharing a row start at its top edge (#365); two-pane viewers (Paths Side by Side) use HingePanes, meeting at the fold in book pose and as equal halves when flat (owner-approved, #368).",
+      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; fully unfolded (flat), splits and page rows divide at the midpoint of the free content area, never on the flat hinge line (owner-approved, #361); cells sharing a row start at its top edge (#365; Android card grids are row-major LazyVerticalGrids and Band Detail pairs its sections in top-aligned rows under a full-width header, never masonry lanes, #584); two-pane viewers (Paths Side by Side) use HingePanes, meeting at the fold in book pose and as equal halves when flat (owner-approved, #368).",
       "keywords": [
         "hinge",
         "fold",
@@ -3629,6 +3631,10 @@
             "symbol": "AdaptiveCardGrid"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/ProfileGrid.kt",
+            "symbol": "ProfileGrid"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/HingeSplit.kt",
             "symbol": "rememberHingeSplit"
           },
@@ -3672,6 +3678,14 @@
           ],
           "debt": [],
           "message": "Page grids use HingeGrid so their gutter sits on an iPhone Duo fold in book pose (hinge-columns R1, R6); the First Run Shop demo is a fixed miniature inside a slide."
+        },
+        {
+          "id": "android-masonry-grid",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "LazyVerticalStaggeredGrid|LazyStaggeredGrid|StaggeredGridCells",
+          "allow": [],
+          "debt": [],
+          "message": "Card grids are row-major (LazyVerticalGrid through AdaptiveCardGrid, ProfileGrid or the Suggestions grid) so sections side by side start on their row's top edge however far the page scrolls; masonry lanes drift apart (hinge-columns R8, #584)."
         }
       ],
       "supersedes": [],
@@ -3682,7 +3696,8 @@
         365,
         366,
         368,
-        373
+        373,
+        584
       ]
     },
     {
