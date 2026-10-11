@@ -581,15 +581,15 @@ struct SongBandLeaderboardContent: View {
                                 entry: entry, highlighted: isHighlighted(entry, in: payload.leaderboard)
                             )
                             .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
-                            // Web `stagger(index)`; the page scope decides whether it
-                            // still fades (R5).
-                            .festivalFadeIn(staggerIndex: index)
                             .frame(maxWidth: .infinity)
                             // The preview card's hairline inset (the row's padding).
                             .festivalGroupSegment(
                                 .position(index: index, count: entries.count, columns: columns),
                                 separatorInset: 12
                             )
+                            // The card and every row in it fade in as one (owner #614);
+                            // the page scope decides whether it still fades (R5).
+                            .festivalCardSegmentFadeIn(cardIndex: BoardCardEntrance.index)
                         }
                     }
                 }
@@ -611,12 +611,12 @@ struct SongBandLeaderboardContent: View {
                     focusPending = false
                     return
                 }
-                // After the card's own entrance (web `navToBand`, #323).
+                // After the card's entrance (web `navToBand`, #323, #614).
                 // A pair's identity is its first row's (wide-columns, #353).
                 if await SelectedRowReveal.reveal(
                     entries[WideColumns.rowStart(of: targetIndex, columns: columns)].id,
                     proxy: proxy, reduceMotion: reduceMotion,
-                    staggerIndex: targetIndex, scope: fadeScope
+                    staggerIndex: BoardCardEntrance.index, scope: fadeScope
                 ) {
                     focusPending = false
                 }

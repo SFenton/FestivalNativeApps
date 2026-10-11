@@ -28,10 +28,15 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
     public private(set) var excludedSeasons: Set<Int>
     /// Hidden intensity buckets (``SongIntensityBucket/keys``, web `difficultyFilter`).
     public private(set) var excludedIntensities: Set<Int>
+    /// Charts whose **Over CHOpt Threshold** check is on (web `overThreshold`): only
+    /// songs with a score above the CHOpt ceiling at the leeway, which Songs then shows
+    /// raw. Inert while Settings › Filter Invalid Scores is off.
+    public private(set) var overThreshold: Set<Instrument>
 
     private enum CodingKeys: String, CodingKey {
         case missingScores, hasScores, missingFCs, hasFCs
         case excludedStars, excludedPercentiles, excludedSeasons, excludedIntensities
+        case overThreshold
     }
 
     /// Start with independent chart sets, including an inactive empty default.
@@ -44,12 +49,15 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
     ///   - excludedStars: Hidden star buckets on the Songs instrument (unknown keys dropped).
     ///   - excludedPercentiles: Hidden percentile buckets on the Songs instrument
     ///     (unknown keys dropped).
+    ///   - overThreshold: Charts requiring a score above the CHOpt ceiling.
     public init(
         missingScores: Set<Instrument> = [], hasScores: Set<Instrument> = [],
         missingFCs: Set<Instrument> = [], hasFCs: Set<Instrument> = [],
         excludedStars: Set<Int> = [], excludedPercentiles: Set<Int> = [],
-        excludedSeasons: Set<Int> = [], excludedIntensities: Set<Int> = []
+        excludedSeasons: Set<Int> = [], excludedIntensities: Set<Int> = [],
+        overThreshold: Set<Instrument> = []
     ) {
+        self.overThreshold = overThreshold
         self.missingScores = missingScores
         self.hasScores = hasScores
         self.missingFCs = missingFCs
@@ -63,7 +71,54 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
     public var isActive: Bool {
         !missingScores.isEmpty || !hasScores.isEmpty
             || !missingFCs.isEmpty || !hasFCs.isEmpty
+            || !overThreshold.isEmpty
             || hasBucketChecks
+    }
+
+    /// The filter without Over CHOpt Threshold checks, which apply only while Settings ›
+    /// Filter Invalid Scores is on (the saved choice is kept for when it is).
+    public var clearingOverThreshold: Self {
+        var updated = self
+        updated.overThreshold = []
+        return updated
+    }
+
+    /// Whether one chart's Over CHOpt Threshold check is on.
+    ///
+    /// - Parameter instrument: Chart.
+    /// - Returns: True when on.
+    public func containsOverThreshold(_ instrument: Instrument) -> Bool {
+        overThreshold.contains(instrument)
+    }
+
+    /// Turn one chart's Over CHOpt Threshold check on or off.
+    ///
+    /// - Parameters:
+    ///   - instrument: Chart.
+    ///   - enabled: New value.
+    /// - Returns: The updated filter.
+    public func settingOverThreshold(_ instrument: Instrument, enabled: Bool) -> Self {
+        var updated = self
+        if enabled { updated.overThreshold.insert(instrument) } else { updated.overThreshold.remove(instrument) }
+        return updated
+    }
+
+    /// Whether every visible chart's Over CHOpt Threshold check is on (web global toggle).
+    ///
+    /// - Parameter visibleInstruments: Settings-visible charts.
+    /// - Returns: True when all are on.
+    public func allVisibleOverThreshold(visibleInstruments: Set<Instrument>) -> Bool {
+        !visibleInstruments.isEmpty && visibleInstruments.isSubset(of: overThreshold)
+    }
+
+    /// The global Over CHOpt Threshold toggle across the visible charts only.
+    ///
+    /// - Parameters:
+    ///   - visibleInstruments: Settings-visible charts.
+    ///   - enabled: New value.
+    /// - Returns: The updated filter.
+    public func settingAllOverThreshold(visibleInstruments: Set<Instrument>, enabled: Bool) -> Self {
+        visibleInstruments.reduce(self) { $0.settingOverThreshold($1, enabled: enabled) }
     }
 
     /// Whether a stars or percentile bucket is hidden. These checks read the Songs
@@ -292,7 +347,8 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
             excludedStars: excludedStars,
             excludedPercentiles: excludedPercentiles,
             excludedSeasons: excludedSeasons,
-            excludedIntensities: excludedIntensities
+            excludedIntensities: excludedIntensities,
+            overThreshold: overThreshold.intersection(visibleInstruments)
         )
     }
 
@@ -304,6 +360,8 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
     ///   - scoresBySong: Available, matching-publication selected-player index; nil is unavailable.
     ///   - visibleInstruments: Settings-enabled solo charts.
     ///   - selectedInstrument: Optional active Songs chart filter.
+    ///   - overThresholdLeeway: The Settings leeway while Filter Invalid Scores is on;
+    ///     nil leaves Over CHOpt Threshold checks inert (web `filterInvalidScoresEnabled`).
     /// - Returns: Rows matching at least one active chart and every bucket check,
     ///   preserving source order.
     /// - Throws: `FestivalAPIError.invalidPlayerProfile` when active checks lack scores.
@@ -311,15 +369,18 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
         _ songs: [Song],
         scoresBySong: [String: [Instrument: PlayerScore]]?,
         visibleInstruments: Set<Instrument>,
-        selectedInstrument: Instrument?
+        selectedInstrument: Instrument?,
+        overThresholdLeeway: Double? = nil
     ) throws -> [Song] {
-        let scoped = scoped(to: visibleInstruments)
+        var scoped = scoped(to: visibleInstruments)
+        if overThresholdLeeway == nil { scoped = scoped.clearingOverThreshold }
         let charts = Instrument.allCases.filter { chart in
             (selectedInstrument == nil || selectedInstrument == chart)
                 && (scoped.missingScores.contains(chart)
                     || scoped.hasScores.contains(chart)
                     || scoped.missingFCs.contains(chart)
-                    || scoped.hasFCs.contains(chart))
+                    || scoped.hasFCs.contains(chart)
+                    || scoped.overThreshold.contains(chart))
         }
         // Bucket checks read one chart: only with a visible Songs instrument (web
         // `effectiveInstrument != null`).
@@ -327,7 +388,9 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
             ? selectedInstrument.flatMap { visibleInstruments.contains($0) ? $0 : nil } : nil
         guard !charts.isEmpty || bucketChart != nil else { return songs }
         guard let scoresBySong else { throw FestivalAPIError.invalidPlayerProfile }
-        let chartMatched = charts.isEmpty ? songs : scoped.chartFiltered(songs, charts: charts, scoresBySong: scoresBySong)
+        let chartMatched = charts.isEmpty ? songs : scoped.chartFiltered(
+            songs, charts: charts, scoresBySong: scoresBySong, leeway: overThresholdLeeway ?? 0
+        )
         guard let bucketChart else { return chartMatched }
         // The web skips score-based bucket checks for a player with no scores at all;
         // intensity reads the song and always applies.
@@ -349,9 +412,11 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
     ///   - songs: Rows to filter.
     ///   - charts: Charts with at least one active check.
     ///   - scoresBySong: Selected-player index.
+    ///   - leeway: Settings leeway for the Over CHOpt Threshold check.
     /// - Returns: Rows matching at least one chart.
     private func chartFiltered(
-        _ songs: [Song], charts: [Instrument], scoresBySong: [String: [Instrument: PlayerScore]]
+        _ songs: [Song], charts: [Instrument], scoresBySong: [String: [Instrument: PlayerScore]],
+        leeway: Double
     ) -> [Song] {
         let scoped = self
         return songs.filter { song in
@@ -370,7 +435,11 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
                 let comboMatches = !comboChecks
                     || (scoped.missingFCs.contains(chart) && !fullCombo)
                     || (scoped.hasFCs.contains(chart) && fullCombo)
-                return scoreMatches && comboMatches
+                let overMatches = !scoped.overThreshold.contains(chart)
+                    || (scored && InvalidScorePolicy.exceedsThreshold(
+                        score: score?.score ?? 0, maxScore: song.maxScore(for: chart), leeway: leeway
+                    ))
+                return scoreMatches && comboMatches && overMatches
             }
         }
     }
@@ -422,7 +491,9 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
             }
             buckets[kind] = keys
         }
+        let over = try fields.decodeIfPresent([Instrument].self, forKey: .overThreshold) ?? []
         guard Set(missing).count == missing.count,
+              Set(over).count == over.count,
               Set(scored).count == scored.count,
               Set(missingCombo).count == missingCombo.count,
               Set(combos).count == combos.count else {
@@ -434,7 +505,8 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
             excludedStars: Set(buckets[.stars] ?? []),
             excludedPercentiles: Set(buckets[.percentile] ?? []),
             excludedSeasons: Set(buckets[.season] ?? []),
-            excludedIntensities: Set(buckets[.intensity] ?? [])
+            excludedIntensities: Set(buckets[.intensity] ?? []),
+            overThreshold: Set(over)
         )
     }
 
@@ -451,6 +523,9 @@ public struct SongPlayerScoreFilter: Codable, Equatable, Sendable {
         // Omitted when empty so filters without bucket choices keep their older bytes.
         for kind in SongBucketKind.allCases where !excluded(kind).isEmpty {
             try fields.encode(excluded(kind).sorted(), forKey: Self.codingKey(kind))
+        }
+        if !overThreshold.isEmpty {
+            try fields.encode(Instrument.allCases.filter(overThreshold.contains), forKey: .overThreshold)
         }
     }
 

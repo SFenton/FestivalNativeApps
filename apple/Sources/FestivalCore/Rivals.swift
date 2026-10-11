@@ -292,6 +292,15 @@ public struct RivalCategory: Identifiable, Sendable, Equatable {
     public let songs: [RivalSongComparison]
 
     public var id: String { key }
+
+    /// This category's Rival Detail Quick Links entry (web
+    /// `rivalDetailCategoryQuickLinkId`), with its category symbol (#605).
+    public var quickLinkSection: QuickLinkSection {
+        QuickLinkSection(
+            id: "rival-category:\(key)", title: title,
+            icon: .system(RivalCategorization.quickLinkSymbol(forKey: key))
+        )
+    }
 }
 
 /// Splits a rival's shared songs into the same themed buckets as the web's
@@ -299,6 +308,34 @@ public struct RivalCategory: Identifiable, Sendable, Equatable {
 /// keyed identically so `AppRoute.rivalry(mode:)` round-trips.
 public enum RivalCategorization {
     private static let closestBattlesCount = 5
+
+    /// Every category key in page order (web `categorizeRivalSongs`).
+    public static let keys = [
+        "closest_battles", "almost_passed", "slipping_away",
+        "barely_winning", "pulling_forward", "dominating_them",
+    ]
+
+    /// Symbol for a key outside ``keys``, so the Quick Links group keeps an icon on
+    /// every row (HIG Menus: "give every item an icon, or give none of them icons").
+    public static let fallbackQuickLinkSymbol = "person.2.fill"
+
+    /// The SF Symbol of one category's Quick Links entry (#605; shared category list in
+    /// pattern `quick-links` R9). Each shows what the category means: neck and neck, closing
+    /// in, falling behind, a narrow win, a growing lead, a commanding lead.
+    ///
+    /// - Parameter key: Category key (``RivalCategory/key``).
+    /// - Returns: An SF Symbol name; ``fallbackQuickLinkSymbol`` for an unknown key.
+    public static func quickLinkSymbol(forKey key: String) -> String {
+        switch key {
+        case "closest_battles": "arrow.left.arrow.right"
+        case "almost_passed": "arrow.up.right"
+        case "slipping_away": "arrow.down.right"
+        case "barely_winning": "flag.checkered"
+        case "pulling_forward": "forward"
+        case "dominating_them": "crown"
+        default: fallbackQuickLinkSymbol
+        }
+    }
 
     /// Categorize a rival's compared songs into direction/magnitude buckets.
     ///

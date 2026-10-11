@@ -199,4 +199,4 @@ The demos remain decorative: they are hidden from TalkBack, and taps inside them
 
 ## Open
 
-- Pages owned by other lanes get first-run automatically through the host; no per-screen registration is needed. Songs list-detail on expanded widths shows the Songs carousel even when a song is open in the detail pane.
+- Pages owned by other lanes get first-run automatically through the host; no per-screen registration is needed. Songs fills the window on expanded widths (two columns, no list-detail since #581) and shows the Songs carousel.

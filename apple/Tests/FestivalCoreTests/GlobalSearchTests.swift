@@ -111,7 +111,7 @@ func globalSearchEffectiveQuery(_ raw: String, _ expected: String?) {
     #expect(GlobalSearch.enterQueryHint(for: .songs) == "Enter at least two characters to search for songs.")
     #expect(GlobalSearch.enterQueryHint(for: .players) == "Enter at least two characters to search for players.")
     #expect(GlobalSearch.enterQueryHint(for: .bands) == "Enter at least two characters to search for bands.")
-    #expect(Set(GlobalSearchScope.allCases.map(GlobalSearch.enterQueryHint(for:))).count == 4)
+    #expect(Set(GlobalSearchScope.allCases.map { GlobalSearch.enterQueryHint(for: $0) }).count == 4)
 }
 
 /// A failed section without a heading names what failed.
@@ -192,4 +192,71 @@ func globalSearchEffectiveQuery(_ raw: String, _ expected: String?) {
     #expect(GlobalSearch.staggerSlotTotal(scope: .songs, outcomes: all) == 3)
     #expect(GlobalSearch.staggerSlotTotal(scope: .bands, outcomes: all) == 1)
     #expect(GlobalSearch.staggerSlotCount(.songs, scope: .bands, outcomes: all) == 0)
+}
+
+// MARK: - Profiles sheet targets (issue #600)
+
+/// The Profiles sheet offers All · Players · Bands (web `PROFILE_SEARCH_CONFIG`), starts
+/// broad on All and never searches songs; global search keeps all four scopes.
+@Test func profileTargetsOfferAllPlayersBands() {
+    #expect(GlobalSearchTargets.profiles.scopes == [.all, .players, .bands])
+    #expect(GlobalSearchTargets.global.scopes == GlobalSearchScope.allCases)
+    #expect(GlobalSearchTargets.profiles.scopes.first == .all)
+    #expect(GlobalSearchScope.all.sections(in: .profiles) == [.players, .bands])
+    #expect(GlobalSearchScope.bands.sections(in: .profiles) == [.bands])
+    #expect(!GlobalSearchTargets.profiles.searchesSongs)
+    #expect(GlobalSearchTargets.global.searchesSongs)
+    #expect(GlobalSearchTargets.profiles.fieldLabel == "Search players and bands")
+}
+
+/// Profile copy names players and bands only; narrowed scopes share global search's.
+@Test func profileTargetsCopyNamesPlayersAndBands() throws {
+    #expect(GlobalSearch.prompt(for: .all, targets: .profiles) == "Search players or bands")
+    #expect(GlobalSearch.prompt(for: .players, targets: .profiles) == "Search players")
+    #expect(GlobalSearch.prompt(for: .bands, targets: .profiles) == "Search bands")
+    #expect(GlobalSearch.enterQueryHint(for: .all, targets: .profiles)
+            == "Enter at least two characters to search for players or bands.")
+    let all = try #require(GlobalSearch.emptyState(scope: .all, query: "zz", targets: .profiles))
+    #expect(all.title == "No Results Found")
+    #expect(all.subtitle == "Check the spelling or try a different player or band member's name.")
+    let bands = try #require(GlobalSearch.emptyState(scope: .bands, query: "zz", targets: .profiles))
+    #expect(bands.title == "No Bands Found")
+}
+
+/// On the Profiles sheet, the never-searched songs section cannot hold the spinner,
+/// count in the announcement, take stagger slots or block the empty state.
+@Test func profileTargetsIgnoreTheSongsSection() {
+    typealias Outcome = GlobalSearch.SectionOutcome
+    let settled = GlobalSearch.Outcomes(songs: .pending, players: .found(2), bands: .found(1))
+    #expect(!GlobalSearch.isSearching(scope: .all, outcomes: settled, targets: .profiles))
+    #expect(GlobalSearch.isSearching(scope: .all, outcomes: settled))
+    #expect(GlobalSearch.resultAnnouncement(scope: .all, outcomes: settled, targets: .profiles)
+            == "2 players, 1 band")
+    #expect(GlobalSearch.staggerSlotTotal(scope: .all, outcomes: settled, targets: .profiles) == 5)
+    #expect(GlobalSearch.staggerStart(of: .bands, scope: .all, outcomes: settled, targets: .profiles) == 3)
+
+    let pending = GlobalSearch.Outcomes(songs: .pending, players: .found(1), bands: .pending)
+    #expect(GlobalSearch.isSearching(scope: .all, outcomes: pending, targets: .profiles))
+    #expect(!GlobalSearch.isSearching(scope: .players, outcomes: pending, targets: .profiles))
+
+    let empty = GlobalSearch.Outcomes(songs: .pending, players: .found(0), bands: .found(0))
+    #expect(GlobalSearch.isEmpty(scope: .all, outcomes: empty, targets: .profiles))
+    #expect(!GlobalSearch.isEmpty(scope: .all, outcomes: empty))
+    #expect(GlobalSearch.resultAnnouncement(scope: .all, outcomes: empty, targets: .profiles)
+            == "No results found.")
+    #expect(GlobalSearch.submitReruns(scope: .all, outcomes: empty, targets: .profiles))
+
+    let failed = GlobalSearch.Outcomes(songs: .pending, players: .failed, bands: .found(0))
+    #expect(!GlobalSearch.isEmpty(scope: .all, outcomes: failed, targets: .profiles))
+    #expect(GlobalSearch.isEmpty(scope: .bands, outcomes: failed, targets: .profiles))
+}
+
+/// Global search's empty check still needs every shown section settled at zero.
+@Test func globalIsEmptyNeedsEveryShownSectionEmpty() {
+    let all = GlobalSearch.Outcomes(songs: .found(0), players: .found(0), bands: .found(0))
+    #expect(GlobalSearch.isEmpty(scope: .all, outcomes: all))
+    let songs = GlobalSearch.Outcomes(songs: .found(1), players: .found(0), bands: .found(0))
+    #expect(!GlobalSearch.isEmpty(scope: .all, outcomes: songs))
+    #expect(GlobalSearch.isEmpty(scope: .players, outcomes: songs))
+    #expect(!GlobalSearch.isEmpty(scope: .songs, outcomes: songs))
 }

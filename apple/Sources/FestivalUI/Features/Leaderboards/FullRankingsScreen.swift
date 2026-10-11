@@ -246,7 +246,7 @@ struct FullRankingsScreen: View {
                     let entries = payload.rankings.entries
                     LazyVStack(spacing: 0) {
                         // The title and count fade in at once, like the web page header;
-                        // the rows stagger beneath them.
+                        // the rows' card fades in as one after them (owner #614).
                         InstrumentPageTitle(
                             instruments: scope.instruments, title: pageTitle, style: .header,
                             identifier: "fst.full-rankings.title"
@@ -288,13 +288,14 @@ struct FullRankingsScreen: View {
                                     )
                                     .frame(maxWidth: .infinity)
                                     .macKeyboardRow(entry.id)
-                                    // Web `PaginatedLeaderboard` row stagger; the page
-                                    // scope decides whether it still fades (R5).
-                                    .festivalFadeIn(staggerIndex: index)
                                     .festivalGroupSegment(
                                         .position(index: index, count: entries.count, columns: columns),
                                         separatorInset: RankingRowLayout.horizontalPadding
                                     )
+                                    // The card and every row in it fade in as one
+                                    // (owner #614); the page scope decides whether it
+                                    // still fades (R5).
+                                    .festivalCardSegmentFadeIn(cardIndex: BoardCardEntrance.index)
                                 }
                             }
                         }
@@ -333,12 +334,12 @@ struct FullRankingsScreen: View {
                         focusPending = false
                         return
                     }
-                    // After the row's own entrance (web `navToPlayer`, #323).
+                    // After the card's entrance (web `navToPlayer`, #323, #614).
                     // A pair's identity is its first row's (wide-columns, #353).
                     if await SelectedRowReveal.reveal(
                         entries[WideColumns.rowStart(of: targetIndex, columns: columns)].id,
                         proxy: proxy, reduceMotion: reduceMotion,
-                        staggerIndex: targetIndex, scope: fadeScope
+                        staggerIndex: BoardCardEntrance.index, scope: fadeScope
                     ) {
                         focusPending = false
                     }

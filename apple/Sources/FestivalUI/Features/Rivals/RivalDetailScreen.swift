@@ -132,9 +132,7 @@ struct RivalDetailScreen: View {
                                 )
                             }
                             .padding(.horizontal, 16)
-                            .quickLinkSection(
-                                id: "rival-category:\(category.key)", title: category.title
-                            )
+                            .quickLinkSection(category.quickLinkSection)
                             .festivalFadeIn(isLoaded: true, index: index)
                         }
                     }

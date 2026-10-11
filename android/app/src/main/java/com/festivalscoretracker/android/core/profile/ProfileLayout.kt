@@ -288,6 +288,15 @@ object ProfileSections {
      * @return Row key.
      */
     fun rowKey(id: String): String = if (id == "global") ProfileRow.Overview.key else id
+
+    /**
+     * Whether a Quick Links section is a chart's statistics, whose heading (the instrument row) sits
+     * flush with the top of its row; every other section opens with a padded section header.
+     *
+     * @param id Section ID.
+     * @return True for `instrument:<wire>`.
+     */
+    fun isInstrumentId(id: String): Boolean = id.startsWith("instrument:")
 }
 
 // endregion

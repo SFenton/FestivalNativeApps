@@ -97,8 +97,8 @@ public static class SelectedRowReveal
             if (!realized && ++frames < RealizeFrames) return;
             StopFrames();
             var now = FadeIn.Now;
-            // Rows realized now start their stagger now; a board whose entrance already ended (rows shown in place) waits for nothing.
-            wait = arm.IsRunning(now) ? FadeInTiming.RevealWait(index, FadeIn.VisibleRows(list)) : TimeSpan.Zero;
+            // Rows realized now start their stagger (or a whole-card board its one fade, #614) now; a board whose entrance already ended (rows shown in place) waits for nothing.
+            wait = arm.IsRunning(now) ? arm.RevealWait(index, FadeIn.VisibleRows(list), now) : TimeSpan.Zero;
             if (wait <= TimeSpan.Zero)
             {
                 Finish();

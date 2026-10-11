@@ -17,14 +17,16 @@ object CompeteFixtures {
      * @param rows Rows.
      * @return JSON.
      */
-    fun comboBoard(comboId: String, rows: Int = 3): String {
+    fun comboBoard(comboId: String, rows: Int = 3, rankBy: String = "totalscore", page: Int = 1, pageSize: Int = 10): String {
         val entries = (1..rows).joinToString(",") { rank ->
             """{"rank":$rank,"accountId":"${RankingsFixtures.accountId(rank)}","displayName":"Synthetic Combo $rank","adjustedRating":0.1,"weightedRating":0.2,"fcRate":0.5,"totalScore":${1_000_000 - rank},"maxScorePercent":0.9,"songsPlayed":10,"totalChartedSongs":20,"fullComboCount":5,"computedAt":"2026-09-28T00:00:00Z"}"""
         }
-        return """{"comboId":"$comboId","rankBy":"totalscore","page":1,"pageSize":10,"totalAccounts":30,"entries":[$entries]}"""
+        return """{"comboId":"$comboId","rankBy":"$rankBy","page":$page,"pageSize":$pageSize,"totalAccounts":30,"entries":[$entries]}"""
     }
 
     private fun combo(url: String): String = Regex("combo=([0-9a-fA-F]+)").find(url)?.groupValues?.get(1).orEmpty()
+
+    private fun query(url: String, name: String): String? = Regex("[?&]$name=([^&]+)").find(url)?.groupValues?.get(1)
 
     /**
      * Standard transport with rankings, a Lead+Bass combo board and rivals.
@@ -33,9 +35,13 @@ object CompeteFixtures {
      */
     fun transport(): FakeTransport = RankingsFixtures.install(FakeTransport.standard(), unranked = setOf("Solo_PeripheralVocals")).apply {
         on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
-        on("/api/rankings/combo", headers = mapOf("X-FST-Publication-Id" to "7")) { comboBoard(combo(it.url)) }
+        on("/api/rankings/combo", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            // Echoes the requested page so the combo Full Rankings board (#602) pages like the service.
+            val page = query(it.url, "page")?.toIntOrNull() ?: 1
+            comboBoard(combo(it.url), rows = if (page == 1) 3 else 0, rankBy = query(it.url, "rankBy") ?: "totalscore", page = page, pageSize = query(it.url, "pageSize")?.toIntOrNull() ?: 10)
+        }
         on("/api/rankings/combo/$PLAYER", headers = mapOf("X-FST-Publication-Id" to "7")) {
-            """{"comboId":"${combo(it.url)}","rankBy":"totalscore","rank":2,"accountId":"$PLAYER","displayName":"Synthetic Player","totalScore":999998,"songsPlayed":10,"totalChartedSongs":20,"totalAccounts":30}"""
+            """{"comboId":"${combo(it.url)}","rankBy":"${query(it.url, "rankBy") ?: "totalscore"}","rank":2,"accountId":"$PLAYER","displayName":"Synthetic Player","totalScore":999998,"songsPlayed":10,"totalChartedSongs":20,"totalAccounts":30}"""
         }
         val ids = RivalsFixtures.RIVALS
         on("/api/player/$PLAYER/rivals/Solo_Guitar") { RivalsFixtures.list("Solo_Guitar", listOf(RivalsFixtures.rival(ids[0], "Synthetic Alpha")), listOf(RivalsFixtures.rival(ids[1], "Synthetic Beta"))) }

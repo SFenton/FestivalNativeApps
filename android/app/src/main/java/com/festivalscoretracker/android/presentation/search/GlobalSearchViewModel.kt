@@ -56,6 +56,8 @@ data class SearchEmptyState(val title: String, val subtitle: String)
  *
  * @property query Field text.
  * @property scope Scope filter ([SearchScope.All] = no chip).
+ * @property targets What this search searches: every kind for global search, players and bands for
+ *   profile search (web `SearchModal` `availableTargets`, issue #600).
  * @property expanded Whether the surface is open.
  * @property settledQuery Query whose results are shown.
  * @property debouncing Whether newer text is waiting for the debounce.
@@ -74,6 +76,7 @@ data class SearchEmptyState(val title: String, val subtitle: String)
 data class GlobalSearchUiState(
     val query: String = "",
     val scope: SearchScope = SearchScope.All,
+    val targets: Set<SearchScope> = SearchScope.globalTargets,
     val expanded: Boolean = false,
     val settledQuery: String = "",
     val debouncing: Boolean = false,
@@ -93,11 +96,18 @@ data class GlobalSearchUiState(
     val isShortQuery: Boolean get() = !GlobalSearchResults.isSearchable(query)
 
     private val allEmpty: Boolean
-        get() = songsPhase == SectionPhase.Empty && playersPhase == SectionPhase.Empty && bandsPhase == SectionPhase.Empty
+        get() = targets.all { phase(it) == SectionPhase.Empty }
+
+    private fun phase(kind: SearchScope): SectionPhase = when (kind) {
+        SearchScope.Songs -> songsPhase
+        SearchScope.Players -> playersPhase
+        SearchScope.Bands -> bandsPhase
+        SearchScope.All -> SectionPhase.Idle
+    }
 
     private val showsResults: Boolean get() = !isShortQuery && settledQuery.isNotEmpty()
 
-    private fun shows(section: SearchScope): Boolean = scope == SearchScope.All || scope == section
+    private fun shows(section: SearchScope): Boolean = section in targets && (scope == SearchScope.All || scope == section)
 
     /** Whether the Songs section is shown (rows or its failure line). */
     val showSongsSection: Boolean
@@ -122,7 +132,7 @@ data class GlobalSearchUiState(
 
     /** Centred short-query hint naming what the selected scope searches (issue #299), else null. */
     val hint: String?
-        get() = if (isShortQuery) GlobalSearchResults.enterQueryHint(scope) else null
+        get() = if (isShortQuery) GlobalSearchResults.enterQueryHint(scope, targets) else null
 
     /**
      * Centred title-and-subtitle empty state (issue #99): every scope empty in All, Songs with no
@@ -131,8 +141,10 @@ data class GlobalSearchUiState(
     val emptyState: SearchEmptyState?
         get() = when {
             !showsResults -> null
-            scope == SearchScope.All && allEmpty ->
-                SearchEmptyState(GlobalSearchResults.EMPTY_ALL_TITLE, GlobalSearchResults.EMPTY_ALL_SUBTITLE)
+            scope == SearchScope.All && allEmpty -> SearchEmptyState(
+                GlobalSearchResults.EMPTY_ALL_TITLE,
+                if (SearchScope.Songs in targets) GlobalSearchResults.EMPTY_ALL_SUBTITLE else GlobalSearchResults.EMPTY_PROFILES_SUBTITLE,
+            )
             scope == SearchScope.Songs && songsPhase == SectionPhase.Empty ->
                 SearchEmptyState(GlobalSearchResults.EMPTY_SONGS_TITLE, GlobalSearchResults.EMPTY_SONGS_SUBTITLE)
             scope == SearchScope.Players && playersPhase == SectionPhase.Empty ->
@@ -175,6 +187,8 @@ data class GlobalSearchUiState(
  * @param selectedAccountId Selected player, read when players arrive.
  * @param backoff Shared scrape-freeze backoff.
  * @param savedState Saved query/scope/expanded.
+ * @param targets What to search: [SearchScope.globalTargets] for global search, [SearchScope.profileTargets]
+ *   for the Profiles sheet (issue #600; no catalogue read, songs never shown).
  */
 class GlobalSearchViewModel(
     private val loadCatalog: suspend () -> List<Song>,
@@ -183,11 +197,13 @@ class GlobalSearchViewModel(
     private val selectedAccountId: () -> String?,
     private val backoff: ServiceRetryBackoff = ServiceRetryBackoff(),
     private val savedState: SavedStateHandle = SavedStateHandle(),
+    private val targets: Set<SearchScope> = SearchScope.globalTargets,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(
         GlobalSearchUiState(
             query = savedState[KEY_QUERY] ?: "",
-            scope = SearchScope.parse(savedState[KEY_SCOPE]),
+            scope = SearchScope.parse(savedState[KEY_SCOPE]).takeIf { it == SearchScope.All || it in targets } ?: SearchScope.All,
+            targets = targets,
             expanded = savedState[KEY_EXPANDED] ?: false,
         ),
     )
@@ -249,7 +265,18 @@ class GlobalSearchViewModel(
      * @param chip Chip tapped.
      */
     fun toggleScope(chip: SearchScope) {
-        val next = chip.toggledFrom(mutableState.value.scope)
+        selectScope(chip.toggledFrom(mutableState.value.scope))
+    }
+
+    /**
+     * Select a scope outright (profile search's segmented All · Players · Bands, issue #600). Like
+     * [toggleScope] it only filters what is shown and never sends a request; a kind this search
+     * doesn't search falls back to All.
+     *
+     * @param scope Scope chosen.
+     */
+    fun selectScope(scope: SearchScope) {
+        val next = if (scope == SearchScope.All || scope in targets) scope else SearchScope.All
         savedState[KEY_SCOPE] = next.token
         mutableState.update { it.copy(scope = next) }
     }
@@ -287,7 +314,7 @@ class GlobalSearchViewModel(
         cancel()
         savedState[KEY_QUERY] = ""
         savedState[KEY_SCOPE] = SearchScope.All.token
-        mutableState.update { GlobalSearchUiState(expanded = it.expanded) }
+        mutableState.update { GlobalSearchUiState(targets = it.targets, expanded = it.expanded) }
     }
 
     private fun cancel() {
@@ -316,22 +343,34 @@ class GlobalSearchViewModel(
             delay(GlobalSearchResults.DEBOUNCE_MS)
         }
         val canSearch = GlobalSearchResults.canSearchPlayers(text)
-        val remotePhase = if (canSearch) SectionPhase.Loading else SectionPhase.Empty
+        val searchesSongs = SearchScope.Songs in targets
+        val searchesPlayers = SearchScope.Players in targets
+        val searchesBands = SearchScope.Bands in targets
+        fun remotePhase(searched: Boolean) = when {
+            !searched -> SectionPhase.Idle
+            canSearch -> SectionPhase.Loading
+            else -> SectionPhase.Empty
+        }
         mutableState.update {
             it.copy(
-                debouncing = false, settledQuery = text, announcement = null, songsPhase = SectionPhase.Loading,
-                players = emptyList(), playersIssue = null, playersCountdown = null, playersPhase = remotePhase,
-                bands = emptyList(), bandsIssue = null, bandsCountdown = null, bandsPhase = remotePhase,
+                debouncing = false, settledQuery = text, announcement = null,
+                songsPhase = if (searchesSongs) SectionPhase.Loading else SectionPhase.Idle,
+                players = emptyList(), playersIssue = null, playersCountdown = null, playersPhase = remotePhase(searchesPlayers),
+                bands = emptyList(), bandsIssue = null, bandsCountdown = null, bandsPhase = remotePhase(searchesBands),
             )
         }
+        // Nothing to load (profile search with an unsendable query): announce the empty result now.
+        if (!searchesSongs && !canSearch) announceIfSettled()
         coroutineScope {
-            launch { loadSongs(text) }
-            if (canSearch) {
+            if (searchesSongs) launch { loadSongs(text) }
+            if (canSearch && searchesPlayers) {
                 launch {
                     loadRemote(PLAYERS_BACKOFF_KEY, { GlobalSearchResults.players(searchPlayers(text, GlobalSearchResults.PLAYER_LIMIT), selectedAccountId()) }) { rows, phase, issue, countdown ->
                         copy(players = rows, playersPhase = phase, playersIssue = issue, playersCountdown = countdown)
                     }
                 }
+            }
+            if (canSearch && searchesBands) {
                 launch {
                     loadRemote(BANDS_BACKOFF_KEY, { GlobalSearchResults.bands(searchBands(text, GlobalSearchResults.BAND_LIMIT)) }) { rows, phase, issue, countdown ->
                         copy(bands = rows, bandsPhase = phase, bandsIssue = issue, bandsCountdown = countdown)
@@ -400,16 +439,19 @@ class GlobalSearchViewModel(
             if (SectionPhase.Loading in phases) return@update it
             it.copy(
                 announcement = GlobalSearchResults.announcement(
-                    songs = count(it.songsPhase, it.songs.size),
-                    players = count(it.playersPhase, it.players.size),
-                    bands = count(it.bandsPhase, it.bands.size),
+                    songs = count(SearchScope.Songs, it.songsPhase, it.songs.size),
+                    players = count(SearchScope.Players, it.playersPhase, it.players.size),
+                    bands = count(SearchScope.Bands, it.bandsPhase, it.bands.size),
                 ),
             )
         }
     }
 
-    private fun count(phase: SectionPhase, size: Int): GlobalSearchResults.Count =
-        if (phase == SectionPhase.Failed) GlobalSearchResults.Count.Failed else GlobalSearchResults.Count.Of(size)
+    private fun count(kind: SearchScope, phase: SectionPhase, size: Int): GlobalSearchResults.Count = when {
+        kind !in targets -> GlobalSearchResults.Count.Skipped
+        phase == SectionPhase.Failed -> GlobalSearchResults.Count.Failed
+        else -> GlobalSearchResults.Count.Of(size)
+    }
 
     // endregion
 
