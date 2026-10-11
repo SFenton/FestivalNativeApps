@@ -527,6 +527,12 @@ class ProfileParityUiTest {
         // Nothing to act on: no identity row, so Overview is the first row (no empty gap).
         assertEquals(0, rule.onAllNodesWithTag("fst.player.identity").fetchSemanticsNodes().size)
         assertEquals(0, rule.onAllNodesWithTag("fst.player.name").fetchSemanticsNodes().size)
+        // Issue #590: like iOS, the selected player's page offers no identity pill beside Quick
+        // Links; Deselect lives only in the drawer (operator batches 7.10, 7.12).
+        rule.onNodeWithTag("fst.quick-links.open").assertIsDisplayed()
+        listOf("fst.nav.floating-toolbar.companion", "fst.player.select", "fst.player.deselect").forEach {
+            assertEquals("$it on the selected player's page", 0, rule.onAllNodesWithTag(it).fetchSemanticsNodes().size)
+        }
         val grid = rule.onNodeWithTag("fst.player.available").fetchSemanticsNode().boundsInRoot
         val overview = rule.onNodeWithTag("fst.player.overview").fetchSemanticsNode().boundsInRoot
         assertTrue("Overview starts within the grid's top padding", overview.top - grid.top < 400f)

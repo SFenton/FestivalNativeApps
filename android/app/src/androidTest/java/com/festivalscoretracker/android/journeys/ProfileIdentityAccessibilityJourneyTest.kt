@@ -148,7 +148,8 @@ class ProfileIdentityAccessibilityJourneyTest {
 
     /**
      * The selected player's own page has no identity row: Overview is the first page stop
-     * after the top bar, and the name is read once, as the title.
+     * after the top bar, and the name is read once, as the title. Like iOS, it has no identity
+     * pill: Quick Links is the row's only pill (#590; Deselect is in the drawer).
      */
     @Test
     fun selectedPlayerPageStartsAtOverview() {
@@ -158,10 +159,15 @@ class ProfileIdentityAccessibilityJourneyTest {
         h.publishTalkBackTree()
         assertFalse("A selected player's page shows the identity row", h.exists(IDENTITY))
         assertIdentityRow(h.readingOrder("profile-selected", fresh = true), title(), emptyList(), "selected")
+        assertQuickLinksAlone("profile-selected")
         h.assertAccessible()
     }
 
-    /** Statistics (the same body under a "Statistics" title) starts at Overview and never reads the name as a page item. */
+    /**
+     * Statistics (the same body under a "Statistics" title) starts at Overview and never reads
+     * the name as a page item. It offers no identity pill beside Quick Links; Deselect stays one
+     * named 48 dp drawer button (operator batches 7.10, 7.12; #590).
+     */
     @Test
     fun statisticsStartsAtOverview() {
         h.enableAccessibilityChecks()
@@ -174,6 +180,15 @@ class ProfileIdentityAccessibilityJourneyTest {
         // The selected Statistics tab can repeat the title, so only the name is counted here.
         assertIdentityRow(order, title(), emptyList(), "statistics", titleOnce = false)
         assertTrue("Statistics reads the player's name as a page item: $order", order.none { it == PLAYER.displayName })
+        assertQuickLinksAlone("statistics-selected")
+        // Deselect: the drawer's button (modal drawer on phones; permanent drawer on wide windows).
+        if (h.exists("fst.nav.drawer")) h.tap("fst.nav.drawer")
+        h.waitForTag(DRAWER_DESELECT)
+        h.awaitAccessibilityTree(DRAWER_DESELECT)
+        rule.onNodeWithTag(DRAWER_DESELECT)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .assert(hasContentDescription("Deselect profile"))
+        h.assertTouchTarget("statistics-drawer", DRAWER_DESELECT)
         h.assertAccessible()
     }
 
@@ -249,6 +264,22 @@ class ProfileIdentityAccessibilityJourneyTest {
     }
 
     /**
+     * The selected player's page: Quick Links is a 48 dp TalkBack stop and the toolbar row has
+     * no identity pill (no Select, Switch or Deselect beside it, the same as iOS).
+     */
+    private fun assertQuickLinksAlone(screen: String) {
+        h.waitForTag(QUICK_LINKS)
+        listOf(COMPANION, SELECT, PAGE_DESELECT).forEach { assertFalse("$screen: $it is on the selected player's page", h.exists(it)) }
+        val stops = h.readingStops(screen)
+        assertTrue("$screen: TalkBack never reaches Quick Links: ${stops.map { it.label }}", stops.any { it.id == QUICK_LINKS })
+        assertTrue(
+            "$screen: TalkBack reads a Deselect stop on the page: ${stops.map { it.label }}",
+            stops.none { it.label.contains("Deselect", ignoreCase = true) && it.id != DRAWER_DESELECT },
+        )
+        h.assertTouchTarget(screen, QUICK_LINKS)
+    }
+
+    /**
      * [tag] is one `Button` named [label] (its short visible text is silent, so TalkBack reads
      * the name once), at least 48 dp and wholly on screen. The visible text has no line limit
      * and the pill wraps it, so it grows with the text size instead of clipping.
@@ -307,6 +338,9 @@ class ProfileIdentityAccessibilityJourneyTest {
         const val SWITCH_LABEL = "Switch to This Profile"
         const val QUICK_LINKS = "fst.quick-links.open"
         const val TOOLBAR = "fst.nav.floating-toolbar"
+        const val COMPANION = "fst.nav.floating-toolbar.companion"
+        const val PAGE_DESELECT = "fst.player.deselect"
+        const val DRAWER_DESELECT = "fst.nav.drawer.deselect"
         const val UNPINNED_NOTICE = "These scores have no verified publication. Selection is paused."
     }
 }

@@ -19,7 +19,7 @@ Never player-stats: overview/instrument stats and percentile buckets are compute
 
 | Read state | Floating-toolbar pill (#590, page-tools R23) and identity row |
 |---|---|
-| Selected account | Nothing: Deselect lives in the navigation drawer like the web sidebar (operator 7.12) |
+| Selected account | Nothing: Quick Links is the row's only pill, as on iOS; Deselect lives in the navigation drawer like the web sidebar (operator 7.10/7.12; #590 agent decision in page-tools R23 keeps it off the page) |
 | Header-verified and current, nothing selected | **Select** pill beside Quick Links (TalkBack: "Select Profile"), immediate |
 | Another player selected | **Switch** pill beside Quick Links (TalkBack: "Switch to This Profile") → confirmation (`fst.player.switch-confirm`) |
 | No `X-FST-Publication-Id` | "Selection is paused" notice |
