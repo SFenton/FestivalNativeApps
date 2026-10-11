@@ -61,8 +61,8 @@ import org.junit.runner.RunWith
  * filter grows without clipping its placeholder and every pinned control stays on screen.
  *
  * The page tools float in the shell's toolbar at every window size (issue #576): portrait and
- * landscape phones, `FST_Tablet` and `FST_Book_Fold --posture half`, where the toolbar stays on
- * screen inside the list pane. The `…InLandscape` variants turn the phone, so the `android-device`
+ * landscape phones, `FST_Tablet` and `FST_Book_Fold --posture half`, where Songs fills the window in two
+ * columns (#581) and the toolbar stays on screen. The `…InLandscape` variants turn the phone, so the `android-device`
  * CI job (`@DeviceCi`, one portrait phone emulator) covers both orientations. Reading orders go to logcat
  * `FST_A11Y`. Run with
  * `device.py test com.festivalscoretracker.android.journeys.PinnedPageControlsDeviceTest --avd …`.

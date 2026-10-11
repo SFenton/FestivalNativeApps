@@ -14,6 +14,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
@@ -35,6 +36,7 @@ import com.festivalscoretracker.android.core.nav.FestivalTabPolicy
 import com.festivalscoretracker.android.core.nav.LeaderboardsRoute
 import com.festivalscoretracker.android.core.nav.ProfileKind
 import com.festivalscoretracker.android.core.nav.ShopRoute
+import com.festivalscoretracker.android.core.nav.StatisticsRoute
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.ui.shell.DrawerContent
 import com.festivalscoretracker.android.ui.shell.FestivalRail
@@ -105,6 +107,29 @@ class ShellDrawerUiTest {
         rule.onNodeWithTag("fst.nav.drawer.deselect").performClick()
         assertEquals(listOf<AppRoute>(LeaderboardsRoute), routes)
         assertTrue(deselected)
+    }
+
+    /** #601: with a profile, Item Shop is a tab, so its row selects the tab and shows it selected. */
+    @Test
+    fun playerShopRowSelectsTheItemShopTab() {
+        val sections = mutableListOf<FestivalSection>()
+        val routes = mutableListOf<AppRoute>()
+        rule.setContent {
+            DrawerContent(
+                visible = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = false),
+                selected = FestivalSection.Shop,
+                profile = ProfileKind.Player,
+                player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"),
+                onSection = { sections += it },
+                onRoute = { routes += it },
+                onOpenProfile = {},
+                onDeselect = {},
+            )
+        }
+        rule.onNodeWithTag("fst.nav.drawer.shop").assertIsSelected().performClick()
+        rule.onNodeWithTag("fst.nav.drawer.statistics").assertIsNotSelected().performClick()
+        assertEquals(listOf(FestivalSection.Shop), sections)
+        assertEquals(listOf<AppRoute>(StatisticsRoute), routes)
     }
 
     /**

@@ -200,9 +200,14 @@ struct SongScorePreview: View {
             )
         }
         let displayed = Array(payload.leaderboard.entries.prefix(10))
-        let spotlight = filterInvalidScores ? nil : SongPreviewSpotlightPolicy.footerEntry(
+        // Web `filterPlayerScores`: with Filter Invalid Scores on, the selected player's
+        // row shows their best valid score at the leeway, or nothing.
+        let raw = session.selectedPlayerScores[song.songId]?[instrument]
+        let spotlight = SongPreviewSpotlightPolicy.footerEntry(
             selected: session.selectedPlayer,
-            score: session.selectedPlayerScores[song.songId]?[instrument],
+            score: requestKey.leeway.map { leeway in
+                raw.flatMap { InvalidScorePolicy.filtered($0, song: song, leeway: leeway) }
+            } ?? raw,
             displayed: displayed
         )
         if displayed.isEmpty && spotlight == nil {
