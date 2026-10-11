@@ -4,6 +4,7 @@ import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
@@ -154,7 +155,9 @@ class ShellUiTest {
         waitForTag("fst.songs.row.s-alpha")
         rule.onNodeWithTag("fst.nav.tab.suggestions").assertIsDisplayed()
         rule.onNodeWithTag("fst.nav.tab.compete").assertIsDisplayed()
-        rule.onNodeWithTag("fst.nav.tab.statistics").assertIsDisplayed()
+        // Owner (#601): Item Shop takes Statistics' slot; the avatar opens Statistics.
+        rule.onNodeWithTag("fst.nav.tab.shop").assertIsDisplayed()
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.tab.statistics").fetchSemanticsNodes().size)
         // The top-bar avatar (the closed drawer's profile row carries the same label).
         rule.onNodeWithTag("fst.nav.profile").assertIsDisplayed().assert(hasContentDescription("Profile: Synthetic Player"))
         rule.onNodeWithTag("fst.songs.filter.open").performClick()
@@ -165,12 +168,18 @@ class ShellUiTest {
         rule.onNodeWithTag("fst.songs.filter.instrument.preview").performClick()
         rule.onNodeWithTag("fst.songs.filter.done").performClick()
         settle()
-        rule.onNodeWithTag("fst.nav.tab.statistics").performClick()
+        rule.onNodeWithTag("fst.nav.profile").performClick()
+        waitForTag("fst.statistics")
+        rule.onNodeWithTag("fst.nav.tab.shop").performClick()
+        waitForTag("fst.shop.list")
+        rule.onNodeWithTag("fst.nav.tab.shop").assertIsSelected()
+        // A tab root: the menu button, no Back.
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.back").fetchSemanticsNodes().size)
+        // Songs restores its pushed Statistics; re-tapping Songs pops to the list root.
+        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
         waitForTag("fst.statistics")
         rule.onNodeWithTag("fst.nav.tab.songs").performClick()
         waitForTag("fst.songs.list")
-        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
-        settle()
     }
 
     @Test

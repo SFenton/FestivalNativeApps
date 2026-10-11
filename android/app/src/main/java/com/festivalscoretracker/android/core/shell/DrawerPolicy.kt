@@ -19,7 +19,7 @@ enum class DrawerEntry(val title: String, val section: FestivalSection?, val pus
     Statistics("Statistics", FestivalSection.Statistics, StatisticsRoute),
     Rivals("Rivals", FestivalSection.Rivals, RivalsRoute),
     Leaderboards("Leaderboards", FestivalSection.Leaderboards, LeaderboardsRoute),
-    Shop("Item Shop", null, ShopRoute),
+    Shop("Item Shop", FestivalSection.Shop, ShopRoute),
 }
 
 /** What a drawer row does. */
@@ -71,6 +71,21 @@ object DrawerPolicy {
      */
     fun target(entry: DrawerEntry, visible: List<FestivalSection>): DrawerTarget =
         entry.section?.takeIf { it in visible }?.let { DrawerTarget.Section(it) } ?: DrawerTarget.Push(entry.pushed)
+
+    /**
+     * Where a request for [section] goes (debug launch, a search result): the tab when visible,
+     * else its drawer row's pushed route (Statistics is never a tab since #601, so it pushes).
+     *
+     * @param section Requested section.
+     * @param visible Tabs visible now.
+     * @return Target, or null when the section is neither visible nor pushable (e.g. Compete on a rail).
+     */
+    fun sectionTarget(section: FestivalSection, visible: List<FestivalSection>): DrawerTarget? =
+        if (section in visible) {
+            DrawerTarget.Section(section)
+        } else {
+            DrawerEntry.entries.firstOrNull { it.section == section }?.let { DrawerTarget.Push(it.pushed) }
+        }
 
     /**
      * Whether [entry] is the current location.

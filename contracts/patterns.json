@@ -702,6 +702,10 @@
           {
             "path": "windows/Festival.App/Controls/GroupedRows.cs",
             "symbol": "GroupedRows"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/GroupedRowSlice.cs",
+            "symbol": "GroupedRowSlice"
           }
         ]
       },
@@ -798,7 +802,8 @@
         312,
         319,
         381,
-        461
+        461,
+        588
       ]
     },
     {
@@ -941,6 +946,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
             "symbol": "FestivalScreen"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/FestivalSection.kt",
+            "symbol": "FestivalTabPolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/DrawerPolicy.kt",
+            "symbol": "DrawerPolicy"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
