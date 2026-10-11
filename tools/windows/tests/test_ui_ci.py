@@ -71,6 +71,35 @@ class UiCiTests(unittest.TestCase):
         names = {page["name"] for page in pages}
         self.assertTrue({"song-band-pin-jump", "song-band-pin-open", "song-band-pin-no-player"} <= names)
 
+    def test_song_band_board_runs_at_default_and_largest_text(self):
+        # Issue #510 (#196): the full band board's single-stop rows, empty and error states run in CI at default and
+        # 225% text, and its accuracy pill's contrast-theme colours at default size.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-song-band-leaderboard.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan and run.only == "" for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        self.assertIn("medium", runs["normal"].sizes.split(","))
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-song-band-leaderboard.json").read_text(encoding="utf-8"))}
+        self.assertEqual({"sbl-rows", "sbl-empty", "sbl-error", "sbl-accuracy-pill-contrast"}, set(pages))
+        for page in pages.values():
+            self.assertNotIn("axe_allow", page)
+        row = "fst.song-band-leaderboard.row.fixture-band-1:1"
+        steps = pages["sbl-rows"]["after_ready"]
+        self.assertTrue(any(step.startswith(f"assertread:id={row}|Rank 1. Band 1 Member A, Lead, 94,500 points.")
+                            for step in steps))
+        self.assertIn(f"assertstate:id={row}|type=listitem", steps)
+        self.assertIn(f"assertstate:id={row}|invoke=true", steps)
+        self.assertIn(f"assertsize:id={row}|0x40", steps)
+        self.assertIn("waitfor:raw=fst.star-rating.white-5@3", steps)
+        self.assertIn("waitgone:id=fst.star-rating.white-5@1", steps)
+        self.assertIn(f"waitgone:id={row}.accuracy@1", steps)
+        self.assertIn("assertstate:id=fst.song-band-leaderboard.empty|heading=2", pages["sbl-empty"]["after_ready"])
+        self.assertIn("assertsize:id=fst.service-status.retry|40x40", pages["sbl-error"]["after_ready"])
+        pill = pages["sbl-accuracy-pill-contrast"]
+        self.assertIn("contrast:desert", pill["after_ready"])
+        self.assertIn("contrast:off", pill["after_ready"])
+
     def test_full_rankings_pinned_runs_at_default_largest_text_and_reduced_motion(self):
         # Issue #466 (#318): Full Rankings' pinned "your rank" row (also on the player's own page) runs in CI at default
         # and 225% text, and its keyboard jump with in-app Reduce Motion.
@@ -186,6 +215,42 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(all(run.scan and not run.only for run in demos.values()))
         self.assertIn("compact", demos["text-225"].sizes.split(","))
         self.assertEqual({"compact", "medium"}, set(demos["normal"].sizes.split(",")))
+
+    def test_real_control_first_run_demos_run_with_text_and_motion_off(self):
+        """#498: the #380 real-control demos gate PRs at default and 225% text, and hold still with animations off."""
+        demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-real-demos.json"}
+        self.assertEqual({"normal", "text-225", "no-animations", "no-transparency"}, set(demos))
+        self.assertTrue(all(run.scan for run in demos.values()))
+        self.assertFalse(demos["normal"].only or demos["text-225"].only)
+        self.assertEqual("frrd-infinite-scroll-static", demos["no-animations"].only)
+
+    def test_real_control_auto_scroll_hard_edge_runs_in_every_r7_setting(self):
+        """#498 review: the auto-scroll demo's hard edge (fade=off) is asserted with transparency effects off, Less
+        Transparency and More Contrast, and the faded pages skip those modes."""
+        demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-real-demos.json"}
+        self.assertEqual("frrd-infinite-scroll-no-transparency", demos["no-transparency"].only)
+        pages = {page["name"]: page for page in ci.run_pages(demos["normal"])}
+        self.assertEqual({"lessTransparency": True}, pages["frrd-infinite-scroll-less-transparency"]["settings"])
+        self.assertEqual({"moreContrast": True}, pages["frrd-infinite-scroll-more-contrast"]["settings"])
+        self.assertNotIn("frrd-infinite-scroll-no-transparency", pages)
+        hard = [*ci.run_pages(demos["no-transparency"]), pages["frrd-infinite-scroll-less-transparency"],
+                pages["frrd-infinite-scroll-more-contrast"]]
+        self.assertEqual(3, len(hard))
+        for page in hard:
+            status = [step for step in page["after_ready"] if step.startswith("assertstatus:")]
+            self.assertTrue(status and all(step.endswith("fade=off$@15") for step in status), page["name"])
+            self.assertIn("waitgone:id=fst.first-run.demo.suggestions-infinite-scroll@1", page["after_ready"])
+        faded = [page["name"] for mode in ("no-transparency", "app-contrast", "hc-desert")
+                 for page in ci.run_pages(ci.Run("x", "a11y-first-run-real-demos.json", mode=mode))
+                 if "suggestions-infinite-scroll" in json.dumps(page) and "fade=off" not in json.dumps(page)]
+        self.assertEqual([], faded)
+
+    def test_a_full_run_covers_its_file_despite_a_partial_run(self):
+        """#498: a reduced-motion ``only`` run must not make the generator re-run the file's pages a second time."""
+        generated = {run.name for run in ci.RUNS}
+        for stem in ("a11y-grouped-boards", "a11y-first-run-real-demos"):
+            self.assertNotIn(f"{stem}-normal", generated)
+            self.assertNotIn(f"{stem}-text-225", generated)
 
     def test_modals_run_at_default_and_largest_text(self):
         modal = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-modals.json"}
