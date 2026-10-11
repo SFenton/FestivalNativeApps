@@ -433,7 +433,8 @@ object SongShopSections {
  * @property hasPlayer A player is selected.
  * @property filterInvalidScores Filter Invalid Scores setting (enables Over CHOpt Threshold checks).
  * @property scores Effective scores for a matching, available index; null when unavailable.
- * @property invalid Per-song reasons shown scores differ from raw ones (marks Over CHOpt Threshold rows).
+ * @property invalid Per-song reasons shown scores differ from raw ones.
+ * @property overThreshold Whether a chart's shown score passes its Over CHOpt Threshold check (pattern invalid-scores R8).
  * @property nowEpochMillis Clock for Last Played buckets.
  */
 data class SongListInputs(
@@ -452,6 +453,7 @@ data class SongListInputs(
     val filterInvalidScores: Boolean = false,
     val scores: ((String, Instrument) -> SongScoreDetail?)? = null,
     val invalid: (String) -> Map<Instrument, InvalidScoreReason> = { emptyMap() },
+    val overThreshold: (String, Instrument) -> Boolean = { id, chart -> invalid(id)[chart] == InvalidScoreReason.OverThreshold },
     val nowEpochMillis: Long = System.currentTimeMillis(),
 )
 
@@ -511,7 +513,7 @@ object SongListPipeline {
         val scores = input.scores
         if (scorePaused == null && scoped.isActive && scores != null) {
             val facts = { id: String, chart: Instrument ->
-                scores(id, chart)?.facts?.let { if (input.invalid(id)[chart] == InvalidScoreReason.OverThreshold) it.copy(overThreshold = true) else it }
+                scores(id, chart)?.facts?.let { if (input.overThreshold(id, chart)) it.copy(overThreshold = true) else it }
             }
             rows = scoped.filter(rows, facts, input.visible, filter.instrument)
         }

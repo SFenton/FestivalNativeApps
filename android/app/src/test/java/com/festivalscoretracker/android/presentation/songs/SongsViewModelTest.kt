@@ -185,6 +185,30 @@ class SongsViewModelTest {
     }
 
     @Test
+    fun overThresholdCheckUsesTheUnroundedCeilingAndFollowsTheLeeway() = runTest(main.dispatcher) {
+        val maxed = songs.map { it.copy(maxScores = mapOf(Instrument.Lead.wireId to 100_000)) }
+        val inputs = Inputs()
+        inputs.settings.value = AppSettings(selectedPlayer = player, filterInvalidScores = true, leeway = 1.0)
+        inputs.prefs.value = SongsPreferencesState(playerFilter = SongPlayerScoreFilter(overThreshold = setOf(Instrument.Lead)))
+        // The service rounds minLeeway to 0.1: 101,040 / 100,000 reads 1.0, yet it is over the 101,000 ceiling (web `isScoreValid`).
+        inputs.profile.value = available(
+            SongsFixtures.score("a", Instrument.Lead, 101_040).copy(minLeeway = 1.0),
+            SongsFixtures.score("b", Instrument.Lead, 100_500).copy(minLeeway = 0.5),
+        )
+        val vm = viewModel(inputs) { CatalogPayload(SongsResponse(3, 15, maxed), 7) }
+        advanceUntilIdle()
+        assertEquals(listOf("a"), vm.uiState.value.rows.map { it.song.songId })
+        assertNull(vm.uiState.value.rows.single().warning)
+
+        inputs.settings.value = inputs.settings.value!!.copy(leeway = 1.1)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.rows.isEmpty())
+        inputs.settings.value = inputs.settings.value!!.copy(leeway = 0.6)
+        advanceUntilIdle()
+        assertEquals(listOf("a"), vm.uiState.value.rows.map { it.song.songId })
+    }
+
+    @Test
     fun scoreAdapterMapsEveryStatus() {
         assertEquals(SongScoreSource.NONE, SelectedProfileState().songScoreSource(7, 7))
         assertEquals(SongScoreSource.LOADING, SelectedProfileState(player, SelectedProfileStatus.None).songScoreSource(7, 7))

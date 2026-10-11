@@ -232,6 +232,7 @@ class SongsViewModel(
                 filterInvalidScores = app.filterInvalidScores,
                 scores = source.detail,
                 invalid = source.invalid,
+                overThreshold = source.overThreshold,
             ),
             sorter,
         )

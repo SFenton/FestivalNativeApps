@@ -296,6 +296,35 @@ class SongsParityTest {
     }
 
     @Test
+    fun overThresholdCeilingIsUnroundedLikeTheWeb() {
+        // Ceiling at leeway 1.0 is 101,000; the service rounds 101,040's minLeeway to 1.0 (valid).
+        assertTrue(InvalidScorePolicy.exceedsCeiling(101_040, a, lead, 1.0))
+        assertNull(resolve(raw(101_040, minLeeway = 1.0)).reason)
+        assertFalse(InvalidScorePolicy.exceedsCeiling(101_000, a, lead, 1.0))
+        assertFalse(InvalidScorePolicy.exceedsCeiling(0, a, lead, -5.0))
+        assertFalse(InvalidScorePolicy.exceedsCeiling(500_000, c, lead, 1.0))
+    }
+
+    @Test
+    fun songDetailsBranchOnMinLeewayLikeWebFilterPlayerScores() {
+        fun filtered(score: PlayerScore, song: Song? = a) =
+            InvalidScorePolicy.resolveFiltered(score, SongScoreDetail(score.score.toLong(), rank = score.rank, totalEntries = score.totalEntries), song, lead, 1.0)
+        val variant = PlayerValidScoreVariant(80_000, minLeeway = 0.5, rankTiers = listOf(PlayerRankTier(0.0, 9)))
+        // With ml: only validScores replace it; the legacy fields are ignored.
+        assertNull(filtered(raw(99_000, minLeeway = 0.5).copy(validScore = 90_000)).reason)
+        assertEquals(InvalidScoreResolution(null, InvalidScoreReason.NoFallback), filtered(raw(99_000, minLeeway = 2.0).copy(validScore = 90_000)))
+        val swapped = filtered(raw(99_000, minLeeway = 2.0, variants = listOf(variant)))
+        assertEquals(80_000L to 9, swapped.detail!!.score to swapped.detail!!.rank)
+        assertEquals(InvalidScoreReason.NoFallback, filtered(raw(99_000, minLeeway = 2.0, variants = listOf(PlayerValidScoreVariant(95_000, minLeeway = 1.8)))).reason)
+        // Without ml: the unrounded ceiling decides and only the legacy fields replace it, even with validScores.
+        assertNull(filtered(raw(101_000, variants = listOf(variant))).reason)
+        val legacy = filtered(raw(101_040, variants = listOf(variant)).copy(validScore = 90_000, validRank = 4))
+        assertEquals(90_000L to 4, legacy.detail!!.score to legacy.detail!!.rank)
+        assertEquals(InvalidScoreResolution(null, InvalidScoreReason.NoFallback), filtered(raw(101_040, variants = listOf(variant))))
+        assertNull(filtered(raw(500_000), song = c).reason)
+    }
+
+    @Test
     fun leaderboardSpotlightUsesTheEffectiveScore() {
         val variant = PlayerValidScoreVariant(80_000, rawAccuracy = 950.0, isFullCombo = false, stars = 5, minLeeway = 0.5, rankTiers = listOf(PlayerRankTier(0.0, 60)))
         val invalid = raw(99_000, minLeeway = 2.0, variants = listOf(variant))
