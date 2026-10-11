@@ -2,10 +2,16 @@ package com.festivalscoretracker.android.journeys
 
 import android.content.res.Configuration
 import android.content.res.Resources
+import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.ViewRootForTest
 import androidx.compose.ui.semantics.Role
@@ -104,14 +110,31 @@ class JourneyHarness(private val rule: JourneyRule) {
     ) {
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = preferences)
         rule.setContent {
-            if (fontScale == null) {
-                FestivalApp(container, debug)
-            } else {
-                val scale = fontScale()
-                SideEffect { applyWindowFontScale(scale) }
-                DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(scale)) { FestivalApp(container, debug) }
+            key(generation) {
+                if (fontScale == null) {
+                    FestivalApp(container, debug)
+                } else {
+                    val scale = fontScale()
+                    SideEffect { applyWindowFontScale(scale) }
+                    DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(scale)) { FestivalApp(container, debug) }
+                }
             }
         }
+    }
+
+    /** Bumped by [recreateApp] to dispose and re-create the app's composition. */
+    private var generation by mutableIntStateOf(0)
+
+    /**
+     * Re-create the app as an activity recreation does (a font-size change: font scale is not in
+     * the manifest's `configChanges`): the shell's composition and every scope `FestivalApp`
+     * started (such as the selected player's read) end, and a new composition starts with the
+     * same process `AppContainer` and activity-scoped ViewModels. Saved instance state is not
+     * restored, so the shell starts again at its [DebugLaunch].
+     */
+    fun recreateApp() {
+        rule.runOnUiThread { generation++ }
+        rule.waitForIdle()
     }
 
     /** [readingOrder] walks the tree Compose publishes to TalkBack ([publishTalkBackTree]). */
@@ -447,10 +470,18 @@ class JourneyHarness(private val rule: JourneyRule) {
      * semantics by a few throttled content-change events, so a [readingOrder] straight after a
      * page switch can still list the previous page.
      *
+     * Each poll waits for Compose to idle, then clears UiAutomation's node cache (API 34+) so it
+     * reads the window's live tree: only the root is fetched fresh, and children come from a cache
+     * that only accessibility events invalidate. On a slow, freshly booted emulator a missed or late
+     * event left that cache stale for the whole wait, so every half-open fold journey timed out at
+     * its first call (#568). Polls are spaced so the tree walk does not starve the UI thread, and a
+     * timeout fails with what the tree and Compose showed.
+     *
      * @param present Test tag (exposed as the node's resource id) that must be in the tree.
      * @param absent Test tag that must have left the tree, or `null`.
+     * @param timeoutMs Timeout.
      */
-    fun awaitAccessibilityTree(present: String, absent: String? = null) {
+    fun awaitAccessibilityTree(present: String, absent: String? = null, timeoutMs: Long = 15_000) {
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         fun ids(node: AccessibilityNodeInfo?, into: MutableSet<String> = mutableSetOf()): Set<String> {
             node ?: return into
@@ -458,9 +489,22 @@ class JourneyHarness(private val rule: JourneyRule) {
             for (i in 0 until node.childCount) ids(node.getChild(i), into)
             return into
         }
-        rule.waitUntil(15_000) {
-            val seen = ids(automation.rootInActiveWindow)
-            present in seen && (absent == null || absent !in seen)
+        val deadline = SystemClock.uptimeMillis() + timeoutMs
+        while (true) {
+            rule.waitForIdle()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) automation.clearCache()
+            val root = automation.rootInActiveWindow
+            val seen = ids(root)
+            if (present in seen && (absent == null || absent !in seen)) return
+            if (SystemClock.uptimeMillis() > deadline) {
+                throw AssertionError(
+                    "Accessibility tree of ${root?.packageName ?: "no active window"} never showed $present" +
+                        "${absent?.let { " without $it" }.orEmpty()} in $timeoutMs ms " +
+                        "(composed: ${exists(present)}${absent?.let { ", $it composed: ${exists(it)}" }.orEmpty()}; " +
+                        "${seen.size} ids): ${readingOrder("await-tree-timeout", fresh = true)}",
+                )
+            }
+            SystemClock.sleep(TREE_POLL_MILLIS)
         }
     }
 
@@ -557,7 +601,28 @@ class JourneyHarness(private val rule: JourneyRule) {
      *   such as a font-scale switch, which the cache can trail.
      * @return Labels in reading order.
      */
-    fun readingOrder(screen: String, fresh: Boolean = false): List<String> {
+    fun readingOrder(screen: String, fresh: Boolean = false): List<String> = readingStops(screen, fresh).map { it.label }
+
+    /**
+     * One stop of [readingStops].
+     *
+     * @property id The node's test tag (its resource id), or null.
+     * @property label What TalkBack speaks (`<unlabelled>` when nothing).
+     * @property isHeading Whether TalkBack announces it as a heading.
+     * @property isClickable Whether it is a button.
+     * @property bounds Its visible bounds on screen in px.
+     */
+    data class ReadingStop(val id: String?, val label: String, val isHeading: Boolean, val isClickable: Boolean, val bounds: android.graphics.Rect)
+
+    /**
+     * [readingOrder] with each stop's test tag, heading/button role and visible bounds, for
+     * journeys that assert which tagged nodes TalkBack visits and in what order.
+     *
+     * @param screen Name for the log.
+     * @param fresh As in [readingOrder].
+     * @return Stops in reading order.
+     */
+    fun readingStops(screen: String, fresh: Boolean = false): List<ReadingStop> {
         rule.waitForIdle()
         // A modal opened since publishTalkBackTree has its own, unpublished Compose root.
         if (talkBackTree) {
@@ -610,7 +675,7 @@ class JourneyHarness(private val rule: JourneyRule) {
                 ownLabel(child).takeIf { it.isNotEmpty() }?.let(::add) ?: descendantsLabel(child).takeIf { it.isNotEmpty() }?.let(::add)
             }
         }.joinToString(", ")
-        val labels = mutableListOf<String>()
+        val stops = mutableListOf<ReadingStop>()
         order.forEach { i ->
             val node = nodes[i]
             val own = ownLabel(node)
@@ -626,10 +691,10 @@ class JourneyHarness(private val rule: JourneyRule) {
                 node.className?.toString()?.substringAfterLast('.')?.takeIf { it != "View" && it != "ViewGroup" }?.let(::add)
             }.joinToString(" ")
             val bounds = android.graphics.Rect().also(node::getBoundsInScreen)
-            labels += label.ifEmpty { "<unlabelled>" }
-            Log.i(READING_ORDER_TAG, "$screen | ${labels.size} | $role | ${labels.last()} | ${bounds.width()}x${bounds.height()}")
+            stops += ReadingStop(node.viewIdResourceName, label.ifEmpty { "<unlabelled>" }, node.isHeading, node.isClickable, bounds)
+            Log.i(READING_ORDER_TAG, "$screen | ${stops.size} | $role | ${stops.last().label} | ${bounds.width()}x${bounds.height()}")
         }
-        return labels
+        return stops
     }
 
     // region Sheet checks (issues #428, #432)
@@ -750,6 +815,9 @@ class JourneyHarness(private val rule: JourneyRule) {
 
         /** Instrumentation argument that makes [requireHingeWhenAsked] demand a separating hinge. */
         const val REQUIRE_HINGE_ARG = "fstRequireHinge"
+
+        /** Pause between [awaitAccessibilityTree] polls, so walking the tree leaves the UI thread room to publish. */
+        private const val TREE_POLL_MILLIS = 100L
     }
 }
 

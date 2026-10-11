@@ -110,11 +110,18 @@ class FeedbackFormJourneyTest {
         waitForText("Filing your report on GitHub")
         orderWith("feedback-filing", "Filing your report on GitHub")
         h.waitForTag("fst.settings.feedback.sent")
-        val sent = orderWith("feedback-sent", "filed as issue #42")
-        assertTrue("reading order $sent", sent.any { it.contains("filed as issue #42") })
-        h.assertNothingStraddles("fst.settings.feedback.dialog", "fst.settings.feedback.done")
-        h.tap("fst.settings.feedback.done")
+        // Issue #565: the form has closed by itself; the result alert alone reads title, message, Done.
         h.waitGone("fst.settings.feedback.dialog")
+        val sent = orderWith("feedback-sent", "filed as issue #42")
+        val sentTitle = sent.indexOfFirst { it.contains("Report Sent") }
+        val sentMessage = sent.indexOfFirst { it.contains("filed as issue #42") }
+        val done = sent.indexOfFirst { it.contains("Done") }
+        assertTrue("reading order $sent", sentTitle >= 0 && sentMessage > sentTitle && done > sentMessage)
+        assertTrue("reading order $sent", sent.none { it.contains("Close") || it.contains("Submit") || it.contains("Cancel") })
+        h.assertFullTouchTarget("fst.settings.feedback.done")
+        h.assertNothingStraddles("fst.settings.feedback.sent", "fst.settings.feedback.done")
+        h.tap("fst.settings.feedback.done")
+        h.waitGone("fst.settings.feedback.sent")
         h.assertAccessible()
     }
 

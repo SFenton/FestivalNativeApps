@@ -9,7 +9,9 @@ states are unreachable on screen. This wrapper rewrites two read-only fixture re
 
 Every other route is the unchanged mock service. Fixture-only: never point this at, or capture evidence from, it.
 
-Usage: ``python tools/windows/star_rating_fixture.py --port 0`` (other flags pass through to mock_service.py).
+Usage: ``python tools/windows/star_rating_fixture.py --port 0`` (other flags pass through to mock_service.py), or
+``python tools/windows/ui_journey.py tools/windows/journeys/star-rating.json`` (its journeys name this script in their
+``fixture`` list).
 """
 
 from __future__ import annotations

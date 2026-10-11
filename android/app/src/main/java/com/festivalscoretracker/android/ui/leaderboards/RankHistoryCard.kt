@@ -4,7 +4,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -45,9 +44,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -58,13 +54,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -77,6 +68,9 @@ import com.festivalscoretracker.android.core.profile.ChartGeometry
 import com.festivalscoretracker.android.core.rankings.RankHistoryChart
 import com.festivalscoretracker.android.core.rankings.RankHistoryRow
 import com.festivalscoretracker.android.core.rankings.RankingMetric
+import com.festivalscoretracker.android.core.shell.ChartPage
+import com.festivalscoretracker.android.ui.common.rememberChartPageSlide
+import com.festivalscoretracker.android.ui.profile.drawRankHistoryMarks
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.leaderboards.LeaderboardsViewModel
 import com.festivalscoretracker.android.ui.common.LoadSwap
@@ -86,7 +80,8 @@ import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.design.GlassCard
-import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.InstrumentSelector
+import com.festivalscoretracker.android.ui.design.InstrumentSelectorLook
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import java.time.LocalDate
 import com.festivalscoretracker.android.ui.common.ChartBandLabels
@@ -123,7 +118,17 @@ fun RankHistoryCard(viewModel: LeaderboardsViewModel, instruments: List<Instrume
         }
         GlassCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (instruments.size > 1) HistoryInstrumentPicker(instruments, instrument, viewModel::selectHistoryInstrument)
+                // Web GraphCard: the shared required selector in the graph look, shown with more than one chart.
+                if (instruments.size > 1) {
+                    InstrumentSelector(
+                        instruments = instruments,
+                        selected = instrument,
+                        onSelect = { next -> if (next != null) viewModel.selectHistoryInstrument(next) },
+                        required = true,
+                        look = InstrumentSelectorLook.Graph,
+                        tag = "fst.leaderboards.rank-history.picker",
+                    )
+                }
                 // A chart switch fades the old history out, shows the spinner and fades the new
                 // one in, even when it was read before (web load sequence, issue #71).
                 val swap = rememberLoadSwap(instrument to state, state !is LoadState.Loading, key = instrument)
@@ -158,31 +163,6 @@ fun RankHistoryCard(viewModel: LeaderboardsViewModel, instruments: List<Instrume
 
 /** The web's staggered entrance for the [index]th child of a swapped section. */
 private fun Modifier.staggeredIn(swap: LoadSwap<*>, index: Int): Modifier = festivalFadeIn(swap.revealed, fadeInStagger(index))
-
-@Composable
-private fun HistoryInstrumentPicker(instruments: List<Instrument>, selected: Instrument, onSelect: (Instrument) -> Unit) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).testTag("fst.leaderboards.rank-history.picker"),
-    ) {
-        instruments.forEach { instrument ->
-            val isSelected = instrument == selected
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(if (isSelected) BrandTokens.accentPurple.copy(alpha = 0.35f) else BrandTokens.surfaceSubtle.copy(alpha = 0.6f))
-                    .border(BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) BrandTokens.accentPurple else BrandTokens.glassBorder), CircleShape)
-                    .selectable(selected = isSelected, role = Role.Tab) { onSelect(instrument) }
-                    .testTag("fst.leaderboards.rank-history.picker.${instrument.wireId}")
-                    .semantics { contentDescription = instrument.label },
-            ) {
-                InstrumentIcon(instrument, size = 30.dp, decorative = true)
-            }
-        }
-    }
-}
 
 /**
  * The windowed chart (web `GraphCard`, same interaction as the profile's
@@ -230,6 +210,11 @@ private fun HistoryChart(chart: RankHistoryChart) {
 @Composable
 private fun HistoryPlot(chart: RankHistoryChart, window: RankHistoryWindow, onChange: (RankHistoryWindow) -> Unit) {
     val plot = remember(window, chart) { chart.plot(window) }
+    val slide = rememberChartPageSlide(
+        ChartPage(window.pageStart, window.visible.size, window.points.size),
+        chart.valueTop(window).toFloat(),
+        key = chart,
+    )
     val valueTicks = plot.scoreTicks
     val description = remember(window, chart) { chart.windowDescription(window) }
     val current by rememberUpdatedState(window)
@@ -267,30 +252,7 @@ private fun HistoryPlot(chart: RankHistoryChart, window: RankHistoryWindow, onCh
                     val y = tick.y * size.height
                     drawLine(BrandTokens.glassBorder.copy(alpha = 0.5f), Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
                 }
-                plot.bars.forEach { bar ->
-                    val rect = ChartGeometry.bandBar(bar.bar, plot.bars.size, size.width, size.height, 72.dp.toPx())
-                    drawRoundRect(
-                        rgb(bar.color, RankHistoryColors.BAR_ALPHA),
-                        topLeft = Offset(rect.left, rect.top),
-                        size = Size(rect.width, rect.height),
-                        cornerRadius = CornerRadius(4.dp.toPx()),
-                    )
-                    if (bar.selected) {
-                        drawRoundRect(
-                            BrandTokens.accentPurple,
-                            topLeft = Offset(rect.left, rect.top),
-                            size = Size(rect.width, rect.height),
-                            cornerRadius = CornerRadius(4.dp.toPx()),
-                            style = Stroke(width = 3.dp.toPx()),
-                        )
-                    }
-                }
-                val points = plot.line.map { ChartGeometry.point(it, size.width, size.height, 0f).let { p -> Offset(p.x, p.y) } }
-                val path = Path()
-                points.forEachIndexed { i, p -> if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y) }
-                val blue = rgb(RankHistoryColors.RANK_LINE)
-                drawPath(path, blue, style = Stroke(width = 2.dp.toPx()))
-                points.forEachIndexed { i, p -> drawCircle(blue, radius = (if (plot.line[i].highlight) 6 else 4).dp.toPx(), center = p) }
+                drawRankHistoryMarks(chart.marks(window, slide.start, slide.valueTop.toDouble()), bands = window.visible.size, maxBarWidth = 72.dp.toPx())
             }
             AxisLabels(plot.rankTicks, TextAlign.Start)
         }
@@ -301,6 +263,7 @@ private fun HistoryPlot(chart: RankHistoryChart, window: RankHistoryWindow, onCh
             style = MaterialTheme.typography.labelSmall,
             color = BrandTokens.textPrimary,
             modifier = Modifier.padding(vertical = 4.dp).testTag("fst.leaderboards.rank-history.dates"),
+            shift = { slide.labelShift },
         )
     }
 }

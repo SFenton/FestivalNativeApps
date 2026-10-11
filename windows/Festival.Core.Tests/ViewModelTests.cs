@@ -463,8 +463,12 @@ public class ShellViewModelTests
     public async Task ProfileSearch_DebouncesAndShowsResults()
     {
         var service = new FakeService();
-        service.Override = r => r.RequestUri!.AbsolutePath == "/api/account/search"
-            ? Wire.Ok("""{"results":[{"accountId":"acc1","displayName":"Found"}]}""") : null;
+        service.Override = r => r.RequestUri!.AbsolutePath switch
+        {
+            "/api/account/search" => Wire.Ok("""{"results":[{"accountId":"acc1","displayName":"Found"}]}"""),
+            GlobalSearchBand.Path => Wire.Ok(GlobalSearchBand.Empty),
+            _ => null,
+        };
         var time = new FakeTimeProvider();
         var shell = new ShellViewModel(service.Session(time));
         Assert.Equal("Enter at least two characters to search.", shell.ProfileHint);
@@ -477,6 +481,8 @@ public class ShellViewModelTests
         time.Advance(ShellViewModel.SearchDebounce);
         await Async.Until(() => shell.ProfileResults.Count == 1);
         Assert.Single(service.Handler.To("/api/account/search"));
+        Assert.Single(service.Handler.To(GlobalSearchBand.Path));
+        await Async.Until(() => shell.ProfileSearch.IsSettled);
         Assert.Equal("", shell.ProfileHint);
         AppRoute? opened = null;
         shell.RouteRequested += (_, route) => opened = route;
@@ -493,33 +499,50 @@ public class ShellViewModelTests
         var service = new FakeService();
         var body = """{"results":[]}""";
         var fail = true;
-        service.Override = r => r.RequestUri!.AbsolutePath == "/api/account/search"
-            ? fail ? Wire.Response(HttpStatusCode.ServiceUnavailable) : Wire.Ok(body) : null;
+        service.Override = r => r.RequestUri!.AbsolutePath switch
+        {
+            "/api/account/search" => fail ? Wire.Response(HttpStatusCode.ServiceUnavailable) : Wire.Ok(body),
+            GlobalSearchBand.Path => Wire.Ok(GlobalSearchBand.Empty),
+            _ => null,
+        };
         var time = new FakeTimeProvider();
         var shell = new ShellViewModel(service.Session(time));
         shell.ProfileQuery = "abc";
         await Async.Settle();
         time.Advance(ShellViewModel.SearchDebounce);
-        await Async.Until(() => shell.ProfileSearch.PlayersFailed);
-        Assert.Equal("The service is temporarily unavailable. Try again.", shell.ProfileHint);
-        Assert.Equal("The service is temporarily unavailable. Try again.", shell.ProfileSearch.LastAnnouncement);
+        await Async.Until(() => shell.ProfileSearch.IsSettled && shell.ProfileSearch.PlayersFailed);
+        // All names the failed kind; the Players scope shows only its own failure.
+        Assert.Equal("Players: The service is temporarily unavailable. Try again.", shell.ProfileHint);
+        Assert.Equal("player search failed, 0 bands", shell.ProfileSearch.LastAnnouncement);
         Assert.True(shell.CanRetrySearch);
+        shell.ProfileScope = SearchScope.Players;
+        Assert.Equal("The service is temporarily unavailable. Try again.", shell.ProfileHint);
+        shell.ProfileScope = SearchScope.Bands;
+        Assert.Equal("No bands found.", shell.ProfileHint);
+        shell.ProfileScope = SearchScope.All;
         fail = false;
         shell.ProfileQuery = "abcd";
         await Async.Settle();
         Assert.Equal("Searching…", shell.ProfileHint);
         time.Advance(ShellViewModel.SearchDebounce);
-        await Async.Until(() => shell.ProfileSearch.PlayersEmpty);
+        await Async.Until(() => shell.ProfileSearch.IsSettled && shell.ProfileSearch.PlayersEmpty);
+        Assert.Equal("No results found.", shell.ProfileHint);
+        Assert.Equal("No results found.", shell.ProfileSearch.LastAnnouncement);
+        shell.ProfileScope = SearchScope.Players;
         Assert.Equal("No players found.", shell.ProfileHint);
-        Assert.Equal("No players found.", shell.ProfileSearch.LastAnnouncement);
+        Assert.True(shell.CanRetrySearch);
     }
 
     [Fact]
-    public async Task ProfileSearch_AnnouncesPlayersOnly()
+    public async Task ProfileSearch_AnnouncesPlayersAndBands()
     {
         var service = new FakeService();
-        service.Override = r => r.RequestUri!.AbsolutePath == "/api/account/search"
-            ? Wire.Ok("""{"results":[{"accountId":"acc1","displayName":"One"},{"accountId":"acc2","displayName":"Two"}]}""") : null;
+        service.Override = r => r.RequestUri!.AbsolutePath switch
+        {
+            "/api/account/search" => Wire.Ok("""{"results":[{"accountId":"acc1","displayName":"One"},{"accountId":"acc2","displayName":"Two"}]}"""),
+            GlobalSearchBand.Path => Wire.Ok(GlobalSearchBand.Page(GlobalSearchBand.Row("b1", "Band_Duets", "One", "Mate"))),
+            _ => null,
+        };
         var time = new FakeTimeProvider();
         var shell = new ShellViewModel(service.Session(time));
         var spoken = new List<string>();
@@ -528,7 +551,7 @@ public class ShellViewModelTests
         await Async.Settle();
         time.Advance(ShellViewModel.SearchDebounce);
         await Async.Until(() => spoken.Count == 1);
-        Assert.Equal(["2 players"], spoken);
+        Assert.Equal(["2 players, 1 band"], spoken);
     }
 
     [Theory]

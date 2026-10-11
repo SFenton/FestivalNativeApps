@@ -103,14 +103,14 @@ class SongsSectionIndexUiTest {
         settle()
     }
 
-    /** Tag of the first song row below the list's top content edge (the rail sits 56 dp under it). */
+    /** Tag of the first song row below the list's top content edge (the rail sits 56 dp under it); in two columns, the leading cell. */
     private fun firstVisibleRow(): String? {
         val contentTop = rule.onNodeWithTag("fst.songs.section-index").fetchSemanticsNode().boundsInRoot.top -
             56 * rule.activity.resources.displayMetrics.density
         val isRow = SemanticsMatcher("song row") { it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("fst.songs.row.") == true }
         return rule.onAllNodes(isRow, useUnmergedTree = true).fetchSemanticsNodes()
             .filter { it.layoutInfo.isPlaced && it.boundsInRoot.bottom > contentTop + 1 }
-            .minByOrNull { it.boundsInRoot.top }
+            .minWithOrNull(compareBy({ it.boundsInRoot.top }, { it.boundsInRoot.left }))
             ?.config?.getOrNull(SemanticsProperties.TestTag)
     }
 

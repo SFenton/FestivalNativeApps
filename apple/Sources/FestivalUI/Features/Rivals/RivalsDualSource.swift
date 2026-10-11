@@ -92,7 +92,7 @@ private struct RivalDualDetailContent: View {
                 } else {
                     HorizontalCarousel("\(displayName) Rivalry", items: categories, minimumCardWidth: 300) { category in
                         RivalDualCategoryCard(
-                            category: category, rivalId: rivalId, scope: scope,
+                            session: session, category: category, rivalId: rivalId, scope: scope,
                             rivalName: detail.rival.displayName ?? name ?? "Rival",
                             playerName: session.selectedPlayer?.displayName ?? "You",
                             songsById: songsById
@@ -132,6 +132,8 @@ private struct RivalDualDetailContent: View {
 /// shared purple "View All" CTA inside the card (`view-all-cta` R1–R4, #382), as on
 /// `RivalDetailScreen`.
 struct RivalDualCategoryCard: View {
+    /// Shared session whose artwork caches draw each row's album art.
+    let session: FestivalSession
     let category: RivalCategory
     let rivalId: String
     let scope: RivalScope?
@@ -142,8 +144,12 @@ struct RivalDualCategoryCard: View {
     var body: some View {
         FestivalGlassSection(category.title, subtitle: category.subtitle) {
             ForEach(category.songs.prefix(5)) { song in
-                let row = RivalSongRowContent(song: song, playerName: playerName, rivalName: rivalName)
-                if let match = songsById[song.songId] {
+                let match = songsById[song.songId]
+                let row = RivalSongRowContent(
+                    song: song, albumArt: match?.albumArt, session: session,
+                    playerName: playerName, rivalName: rivalName
+                )
+                if let match {
                     NavigationLink(value: AppRoute.songDetail(match)) { row }
                 } else {
                     row

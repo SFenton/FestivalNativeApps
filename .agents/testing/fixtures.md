@@ -39,6 +39,8 @@
 
 Diagnostics (numeric only, never IDs or payloads): `/__fixture__/last-score-query`, `/__fixture__/last-full-score-query` (only `top=25`), `/__fixture__/publication-join-reads`.
 
+Hold control (any listener, no flag; #430): `GET /__fixture__/hold-paths?seconds=N` holds every valid Paths image/text read for up to N s (0–60; `seconds=0` releases them at once), so a journey can inspect the sheet mid-switch; with no query it returns `{"held", "waiting"}` (waiting = reads parked now). Invalid Paths reads still fail at once. Used by `PathsSwitchAccessibilityJourneyTests`; always release in `tearDown`.
+
 Online-only (2026-09-27): the one-shot offline listeners support older journeys; do not add new offline tests. Reuse of a pre-existing 8765 is allowed only if its startup hashes and flags match the frozen inputs; never kill a stale service you did not start. `SongsFilterAccessibilityJourneyTests` reads `TEST_RUNNER_FST_SONGS_FILTER_FIXTURE_PORT=<port>` to use a fresh default listener (`tools/mock_service.py --port <port>`) when 8765 is stale.
 
 ## Bands/Player/Statistics additions (Lane U4)

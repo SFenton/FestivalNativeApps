@@ -5,6 +5,8 @@ package com.festivalscoretracker.android.core.nav
 /**
  * Root destinations shown as tabs, rail items or drawer rows (Apple
  * `FestivalSection`, web `BottomNav`). Visibility comes from [FestivalTabPolicy].
+ * [Statistics] is never a tab on Android (issue #601: the profile button opens it); it stays a
+ * section so search, the drawer and debug launches can name it and push [StatisticsRoute].
  *
  * @property title Title Case label.
  * @property root Tab root route.
@@ -16,6 +18,7 @@ enum class FestivalSection(val title: String, val root: AppRoute) {
     Compete("Compete", CompeteTab),
     Rivals("Rivals", RivalsTab),
     Statistics("Statistics", StatisticsTab),
+    Shop("Item Shop", ShopTab),
     Settings("Settings", SettingsTab);
 
     companion object {
@@ -42,15 +45,21 @@ object FestivalTabPolicy {
      * Visible sections in display order.
      *
      * No profile: Songs · Leaderboards · Settings. Player: Songs · Suggestions ·
-     * Compete · Statistics · Settings on compact widths; Leaderboards and Rivals
+     * Compete · Item Shop · Settings on compact widths; Leaderboards and Rivals
      * replace Compete on regular widths. Band: Songs · Suggestions · Leaderboards ·
-     * Statistics · Settings.
+     * Item Shop · Settings.
+     *
+     * Owner (#601): "Nav bar: Statistics is same as profile. Replace with Item Shop." Item Shop
+     * takes Statistics' slot (the profile button opens Statistics); with Hide Item Shop on the
+     * slot stays empty (four destinations, the iPhone's player set) rather than restoring the
+     * duplicate.
      *
      * @param profile Selected profile kind.
      * @param regularWidth True at ≥ 600 dp (rail/drawer layouts).
+     * @param showShop False while Settings' Hide Item Shop is on.
      * @return Ordered sections.
      */
-    fun sections(profile: ProfileKind, regularWidth: Boolean): List<FestivalSection> = buildList {
+    fun sections(profile: ProfileKind, regularWidth: Boolean, showShop: Boolean = true): List<FestivalSection> = buildList {
         add(FestivalSection.Songs)
         if (profile != ProfileKind.None) add(FestivalSection.Suggestions)
         when {
@@ -61,7 +70,7 @@ object FestivalTabPolicy {
             profile == ProfileKind.Player -> add(FestivalSection.Compete)
             else -> add(FestivalSection.Leaderboards)
         }
-        if (profile != ProfileKind.None) add(FestivalSection.Statistics)
+        if (profile != ProfileKind.None && showShop) add(FestivalSection.Shop)
         add(FestivalSection.Settings)
     }
 

@@ -153,6 +153,39 @@ public class HitTargetMarkupTests
     }
 
     [Fact]
+    public void TitleBar_PassthroughSpansTitleBarHeight()
+    {
+        // Issue #536: centred, the box's and RightHeader's passthrough rects were only the controls' 32 and 40 epx, and
+        // TitleBar truncates them to whole pixels, so at 100% scale the bottom pixel row of the box, Search, the bell and
+        // Profile dragged the window.
+        var doc = Load("MainWindow.xaml");
+        var titleBar = doc.Descendants().Single(e => e.Name.LocalName == "TitleBar" && Attr(e, "Name") == "AppTitleBar");
+        var resources = titleBar.Elements().Single(e => e.Name.LocalName == "TitleBar.Resources").Elements().ToList();
+        foreach (var key in new[] { "TitleBarContentVerticalAlignment", "TitleBarRightHeaderVerticalAlignment" })
+        {
+            var alignment = resources.Single(e => e.Name.LocalName == "VerticalAlignment" && Attr(e, "Key") == key);
+            Assert.Equal("Stretch", alignment.Value.Trim());
+        }
+        // The box: its host is one passthrough rect (the box's width, the title-bar height), collapsed with the box.
+        var host = doc.Descendants().Single(e => e.Name.LocalName == "TitleBar.Content").Elements().Single();
+        Assert.Equal("GlobalSearchBoxHost", Attr(host, "Name"));
+        Assert.Equal("False", Attr(host, "TitleBar.IsDragRegion"));
+        Assert.Equal("Center", Attr(host, "HorizontalAlignment"));
+        var box = host.Elements().Single();
+        Assert.Equal("GlobalSearchBox", Attr(box, "Name"));
+        Assert.Equal("Center", Attr(box, "VerticalAlignment"));
+        var search = File.ReadAllText(Path.Combine(AppRoot, "MainWindow.Search.cs"));
+        Assert.Contains("GlobalSearchBoxHost.Visibility = GlobalSearchBox.Visibility = compact", search, StringComparison.Ordinal);
+        // The buttons:
+        var panel = doc.Descendants().Single(e => e.Name.LocalName == "TitleBar.RightHeader").Elements().Single();
+        Assert.Contains(Attr(panel, "VerticalAlignment"), new[] { null, "Stretch" });
+        // The buttons stay their 40 epx and centred inside the taller passthrough strip.
+        Assert.All(panel.Elements(), child => Assert.Contains(Attr(child, "VerticalAlignment"), new[] { null, "Center" }));
+        Assert.All(new[] { "fst.global-search.open", "fst.shell.profile" }, id =>
+            Assert.Contains(ById(doc, id), b => Attr(b, "MinHeight") == Resource && Attr(b, "Height") is null));
+    }
+
+    [Fact]
     public void QuickLinks_KeepsMinTarget()
     {
         var source = File.ReadAllText(Path.Combine(AppRoot, "Controls", "QuickLinksMenuButton.cs"));
@@ -192,6 +225,33 @@ public class HitTargetMarkupTests
             .SelectMany(path => XDocument.Load(path).Descendants().Where(e => e.Name.LocalName == type));
         Assert.All(items, item => Assert.True(Attr(item, "MinHeight") is null && Attr(item, "Height") is null && Attr(item, "Style") is null,
             $"{type} {Attr(item, "AutomationProperties.AutomationId")} overrides its size"));
+    }
+
+    [Fact]
+    public void RadioButtons_UseMinTarget()
+    {
+        // Issue #430: WinUI draws each RadioButton 32 epx tall (Paths Difficulty/Display, Sort By/Direction, Settings Path
+        // Default View). One implicit style raises every one to FSTMinTargetSize, and the 8 epx row gap moves into the
+        // target (RadioButtonsRowSpacing 0) so one-line lists keep their 40 epx pitch.
+        var styles = Load(Path.Combine("Themes", "Styles.xaml"));
+        var style = styles.Descendants()
+            .Single(e => e.Name.LocalName == "Style" && Attr(e, "TargetType") == "RadioButton" && Attr(e, "Key") is null);
+        Assert.Equal("{StaticResource DefaultRadioButtonStyle}", Attr(style, "BasedOn"));
+        Assert.Equal(Resource, Attr(style.Elements().Single(e => Attr(e, "Property") == "MinHeight"), "Value"));
+        Assert.Equal("8,6,0,6", Attr(style.Elements().Single(e => Attr(e, "Property") == "Padding"), "Value"));
+        Assert.Equal("0", styles.Descendants()
+            .Single(e => e.Name.LocalName == "Double" && Attr(e, "Key") == "RadioButtonsRowSpacing").Value);
+        // No radio or radio group opts out with its own height, padding, style or row spacing.
+        var xaml = Directory.EnumerateFiles(AppRoot, "*.xaml", SearchOption.AllDirectories)
+            .Where(path => Path.GetRelativePath(AppRoot, path).Split(Path.DirectorySeparatorChar)[0] is not ("bin" or "obj"))
+            .Select(XDocument.Load)
+            .ToList();
+        var radios = xaml.SelectMany(doc => doc.Descendants().Where(e => e.Name.LocalName is "RadioButton" or "RadioButtons")).ToList();
+        Assert.NotEmpty(radios);
+        Assert.All(radios, radio => Assert.True(Attr(radio, "MinHeight") is null && Attr(radio, "Height") is null
+            && Attr(radio, "Style") is null && Attr(radio, "Padding") is null,
+            $"{radio.Name.LocalName} {Attr(radio, "Name") ?? Attr(radio, "AutomationProperties.AutomationId")} overrides its size"));
+        Assert.Single(xaml.SelectMany(doc => doc.Descendants().Where(e => Attr(e, "Key") == "RadioButtonsRowSpacing")));
     }
 
     [Fact]

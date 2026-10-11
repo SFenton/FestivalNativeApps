@@ -31,7 +31,7 @@ import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.core.bands.BandMember
 import com.festivalscoretracker.android.core.bands.PlayerBandEntry
 import com.festivalscoretracker.android.core.bands.PlayerBandGroup
-import com.festivalscoretracker.android.ui.bands.BandMemberChips
+import com.festivalscoretracker.android.ui.bands.BandMemberRows
 import com.festivalscoretracker.android.ui.bands.BandSegmentedControl
 import com.festivalscoretracker.android.ui.bands.PlayerBandCard
 import com.festivalscoretracker.android.ui.bands.PlayerBandsLayout
@@ -163,9 +163,13 @@ class PlayerBandsLayoutUiTest {
     }
 
     @Test
-    fun memberNameMovesUnderItsIconsAt200Percent() {
-        show(2f, 240) { BandMemberChips(entry.members.take(1)) }
+    fun memberNameKeepsItsOwnLineOverItsIconsAt200Percent() {
+        show(2f, 240) { BandMemberRows(entry.members.take(1)) }
         assertEquals("name must not break mid-word", 1, lineCount("SFentonX"))
+        val name = rule.onNodeWithTag(nameTag(entry.members[0]), useUnmergedTree = true).getUnclippedBoundsInRoot()
+        val icons = rule.onNodeWithTag(iconsTag(entry.members[0]), useUnmergedTree = true).getUnclippedBoundsInRoot()
+        assertTrue("icons $icons under name $name", icons.top >= name.bottom)
+        assertEquals(name.left.value, icons.left.value, 0.5f)
     }
 
     @Test
@@ -181,6 +185,72 @@ class PlayerBandsLayoutUiTest {
         val pill = rule.onNodeWithText("Duos", useUnmergedTree = true).getUnclippedBoundsInRoot()
         val appearances = rule.onNodeWithText("142 appearances", useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertTrue("pill $pill appearances $appearances", appearances.left >= pill.right && appearances.top < pill.bottom)
+    }
+
+    // endregion
+
+    // region Member alignment (#589)
+
+    private val uneven = entry.copy(
+        members = listOf(
+            BandMember("a".repeat(32), "SFentonX", sixCharts),
+            BandMember("b".repeat(32), "Phankie.ToT", listOf("Solo_Bass")),
+            BandMember("c".repeat(32), "An.Extraordinarily.Long.Member.Name", listOf("Solo_Drums", "Solo_Vocals")),
+        ),
+    )
+
+    private fun nameTag(member: BandMember) = "fst.band-member.${member.accountId}.name"
+
+    private fun iconsTag(member: BandMember) = "fst.band-member.${member.accountId}.icons"
+
+    private fun bounds(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).getUnclippedBoundsInRoot()
+
+    /** Every member name in [band] starts on the same edge; returns the name bounds. */
+    private fun assertNamesAligned(band: PlayerBandEntry) = band.members.map { bounds(nameTag(it)) }.also { names ->
+        names.forEach { assertEquals("names $names", names.first().left.value, it.left.value, 0.5f) }
+    }
+
+    @Test
+    fun namesLeadAndIconsTrailInOneColumnAtDefaultText() {
+        show(1f, 411) { PlayerBandCard(uneven, onClick = {}) }
+        val names = assertNamesAligned(uneven)
+        val icons = uneven.members.map { bounds(iconsTag(it)) }
+        icons.forEach { assertEquals("icons $icons", icons.first().right.value, it.right.value, 0.5f) }
+        names.zip(icons).forEach { (name, icon) ->
+            assertTrue("name $name beside icons $icon", name.right <= icon.left && icon.top < name.bottom && name.top < icon.bottom)
+        }
+    }
+
+    @Test
+    fun aLongNameStaysInsideItsColumn() {
+        show(1f, 411) { PlayerBandCard(uneven, onClick = {}) }
+        val long = uneven.members[2]
+        val name = bounds(nameTag(long))
+        val icons = bounds(iconsTag(long))
+        assertTrue("name $name icons $icons", name.right <= icons.left)
+        assertNamesAligned(uneven)
+    }
+
+    @Test
+    fun oneMemberThatCannotFitStacksTheWholeCard() {
+        show(1f, 260) { PlayerBandCard(uneven, onClick = {}) }
+        assertNamesAligned(uneven)
+        uneven.members.forEach { member ->
+            assertTrue("${member.displayName} icons under its name", bounds(iconsTag(member)).top >= bounds(nameTag(member)).bottom)
+        }
+    }
+
+    @Test
+    fun namesStayAlignedAndWholeAt200Percent() {
+        show(2f, 379) { PlayerBandCard(uneven, onClick = {}) }
+        assertNamesAligned(uneven)
+        assertEquals(1, lineCount("SFentonX"))
+        assertEquals(1, lineCount("Phankie.ToT"))
+        uneven.members.forEach { member ->
+            val name = bounds(nameTag(member))
+            assertTrue("${member.displayName} icons under its name", bounds(iconsTag(member)).top >= name.bottom)
+            assertTrue("${member.displayName} inside the card", name.right <= 379.dp)
+        }
     }
 
     // endregion

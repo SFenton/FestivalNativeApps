@@ -210,6 +210,21 @@ public class SongPathsViewModelTests
     }
 
     [Fact]
+    public void DisplayOptions_AreImageThenTextWithDistinctIconsAndSpokenNames()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service);
+        var vm = new SongPathsViewModel(service.Session(), Song(), [Instrument.Lead]);
+        // Index order is DisplayIndex's; ToString is the value Narrator reads on the (icon-only, #612) box.
+        Assert.Equal(["Image", "Text"], vm.DisplayOptions.Select(o => o.ToString()));
+        Assert.All(vm.DisplayOptions, o => Assert.False(string.IsNullOrEmpty(o.Glyph)));
+        Assert.NotEqual(vm.DisplayOptions[0].Glyph, vm.DisplayOptions[1].Glyph);
+        vm.DisplayIndex = 1; // a ComboBox pick
+        Assert.True(vm.ShowText);
+        vm.Close();
+    }
+
+    [Fact]
     public async Task TextDefault_ZoomAndWarningDismissal()
     {
         var service = new FakeService();

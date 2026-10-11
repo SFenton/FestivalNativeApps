@@ -28,6 +28,29 @@ enum SongsUITestSupport {
             "FST_UI_TEST_RESET_SONG_CARDS": "1",
         ])
     }
+
+    /// Whether a snapshot node is a Songs row (`fst.songs.row.<song id>`), for
+    /// ``FestivalApp/snapshotNodes(in:where:)``.
+    ///
+    /// - Parameter node: A snapshot node.
+    /// - Returns: `true` for a Songs row button.
+    static func isSongsRow(_ node: XCUIElementSnapshot) -> Bool {
+        node.elementType == .button && node.identifier.hasPrefix("fst.songs.row.")
+    }
+
+    /// The first Songs rows of one snapshot, each bound to its identifier rather than its
+    /// index, so tapping or measuring it later reaches that row even after the lazy list
+    /// recycles cells (#572).
+    ///
+    /// - Parameters:
+    ///   - app: Songs.
+    ///   - limit: How many rows to return, in list order.
+    /// - Returns: Up to `limit` rows; empty when the snapshot fails.
+    @MainActor
+    static func songsRows(in app: XCUIApplication, limit: Int) -> [XCUIElement] {
+        let nodes = (try? FestivalApp.snapshotNodes(in: app, where: isSongsRow)) ?? []
+        return nodes.prefix(limit).map { app.buttons[$0.identifier] }
+    }
     /// Choose the source's icons-off variant for tests of numeric score metadata.
     ///
     /// - Parameter app: Launched fixture app before selecting an account.
@@ -95,7 +118,7 @@ enum SongsUITestSupport {
         let action = app.buttons["fst.shell.profile"]
         XCTAssertTrue(action.waitForExistence(timeout: 10))
         action.tap()
-        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Search players or bands")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText(query + "\n")
@@ -600,6 +623,22 @@ enum SongsUITestSupport {
         guard issue.auditType == .contrast, let element = issue.element else { return false }
         return element.elementType == .searchField
             || issue.compactDescription.contains("UISearchBarTextField")
+    }
+
+    /// Whether an accessibility-audit issue is the system search field's own clear button
+    /// hit region (issue #600).
+    ///
+    /// A `.searchable` field with text shows UIKit's `_UITextFieldClearButton`, which the
+    /// audit reports as smaller than 44 pt. It is system chrome the app cannot size, so
+    /// only that issue is accepted alongside `isSystemSearchPlaceholderContrast(_:)`.
+    ///
+    /// - Parameter issue: Issue reported by `performAccessibilityAudit`.
+    /// - Returns: True to ignore the issue.
+    @MainActor
+    static func isSystemSearchIssue(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
+        if isSystemSearchPlaceholderContrast(issue) { return true }
+        return issue.auditType == .hitRegion
+            && (issue.detailedDescription + issue.compactDescription).contains("_UITextFieldClearButton")
     }
 
     /// The Songs list's pinned `.searchable` field, ready to type into.

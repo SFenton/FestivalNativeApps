@@ -81,6 +81,7 @@ struct SongsScreen: View, Equatable {
     @AppStorage("fst.settings.disableShopHighlighting")
     private var disableShopHighlighting = false
     @AppStorage("fst.settings.filterInvalidScores") private var filterInvalidScores = false
+    @AppStorage("fst.settings.leeway") private var leeway = 1.0
     @AppStorage("fst.settings.showInstrumentIcons") private var showInstrumentIcons = true
     @AppStorage("fst.settings.metadataScore") private var metadataScore = true
     @AppStorage("fst.settings.metadataPercentage") private var metadataPercentage = true
@@ -266,10 +267,6 @@ struct SongsScreen: View, Equatable {
             return "Player score filters paused while their charts are hidden in Settings. "
                 + "Your choices are saved."
         }
-        if filterInvalidScores {
-            return "Player score filters paused while Filter Invalid Scores is enabled. "
-                + "Published raw scores cannot replace validated score variants."
-        }
         if !scoreFilterAvailable {
             return "Player score filters paused until selected scores and songs "
                 + "share the current publication. Showing songs without score filters."
@@ -278,10 +275,44 @@ struct SongsScreen: View, Equatable {
     }
 
     private var effectivePlayerScoreFilter: SongPlayerScoreFilter {
-        session.selectedPlayer != nil && playerScoreFilterPausedMessage == nil
-            ? (appliedPlayerScoreFilter?.scoped(to: visibleInstruments)
-                ?? SongPlayerScoreFilter())
-            : SongPlayerScoreFilter()
+        guard session.selectedPlayer != nil, playerScoreFilterPausedMessage == nil else {
+            return SongPlayerScoreFilter()
+        }
+        let scoped = appliedPlayerScoreFilter?.scoped(to: visibleInstruments)
+            ?? SongPlayerScoreFilter()
+        // Saved Over CHOpt Threshold checks are inert (and not "active") while Filter
+        // Invalid Scores is off, as on the web.
+        return invalidScoreLeeway == nil ? scoped.clearingOverThreshold : scoped
+    }
+
+    /// Settings › Filter Invalid Scores' leeway (rounded to the slider's 0.1 steps)
+    /// while it is on and a player is selected, else nil. Rows, filters, sorts and the
+    /// profile panel then use the player's effective scores (web `SongsPage`
+    /// `effectiveScores`); a band's scores have no substitution.
+    private var invalidScoreLeeway: Double? {
+        guard filterInvalidScores, session.selectedPlayer != nil, session.selectedBand == nil
+        else { return nil }
+        return (leeway * 10).rounded() / 10
+    }
+
+    /// Charts whose Over CHOpt Threshold filter keeps an invalid score raw (inert while
+    /// Filter Invalid Scores is off).
+    private var overThresholdCharts: Set<Instrument> {
+        invalidScoreLeeway == nil ? [] : effectivePlayerScoreFilter.overThreshold
+    }
+
+    /// The selected player's scores as Songs shows them: raw, or each chart's
+    /// effective score while Filter Invalid Scores is on.
+    ///
+    /// - Parameter songs: The catalogue (CHOpt maxima and population curves).
+    /// - Returns: Scores by song ID and chart.
+    private func playerScoreIndex(songs: [Song]) -> [String: [Instrument: PlayerScore]] {
+        guard let invalidScoreLeeway else { return session.selectedPlayerScores }
+        let songsById = Dictionary(songs.map { ($0.songId, $0) }, uniquingKeysWith: { first, _ in first })
+        return InvalidScorePolicy.resolve(
+            index: session.selectedPlayerScores, songsById: songsById,
+            leeway: invalidScoreLeeway, overThreshold: overThresholdCharts
+        )
     }
 
     private var hiddenPlayerScoreChecks: Bool {
@@ -431,9 +462,10 @@ struct SongsScreen: View, Equatable {
                         publicFiltered,
                         scoresBySong: session.hasCurrentPlayerScores(
                             forCatalogue: payload.observedPublicationId
-                        ) ? session.selectedPlayerScores : nil,
+                        ) ? playerScoreIndex(songs: payload.catalog.songs) : nil,
                         visibleInstruments: visibleInstruments,
-                        selectedInstrument: instrument
+                        selectedInstrument: instrument,
+                        overThresholdLeeway: invalidScoreLeeway
                     )
                     MainThreadStallMonitor.count("songs.sort")
                     return try SongCatalogSort.sorted(
@@ -514,7 +546,8 @@ struct SongsScreen: View, Equatable {
         // rather than searches globally"). Global search is the Search tab. Not on
         // iPhone Duo, which shows its own field at the bottom (issue #333).
         .modifier(SongsSystemFilterField(
-            text: $searchText, enabled: filterPlacement == .system
+            text: $searchText, enabled: filterPlacement == .system,
+            listNudger: scrollChrome.listNudger
         ))
         // Sort, Filter and Quick Links, then the account group: in the iPhone tab-bar
         // accessory on iOS 26.1+, the navigation bar elsewhere (issue #92); Sort and
@@ -553,8 +586,8 @@ struct SongsScreen: View, Equatable {
                     visibleInstruments: visibleInstruments,
                     selectedPlayer: session.selectedPlayer != nil,
                     scoreAvailable: scoreFilterAvailable,
-                    invalidScoreFilteringEnabled: filterInvalidScores,
-                    availableSeasons: SongSeasonBucket.keys(in: session.selectedPlayerScores)
+                    invalidScoreFilteringEnabled: invalidScoreLeeway != nil,
+                    availableSeasons: SongSeasonBucket.keys(in: playerScoreIndex(songs: catalogueSongs))
                 ) { general, player, instrumentChoice in
                     let playerData = try player.encoded()
                     try saveGeneralFilter(general)
@@ -814,10 +847,6 @@ struct SongsScreen: View, Equatable {
         // No instrument: normalized to Title on appear / change, not a pause. No player:
         // a deselect reverts it to Title (issue #359); any left over shows Title silently.
         guard instrument != nil, session.selectedPlayer != nil else { return nil }
-        if filterInvalidScores {
-            return "\(name) sort paused while Filter Invalid Scores is enabled. "
-                + "Published raw scores cannot replace validated score variants."
-        }
         if !scoreFilterAvailable {
             return "\(name) sort paused until selected scores and songs share the current "
                 + "publication. Showing title order; your preference is saved."
@@ -859,7 +888,7 @@ struct SongsScreen: View, Equatable {
         guard let instrument,
               session.hasCurrentPlayerScores(forCatalogue: payload.observedPublicationId)
         else { return nil }
-        return session.selectedPlayerScores.compactMapValues { $0[instrument] }
+        return playerScoreIndex(songs: payload.catalog.songs).compactMapValues { $0[instrument] }
     }
 
     /// Reset a player sort to Title A–Z once Songs shows every instrument.
@@ -1191,6 +1220,7 @@ struct SongsScreen: View, Equatable {
                     } : nil
                 ))
                 .modifier(ScrolledAwayTracker(
+                    nudger: scrollChrome.listNudger,
                     topInsetChanged: { [scrollChrome] inset, offsetY in
                         scrollChrome.setListTopInset(inset)
                         scrollChrome.noteExpandedTopInset(inset, offsetY: offsetY)
@@ -1254,6 +1284,15 @@ struct SongsScreen: View, Equatable {
             }
             .task {
                 #if DEBUG
+                // `FST_DEBUG_SONGS_PARK_TOP=<points>[@<seconds>|@<trigger path>]`: after a
+                // delay (3 s) or once the trigger file exists, move the List up
+                // programmatically, as a landing correction does; issue #560 parks it
+                // part-way through the large title's collapse.
+                if let park = SongsScrollStress.parkRequest {
+                    await SongsScrollStress.waitForPark(park)
+                    guard !Task.isCancelled else { return }
+                    scrollChrome.listNudger.moveContent(by: -park.points)
+                }
                 // `FST_DEBUG_SONGS_SCROLL_STRESS=1`: replay a scroll stress pass in-app,
                 // without XCUITest's accessibility snapshots (issue #8 measurements).
                 guard SongsScrollStress.isRequested, let groups else { return }
@@ -1490,8 +1529,7 @@ struct SongsScreen: View, Equatable {
         #else
         SongProfilePanelPolicy.gridColumns(
             layout: deviceLayout,
-            hasSelectedProfile: session.selectedPlayer != nil || session.selectedBand != nil,
-            filterInvalidScores: session.selectedBand == nil && filterInvalidScores
+            hasSelectedProfile: session.selectedPlayer != nil || session.selectedBand != nil
         )
         #endif
     }
@@ -1628,7 +1666,8 @@ struct SongsScreen: View, Equatable {
             profileChart: chart,
             catalogueObservation: catalogueObservation,
             metadata: metadataVisibility,
-            filterInvalidScores: filterInvalidScores,
+            invalidScoreLeeway: invalidScoreLeeway,
+            overThresholdCharts: overThresholdCharts,
             showInstrumentIcons: showInstrumentIcons,
             visibleInstruments: visibleInstruments,
             currentSeason: currentSeason
@@ -1666,6 +1705,9 @@ struct SongsScreen: View, Equatable {
         // The Mac's `ListDetailLink` already marks its label selected.
         .listDetailSelectable(AppRoute.songDetail(song))
         #endif
+        // The invalid-score indicator's button follows the song link, outside it (inside,
+        // a tap would open the song instead), and precedes the profile cards.
+        .songInvalidScoreIndicator(songId: song.songId)
         // A wide row's profile cards follow the song link as their own VoiceOver stops
         // (`songs-profile-panel` R8); outside the link, which would collapse them.
         .songProfilePanelAccessibility(songId: song.songId)
@@ -1816,13 +1858,53 @@ private extension SongShopSectionKind {
 /// Reports whether a scroll view has moved away from its top (iOS 18+; always false
 /// before). ``ScrollAwayGate`` keeps the chrome this report moves from feeding back
 /// into it (issue #5).
+///
+/// Also finishes a large title's collapse when the List comes to rest part-way through
+/// it (``LargeTitleRestWatch``, issue #560): UIKit snaps the title only when a drag ends,
+/// so a programmatic scroll could leave it half-way up behind the toolbar. The watch
+/// reads `onScrollGeometryChange` and the scroll phase on iOS 18 and later; on iOS 17 (or
+/// with `FST_DEBUG_LEGACY_SCROLL_GEOMETRY=1`) it reads the List's platform scroll view
+/// through an ``EnclosedScrollViewLocator`` and a ``PlatformScrollObserver``, the
+/// scroll-edge fades' legacy path, and waits out touches and deceleration itself.
 private struct ScrolledAwayTracker: ViewModifier {
+    /// Moves the List to the nearer end of a part-way large-title collapse.
+    let nudger: ListScrollNudger
     /// Receives the List's top content inset and offset on every scroll geometry change.
     let topInsetChanged: (CGFloat, CGFloat) -> Void
     let changed: (Bool) -> Void
+    /// Read the large-title rest from the platform scroll view (iOS 17 path).
+    var legacyRest = ScrollEdgeTracking.usesLegacyPath
     @State private var gate = ScrollAwayGate()
     /// The last value sent to `changed`; nil until the first decision is reported.
     @State private var reported: Bool?
+    /// Rest checks; a reference so per-sample bookkeeping never re-renders the List.
+    @State private var rest = RestFeed()
+
+    /// The List's resting state for the large-title check (issue #560), and the legacy
+    /// path's scroll observer.
+    @MainActor
+    private final class RestFeed {
+        /// The nudger the watch settles with; set on every render.
+        weak var nudger: ListScrollNudger?
+
+        lazy var watch: LargeTitleRestWatch = LargeTitleRestWatch(
+            isInteracting: { [weak self] in self?.nudger?.isInteracting ?? false },
+            settle: { [weak self] target in
+                if self?.nudger?.settleLargeTitle(at: target) == true {
+                    MainThreadStallMonitor.count("songs.largeTitle.settle")
+                }
+            }
+        )
+
+        /// The iOS 17 path's reader of the List's platform scroll view.
+        lazy var observer: PlatformScrollObserver = PlatformScrollObserver { [weak self] reading in
+            guard let self else { return }
+            self.watch.record(
+                offsetY: reading.offset - reading.inset, topInset: reading.inset,
+                width: self.observer.scrollView?.bounds.width ?? 0
+            )
+        }
+    }
 
     /// The geometry values the gate needs.
     private struct Sample: Equatable {
@@ -1832,6 +1914,26 @@ private struct ScrolledAwayTracker: ViewModifier {
     }
 
     func body(content: Content) -> some View {
+        let rest = rest
+        rest.nudger = nudger
+        return observed(content)
+            .background {
+                #if os(iOS)
+                if legacyRest {
+                    EnclosedScrollViewLocator(
+                        current: { rest.observer.scrollView },
+                        found: { rest.observer.attach($0) },
+                        refresh: { rest.observer.report() }
+                    )
+                    .accessibilityHidden(true)
+                }
+                #endif
+            }
+    }
+
+    /// The content with the iOS 18 / macOS 15 geometry and phase observers.
+    @ViewBuilder
+    private func observed(_ content: Content) -> some View {
         if #available(iOS 18.0, macOS 15.0, *) {
             content
             .onScrollGeometryChange(for: Sample.self) { geometry in
@@ -1844,6 +1946,11 @@ private struct ScrolledAwayTracker: ViewModifier {
                 // twice raises this peak above the expanded large title's inset.
                 MainThreadStallMonitor.peak("songs.topInset", Double(sample.topInset))
                 topInsetChanged(sample.topInset, sample.offsetY)
+                if !legacyRest {
+                    rest.watch.record(
+                        offsetY: sample.offsetY, topInset: sample.topInset, width: sample.width
+                    )
+                }
                 gate.update(
                     offsetY: sample.offsetY, topInset: sample.topInset,
                     containerWidth: sample.width
@@ -1852,6 +1959,10 @@ private struct ScrolledAwayTracker: ViewModifier {
                 if reported != nil { MainThreadStallMonitor.count("songs.scrolled.flip") }
                 reported = gate.isScrolled
                 changed(gate.isScrolled)
+            }
+            .onScrollPhaseChange { _, phase in
+                guard !legacyRest else { return }
+                rest.watch.setPhaseIdle(phase == .idle)
             }
         } else {
             content
@@ -2145,8 +2256,8 @@ struct SongsInlineSectionTitle: View {
 /// (issue #383, ``SwiftUI/View/pinnedHeaderEdgeFadeRowMask(edge:active:depthLimit:rowLimit:)``).
 /// Observes ``SongsScrollChrome`` here, so a scroll re-renders only this modifier, never
 /// the List (issue #8). At the top it observes only the scroll-away state
-/// (``SongsScrollChrome/rowFade(enabled:)``), so the expanding large title re-renders no
-/// row.
+/// (``SongsScrollChrome/rowEdge(enabled:)``), so the expanding large title re-renders no
+/// row; once scrolled, only rows near the bar read the moving depth limit (issue #553).
 private struct SectionBarRowFade: ViewModifier {
     let chrome: SongsScrollChrome
     /// False for a row with no section bar above it (no sections, or before iOS 26).
@@ -2154,9 +2265,11 @@ private struct SectionBarRowFade: ViewModifier {
 
     func body(content: Content) -> some View {
         if enabled {
-            let fade = chrome.rowFade(enabled: true)
+            let edge = chrome.rowEdge(enabled: true)
+            let chrome = chrome
             content.pinnedHeaderEdgeFadeRowMask(
-                edge: fade.edge, active: fade.active, depthLimit: fade.depthLimit,
+                edge: edge.edge, active: edge.active,
+                depthLimit: PinnedHeaderEdgeFade.RowMaskDepth { chrome.rowFadeLimit },
                 rowLimit: chrome.rowMaskLimit
             )
         } else {

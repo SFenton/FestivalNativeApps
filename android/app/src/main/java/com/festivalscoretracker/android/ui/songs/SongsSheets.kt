@@ -1,11 +1,6 @@
 package com.festivalscoretracker.android.ui.songs
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,6 +20,7 @@ import com.festivalscoretracker.android.core.songs.SongIntensityBucket
 import com.festivalscoretracker.android.core.songs.SongPercentileBucket
 import com.festivalscoretracker.android.core.songs.SongSeasonBucket
 import com.festivalscoretracker.android.core.songs.SongStarsBucket
+import com.festivalscoretracker.android.ui.common.AccordionReveal
 import com.festivalscoretracker.android.ui.design.DifficultyMeter
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
 import com.festivalscoretracker.android.ui.design.StarRating
@@ -485,7 +481,8 @@ internal fun SongScoreFilterKind.chartDescription(chart: Instrument): String = w
 
 /**
  * A collapsible group (web `Accordion`): a heading row with optional icon and a
- * rotating chevron; the hint and content expand below it.
+ * rotating chevron; the hint and content reveal below it through the shared
+ * [AccordionReveal] (expand, then fade in; fade out, then collapse; issue #561).
  */
 @Composable
 private fun Accordion(
@@ -518,7 +515,7 @@ private fun Accordion(
             Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.weight(1f))
             Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = BrandTokens.textSecondary, modifier = Modifier.graphicsLayer { rotationZ = rotation })
         }
-        AnimatedVisibility(visible = open, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+        AccordionReveal(open) {
             Column(Modifier.padding(horizontal = 4.dp).testTag("$tag.content")) {
                 hint?.let { Hint(it) }
                 content()
