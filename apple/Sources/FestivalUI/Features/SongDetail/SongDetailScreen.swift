@@ -80,6 +80,7 @@ struct SongDetailScreen: View {
     private struct ShopDetailTaskKey: Equatable {
         let publicationRevision: Int
         let hidden: Bool
+        let contentShown: Bool
     }
 
     private var charted: [Instrument] {
@@ -214,23 +215,33 @@ struct SongDetailScreen: View {
             }
         }
         .task(id: gateKey) { await loadGate() }
+        // The first Shop read belongs to the gate (#585); this covers later changes
+        // (new publication, Hide Item Shop turned off) once the page shows.
         .task(id: ShopDetailTaskKey(
-            publicationRevision: session.publicationRevision, hidden: hideShop
+            publicationRevision: session.publicationRevision, hidden: hideShop, contentShown: ready
         )) {
-            guard !hideShop, session.currentShop == nil,
-                  session.shopError == nil else { return }
-            do {
-                _ = try await session.shop()
-                try Task.checkCancellation()
-                shopRefreshFailure = nil
-            } catch is CancellationError {
-                return
-            } catch let error as URLError where error.code == .cancelled {
-                return
-            } catch {
-                guard !Task.isCancelled else { return }
-                shopRefreshFailure = error.localizedDescription
-            }
+            guard ready else { return }
+            await loadShopIfNeeded()
+        }
+    }
+
+    /// Read the Item Shop feed unless it is hidden, already known or already failed.
+    /// A failure is the explicit completed-no-offer state (the page shows the Shop
+    /// status error instead of the action).
+    private func loadShopIfNeeded() async {
+        guard !hideShop, session.currentShop == nil,
+              session.shopError == nil else { return }
+        do {
+            _ = try await session.shop()
+            try Task.checkCancellation()
+            shopRefreshFailure = nil
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            shopRefreshFailure = error.localizedDescription
         }
     }
 
@@ -409,10 +420,12 @@ struct SongDetailScreen: View {
 
     // MARK: Load
 
-    /// First appearance: read every visible chart's top ten and the selected player's
-    /// history for this song in parallel, then show the page. Later key changes (new
-    /// publication, leeway, profile) refresh the history quietly; the cards reload
-    /// themselves.
+    /// First appearance: read every visible chart's top ten, the selected player's
+    /// history for this song, the band previews and the Item Shop feed in parallel, then
+    /// show the page. The Shop read is part of the gate so the page tools (Item Shop,
+    /// Paths, Quick Links) are decided before they appear, together (load-transition
+    /// R1, #585). Later key changes (new publication, leeway, profile) refresh the
+    /// history quietly; the cards reload themselves.
     private func loadGate() async {
         let key = gateKey
         guard loadedGate != key else { return }
@@ -425,11 +438,13 @@ struct SongDetailScreen: View {
         }
         async let history: Void = loadHistory()
         async let bands: Void = loadBandsIfNeeded()
+        async let shop: Void = loadShopIfNeeded()
         let previews = await SongDetailPreloader.previews(
             session: session, song: song, instruments: previewInstruments, leeway: key.leeway
         )
         await history
         await bands
+        await shop
         guard !Task.isCancelled else { return }
         previewPreloads = previews
         loadedGate = key
