@@ -60,6 +60,40 @@ actor HeldCompeteRankingsTransport: HTTPTransport {
     }
 }
 
+/// The elements VoiceOver reaches in `host` through `accessibilityChildren` alone, in its
+/// navigation order, with their frames in the host's top-left points. Unlike
+/// `macAccessibilityTree`, it skips the unexposed `NSProgressIndicator` backing a SwiftUI
+/// `ProgressView`.
+///
+/// - Parameter host: The hosting view, after one layout pass here.
+/// - Returns: Each element and its frame (nil when it has none).
+@MainActor
+func nativeHostedReachableElements(_ host: NSView) -> [(node: MacAXNode, frame: CGRect?)] {
+    host.layoutSubtreeIfNeeded()
+    var found: [(node: MacAXNode, frame: CGRect?)] = []
+    var seen = Set<ObjectIdentifier>()
+    func walk(_ node: Any, depth: Int) {
+        guard depth < 90, let object = node as? NSObject,
+              seen.insert(ObjectIdentifier(object)).inserted else { return }
+        func read(_ key: String) -> String { nativeHostedAccessibilityString(object, key) }
+        let isElement = object.responds(to: NSSelectorFromString("isAccessibilityElement"))
+            && (object.value(forKey: "isAccessibilityElement") as? Bool) == true
+        if isElement {
+            found.append((MacAXNode(
+                depth: depth, role: read("accessibilityRole"), subrole: read("accessibilitySubrole"),
+                label: read("accessibilityLabel"), title: read("accessibilityTitle"),
+                value: read("accessibilityValue"), identifier: read("accessibilityIdentifier"),
+                selected: false, help: "", isElement: true
+            ), nativeHostedAccessibilityFrame(of: object, in: host)))
+        }
+        let children = object.responds(to: NSSelectorFromString("accessibilityChildren"))
+            ? object.value(forKey: "accessibilityChildren") as? [Any] : nil
+        for child in children ?? [] { walk(child, depth: depth + 1) }
+    }
+    walk(host, depth: 0)
+    return found
+}
+
 /// Accessibility of Compete's loading state (#35) and what replaces it.
 ///
 /// HIG Progress indicators: progress indicators appear "only while one is ongoing";
@@ -131,29 +165,7 @@ struct CompeteLoadingAccessibilityTests {
 
         /// ``reachable()`` with each element's frame.
         func framedReachable() -> [(node: MacAXNode, frame: CGRect?)] {
-            host.layoutSubtreeIfNeeded()
-            var found: [(node: MacAXNode, frame: CGRect?)] = []
-            var seen = Set<ObjectIdentifier>()
-            func walk(_ node: Any, depth: Int) {
-                guard depth < 90, let object = node as? NSObject,
-                      seen.insert(ObjectIdentifier(object)).inserted else { return }
-                func read(_ key: String) -> String { nativeHostedAccessibilityString(object, key) }
-                let isElement = object.responds(to: NSSelectorFromString("isAccessibilityElement"))
-                    && (object.value(forKey: "isAccessibilityElement") as? Bool) == true
-                if isElement {
-                    found.append((MacAXNode(
-                        depth: depth, role: read("accessibilityRole"), subrole: read("accessibilitySubrole"),
-                        label: read("accessibilityLabel"), title: read("accessibilityTitle"),
-                        value: read("accessibilityValue"), identifier: read("accessibilityIdentifier"),
-                        selected: false, help: "", isElement: true
-                    ), nativeHostedAccessibilityFrame(of: object, in: host)))
-                }
-                let children = object.responds(to: NSSelectorFromString("accessibilityChildren"))
-                    ? object.value(forKey: "accessibilityChildren") as? [Any] : nil
-                for child in children ?? [] { walk(child, depth: depth + 1) }
-            }
-            walk(host, depth: 0)
-            return found
+            nativeHostedReachableElements(host)
         }
     }
 

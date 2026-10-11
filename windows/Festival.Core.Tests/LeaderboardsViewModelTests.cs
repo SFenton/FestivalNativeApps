@@ -1346,6 +1346,27 @@ public sealed class SongLeaderboardViewModelTests
     }
 
     [Fact]
+    public async Task SpotlightUsesTheValidVariantAndItsFilteredRank()
+    {
+        var service = new FakeService();
+        var variant = PlayerWire.Score("s1", "01", 5000, 990, true, 6, 60, 100, 1.0,
+            ""","ml":2.0,"vs":[{"sc":4100,"acc":970,"fc":false,"st":5,"ml":-5,"rt":[{"l":-5,"r":12}]}]""");
+        PlayerWire.Install(service, new() { [PlayerWire.Id] = (HttpStatusCode.OK, PlayerWire.Profile(PlayerWire.Id, "Fixture One", variant)) });
+        var session = Session(service, new AppSettings { SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One"), FilterInvalidScores = true });
+        await session.LoadSelectedProfileAsync();
+
+        var vm = new SongLeaderboardViewModel(session, new AppRoute.SongLeaderboard("s1", Instrument.Lead));
+        await vm.LoadAsync();
+        Assert.Equal(4100, vm.Spotlight!.Entry.Score);
+        Assert.Equal(12, vm.Spotlight.Entry.Rank);
+
+        session.UpdateSettings(s => s with { Leeway = 3 });
+        var raw = new SongLeaderboardViewModel(session, new AppRoute.SongLeaderboard("s1", Instrument.Lead));
+        await raw.LoadAsync();
+        Assert.Equal((5000L, 60), (raw.Spotlight!.Entry.Score, raw.Spotlight.Entry.Rank));
+    }
+
+    [Fact]
     public void RowPlaceholders()
     {
         var row = new SongLeaderboardRowViewModel(new LeaderboardEntry { AccountId = "x", Score = 1 }, false);

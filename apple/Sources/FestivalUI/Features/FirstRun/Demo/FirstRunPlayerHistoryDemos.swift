@@ -15,6 +15,7 @@ struct FirstRunPlayerHistoryScoreListDemo: View {
                     .firstRunStagger(index)
             }
         }
+        .leaderboardSectionColumns(.scoreHistory(FirstRunDemoPool.ownHistory.map(\.newScore)))
         .accessibilityHidden(true)
     }
 }
