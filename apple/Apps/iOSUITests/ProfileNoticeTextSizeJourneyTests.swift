@@ -9,9 +9,9 @@ import XCTest
 /// drawn in `.footnote` gold. The hosted `PlayerProfileAccessibilityTests` pin its
 /// VoiceOver order and wrapping on the macOS host, where text styles do not grow (HIG
 /// Typography: "macOS doesn't support Dynamic Type"). This journey proves real growth:
-/// the notice's rendered gold glyphs at AX5 are more than 1.35× their default-size height
-/// (`.agents/testing/apple/accessibility.md`), every line the message needs is drawn, and
-/// the whole notice is on screen between the navigation bar and the bottom chrome, above
+/// the notice's glyphs, read back with the shared `RecognizedText`, render more than 1.35×
+/// their default-size height at AX5 (`.agents/testing/apple/accessibility.md`), the whole
+/// message is drawn with no ellipsis or clipped words, and the whole notice is on screen between the navigation bar and the bottom chrome, above
 /// the Global Statistics heading. HIG Accessibility: text enlargement "of at least 200%".
 ///
 /// Needs an unpinned fixture listener, so the player read proves no publication and the
@@ -20,6 +20,8 @@ import XCTest
 ///     python3 tools/mock_service.py --port 18446 --unpinned
 ///
 /// `TEST_RUNNER_FST_PROFILE_NOTICE_FIXTURE_URL=<origin>` points a run at another one.
+/// `apple-ci` runs it in its "iPhone unpinned-fixture journeys" step with `--fail-on-skip`,
+/// so a missing listener fails CI (`.agents/testing/apple/xcuitest.md#ci-journeys`).
 final class ProfileNoticeTextSizeJourneyTests: XCTestCase {
     // MARK: - Fixture
 
@@ -32,9 +34,6 @@ final class ProfileNoticeTextSizeJourneyTests: XCTestCase {
     private static let firstHeading = "Global Statistics"
     /// Horizontal padding of a card row (`FestivalRowPadding`) around the notice text.
     private static let rowInset: CGFloat = 16
-    /// Smallest AX5 / default growth of the rendered glyphs.
-    private static let minimumGrowth = 1.35
-
     override func setUpWithError() throws {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
@@ -64,11 +63,11 @@ final class ProfileNoticeTextSizeJourneyTests: XCTestCase {
     private struct NoticeReading {
         /// The notice's frame in points.
         let frame: CGRect
-        /// The tallest gold text line, in screenshot pixels.
-        let glyphHeight: Int
-        /// Gold text lines drawn.
-        let lines: Int
-        /// Lines the message needs at the notice's width and text size.
+        /// Vision's read-back of the notice's own capture.
+        let reading: RecognizedText.Reading
+        /// Height in points the message needs at the notice's text width and size.
+        let neededHeight: CGFloat
+        /// Lines the message needs at the notice's text width and size.
         let neededLines: Int
     }
 
@@ -92,14 +91,14 @@ final class ProfileNoticeTextSizeJourneyTests: XCTestCase {
         let name = contentSize == .large ? "default" : "ax5"
 
         let page = app.scrollViews["fst.player.available"]
-        XCTAssertTrue(page.waitForExistence(timeout: 30), "The fixture profile did not load")
+        XCTAssertTrue(page.waitForExistence(timeout: FestivalApp.budget(30)), "The fixture profile did not load")
         let notice = page.staticTexts["fst.player.unverified"]
-        XCTAssertTrue(notice.waitForExistence(timeout: 15), "No unverified notice on an unpinned read")
+        XCTAssertTrue(notice.waitForExistence(timeout: FestivalApp.budget(15)), "No unverified notice on an unpinned read")
         XCTAssertEqual(notice.label, Self.message)
         let heading = page.staticTexts[Self.firstHeading]
-        XCTAssertTrue(heading.waitForExistence(timeout: 15), "No \(Self.firstHeading) heading")
+        XCTAssertTrue(heading.waitForExistence(timeout: FestivalApp.budget(15)), "No \(Self.firstHeading) heading")
         // Let the notice's fade-in (`festivalFadeIn`, stagger slot 0) finish.
-        Thread.sleep(forTimeInterval: 1.5)
+        Thread.sleep(forTimeInterval: FestivalApp.budget(1.5))
         SongsUITestSupport.record(app, name: "profile-unverified-notice-\(name)")
 
         let frame = notice.frame
@@ -118,7 +117,7 @@ final class ProfileNoticeTextSizeJourneyTests: XCTestCase {
         XCTAssertLessThanOrEqual(frame.maxY, heading.frame.minY + 0.5,
                                  "\(name): notice \(frame) overlaps \(Self.firstHeading) \(heading.frame)")
 
-        let ink = try Self.goldLines(in: notice)
+        let reading = RecognizedText.recognize(notice, label: Self.message, frame: frame)
         let font = UIFont.preferredFont(
             forTextStyle: .footnote,
             compatibleWith: UITraitCollection(preferredContentSizeCategory: contentSize)
@@ -129,36 +128,7 @@ final class ProfileNoticeTextSizeJourneyTests: XCTestCase {
             options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font], context: nil
         ).height
         let neededLines = Int((needed / font.lineHeight).rounded())
-        return NoticeReading(frame: frame, glyphHeight: ink.tallest, lines: ink.lines, neededLines: neededLines)
-    }
-
-    /// Gold (`BrandTokens.gold`, the notice ink) text lines in an element's capture.
-    ///
-    /// - Parameter element: The notice text.
-    /// - Returns: The number of separate runs of gold pixel rows and the tallest run.
-    /// - Throws: An unavailable capture or no gold ink.
-    @MainActor
-    private static func goldLines(in element: XCUIElement) throws -> (lines: Int, tallest: Int) {
-        let image = try XCTUnwrap(element.screenshot().image.cgImage)
-        let pixels = try SongsUITestSupport.bitmapPixels(image)
-        var lines = 0
-        var run = 0
-        var tallest = 0
-        for y in 0..<image.height {
-            let gold = (0..<image.width).contains { x in
-                let offset = (y * image.width + x) * 4
-                return pixels[offset] > 180 && pixels[offset + 1] > 140 && pixels[offset + 2] < 90
-            }
-            if gold {
-                if run == 0 { lines += 1 }
-                run += 1
-                tallest = max(tallest, run)
-            } else {
-                run = 0
-            }
-        }
-        XCTAssertGreaterThan(lines, 0, "No gold notice ink in \(element.frame)")
-        return (lines, tallest)
+        return NoticeReading(frame: frame, reading: reading, neededHeight: needed, neededLines: neededLines)
     }
 
     // MARK: - Tests
@@ -174,21 +144,27 @@ final class ProfileNoticeTextSizeJourneyTests: XCTestCase {
         let normal = try readNotice(at: .large)
         let large = try readNotice(at: .accessibilityExtraExtraExtraLarge)
         let summary = XCTAttachment(string: """
-            default: frame \(normal.frame), glyphs \(normal.glyphHeight) px, lines \(normal.lines)/\(normal.neededLines)
-            AX5: frame \(large.frame), glyphs \(large.glyphHeight) px, lines \(large.lines)/\(large.neededLines)
+            default: frame \(normal.frame), line \(normal.reading.lineHeight ?? 0) pt, needs \(normal.neededLines) lines, \
+            read "\(normal.reading.text ?? "")"
+            AX5: frame \(large.frame), line \(large.reading.lineHeight ?? 0) pt, needs \(large.neededLines) lines, \
+            read "\(large.reading.text ?? "")"
             """)
         summary.name = "profile-unverified-notice-readings"
         summary.lifetime = .keepAlways
         add(summary)
 
-        XCTAssertGreaterThan(
-            Double(large.glyphHeight), Double(normal.glyphHeight) * Self.minimumGrowth,
-            "Notice glyphs \(normal.glyphHeight) → \(large.glyphHeight) px did not grow with Dynamic Type"
-        )
-        XCTAssertEqual(normal.lines, normal.neededLines, "Default notice draws \(normal.lines) of \(normal.neededLines) lines")
+        for (name, notice) in [("Default", normal), ("AX5", large)] {
+            XCTAssertTrue(RecognizedText.showsWhole(Self.message, in: notice.reading.text),
+                          "\(name) notice is not drawn whole: \(notice.reading.text ?? "nothing read")")
+            XCTAssertGreaterThanOrEqual(notice.frame.height + 0.5, notice.neededHeight,
+                                        "\(name) notice \(notice.frame) is shorter than its \(notice.neededHeight) pt text")
+        }
+        let normalLine = try XCTUnwrap(normal.reading.lineHeight, "No default-size line height read")
+        let largeLine = try XCTUnwrap(large.reading.lineHeight, "No AX5 line height read")
+        XCTAssertGreaterThan(largeLine / normalLine, RecognizedText.minimumGrowth,
+                             "Notice glyphs \(normalLine) → \(largeLine) pt did not grow with Dynamic Type")
         XCTAssertGreaterThanOrEqual(large.neededLines, 3, "At AX5 the message wraps at \(large.frame.width) pt")
-        XCTAssertEqual(large.lines, large.neededLines, "AX5 notice draws \(large.lines) of \(large.neededLines) lines")
-        XCTAssertGreaterThan(large.frame.height, normal.frame.height * Self.minimumGrowth,
+        XCTAssertGreaterThan(large.frame.height, normal.frame.height * RecognizedText.minimumGrowth,
                              "The notice's frame \(normal.frame) → \(large.frame) did not grow")
     }
 }
