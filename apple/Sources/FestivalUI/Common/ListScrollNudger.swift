@@ -72,6 +72,37 @@ public final class ListScrollNudger {
         #endif
     }
 
+    /// Whether a finger is on the List or it is still dragging or decelerating
+    /// (``LargeTitleRestWatch`` waits these out); always `false` on macOS and before a
+    /// locator has found the scroll view.
+    var isInteracting: Bool {
+        #if os(iOS)
+        guard let scrollView else { return false }
+        return scrollView.isTracking || scrollView.isDragging || scrollView.isDecelerating
+        #else
+        return false
+        #endif
+    }
+
+    /// Finish a large title's part-way collapse (``LargeTitleRest``): animate the List's
+    /// content offset to `offsetY`, as UIKit's own snap does when a drag ends.
+    ///
+    /// - Parameter offsetY: The target vertical content offset.
+    /// - Returns: `true` when the List started moving; always `false` on macOS, whose
+    ///   toolbar titles never collapse into the content.
+    @discardableResult
+    func settleLargeTitle(at offsetY: CGFloat) -> Bool {
+        #if os(iOS)
+        guard offsetY.isFinite, let scrollView, scrollView.window != nil,
+              !scrollView.isTracking, !scrollView.isDecelerating,
+              abs(scrollView.contentOffset.y - offsetY) >= Self.minimumMove else { return false }
+        scrollView.setContentOffset(CGPoint(x: scrollView.contentOffset.x, y: offsetY), animated: true)
+        return true
+        #else
+        return false
+        #endif
+    }
+
     /// Movement smaller than this is rounding, not a landing error.
     nonisolated static let minimumMove: CGFloat = 0.5
 

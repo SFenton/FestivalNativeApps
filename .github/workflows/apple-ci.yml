@@ -94,6 +94,8 @@ jobs:
             SongsChromeJourneyTests/testRowUnderTheSectionBarFadeKeepsItsAccessibility
             SongsChromeJourneyTests/testSectionPushIsAccessibleAtLargestText
             SongsChromeJourneyTests/testFilterFieldReadyAfterBackFromSongDetail
+            SongsChromeJourneyTests/testProgrammaticScrollNeverRestsPartWayThroughTheLargeTitle
+            SongsChromeJourneyTests/testProgrammaticScrollNeverRestsPartWayOnTheLegacyScrollPath
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             FirstRunJourneyTests/testSongDemoRotationKeepsSlideAccessibleAtLargestText
             RivalsViewAllAccessibilityJourneyTests/testViewAllRivalsIsReadableAtAX5

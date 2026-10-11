@@ -1597,6 +1597,138 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertEqual(bodies, 0, "Scrolling near the top re-rendered the Songs screen")
         XCTAssertEqual(delta("songs.sort"), 0, "Scrolling near the top re-sorted the catalogue")
     }
+
+    /// Issue #560: a programmatic scroll (a landing correction, a `.top` jump while the
+    /// inset changes) could leave the List resting part-way through the large title's
+    /// collapse; UIKit snaps the title only when a drag ends. The large title then sat
+    /// behind Open Navigation and the "#" title under the Filter field.
+    ///
+    /// After one scroll down and back (so the collapse band is known), the journey
+    /// creates `FST_DEBUG_SONGS_PARK_TOP`'s trigger file and the app moves the List 15 pt
+    /// up programmatically, the way a landing correction does (a trigger, not a timer, so
+    /// a slow CI host cannot park it mid-preparation). The List must settle at the nearer end of the collapse:
+    /// back at its top with the title open. Accessibility: the large title never overlaps
+    /// the toolbar buttons, Open Navigation and Choose Profile stay hittable with their
+    /// 36 pt glass targets, and the first section title is not hidden under the Filter
+    /// field. Needs the large fixture (skips otherwise). Runs on every supported iOS.
+    @MainActor
+    func testProgrammaticScrollNeverRestsPartWayThroughTheLargeTitle() throws {
+        try assertProgrammaticParkSettles(legacyScrollGeometry: false)
+    }
+
+    /// Issue #560 on the iOS 17 path: there `onScrollGeometryChange` and the scroll phase
+    /// are missing, so the rest watch reads the List's platform scroll view
+    /// (`PlatformScrollObserver`) and waits out touches and deceleration itself.
+    /// `FST_DEBUG_LEGACY_SCROLL_GEOMETRY=1` forces that path on a newer simulator; the
+    /// same programmatic park must settle once, with the same accessibility checks.
+    @MainActor
+    func testProgrammaticScrollNeverRestsPartWayOnTheLegacyScrollPath() throws {
+        try assertProgrammaticParkSettles(legacyScrollGeometry: true)
+    }
+
+    /// Park the List 15 pt into the large title's collapse band and require it to settle
+    /// once at the open top, with the toolbar and the first section title uncovered.
+    ///
+    /// - Parameter legacyScrollGeometry: Force the iOS 17 scroll-reading path.
+    @MainActor
+    private func assertProgrammaticParkSettles(legacyScrollGeometry: Bool) throws {
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let log = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("songs-title-rest-\(UUID().uuidString).json")
+        let trigger = log.deletingPathExtension().appendingPathExtension("park")
+        defer {
+            try? FileManager.default.removeItem(at: log)
+            try? FileManager.default.removeItem(at: trigger)
+        }
+        var environment = [
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+            "FST_DEBUG_STILL_BACKGROUND": "1",
+            "FST_DEBUG_STALL_LOG": log.path,
+            "FST_DEBUG_SONGS_PARK_TOP": "15@\(trigger.path)",
+        ]
+        if legacyScrollGeometry { environment["FST_DEBUG_LEGACY_SCROLL_GEOMETRY"] = "1" }
+        let app = FestivalApp.makeApp(environment)
+        app.launch()
+        defer { app.terminate() }
+        XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: FestivalApp.budget(15)))
+        // The Sort button shows before the catalogue loads: wait for a row before judging
+        // the catalogue's length by the A–Z rail.
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-song-1"].waitForExistence(timeout: FestivalApp.budget(15)))
+        guard app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch
+            .waitForExistence(timeout: FestivalApp.budget(3)) else {
+            throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
+        }
+
+        // Runs on iOS 17 too: the first section title keeps its identifier as an opaque
+        // pinned List header there, and the Filter field still sits above it.
+        let title = app.navigationBars.staticTexts["Songs"]
+        let first = app.staticTexts["fst.songs.section.0"]
+        let drawer = app.buttons["fst.shell.drawer.open"]
+        let profile = app.buttons["fst.shell.profile"]
+        XCTAssertTrue(title.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertTrue(first.waitForExistence(timeout: FestivalApp.budget(5)))
+        Thread.sleep(forTimeInterval: FestivalApp.budget(1))
+        let restTitle = title.frame
+        let restFirst = first.frame
+        func atRest() -> Bool {
+            abs(title.frame.minY - restTitle.minY) <= 1 && abs(first.frame.minY - restFirst.minY) <= 1
+        }
+        func waitUntil(_ what: String, timeout: TimeInterval = 5, _ condition: @escaping () -> Bool) {
+            let met = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in condition() }, object: nil
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [met], timeout: FestivalApp.budget(timeout)), .completed, what)
+        }
+
+        // Collapse the title once, then come back to the open top before the park.
+        let list = app.descendants(matching: .any).matching(identifier: "fst.songs.list").firstMatch
+        list.swipeUp()
+        waitUntil("The large title did not collapse") { restTitle.minY - title.frame.minY > 30 }
+        for _ in 0..<3 where !atRest() {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).press(
+                forDuration: 0.05,
+                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95))
+            )
+            Thread.sleep(forTimeInterval: FestivalApp.budget(1))
+        }
+        waitUntil("Songs did not return to its open top before the park", atRest)
+
+        struct Report: Decodable { var counters: [String: Int] }
+        func settles() -> Int {
+            (try? Data(contentsOf: log))
+                .flatMap { try? JSONDecoder().decode(Report.self, from: $0) }?
+                .counters["songs.largeTitle.settle"] ?? 0
+        }
+        XCTAssertEqual(settles(), 0, "A settle ran before the park")
+        XCTAssertTrue(FileManager.default.createFile(atPath: trigger.path, contents: nil))
+        waitUntil("The parked List never settled the large title", timeout: 10) { settles() > 0 }
+        waitUntil(
+            "Rested part-way: title \(title.frame) vs \(restTitle), # \(first.frame) vs \(restFirst)",
+            atRest
+        )
+
+        // Accessibility: nothing the title or a row covers loses its target.
+        for button in [drawer, profile] {
+            XCTAssertTrue(button.isHittable, "\(button.identifier) is covered")
+            XCTAssertGreaterThanOrEqual(button.frame.height, 36, "\(button.identifier) target shrank")
+            XCTAssertFalse(
+                title.frame.intersects(button.frame),
+                "Large title \(title.frame) overlaps \(button.identifier) \(button.frame)"
+            )
+        }
+        let field = SongsUITestSupport.songsSearchField(in: app)
+        XCTAssertTrue(field.isHittable)
+        XCTAssertGreaterThanOrEqual(
+            first.frame.minY, field.frame.maxY - 1,
+            "The first section title \(first.frame) sits under the Filter field \(field.frame)"
+        )
+        XCTAssertEqual(first.label, "#")
+        XCTAssertEqual(settles(), 1, "The settle repeated: the List kept moving")
+    }
 }
 
 /// What ``SongsChromeJourneyTests`` reads of the Songs page to judge an audit issue:

@@ -341,6 +341,32 @@ class UiCiTests(unittest.TestCase):
             self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[settled:])
         self.assertIn("assertsize:id=fst.paths.instrument.Solo_Guitar|40x40", wide[settled:])
 
+    def test_paths_chart_runs_every_page(self):
+        # Issue #438 (#87, #279): the chart's centring, hidden scroll bars, names, order and keyboard panning are checked
+        # in windows-ui at default and 225% text, every page, Axe-scanned.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-chart.json"]
+        self.assertEqual({"normal", "text-225"}, {run.mode for run in runs})
+        self.assertTrue(all(run.scan and not run.only for run in runs))
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-chart.json").read_text(encoding="utf-8"))
+        for mode in ("normal", "text-225"):
+            covered = {page["name"] for run in runs if run.mode == mode for page in m.mode_pages(pages, run.mode)
+                       if m.page_sizes(page, run.sizes.split(","), run.mode)}
+            self.assertEqual({page["name"] for page in pages}, covered)
+        for page in pages:
+            steps = page["after_ready"]
+            for check in ("assertread:id=fst.paths.image-scroller|Path chart, pane",
+                          "assertread:id=fst.paths.image|Lead Expert CHOpt path, image",
+                          "assertnoscrollbar:id=fst.paths.image-scroller",
+                          "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"):
+                self.assertIn(check, steps)
+        chart = next(page for page in pages if page["name"] == "paths-chart")["after_ready"]
+        zoomed = chart.index("waitfor:name=225%@5")
+        restored = chart.index("waitfor:name=100%@5")
+        for check in ("assertfocus:id=fst.paths.image-scroller@3", "key:end",
+                      "assertstate:id=fst.paths.image-scroller|scroll=100@3", "assertnoscrollbar:id=fst.paths.image-scroller"):
+            self.assertIn(check, chart[zoomed:restored])
+        self.assertIn("assertaligned:id=fst.paths.image|id=fst.paths.image-scroller", chart[restored:])
+
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)
         argv = run.argv(Path("C:/out"), "debug")
