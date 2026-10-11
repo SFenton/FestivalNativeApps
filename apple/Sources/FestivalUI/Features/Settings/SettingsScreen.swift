@@ -57,12 +57,21 @@ struct SettingsScreen: View {
     @State private var showingPrivacyPolicy = false
     /// Open Report an Issue / Request a Feature form, if any (issue #78).
     @State private var feedbackForm: FeedbackKind?
+    /// A filed form's "Report Sent" alert, shown over Settings only after its sheet has
+    /// gone (issue #565, pattern `modal-shell` R7).
+    @State private var feedbackSent = FeedbackSentPresentation()
+    /// Takes VoiceOver back to the form's row after that alert (issue #565).
+    @State private var feedbackFocusReturn: AccessibilityFocusRequest?
     /// The service accepts in-app feedback (`GET /api/features` → `feedback`). The rows stay
     /// hidden until it says so; a failed read is retried on the next Settings visit.
     @State private var feedbackEnabled = false
     @State private var quickLinks = QuickLinksController()
     /// A reorder row is lifted, so the page must not scroll under the drag.
     @State private var reorderDragging = false
+    /// The Song Row Visual Order block under its switch (pattern `accordion`).
+    @State private var visualOrderAccordion = FestivalAccordionState<Bool>(nil)
+    /// The Maximum Score Leeway block under Filter Invalid Scores (pattern `accordion`).
+    @State private var leewayAccordion = FestivalAccordionState<Bool>(nil)
     /// The page's measured size: its own column decides (the Licenses split, the Mac
     /// Settings window), not the window.
     @State private var pageSize: CGSize = .zero
@@ -81,7 +90,6 @@ struct SettingsScreen: View {
     /// The route open on the right of the list/detail Settings, if any.
     @Environment(\.listDetailSelection) private var listDetailSelection
     @Environment(\.deviceLayout) private var layout
-    @Environment(\.accessibilityReduceMotion) private var reduceMotionEnvironment
 
     /// Keep settings on the same process-scoped API session as the Songs tab.
     ///
@@ -166,10 +174,20 @@ struct SettingsScreen: View {
         .sheet(isPresented: $showingPrivacyPolicy) {
             PrivacyPolicySheet()
         }
-        .sheet(item: $feedbackForm, onDismiss: FeedbackFormModel.purgeStagedMedia) { kind in
+        .sheet(item: $feedbackForm, onDismiss: feedbackFormDismissed) { kind in
             // Applies its own `.festivalSheet`, widening while its photo library is open.
-            FeedbackFormSheet(kind: kind, session: session)
+            FeedbackFormSheet(kind: kind, session: session) { feedbackSent.formFinished($0) }
         }
+        .alert(
+            feedbackSent.shown?.title ?? "", isPresented: feedbackSentShowing,
+            presenting: feedbackSent.shown
+        ) { _ in
+            Button("Done", role: .cancel) {}
+                .accessibilityIdentifier("fst.settings.feedback.done")
+        } message: { notice in
+            Text(notice.message)
+        }
+        .accessibilityFocusMove(feedbackFocusReturn)
         .whatsNewPresentation(isPresented: $showingWhatsNew) {
             WhatsNewChannelSheet(version: WhatsNewGate.appVersion()) {
                 ChangelogSeenStore().markSeen(version: WhatsNewGate.appVersion())
@@ -414,7 +432,7 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder private var visualOrderRows: some View {
-        Toggle(isOn: $enableVisualOrder.animation(reduceMotionAnimation)) {
+        Toggle(isOn: $enableVisualOrder) {
             SettingLabel(
                 "Enable Independent Song Row Visual Order",
                 detail: "When enabled, the metadata display order on song rows is controlled "
@@ -423,7 +441,9 @@ struct SettingsScreen: View {
             )
         }
         .accessibilityIdentifier("fst.settings.enable-visual-order")
-        if enableVisualOrder {
+        // Shared accordion motion (pattern `accordion`, #561): the block opens, then fades in.
+        .festivalAccordion($visualOrderAccordion, follows: enableVisualOrder ? true : nil)
+        FestivalAccordionContent(visualOrderAccordion) {
             if isList {
                 // The draggable list opens on the right (issue #371).
                 cardTopicRow(.songRowOrder)
@@ -473,8 +493,7 @@ struct SettingsScreen: View {
             options: PathDisplayMode.allCases,
             label: \.label,
             selection: $pathDefaultView,
-            identifier: "fst.settings.path-default-view",
-            animation: reduceMotionAnimation
+            identifier: "fst.settings.path-default-view"
         )
         reorderBlock(
             "CHOpt Text Path Column Order",
@@ -489,7 +508,7 @@ struct SettingsScreen: View {
     }
 
     @ViewBuilder private var invalidScoreRows: some View {
-        Toggle(isOn: $filterInvalidScores.animation(reduceMotionAnimation)) {
+        Toggle(isOn: $filterInvalidScores) {
             SettingLabel(
                 "Filter Invalid Scores",
                 detail: "When enabled, the app will attempt to filter out invalid leaderboard "
@@ -497,7 +516,8 @@ struct SettingsScreen: View {
             )
         }
         .accessibilityIdentifier("fst.settings.filter-invalid-scores")
-        if filterInvalidScores {
+        .festivalAccordion($leewayAccordion, follows: filterInvalidScores ? true : nil)
+        FestivalAccordionContent(leewayAccordion) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Maximum Score Leeway: \(ScoreFormatting.leeway(leeway))")
                     .font(.body.weight(.semibold))
@@ -543,19 +563,24 @@ struct SettingsScreen: View {
     /// The Report an Issue and Request a Feature rows (issue #78).
     @ViewBuilder private var feedbackRows: some View {
         feedbackRow(
-            .bug, detail: "Tell us about something that isn't working.",
-            action: "Report", identifier: "fst.settings.feedback.bug"
+            .bug, detail: "Tell us about something that isn't working.", action: "Report"
         )
         feedbackRow(
             .feature, detail: "Suggest something new for Festival Score Tracker.",
-            action: "Request", identifier: "fst.settings.feedback.feature"
+            action: "Request"
         )
     }
 
+    /// A feedback row's accessibility identifier.
+    ///
+    /// - Parameter kind: The form the row opens.
+    /// - Returns: `fst.settings.feedback.bug` or `fst.settings.feedback.feature`.
+    private static func feedbackRowIdentifier(_ kind: FeedbackKind) -> String {
+        "fst.settings.feedback.\(kind.rawValue)"
+    }
+
     /// A row that opens the bug or feature form, styled like What's New's "Show" row.
-    private func feedbackRow(
-        _ kind: FeedbackKind, detail: String, action: String, identifier: String
-    ) -> some View {
+    private func feedbackRow(_ kind: FeedbackKind, detail: String, action: String) -> some View {
         Button { feedbackForm = kind } label: {
             HStack {
                 SettingLabel(kind.formTitle, detail: detail)
@@ -567,8 +592,30 @@ struct SettingsScreen: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier(identifier)
+        .accessibilityIdentifier(Self.feedbackRowIdentifier(kind))
         .accessibilityHint("Opens a form that files it on GitHub")
+    }
+
+    /// The form's sheet has gone by any route: delete its staged media, then show the
+    /// "Report Sent" alert it handed over, if it was filed (issue #565).
+    private func feedbackFormDismissed() {
+        FeedbackFormModel.purgeStagedMedia()
+        feedbackSent.formDismissed()
+    }
+
+    /// The sent alert is up; Done (or Escape) dismisses it and returns VoiceOver to the
+    /// row that opened the form.
+    private var feedbackSentShowing: Binding<Bool> {
+        Binding(
+            get: { feedbackSent.shown != nil },
+            set: { showing in
+                guard !showing, let kind = feedbackSent.acknowledge() else { return }
+                feedbackFocusReturn = AccessibilityFocusRequest(
+                    target: .identifier(Self.feedbackRowIdentifier(kind)), screenChanged: false,
+                    token: (feedbackFocusReturn?.token ?? 0) + 1
+                )
+            }
+        )
     }
 
     /// Where system accessibility options live on this platform.
@@ -862,11 +909,6 @@ struct SettingsScreen: View {
     /// `visualOrderItems`); hidden fields keep their place after a reorder.
     private var visibleVisualOrder: [MetadataField] {
         songRowVisualOrder.wrappedValue.filter { metadataBinding(for: $0).wrappedValue }
-    }
-
-    /// Enable/disable animation for inline blocks, none under Reduce Motion.
-    private var reduceMotionAnimation: Animation? {
-        reduceMotionEnvironment || reduceMotion ? nil : .easeInOut(duration: 0.2)
     }
 
     /// The highest score Filter Invalid Scores accepts for the web's 100k example path.

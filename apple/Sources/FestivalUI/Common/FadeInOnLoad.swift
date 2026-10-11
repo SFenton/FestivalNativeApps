@@ -69,6 +69,21 @@ public enum FestivalFadeIn {
         return .pastFirstScreen
     }
 
+    /// When every part of the card at `index` of a page's entrance starts fading: a card
+    /// drawn as separately built segments (a board's group card, one segment per row)
+    /// fades in as one unit, the card and all its rows together (owner, #614).
+    ///
+    /// - Parameter index: The card's zero-based place in the page's entrance; negative
+    ///   means "no fade".
+    /// - Returns: ``FestivalFadeInStart/card(_:)`` with the card's stagger delay,
+    ///   ``FestivalFadeInStart/pastFirstScreen`` for a card past the first screenful (it
+    ///   fades with the stagger tail, also as one), or ``FestivalFadeInStart/never``.
+    public static func start(forCard index: Int) -> FestivalFadeInStart {
+        guard index >= 0 else { return .never }
+        if let delay = delay(forIndex: index) { return .card(delay) }
+        return .pastFirstScreen
+    }
+
     /// Time until the last of `itemCount` staggered items has finished fading.
     ///
     /// - Parameters:
@@ -99,6 +114,10 @@ public enum FestivalFadeIn {
 public enum FestivalFadeInStart: Equatable, Sendable {
     /// Fade after this many seconds (0 for a block fade).
     case after(TimeInterval)
+    /// One segment of a card that fades as one unit: this many seconds after the page's
+    /// fade window opened, so every segment starts with the others however late its row
+    /// is built; without a scope, after this many seconds (issue #614).
+    case card(TimeInterval)
     /// A staggered item past the first screenful: inside an open page scope it fades with
     /// the last staggered item (or at once during a rush); without a scope it appears
     /// immediately.
@@ -384,6 +403,8 @@ public final class FestivalFadeInScope {
             switch start {
             case let .after(seconds):
                 delay = max(0, seconds)
+            case let .card(seconds):
+                delay = max(0, opened + seconds - time)
             case .pastFirstScreen:
                 let lastStaggered = Double(FestivalFadeIn.maxStaggeredItems) * FestivalFadeIn.staggerInterval
                 delay = max(0, opened + lastStaggered - time)
@@ -628,8 +649,10 @@ struct FestivalFadeInModifier: ViewModifier {
     private func startDelay() -> TimeInterval? {
         guard motionAllowed else { return nil }
         if let scope { return scope.scheduleFade(start) }
-        if case let .after(delay) = start { return delay }
-        return nil
+        switch start {
+        case let .after(delay), let .card(delay): return delay
+        case .pastFirstScreen, .never: return nil
+        }
     }
 
     /// Reveal once per view lifetime; later reloads keep the content visible.
@@ -711,12 +734,13 @@ struct FestivalStaggeredRowFade: ViewModifier {
         }
     }
 
-    /// A staggered row always fades; a row past the first screen only while its page's
-    /// scope is still open (it fades with the stagger tail or a rush), so rows built by
-    /// scrolling later keep the plain path.
+    /// A staggered row always fades; a row past the first screen, or a card segment, only
+    /// while its page's scope is still open (it fades with the stagger tail, its card or a
+    /// rush), so rows built by scrolling later keep the plain path.
     private var animates: Bool {
         switch start {
         case .after: true
+        case .card: scope?.isOpen ?? true
         case .pastFirstScreen: scope?.isOpen == true
         case .never: false
         }
@@ -771,6 +795,23 @@ extension View {
     /// - Returns: The row, fading in only while the first load is still revealing.
     public func festivalFadeIn(staggerIndex: Int?) -> some View {
         modifier(FestivalStaggeredRowFade(start: staggerIndex.map { FestivalFadeIn.start(forIndex: $0) } ?? .never))
+    }
+
+    /// One segment of a card drawn as separately built segments (a board's group card,
+    /// `festivalGroupSegment`): every segment of the card fades in together, so the card
+    /// and all its rows appear as one unit rather than row by row (owner, #614). Apply it
+    /// outside the segment, so the segment's slice of the card fades with its row.
+    ///
+    /// The card's start is timed from the page scope's window, so a segment the lazy list
+    /// builds a little later still starts with the rest; a scroll rushes it like any
+    /// entrance, segments built after the window has closed appear at once, and Reduce
+    /// Motion shows the card with no fade (load-transition R5, R6).
+    ///
+    /// - Parameter cardIndex: The card's place in its page's entrance (separate cards on
+    ///   a page may still stagger after one another), or nil for no fade.
+    /// - Returns: The segment, fading in with its card while the first load reveals.
+    public func festivalCardSegmentFadeIn(cardIndex: Int?) -> some View {
+        modifier(FestivalStaggeredRowFade(start: cardIndex.map { FestivalFadeIn.start(forCard: $0) } ?? .never))
     }
 
     /// ``festivalFadeIn(isLoaded:)`` for content that is only built once its data exists

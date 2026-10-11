@@ -148,6 +148,11 @@ struct AppRouteDestination: View {
                 session: session, instrument: instrument, rankBy: rankBy,
                 page: page, focusSelected: focusSelected
             )
+        case let .fullComboRankings(combo, rankBy, page, focusSelected):
+            FullRankingsScreen(
+                session: session, combo: combo, rankBy: rankBy,
+                page: page, focusSelected: focusSelected
+            )
         case let .bandRankings(bandType, rankBy, page):
             BandRankingsScreen(session: session, bandType: bandType, rankBy: rankBy, page: page)
         case .rivals:

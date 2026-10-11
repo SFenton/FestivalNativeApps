@@ -4,60 +4,78 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Festival.App.Controls"
     xmlns:vm="using:Festival.Core.ViewModels">
-    <!-- A player band: members with instrument icons, band size and appearances; the card opens Band Detail.
-         One Narrator stop: the button name reads every member with their instruments, so each part is Raw
-         (WinUI Raw on a parent does not hide its children). -->
-    <Button x:Name="CardButton" Click="OnClick" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-            HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top" Padding="16,12"
-            Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
-            BorderThickness="1" CornerRadius="8"
-            AutomationProperties.Name="{x:Bind Card.Announcement, Mode=OneWay}"
-            AutomationProperties.AutomationId="{x:Bind Card.AutomationId, Mode=OneWay}">
-        <StackPanel Spacing="8">
-            <ItemsRepeater ItemsSource="{x:Bind Card.Members, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw">
-                <ItemsRepeater.Layout>
-                    <StackLayout Spacing="6" />
-                </ItemsRepeater.Layout>
-                <ItemsRepeater.ItemTemplate>
-                    <DataTemplate x:DataType="vm:BandMemberRow">
-                        <Grid ColumnSpacing="10" MinHeight="32">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{x:Bind Name}" VerticalAlignment="Center" Style="{StaticResource BodyStrongTextBlockStyle}"
-                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" AutomationProperties.AccessibilityView="Raw" />
-                            <ItemsRepeater Grid.Column="1" ItemsSource="{x:Bind Icons}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
-                                <ItemsRepeater.Layout>
-                                    <StackLayout Orientation="Horizontal" Spacing="4" />
-                                </ItemsRepeater.Layout>
-                                <ItemsRepeater.ItemTemplate>
-                                    <DataTemplate x:DataType="vm:BandInstrumentIcon">
-                                        <controls:InstrumentIcon File="{x:Bind File}" Label="{x:Bind Label}" Width="28" Height="28"
-                                                                AutomationProperties.AccessibilityView="Raw" />
-                                    </DataTemplate>
-                                </ItemsRepeater.ItemTemplate>
-                            </ItemsRepeater>
-                        </Grid>
-                    </DataTemplate>
-                </ItemsRepeater.ItemTemplate>
-            </ItemsRepeater>
-            <Grid ColumnSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Border CornerRadius="{StaticResource ControlCornerRadius}" Padding="8,2" Background="{ThemeResource FSTMutedPillFillBrush}" VerticalAlignment="Center"
-                        BorderBrush="{ThemeResource FSTNeutralPillStrokeBrush}" BorderThickness="1">
-                    <TextBlock Text="{x:Bind Card.BandTypeLabel, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource FSTNeutralPillTextBrush}"
-                               AutomationProperties.AccessibilityView="Raw" />
-                </Border>
-                <TextBlock Grid.Column="1" Text="{x:Bind Card.AppearancesText, Mode=OneWay}" VerticalAlignment="Center"
-                           Style="{StaticResource FSTSecondaryTextStyle}" AutomationProperties.AccessibilityView="Raw" />
-                <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="12" Foreground="{ThemeResource FSTSecondaryTextBrush}"
-                          AutomationProperties.AccessibilityView="Raw" />
-            </Grid>
-        </StackPanel>
-    </Button>
+    <!--
+        A player band: members with instrument icons, band size and appearances; the card opens Band Detail.
+        One Narrator stop: the button name reads every member with their instruments, so each part is Raw
+        (WinUI Raw on a parent does not hide its children). The surface is a Border behind a transparent Button, so
+        hover/press tint on top of it (as SongBandPreviewRowView and LeaderboardEntryRow). A grouped row
+        (Card.IsGroupedRow: the profile's Duos/Trios/Quads cards, issue #596) drops the surface and the band-size pill and
+        sits in its group's FSTRowsCardStyle card, with the hairline above it from RowSeparators (ISeparatedRow).
+    -->
+    <Grid>
+        <Border x:Name="Surface" CornerRadius="8" BorderThickness="1" IsHitTestVisible="False"
+                Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}" />
+        <Button x:Name="CardButton" Click="OnClick" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top" Padding="16,12"
+                Background="Transparent" BorderThickness="0" CornerRadius="8"
+                AutomationProperties.Name="{x:Bind Card.Announcement, Mode=OneWay}"
+                AutomationProperties.AutomationId="{x:Bind Card.AutomationId, Mode=OneWay}">
+            <Button.Resources>
+                <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTRowHoverBrush" />
+                <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTRowPressedBrush" />
+                <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="Transparent" />
+                <SolidColorBrush x:Key="ButtonBorderBrushPressed" Color="Transparent" />
+            </Button.Resources>
+            <StackPanel Spacing="8">
+                <ItemsRepeater ItemsSource="{x:Bind Card.Members, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Spacing="6" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:BandMemberRow">
+                            <Grid ColumnSpacing="10" MinHeight="32">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{x:Bind Name}" VerticalAlignment="Center" Style="{StaticResource BodyStrongTextBlockStyle}"
+                                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" AutomationProperties.AccessibilityView="Raw" />
+                                <ItemsRepeater Grid.Column="1" ItemsSource="{x:Bind Icons}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                    <ItemsRepeater.Layout>
+                                        <StackLayout Orientation="Horizontal" Spacing="4" />
+                                    </ItemsRepeater.Layout>
+                                    <ItemsRepeater.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:BandInstrumentIcon">
+                                            <controls:InstrumentIcon File="{x:Bind File}" Label="{x:Bind Label}" Width="28" Height="28"
+                                                                    AutomationProperties.AccessibilityView="Raw" />
+                                        </DataTemplate>
+                                    </ItemsRepeater.ItemTemplate>
+                                </ItemsRepeater>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+                <!-- Margins, not ColumnSpacing: a hidden pill must leave no gap before the appearances text. -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border CornerRadius="{StaticResource ControlCornerRadius}" Padding="8,2" Margin="0,0,8,0" Background="{ThemeResource FSTMutedPillFillBrush}" VerticalAlignment="Center"
+                            BorderBrush="{ThemeResource FSTNeutralPillStrokeBrush}" BorderThickness="1"
+                            Visibility="{x:Bind Card.ShowsBandType, Mode=OneWay, FallbackValue=Visible}">
+                        <TextBlock Text="{x:Bind Card.BandTypeLabel, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource FSTNeutralPillTextBrush}"
+                                   AutomationProperties.AccessibilityView="Raw" />
+                    </Border>
+                    <TextBlock Grid.Column="1" Text="{x:Bind Card.AppearancesText, Mode=OneWay}" VerticalAlignment="Center"
+                               Style="{StaticResource FSTSecondaryTextStyle}" AutomationProperties.AccessibilityView="Raw" />
+                    <FontIcon Grid.Column="2" Glyph="&#xE76C;" FontSize="12" Margin="8,0,0,0" Foreground="{ThemeResource FSTSecondaryTextBrush}"
+                              AutomationProperties.AccessibilityView="Raw" />
+                </Grid>
+            </StackPanel>
+        </Button>
+        <Border x:Name="RowSeparator" Height="1" Margin="12,0" VerticalAlignment="Top" IsHitTestVisible="False" Visibility="Collapsed"
+                Background="{ThemeResource FSTRowSeparatorBrush}" AutomationProperties.AccessibilityView="Raw" />
+    </Grid>
 </UserControl>

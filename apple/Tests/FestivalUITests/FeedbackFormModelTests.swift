@@ -484,3 +484,47 @@ struct FeedbackFormModelTests {
         #expect(!FileManager.default.fileExists(atPath: FeedbackPickedMedia.stagingFolder.path))
     }
 }
+
+// MARK: - Sent notice and its presentation order (issue #565)
+
+@Suite("Feedback sent alert")
+struct FeedbackSentPresentationTests {
+    @Test("The sent alert names the issue, the skipped attachments or the received state")
+    func noticeCopy() {
+        let filed = FeedbackSentNotice(kind: .bug, outcome: .filed(issueNumber: 1, skipped: 0))
+        #expect(filed.title == "Report Sent")
+        #expect(filed.message == "Thank you! It was filed as issue #1.")
+        let skippedOne = FeedbackSentNotice(kind: .feature, outcome: .filed(issueNumber: 7, skipped: 1))
+        #expect(skippedOne.title == "Request Sent")
+        #expect(skippedOne.message == "Thank you! It was filed as issue #7. 1 attachment couldn't be included.")
+        let skippedTwo = FeedbackSentNotice(kind: .bug, outcome: .filed(issueNumber: nil, skipped: 2))
+        #expect(skippedTwo.message == "Thank you! It has been filed. 2 attachments couldn't be included.")
+        let received = FeedbackSentNotice(kind: .bug, outcome: .received)
+        #expect(received.message == "Thank you! It was received and will be filed shortly.")
+    }
+
+    @Test("The alert waits for the sheet to go, then Done returns focus to the form's row")
+    func alertFollowsDismissal() {
+        var presentation = FeedbackSentPresentation()
+        let notice = FeedbackSentNotice(kind: .feature, outcome: .received)
+        presentation.formFinished(notice)
+        // Never stacked on the closing sheet.
+        #expect(presentation.shown == nil)
+        #expect(presentation.pending == notice)
+        presentation.formDismissed()
+        #expect(presentation.shown == notice)
+        #expect(presentation.pending == nil)
+        #expect(presentation.acknowledge() == .feature)
+        #expect(presentation.shown == nil)
+        // A second Done (the binding's setter after the button) does nothing.
+        #expect(presentation.acknowledge() == nil)
+    }
+
+    @Test("A form closed without sending shows no alert")
+    func cancelShowsNothing() {
+        var presentation = FeedbackSentPresentation()
+        presentation.formDismissed()
+        #expect(presentation.shown == nil)
+        #expect(presentation.acknowledge() == nil)
+    }
+}

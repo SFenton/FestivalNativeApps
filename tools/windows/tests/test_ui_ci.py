@@ -238,7 +238,7 @@ class UiCiTests(unittest.TestCase):
         runs = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-songs-section-push.json"}
         self.assertEqual({("normal", True), ("text-225", True)}, runs)
         pages = json.loads((ci.JOURNEYS / "a11y-songs-section-push.json").read_text(encoding="utf-8"))
-        self.assertEqual({"push-band", "push-band-reverse", "push-band-keyboard"}, {page["name"] for page in pages})
+        self.assertEqual({"push-band", "push-band-reverse", "push-band-keyboard", "push-band-back"}, {page["name"] for page in pages})
         for page in pages:
             with self.subTest(page=page["name"]):
                 steps = page["after_ready"]
@@ -254,6 +254,24 @@ class UiCiTests(unittest.TestCase):
             steps = page["after_ready"]
             self.assertIn("waitgone:raw=fst.songs.section-header.incoming@3", steps[steps.index(
                 "scrollinset:name=M&class=TextBlock|id=fst.songs.list|120"):])
+
+    def test_songs_section_push_back_returns_mid_push(self):
+        # Issue #560: Back to a list left inside the push band keeps the row and list in place (back-keeps-place R5)
+        # and redraws the push: the copy is drawn again over the transparent in-list title, which is opaque past it.
+        pages = {page["name"]: page for page in json.loads(
+            (ci.JOURNEYS / "a11y-songs-section-push.json").read_text(encoding="utf-8"))}
+        steps = pages["push-band-back"]["after_ready"]
+        back = steps.index("key:alt+left")
+        settle = steps.index("wait:1.5", back)
+        self.assertLess(steps.index("scrollinset:name=M&class=TextBlock|id=fst.songs.list|16"), back)
+        for pin in ("id=fst.songs.list", "id=fst.songs.row.fixture-song-56"):
+            self.assertLess(steps.index(f"pin:{pin}"), back)
+            self.assertEqual(1, steps[back:settle].count(f"assertpinned:{pin}"))
+            self.assertEqual(1, steps[settle:].count(f"assertpinned:{pin}"))
+        self.assertIn("assertfocus:id=fst.songs.row.fixture-song-56@3", steps[settle:])
+        self.assertLess(back, steps.index("assertname:raw=fst.songs.section-header.incoming|M"))
+        self.assertIn("assertpaint:name=M&class=TextBlock|L0,T0,R0,B0=#FFFFFF~40",
+                      steps[steps.index("scrollinset:name=M&class=TextBlock|id=fst.songs.list|120"):])
 
     def test_songs_section_push_keyboard_keeps_focus_on_real_list_items(self):
         # Issue #452 review: a keyboard pick reaches M, then focus moves by arrow keys through the 16 epx push band; it
@@ -322,6 +340,32 @@ class UiCiTests(unittest.TestCase):
         for choice in ("Easy", "Medium", "Hard", "Expert", "Image", "Text"):
             self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[settled:])
         self.assertIn("assertsize:id=fst.paths.instrument.Solo_Guitar|40x40", wide[settled:])
+
+    def test_paths_chart_runs_every_page(self):
+        # Issue #438 (#87, #279): the chart's centring, hidden scroll bars, names, order and keyboard panning are checked
+        # in windows-ui at default and 225% text, every page, Axe-scanned.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-chart.json"]
+        self.assertEqual({"normal", "text-225"}, {run.mode for run in runs})
+        self.assertTrue(all(run.scan and not run.only for run in runs))
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-chart.json").read_text(encoding="utf-8"))
+        for mode in ("normal", "text-225"):
+            covered = {page["name"] for run in runs if run.mode == mode for page in m.mode_pages(pages, run.mode)
+                       if m.page_sizes(page, run.sizes.split(","), run.mode)}
+            self.assertEqual({page["name"] for page in pages}, covered)
+        for page in pages:
+            steps = page["after_ready"]
+            for check in ("assertread:id=fst.paths.image-scroller|Path chart, pane",
+                          "assertread:id=fst.paths.image|Lead Expert CHOpt path, image",
+                          "assertnoscrollbar:id=fst.paths.image-scroller",
+                          "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"):
+                self.assertIn(check, steps)
+        chart = next(page for page in pages if page["name"] == "paths-chart")["after_ready"]
+        zoomed = chart.index("waitfor:name=225%@5")
+        restored = chart.index("waitfor:name=100%@5")
+        for check in ("assertfocus:id=fst.paths.image-scroller@3", "key:end",
+                      "assertstate:id=fst.paths.image-scroller|scroll=100@3", "assertnoscrollbar:id=fst.paths.image-scroller"):
+            self.assertIn(check, chart[zoomed:restored])
+        self.assertIn("assertaligned:id=fst.paths.image|id=fst.paths.image-scroller", chart[restored:])
 
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)

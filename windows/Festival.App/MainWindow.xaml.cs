@@ -372,13 +372,18 @@ public sealed partial class MainWindow : Window
     #endregion
 
     #region Profile
-    /// <summary>Focuses the search box when the profile flyout opens and resumes a search stopped when it closed.</summary>
+    /// <summary>
+    /// Focuses the search box when the profile flyout opens, shows the model's scope (opening a result resets it to All)
+    /// and resumes a search stopped when it closed.
+    /// </summary>
     /// <param name="sender">Flyout.</param>
     /// <param name="e">Unused.</param>
     private void OnProfileFlyoutOpened(object sender, object e)
     {
+        var index = ProfileScopeIndex(Shell.ProfileScope);
+        if (ProfileScope.Items.IndexOf(ProfileScope.SelectedItem) != index) ProfileScope.SelectedItem = ProfileScope.Items[index];
         ProfileSearchBox.Focus(FocusState.Programmatic);
-        if (Shell.IsPlayerScope && !Shell.ProfileSearch.IsSettled) _ = Shell.ProfileSearch.RetryCommand.ExecuteAsync(null);
+        if (!Shell.ProfileSearch.IsSettled) _ = Shell.ProfileSearch.RetryCommand.ExecuteAsync(null);
     }
 
     /// <summary>
@@ -429,14 +434,23 @@ public sealed partial class MainWindow : Window
         Shell.ViewProfileCommand.Execute(e.ClickedItem as GlobalPlayerResult);
     }
 
-    /// <summary>Enter (or the search glyph) opens the only/first result.</summary>
+    /// <summary>Opens a band result's page (viewing; Windows can't select a band as the profile) and closes the flyout.</summary>
+    /// <param name="sender">Band card.</param>
+    /// <param name="route">Band route.</param>
+    private void OnProfileBandRouteRequested(object? sender, AppRoute route)
+    {
+        ProfileFlyout.Hide();
+        Shell.ViewBand(route);
+    }
+
+    /// <summary>Enter (or the search glyph) opens the first result shown (players before bands).</summary>
     /// <param name="sender">Search box.</param>
     /// <param name="e">Unused.</param>
     private void OnProfileSearchSubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs e)
     {
-        if (Shell.ProfileResults.Count == 0) return;
+        if (!Shell.HasAnyProfileResult) return;
         ProfileFlyout.Hide();
-        Shell.ViewProfileCommand.Execute(Shell.ProfileResults[0]);
+        Shell.OpenFirstResult();
     }
 
     /// <summary>Opens the selected player's page.</summary>
@@ -457,11 +471,22 @@ public sealed partial class MainWindow : Window
         if (await PlayerProfileView.ConfirmDeselectAsync(RootGrid.XamlRoot)) Shell.DeselectProfileCommand.Execute(null);
     }
 
-    /// <summary>Switches the Players/Bands target.</summary>
+    /// <summary>Switches the All/Players/Bands scope.</summary>
     /// <param name="sender">Selector bar.</param>
     /// <param name="args">Unused.</param>
-    private void OnProfileScopeChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args) =>
-        Shell.IsBandScope = sender.SelectedItem?.Text == "Bands";
+    private void OnProfileScopeChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        var index = sender.Items.IndexOf(sender.SelectedItem);
+        if (index >= 0) Shell.ProfileScope = ProfileScopes[index];
+    }
+
+    /// <summary>The profile scope bar's items in order.</summary>
+    private static readonly SearchScope[] ProfileScopes = [SearchScope.All, SearchScope.Players, SearchScope.Bands];
+
+    /// <summary>The scope bar index of a profile scope.</summary>
+    /// <param name="scope">Scope.</param>
+    /// <returns>Item index (All for anything else).</returns>
+    private static int ProfileScopeIndex(SearchScope scope) => Math.Max(0, Array.IndexOf(ProfileScopes, scope));
 
     /// <summary>Pushes a flyout route onto the current section.</summary>
     /// <param name="sender">Shell model.</param>
