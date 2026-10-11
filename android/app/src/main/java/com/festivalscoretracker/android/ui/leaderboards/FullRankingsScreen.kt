@@ -71,8 +71,9 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
 // region Full rankings
 
 /**
- * `/leaderboards/all`: one instrument's paginated rankings. The instrument and
- * Rank By pickers are top-app-bar actions; the selected player is highlighted in place
+ * `/leaderboards/all`: one instrument's (or, from a Compete combo card, one combo's; #602)
+ * paginated rankings. The instrument and
+ * Rank By pickers are top-app-bar actions (a combo has only Rank By); the selected player is highlighted in place
  * and always pinned above the bottom-anchored pager (issue #318), and rows fade out above that footer
  * instead of scrolling visibly behind it (issue #115).
  *
@@ -89,6 +90,10 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
     val selected by viewModel.selectedAccountId.collectAsStateWithLifecycle()
     val visible by viewModel.visibleInstruments.collectAsStateWithLifecycle()
     val spotlight by viewModel.spotlight.collectAsStateWithLifecycle()
+    // A combo board (#602) names its charts like its Compete card; one chart keeps its instrument.
+    val combo = viewModel.combo
+    val boardKey = combo?.comboId ?: instrument.wireId
+    val boardLabel = combo?.label ?: instrument.label
     val navigate = LocalShellActions.current.navigate
     val listState = rememberLazyListState()
     val current by viewModel.displayed.collectAsStateWithLifecycle()
@@ -129,7 +134,7 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
             return@LaunchedEffect
         }
         // Once per page arrival: a return from a profile keeps the reader's scroll position.
-        val key = "${instrument.wireId}:${metric.wireId}:$page"
+        val key = "${boardKey}:${metric.wireId}:$page"
         if (revealedPage == key) return@LaunchedEffect
         val index = entries.indexOfFirst { RankingSpotlight.isSelected(selected, it.accountId) }
         if (awaitSelectedRowEntrance(fadeIn, fadeInStagger(index), reduceMotion)) {
@@ -140,14 +145,20 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
     }
 
     FestivalScreen(
-        title = "${instrument.label} Leaderboards",
+        title = "$boardLabel Leaderboards",
         isRoot = false,
         modifier = Modifier.semantics { testTagsAsResourceId = true },
         fadeInWindow = fadeIn,
-        // The board's chart before its title, like the song leaderboard header (issue #294).
-        titleIcon = { size -> InstrumentIcon(instrument, size = size, decorative = true, modifier = Modifier.testTag("fst.full-rankings.title-icon.${instrument.wireId}")) },
+        // The board's charts before its title, like the song leaderboard header (issue #294) and
+        // the web's combo title icon row (#602).
+        titleIcon = { size ->
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.testTag("fst.full-rankings.title-icon.$boardKey")) {
+                (combo?.instruments ?: listOf(instrument)).forEach { InstrumentIcon(it, size = size, decorative = true) }
+            }
+        },
         actions = {
-            InstrumentAction(instrument, Instrument.entries.filter { it in visible || it == instrument }, viewModel::selectInstrument, "fst.full-rankings.instrument-menu")
+            // A combo has no chart to switch to (web `FullRankingsPage` hides the instrument picker for `?combo=`).
+            if (combo == null) InstrumentAction(instrument, Instrument.entries.filter { it in visible || it == instrument }, viewModel::selectInstrument, "fst.full-rankings.instrument-menu")
             RankByAction(metric, experimentalRanks, viewModel::selectMetric)
         },
     ) { padding ->
@@ -166,7 +177,7 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
             listState = listState,
             idPrefix = "fst.full-rankings",
             controls = { FullRankingsControls(current) },
-            footer = { FullRankingsFooter(instrument, metric, selected, entries, spotlight, shownPage != null, page, pageShown, viewModel, navigate) },
+            footer = { FullRankingsFooter(boardLabel, metric, selected, entries, spotlight, shownPage != null, page, pageShown, viewModel, navigate) },
             pager = { RankingsPager(page, totalPages, "fst.full-rankings", viewModel::goTo) },
             fadeAboveFooter = true,
         ) {
@@ -252,7 +263,7 @@ private fun LazyListScope.rankingRows(
 
 @Composable
 private fun ColumnScope.FullRankingsFooter(
-    instrument: Instrument,
+    boardLabel: String,
     metric: RankingMetric,
     selected: String?,
     entries: List<AccountRankingEntry>,
@@ -277,7 +288,7 @@ private fun ColumnScope.FullRankingsFooter(
     when (val placement = RankingSpotlight.pinnedPlacement(selected, entries, source)) {
         RankingSpotlightPlacement.None, RankingSpotlightPlacement.Inline -> Unit
         RankingSpotlightPlacement.Pending -> AnchoredRowCard { SpotlightLoadingRow("fst.full-rankings.spotlight-footer.loading") }
-        RankingSpotlightPlacement.Unranked -> AnchoredRowCard { SpotlightUnrankedRow("Not yet ranked on ${instrument.label}.", "fst.full-rankings.spotlight-footer.unranked") }
+        RankingSpotlightPlacement.Unranked -> AnchoredRowCard { SpotlightUnrankedRow("Not yet ranked on $boardLabel.", "fst.full-rankings.spotlight-footer.unranked") }
         // Web fixed player footer: the full-width row in the page's columns, so it lines up
         // with the rows above (operator batch 7, 7.9). `leaderboard-row` R7: it jumps to the
         // player's page while their row is elsewhere and opens Statistics once it is on screen;

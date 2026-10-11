@@ -291,7 +291,12 @@ class RankingsCoreTest {
             FullRankingsRoute("Solo_Guitar", "totalscore", 1),
             RankingNavigation.previewSpotlightRoute(own.copy(totalScoreRank = 25), RankingMetric.TotalScore, Instrument.Lead, selected),
         )
-        // No full board (combo scopes) or no usable rank: Statistics, as before.
+        // A combo preview opens the combo board on the player's page (#602).
+        assertEquals(
+            FullRankingsRoute("Solo_Guitar", "totalscore", 4, combo = "0f"),
+            RankingNavigation.previewSpotlightRoute(own, RankingMetric.TotalScore, Instrument.Lead, selected, comboId = "0f"),
+        )
+        // No full board or no usable rank: Statistics, as before.
         assertEquals(StatisticsRoute, RankingNavigation.previewSpotlightRoute(own, RankingMetric.TotalScore, null, selected))
         assertEquals(StatisticsRoute, RankingNavigation.previewSpotlightRoute(own.copy(totalScoreRank = 0), RankingMetric.TotalScore, Instrument.Lead, selected))
         assertNull(RankingNavigation.previewSpotlightRoute(own.copy(accountId = ""), RankingMetric.TotalScore, Instrument.Lead, selected))

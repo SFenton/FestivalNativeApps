@@ -118,7 +118,7 @@ enum SongsUITestSupport {
         let action = app.buttons["fst.shell.profile"]
         XCTAssertTrue(action.waitForExistence(timeout: 10))
         action.tap()
-        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Search players or bands")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText(query + "\n")
@@ -623,6 +623,22 @@ enum SongsUITestSupport {
         guard issue.auditType == .contrast, let element = issue.element else { return false }
         return element.elementType == .searchField
             || issue.compactDescription.contains("UISearchBarTextField")
+    }
+
+    /// Whether an accessibility-audit issue is the system search field's own clear button
+    /// hit region (issue #600).
+    ///
+    /// A `.searchable` field with text shows UIKit's `_UITextFieldClearButton`, which the
+    /// audit reports as smaller than 44 pt. It is system chrome the app cannot size, so
+    /// only that issue is accepted alongside `isSystemSearchPlaceholderContrast(_:)`.
+    ///
+    /// - Parameter issue: Issue reported by `performAccessibilityAudit`.
+    /// - Returns: True to ignore the issue.
+    @MainActor
+    static func isSystemSearchIssue(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
+        if isSystemSearchPlaceholderContrast(issue) { return true }
+        return issue.auditType == .hitRegion
+            && (issue.detailedDescription + issue.compactDescription).contains("_UITextFieldClearButton")
     }
 
     /// The Songs list's pinned `.searchable` field, ready to type into.
