@@ -7,9 +7,13 @@ import XCTest
 /// "Bands unavailable"; start the fixture on its own port instead:
 ///
 ///     python3 tools/mock_service.py --port 18936
+///
+/// `apple-ci`'s plain-fixture step starts its own mock on an OS-assigned port and passes
+/// it as `TEST_RUNNER_FST_FIXTURE_URL` (`testing/apple/xcuitest.md#ci-journeys`).
 final class GlobalSearchJourneyTests: XCTestCase {
-    /// The fixture origin every journey here uses.
-    private static let origin = "http://127.0.0.1:18936"
+    /// The fixture origin every journey here uses: `FST_FIXTURE_URL` when set, else `:18936`.
+    private static let origin =
+        ProcessInfo.processInfo.environment["FST_FIXTURE_URL"] ?? "http://127.0.0.1:18936"
 
     /// Skip unless the fixture serves band search (it predates issue #320 otherwise).
     ///

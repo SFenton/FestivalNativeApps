@@ -138,10 +138,13 @@ jobs:
         # catalogue) on an OS-assigned port. Runs before the iPad step so the iPad boots once. A skipped journey fails the step.
         # PLAIN_JOURNEYS: iPhone UI-test bundle (`--app phone`) journeys that need `fixture-pulse` and `fixture-orbit` on
         # screen, on the same iPhone before it shuts down (#615: the Filter sheet's score checks under Filter Invalid
-        # Scores, their labels, enabled state and touch height). testing/apple/xcuitest.md#ci-journeys.
+        # Scores, their labels, enabled state and touch height; #611: the Search tab title in its bar row, no empty
+        # band above it, and its AX5 audit; the plain fixture serves band search). testing/apple/xcuitest.md#ci-journeys.
         env:
           PLAIN_JOURNEYS: >-
             SongsJourneyTests/testPlayerScoreFilterSettingsPauseAndDeselectScope
+            GlobalSearchJourneyTests/testSearchTabFocusesFieldAndCloseReturnsToSongs
+            GlobalSearchJourneyTests/testSearchTitleSitsInBarRowAtLargestText
           HISTORY_JOURNEYS: >-
             ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5
           HISTORY_IPAD_JOURNEYS: >-

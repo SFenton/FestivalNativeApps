@@ -135,9 +135,22 @@ class AppleCIJourneysTests(unittest.TestCase):
         # #615: the only device evidence for the Filter sheet's score checks under Filter Invalid Scores. It needs
         # `fixture-pulse` and `fixture-orbit` on screen, which the large catalogue pushes below the fold.
         journey = "SongsJourneyTests/testPlayerScoreFilterSettingsPauseAndDeselectScope"
-        self.assertEqual(ci_journeys(self.workflow, "PLAIN_JOURNEYS"), [journey])
+        self.assertEqual(ci_journeys(self.workflow, "PLAIN_JOURNEYS")[0], journey)
         self.assertNotIn(journey, self.journeys)
         self.assertIn('uitest --app phone --device "$iphone"', self.workflow)
+
+    def test_search_title_journeys_run_on_the_plain_fixture(self) -> None:
+        # #611: the Search tab's no-empty-band title assertions and their AX5 audit. They need `fixture-pulse` and
+        # band search from this revision's plain fixture, whose origin they read from `FST_FIXTURE_URL`.
+        plain = ci_journeys(self.workflow, "PLAIN_JOURNEYS")
+        for journey in (
+            "GlobalSearchJourneyTests/testSearchTabFocusesFieldAndCloseReturnsToSongs",
+            "GlobalSearchJourneyTests/testSearchTitleSitsInBarRowAtLargestText",
+        ):
+            self.assertIn(journey, plain)
+            self.assertNotIn(journey, self.journeys)
+        source = (ROOT / "apple/Apps/iOSUITests/GlobalSearchJourneyTests.swift").read_text()
+        self.assertIn('environment["FST_FIXTURE_URL"]', source)
 
     def test_board_footer_fade_keyboard_journey_runs_in_ci(self) -> None:
         # #473: the iPad hardware-keyboard form needs its own invocation, because --a11y applies to a whole run.
