@@ -4,7 +4,7 @@
 
 ## Behavior
 
-- Shown for Title and Artist with ≥2 sections. Year sort hides it (operator decision 2026-09-28, [Songs page spec](../../pages/songs/spec.md#operator-decisions-all-platforms)): decade headers (`fst.songs.section.year.<decade>`) and Quick Links take its place. An active search or a one-section result also hides it.
+- Shown for Title and Artist with ≥2 sections. Sections come from `SongListPipeline.run`'s rows after `SongQuickLinkBuckets.group` (first-seen buckets, [spec](spec.md#sectioning-rules), #582), so each `#`/A–Z section matches one sticky title. Year sort hides it (operator decision 2026-09-28, [Songs page spec](../../pages/songs/spec.md#operator-decisions-all-platforms)): decade headers (`fst.songs.section.year.<decade>`) and Quick Links take its place. An active search or a one-section result also hides it.
 - `AnimatedVisibility` fades and slides it in and out. With Reduce Motion (in-app setting or Remove animations) it appears and disappears at once.
 - Tap or drag jumps the list (`scrollToItem`, no network). The jump lands on the section's sticky `#`/A–Z title (#582), so the title sits at its pin line and the first row directly beneath it (`WideColumnLines.itemOfSection`, [section-jump-landing](../../patterns/section-jump-landing.md) R3). One `awaitEachGesture` loop handles both press and drag. Separate tap and drag detectors cleared the active section as soon as a drag began, so the highlight flickered (#138). While a finger is down:
   - The rail shows a circular frosted pill, opaque (`cardBackground`) under Increase contrast or Reduce transparency.
