@@ -203,7 +203,7 @@ class ShellAccessibilityJourneyTest {
 
     /**
      * #610: on a phone, Leaderboards from the drawer opens as a child of Compete: the bar keeps
-     * Compete selected, Back is the first stop, and Back returns to Compete's root. On a rail,
+     * Compete selected, Back reads right before the page title, and Back returns to Compete's root. On a rail,
      * Leaderboards is a tab and the drawer row selects it (unchanged); the permanent drawer has
      * no modal drawer to open.
      */
@@ -224,7 +224,9 @@ class ShellAccessibilityJourneyTest {
             h.waitForTag("fst.nav.back")
             h.assertFullTouchTarget("fst.nav.back")
             val order = h.readingOrder("nav-drawer-leaderboards-child")
-            assertTrue(order.first().contains("Back", ignoreCase = true))
+            val back = order.indexOf("Back")
+            assertTrue(order.toString(), back >= 0 && order.getOrNull(back + 1) == "Leaderboards")
+            assertTrue(order.toString(), order.indexOf("Compete") > back)
             h.tap("fst.nav.back")
             h.waitGone("fst.leaderboards")
             h.waitGone("fst.nav.back")
