@@ -17,10 +17,17 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.background
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -82,6 +89,92 @@ fun GlassCard(
             Column(content = content)
         }
     }
+}
+
+/** Corner radius of [GlassCard] and [GlassCardSegment]. */
+private val GLASS_CARD_CORNER = 12.dp
+
+/**
+ * Where a [GlassCardSegment] sits in its card: only the card's outer ends round their corners
+ * and draw the border's top and bottom edges.
+ */
+enum class CardSegment {
+    /** The whole card. */
+    Only,
+
+    /** The card's top. */
+    First,
+
+    /** Between the top and the bottom. */
+    Middle,
+
+    /** The card's bottom. */
+    Last;
+
+    /** Whether the segment rounds its top corners and draws the border's top edge. */
+    val isTop: Boolean get() = this == Only || this == First
+
+    /** Whether the segment rounds its bottom corners and draws the border's bottom edge. */
+    val isBottom: Boolean get() = this == Only || this == Last
+
+    companion object {
+        /**
+         * The segment for the row at [index] of a card of [count] rows.
+         *
+         * @param index Zero-based row index.
+         * @param count Rows in the card.
+         * @return Segment position.
+         */
+        fun of(index: Int, count: Int): CardSegment = when {
+            count <= 1 -> Only
+            index <= 0 -> First
+            index >= count - 1 -> Last
+            else -> Middle
+        }
+    }
+}
+
+/**
+ * One lazy item's slice of a [GlassCard] (`surface-materials` R8): the same fill, border and
+ * contrast fallback, with the corners and the border's top and bottom edges only at the card's
+ * ends, so segments stacked with no gap read as one card. Use it where a card's rows are
+ * unbounded and must stay lazy (All Rivals, Rivalry); a bounded card is one [GlassCard].
+ *
+ * @param segment Position in the card.
+ * @param modifier Modifier.
+ * @param content Segment content.
+ */
+@Composable
+fun GlassCardSegment(segment: CardSegment, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    val accessibility = LocalFestivalAccessibility.current
+    val contrast = accessibility.increaseContrast
+    val color = if (contrast || accessibility.reduceTransparency) BrandTokens.cardBackground else BrandTokens.surfaceFrosted
+    val stroke = if (contrast) 2.dp else 1.dp
+    val strokeColor = if (contrast) BrandTokens.textPrimary else BrandTokens.glassBorder
+    val top = if (segment.isTop) GLASS_CARD_CORNER else 0.dp
+    val bottom = if (segment.isBottom) GLASS_CARD_CORNER else 0.dp
+    val shape = RoundedCornerShape(topStart = top, topEnd = top, bottomStart = bottom, bottomEnd = bottom)
+    Column(
+        modifier
+            .clip(shape)
+            .background(color, shape)
+            .drawWithContent {
+                drawContent()
+                // The card's outline, extended past an open end so the clip leaves only the sides there.
+                val width = stroke.toPx()
+                val radius = GLASS_CARD_CORNER.toPx()
+                val startY = if (segment.isTop) width / 2 else -radius * 2
+                val endY = if (segment.isBottom) size.height - width / 2 else size.height + radius * 2
+                drawRoundRect(
+                    color = strokeColor,
+                    topLeft = Offset(width / 2, startY),
+                    size = Size(size.width - width, endY - startY),
+                    cornerRadius = CornerRadius(radius - width / 2),
+                    style = Stroke(width),
+                )
+            },
+        content = content,
+    )
 }
 
 // endregion

@@ -87,6 +87,14 @@ class NavigationPolicyTest {
         assertNull(FestivalSection.fromName(null))
     }
 
+    /** #610 (web `BottomNav` Compete `activeKeys`): Compete is the home of Leaderboards and Rivals. */
+    @Test
+    fun competeIsTheParentOfLeaderboardsAndRivals() {
+        assertEquals(Compete, FestivalTabPolicy.parent(Leaderboards))
+        assertEquals(Compete, FestivalTabPolicy.parent(Rivals))
+        listOf(Songs, Suggestions, Compete, Statistics, Shop, Settings).forEach { assertNull(FestivalTabPolicy.parent(it)) }
+    }
+
     // endregion
 
     // region Layout

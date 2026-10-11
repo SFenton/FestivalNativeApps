@@ -125,7 +125,7 @@ public static class SongInstrumentStatusPolicy
 /// <summary>Percentile emphasis tier.</summary>
 public enum SongPercentileTier
 {
-    /// <summary>Top 1% (gold fill).</summary>
+    /// <summary>Top 1% (skewed gold outline, web <c>goldOutlineSkew</c>).</summary>
     TopOne,
     /// <summary>Top 5% (gold outline).</summary>
     TopFive,

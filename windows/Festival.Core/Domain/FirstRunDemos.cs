@@ -811,7 +811,7 @@ public static class FirstRunDemos
         var accuracy = metadata.FullCombo ? "100% FC" : $"{metadata.Accuracy / 10000.0:0.#}%";
         var stars = metadata.Stars == 6 ? "Gold ★" : $"{metadata.Stars}★";
         var difficulty = $"Difficulty {metadata.Difficulty}";
-        var season = $"Season {metadata.Season}";
+        var season = MetadataPillStyle.SeasonText(metadata.Season);
         return layout switch
         {
             FirstRunDemoMetadataLayout.ScoreAccuracy => [score, accuracy],

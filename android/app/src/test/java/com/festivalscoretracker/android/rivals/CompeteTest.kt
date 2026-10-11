@@ -377,7 +377,7 @@ class CompeteLogicTest {
         val bass = CompeteScope.Single(Instrument.Bass)
         val rival = rivalEntries(listOf(RivalSummary(RivalsFixtures.RIVALS[0])), listOf(RivalSummary(RivalsFixtures.RIVALS[1])))
         val sections = listOf(
-            // Combo: 3 rows + the player's row + View Full Leaderboards (#602); 2 rivals + View All.
+            // Combo: 3 rows + the player's row + View Full Leaderboards (#602); 2 rivals + View All in one card (#603).
             CompeteSection(combo, LoadState.Loaded(CompeteBoard(List(3) { entry("c$it", it + 1) }, entry("me", 9))), LoadState.Loaded(rival)),
             // Lead: 2 rows (player inside) + View Full Leaderboards; no rivals (empty card).
             CompeteSection(lead, LoadState.Loaded(CompeteBoard(List(2) { entry("l$it", it + 1) }, null)), LoadState.Loaded(emptyList())),
@@ -389,8 +389,8 @@ class CompeteLogicTest {
         // Combo header 1, body 2..6; Lead header 7, body 8..10; Bass header 11, error 12.
         assertEquals(listOf(1, 7, 11), plan.boards)
         assertEquals(13, plan.rivalsHeader)
-        // Combo rivals header 14, rows 15..16 + View All 17; Lead 18 + empty 19; Bass 20 + error 21.
-        assertEquals(listOf(14, 18, 20), plan.rivals)
+        // Combo rivals header 14 + one card 15 (#603: rows and View All fade as one); Lead 16 + empty 17; Bass 18 + error 19.
+        assertEquals(listOf(14, 16, 18), plan.rivals)
         // Anonymous: each rivals card is one "track a player" card.
         val anonymous = CompeteContent(listOf(sections[1].copy(rivals = null)), null, null).stagger
         assertEquals(CompeteStaggerPlan(0, listOf(1), 5, listOf(6)), anonymous)

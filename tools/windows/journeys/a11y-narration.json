@@ -28,7 +28,7 @@
   {"name": "narr-titlebar-anonymous", "tab": "songs", "tabs": 0, "sizes": ["compact", "medium"],
    "ready": ["waitfor:id=fst.songs.row.fixture-pulse@30", "waitfor:id=fst.shell.profile@5"],
    "after_ready": ["waitgone:id=fst.shell.notifications@2",
-                   "assertread:id=fst.shell.profile|~^Select a player profile, button",
+                   "assertread:id=fst.shell.profile|Select a player profile, button, Opens profile selection.",
                    "assertorder:id=fst.global-search.open|id=fst.shell.profile|id=fst.songs.sort",
                    "narrate:id=fst.shell.title-bar"]},
   {"name": "narr-songs", "tab": "songs", "profile": "fixture-player-1:Demo Player", "tabs": 0, "sizes": ["compact", "medium", "wide", "maximized", "snap-left"],

@@ -36,6 +36,8 @@ import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.ui.common.spinnerShowsDuring
+import com.festivalscoretracker.android.ui.rivals.RIVALS_CARD_SEGMENT_TAG
+import com.festivalscoretracker.android.ui.rivals.RIVALS_CARD_TAG
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import okhttp3.OkHttpClient
@@ -316,7 +318,7 @@ class RivalsUiTest {
         ).fetchSemanticsNodes().mapNotNull { it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription)?.firstOrNull() }
         assertTrue(labels.isNotEmpty())
         // Spoken gap is unsigned with a singular/plural unit (the pill keeps the signed form).
-        assertTrue(labels.toString(), labels.all { Regex("""(lead|leads) by \d[\d,]* ranks?,|, tied,""").containsMatchIn(it) })
+        assertTrue(labels.toString(), labels.all { Regex("""(lead|leads) by \d[\d,]* ranks?$|, tied$""").containsMatchIn(it) })
         rule.onNodeWithTag("fst.rivalry.sort").performClick()
         waitForTag("fst.rivalry.sort.menu")
         rule.onNodeWithTag("fst.rivalry.sort.category").assertIsSelected()
@@ -416,6 +418,46 @@ class RivalsUiTest {
         assertTrue(categories.all { it.boundsInRoot.top >= header.bottom })
     }
 
+    /**
+     * #603: every rival list is one card of rows (iOS `FestivalGlassSection`): a hub card holds its
+     * rows and View All Rivals, each Rival Detail category one card of song rows, and Rivalry's list
+     * touching card segments, one per song.
+     */
+    @Test
+    fun rivalListsAreOneCardEach() {
+        val songTag = androidx.compose.ui.test.SemanticsMatcher("rival song row") {
+            it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("fst.rivals.song.") == true
+        }
+        val rowTag = androidx.compose.ui.test.SemanticsMatcher("rival row") {
+            it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("fst.rivals.row.") == true
+        }
+        launch(DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true))
+        waitForTag("fst.rivals.section.Solo_Guitar")
+        val lead = hasAnyAncestor(hasTestTag("fst.rivals.section.Solo_Guitar"))
+        assertEquals(1, rule.onAllNodes(hasTestTag(RIVALS_CARD_TAG) and lead).fetchSemanticsNodes().size)
+        val inCard = hasAnyAncestor(hasTestTag(RIVALS_CARD_TAG) and lead)
+        val rows = rule.onAllNodes(rowTag and lead).fetchSemanticsNodes().size
+        assertTrue(rows >= 2)
+        assertEquals(rows, rule.onAllNodes(rowTag and inCard).fetchSemanticsNodes().size)
+        assertEquals(1, rule.onAllNodes(hasTestTag("fst.rivals.view-all") and inCard).fetchSemanticsNodes().size)
+
+        rule.onAllNodesWithTag("fst.rivals.row.${ids[1]}")[0].performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.rival-detail.category.closest_battles")
+        val category = hasAnyAncestor(hasTestTag("fst.rival-detail.category.closest_battles"))
+        assertEquals(1, rule.onAllNodes(hasTestTag(RIVALS_CARD_TAG) and category).fetchSemanticsNodes().size)
+        val songs = rule.onAllNodes(songTag and category).fetchSemanticsNodes().size
+        assertTrue(songs >= 1)
+        assertEquals(songs, rule.onAllNodes(songTag and hasAnyAncestor(hasTestTag(RIVALS_CARD_TAG) and category)).fetchSemanticsNodes().size)
+
+        rule.onNodeWithTag("fst.rival-detail.see-all.closest_battles").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.rivalry.title")
+        settle()
+        val listed = rule.onAllNodes(songTag).fetchSemanticsNodes().size
+        val segments = rule.onAllNodesWithTag(RIVALS_CARD_SEGMENT_TAG).fetchSemanticsNodes().map { it.boundsInRoot }.sortedBy { it.top }
+        assertEquals(listed, segments.size)
+        segments.zipWithNext().forEach { (above, below) -> assertEquals(above.bottom, below.top, 0.5f) }
+        assertEquals(listed, rule.onAllNodes(songTag and hasAnyAncestor(hasTestTag(RIVALS_CARD_SEGMENT_TAG))).fetchSemanticsNodes().size)
+    }
     @Test
     fun mixedChartComparisonShowsBothIcons() {
         val mixed = RivalsFixtures.detail(ids[0]).replace("\"userInstrument\":null,\"rivalInstrument\":null", "\"userInstrument\":\"Solo_PeripheralCymbals\",\"rivalInstrument\":\"Solo_PeripheralDrums\"")

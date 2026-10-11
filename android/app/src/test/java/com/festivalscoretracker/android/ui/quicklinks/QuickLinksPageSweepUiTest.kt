@@ -7,6 +7,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -110,10 +111,15 @@ class QuickLinksPageSweepUiTest {
     /**
      * Opens Quick Links and reads every item in on-screen order (scrolling the lazy sheet). It is
      * left open: the page is read before this, and each test ends here.
+     *
+     * @param sheet Whether the compact sheet (true) or the wider menu (false) opens.
+     * @param inPane Open the Quick Links of the page in the trailing split pane (#583), whose list
+     *   page beside it keeps its own.
      */
-    private fun menuOrder(sheet: Boolean): List<String> {
+    private fun menuOrder(sheet: Boolean, inPane: Boolean = false): List<String> {
         waitForTag(OPEN)
-        rule.onNodeWithTag(OPEN).performSemanticsAction(SemanticsActions.OnClick)
+        val open = if (inPane) hasTestTag(OPEN) and hasAnyAncestor(hasTestTag(PANE)) else hasTestTag(OPEN)
+        rule.onNode(open).performSemanticsAction(SemanticsActions.OnClick)
         settle()
         val container = if (sheet) SHEET else MENU
         waitForTag(container)
@@ -366,8 +372,11 @@ class QuickLinksPageSweepUiTest {
         waitForTag("fst.rivals.row.${RivalsFixtures.RIVALS[1]}")
         rule.onAllNodesWithTag("fst.rivals.row.${RivalsFixtures.RIVALS[1]}")[0].performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.rival-detail.title")
+        // Wide windows open Rival Detail beside the hub (#583); each pane keeps its own Quick Links.
+        val inPane = !sheet
+        if (inPane) assertTrue("Rival Detail opens in the trailing pane", rule.onAllNodes(hasTestTag("fst.rival-detail.title") and hasAnyAncestor(hasTestTag(PANE)), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         val page = pageOrder("fst.rival-detail.grid") { tag -> tag.removePrefix("fst.rival-detail.category.").takeIf { it != tag }?.let { "rival-category:$it" } }
-        val menu = menuOrder(sheet)
+        val menu = menuOrder(sheet, inPane)
         assertSameOrder(menu, page)
         assertTrue(menu.toString(), menu.size >= 2)
     }
@@ -377,7 +386,7 @@ class QuickLinksPageSweepUiTest {
     @Config(qualifiers = "w411dp-h891dp-xxhdpi")
     fun rivalDetailSheetFollowsThePage() = rivalDetail(sheet = true)
 
-    /** Wide window: categories sit in a multi-column grid; the menu reads it row by row. */
+    /** Wide window: Rival Detail opens in the trailing pane (#583); its menu reads its grid row by row. */
     @Test
     @Config(qualifiers = "w1280dp-h800dp-xhdpi")
     fun rivalDetailMenuFollowsThePage() = rivalDetail(sheet = false)
@@ -480,6 +489,7 @@ class QuickLinksPageSweepUiTest {
 
     private companion object {
         const val OPEN = "fst.quick-links.open"
+        const val PANE = "fst.split.trailing"
         const val SHEET = "fst.quick-links.sheet"
         const val MENU = "fst.quick-links.menu"
         const val LIST = "fst.quick-links.list"

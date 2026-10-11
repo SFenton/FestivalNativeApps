@@ -171,6 +171,17 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_contrast(self):
+        # Issue #606 review: switch the contrast theme with the app open; only a11y_matrix (which restores it) may.
+        self.assertEqual(u.parse_step("contrast:Desert"), {"verb": "contrast", "arg": "desert"})
+        self.assertEqual(u.parse_step("contrast:off")["arg"], "off")
+        for bad in ("contrast:", "contrast:on", "contrast:High Contrast White"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+        self.assertEqual(len(u.cli_steps(["wait:1", "foreground:on"])), 2)
+        with self.assertRaises(ValueError):
+            u.cli_steps(["wait:1", "contrast:desert"])
+
     def test_listen_and_assertannounced(self):
         # Issue #269: record the app's UIA notifications (what Narrator speaks), then wait for one.
         self.assertEqual(u.parse_step("listen:Announcements"), {"verb": "listen", "arg": "announcements"})
