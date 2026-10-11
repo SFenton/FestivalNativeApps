@@ -145,6 +145,13 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
             }
             let top = sheetContentTop(for: target, in: app)
             let frame = target.frame
+            if frame.minY >= top, frame.maxY <= bottom {
+                // Already in place but not yet hittable (an accordion's header actions fade
+                // in after it opens, and a bounce settles): wait rather than drag, since a
+                // drag at the Form's top pulls the sheet and keeps it unsettled.
+                Thread.sleep(forTimeInterval: 0.5)
+                continue
+            }
             let distance: CGFloat
             if frame.minY < top {
                 distance = top - frame.minY + 8
