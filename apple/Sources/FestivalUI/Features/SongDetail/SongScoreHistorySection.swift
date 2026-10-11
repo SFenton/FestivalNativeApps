@@ -526,7 +526,9 @@ struct ScoreHistoryListRow: View {
         }
         // Read-only text whose focus frame is the whole row: a grouped row draws no
         // background, so the element had no role and a frame shrunk to its text (#406).
-        .contentShape(.accessibility, Rectangle())
+        // The plain content shape sets that frame; `.contentShape(.accessibility, …)`
+        // kept Song Detail from idling while it scrolled on iPhone.
+        .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isStaticText)
         .accessibilityLabel(
