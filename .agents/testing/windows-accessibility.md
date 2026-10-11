@@ -494,6 +494,21 @@ Backfills CI tests for the #318 Windows change: the selected player's row stays 
 
 No accessibility defect was found.
 
+## Leaderboards card your-rank row accessibility tests (issue #493, 2026-10-11)
+
+Backfills CI tests for the #370 Windows change (PR #403): a Leaderboards card's separate "your rank" row, for a player ranked outside the card's top ten, now opens Full Rankings on the player's page and reveals their row instead of opening the profile. Until now only `selected_reveal_journey.py --only rankings-card` (fade timing) and `LeaderboardsViewModelTests` covered it. New `journeys/a11y-leaderboards-card-jump.json` (`rankings_fixture.py`) is now a set of `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- `card-jump-row` (Fixture Rank 40): the Lead card's row reads "Your rank, 40th. Jump to your position. Fixture Rank 40. Total Score …, button" (Button, Invoke, focusable), is at least 40×40 epx, doesn't overlap View All Rankings (40 epx tall), and reads after the card's Lead group and before View All;
+- `card-jump-row-keyboard`: Shift+Tab from View All reaches the row, Tab goes back. Enter opens Full Rankings on "Page 2 of 48" with row 40 on screen; the pinned row then reads "Open your statistics", and the order is title → row 40 → pinned row → pager. Alt+Left returns to Leaderboards with focus on the card's row;
+- `card-in-place-row` (Fixture Player 2, inside the top ten): no separate row; the highlighted in-list row reads "Your rank, 2nd. …, button" without a jump, is 40 epx tall, and Enter opens the profile.
+
+`card-jump-row` also gets the dispatcher's 30-press Tab walk. At compact the card is taller than the window, so the pages scroll View All into view and check the row against the card's group rather than its heading.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`leaderboards-card-jump`, all 3 pages) | Pass, Axe 0 |
+| Text 225% (compact, all 3 pages) | Pass, Axe 0 |
+| In-app Reduce Motion (compact, medium; all 3 pages) | **Failed, fixed:** Enter opened page 2 but left the list at the top (rows 26–34), so the player's row stayed off screen. Under Reduce Motion `SelectedRowReveal` scrolled at once, before the newly shown list had a layout, so `StartBringIntoView` did nothing. It now waits, as the motion path already did, for the list to realize the selected (or first) row, then scrolls at once with no hold or rush (load-transition R6). Pass, Axe 0 after the fix; `selected_reveal_journey.py` gained `rankings-card-reduce-motion` |
+
 ## Search All section titles accessibility tests (issue #483, 2026-10-11)
 
 Backfills CI tests for the #348 Windows change: in the All scope, Search titles each shown section "Songs", "Players" and "Bands" (`FSTSectionHeaderStyle`, Level 2, fading in with the rows). Before this, only the `search.json` feature journey (not a `windows-ui` run) checked all three titles; `search-all-hides-empty-players` checked the Songs title alone. New pages in `journeys/a11y-search.json` (`profile_fixture.py`, `q=fixture`) are explicit `windows-ui` runs in `tools/windows/ui_ci.py` (`search-sections`, `-text-225`, `-reduced-motion`). They assert:
