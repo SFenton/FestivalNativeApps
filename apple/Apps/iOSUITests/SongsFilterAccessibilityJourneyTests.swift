@@ -90,11 +90,14 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     /// - Parameters:
     ///   - target: Element inside the Filter Form.
     ///   - app: Launched fixture Songs with the sheet open.
-    /// - Returns: The hittable element.
+    ///   - hittable: Also require the accessibility hit test to land on it; pass false only
+    ///     where the caller proves it with a real tap instead (``assertYearGroup(_:file:line:)``).
+    /// - Returns: The revealed element.
     @MainActor
     @discardableResult
     private func reveal(
-        _ target: XCUIElement, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line
+        _ target: XCUIElement, in app: XCUIApplication, hittable: Bool = true,
+        file: StaticString = #filePath, line: UInt = #line
     ) -> XCUIElement {
         let form = element("form", in: app)
         // The iPad form sheet ends above the window's bottom.
@@ -104,7 +107,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         // folded Duo), only have to end inside the Form once dragging no longer moves them.
         var atEnd = false
         func visible() -> Bool {
-            guard target.exists, target.isHittable else { return false }
+            guard target.exists, !hittable || target.isHittable else { return false }
             let top = sheetContentTop(for: target, in: app)
             let fits = target.frame.height <= bottom - top
             let inForm = atEnd && target.frame.maxY <= form.frame.maxY
@@ -146,9 +149,8 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
             let top = sheetContentTop(for: target, in: app)
             let frame = target.frame
             if frame.minY >= top, frame.maxY <= bottom {
-                // Already in place but not yet hittable (an accordion's header actions fade
-                // in after it opens, and a bounce settles): wait rather than drag, since a
-                // drag at the Form's top pulls the sheet and keeps it unsettled.
+                // In place but not yet hittable (a bounce settling): wait rather than drag,
+                // since a drag at the Form's top pulls the sheet and keeps it unsettled.
                 Thread.sleep(forTimeInterval: 0.5)
                 continue
             }
@@ -309,7 +311,14 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     }
 
     /// Expand Year and check its header actions and decade switches: named, reporting
-    /// their state, and 44 pt targets.
+    /// their state, and 44 pt targets. Clear All and Select All are pressed for real and
+    /// the decades must report the change.
+    ///
+    /// Opened while its header sits under the sheet's bar (AX5), the header's actions can
+    /// stay missing from the accessibility hit test after they fade in (iOS 27 beta; real
+    /// touches land, and the next state change restores it; an open finding in
+    /// `.agents/patterns/accordion.md`), so they are revealed without that check and proved
+    /// by a coordinate tap.
     ///
     /// - Returns: The decade switches.
     @MainActor
@@ -340,8 +349,14 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         }
         let first = reveal(decades[0], in: app, file: file, line: line)
         assertTarget(first, first.identifier, file: file, line: line)
-        assertTarget(reveal(clearAll, in: app, file: file, line: line), "Clear All, Year", file: file, line: line)
-        assertTarget(reveal(selectAll, in: app, file: file, line: line), "Select All, Year", file: file, line: line)
+        for (action, name, value) in [(clearAll, "Clear All, Year", "0"), (selectAll, "Select All, Year", "1")] {
+            let button = reveal(action, in: app, hittable: false, file: file, line: line)
+            assertTarget(button, name, file: file, line: line)
+            button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            let applied = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", value), object: decades[0])
+            XCTAssertEqual(XCTWaiter.wait(for: [applied], timeout: 5), .completed,
+                           "\(name) sets \(decades[0].identifier) to \(value)", file: file, line: line)
+        }
         return decades
     }
 
