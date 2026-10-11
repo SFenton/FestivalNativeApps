@@ -65,6 +65,41 @@ enum ShopRowPolicy {
     }
 }
 
+/// The Item Shop's only visible status glyph: the red Leaving Tomorrow clock circle
+/// (web `SongRow` `leavingCircleMobile`, `IoTimerOutline`). Callers add its label and ID.
+struct ShopLeavingIndicator: View {
+    var body: some View {
+        Image(systemName: "clock")
+            .font(.subheadline)
+            .foregroundStyle(FestivalText.primary)
+            .frame(minWidth: 30, minHeight: 30)
+            .background(BrandTokens.statusRed, in: Circle())
+    }
+}
+
+/// Invisible carrier of the Item Shop "New" state on Songs rows, Shop list rows and
+/// Shop grid cards.
+///
+/// The web marks a New song only with the gold outline (`shopHighlightGold`; no chip in
+/// `SongRow` or `ShopCard`), so no visible New chip or symbol is drawn (operator
+/// 2026-09-28 for Songs; issue #562 for the Shop). This 1 pt clear element keeps the
+/// state for VoiceOver, combined into its row, and the stable test identifier.
+/// HIG Color: "Avoid relying solely on color … also convey it another way, like text
+/// labels".
+struct ShopNewStatusMarker: View {
+    /// Spoken state, e.g. "New" or "Item Shop: New".
+    let label: String
+    /// Registered accessibility identifier.
+    let identifier: String
+
+    var body: some View {
+        Color.clear
+            .frame(width: 1, height: 1)
+            .accessibilityLabel(label)
+            .accessibilityIdentifier(identifier)
+    }
+}
+
 // MARK: - Song row
 
 /// The one Song row shared by Songs, the Item Shop list and first-run demos: art,
@@ -81,7 +116,12 @@ struct SongRowView: View {
     let profileChart: Instrument?
     let catalogueObservation: Int?
     let metadata: SongMetadataVisibility
-    let filterInvalidScores: Bool
+    /// Settings leeway while **Filter Invalid Scores** is on, else nil: the row shows
+    /// the player's effective scores (``InvalidScorePolicy``) and the invalid-score
+    /// indicator.
+    let invalidScoreLeeway: Double?
+    /// Charts whose Songs **Over CHOpt Threshold** filter keeps an invalid score raw.
+    let overThresholdCharts: Set<Instrument>
     let showInstrumentIcons: Bool
     let visibleInstruments: Set<Instrument>
     let currentSeason: Int?
@@ -114,7 +154,8 @@ struct SongRowView: View {
     ///   - profileChart: First visible chart or explicit Songs chart filter.
     ///   - catalogueObservation: Observed generation for this validated Songs row.
     ///   - metadata: Persisted score-field visibility switches.
-    ///   - filterInvalidScores: Hide unsupported filtered-score details explicitly.
+    ///   - invalidScoreLeeway: Settings leeway while Filter Invalid Scores is on.
+    ///   - overThresholdCharts: Charts whose Over CHOpt Threshold filter is on.
     ///   - showInstrumentIcons: Saved status-chip setting.
     ///   - visibleInstruments: Enabled charts independent of chart availability.
     ///   - currentSeason: Current catalogue season for the inverted season badge.
@@ -126,7 +167,8 @@ struct SongRowView: View {
         profileChart: Instrument? = nil,
         catalogueObservation: Int? = nil,
         metadata: SongMetadataVisibility = SongMetadataVisibility(),
-        filterInvalidScores: Bool = false,
+        invalidScoreLeeway: Double? = nil,
+        overThresholdCharts: Set<Instrument> = [],
         showInstrumentIcons: Bool = true,
         visibleInstruments: Set<Instrument> = Set(Instrument.allCases),
         currentSeason: Int? = nil,
@@ -141,7 +183,8 @@ struct SongRowView: View {
         self.profileChart = profileChart
         self.catalogueObservation = catalogueObservation
         self.metadata = metadata
-        self.filterInvalidScores = filterInvalidScores
+        self.invalidScoreLeeway = invalidScoreLeeway
+        self.overThresholdCharts = overThresholdCharts
         self.showInstrumentIcons = showInstrumentIcons
         self.visibleInstruments = visibleInstruments
         self.currentSeason = currentSeason
@@ -216,16 +259,44 @@ struct SongRowView: View {
             scoresAvailable: scoreDataCurrent,
             iconsEnabled: showInstrumentIcons,
             instrumentFilter: instrument,
-            filterInvalidScores: filterInvalidScores,
             visibleInstruments: visibleInstruments
         )
     }
 
+    /// The selected player's scores for this song as the row shows them: raw, or with
+    /// Filter Invalid Scores applied (web `SongsPage.effectiveScores`).
+    private var playerScores: SongEffectiveScores {
+        let raw = session.selectedPlayerScores[song.songId] ?? [:]
+        guard let invalidScoreLeeway, !raw.isEmpty else { return SongEffectiveScores(scores: raw) }
+        return InvalidScorePolicy.resolve(
+            raw, song: song, leeway: invalidScoreLeeway, overThreshold: overThresholdCharts
+        )
+    }
+
+    /// The invalid-score indicator's tone and alert (web `SongRow` `hasInvalid`), only
+    /// for a selected player's current scores on a Songs row.
+    private var invalidScoreWarning: InvalidScoreWarning? {
+        guard invalidScoreLeeway != nil, shopOffer == nil, session.selectedPlayer != nil,
+              session.selectedBand == nil, scoreDataCurrent else { return nil }
+        return InvalidScoreWarning.make(
+            songTitle: song.title, reasons: playerScores.reasons,
+            instrumentFilter: instrument, visibleInstruments: visibleInstruments
+        )
+    }
+
+    /// The indicator's glyph; ``SwiftUI/View/songInvalidScoreIndicator(songId:)`` puts
+    /// its button over it, outside the row's link.
+    @ViewBuilder private var invalidScoreGlyph: some View {
+        if let invalidScoreWarning {
+            InvalidScoreGlyph(warning: invalidScoreWarning)
+        }
+    }
+
     private var structuredScore: (chart: Instrument, score: PlayerScore)? {
-        guard !usesInstrumentChips, !filterInvalidScores,
+        guard !usesInstrumentChips,
               scoreDataCurrent,
               let chart = profileChart, song.supports(chart),
-              let score = session.selectedPlayerScores[song.songId]?[chart],
+              let score = playerScores.scores[chart],
               score.score > 0 else {
             return nil
         }
@@ -318,7 +389,7 @@ struct SongRowView: View {
                     songId: song.songId,
                     badges: SongInstrumentStatusPolicy.badges(
                         for: song, visibleInstruments: visibleInstruments,
-                        scores: session.selectedPlayerScores[song.songId] ?? [:]
+                        scores: playerScores.scores
                     ),
                     keyboard: song.usesKeyboardIcon
                 )
@@ -327,10 +398,10 @@ struct SongRowView: View {
                     player: selected, chart: profileChart,
                     chartAvailable: profileChart.map(song.supports) ?? false,
                     score: scoreDataCurrent ? profileChart.flatMap {
-                        session.selectedPlayerScores[song.songId]?[$0]
+                        playerScores.scores[$0]
                     } : nil,
                     state: session.playerLoadState, visibility: metadata,
-                    filterInvalidScores: filterInvalidScores, songId: song.songId
+                    songId: song.songId
                 )
             }
         } else if let band = session.selectedBand {
@@ -354,55 +425,34 @@ struct SongRowView: View {
     }
 
     @ViewBuilder private var shopBadge: some View {
-        if shopHighlight == .new {
-            // No visible "New" chip (operator, 2026-09-28): the row's gold outline marks
-            // it. VoiceOver still hears "Item Shop: New" through the combined row.
-            Color.clear
-                .frame(width: 1, height: 1)
-                .accessibilityLabel("Item Shop: \(ShopHighlight.new.label)")
+        switch shopHighlight {
+        case .new:
+            ShopNewStatusMarker(
+                label: "Item Shop: \(ShopHighlight.new.label)",
+                identifier: "fst.songs.shop-badge.\(song.songId)"
+            )
+        case .leavingTomorrow:
+            ShopLeavingIndicator()
+                .accessibilityLabel("Item Shop: \(ShopHighlight.leavingTomorrow.label)")
                 .accessibilityIdentifier("fst.songs.shop-badge.\(song.songId)")
-        } else if let shopHighlight {
-            Image(systemName: shopHighlight == .leavingTomorrow
-                ? "clock" : "sparkles")
-                .font(.subheadline)
-                .foregroundStyle(
-                    shopHighlight == .leavingTomorrow
-                        ? FestivalText.primary : BrandTokens.gold
-                )
-                .frame(minWidth: 30, minHeight: 30)
-                .background(
-                    shopHighlight == .leavingTomorrow
-                        ? BrandTokens.statusRed : BrandTokens.appBackground,
-                    in: Circle()
-                )
-                .accessibilityLabel("Item Shop: \(shopHighlight.label)")
-                .accessibilityIdentifier("fst.songs.shop-badge.\(song.songId)")
+        case nil:
+            EmptyView()
         }
     }
 
-    /// Item Shop trailing content: the visible New / Leaving Tomorrow badge, the slot
-    /// the Shop overlays its official bag link on, then the Detail chevron (PWA gap #17).
+    /// Item Shop trailing content: the Leaving Tomorrow clock, the slot the Shop
+    /// overlays its official bag link on, then the Detail chevron (PWA gap #17). New
+    /// draws nothing here (web `SongRow` adds an indicator only for Leaving Tomorrow;
+    /// issue #562): its invisible marker sits on the leading edge, outside the layout.
     ///
     /// - Parameter offer: Shop decoration for this row.
-    /// - Returns: Badge, bag reserve and chevron in web order.
+    /// - Returns: Leaving clock, bag reserve and chevron in web order.
     private func shopOfferTrailing(_ offer: SongRowShopOffer) -> some View {
         HStack(spacing: ShopRowMetrics.spacing) {
-            if let highlight = offer.highlight {
-                let leaving = highlight == .leavingTomorrow
-                Image(systemName: leaving ? "clock" : "sparkles")
-                    .font(.subheadline)
-                    .foregroundStyle(leaving ? FestivalText.primary : BrandTokens.gold)
-                    .frame(minWidth: 30, minHeight: 30)
-                    .background(
-                        leaving ? BrandTokens.statusRed : BrandTokens.appBackground,
-                        in: Circle()
-                    )
-                    .accessibilityLabel(highlight.label)
-                    .accessibilityIdentifier(
-                        leaving
-                            ? "fst.shop.badge.leaving.\(song.songId)"
-                            : "fst.shop.badge.new.\(song.songId)"
-                    )
+            if offer.highlight == .leavingTomorrow {
+                ShopLeavingIndicator()
+                    .accessibilityLabel(ShopHighlight.leavingTomorrow.label)
+                    .accessibilityIdentifier("fst.shop.badge.leaving.\(song.songId)")
             }
             if offer.reservesBag {
                 Color.clear
@@ -415,6 +465,14 @@ struct SongRowView: View {
                     .foregroundStyle(FestivalText.deemphasized)
                     .frame(width: ShopRowMetrics.chevronWidth)
                     .accessibilityHidden(true)
+            }
+        }
+        .overlay(alignment: .leading) {
+            if offer.highlight == .new {
+                ShopNewStatusMarker(
+                    label: ShopHighlight.new.label,
+                    identifier: "fst.shop.badge.new.\(song.songId)"
+                )
             }
         }
     }
@@ -434,6 +492,7 @@ struct SongRowView: View {
                let difficulty = song.difficulty?.chartedValue(for: instrument) {
                 DifficultyMeter(level: difficulty, raw: true)
             }
+            invalidScoreGlyph
             shopIcons
         }
     }
@@ -456,6 +515,7 @@ struct SongRowView: View {
                                 .fixedSize()
                                 .layoutPriority(1)
                         }
+                        invalidScoreGlyph
                     }
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
@@ -464,6 +524,7 @@ struct SongRowView: View {
                             HStack {
                                 Spacer(minLength: 0)
                                 SongMetadataFieldView(field: primary, songId: song.songId)
+                                invalidScoreGlyph
                             }
                         }
                     }
@@ -493,7 +554,6 @@ struct SongRowView: View {
             allowed: allowsProfilePanel,
             hasSelectedProfile: band != nil || session.selectedPlayer != nil,
             scoresCurrent: band != nil ? bandScoreDataCurrent : scoreDataCurrent,
-            filterInvalidScores: band == nil && filterInvalidScores,
             accessibilitySize: dynamicTypeSize.isAccessibilitySize, shopRow: shopOffer != nil,
             rowWidth: rowWidth + 24
         ) else { return nil }
@@ -506,7 +566,7 @@ struct SongRowView: View {
             )
         } else {
             tiles = try? SongProfilePanelPolicy.tiles(
-                song: song, scores: session.selectedPlayerScores[song.songId] ?? [:],
+                song: song, scores: playerScores.scores,
                 instrumentFilter: instrument, visibleInstruments: visibleInstruments,
                 currentSeason: currentSeason, visibility: metadata, order: order
             )
@@ -549,6 +609,7 @@ struct SongRowView: View {
                     }
                 }
                 Spacer(minLength: 4)
+                invalidScoreGlyph
                 shopIcons
             }
             .frame(maxWidth: .infinity, alignment: .leading)

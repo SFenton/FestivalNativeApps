@@ -57,6 +57,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.readingGroup
@@ -91,6 +92,7 @@ import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
+import com.festivalscoretracker.android.ui.design.SECTION_HEADER_TOP_PADDING
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
@@ -123,6 +125,16 @@ fun StatisticsScreen(viewModel: PlayerProfileViewModel, isRoot: Boolean = true) 
 }
 
 /**
+ * How far a profile section's heading sits below the top of its grid row: chart statistics open with the
+ * flush instrument row; Overview, Top Songs and Bands open with a [SectionHeader] (`section-jump-landing`
+ * R2, issue #587).
+ *
+ * @param id Quick Links section ID.
+ * @return Heading inset.
+ */
+internal fun profileHeadingInset(id: String): Dp = if (ProfileSections.isInstrumentId(id)) 0.dp else SECTION_HEADER_TOP_PADDING
+
+/**
  * Top bar, Quick Links (top-bar entry: menu on medium+ windows, sheet on compact; formerly a trailing pane on wide pages without a
  * fold) and the profile body.
  */
@@ -140,7 +152,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
     val sections = remember(visible, loaded, state.displayName) { if (loaded) ProfileSections.quickLinks(visible, state.displayName) else emptyList() }
     // The grid's fade window, here so Quick Links jumps rush it (load-transition R5).
     val fadeWindow = rememberFadeInWindow(gridState, reset = state.accountId)
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeWindow) { id ->
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeWindow, headingInset = ::profileHeadingInset) { id ->
         rows.indexOfFirst { it.key == ProfileSections.rowKey(id) }.takeIf { it >= 0 }
     }
     val density = LocalDensity.current
@@ -285,13 +297,8 @@ private fun LoadedProfile(
                         LaunchedEffect(state.accountId) { viewModel.ensureBands() }
                         ProfileBandsHeading(state, bands, onRetry = viewModel::retryBands, onNavigate = shell.navigate)
                     }
-                    is ProfileRow.BandGroupHeader -> ProfileBandGroupHeader(row.group)
-                    is ProfileRow.BandCard -> Box(Modifier.festivalFadeIn(bandsRevealed, fadeInStagger(row.index))) {
-                        ProfileBandCard(row.entry, onNavigate = shell.navigate)
-                    }
-                    is ProfileRow.BandsEmpty -> Box(Modifier.festivalFadeIn(bandsRevealed)) { ProfileBandsEmpty(row.group) }
-                    is ProfileRow.BandsViewAll -> Box(Modifier.festivalFadeIn(bandsRevealed)) {
-                        ProfileBandsViewAll(state, row.group, row.total, onNavigate = shell.navigate)
+                    is ProfileRow.BandGroup -> Box(Modifier.festivalFadeIn(bandsRevealed, fadeInStagger(ProfileSections.BAND_GROUPS.indexOf(row.group).coerceAtLeast(0)))) {
+                        ProfileBandGroupSection(state, row, onNavigate = shell.navigate)
                     }
                 }
                 }
@@ -414,7 +421,7 @@ private fun InstrumentSection(
         }
         RankHistorySection(instrument, history, onRetryHistory)
         StatGrid(
-            section.stats + RankLoad.tile(rank) + section.trailing,
+            section.stats + RankLoad.tiles(rank, state.experimentalRanks) + section.trailing,
             instrument.wireId,
             state::canRun,
             onAction,

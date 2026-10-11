@@ -2,23 +2,14 @@ name: android-fold
 # Half-open book-fold accessibility journeys (@HalfOpenFoldJourney: ATF, TalkBack reading order,
 # hinge straddling, 200% text) on a Pixel 9 Pro Fold emulator with its hinge at 90°, the CI twin of
 # `device.py test … --avd FST_Book_Fold --posture half`. Fixture transports only; no service calls.
+# Release train: dispatched by the release machine on the weekly releases/YYMM.DD branch only.
 on:
-  push:
-    branches: [master]
-    paths:
-      - 'android/**'
-      - '.github/workflows/android-fold.yml'
-  pull_request:
-    paths:
-      - 'android/**'
-      - '.github/workflows/android-fold.yml'
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
   group: android-fold-${{ github.event.pull_request.number || github.ref }}
-  # Only a PR's superseded runs are cancelled: master runs finish, so its checks reflect every merge.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 jobs:
   android-fold:
     runs-on: ubuntu-latest

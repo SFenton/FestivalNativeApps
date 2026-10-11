@@ -330,20 +330,22 @@ class RivalsUiTest {
         rule.onNodeWithTag("fst.rivalry.sort.category").assertIsNotSelected()
     }
 
+    /** Owner, #545: Rivalry lists one row per song, so Quick Links would only repeat the list. */
     @Test
-    fun rivalryQuickLinksListEachSong() {
+    fun rivalryOffersNoQuickLinks() {
         launch(DebugLaunch(route = com.festivalscoretracker.android.core.nav.RivalryRoute(ids[3], "almost_passed"), profile = player, section = FestivalSection.Songs, stillBackground = true))
         waitForTag("fst.rivalry.title")
-        waitForTag("fst.quick-links.open")
-        rule.onNodeWithTag("fst.quick-links.open").performSemanticsAction(SemanticsActions.OnClick)
-        rule.waitUntil(10_000) {
-            settle(100)
-            rule.onAllNodes(
-                androidx.compose.ui.test.SemanticsMatcher("quick link item") {
-                    it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("fst.quick-links.item.") == true
-                },
-            ).fetchSemanticsNodes().size >= 2
-        }
+        waitForTag("fst.rivalry.list")
+        settle(400)
+        val songs = rule.onAllNodes(
+            androidx.compose.ui.test.SemanticsMatcher("rivalry song") {
+                it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("fst.rivals.song.") == true
+            },
+        ).fetchSemanticsNodes()
+        assertTrue("several songs, which used to get one link each", songs.size >= 2)
+        assertEquals(0, rule.onAllNodesWithTag("fst.quick-links.open").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("fst.rivalry.sort").assertIsDisplayed()
+        rule.onNodeWithTag("fst.rival-detail.view-profile").assertIsDisplayed()
     }
 
     @Test

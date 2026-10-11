@@ -31,6 +31,7 @@ import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -75,6 +76,8 @@ class NotificationsStatesUiTest {
             seenStore = seenStore,
             songTitle = { if (it == "s-alpha") "Alpha Tune" else null },
             clock = { Instant.parse("2026-09-28T12:00:00Z") },
+            // The weighted-rank row needs Settings → Experimental Ranks (#541).
+            experimentalRanks = flowOf(true),
         )
         rule.setContent {
             FestivalTheme {

@@ -124,17 +124,24 @@ class FeedbackViewModelTest {
         assertTrue(vm.form.value!!.busy)
         assertEquals("Filing your report on GitHub…", vm.form.value!!.progressText)
         advanceUntilIdle()
-        assertEquals(FeedbackPhase.Sent(filed), vm.form.value!!.phase)
-        assertFalse(vm.form.value!!.busy)
+        // Filed: the form closes by itself and the result waits for Settings (issue #565).
+        assertNull(vm.form.value)
+        assertEquals(FeedbackSent(FeedbackKind.Bug, filed), vm.sent.value)
+        assertEquals("Report Sent", vm.sent.value!!.title)
+        assertEquals(filed.message(FeedbackKind.Bug), vm.sent.value!!.message)
         assertEquals(listOf(id), polled)
         assertEquals(1, sent.size)
         assertEquals("[Bug] Crash", sent.single().title)
         assertEquals("It crashes", sent.single().description)
         assertEquals("android", sent.single().platform)
         assertEquals("1.0", sent.single().appVersion)
-        // After success Close needs no confirmation.
-        vm.requestClose()
+        // No new form opens over the result alert; Done clears it.
+        vm.open(FeedbackKind.Feature)
         assertNull(vm.form.value)
+        vm.dismissSent()
+        assertNull(vm.sent.value)
+        vm.open(FeedbackKind.Feature)
+        assertEquals(FeedbackKind.Feature, vm.form.value!!.draft.kind)
     }
 
     @Test
@@ -168,6 +175,7 @@ class FeedbackViewModelTest {
         gate.complete(queued)
         advanceUntilIdle()
         assertNull(vm.form.value)
+        assertNull(vm.sent.value)
     }
 
     @Test
@@ -182,8 +190,9 @@ class FeedbackViewModelTest {
         advanceTimeBy(FeedbackViewModel.POLL_INTERVAL_MS + 1)
         assertEquals(FeedbackPhase.Filing(FeedbackJob(id, FeedbackJobState.Processing)), vm.form.value!!.phase)
         advanceUntilIdle()
-        val phase = vm.form.value!!.phase as FeedbackPhase.Sent
-        assertEquals("Thanks! Your request was filed as issue #9. 1 attachment couldn't be attached.", phase.job.message(FeedbackKind.Feature))
+        assertNull(vm.form.value)
+        assertEquals("Request Sent", vm.sent.value!!.title)
+        assertEquals("Thanks! Your request was filed as issue #9. 1 attachment couldn't be attached.", vm.sent.value!!.message)
         assertEquals(2, polled.size)
     }
 
@@ -198,6 +207,8 @@ class FeedbackViewModelTest {
         assertEquals(FeedbackPhase.Editing, state.phase)
         assertEquals(FeedbackException.filingFailed(FeedbackKind.Bug).message, state.error)
         assertEquals("It crashes", state.draft.description)
+        // A failed filing never shows the result alert.
+        assertNull(vm.sent.value)
     }
 
     @Test
@@ -208,8 +219,9 @@ class FeedbackViewModelTest {
         vm.fill()
         vm.submit()
         advanceUntilIdle()
-        assertEquals(FeedbackPhase.Sent(queued), vm.form.value!!.phase)
-        assertTrue((vm.form.value!!.phase as FeedbackPhase.Sent).job.message(FeedbackKind.Bug).contains("received"))
+        assertNull(vm.form.value)
+        assertEquals(FeedbackSent(FeedbackKind.Bug, queued), vm.sent.value)
+        assertTrue(vm.sent.value!!.message.contains("received"))
 
         // No ID means nothing to poll.
         val bare = model(send = { FeedbackJob(null, FeedbackJobState.Queued) })
@@ -217,7 +229,8 @@ class FeedbackViewModelTest {
         bare.fill()
         bare.submit()
         advanceUntilIdle()
-        assertEquals(FeedbackPhase.Sent(FeedbackJob(null, FeedbackJobState.Queued)), bare.form.value!!.phase)
+        assertNull(bare.form.value)
+        assertEquals(FeedbackSent(FeedbackKind.Bug, FeedbackJob(null, FeedbackJobState.Queued)), bare.sent.value)
         assertTrue(polled.isEmpty())
     }
 
@@ -228,7 +241,8 @@ class FeedbackViewModelTest {
         vm.fill()
         vm.submit()
         advanceUntilIdle()
-        assertEquals(FeedbackPhase.Sent(FeedbackJob(id, FeedbackJobState.Processing)), vm.form.value!!.phase)
+        assertNull(vm.form.value)
+        assertEquals(FeedbackSent(FeedbackKind.Bug, FeedbackJob(id, FeedbackJobState.Processing)), vm.sent.value)
         assertEquals((FeedbackViewModel.POLL_TIMEOUT_MS / FeedbackViewModel.POLL_INTERVAL_MS).toInt(), polled.size)
     }
 

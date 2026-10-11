@@ -138,7 +138,8 @@ struct PlayerHistoryScreen: View {
             // iOS and iPadOS: the Mac keeps its window title (song-header R4).
             if showsSongHeader {
                 SongBarTitleToolbarItem(
-                    song: song, session: session, caption: caption, isShown: headerHidden,
+                    song: song, session: session, caption: caption,
+                    captionInstrument: instrument, isShown: headerHidden,
                     identifier: "fst.history.pinned-title"
                 )
             } else if !layout.sectionChrome.isVerticalBar {
@@ -195,12 +196,7 @@ struct PlayerHistoryScreen: View {
     private var header: some View {
         if showsSongHeader {
             SongHeaderRow(song: song, session: session, onHeightChange: { headerHeight = $0 }) {
-                HStack(spacing: 6) {
-                    InstrumentIcon(instrument, size: 20)
-                        .accessibilityHidden(true)
-                    MarqueeText(caption)
-                        .foregroundStyle(FestivalText.primary)
-                }
+                SongBoardLine(instrument: instrument, text: caption)
             }
             .accessibilityIdentifier("fst.history.header")
         } else {

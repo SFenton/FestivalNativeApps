@@ -7,8 +7,8 @@
 | Size | Presentation | Why |
 |---|---|---|
 | Compact window (< 600 dp) | `Toc` action ("Quick Links, current section X") in the shell's **floating toolbar** opens a **modal bottom sheet** of `NavigationDrawerItem`s; the current section is the selected item. On Songs it shares the pinned toolbar with Sort and Filter (issues #52, #309; the list filter is pinned inline above the list); on other pages the toolbar follows M3 "exit always" hide-on-scroll and returns on scroll up | M3: bottom sheets hold supplementary lists on phones, are thumb-reachable, scroll for long lists (Songs buckets) and support predictive back. Replaces the web FAB and modal. The bottom floating toolbar is already the M3 Expressive equivalent of the iOS #42 accessory, so no other page changed for #84 |
-| Medium and wider windows (tablet, unfolded foldables) | Top-app-bar action opens an anchored **dropdown menu**; the current item is bold with "Current" on its own line under the title (`QuickLinkMenuLabel`), never as a trailing label | M3 menus pick one of a short set of destinations without covering the page. **No side pane** (operator 2026-09-28: the right-side sheet on foldables is dropped) |
-| Separating vertical hinge in the page (book posture, half-open) | The page list stays on the start side of the hinge (`QuickLinks.hingeSplit`, `ui/settings/HingeSplit.kt`); the menu anchors to the button in that pane | No row straddles the fold |
+| Medium and wider windows (tablet, unfolded foldables, landscape phones) | The same **floating toolbar** action (since #576; [page-tools-and-nav-chrome](../../patterns/page-tools-and-nav-chrome.md) R4, never the top app bar) opens an anchored **dropdown menu** above the button; the current item is bold with "Current" on its own line under the title (`QuickLinkMenuLabel`), never as a trailing label | M3 menus pick one of a short set of destinations without covering the page. **No side pane** (operator 2026-09-28: the right-side sheet on foldables is dropped) |
+| Separating vertical hinge in the page (book posture, half-open) | The page list stays on the start side of the hinge (`QuickLinks.hingeSplit`, `ui/settings/HingeSplit.kt`); the floating toolbar stays on one side of the hinge (`FloatingToolbarPlacement`) and the menu anchors to its button there, never in the top app bar | No row or tool straddles the fold |
 
 No setting toggles Quick Links (spec). Needs ≥ 2 sections.
 
@@ -30,20 +30,22 @@ FestivalScreen(title, isRoot, actions = { QuickLinksAction(quickLinks, windowWid
 - One controller per list: `rememberQuickLinks` keys only on the scroller, `pinnedHeaders` and density; `title` and `sections` are snapshot state set each composition. The shell's floating toolbar re-runs a page's `actions` only on state reads, so a controller recreated by a title change (Songs' "<Sort> Quick Links") left a stale entry with no sections and hid `fst.quick-links.open` (Linux CI flake in `SongsParityUiTest`). Covered by `QuickLinksControllerUiTest`.
 - Programmatic jumps do not reach the top bar's nested-scroll state, so pass `FestivalScreen(scrolled = listState.canScrollBackward)` or content shows through the transparent bar.
 - TalkBack: entry label includes the current section; items expose `selected` + "Current section" state; the sheet has a pane title. Test IDs `fst.quick-links.open`, `.sheet`, `.menu`, `.list`, `.item.<id>`.
-- Order (issue #46 cross-check of iOS #6): both the sheet (`LazyColumn`) and the `DropdownMenu` list `controller.sections` in declared order, which is the page order; Compose does not reverse a bottom-anchored menu. Checked on FST_Phone with fixtures: Settings and the player profile, from both the portrait bottom-toolbar sheet and the landscape top-bar menu. Order, jump and `selected`/`checked` were correct, so no change was needed. The order is guarded by `QuickLinksPageOrderUiTest` and `QuickLinksPageSweepUiTest` (see [Page-order guard](#page-order-guard-issues-50-158)).
+- Order (issue #46 cross-check of iOS #6): both the sheet (`LazyColumn`) and the `DropdownMenu` list `controller.sections` in declared order, which is the page order; Compose does not reverse a bottom-anchored menu. Checked on FST_Phone with fixtures: Settings and the player profile, from both the portrait sheet and the landscape menu (then a top-bar action; since #576 both open from the floating toolbar). Order, jump and `selected`/`checked` were correct, so no change was needed. The order is guarded by `QuickLinksPageOrderUiTest` and `QuickLinksPageSweepUiTest` (see [Page-order guard](#page-order-guard-issues-50-158)).
 
 ## Adoption
 
 | Page | Status |
 |---|---|
 | Settings | Done: `app-settings`, `item-shop`, `show-instruments`, `show-metadata`, `accessibility` (native), `version`, `service-info`, `first-run`, `licenses`, `privacy-policy`, `reset` (no `refresh-profile-name`/`export` rows; no `diagnostics`, the section is gone in every build, #374) |
-| Player / Statistics | Done: `global` "Global Statistics", `instrument:<wire>` per visible chart, `top-songs`, `bands` (staggered grid; with a separating hinge the grid splits at the fold and Quick Links stay in the top bar instead of taking a panel) |
+| Player / Statistics | Done: `global` "Global Statistics", `instrument:<wire>` per visible chart, `top-songs`, `bands` (staggered grid; with a separating hinge the grid splits at the fold and Quick Links stay the floating-toolbar menu anchored in the pane that owns the toolbar, never a panel or the top app bar, R4/#576) |
 | Songs | Done: sort buckets (`<webId>:<token>`, e.g. `duration:lt2`, `shop:in-shop`, `hasfc:fc`) for every sort except Title/Artist/Year, which keep the section index (as iPhone) |
 | Song Detail (pushed page only) | Done: `intensity`, `score-history` (only when the page shows the card: one `showHistory` flag feeds `SongDetailLayout.items` and `.quickLinks`), `instrument-<wire>` per visible chart, `band-<wire>` per band size |
 | Compete | Done: `leaderboards`, `rivals` (staggered grid headers; none while a full-page issue shows) |
 | Leaderboards | Done: `rank-history` (selected player), `instrument:<wire>`, `band:<wire>` |
 | Band Detail (one pane) | Done: `members`, `summary`, `statistics`, `rank-history`, `songs` (`rememberScrollQuickLinks`; no Quick Links in two panes) |
-| Rivals, Rival Detail, Rivalry | Done: the loaded hub cards (`common`, combo, `<wire>` / `leaderboard.<wire>`), `rival-category:<key>`, `<songId>:<wire>:<index>` per song |
+| Rivals | Done: the loaded hub cards (`common`, combo, `<wire>` / `leaderboard.<wire>`) |
+| Rival Detail | Done: `rival-category:<key>` per loaded category |
+| Rivalry | **None** ([quick-links](../../patterns/quick-links.md) R8, owner #545): one link per song only repeated the list, so `RivalryScreen` has no entry point and `RivalQuickLinks` has no per-song builder. Do not restore it |
 
 ## Validation (issue #137)
 
@@ -51,7 +53,7 @@ Checked on the live public service (Settings page) on every FST AVD, light/dark 
 
 | Configuration | Finding |
 |---|---|
-| FST_Phone portrait | Toolbar sheet; opens partially expanded when > 8 sections (drag up for the rest, M3 default). The selected pill was inset 24 dp start / 12 dp end; **fixed** to 24 dp both sides (`SectionList` `end = 12.dp`) |
+| FST_Phone portrait | Toolbar sheet; opens fully expanded at any section count (`modal-shell` R13, #586: the > 8-section sheet used to open at half height, hiding rows below Pro Lead on Song Details). The selected pill was inset 24 dp start / 12 dp end; **fixed** to 24 dp both sides (`SectionList` `end = 12.dp`) |
 | FST_Phone landscape, FST_Tablet, FST_Resizable medium/expanded, unfolded folds | Anchored menu. At font 2.0 the trailing "Current" label shared M3's 280 dp item cap and broke "Show Instrument Metadata" mid-word; **fixed** by `QuickLinkMenuLabel` (title, then "Current" beneath). Long titles now wrap only between words and the menu scrolls |
 | FST_Book_Fold / FST_Passport_Fold folded, FST_TriFold folded | Compact sheet, as the phone |
 | FST_Book_Fold half-open (vertical hinge) | Page on the start pane, menu anchored to the end-side button; no row straddles the hinge |
@@ -63,7 +65,7 @@ Checked on the live public service (Settings page) on every FST AVD, light/dark 
 
 ## Validation (issue #154)
 
-Re-check of the #46 order on the live public service (Settings with 12 sections in debug: `app-settings` … `privacy-policy`, `reset`; player profile `SFentonX`: Global, 9 instruments, Top Songs, Bands). Each case opened Quick Links, jumped (Settings → Service Info, profile → Top Songs; on phone landscape → Show Instrument Metadata / Drums), then reopened it. **The order matches the page everywhere, so no app change was needed.**
+Re-check of the #46 order on the live public service (entry points as they were then; since #576 every "Top-bar menu" below opens from the floating toolbar, [Design decision](#design-decision-m3-first-fluent-second)) (Settings with 12 sections in debug: `app-settings` … `privacy-policy`, `reset`; player profile `SFentonX`: Global, 9 instruments, Top Songs, Bands). Each case opened Quick Links, jumped (Settings → Service Info, profile → Top Songs; on phone landscape → Show Instrument Metadata / Drums), then reopened it. **The order matches the page everywhere, so no app change was needed.**
 
 | Configuration | Entry point | Finding |
 |---|---|---|
@@ -82,7 +84,7 @@ Re-check of the #46 order on the live public service (Settings with 12 sections 
 ## Page-order guard (issues #50, #158)
 
 - **Rule:** on every Quick Links page, the sheet and the menu list sections in the page's rendered order: top to bottom, start to end within a row, parent before nested. Score History on Song Detail is listed exactly when the page shows its card (one `showHistory` flag). Songs lists the applied sort's buckets in list order, reversed when the sort is descending.
-- **Every Quick Links page needs an order test** that reads the *rendered* section anchors (not the Quick Links model) and compares them with every `fst.quick-links.item.*` from the open sheet (411 dp) and menu (1280 dp): `QuickLinksPageOrderUiTest` (Settings, profile) and `QuickLinksPageSweepUiTest` (Song Detail with and without Score History, Compete, Leaderboards, Band Detail, Rivals hub, Rival Detail, Rivalry, and Songs for every bucketed sort plus a descending sort). A new Quick Links page adds its case here.
+- **Every Quick Links page needs an order test** that reads the *rendered* section anchors (not the Quick Links model) and compares them with every `fst.quick-links.item.*` from the open sheet (411 dp) and menu (1280 dp): `QuickLinksPageOrderUiTest` (Settings, profile) and `QuickLinksPageSweepUiTest` (Song Detail with and without Score History, Compete, Leaderboards, Band Detail, Rivals hub, Rival Detail, and Songs for every bucketed sort plus a descending sort). A new Quick Links page adds its case here. Rivalry has no Quick Links ([quick-links](../../patterns/quick-links.md) R8, owner #545); the same class asserts no entry point there at both widths (`rivalryHasNoQuickLinks*`).
 - **Test gotchas:** wide Compete opens through `CompeteRoute` (the permanent drawer has no Compete destination). Close Quick Links by choosing an item, not Back, because Back also pops a pushed page. Songs headers are sticky, so read new headers per scroll step in first-seen order.
 - **Device runs:** when other lanes switch AVDs, the first `uiautomator dump` after a cold boot often fails. Run two or three warm-up dumps before the first `waitfor`, and reinstall the APK in the same device-lock hold as each check (other lanes install their own builds of the package).
 

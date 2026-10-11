@@ -6,7 +6,7 @@ Source: `FortniteFestivalWeb/src/pages/songs/components/SongRow.tsx:190-200,251-
 
 ## When chips show
 
-One chip per **enabled** solo chart, in the service's stable nine-chart order, only when: an explicitly selected player's public 200 scores are available, Show Instrument Icons is on, Songs is not filtered to one chart, and Filter Invalid Scores is off. Derive ≤9 statuses from the existing validated per-song score index — no extra GET, no selected-profile headers, no raw profile bytes across accounts, never for bands. Otherwise use the [metadata](../song-score-metadata/spec.md) presentation.
+One chip per **enabled** solo chart, in the service's stable nine-chart order, only when: an explicitly selected player's public 200 scores are available, Show Instrument Icons is on, and Songs is not filtered to one chart. With Filter Invalid Scores on, statuses use effective scores ([invalid-scores](../../patterns/invalid-scores.md) R3; #613). Derive ≤9 statuses from the existing validated per-song score index — no extra GET, no selected-profile headers, no raw profile bytes across accounts, never for bands. Otherwise use the [metadata](../song-score-metadata/spec.md) presentation.
 
 ## Status rules
 

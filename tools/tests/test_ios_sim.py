@@ -185,6 +185,32 @@ class CiDeviceTests(unittest.TestCase):
         devices["ios-27-1"].append({"name": ipad, "udid": "PAD"})
         self.assertEqual(existing_ci_device(devices, "ios-27-1", ipad), "PAD")
 
+    def test_creates_the_ipad_beside_the_iphone(self):
+        import argparse
+        import contextlib
+        import io
+        import json
+        import os
+        import subprocess
+        from unittest import mock
+
+        runtimes = {"runtimes": [{"platform": "iOS", "version": "27.1", "identifier": "ios-27-1",
+                                  "supportedDeviceTypes": [{"name": ios_sim.CI_IPAD_DEVICE_TYPE, "identifier": "dt.ipad"}]}]}
+        devices = {"devices": {"ios-27-1": [{"name": ios_sim.CI_DEVICE_NAME, "udid": "PHONE"}]}}
+        replies = [json.dumps(runtimes), json.dumps(devices), "IPAD\n"]
+        calls = []
+
+        def run(cmd, **_):
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, stdout=replies[len(calls) - 1])
+
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}), mock.patch.object(ios_sim, "_run", run), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(ios_sim.cmd_ci_device(argparse.Namespace(type=ios_sim.CI_IPAD_DEVICE_TYPE)), 0)
+        self.assertEqual(out.getvalue().strip(), "IPAD")
+        self.assertEqual(calls[-1][-4:], ["create", ios_sim.ci_device_name(ios_sim.CI_IPAD_DEVICE_TYPE), "dt.ipad", "ios-27-1"])
+
     def test_refuses_outside_ci(self):
         import argparse
         import os
@@ -577,6 +603,22 @@ class A11yCommandsTests(unittest.TestCase):
         self.assertEqual(enable[0][4:6], ["defaults", "write"])
         self.assertIn("EnhancedTextLegibilityEnabled", enable[0])
         self.assertEqual(restore[0][4:7], ["defaults", "delete", "com.apple.Accessibility"])
+
+    def test_full_keyboard_access_notifies_after_enabling_and_restoring(self):
+        enable, restore = a11y_commands("UDID", ["full-keyboard-access"])
+        self.assertIn("FullKeyboardAccessUsesSimulatedKeyboardForAutomation", enable[0])
+        self.assertIn("FullKeyboardAccessEnabled", enable[1])
+        self.assertEqual(enable[2][4:], ["notifyutil", "-p", "com.apple.accessibility.fullkeyboardaccess.status"])
+        self.assertEqual([cmd[4:6] for cmd in restore[:2]], [["defaults", "delete"]] * 2)
+        self.assertIn("FullKeyboardAccessEnabled", restore[0])
+        self.assertIn("FullKeyboardAccessUsesSimulatedKeyboardForAutomation", restore[1])
+        self.assertEqual(restore[2], enable[2])
+
+    def test_settings_restore_independently(self):
+        enable, restore = a11y_commands("UDID", ["bold-text", "full-keyboard-access"])
+        self.assertEqual(len(enable), 4)
+        self.assertIn("notifyutil", restore[2])
+        self.assertIn("EnhancedTextLegibilityEnabled", restore[3])
 
     def test_unknown_setting_is_rejected(self):
         with self.assertRaises(ValueError):

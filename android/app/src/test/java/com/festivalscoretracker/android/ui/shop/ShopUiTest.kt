@@ -7,6 +7,8 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -113,7 +115,9 @@ class ShopUiTest {
         // Compact windows always list: no Grid/List toggle; the filter keeps its spoken label.
         assertTrue(absent("fst.shop.view-toggle"))
         rule.onNodeWithTag("fst.shop.filter.open").assertContentDescriptionEquals("Filter Item Shop")
-        rule.onNodeWithTag("fst.shop.badge.new.s-beta", useUnmergedTree = true).assertIsDisplayed()
+        // Issue #562: New has no visible label (gold outline only, like the web); TalkBack still hears it as the row's state.
+        assertTrue(absent("fst.shop.badge.new.s-beta"))
+        rule.onNodeWithTag("fst.shop.song.s-beta").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "New"))
         rule.onNodeWithTag("fst.shop.badge.leaving.s-alpha", useUnmergedTree = true).assertIsDisplayed()
 
         val link = rule.onNodeWithTag("fst.shop.external.s-beta")
@@ -219,10 +223,13 @@ class ShopUiTest {
         launch()
         waitForTag("fst.shop.song.s-beta")
         val row = rule.onNodeWithTag("fst.shop.song.s-beta").fetchSemanticsNode().boundsInRoot
-        listOf("Beta Song", "New").forEach { text ->
+        listOf("Beta Song").forEach { text ->
             val bounds = rule.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
             assertTrue("$text $bounds outside row $row", bounds.top >= row.top && bounds.bottom <= row.bottom)
         }
+        val leavingRow = rule.onNodeWithTag("fst.shop.song.s-alpha").fetchSemanticsNode().boundsInRoot
+        val leaving = rule.onNodeWithTag("fst.shop.badge.leaving.s-alpha", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertTrue("Leaving Tomorrow $leaving outside row $leavingRow", leaving.top >= leavingRow.top && leaving.bottom <= leavingRow.bottom)
         val link = rule.onNodeWithTag("fst.shop.external.s-beta").fetchSemanticsNode().boundsInRoot
         assertTrue("link $link outside row $row", link.left >= row.left && link.right <= row.right)
 

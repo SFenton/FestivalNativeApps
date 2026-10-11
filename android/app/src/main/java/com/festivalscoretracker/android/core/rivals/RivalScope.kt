@@ -106,6 +106,16 @@ object RivalCombo {
     fun isValidToken(token: String): Boolean = instrumentsFor(token) != null
 
     /**
+     * Charts of a combo the service ranks (web `isRankingScopeComboId`): a hex ID of a
+     * within-group combo, so the Pro Drums family token and cross-group masks are rejected.
+     *
+     * @param token Candidate combo ID.
+     * @return Charts in service order, or null when the service has no board for it.
+     */
+    fun rankingComboInstruments(token: String?): List<Instrument>? =
+        token?.takeIf { it != PRO_DRUMS_TOKEN }?.let(::instrumentsFor)?.takeIf { isWithinGroup(mask(it)) }
+
+    /**
      * Display label: web `rivals.proDrumsFamily`, else the joined chart names
      * (`comboScopeLabel`), else `rivals.combo`.
      *
@@ -253,6 +263,18 @@ object RivalScopes {
             else -> null
         }
     }
+
+    /**
+     * Gate a routed scope on Settings → Experimental Ranks (web `RivalsPage`/`AllRivalsPage`
+     * `coerceRankingMetric`, experimental-ranks R2): a leaderboard scope with an experimental
+     * metric falls back to Total Score while the setting is off; other scopes are unchanged.
+     *
+     * @param scope Route scope.
+     * @param experimentalRanks `AppSettings.experimentalRanks`.
+     * @return The scope to read.
+     */
+    fun gated(scope: RivalScope, experimentalRanks: Boolean): RivalScope =
+        if (scope is RivalScope.Leaderboard) scope.copy(rankBy = scope.rankBy.gated(experimentalRanks)) else scope
 
     /**
      * Resolve a list scope against Settings (web `AllRivalsPage` category handling).

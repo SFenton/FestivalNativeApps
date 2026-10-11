@@ -251,10 +251,10 @@ struct RivalDetailAccessibilityTests {
         }
         let pulse = rows.filter { $0.spokenName.hasPrefix("Fixture Pulse") }.map(\.spokenName)
         #expect(Set(pulse) == [
-            "Fixture Pulse, Lead, you rank 10, Rival Nine ranks 11",
-            "Fixture Pulse, Bass, you rank 12, Rival Nine ranks 10",
+            "Fixture Pulse, Lead, you rank 10, Rival Nine ranks 11, you lead",
+            "Fixture Pulse, Bass, you rank 12, Rival Nine ranks 10, Rival Nine leads",
         ], "the Lead and Bass rows of one song read differently: \(pulse)")
-        #expect(rows.contains { $0.spokenName == "Fixture Orbit, Lead, you rank 3, Rival Nine ranks 20" }, "\(dump)")
+        #expect(rows.contains { $0.spokenName == "Fixture Orbit, Lead, you rank 3, Rival Nine ranks 20, you lead" }, "\(dump)")
 
         let links = Self.viewAlls(elements)
         #expect(!links.isEmpty, "\(dump)")
@@ -313,10 +313,13 @@ struct RivalDetailAccessibilityTests {
 
     // MARK: - Text scaling
 
-    /// At AX5 the rows keep their full names, grow with the text (the rank comparison
-    /// stacks one part per line) and stay inside the page; View All stays reachable.
+    /// At AX5 the rows keep their full names, grow with the text (the rank pills stack one
+    /// per line) and stay inside the page; View All stays reachable. macOS does not scale fonts
+    /// with Dynamic Type, and the 72 pt art + instrument column (#558) sets a standard row's
+    /// height, so here the stacking alone must grow it; the device journeys
+    /// (`RivalDetailFrozenAccessibilityJourneyTests`) measure the ≥ 1.35× Dynamic Type growth.
     @Test func frozenRivalDetailGrowsAtAccessibilitySizes() async throws {
-        let name = "Fixture Orbit, Lead, you rank 3, Rival Nine ranks 20"
+        let name = "Fixture Orbit, Lead, you rank 3, Rival Nine ranks 20, you lead"
         let standard = try await Self.hostLoaded(.large)
         let standardRow = try #require(Self.frame(named: name, in: standard.host))
         standard.close()
@@ -327,7 +330,7 @@ struct RivalDetailAccessibilityTests {
         let elements = macAccessibilityTree(host).filter(\.isElement)
         macAccessibilityDump(elements, name: "rival-detail-frozen-ax5")
         let row = try #require(Self.frame(named: name, in: host), "the AX5 row keeps its whole name")
-        #expect(row.height >= standardRow.height * 1.35, "the row grows with its text: \(standardRow.height) → \(row.height)")
+        #expect(row.height > standardRow.height + 4, "the stacked pills grow the row: \(standardRow.height) → \(row.height)")
         #expect(row.minX >= -0.5 && row.maxX <= host.bounds.width + 0.5, "no sideways overflow: \(row)")
         for node in Self.songRows(elements) {
             #expect(node.role == "AXButton", "\(node)")

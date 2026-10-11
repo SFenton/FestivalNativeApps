@@ -5,9 +5,11 @@ import com.festivalscoretracker.android.core.bands.BandRankingMetric
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.bands.PlayerBandGroup
 import com.festivalscoretracker.android.core.model.FestivalApiException
+import com.festivalscoretracker.android.core.service.ServiceFreezeReason
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.data.FestivalApi
+import com.festivalscoretracker.android.data.HttpResult
 import com.festivalscoretracker.android.data.bands.bandProfile
 import com.festivalscoretracker.android.data.bands.bandRankHistory
 import com.festivalscoretracker.android.data.bands.bandSongExtremes
@@ -24,7 +26,10 @@ import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.MainDispatcherRule
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -42,8 +47,10 @@ class BandsViewModelTest {
     private val api = FestivalApi("https://fixture.test", transport)
     private val backoff = ServiceRetryBackoff()
 
+    private val experimentalRanks = MutableStateFlow(true)
+
     private fun detailViewModel(type: String? = "Band_Duets", key: String? = BandFixtures.DUO_KEY) =
-        BandDetailViewModel(type, key, api::bandProfile, api::bandRankHistory, api::bandSongExtremes, { api.catalog() }, backoff)
+        BandDetailViewModel(type, key, api::bandProfile, api::bandRankHistory, api::bandSongExtremes, { api.catalog() }, backoff, experimentalRanks)
 
     // region Paging helper
 
@@ -175,6 +182,24 @@ class BandsViewModelTest {
     }
 
     @Test
+    fun detailRankByFollowsExperimentalRanks() = runTest(main.dispatcher) {
+        experimentalRanks.value = false
+        val viewModel = detailViewModel()
+        advanceUntilIdle()
+        assertFalse(viewModel.experimentalRanks.value)
+        viewModel.selectMetric(BandRankingMetric.Weighted)
+        assertEquals(BandRankingMetric.TotalScore, viewModel.metric.value)
+        experimentalRanks.value = true
+        advanceUntilIdle()
+        viewModel.selectMetric(BandRankingMetric.Weighted)
+        assertEquals(BandRankingMetric.Weighted, viewModel.metric.value)
+        // Turning the setting off takes the page back to Total Score.
+        experimentalRanks.value = false
+        advanceUntilIdle()
+        assertEquals(BandRankingMetric.TotalScore, viewModel.metric.value)
+    }
+
+    @Test
     fun unrankedTeamIsNotFoundAndSkipsSections() = runTest(main.dispatcher) {
         val viewModel = detailViewModel(key = "${BandFixtures.DUO_KEY}x")
         advanceUntilIdle()
@@ -192,6 +217,42 @@ class BandsViewModelTest {
         val viewModel = detailViewModel()
         advanceUntilIdle()
         assertTrue(viewModel.songs.value.valueOrNull!!.songsById.isEmpty())
+    }
+
+    @Test
+    fun scrapeKeepsBandSectionsAlreadyReadThisPublication() = runTest(main.dispatcher) {
+        detailViewModel()
+        advanceUntilIdle()
+        // A scrape starts: the service answers this headerless band's reads with a freeze 503 (#554).
+        var profileFrozen = true
+        var sectionsFrozen = true
+        val freeze = HttpResult(503, ByteArray(0), mapOf("Retry-After" to "30", ServiceFreezeReason.HEADER to "scrape", "X-FST-Publication-Id" to "7"))
+        val pin = mapOf("X-FST-Publication-Id" to "7")
+        transport.onRaw("/api/rankings/bands/Band_Duets") { if (profileFrozen) freeze else HttpResult(200, BandFixtures.bandProfile(teamKey = BandFixtures.DUO_KEY).toByteArray(), pin) }
+        transport.onRaw("/api/rankings/bands/Band_Duets/${BandFixtures.DUO_KEY}/history") { if (sectionsFrozen) freeze else HttpResult(200, BandFixtures.history().toByteArray(), pin) }
+        transport.onRaw("/api/rankings/bands/Band_Duets/${BandFixtures.DUO_KEY}/songs") { if (sectionsFrozen) freeze else HttpResult(200, BandFixtures.songs.toByteArray(), pin) }
+
+        // Revisiting the band keeps its last published row, history and best/worst songs.
+        val revisit = detailViewModel()
+        runCurrent()
+        assertEquals(BandFixtures.DUO_ID, revisit.detail.value.valueOrNull!!.bandId)
+        assertEquals(4, revisit.history.value.valueOrNull!!.history.size)
+        assertEquals("s-alpha", revisit.songs.value.valueOrNull!!.response.best.single().songId)
+
+        // Sections this client never read still show the scrape status (never "No band songs yet")
+        // and fill in on their automatic retry.
+        val fresh = FestivalApi("https://fixture.test", transport)
+        profileFrozen = false
+        val firstVisit = BandDetailViewModel("Band_Duets", BandFixtures.DUO_KEY, fresh::bandProfile, fresh::bandRankHistory, fresh::bandSongExtremes, { fresh.catalog() }, ServiceRetryBackoff(), experimentalRanks)
+        runCurrent()
+        assertTrue(firstVisit.detail.value is LoadState.Loaded)
+        assertTrue((firstVisit.songs.value as LoadState.Failed).issue is ServiceIssue.ScrapeInProgress)
+        assertTrue((firstVisit.history.value as LoadState.Failed).issue is ServiceIssue.ScrapeInProgress)
+        sectionsFrozen = false
+        advanceTimeBy(31_000)
+        runCurrent()
+        assertEquals("s-alpha", firstVisit.songs.value.valueOrNull!!.response.best.single().songId)
+        assertEquals(4, firstVisit.history.value.valueOrNull!!.history.size)
     }
 
     // endregion

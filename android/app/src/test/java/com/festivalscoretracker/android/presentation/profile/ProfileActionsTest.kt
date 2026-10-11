@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.presentation.profile
 import com.festivalscoretracker.android.core.bands.PlayerBandGroup
 import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.nav.FullRankingsRoute
@@ -172,10 +173,19 @@ class ProfileActionsTest {
         vm.ensureInstrument(Instrument.Lead)
         advanceUntilIdle()
         val rank = vm.ranks.value[Instrument.Lead] as RankLoad.Available
-        val open = rank.tiles.single().action as PlayerTileAction.OpenRankings
+        val total = RankLoad.tiles(rank, experimentalRanks = false).single()
+        val open = total.action as PlayerTileAction.OpenRankings
         assertEquals(Instrument.Lead, open.instrument)
-        assertEquals(RankLoad.TILE_LABEL, rank.tiles.single().label)
+        assertEquals(RankingMetric.TotalScore, open.metric)
+        assertEquals(RankLoad.TILE_LABEL, total.label)
         assertEquals(1, open.page)
+        // Experimental Ranks on (#541): one web rank card per metric, each opening its own board.
+        val all = RankLoad.tiles(rank, experimentalRanks = true)
+        assertEquals(RankingMetric.entries.map { RankLoad.tileLabel(it) }, all.map { it.label })
+        assertEquals(RankingMetric.entries.map { RankLoad.tileId(it) }, all.map { it.id })
+        all.zip(RankingMetric.entries).forEach { (tile, metric) ->
+            (tile.action as? PlayerTileAction.OpenRankings)?.let { assertEquals(metric, it.metric) } ?: assertEquals("—", tile.value)
+        }
     }
 
     @Test

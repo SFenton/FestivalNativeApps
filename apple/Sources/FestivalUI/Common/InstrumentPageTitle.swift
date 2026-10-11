@@ -14,7 +14,9 @@ import FestivalDesign
 /// text at every Dynamic Type size (HIG Icons: "Match icon weight to adjacent text").
 /// The artwork's visible disc fills about 84% of its square, so a square slightly
 /// taller than the font's point size reads as the same height as the capitals. A band
-/// board has no instrument, so its title is the band size alone.
+/// board has no instrument, so its title is the band size alone. A combo board (issue
+/// #602) draws its instruments' artwork in a row above the heading, as the web
+/// `FullRankingsPage` does, and its pinned bar title is the text alone.
 struct InstrumentPageTitle: View {
     /// Where the title is drawn.
     enum Style {
@@ -24,8 +26,9 @@ struct InstrumentPageTitle: View {
         case pinned
     }
 
-    /// The chart whose artwork leads the title; nil draws the title alone.
-    let instrument: Instrument?
+    /// The charts whose artwork leads the title: none draws the title alone, one leads
+    /// it, several (a combo) sit in a row above the header.
+    let instruments: [Instrument]
     let title: String
     /// A secondary line under a header title (a board's entry total); ignored when pinned.
     var subtitle: String?
@@ -47,7 +50,25 @@ struct InstrumentPageTitle: View {
         instrument: Instrument?, title: String, subtitle: String? = nil, style: Style,
         identifier: String
     ) {
-        self.instrument = instrument
+        self.init(
+            instruments: instrument.map { [$0] } ?? [], title: title, subtitle: subtitle,
+            style: style, identifier: identifier
+        )
+    }
+
+    /// Create a page title for a board of one or more charts.
+    ///
+    /// - Parameters:
+    ///   - instruments: The board's charts; several draw a combo's icon row.
+    ///   - title: The page's name, e.g. "Lead + Bass Rankings".
+    ///   - subtitle: A secondary line under the header title, or nil.
+    ///   - style: The in-page heading or the bar's compact title.
+    ///   - identifier: Accessibility identifier of the title.
+    init(
+        instruments: [Instrument], title: String, subtitle: String? = nil, style: Style,
+        identifier: String
+    ) {
+        self.instruments = instruments
         self.title = title
         self.subtitle = subtitle
         self.style = style
@@ -56,7 +77,7 @@ struct InstrumentPageTitle: View {
 
     var body: some View {
         HStack(spacing: style == .header ? 10 : 6) {
-            if let instrument {
+            if instruments.count == 1, let instrument = instruments.first {
                 InstrumentIcon(instrument, size: style == .header ? headerIconSide : pinnedIconSide)
                     .fixedSize()
                     .accessibilityHidden(true)
@@ -64,6 +85,10 @@ struct InstrumentPageTitle: View {
             switch style {
             case .header:
                 VStack(alignment: .leading, spacing: 2) {
+                    if instruments.count > 1 {
+                        InstrumentIconRow(instruments: instruments, side: headerIconSide, spacing: 8)
+                            .padding(.bottom, 4)
+                    }
                     Text(title)
                         .font(.largeTitle.bold())
                         .foregroundStyle(FestivalText.primary)
@@ -89,6 +114,30 @@ struct InstrumentPageTitle: View {
     }
 }
 
+// MARK: - Combo icon row
+
+/// A combo's instrument artwork in a row (web `CompeteScopeHeader` / `FullRankingsPage`
+/// combo title: the icons above the "Lead + Bass" label). Decorative: the label beside
+/// it names the instruments, so it is hidden from VoiceOver.
+struct InstrumentIconRow: View {
+    let instruments: [Instrument]
+    /// Side of each icon's square.
+    let side: CGFloat
+    /// Gap between icons: web `Gap.sm` (4 pt) in Compete's card header, `Gap.md` (8 pt)
+    /// in the Full Rankings title.
+    var spacing: CGFloat = 4
+
+    var body: some View {
+        HStack(spacing: spacing) {
+            ForEach(instruments, id: \.self) { instrument in
+                InstrumentIcon(instrument, size: side)
+                    .fixedSize()
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 // MARK: - Pinned bar title
 
 /// The bar's principal item on a page with an ``InstrumentPageTitle`` heading: the
@@ -108,6 +157,17 @@ struct InstrumentPageTitleToolbarItem: ToolbarContent {
     let isShown: Bool
     /// Accessibility identifier of the shown title.
     let identifier: String
+
+    /// Whether a page whose top bar minimizes on scroll (Full Rankings, All Rivals) may
+    /// pin its title in this chrome: not on the iPhone Duo vertical bar, where the
+    /// system title stays instead (pattern `page-tools-and-nav-chrome` R14). Song
+    /// pages keep their top bar (#363) and do not ask.
+    ///
+    /// - Parameter chrome: The section chrome the page is shown in.
+    /// - Returns: False on the vertical bar, true otherwise.
+    nonisolated static func pinsTitle(in chrome: DeviceLayout.SectionChrome) -> Bool {
+        !chrome.isVerticalBar
+    }
 
     var body: some ToolbarContent {
         ToolbarItem(placement: .principal) {

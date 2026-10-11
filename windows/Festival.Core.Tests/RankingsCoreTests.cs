@@ -19,6 +19,16 @@ public static class RankingsWire
     public static string BandBoard(string bandType, int page, int pageSize, int total, IEnumerable<int> ranks) =>
         $$"""{"bandType":"{{bandType}}","rankBy":"totalscore","page":{{page}},"pageSize":{{pageSize}},"totalTeams":{{total}},"entries":[{{string.Join(",", ranks.Select(BandEntry))}}]}""";
 
+    public static string ComboEntry(int rank, string? accountId = null, bool withName = true) =>
+        string.Create(CultureInfo.InvariantCulture,
+            $$"""{"rank":{{rank}},"accountId":"{{accountId ?? $"acct{rank}"}}",{{(withName ? $"\"displayName\":\"Player {rank}\"," : "")}}"adjustedRating":0.0{{rank}},"weightedRating":0.1{{rank}},"fcRate":0.6,"totalScore":{{400_000_000 - rank}},"maxScorePercent":0.9{{rank}},"songsPlayed":{{2900 - rank}},"totalChartedSongs":2932,"fullComboCount":{{2800 - rank}},"computedAt":"2026-10-10T20:37:03Z"}""");
+
+    public static string ComboBoard(string comboId, int page, int pageSize, int total, IEnumerable<int> ranks, string rankBy = "totalscore") =>
+        $$"""{"comboId":"{{comboId}}","rankBy":"{{rankBy}}","page":{{page}},"pageSize":{{pageSize}},"totalAccounts":{{total}},"entries":[{{string.Join(",", ranks.Select(r => ComboEntry(r)))}}]}""";
+
+    public static string PlayerCombo(string comboId, int rank, string accountId, string rankBy = "totalscore") =>
+        ComboEntry(rank, accountId).Replace("{", $$"""{"comboId":"{{comboId}}","rankBy":"{{rankBy}}","totalAccounts":247907,""", StringComparison.Ordinal);
+
     public static AccountRankingEntry Account(int rank, string? accountId = null) =>
         System.Text.Json.JsonSerializer.Deserialize(Entry(rank, accountId), TestJson.Default.AccountRankingEntry)!;
 }
@@ -245,7 +255,7 @@ public sealed class RankingsModelTests
         var entry = board.Entries[0];
         Assert.Equal(3, board.PageCount);
         Assert.Equal("Member A, Unknown User", entry.MembersLabel);
-        Assert.Equal([2, 3, 4, 2], BandRankingMetricInfo.All.Select(entry.Rank));
+        Assert.Equal([2, 2, 3, 4], BandRankingMetricInfo.All.Select(entry.Rank));
         Assert.Equal(0.04, entry.RatingValue(BandRankingMetric.Adjusted));
         Assert.Equal(0.05, entry.RatingValue(BandRankingMetric.Weighted));
         Assert.Equal(0.7, (entry with { RawWeightedRating = 0.7 }).RatingValue(BandRankingMetric.Weighted));

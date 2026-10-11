@@ -6,6 +6,7 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.notifications.ImprovementNotification
 import com.festivalscoretracker.android.core.notifications.NotificationDestination
 import com.festivalscoretracker.android.core.notifications.NotificationPresentation
+import com.festivalscoretracker.android.core.notifications.NotificationRouting
 import com.festivalscoretracker.android.core.notifications.NotificationSeenStore
 import com.festivalscoretracker.android.core.notifications.NotificationText
 import com.festivalscoretracker.android.core.notifications.NotificationsEnvelope
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -107,6 +109,8 @@ sealed interface NotificationsState {
  * @param artwork Absolute album-art URL for a row (catalogue art, else the shop payload's), if any.
  * @param clock Current time for relative labels.
  * @param scope Scope for loads (the view model scope by default).
+ * @param experimentalRanks Settings → Experimental Ranks: while off, experimental rank changes are
+ *   hidden ([NotificationRouting.projectExperimentalRanks], experimental-ranks R4).
  */
 class NotificationsViewModel(
     player: Flow<SelectedPlayer?>,
@@ -116,6 +120,7 @@ class NotificationsViewModel(
     private val artwork: suspend (ImprovementNotification) -> String? = { null },
     private val clock: () -> Instant = Instant::now,
     scope: CoroutineScope? = null,
+    experimentalRanks: Flow<Boolean> = flowOf(false),
 ) : ViewModel() {
     private val work: CoroutineScope = scope ?: viewModelScope
     private val stateFlow = MutableStateFlow<NotificationsState>(NotificationsState.NoPlayer)
@@ -124,6 +129,7 @@ class NotificationsViewModel(
     private var envelope: NotificationsEnvelope? = null
     private var loadedAccount: String? = null
     private var job: Job? = null
+    private var showExperimental = false
 
     /** Current sheet state. */
     val state: StateFlow<NotificationsState> = stateFlow.asStateFlow()
@@ -136,6 +142,12 @@ class NotificationsViewModel(
             player.map { it?.accountId }.distinctUntilChanged().collect { id ->
                 account = id
                 refresh()
+            }
+        }
+        work.launch {
+            experimentalRanks.distinctUntilChanged().collect { enabled ->
+                showExperimental = enabled
+                apply()
             }
         }
     }
@@ -190,7 +202,7 @@ class NotificationsViewModel(
     /** Sheet closed: every loaded row becomes seen and moves to Older. */
     fun markAllSeen() {
         val id = loadedAccount ?: return
-        val items = envelope?.items.orEmpty()
+        val items = visibleItems()
         if (items.isEmpty()) return
         work.launch {
             seenStore.markSeen(id, items.map { it.notificationGuid }, feedIds())
@@ -200,12 +212,15 @@ class NotificationsViewModel(
 
     private fun feedIds(): List<String> = envelope?.items.orEmpty().map { it.notificationGuid }
 
+    private fun visibleItems(): List<ImprovementNotification> =
+        envelope?.items.orEmpty().mapNotNull { NotificationRouting.projectExperimentalRanks(it, showExperimental) }
+
     private suspend fun apply() {
         val id = loadedAccount ?: return
         val feed = envelope ?: return
         val seen = seenStore.seen(id)
         val now = clock()
-        val rows = feed.items.orEmpty().sortedByDescending { it.detectedInstant }.map { item ->
+        val rows = visibleItems().sortedByDescending { it.detectedInstant }.map { item ->
             val title = item.songId?.let { songTitle(it) }
             NotificationRow(NotificationText.format(item, title, artwork(item)), item.notificationGuid !in seen, NotificationText.relativeTime(item.detectedInstant, now))
         }

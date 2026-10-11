@@ -86,7 +86,9 @@ public class SettingsModelsTests
             PathDefaultView = (PathDisplayMode)9, SongRowVisualOrder = [MetadataField.Stars], PathColumnOrder = null!,
         }.Sanitized();
         Assert.Equal(5, raw.Leeway);
-        Assert.False(raw.ExperimentalRanks);
+        Assert.True(raw.ExperimentalRanks);
+        Assert.False(new AppSettings().ExperimentalRanks);
+        Assert.False(raw.ResetAppSettings().ExperimentalRanks);
         Assert.Equal(PathDisplayMode.Image, raw.PathDefaultView);
         Assert.Equal(MetadataField.Stars, raw.SongRowVisualOrder[0]);
         Assert.Equal(8, raw.SongRowVisualOrder.Count);

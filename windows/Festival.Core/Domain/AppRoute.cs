@@ -194,20 +194,36 @@ public abstract record AppRoute
         public override string ToPath() => "/leaderboards";
     }
 
-    /// <summary><c>/leaderboards/all?instrument=&amp;rankBy=[&amp;page=][&amp;navToPlayer=true]</c>.</summary>
-    /// <param name="Instrument">Chart.</param>
+    /// <summary><c>/leaderboards/all?instrument=&amp;rankBy=[&amp;page=][&amp;navToPlayer=true]</c>, or <c>?combo=</c> for a combo board.</summary>
+    /// <param name="Instrument">Chart (a combo route carries its first instrument).</param>
     /// <param name="RankBy">Ranking metric.</param>
     /// <param name="Page">Page to open (web <c>page</c>; the profile's Global Rank opens the player's own page).</param>
     /// <param name="RevealSelected">
     /// Bring the selected player's row into view once the page loads (the song boards' <c>navToPlayer</c>; a Leaderboards
     /// card's "your rank" row, issue #370).
     /// </param>
-    public sealed record FullRankings(Instrument Instrument, string RankBy, int Page = 1, bool RevealSelected = false) : AppRoute
+    /// <param name="Combo">
+    /// Within-group combo ID (web <c>Routes.fullComboRankings</c>, issue #602); <see langword="null"/> for an instrument board.
+    /// </param>
+    public sealed record FullRankings(Instrument Instrument, string RankBy, int Page = 1, bool RevealSelected = false, string? Combo = null) : AppRoute
     {
+        /// <summary>Route to a board's full rankings.</summary>
+        /// <param name="board">Instrument or combo board.</param>
+        /// <param name="rankBy">Ranking metric.</param>
+        /// <param name="page">Page to open.</param>
+        /// <param name="revealSelected">Bring the selected player's row into view.</param>
+        /// <returns>Route.</returns>
+        public static FullRankings For(RankingBoard board, string rankBy, int page = 1, bool revealSelected = false) =>
+            new(board.Instrument, rankBy, page, revealSelected, board.ComboId);
+
+        /// <summary>The board: the valid combo, else the instrument.</summary>
+        public RankingBoard Board => RankingBoard.Combo(Combo) ?? RankingBoard.Single(Instrument);
+
         /// <inheritdoc />
         public override AppSection Section => AppSection.Leaderboards;
         /// <inheritdoc />
-        public override string ToPath() => "/leaderboards/all" + Query(("instrument", Instrument.ServiceId()), ("rankBy", RankBy),
+        public override string ToPath() => "/leaderboards/all" + Query(
+            Board.ComboId is { } combo ? ("combo", combo) : ("instrument", Instrument.ServiceId()), ("rankBy", RankBy),
             ("page", Page > 1 || RevealSelected ? Page.ToString(System.Globalization.CultureInfo.InvariantCulture) : null),
             ("navToPlayer", RevealSelected ? "true" : null));
     }

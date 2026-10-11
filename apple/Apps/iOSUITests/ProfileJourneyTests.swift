@@ -36,7 +36,7 @@ final class ProfileJourneyTests: XCTestCase {
         let profile = app.buttons["fst.shell.profile"]
         XCTAssertTrue(profile.waitForExistence(timeout: 15))
         profile.tap()
-        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Search players or bands")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText(query)
@@ -178,11 +178,11 @@ final class ProfileJourneyTests: XCTestCase {
         let close = app.buttons["fst.profile.close"]
         XCTAssertTrue(close.waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["fst.profile.selected"].exists)
-        let hint = app.staticTexts["fst.profile.search-hint"]
+        let hint = app.staticTexts["fst.profile.hint"]
         XCTAssertTrue(hint.waitForExistence(timeout: 5))
         XCTAssertGreaterThan(hint.frame.minY, app.segmentedControls["fst.profile.scope"].frame.maxY)
         let search = app.searchFields.matching(
-            NSPredicate(format: "placeholderValue == %@", "Find Player")
+            NSPredicate(format: "placeholderValue == %@", "Search players or bands")
         ).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()

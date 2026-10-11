@@ -33,13 +33,13 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     /// on Lead and Bass, so only the instrument tells its two rows apart. A row can appear
     /// in more than one card (Closest Battles and Almost Passed, say).
     private static let rowNames: Set<String> = [
-        "Fixture Pulse, Lead, you rank 10, Rival Nine ranks 11",
-        "Fixture Pulse, Bass, you rank 12, Rival Nine ranks 10",
-        "Fixture Orbit, Lead, you rank 3, Rival Nine ranks 20",
+        "Fixture Pulse, Lead, you rank 10, Rival Nine ranks 11, you lead",
+        "Fixture Pulse, Bass, you rank 12, Rival Nine ranks 10, Rival Nine leads",
+        "Fixture Orbit, Lead, you rank 3, Rival Nine ranks 20, you lead",
     ]
 
     /// The row the growth check measures (first row of Closest Battles).
-    private static let firstRow = "Fixture Pulse, Lead, you rank 10, Rival Nine ranks 11"
+    private static let firstRow = "Fixture Pulse, Lead, you rank 10, Rival Nine ranks 11, you lead"
 
     /// The largest accessibility text size (AX5).
     private static let ax5 = UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue

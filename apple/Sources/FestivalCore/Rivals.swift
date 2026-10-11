@@ -46,6 +46,30 @@ public enum RivalRankMetric: String, CaseIterable, Sendable, Identifiable, Equat
         case .maxscore: "Max Score"
         }
     }
+
+    /// Whether this metric is experimental (pattern `experimental-ranks`).
+    public var isExperimental: Bool { self != .totalscore }
+
+    /// The Rank By order in web `RANKING_METRICS` order; never the enum's declaration
+    /// order (pattern `experimental-ranks` R1).
+    public static let menuOrder: [RivalRankMetric] = [.totalscore, .adjusted, .weighted, .fcrate, .maxscore]
+
+    /// The metrics the Leaderboard Rivals Rank By offers (see ``ExperimentalRanks``).
+    ///
+    /// - Parameter experimentalRanks: The Settings switch.
+    /// - Returns: Total Score alone while off; ``menuOrder`` while on.
+    public static func enabled(experimentalRanks: Bool) -> [RivalRankMetric] {
+        experimentalRanks ? menuOrder : [.totalscore]
+    }
+
+    /// This metric, or Total Score when it is experimental and the switch is off (web
+    /// `RivalsPage` / `AllRivalsPage` `coerceRankingMetric`).
+    ///
+    /// - Parameter experimentalRanks: The Settings switch.
+    /// - Returns: The metric in effect.
+    public func coerced(experimentalRanks: Bool) -> RivalRankMetric {
+        experimentalRanks || !isExperimental ? self : .totalscore
+    }
 }
 
 // MARK: - Combo overview (`GET /api/player/:accountId/rivals`)
@@ -268,6 +292,15 @@ public struct RivalCategory: Identifiable, Sendable, Equatable {
     public let songs: [RivalSongComparison]
 
     public var id: String { key }
+
+    /// This category's Rival Detail Quick Links entry (web
+    /// `rivalDetailCategoryQuickLinkId`), with its category symbol (#605).
+    public var quickLinkSection: QuickLinkSection {
+        QuickLinkSection(
+            id: "rival-category:\(key)", title: title,
+            icon: .system(RivalCategorization.quickLinkSymbol(forKey: key))
+        )
+    }
 }
 
 /// Splits a rival's shared songs into the same themed buckets as the web's
@@ -275,6 +308,34 @@ public struct RivalCategory: Identifiable, Sendable, Equatable {
 /// keyed identically so `AppRoute.rivalry(mode:)` round-trips.
 public enum RivalCategorization {
     private static let closestBattlesCount = 5
+
+    /// Every category key in page order (web `categorizeRivalSongs`).
+    public static let keys = [
+        "closest_battles", "almost_passed", "slipping_away",
+        "barely_winning", "pulling_forward", "dominating_them",
+    ]
+
+    /// Symbol for a key outside ``keys``, so the Quick Links group keeps an icon on
+    /// every row (HIG Menus: "give every item an icon, or give none of them icons").
+    public static let fallbackQuickLinkSymbol = "person.2.fill"
+
+    /// The SF Symbol of one category's Quick Links entry (#605; shared category list in
+    /// pattern `quick-links` R9). Each shows what the category means: neck and neck, closing
+    /// in, falling behind, a narrow win, a growing lead, a commanding lead.
+    ///
+    /// - Parameter key: Category key (``RivalCategory/key``).
+    /// - Returns: An SF Symbol name; ``fallbackQuickLinkSymbol`` for an unknown key.
+    public static func quickLinkSymbol(forKey key: String) -> String {
+        switch key {
+        case "closest_battles": "arrow.left.arrow.right"
+        case "almost_passed": "arrow.up.right"
+        case "slipping_away": "arrow.down.right"
+        case "barely_winning": "flag.checkered"
+        case "pulling_forward": "forward"
+        case "dominating_them": "crown"
+        default: fallbackQuickLinkSymbol
+        }
+    }
 
     /// Categorize a rival's compared songs into direction/magnitude buckets.
     ///
@@ -385,6 +446,17 @@ extension RivalScope {
     private static let songPrefix = "song:"
     private static let leaderboardPrefix = "leaderboard:"
     private static let comboPrefix = "combo:"
+
+    /// This scope with a leaderboard scope's metric narrowed by the Settings switch
+    /// (web `AllRivalsPage` / `RivalryPage` / `RivalDetailPage` `coerceRankingMetric`):
+    /// a saved or deep-linked experimental metric reads Total Score while it is off.
+    ///
+    /// - Parameter experimentalRanks: The Settings switch.
+    /// - Returns: The scope in effect.
+    public func coerced(experimentalRanks: Bool) -> RivalScope {
+        guard case let .leaderboard(instrument, rankBy) = self else { return self }
+        return .leaderboard(instrument: instrument, rankBy: rankBy.coerced(experimentalRanks: experimentalRanks))
+    }
 
     /// Compact colon-separated token used only by `DebugLaunchRoute`
     /// (`FST_DEBUG_ROUTE`) to open a rival route with a specific scope; `AppRoute`

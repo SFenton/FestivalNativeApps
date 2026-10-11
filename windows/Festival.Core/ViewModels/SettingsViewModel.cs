@@ -114,8 +114,12 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
-    /// <summary>Experimental ranks (not yet available: shown off and disabled).</summary>
-    public bool ExperimentalRanks => session.Settings.ExperimentalRanks;
+    /// <summary>Enable Experimental Leaderboard Ranks (web <c>enableExperimentalRanks</c>; gates Rank By app-wide).</summary>
+    public bool ExperimentalRanks
+    {
+        get => session.Settings.ExperimentalRanks;
+        set => session.UpdateSettings(s => s with { ExperimentalRanks = value });
+    }
     #endregion
 
     #region Item Shop

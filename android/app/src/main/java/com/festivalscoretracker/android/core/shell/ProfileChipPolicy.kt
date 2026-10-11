@@ -10,7 +10,7 @@ sealed interface ProfileChipAction {
     /** No profile is selected: open profile selection (the Profiles sheet). */
     data object ChooseProfile : ProfileChipAction
 
-    /** A profile is selected: go to its page, Statistics (a visible tab, or pushed). */
+    /** A profile is selected: go to its page, Statistics (pushed: it is not a tab since #601). */
     data class Open(val target: DrawerTarget) : ProfileChipAction
 }
 
@@ -18,7 +18,8 @@ sealed interface ProfileChipAction {
  * Profile chip routing, mirroring web `getProfileClickDestination`
  * (`FortniteFestivalWeb/src/utils/profileNavigation.ts`): a selected player or band opens its
  * own page (`/statistics`), the same place as the drawer's profile row; only without a profile
- * does the chip open profile search (issue #290).
+ * does the chip open profile search (issue #290). Statistics is not a tab (#601): the chip and
+ * the drawer reach it.
  */
 object ProfileChipPolicy {
     /**

@@ -8,8 +8,9 @@ import com.festivalscoretracker.android.core.quicklinks.QuickLinkSection
 
 /**
  * Quick Links sections for Compete and the Rivals pages (web `CompetePage`,
- * `RivalsPage`/`LeaderboardRivalsTab`, `RivalDetailPage`, `RivalryPage`). Pure: the
- * pages pass what they render and map each section ID back to its grid item.
+ * `RivalsPage`/`LeaderboardRivalsTab`, `RivalDetailPage`). Pure: the pages pass what
+ * they render and map each section ID back to its grid item. Rivalry has none: the web's
+ * one link per song only repeated the list (owner, #545).
  */
 object RivalQuickLinks {
     /** Web Compete group IDs. */
@@ -65,33 +66,6 @@ object RivalQuickLinks {
      */
     fun rivalDetail(categories: List<RivalCategory>): List<QuickLinkSection> =
         categories.map { QuickLinkSection(categoryId(it.key), it.title) }
-
-    /**
-     * Web `rivalrySongQuickLinkId`.
-     *
-     * @param song Compared song.
-     * @param index Position in the list.
-     * @return `<songId>:<instrument>:<index>`.
-     */
-    fun songId(song: RivalSongComparison, index: Int): String = "${song.songId}:${song.instrument}:$index"
-
-    /**
-     * Rivalry: one section per song (web: the title, else the song ID; the landmark adds the
-     * chart, "Title (Lead)"; the chart icon).
-     *
-     * @param songs Songs in page order.
-     * @return Sections.
-     */
-    fun rivalry(songs: List<RivalSongComparison>): List<QuickLinkSection> = songs.mapIndexed { index, song ->
-        val label = song.title?.takeIf { it.isNotBlank() } ?: song.songId
-        val chart = song.chart
-        QuickLinkSection(
-            id = songId(song, index),
-            title = label,
-            instrument = chart,
-            spokenTitle = "$label (${chart?.label ?: song.instrument})",
-        )
-    }
 }
 
 // endregion

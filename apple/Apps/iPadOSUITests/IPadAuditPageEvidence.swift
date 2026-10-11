@@ -389,10 +389,38 @@ enum IPadAuditPageEvidence {
     }
 
     /// Recognized text lines (and their words) with frames in screen points.
+    ///
+    /// Tries the accurate recognizer on Vision's default devices, then pinned to the CPU,
+    /// then the fast recognizer on the CPU, and keeps the first that reads any text: on the
+    /// `apple-ci` VM (paravirtual GPU, no Neural Engine) the default devices read nothing
+    /// (the hosted `nativeHostedRecognizedText` plans, #385). A Mac reads on the first.
     static func recognizedLines(in capture: IPadAuditRenderedContrast.Capture) -> [Line] {
+        for (level, onCPU) in [(VNRequestTextRecognitionLevel.accurate, false), (.accurate, true), (.fast, true)] {
+            let lines = recognizedLines(in: capture, level: level, onCPU: onCPU)
+            if !lines.isEmpty { return lines }
+        }
+        return []
+    }
+
+    /// Recognized text lines one way (see ``recognizedLines(in:)``).
+    ///
+    /// - Parameters:
+    ///   - capture: The screen capture.
+    ///   - level: The recognizer.
+    ///   - onCPU: Pin every stage to the CPU.
+    /// - Returns: The lines, or none when the recognizer failed or read nothing.
+    private static func recognizedLines(in capture: IPadAuditRenderedContrast.Capture,
+                                        level: VNRequestTextRecognitionLevel, onCPU: Bool) -> [Line] {
         let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
+        request.recognitionLevel = level
         request.usesLanguageCorrection = false
+        if onCPU {
+            guard let stages = try? request.supportedComputeStageDevices else { return [] }
+            for (stage, devices) in stages {
+                guard let cpu = devices.first(where: { if case .cpu = $0 { true } else { false } }) else { continue }
+                try? request.setComputeDevice(cpu, for: stage)
+            }
+        }
         let handler = VNImageRequestHandler(cgImage: capture.image, options: [:])
         guard (try? handler.perform([request])) != nil else { return [] }
         func screenRect(_ box: CGRect) -> CGRect { // normalized, origin bottom-left

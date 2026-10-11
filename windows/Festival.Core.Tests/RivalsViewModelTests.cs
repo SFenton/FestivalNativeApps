@@ -216,10 +216,17 @@ public class RivalsViewModelTests
         Assert.Equal(RankingMetric.FcRate, hub.Metric);
         Assert.DoesNotContain(fake.Service.Handler.Requests, r => r.Uri.Query.Contains("fcrate", StringComparison.Ordinal));
 
-        // Settings sanitizes experimental ranks off (as in production web), so the picker stays hidden.
+        // Experimental Ranks shows the picker and the saved choice takes effect; turning it off returns to Total Score.
         session.UpdateSettings(s => s with { ExperimentalRanks = true });
-        Assert.False(hub.ShowMetricPicker);
+        Assert.True(hub.ShowMetricPicker);
         Assert.Equal(hub.MetricLabels[hub.MetricIndex], RankingMetric.FcRate.Label());
+        await Async.Until(() => fake.Service.Handler.Requests.Any(r => r.Uri.Query.Contains("fcrate", StringComparison.Ordinal)));
+        await Async.Until(() => hub.Sections.Single().State == LoadState.Loaded);
+        Assert.Equal(RankingMetric.FcRate, Assert.IsType<RivalScope.Leaderboard>(hub.Sections.Single().Rows[0].Route.Scope).RankBy);
+        session.UpdateSettings(s => s with { ExperimentalRanks = false });
+        Assert.False(hub.ShowMetricPicker);
+        await Async.Until(() => hub.Sections.Single().State == LoadState.Loaded);
+        Assert.Equal(RankingMetric.TotalScore, Assert.IsType<RivalScope.Leaderboard>(hub.Sections.Single().Rows[0].Route.Scope).RankBy);
 
         hub.IsLeaderboardTab = false;
         Assert.Equal("Song Rivals", hub.Title);
@@ -516,6 +523,10 @@ public class RivalsViewModelTests
         Assert.Equal(["rival-category:closest_battles", "rival-category:almost_passed", "rival-category:barely_winning", "rival-category:pulling_forward"],
             detail.QuickLinkSections.Select(s => s.Id));
         Assert.Equal(detail.Categories[0].Title, detail.QuickLinkSections[0].Title);
+        // #605: every entry has its category's decorative glyph and speaks only the category name.
+        Assert.Equal(["\uE8AB", "\uEAFC", "\uE7C1", "\uEB9D"], detail.QuickLinkSections.Select(s => s.Glyph));
+        Assert.All(detail.QuickLinkSections, s => Assert.Null(s.Instrument));
+        Assert.Equal(detail.Categories.Select(c => c.Title), detail.QuickLinkSections.Select(s => s.AccessibleTitle));
         var closest = detail.Categories[0];
         // Each category ends with the shared View All button (view-all-cta R6, #321), whatever its song count.
         Assert.Equal(("View All", "View All, Closest Battles"), (closest.ViewAllText, closest.ViewAllName));
@@ -590,7 +601,7 @@ public class RivalsViewModelTests
     public async Task RivalDetail_UsesLeaderboardAndComboEndpoints()
     {
         var fake = new RivalsFakeService();
-        var session = fake.Session();
+        var session = fake.Session(RivalsFakeService.Settings() with { ExperimentalRanks = true });
         var board = await Loaded(new RivalDetailViewModel(session,
             new AppRoute.RivalDetail(Rival, null, new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.Weighted))));
         Assert.Equal("Lead · Leaderboard (Weighted)", board.ScopeLabel);
@@ -751,6 +762,19 @@ public class RivalsViewModelTests
         Assert.Equal(RankingMetric.TotalScore, session.EffectiveRivalMetric(RankingMetric.MaxScore));
         var ok = fake.Session();
         Assert.Empty((await ok.GetCommonRivalsAsync([Instrument.Lead])).Above);
+    }
+
+    [Fact]
+    public void Session_ResolvesRivalScopeAgainstExperimentalRanks()
+    {
+        var session = new RivalsFakeService().Session();
+        var weighted = new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.Weighted);
+        // A saved or deep-linked experimental metric falls back to Total Score while the toggle is off (web coerceRankingMetric).
+        Assert.Equal(weighted with { RankBy = RankingMetric.TotalScore }, session.ResolveRivalScope(weighted));
+        Assert.Equal(new RivalScope.Combo("03"), session.ResolveRivalScope(new RivalScope.Combo("03")));
+        session.UpdateSettings(s => s with { ExperimentalRanks = true });
+        Assert.Equal(weighted, session.ResolveRivalScope(weighted));
+        Assert.Equal(RankingMetric.MaxScore, session.EffectiveRivalMetric(RankingMetric.MaxScore));
     }
 
     [Fact]

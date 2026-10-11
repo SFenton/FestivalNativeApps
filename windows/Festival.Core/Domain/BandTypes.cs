@@ -80,8 +80,26 @@ public enum BandRankingMetric
 /// <summary>Service identifiers and labels for <see cref="BandRankingMetric"/>.</summary>
 public static class BandRankingMetricInfo
 {
-    /// <summary>All metrics in the web picker's order.</summary>
-    public static IReadOnlyList<BandRankingMetric> All { get; } = Enum.GetValues<BandRankingMetric>();
+    /// <summary>
+    /// All metrics in the web picker's order (<c>getEnabledBandRankingMetrics</c>: Total Score first, then the
+    /// experimental ones), independent of the enum's declaration order.
+    /// </summary>
+    public static IReadOnlyList<BandRankingMetric> All { get; } =
+        [BandRankingMetric.TotalScore, BandRankingMetric.Adjusted, BandRankingMetric.Weighted, BandRankingMetric.FcRate];
+
+    /// <summary>The band Rank By options Settings allows (web <c>getEnabledBandRankingMetrics</c>).</summary>
+    /// <param name="experimentalRanks">Settings' Experimental Ranks toggle.</param>
+    /// <returns><see cref="All"/> when on; only Total Score when off.</returns>
+    public static IReadOnlyList<BandRankingMetric> Enabled(bool experimentalRanks) =>
+        experimentalRanks ? All : [BandRankingMetric.TotalScore];
+
+    /// <summary>Falls back to Total Score for an experimental band metric while the toggle is off
+    /// (web <c>coerceBandRankingMetric</c>).</summary>
+    /// <param name="metric">Requested metric.</param>
+    /// <param name="experimentalRanks">Settings' Experimental Ranks toggle.</param>
+    /// <returns>The metric, or Total Score when Settings hides it.</returns>
+    public static BandRankingMetric Gate(this BandRankingMetric metric, bool experimentalRanks) =>
+        experimentalRanks ? metric : BandRankingMetric.TotalScore;
 
     /// <summary>Returns the <c>rankBy</c> query value.</summary>
     /// <param name="metric">Metric.</param>

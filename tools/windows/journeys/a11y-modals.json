@@ -412,5 +412,48 @@
       "waitgone:id=fst.profile.confirm@5",
       "assertname:id=fst.shell.profile@5|Profile: Fixture Player 1"
     ]
+  },
+  {
+    "name": "modal-invalid-score",
+    "route": "/songs",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "fixture": [
+      "instrument_status_fixture.py"
+    ],
+    "settings": {
+      "filterInvalidScores": true
+    },
+    "tabs": 4,
+    "ready": [
+      "waitfor:id=fst.songs.invalid-score.fixture-orbit@30",
+      "focus:id=fst.songs.invalid-score.fixture-orbit",
+      "key:enter",
+      "waitfor:id=fst.songs.invalid-score.alert@10",
+      "assertname:id=PrimaryButton|Settings",
+      "assertname:id=CloseButton|OK",
+      "waitgone:id=SecondaryButton@2",
+      "assertfocus:id=CloseButton@3"
+    ],
+    "after_ready": [
+      "waitfor:name=Filtered Score@5",
+      "waitfor:id=fst.songs.invalid-score.message@5",
+      "assertread:id=CloseButton|OK, button",
+      "assertread:id=PrimaryButton|Settings, button",
+      "assertorder:name=Filtered Score|id=fst.songs.invalid-score.message|id=PrimaryButton|id=CloseButton",
+      "assertsize:id=CloseButton|40x40",
+      "assertat:id=CloseButton|-18.5,0",
+      "assertat:id=CloseButton|18.5,0",
+      "assertat:id=CloseButton|0,-18.5",
+      "assertat:id=CloseButton|0,18.5",
+      "focus:id=PrimaryButton",
+      "key:tab",
+      "assertfocus:id=CloseButton@3",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.songs.invalid-score.alert@5",
+      "assertfocus:id=fst.songs.invalid-score.fixture-orbit@3"
+    ]
   }
 ]

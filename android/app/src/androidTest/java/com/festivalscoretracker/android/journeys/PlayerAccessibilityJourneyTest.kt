@@ -12,6 +12,8 @@ import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.testing.RankingsFixtures
 import com.festivalscoretracker.android.testing.RivalsFixtures
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -68,9 +70,20 @@ class PlayerAccessibilityJourneyTest {
         h.tap("fst.rivals.row.${RivalsFixtures.RIVALS[1]}")
         h.waitForTag("fst.rival-detail.title")
         h.readingOrder("rival-detail")
+        // Rival Detail's categories are real sections and keep Quick Links.
+        h.waitForTag("fst.quick-links.open")
         h.tap("fst.rival-detail.see-all.closest_battles")
         h.waitForTag("fst.rivalry.title")
-        h.readingOrder("rivalry")
+        h.waitGone("fst.quick-links.open")
+        h.awaitAccessibilityTree(present = "fst.rivalry.title", absent = "fst.quick-links.open")
+        // Owner, #545: Rivalry has no Quick Links; TalkBack reads Sort, then View Profile.
+        val rivalry = h.readingOrder("rivalry", fresh = true)
+        assertFalse("no Quick Links stop on Rivalry: $rivalry", rivalry.any { it.startsWith("Quick Links") })
+        val sort = rivalry.indexOfFirst { it.startsWith("Sort: ") }
+        val profile = rivalry.indexOfFirst { it.startsWith("View ") && it.endsWith("Profile") }
+        assertTrue("Sort precedes View Profile: $rivalry", sort >= 0 && profile > sort)
+        h.assertTouchTarget("rivalry", "fst.rivalry.sort")
+        h.assertTouchTarget("rivalry", "fst.rival-detail.view-profile")
         h.assertAccessible()
     }
 

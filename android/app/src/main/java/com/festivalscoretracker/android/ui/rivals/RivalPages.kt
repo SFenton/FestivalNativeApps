@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
@@ -26,7 +25,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -97,7 +95,16 @@ fun RivalsNoPlayerScreen(title: String) {
 fun AllRivalsScreen(viewModel: AllRivalsViewModel) {
     val shell = LocalShellActions.current
     val state by viewModel.state.collectAsStateWithLifecycle()
-    FestivalScreen(title = viewModel.title, isRoot = false) { padding ->
+    // A single chart's icon leads the bar title, like Instrument Leaderboards (issue #557,
+    // web `AllRivalsPage` InstrumentHeader iconOnly); Common and combo lists have none.
+    val titleInstrument = RivalScopes.singleInstrument(viewModel.scope)
+    FestivalScreen(
+        title = viewModel.title,
+        isRoot = false,
+        titleIcon = titleInstrument?.let { instrument ->
+            { size -> InstrumentIcon(instrument, size = size, decorative = true, modifier = Modifier.testTag("fst.all-rivals.title-icon.${instrument.wireId}")) }
+        },
+    ) { padding ->
         val scope = viewModel.scope
         if (scope == null) {
             Box(Modifier.padding(padding)) { RivalsMessage("This rivals list could not be identified.", null, "fst.all-rivals.unresolved") }
@@ -119,21 +126,18 @@ fun AllRivalsScreen(viewModel: AllRivalsViewModel) {
                     maxColumns = 2,
                     testTag = "fst.all-rivals.list",
                 ) {
-                    // The top app bar already names the list (M3: the top app bar holds the
-                    // screen title), so the header only adds context: the chart icon and the
-                    // rank line or chart list. A single-chart song list has neither (issue #108).
-                    val icon = RivalScopes.singleInstrument(scope)
+                    // The top app bar already names the list and carries the chart icon (M3: the
+                    // top app bar holds the screen title), so the header only adds the rank line
+                    // or chart list. A single-chart song list has none (issues #108, #557).
                     val subtitle = content.subtitle
                     if (subtitle != null) {
                         foldLaneItem(key = "header") {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                            Text(
+                                subtitle,
+                                color = BrandTokens.textSecondary,
+                                style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.padding(bottom = 4.dp).testTag("fst.all-rivals.subtitle"),
-                            ) {
-                                icon?.let { InstrumentIcon(it, size = 28.dp, decorative = true) }
-                                Text(subtitle, color = BrandTokens.textSecondary, style = MaterialTheme.typography.bodyLarge)
-                            }
+                            )
                         }
                     }
                     itemsIndexed(content.entries, key = { index, entry -> entry.key(index) }) { index, entry ->
@@ -279,13 +283,8 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
     val sort by viewModel.sort.collectAsStateWithLifecycle()
     var sortOpen by rememberSaveable { mutableStateOf(false) }
     val gridState = rememberLazyStaggeredGridState()
-    val songs = (state as? LoadState.Loaded)?.value?.let { viewModel.category(it, mode, sort) }?.songs.orEmpty()
-    // Web: one per song in the shown order; the grid's first item is the "vs." header.
-    // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
+    // No Quick Links: one link per song only repeated the list (owner, #545; quick-links variant).
     val fadeIn = rememberPageFadeInWindow()
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", RivalQuickLinks.rivalry(songs), fadeInWindow = fadeIn) { id ->
-        songs.indices.firstOrNull { RivalQuickLinks.songId(songs[it], it) == id }?.plus(1)
-    }
     FestivalScreen(
         title = RivalCategorization.title(mode),
         isRoot = false,
@@ -321,7 +320,6 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
                     }
                 }
             }
-            QuickLinksAction(quickLinks, windowWidthDp().toInt())
             ViewProfileButton(rivalId, name)
         },
     ) { padding ->

@@ -27,7 +27,55 @@ public enum GlobalSearchScope: String, CaseIterable, Sendable, Identifiable {
     /// Result sections shown for this scope, in the web's fixed order (songs, players,
     /// bands; issue #320 added bands to "All").
     public var sections: [GlobalSearchScope] {
-        self == .all ? [.songs, .players, .bands] : [self]
+        sections(in: .global)
+    }
+
+    /// Result sections this scope shows on a surface that searches `targets`.
+    ///
+    /// - Parameter targets: What the surface searches.
+    /// - Returns: All of the surface's sections for `.all`, else just this scope.
+    public func sections(in targets: GlobalSearchTargets) -> [GlobalSearchScope] {
+        self == .all ? targets.sections : [self]
+    }
+}
+
+// MARK: - Targets
+
+/// What one search surface searches (web `SearchModal` `availableTargets`).
+///
+/// Global search finds songs, players and bands; the Profiles sheet finds players and
+/// bands (web `PROFILE_SEARCH_CONFIG`, issue #600). Both share one scope bar that starts
+/// on All (pattern `search-scopes`).
+public enum GlobalSearchTargets: String, Sendable, Equatable {
+    /// Songs, players and bands (the Search tab and the Mac search sheet).
+    case global
+    /// Players and bands (the Profiles sheet).
+    case profiles
+
+    /// Result sections, in the web's fixed order.
+    public var sections: [GlobalSearchScope] {
+        switch self {
+        case .global: [.songs, .players, .bands]
+        case .profiles: [.players, .bands]
+        }
+    }
+
+    /// Scope-bar segments: All first (HIG: start broad), then each section.
+    public var scopes: [GlobalSearchScope] {
+        [.all] + sections
+    }
+
+    /// Whether the local song catalogue is searched.
+    public var searchesSongs: Bool {
+        sections.contains(.songs)
+    }
+
+    /// Spoken name of the search field.
+    public var fieldLabel: String {
+        switch self {
+        case .global: "Search songs, players and bands"
+        case .profiles: "Search players and bands"
+        }
     }
 }
 
@@ -81,10 +129,13 @@ public enum GlobalSearch {
 
     /// Search-field prompt for the scopes shown (web `search.placeholders.*`).
     ///
-    /// - Parameter scope: Active scope.
+    /// - Parameters:
+    ///   - scope: Active scope.
+    ///   - targets: What the surface searches.
     /// - Returns: The English prompt.
-    public static func prompt(for scope: GlobalSearchScope) -> String {
+    public static func prompt(for scope: GlobalSearchScope, targets: GlobalSearchTargets = .global) -> String {
         switch scope {
+        case .all where targets == .profiles: "Search players or bands"
         case .all: "Search songs, players, or bands"
         case .songs: "Search songs"
         case .players: "Search players"
@@ -95,11 +146,16 @@ public enum GlobalSearch {
     /// Centred hint shown while the query is under ``minimumQueryLength`` (issue #299):
     /// it names what the active scope searches.
     ///
-    /// - Parameter scope: Active scope.
+    /// - Parameters:
+    ///   - scope: Active scope.
+    ///   - targets: What the surface searches.
     /// - Returns: The English hint.
-    public static func enterQueryHint(for scope: GlobalSearchScope) -> String {
+    public static func enterQueryHint(
+        for scope: GlobalSearchScope, targets: GlobalSearchTargets = .global
+    ) -> String {
         let prefix = "Enter at least two characters to search for"
         return switch scope {
+        case .all where targets == .profiles: "\(prefix) players or bands."
         case .all: "\(prefix) songs, players, or bands."
         case .songs: "\(prefix) songs."
         case .players: "\(prefix) players."
@@ -124,9 +180,12 @@ public enum GlobalSearch {
     /// - Parameters:
     ///   - scope: Active scope.
     ///   - outcomes: Every section's outcome.
+    ///   - targets: What the surface searches.
     /// - Returns: True while any section the scope shows is still pending.
-    public static func isSearching(scope: GlobalSearchScope, outcomes: Outcomes) -> Bool {
-        scope.sections.contains { outcomes[$0] == .pending }
+    public static func isSearching(
+        scope: GlobalSearchScope, outcomes: Outcomes, targets: GlobalSearchTargets = .global
+    ) -> Bool {
+        scope.sections(in: targets).contains { outcomes[$0] == .pending }
     }
 
     /// Whether pressing Search on the keyboard re-runs the current query.
@@ -139,9 +198,12 @@ public enum GlobalSearch {
     /// - Parameters:
     ///   - scope: Active scope.
     ///   - outcomes: Every section's outcome.
+    ///   - targets: What the surface searches.
     /// - Returns: True when a shown section failed, or players or bands finished empty.
-    public static func submitReruns(scope: GlobalSearchScope, outcomes: Outcomes) -> Bool {
-        scope.sections.contains { section in
+    public static func submitReruns(
+        scope: GlobalSearchScope, outcomes: Outcomes, targets: GlobalSearchTargets = .global
+    ) -> Bool {
+        scope.sections(in: targets).contains { section in
             switch outcomes[section] {
             case .failed: true
             // A network section's empty envelope may be a server timeout; local song
@@ -191,11 +253,13 @@ public enum GlobalSearch {
     ///   - section: `.songs`, `.players` or `.bands`.
     ///   - scope: Active scope.
     ///   - outcomes: Every section's outcome.
+    ///   - targets: What the surface searches.
     /// - Returns: 0 for a section that does not render.
     public static func staggerSlotCount(
-        _ section: GlobalSearchScope, scope: GlobalSearchScope, outcomes: Outcomes
+        _ section: GlobalSearchScope, scope: GlobalSearchScope, outcomes: Outcomes,
+        targets: GlobalSearchTargets = .global
     ) -> Int {
-        guard scope.sections.contains(section), rendersSection(section, outcomes: outcomes) else { return 0 }
+        guard scope.sections(in: targets).contains(section), rendersSection(section, outcomes: outcomes) else { return 0 }
         let title = showsSectionTitle(section, scope: scope, outcomes: outcomes) ? 1 : 0
         if case let .found(count) = outcomes[section] { return title + count }
         return title + 1
@@ -208,12 +272,14 @@ public enum GlobalSearch {
     ///   - section: `.songs`, `.players` or `.bands`.
     ///   - scope: Active scope.
     ///   - outcomes: Every section's outcome.
+    ///   - targets: What the surface searches.
     /// - Returns: The sum of the slots of the sections drawn above it.
     public static func staggerStart(
-        of section: GlobalSearchScope, scope: GlobalSearchScope, outcomes: Outcomes
+        of section: GlobalSearchScope, scope: GlobalSearchScope, outcomes: Outcomes,
+        targets: GlobalSearchTargets = .global
     ) -> Int {
-        scope.sections.prefix { $0 != section }
-            .reduce(0) { $0 + staggerSlotCount($1, scope: scope, outcomes: outcomes) }
+        scope.sections(in: targets).prefix { $0 != section }
+            .reduce(0) { $0 + staggerSlotCount($1, scope: scope, outcomes: outcomes, targets: targets) }
     }
 
     /// Every stagger slot the shown results take, for settling the fade.
@@ -221,9 +287,14 @@ public enum GlobalSearch {
     /// - Parameters:
     ///   - scope: Active scope.
     ///   - outcomes: Every section's outcome.
+    ///   - targets: What the surface searches.
     /// - Returns: Titles plus rows plus failures across the scope's sections.
-    public static func staggerSlotTotal(scope: GlobalSearchScope, outcomes: Outcomes) -> Int {
-        scope.sections.reduce(0) { $0 + staggerSlotCount($1, scope: scope, outcomes: outcomes) }
+    public static func staggerSlotTotal(
+        scope: GlobalSearchScope, outcomes: Outcomes, targets: GlobalSearchTargets = .global
+    ) -> Int {
+        scope.sections(in: targets).reduce(0) {
+            $0 + staggerSlotCount($1, scope: scope, outcomes: outcomes, targets: targets)
+        }
     }
 
     // MARK: - Empty state
@@ -242,6 +313,20 @@ public enum GlobalSearch {
         }
     }
 
+    /// Whether every section the scope shows finished with no results, so the centred
+    /// empty state replaces the list (a failed section is never empty).
+    ///
+    /// - Parameters:
+    ///   - scope: Active scope.
+    ///   - outcomes: Every section's outcome.
+    ///   - targets: What the surface searches.
+    /// - Returns: True when each shown section is `.found(0)`.
+    public static func isEmpty(
+        scope: GlobalSearchScope, outcomes: Outcomes, targets: GlobalSearchTargets = .global
+    ) -> Bool {
+        scope.sections(in: targets).allSatisfy { outcomes[$0] == .found(0) }
+    }
+
     /// Empty state for a scope whose shown sections all finished with no results.
     ///
     /// In "All", a single empty section is hidden instead (web `SearchModal` renders only
@@ -250,11 +335,19 @@ public enum GlobalSearch {
     /// - Parameters:
     ///   - scope: Active scope.
     ///   - query: Raw query text; a query under two characters has no empty state.
+    ///   - targets: What the surface searches.
     /// - Returns: The copy (subtitles are the cross-platform contract text in
     ///   `.agents/controls/global-search/spec.md`), or nil for short queries.
-    public static func emptyState(scope: GlobalSearchScope, query: String) -> EmptyState? {
+    public static func emptyState(
+        scope: GlobalSearchScope, query: String, targets: GlobalSearchTargets = .global
+    ) -> EmptyState? {
         guard effectiveQuery(query) != nil else { return nil }
         switch scope {
+        case .all where targets == .profiles:
+            return EmptyState(
+                title: "No Results Found",
+                subtitle: "Check the spelling or try a different player or band member's name."
+            )
         case .bands:
             return EmptyState(
                 title: "No Bands Found",
@@ -325,10 +418,13 @@ public enum GlobalSearch {
     /// - Parameters:
     ///   - scope: Active scope.
     ///   - outcomes: Every section's outcome.
+    ///   - targets: What the surface searches.
     /// - Returns: "3 songs, 1 player, 2 bands", "No results found.", …, or nil.
-    public static func resultAnnouncement(scope: GlobalSearchScope, outcomes: Outcomes) -> String? {
-        let shown = scope.sections
-        guard !isSearching(scope: scope, outcomes: outcomes) else { return nil }
+    public static func resultAnnouncement(
+        scope: GlobalSearchScope, outcomes: Outcomes, targets: GlobalSearchTargets = .global
+    ) -> String? {
+        let shown = scope.sections(in: targets)
+        guard !isSearching(scope: scope, outcomes: outcomes, targets: targets) else { return nil }
         if shown.allSatisfy({ outcomes[$0] == .found(0) }) {
             return scope == .all ? "No results found." : "No \(scope.title.lowercased()) found."
         }

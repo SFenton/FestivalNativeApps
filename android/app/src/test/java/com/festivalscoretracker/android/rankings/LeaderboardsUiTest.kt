@@ -58,6 +58,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.text.TextLayoutResult
+import com.festivalscoretracker.android.ui.common.FestivalMarquee
 
 /** Shared harness for the Leaderboards journeys on Robolectric against synthetic rankings. */
 abstract class LeaderboardsHarness {
@@ -78,7 +82,15 @@ abstract class LeaderboardsHarness {
 
     protected lateinit var container: AppContainer
 
-    protected fun launch(route: String, profile: SelectedPlayer? = null) {
+    /**
+     * Launch the shell on [route].
+     *
+     * @param route Debug route.
+     * @param profile Selected player.
+     * @param experimentalRanks Settings → Experimental Ranks; on by default so the Rank By journeys run (#541).
+     */
+    protected fun launch(route: String, profile: SelectedPlayer? = null, experimentalRanks: Boolean = true) {
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS)] = experimentalRanks } } }
         val debug = DebugLaunch(route = DebugLaunch.parseRoute(route), profile = profile, stillBackground = true)
         val gated = object : HttpTransport {
             override suspend fun send(request: HttpRequest): HttpResult {
@@ -180,6 +192,35 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     }
 
     @Test
+    fun rankByWaitsForExperimentalRanks() {
+        // A saved experimental Rank By with the setting off (#541): Total Score boards, no Rank By.
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[LeaderboardPreferences.KEY_RANK_BY] = "fcrate" } } }
+        launch("leaderboards", experimentalRanks = false)
+        waitForTag("fst.rankings.row.${RankingsFixtures.accountId(1)}")
+        assertFalse(exists("fst.rankings.rank-by-menu"))
+        assertTrue(transport.requests.filter { it.url.contains("/api/rankings/") }.all { "rankBy=totalscore" in it.url })
+        assertEquals("fcrate", store.current[LeaderboardPreferences.KEY_RANK_BY])
+        // Turning it on restores the saved choice and shows Rank By.
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS)] = true } } }
+        rule.waitUntil(10_000) { settle(100); exists("fst.rankings.rank-by-menu") }
+        rule.waitUntil(10_000) { settle(100); transport.requests.any { it.url.contains("rankBy=fcrate") } }
+        waitForDescription("Rank By, FC Rate")
+        // Turning it off again takes the boards back to Total Score.
+        val before = transport.requests.size
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS)] = false } } }
+        rule.waitUntil(10_000) { settle(100); !exists("fst.rankings.rank-by-menu") }
+        rule.waitUntil(10_000) { settle(100); transport.requests.drop(before).any { it.url.contains("rankBy=totalscore") } }
+    }
+
+    @Test
+    fun bandRankingsHideRankByWithoutExperimentalRanks() {
+        launch("bandRankings:Band_Trios", experimentalRanks = false)
+        waitForTag("fst.band-rankings.population")
+        assertTrue(exists("fst.band-rankings.band-type-menu"))
+        assertFalse(exists("fst.band-rankings.rank-by-menu"))
+    }
+
+    @Test
     fun spotlightFooterAndYourPage() {
         launch("leaderboards", selected)
         waitForTag("fst.leaderboards.rank-history")
@@ -268,7 +309,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         launch("leaderboards", selected)
         waitForTag("fst.leaderboards.rank-history")
         waitForText(LocalDate.now().format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)))
-        assertTrue(rule.spinnerShowsDuring("fst.leaderboards.rank-history.loading") { node("fst.leaderboards.rank-history.picker.Solo_Bass").performSemanticsAction(SemanticsActions.OnClick) })
+        assertTrue(rule.spinnerShowsDuring("fst.leaderboards.rank-history.loading") { node("fst.leaderboards.rank-history.picker.next").performSemanticsAction(SemanticsActions.OnClick) })
         waitForText("No rank history for Bass")
         rule.waitUntil(5_000) { settle(100); !exists("fst.leaderboards.rank-history.loading") }
     }
@@ -319,7 +360,8 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         // The chart carries the fixture history forward to today and lists the newest days.
         waitForText(LocalDate.now().format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.US)))
         assertTrue(transport.requests.any { it.url.contains("/api/rankings/Solo_Guitar/${RankingsFixtures.SELECTED}/history?days=30") })
-        click("fst.leaderboards.rank-history.picker.Solo_Bass")
+        // Nine charts don't fit a phone row: the shared selector's compact arrows move to Bass (web GraphCard, #592).
+        click("fst.leaderboards.rank-history.picker.next")
         waitForText("No rank history for Bass")
         // Quick Links float with Rank By on phones and jump to a band card.
         click("fst.quick-links.open")
@@ -413,7 +455,7 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         waitForText("Quads Leaderboards")
         waitForDescription("Page 1 of 2")
         click("fst.band-rankings.rank-by-menu")
-        click("fst.band-rankings.rank-by-menu.2")
+        click("fst.band-rankings.rank-by-menu.3")
         rule.waitUntil(10_000) { settle(100); transport.requests.any { it.url.contains("/api/rankings/bands/Band_Quad?rankBy=fcrate") } }
         val first = "fst.band-rankings.row.${RankingsFixtures.accountId(1001)}:${RankingsFixtures.accountId(2001)}"
         waitForTag(first)
@@ -465,6 +507,82 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         rule.waitUntil(5_000) { settle(100); !exists("fst.song-leaderboard.loading") }
         assertTrue(exists("fst.song-leaderboard.pager"))
     }
+
+    // region Pager waits for the page count (issue #575)
+
+    /** No pager (and no "1 / 1" placeholder) is drawn or announced on the board. */
+    private fun assertNoPager(prefix: String) {
+        assertFalse("no pager before the page count is known", exists("$prefix.pager"))
+        assertFalse(exists("$prefix.page-info"))
+        assertTrue(rule.onAllNodesWithContentDescription("Page 1 of 1", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun songLeaderboardInstrumentSwitchShowsNoPagerUntilTheNewBoardLoads() {
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForDescription("Page 1 of 3")
+        val bass = CompletableDeferred<Unit>()
+        hold = { request -> bass.takeIf { request.url.contains("/api/leaderboard/s-alpha/Solo_Bass") } }
+        click("fst.song-leaderboard.instrument")
+        click("fst.song-leaderboard.instrument.Solo_Bass")
+        // The switch opens the Bass board's own route: its first load has no page count yet.
+        waitForTag("fst.song-leaderboard.loading")
+        settle(1_000)
+        assertTrue(exists("fst.song-leaderboard.loading"))
+        assertNoPager("fst.song-leaderboard")
+        bass.complete(Unit)
+        waitForDescription("Page 1 of 3")
+        assertTrue(isEnabled("fst.song-leaderboard.page-next"))
+    }
+
+    @Test
+    fun songLeaderboardFirstLoadShowsNoPager() {
+        val first = CompletableDeferred<Unit>()
+        hold = { request -> first.takeIf { request.url.contains("/api/leaderboard/s-alpha/Solo_Guitar") } }
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForTag("fst.song-leaderboard.loading")
+        settle(1_000)
+        assertNoPager("fst.song-leaderboard")
+        first.complete(Unit)
+        waitForDescription("Page 1 of 3")
+    }
+
+    @Test
+    fun songLeaderboardHidesThePagerForASinglePage() {
+        transport.on("/api/leaderboard/s-alpha/Solo_Guitar", headers = mapOf("X-FST-Publication-Id" to "7")) {
+            Fixtures.leaderboard("s-alpha", rows = 10, total = 10)
+        }
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForTag("fst.song-leaderboard.row.${Fixtures.ACCOUNT_A.dropLast(2)}10")
+        rule.waitUntil(5_000) { settle(100); !exists("fst.song-leaderboard.loading") }
+        assertNoPager("fst.song-leaderboard")
+    }
+
+    @Test
+    fun fullRankingsFirstLoadShowsNoPager() {
+        val first = CompletableDeferred<Unit>()
+        hold = { request -> first.takeIf { request.url.contains("/api/rankings/Solo_Guitar?") } }
+        launch("fullRankings:Solo_Guitar")
+        waitForTag("fst.full-rankings.loading")
+        settle(1_000)
+        assertNoPager("fst.full-rankings")
+        first.complete(Unit)
+        waitForDescription("Page 1 of 3")
+    }
+
+    @Test
+    fun bandRankingsFirstLoadShowsNoPager() {
+        val first = CompletableDeferred<Unit>()
+        hold = { request -> first.takeIf { request.url.contains("/api/rankings/bands/Band_Trios?") } }
+        launch("bandRankings:Band_Trios")
+        waitForTag("fst.band-rankings.loading")
+        settle(1_000)
+        assertNoPager("fst.band-rankings")
+        first.complete(Unit)
+        waitForDescription("Page 1 of 2")
+    }
+
+    // endregion
 
     // region Pinned score reveal (issue #295)
 
@@ -755,7 +873,8 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
         launch("songLeaderboard:s-alpha:Solo_Guitar")
         waitForText("No scores yet")
         assertFalse(exists("fst.song-leaderboard.loading"))
-        assertFalse(isEnabled("fst.song-leaderboard.page-next"))
+        // A one-page (here empty) board has no pager, as on the web (issue #575).
+        assertFalse(exists("fst.song-leaderboard.pager"))
     }
 
     @Test
@@ -890,6 +1009,83 @@ class FullRankingsTitleIconUiTest : LeaderboardsHarness() {
     }
 }
 
+/**
+ * Issue #597 (`page-tools-and-nav-chrome` R21): every Android bar title, not only a pinned song
+ * title, scrolls on one line when it overflows the bar ("Lead Leaderboards" at 200% text), stays
+ * still when it fits, tail-truncates under Reduce Motion, keeps the instrument icon before it and
+ * is read once.
+ */
+@RunWith(AndroidJUnit4::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(qualifiers = "w411dp-h891dp-xxhdpi")
+class FullRankingsTitleMarqueeUiTest : LeaderboardsHarness() {
+    private val title = "Lead Leaderboards"
+    private val icon = "fst.full-rankings.title-icon.Solo_Guitar"
+
+    private fun bounds(tag: String) = node(tag).fetchSemanticsNode().boundsInRoot
+
+    private fun barTitle() = rule.onNode(hasTestTag("fst.nav.title") and hasText(title), useUnmergedTree = true).fetchSemanticsNode()
+
+    private fun mode() = barTitle().config.getOrNull(FestivalMarquee.ModeKey)
+
+    private fun layout(): TextLayoutResult {
+        val layouts = mutableListOf<TextLayoutResult>()
+        barTitle().config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+        return layouts.single()
+    }
+
+    private fun openLead() {
+        launch("fullRankings:Solo_Guitar")
+        waitForText(title)
+        settle(2_000)
+    }
+
+    /** The icon leads the title inside the bar, and TalkBack meets the title once, with no icon label. */
+    private fun assertIconLeadsAndTitleReadsOnce() {
+        val tolerance = with(rule.density) { 1.dp.toPx() }
+        assertTrue("icon ${bounds(icon)} before title ${bounds("fst.nav.title")}", bounds(icon).right <= bounds("fst.nav.title").left + tolerance)
+        assertEquals(null, description(icon))
+        val stops = rule.onAllNodes(hasAnyAncestor(hasTestTag("fst.nav.top-bar")) and hasText(title, substring = true)).fetchSemanticsNodes()
+        assertEquals("one stop names the title", 1, stops.size)
+        assertEquals("read once", 1, stops.single().config[SemanticsProperties.Text].count { it.text == title })
+    }
+
+    @Test
+    @Config(fontScale = 2f)
+    fun longTitleScrollsInTheBarAtLargeText() {
+        openLead()
+        assertEquals(FestivalMarquee.Mode.Scrolling, mode())
+        assertEquals("one line", 1, layout().lineCount)
+        assertTrue("the full title is wider than its box", layout().size.width > bounds("fst.nav.title").width)
+        val bar = bounds("fst.nav.top-bar")
+        val box = bounds("fst.nav.title")
+        assertTrue("title $box inside the bar $bar", box.top >= bar.top && box.bottom <= bar.bottom + 1f)
+        assertIconLeadsAndTitleReadsOnce()
+    }
+
+    @Test
+    fun fittingTitleStaysStill() {
+        launch("leaderboards")
+        rule.waitUntil(10_000) {
+            settle(100)
+            rule.onAllNodes(hasTestTag("fst.nav.title") and hasText("Leaderboards"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+        val node = rule.onNode(hasTestTag("fst.nav.title") and hasText("Leaderboards"), useUnmergedTree = true).fetchSemanticsNode()
+        assertEquals(FestivalMarquee.Mode.Static, node.config.getOrNull(FestivalMarquee.ModeKey))
+    }
+
+    @Test
+    @Config(fontScale = 2f)
+    fun reduceMotionTruncatesTheLongTitle() {
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION)] = true } } }
+        openLead()
+        assertEquals(FestivalMarquee.Mode.Truncated, mode())
+        assertEquals(1, layout().lineCount)
+        assertTrue("ends in an ellipsis", layout().isLineEllipsized(0))
+        assertIconLeadsAndTitleReadsOnce()
+    }
+}
+
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w790dp-h840dp-xhdpi")
 class LeaderboardsBookFoldUiTest : LeaderboardsHarness() {
@@ -947,14 +1143,19 @@ class LeaderboardsExpandedUiTest : LeaderboardsHarness() {
     }
 
     @Test
-    fun expandedBoardsKeepThePagerAnchoredAndPickersInTheTopBar() {
+    fun expandedBoardsKeepThePagerAnchoredAndPickersInTheFloatingToolbar() {
         launch("fullRankings:Solo_Drums")
         waitForDescription("Page 1 of 3")
         assertTrue(exists("fst.full-rankings.bottom-bar"))
         assertFalse(exists("fst.full-rankings.supporting-pane"))
+        // Issue #576: page tools float at every window size; the top app bar keeps only global actions.
+        val inToolbar = rule.onAllNodes(
+            hasTestTag("fst.full-rankings.instrument-menu") and hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar")),
+        ).fetchSemanticsNodes()
+        assertTrue("the instrument picker is in the floating toolbar", inToolbar.isNotEmpty())
         val bar = node("fst.nav.top-bar").fetchSemanticsNode().boundsInRoot
         val picker = node("fst.full-rankings.instrument-menu").fetchSemanticsNode().boundsInRoot
-        assertTrue(picker.top >= bar.top && picker.bottom <= bar.bottom)
+        assertTrue("the picker $picker is below the top bar $bar", picker.top >= bar.bottom)
     }
 
     @Test

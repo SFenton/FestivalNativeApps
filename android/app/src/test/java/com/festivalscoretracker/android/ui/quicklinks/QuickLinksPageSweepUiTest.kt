@@ -54,7 +54,8 @@ import org.robolectric.annotation.Config
  *
  * The page order is read from the rendered page, not from the Quick Links model: the list is
  * scrolled through and each section's on-page anchor is recorded by its on-screen position. Song
- * Detail also proves that Score History is listed exactly when the page shows its card.
+ * Detail also proves that Score History is listed exactly when the page shows its card. Rivalry
+ * is checked for having no entry point at all (owner, #545).
  */
 @RunWith(AndroidJUnit4::class)
 class QuickLinksPageSweepUiTest {
@@ -381,20 +382,29 @@ class QuickLinksPageSweepUiTest {
     @Config(qualifiers = "w1280dp-h800dp-xhdpi")
     fun rivalDetailMenuFollowsThePage() = rivalDetail(sheet = false)
 
-    /** Rivalry: one link per song (`<songId>:<chart>:<index>`), in the shown order. */
-    @Test
-    @Config(qualifiers = "w1280dp-h800dp-xhdpi")
-    fun rivalryMenuFollowsThePage() {
+    /**
+     * Rivalry has no Quick Links (owner, #545): its one link per song only repeated the list, so
+     * neither the compact floating toolbar nor the wide top app bar offers an entry point.
+     */
+    private fun rivalry() {
         launch(DebugLaunch(route = RivalryRoute(RivalsFixtures.RIVALS[3], "almost_passed"), profile = rivalsPlayer, section = FestivalSection.Songs, stillBackground = true), rivalsTransport())
         waitForTag("fst.rivalry.title")
-        val page = pageOrder("fst.rivalry.list") { tag ->
-            tag.removePrefix("fst.rivals.song.").takeIf { it != tag }?.replace('.', ':')
-        }
-        val menu = menuOrder(sheet = false)
-        assertEquals("every song is listed once: $menu", menu.size, menu.toSet().size)
-        assertEquals("Quick Links list the songs top to bottom", page, menu.map { it.substringBeforeLast(':') })
-        assertTrue(menu.toString(), menu.size >= 2)
+        val page = pageOrder("fst.rivalry.list") { tag -> tag.removePrefix("fst.rivals.song.").takeIf { it != tag } }
+        assertTrue("several songs on the page: $page", page.size >= 2)
+        assertFalse("Rivalry offers no Quick Links", exists(OPEN))
+        assertTrue("Sort stays", exists("fst.rivalry.sort"))
+        assertTrue("View Profile stays", exists("fst.rival-detail.view-profile"))
     }
+
+    /** Phone: no Quick Links in the floating toolbar. */
+    @Test
+    @Config(qualifiers = "w411dp-h891dp-xxhdpi")
+    fun rivalryHasNoQuickLinksOnPhone() = rivalry()
+
+    /** Wide window: no Quick Links in the top app bar. */
+    @Test
+    @Config(qualifiers = "w1280dp-h800dp-xhdpi")
+    fun rivalryHasNoQuickLinksInWideWindow() = rivalry()
 
     // endregion
 

@@ -313,8 +313,8 @@ public sealed partial class AllRivalsViewModel : RivalPageViewModel
     /// <summary>Scope from the route (may be Settings-derived).</summary>
     public RivalScope RouteScope { get; }
 
-    /// <summary>Scope resolved against current Settings.</summary>
-    public RivalScope? Scope => RouteScope.Resolve(Session.Settings.VisibleInstruments);
+    /// <summary>Scope resolved against current Settings (visible charts and Experimental Ranks).</summary>
+    public RivalScope? Scope => Session.ResolveRivalScope(RouteScope);
 
     /// <summary>Heading.</summary>
     public string Title => (Scope ?? RouteScope).ListTitle;
@@ -429,6 +429,12 @@ public sealed record RivalCategoryItem(RivalCategory Category, List<RivalSongIte
 
     /// <summary>Quick Links section ID (web <c>rival-category:&lt;key&gt;</c>).</summary>
     public string QuickLinkId => "rival-category:" + Category.Key;
+
+    /// <summary>
+    /// This category's Quick Links entry with its decorative category glyph (#605, pattern <c>quick-links</c> R9); the
+    /// entry speaks only the title.
+    /// </summary>
+    public QuickLinkSection QuickLinkSection => new(QuickLinkId, Title, RivalCategorization.QuickLinkGlyph(Category.Key));
 }
 
 /// <summary><c>/rivals/:rivalId</c>: shared songs against one rival, grouped into web categories.</summary>
@@ -464,14 +470,17 @@ public sealed partial class RivalDetailViewModel : RivalPageViewModel
     [NotifyPropertyChangedFor(nameof(QuickLinkSections))]
     private List<RivalCategoryItem> categories = [];
 
-    /// <summary>Quick Links: one per non-empty category (web <c>RivalDetailPage.tsx:136-168</c>; the web offers them on mobile only).</summary>
-    public List<QuickLinkSection> QuickLinkSections => [.. Categories.Select(c => new QuickLinkSection(c.QuickLinkId, c.Title))];
+    /// <summary>
+    /// Quick Links: one per non-empty category (web <c>RivalDetailPage.tsx:136-168</c>; the web offers them on mobile
+    /// only), each with its own category glyph (#605).
+    /// </summary>
+    public List<QuickLinkSection> QuickLinkSections => [.. Categories.Select(c => c.QuickLinkSection)];
 
     /// <summary>Heading.</summary>
     public string Title => RivalName ?? "Rival";
 
     /// <summary>Which scope the comparison covers.</summary>
-    public string ScopeLabel => RivalDetailText.ScopeLabel(Route.Scope, Session.Settings.VisibleInstruments);
+    public string ScopeLabel => RivalDetailText.ScopeLabel(Session.ResolveRivalScope(Route.Scope), Session.Settings.VisibleInstruments);
 
     /// <summary>Profile action label (web <c>common.viewNameProfile</c>).</summary>
     public string ViewProfileLabel => RivalName is { } name ? $"View {name}'s Profile" : "View Profile";

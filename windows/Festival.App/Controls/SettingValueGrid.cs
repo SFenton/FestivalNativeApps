@@ -7,14 +7,18 @@ namespace Festival.App.Controls;
 
 #region Setting value grid
 /// <summary>
-/// Two-column label/value card body (Settings Version card). Children are read as (label, value) pairs in order, so
-/// UI Automation and Narrator keep label → value order. Values share one right-hand column while every label and value
-/// fits at its natural width; otherwise (narrow windows, 200% text, long release versions) every value moves under its
-/// label instead of clipping the label (<see cref="SettingValueLayout.ShouldStack"/>).
+/// The Windows Settings value row (pattern <c>settings-value-row</c>): label/value pairs for the Version card and the
+/// Service Info "Leaderboard Service State" row. Children are read as (label, value) pairs in order, so UI Automation and
+/// Narrator keep label → value order. Values share one right-hand column, vertically centred on their label, while every
+/// label's title and value fit at their natural widths; otherwise (narrow windows, large text, long release versions)
+/// every value moves under its label, start-aligned, instead of clipping the label (<see cref="SettingValueLayout.ShouldStack"/>).
+/// A label may be a panel whose first child is the title and whose later children are supporting text: the supporting
+/// text wraps under the title and never counts toward the fit (R1).
 /// </summary>
 public sealed partial class SettingValueGrid : Panel
 {
     private bool _stacked;
+    private double _contentHeight;
 
     /// <summary>Vertical space between rows in epx.</summary>
     public double RowSpacing { get; set; } = 8;
@@ -23,15 +27,20 @@ public sealed partial class SettingValueGrid : Panel
     protected override Size MeasureOverride(Size availableSize)
     {
         var unbounded = new Size(double.PositiveInfinity, double.PositiveInfinity);
-        double labelWidth = 0, valueWidth = 0;
+        double fitWidth = 0, naturalLabelWidth = 0, valueWidth = 0;
         for (var i = 0; i < Children.Count; i++)
         {
             Children[i].Measure(unbounded);
-            if (i % 2 == 0) labelWidth = Math.Max(labelWidth, Children[i].DesiredSize.Width);
-            else valueWidth = Math.Max(valueWidth, Children[i].DesiredSize.Width);
+            if (i % 2 == 1)
+            {
+                valueWidth = Math.Max(valueWidth, Children[i].DesiredSize.Width);
+                continue;
+            }
+            fitWidth = Math.Max(fitWidth, TitleWidth(Children[i]));
+            naturalLabelWidth = Math.Max(naturalLabelWidth, Children[i].DesiredSize.Width);
         }
 
-        _stacked = SettingValueLayout.ShouldStack(availableSize.Width, labelWidth, valueWidth);
+        _stacked = SettingValueLayout.ShouldStack(availableSize.Width, fitWidth, valueWidth);
         double height = 0;
         var rows = 0;
         if (_stacked)
@@ -47,19 +56,27 @@ public sealed partial class SettingValueGrid : Panel
                     height += SettingValueLayout.StackedSpacing + Children[i + 1].DesiredSize.Height;
                 }
             }
+            _contentHeight = height;
             return new Size(availableSize.Width, height);
         }
 
+        // Supporting text wraps in the label column; a title that fits keeps its one line.
+        var valueColumn = valueWidth > 0 ? SettingValueLayout.ColumnSpacing + valueWidth : 0;
+        var labelColumn = double.IsInfinity(availableSize.Width) ? double.PositiveInfinity : Math.Max(0, availableSize.Width - valueColumn);
         for (var i = 0; i < Children.Count; i += 2)
+        {
+            Children[i].Measure(new Size(labelColumn, double.PositiveInfinity));
             height += (rows++ > 0 ? RowSpacing : 0) + RowHeight(i);
-        var natural = labelWidth + (valueWidth > 0 ? SettingValueLayout.ColumnSpacing + valueWidth : 0);
-        return new Size(double.IsInfinity(availableSize.Width) ? natural : availableSize.Width, height);
+        }
+        _contentHeight = height;
+        return new Size(double.IsInfinity(availableSize.Width) ? naturalLabelWidth + valueColumn : availableSize.Width, height);
     }
 
     /// <inheritdoc />
     protected override Size ArrangeOverride(Size finalSize)
     {
-        double y = 0;
+        // A MinHeight taller than the content centres the rows (the Service Info row's 56 epx minimum).
+        var y = Math.Max(0, (finalSize.Height - _contentHeight) / 2);
         if (_stacked)
         {
             for (var i = 0; i < Children.Count; i += 2)
@@ -95,6 +112,17 @@ public sealed partial class SettingValueGrid : Panel
             y += rowHeight;
         }
         return finalSize;
+    }
+
+    /// <summary>Natural width that decides the fit for one label (measured unconstrained).</summary>
+    /// <param name="label">Label child: a text element, or a panel whose first visible child is the title.</param>
+    /// <returns>The title's width; a panel's later children are supporting text and don't count (R1).</returns>
+    private static double TitleWidth(UIElement label)
+    {
+        if (label is not Panel panel) return label.DesiredSize.Width;
+        foreach (var child in panel.Children)
+            if (child.Visibility == Visibility.Visible) return child.DesiredSize.Width;
+        return 0;
     }
 
     /// <summary>Side-by-side height of the pair starting at <paramref name="labelIndex"/>.</summary>

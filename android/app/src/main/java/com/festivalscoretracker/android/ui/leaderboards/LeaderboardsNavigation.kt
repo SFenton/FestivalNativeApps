@@ -18,6 +18,8 @@ import com.festivalscoretracker.android.core.nav.LeaderboardsRoute
 import com.festivalscoretracker.android.core.nav.LeaderboardsTab
 import com.festivalscoretracker.android.core.rankings.RankHistoryChart
 import com.festivalscoretracker.android.core.rankings.RankingMetric
+import com.festivalscoretracker.android.data.compete.comboRankingsPage
+import com.festivalscoretracker.android.data.compete.playerComboRankingResult
 import com.festivalscoretracker.android.data.rankings.LeaderboardPreferences
 import com.festivalscoretracker.android.data.rankings.bandRankings
 import com.festivalscoretracker.android.data.rankings.playerInstrumentRanking
@@ -28,6 +30,8 @@ import com.festivalscoretracker.android.presentation.leaderboards.BandRankingsVi
 import com.festivalscoretracker.android.presentation.leaderboards.FullRankingsViewModel
 import com.festivalscoretracker.android.presentation.leaderboards.LeaderboardsViewModel
 import com.festivalscoretracker.android.presentation.leaderboards.RankingsReads
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.map
 
 // region Graph
 
@@ -44,6 +48,8 @@ fun rankingsReads(container: AppContainer): RankingsReads {
         bandRankings = { bandType, metric, page, size -> api.bandRankings(bandType, metric, page, size) },
         playerRanking = { instrument, accountId -> api.playerInstrumentRanking(instrument, accountId) },
         rankHistory = { instrument, accountId -> api.rankHistory(instrument, accountId, RankHistoryChart.DAYS) },
+        comboRankings = { comboId, metric, page, size -> api.comboRankingsPage(comboId, metric, page, size) },
+        playerComboRanking = { comboId, accountId, metric -> api.playerComboRankingResult(accountId, comboId, metric) },
     )
 }
 
@@ -70,6 +76,7 @@ fun NavGraphBuilder.leaderboardsGraph(container: AppContainer, shellViewModel: S
                 settings = shellViewModel.settings,
                 backoff = container.backoff,
                 initialPage = route.page,
+                initialCombo = route.combo,
             )
         }
         val instrument by viewModel.instrument.collectAsStateWithLifecycle()
@@ -81,7 +88,14 @@ fun NavGraphBuilder.leaderboardsGraph(container: AppContainer, shellViewModel: S
     composable<BandRankingsRoute> { entry ->
         val route = entry.savedStateHandle.toRoute<BandRankingsRoute>()
         val viewModel: BandRankingsViewModel = viewModel {
-            BandRankingsViewModel(BandType.fromWireId(route.bandType) ?: BandType.Duets, preferences.rankBy, rankingsReads(container), container.backoff, route.page)
+            BandRankingsViewModel(
+                BandType.fromWireId(route.bandType) ?: BandType.Duets,
+                preferences.rankBy,
+                shellViewModel.settings.filterNotNull().map { it.experimentalRanks },
+                rankingsReads(container),
+                container.backoff,
+                route.page,
+            )
         }
         val bandType by viewModel.bandType.collectAsStateWithLifecycle()
         val page by viewModel.page.collectAsStateWithLifecycle()
