@@ -294,7 +294,10 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     ///   text is ≥ 1.35× taller at AX5 than at the default size, measured against
     ///   `baseline` (this audit is at AX5) or, for a default-size audit, returned as a
     ///   pending `Growth` that `resolveGrowth` checks on the test's own AX5 launch (no
-    ///   extra launch: each one costs minutes on the CI runner).
+    ///   extra launch: each one costs minutes on the CI runner);
+    /// - "Text clipped" without an element in a default-size audit (`predicted-clipping`):
+    ///   returned as pending, and the same launch's AX5 audit, which accepts no unattributed
+    ///   clipping, must pass (#558's marquee rows draw whole at the default size).
     /// Every accepted issue is attached with its measurement; anything else fails.
     ///
     /// - Parameters:
@@ -336,6 +339,12 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
                     return true
                 }
                 evidence.append("contrast-rendered: \(summary), rendered \(String(format: "%.2f", ratio)):1")
+                return true
+            case (.textClipped, nil) where baseline == nil:
+                // A default-size prediction that text "may be clipped at larger sizes", with no
+                // element to measure: checked where it points, by the AX5 clipping audit of the
+                // same launch, which accepts no unattributed clipping (Drawer journey precedent).
+                pending.append(Growth(key: "", height: 0, summary: summary, rule: Self.predictedClipping))
                 return true
             case (.textClipped, let element?), (.dynamicType, let element?):
                 var summary = summary
@@ -379,8 +388,11 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         return pending
     }
 
+    /// Rule of an unattributed default-size clipping prediction, resolved by the AX5 audit.
+    private static let predictedClipping = "predicted-clipping"
+
     /// A default-size Dynamic Type or clipping flag, accepted once the same text is ≥ 1.35×
-    /// taller at AX5.
+    /// taller at AX5 (or, for a `predictedClipping` flag, once the AX5 audit finds no clipping).
     private struct Growth {
         let key: String
         let height: CGFloat
@@ -401,6 +413,10 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         var evidence: [String] = []
         var open: [String] = []
         for text in pending {
+            if text.rule == Self.predictedClipping {
+                evidence.append("\(text.rule): \(text.summary) → checked by this launch's AX5 clipping audit")
+                continue
+            }
             guard let height = large[text.key], height >= text.height * 1.35 else {
                 open.append("\(text.summary), AX5 height \(large[text.key].map { "\($0)" } ?? "unknown")")
                 continue
