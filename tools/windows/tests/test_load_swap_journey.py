@@ -107,7 +107,7 @@ class LoadSwapJourneyTests(unittest.TestCase):
                 self.assertGreater(float(landed.rsplit("@", 1)[1]), 10, landed)
         reload = _BY_NAME["load-swap-song-leaderboard"]["after_ready"]
         self.assertIn("assertread:name=Busy Loading leaderboard|Busy Loading leaderboard, ProgressRing", reload)
-        self.assertIn("assertread:id=fst.song-leaderboard.song|Fixture Pulse, button, Opens Song Details", reload)
+        self.assertIn("assertread:id=fst.song-leaderboard.song|Fixture Pulse, Synthetic Quartet, Lead, 100 Lead entries, button, Opens Song Details", reload)
 
     def test_focus_stays_on_the_pressed_button(self):
         for name in ("load-swap-full-rankings", "load-swap-band-rankings", "load-swap-song-leaderboard",

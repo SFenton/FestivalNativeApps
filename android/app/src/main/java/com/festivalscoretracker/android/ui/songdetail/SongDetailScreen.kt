@@ -68,6 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import com.festivalscoretracker.android.core.shell.BottomChromeSpacing
 import com.festivalscoretracker.android.core.rankings.LeaderboardColumnLayout
 import com.festivalscoretracker.android.core.rankings.RankingFormatting
 import com.festivalscoretracker.android.core.rankings.LeaderboardColumnPlan
@@ -235,7 +236,9 @@ fun SongDetailScreen(
         val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
         CompositionLocalProvider(LocalFadeInWindow provides fadeIn) {
             Box(Modifier.fadeInRushOnScroll(fadeIn)) {
-                body(PaddingValues(top = statusTop + 8.dp, bottom = shell.bottomPadding.calculateBottomPadding()))
+                // Clears a floating toolbar over this pane, as the shell padding did before #578.
+                val bottom = BottomChromeSpacing.contentBottomDp(shell.bottomPadding.calculateBottomPadding().value, BottomChromeSpacing.TOOLBAR_HEIGHT_DP.toFloat())
+                body(PaddingValues(top = statusTop + 8.dp, bottom = bottom.dp))
             }
         }
     } else {
@@ -378,7 +381,7 @@ private fun SongDetailContent(
         }
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(start = PAGE_GUTTER, end = PAGE_GUTTER, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 24.dp),
+            contentPadding = PaddingValues(start = PAGE_GUTTER, end = PAGE_GUTTER, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding()),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxSize().testTag("fst.song-detail.list"),
         ) {

@@ -150,7 +150,7 @@ private fun CompeteGrid(content: CompeteContent, padding: PaddingValues, gridSta
     val selected = shell.selectedPlayer?.accountId
     val order = content.stagger
     AdaptiveCardGrid(
-        contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+        contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding()),
         state = gridState,
         testTag = "fst.compete.grid",
     ) {

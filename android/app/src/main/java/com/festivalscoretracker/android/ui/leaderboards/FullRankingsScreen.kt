@@ -287,13 +287,14 @@ private fun ColumnScope.FullRankingsFooter(
     // Pinned on every page, the player's own included, like the song boards (issue #318).
     when (val placement = RankingSpotlight.pinnedPlacement(selected, entries, source)) {
         RankingSpotlightPlacement.None, RankingSpotlightPlacement.Inline -> Unit
-        RankingSpotlightPlacement.Pending -> AnchoredRowCard { SpotlightLoadingRow("fst.full-rankings.spotlight-footer.loading") }
+        RankingSpotlightPlacement.Pending -> PinnedSelectedRow { SpotlightLoadingRow("fst.full-rankings.spotlight-footer.loading") }
         RankingSpotlightPlacement.Unranked -> AnchoredRowCard { SpotlightUnrankedRow("Not yet ranked on $boardLabel.", "fst.full-rankings.spotlight-footer.unranked") }
         // Web fixed player footer: the full-width row in the page's columns, so it lines up
         // with the rows above (operator batch 7, 7.9). `leaderboard-row` R7: it jumps to the
         // player's page while their row is elsewhere and opens Statistics once it is on screen;
-        // while a page loads, the rank decides.
-        is RankingSpotlightPlacement.Footer -> AnchoredRowCard {
+        // while a page loads, the rank decides. Only its purple fill floats above the pager, with
+        // no card around it (#579).
+        is RankingSpotlightPlacement.Footer -> PinnedSelectedRow {
             val rank = placement.entry.rank(metric)
             val visible = if (pageShown) entries.any { RankingSpotlight.isSelected(selected, it.accountId) } else rank > 0 && LeaderboardPaging.pageForRank(rank, RankingPaging.PAGE_SIZE) == page
             val action = SelectedRowAction.footer(rank, visible, page, RankingPaging.PAGE_SIZE)

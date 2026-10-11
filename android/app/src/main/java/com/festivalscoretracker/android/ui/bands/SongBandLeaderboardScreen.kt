@@ -20,7 +20,7 @@ import com.festivalscoretracker.android.core.rankings.SelectedRowSubject
 import com.festivalscoretracker.android.core.rankings.label
 import com.festivalscoretracker.android.core.shell.LoadSwapPhase
 import com.festivalscoretracker.android.ui.leaderboards.AnchoredFooter
-import com.festivalscoretracker.android.ui.leaderboards.AnchoredRowCard
+import com.festivalscoretracker.android.ui.leaderboards.PinnedSelectedRow
 import com.festivalscoretracker.android.ui.songdetail.RowSeparator
 import com.festivalscoretracker.android.ui.leaderboards.SelectedRowAnchor
 import com.festivalscoretracker.android.ui.common.BOARD_CARD_INDEX
@@ -86,7 +86,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.ui.leaderboards.TEXT_SLACK
-import com.festivalscoretracker.android.ui.leaderboards.ANCHORED_ROW_CARD_PADDING
+import com.festivalscoretracker.android.ui.leaderboards.PINNED_ROW_INSET
 import com.festivalscoretracker.android.ui.leaderboards.LocalColumnProbe
 import com.festivalscoretracker.android.ui.leaderboards.columnProbe
 import com.festivalscoretracker.android.ui.songdetail.SCORE_ROW_PADDING
@@ -255,7 +255,7 @@ fun SongBandLeaderboardScreen(
                 // while another page loads (issue #190); a band-size change hides it beside the spinner (load-transition R2).
                 footer = {
                     footerEntry?.let { entry ->
-                        AnchoredRowCard(with(swap) { Modifier.pinnedStaggered(0) }.then(swap.pinnedContentModifier)) {
+                        PinnedSelectedRow(with(swap) { Modifier.pinnedStaggered(0) }.then(swap.pinnedContentModifier)) {
                             LeaderboardSectionMember(columns, "footer") {
                                 SelectedScoreFooterRow(
                                     entry = entry.footerLeaderboardEntry,
@@ -314,7 +314,7 @@ fun SongBandLeaderboardScreen(
                         // row (load-transition R11, owner #614).
                         if (response.entries.isNotEmpty()) item(key = BAND_ROWS_KEY) {
                             GlassCard(anchor.item.fillMaxWidth().then(with(swap) { Modifier.card() }).testTag("fst.song-band-leaderboard.rows")) {
-                                Column(Modifier.padding(horizontal = ANCHORED_ROW_CARD_PADDING, vertical = 6.dp)) {
+                                Column(Modifier.padding(horizontal = PINNED_ROW_INSET, vertical = 6.dp)) {
                                     response.entries.forEachIndexed { index, entry ->
                                         val isSelected = selected?.sameBand(entry) == true
                                         Column(if (isSelected) anchor.row else Modifier) {
@@ -366,7 +366,7 @@ internal fun SongBandLeaderboardLayout(
     rows: LazyListScope.() -> Unit,
 ) {
     val top = padding.calculateTopPadding()
-    val bottom = padding.calculateBottomPadding() + 24.dp
+    val bottom = padding.calculateBottomPadding()
     val leading = split.leadingWidth
     if (split.twoPane && leading != null) {
         Row(Modifier.fillMaxSize()) {
@@ -464,7 +464,7 @@ internal fun BandScoreRow(
             val cardWidth = maxWidth + (SCORE_ROW_PADDING + SELECTED_HIGHLIGHT_INSET + columns.cardPadding) * 2
             val stacked = maxWidth < BAND_ROW_STACK_WIDTH
             // Without a pinned row to follow, the gap is the one a footer row of this card's width would use.
-            val gap = columns.gap ?: LeaderboardColumnLayout.gapFor((cardWidth - ANCHORED_ROW_CARD_PADDING * 2).value).dp
+            val gap = columns.gap ?: LeaderboardColumnLayout.gapFor((cardWidth - PINNED_ROW_INSET * 2).value).dp
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(gap)) {
                     Text(
@@ -579,8 +579,8 @@ private val BAND_ROW_PADDING = 12.dp
  *
  * @property rankWidth Rank column width ([rememberBandRankWidth]).
  * @property cardPadding Horizontal padding of the section's card around its rows: 0 on Song
- *   Detail (rank 12 dp from the card edge, like its solo rows), [ANCHORED_ROW_CARD_PADDING]
- *   on the full board (rank 20 dp from the card edge, like the pinned footer row).
+ *   Detail (rank 12 dp from the card edge, like its solo rows), [PINNED_ROW_INSET]
+ *   on the full board (rank 20 dp from the card edge, like the pinned footer row from the board's edge).
  * @property gap Space between the rank and the members; null takes the gap a pinned score
  *   row of the card's width would use ([LeaderboardColumnLayout.gapFor]).
  */
@@ -593,12 +593,12 @@ internal data class BandRowColumns(
 
 /**
  * The full song band board's row geometry: band rows put their rank and members exactly
- * where the pinned selected band's solo-style footer row ([SelectedScoreFooterRow] in an
- * [AnchoredRowCard]) puts its rank and name, so the pinned band shares the board's columns
+ * where the pinned selected band's solo-style footer row ([SelectedScoreFooterRow] in a
+ * [PinnedSelectedRow]) puts its rank and name, so the pinned band shares the board's columns
  * (`leaderboard-row` R1, R5) whether it is on this page or not. The rows card is padded like
- * the [AnchoredRowCard] and each row is inset like the footer's [selectedRowHighlight], so
- * both ranks start [ANCHORED_ROW_CARD_PADDING] + [SELECTED_HIGHLIGHT_INSET] +
- * [SCORE_ROW_PADDING] from their card's edge. The rows use the same geometry while no band
+ * the [PinnedSelectedRow]'s inset and each row is inset like the footer's [selectedRowHighlight], so
+ * both ranks start [PINNED_ROW_INSET] + [SELECTED_HIGHLIGHT_INSET] +
+ * [SCORE_ROW_PADDING] from the board's edge. The rows use the same geometry while no band
  * is pinned, so switching band sizes never moves the columns.
  *
  * @param plan The footer's plan, fitted with the board's rank width.
@@ -609,7 +609,7 @@ internal data class BandRowColumns(
 @Composable
 internal fun bandBoardColumns(plan: LeaderboardColumnPlan, rankWidth: Dp, hasFooter: Boolean): BandRowColumns = BandRowColumns(
     rankWidth = maxOf(rankWidth, plan.rankWidth.dp),
-    cardPadding = ANCHORED_ROW_CARD_PADDING,
+    cardPadding = PINNED_ROW_INSET,
     gap = when {
         isLargeText() -> STACKED_RANK_GAP
         hasFooter -> plan.gap.dp

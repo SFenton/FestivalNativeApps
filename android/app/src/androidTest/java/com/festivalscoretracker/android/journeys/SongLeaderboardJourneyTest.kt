@@ -210,6 +210,8 @@ class SongLeaderboardJourneyTest {
         assertEquals("Jump to your position", clickable.actionList.firstOrNull { it.id == AccessibilityNodeInfo.ACTION_CLICK }?.label?.toString())
         val minPx = 48 * rule.activity.resources.displayMetrics.density - 1
         assertTrue("pinned row under 48 dp", screenBox(clickable).height() >= minPx)
+        // Only its purple fill floats above the pager, no card around it, in the rows' columns (#579).
+        h.assertPinnedRowFloats(screen, footer, "$prefix.bottom-bar", "$prefix.row.${Fixtures.ACCOUNT_A.dropLast(2)}10".takeUnless { split })
 
         // Scrolled: the bar takes the title, and no row the footer covers stays readable or touchable.
         // Around a hinge the header lives in the supporting pane (the list holds only the rows) and

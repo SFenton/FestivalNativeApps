@@ -34,10 +34,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -68,6 +70,7 @@ import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.search.PxRect
 import com.festivalscoretracker.android.core.search.SearchPresentation
+import com.festivalscoretracker.android.core.shell.BottomChromeSpacing
 import com.festivalscoretracker.android.core.shell.PxSpan
 import com.festivalscoretracker.android.ui.search.GlobalSearchEntry
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -84,7 +87,10 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @property profileChip The profile chip's action: the selected profile's page (Statistics), or
  *   profile selection when none is selected ([com.festivalscoretracker.android.core.shell.ProfileChipPolicy]).
  * @property selectedPlayer Current selected player.
- * @property bottomPadding Space reserved by the bottom bar / system navigation.
+ * @property bottomPadding Bottom chrome the content does not already clear: the system navigation
+ *   bar beside a rail or drawer (0 above the bottom bar), plus the end safe inset. [FestivalScreen]
+ *   adds the floating toolbar's band while it shows tools and one standard gap
+ *   ([BottomChromeSpacing], `page-tools-and-nav-chrome` R7, issue #578).
  * @property search Global search entry point (`.agents/controls/global-search/android.md`).
  * @property notifications Bell slot between search and the avatar, when notifications exist.
  * @property floatingToolbar The shell's floating toolbar that takes screen actions at every window
@@ -118,6 +124,9 @@ data class SearchChrome(
     val open: (requester: PxRect?) -> Unit = {},
     val report: (PxRect) -> Unit = {},
 )
+
+/** [FestivalScreen]'s default actions: none, so the page expects no floating toolbar (issue #578). */
+val NoPageActions: @Composable RowScope.() -> Unit = {}
 
 /** Shell hooks for the current screen. */
 val LocalShellActions = staticCompositionLocalOf { ShellActions() }
@@ -161,7 +170,9 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  *   as [LocalFadeInWindow] and rushed when the content scrolls (load-transition R5, issue #323).
  *   Pass one created in the page body when the body itself scrolls (a selected-row reveal,
  *   Quick Links); by default the screen creates its own.
- * @param content Content given padding that clears the top bar and bottom chrome.
+ * @param content Content given padding that clears the top bar and bottom chrome: its bottom ends
+ *   one standard gap above the chrome actually shown (the floating toolbar while it shows tools,
+ *   else the bottom bar), so pages add no bottom margin of their own (R7, issue #578).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -169,7 +180,7 @@ fun FestivalScreen(
     title: String,
     isRoot: Boolean,
     modifier: Modifier = Modifier,
-    actions: @Composable RowScope.() -> Unit = {},
+    actions: @Composable RowScope.() -> Unit = NoPageActions,
     actionsReadFirst: Boolean = false,
     scrolled: Boolean = false,
     titleIcon: (@Composable (size: Dp) -> Unit)? = null,
@@ -201,9 +212,17 @@ fun FestivalScreen(
     // screen's pane; global search stays in the top app bar (operator 2026-09-28).
     val pane = remember { mutableStateOf<PxSpan?>(null) }
     val toolbarReadsFirst = shell.floatingToolbar != null && actionsReadFirst
-    if (shell.floatingToolbar != null) {
-        FloatingToolbarContent(readFirst = actionsReadFirst, pane = pane) { actions() }
+    // The toolbar's drawn height (0 while it shows no tools) sets where the content ends (R7,
+    // issue #578). Until it is drawn: its last height on this page (back keeps place), else the
+    // pill's height, or none for a page without actions.
+    var lastToolbarHeight by rememberSaveable { mutableStateOf<Float?>(null) }
+    val expectedToolbarHeight = lastToolbarHeight ?: if (actions === NoPageActions) 0f else BottomChromeSpacing.TOOLBAR_HEIGHT_DP.toFloat()
+    val toolbarHeight = if (shell.floatingToolbar != null) {
+        FloatingToolbarContent(readFirst = actionsReadFirst, pane = pane, initialHeightDp = expectedToolbarHeight) { actions() } ?: expectedToolbarHeight
+    } else {
+        0f
     }
+    if (shell.floatingToolbar != null) SideEffect { lastToolbarHeight = toolbarHeight }
     Scaffold(
         modifier = modifier
             .onSizeChanged { widthPx = it.width }
@@ -330,7 +349,7 @@ fun FestivalScreen(
                         start = inner.calculateStartPadding(direction) + bottom.calculateStartPadding(direction),
                         top = 0.dp,
                         end = inner.calculateEndPadding(direction) + bottom.calculateEndPadding(direction),
-                        bottom = inner.calculateBottomPadding() + bottom.calculateBottomPadding(),
+                        bottom = inner.calculateBottomPadding() + BottomChromeSpacing.contentBottomDp(bottom.calculateBottomPadding().value, toolbarHeight).dp,
                     ),
                 )
             }

@@ -8,6 +8,11 @@ spotlight reads (``/api/rankings/{instrument}/{accountId}``) and every other rou
 ``--long-name`` renames every rank-2 player to a name too long for any row, for the name marquee (issue #292).
 ``--slow-board`` answers a chosen board normally after :data:`SLOW_SECONDS`, so its card's loading rows stay on screen
 next to loaded cards (issue #281: placeholder rows as tall as loaded rows).
+``--slow-song-board <songId>/<instrument>`` answers that song board's first page (``offset`` 0) after
+:data:`SLOW_SONG_BOARD_SECONDS`, so its first-load spinner stays up while the selected player's score index (and the
+board's pinned row) is already loaded (issue #295: the pinned row stays hidden until the rows reveal). With
+``--slow-leeway-only`` only reads carrying ``leeway`` are delayed, so the first load is quick and the reload after a
+Filter Invalid Scores change keeps its spinner (and the gated pinned row) up.
 
 Usage: ``python tools/windows/leaderboards_fixture.py --port 0 --empty-board Solo_Bass --frozen-board Band_Trios``
 (other flags, such as ``--large-rankings``, pass through to mock_service.py).
@@ -31,6 +36,27 @@ LONG_NAME = "Fixture Player With An Extraordinarily Long Display Name That Never
 LONG_NAME_RANK = 2
 #: Delay before a ``--slow-board`` read is answered.
 SLOW_SECONDS = 25.0
+SONG_BOARD = re.compile(r"^/api/leaderboard/([a-z0-9-]+)/([A-Za-z_]+)$")
+#: Delay before a ``--slow-song-board`` first page is answered.
+SLOW_SONG_BOARD_SECONDS = 15.0
+
+
+def slow_song_board(path: str, query: dict[str, list[str]], slow: set[str], leeway_only: bool = False) -> bool:
+    """Whether a request is the first page of a ``--slow-song-board`` song board.
+
+    Args:
+        path: Request path without the query string.
+        query: Parsed query string.
+        slow: ``<songId>/<instrument>`` boards whose first page is slow.
+        leeway_only: Delay only reads that carry a ``leeway`` query (a Filter Invalid Scores reload).
+
+    Returns:
+        ``True`` for an ``offset`` 0 (or offset-less) read of a chosen board (with ``leeway`` when ``leeway_only``);
+        later pages are never delayed here.
+    """
+    match = SONG_BOARD.fullmatch(path)
+    return (match is not None and f"{match.group(1)}/{match.group(2)}" in slow
+            and query.get("offset", ["0"]) == ["0"] and (not leeway_only or "leeway" in query))
 
 
 def board_override(path: str, empty: set[str], frozen: set[str],
@@ -79,19 +105,28 @@ def empty_page(board: str, is_band: bool, query: dict[str, list[str]]) -> dict:
     return {"bandType": board, **page, "totalTeams": 0} if is_band else {"instrument": board, **page, "totalAccounts": 0}
 
 
-def install(empty: set[str], frozen: set[str], slow: set[str] = frozenset()) -> None:
+def install(empty: set[str], frozen: set[str], slow: set[str] = frozenset(),
+            slow_song: set[str] = frozenset(), slow_leeway_only: bool = False) -> None:
     """Patch the mock handler so the chosen boards are empty, frozen or slow.
 
     Args:
         empty: Board IDs answered with an empty page.
         frozen: Board IDs answered with a scrape-freeze 503.
         slow: Board IDs answered by the mock after :data:`SLOW_SECONDS` (the server is threaded).
+        slow_song: ``<songId>/<instrument>`` song boards whose first page the mock answers after
+            :data:`SLOW_SONG_BOARD_SECONDS`.
+        slow_leeway_only: Delay only ``slow_song`` reads that carry a ``leeway`` query.
     """
     handler = mock_service.FixtureHandler
     original = handler.do_GET
 
     def do_GET(self) -> None:  # noqa: N802 (stdlib handler name)
         parsed = urlsplit(self.path)
+        if slow_song and slow_song_board(parsed.path, parse_qs(parsed.query, keep_blank_values=True), slow_song,
+                                        slow_leeway_only):
+            time.sleep(SLOW_SONG_BOARD_SECONDS)
+            original(self)
+            return
         override = board_override(parsed.path, empty, frozen, slow)
         if override is None:
             original(self)
@@ -137,8 +172,11 @@ def main() -> None:
     parser.add_argument("--frozen-board", action="append", default=[])
     parser.add_argument("--long-name", action="store_true")
     parser.add_argument("--slow-board", action="append", default=[])
+    parser.add_argument("--slow-song-board", action="append", default=[])
+    parser.add_argument("--slow-leeway-only", action="store_true")
     options, rest = parser.parse_known_args()
-    install(set(options.empty_board), set(options.frozen_board), set(options.slow_board))
+    install(set(options.empty_board), set(options.frozen_board), set(options.slow_board), set(options.slow_song_board),
+            options.slow_leeway_only)
     if options.long_name:
         install_long_name()
     sys.argv = [sys.argv[0], *rest]

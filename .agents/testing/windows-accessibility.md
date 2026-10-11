@@ -98,6 +98,7 @@ Scope: the shared row-column fitter (issue #37) on every board, checked against 
   - Shift+Tab re-enters a repeater on its last realized row, which depends on scroll, so assert the hops on either side of it rather than that row.
   - **Failed, fixed:** arrowing down the song board, Band Rankings, the song band board or Player Bands scrolled the focused row or card only to the viewport's bottom edge, under the floating pinned row and pager (WCAG 2.4.11; `assertapart` failed at compact and medium). Only Full Rankings had a guard. `BoardFooter.Inset` now applies it to every board, and a `*-focus-clear` page asserts it on each of its five consumers (each fails at compact and medium with the guard removed).
   - **Pinned band row (issue #461, for #306):** `journeys/a11y-song-band-pinned.json` (CI runs `song-band-pinned` and `song-band-pinned-text-225`) covers the song band board's pinned "your band" row: the Jump and Open band Narrator phrases, the 40 epx pin and pager targets, rows → pin → pager reading and Tab order, Tab/Shift+Tab/Enter, the jumped-to "Your band." row clear of the pin, the size switch (Trios empty hides it), no player and Reduce Motion. **Failed, fixed:** at 225% text the centred jump left the row partly under the pin, because `BoardFooter.Inset` skipped aligned requests. It now grows them as well (Solo and Full Rankings jumps share it). `selected_reveal_journey.py --only solo` fails intermittently on master too (1 in 6; a repeater row logs two `play` lines before the rush, which `check_reveal` counts twice). The request the reveal makes comes after the rush, so this change doesn't cause it.
+  - **Pinned score row's load gate (issue #457, for #295):** `journeys/a11y-song-pinned-reveal.json` (CI runs `song-pinned-reveal`, `-text-225`, `-reduced`, `-no-animations`) covers the song board's pinned "your score" row as it joins the rows' load gate: absent from UIA, the reading order and Tab under the first-load ring and during a Filter Invalid Scores reload (Tab goes header → Next), then its Narrator phrase, rows → pinned row → pager order, 40 epx target, purple fill and Tab stop with the new rows; still under Reduce Motion and with Animation effects off. Passed with 0 Axe errors. No defect found. A test-design finding: the Windows pinned row is created only when the first page commits, so first-load absence checks can't catch a missing gate. Mutation-test a gate on a reload that keeps the row's data (here the leeway change), not only the first load.
   - **Row height (issue #440, for #90):** `journeys/a11y-leaderboard-row-height.json` checks every board's rows at 48+ epx: overview instrument and band cards with their loading placeholders, Full and Band Rankings, the song board and pinned row, and Song Detail previews. Placeholders sit at the loaded pitch, are raw-view only and are silent to Narrator. Rows read as one Button each in visual order. Passed with 0 Axe errors at compact and medium, and at compact under text 225%. No defect found. At 225% text the first scans failed on test setup: a row clipped at the viewport's bottom edge, and a band row matched in the wrong card because overview row IDs repeat across cards. Both were fixed by pinning the final position with `scrollinset` and waiting for the slow card's View All.
   - A focus-clear page must prove its target starts below the fold (`waitgone:<card>@2` before the arrows: the driver resolves only on-screen elements) and check every pager button the target can sit under. The pager is centred, so on Player Bands' two-column grid a left-column card sits under Previous, not Next (`cols-player-bands-focus-clear-grid` passed against Next alone with the guard removed).
 
@@ -471,6 +472,25 @@ Every page is Axe-scanned. `song-board-footer` and the footer-fade pages also ge
 | Text 225% (compact, both pages) | Pass, Axe 0, traversal included |
 | In-app Reduce Motion (medium, paging) | Pass, Axe 0, traversal included |
 | Footer fade rest, mid, end, More Contrast, Less Transparency (compact, medium; compact at 225%) | Pass, Axe 0 |
+
+No accessibility defect was found.
+
+## Full Rankings pinned row accessibility tests (issue #466, 2026-10-11)
+
+Backfills CI tests for the #318 Windows change: the selected player's row stays pinned above the pager on Full Rankings, even on their own page. Before this, its journeys (`full-rankings.json`, `full-rankings-keyboard.json`) weren't `windows-ui` runs. Only `grouped-full-rankings` checked the order and one Tab. New `journeys/a11y-full-rankings.json` (`rankings_fixture.py`) is now a set of `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- on the player's own page (Fixture Player 2, #2): the pinned row reads "Your rank, 2nd. Open your statistics. Fixture Player 2. Total Score …, button"; the pager reads "First page, button, unavailable", "Previous page, button, unavailable", "Page 1 of 48, text", "Next page, button" and "Last page, button";
+- the pinned row and four pager buttons are at least 40×40 epx, and the pinned row doesn't overlap the pager;
+- the reading order is title (Level 1 heading) → the player's own row in the list → pinned row → First → Previous → page text → Next → Last, and the fade layer stays out of the control view while fading rows over 40 epx;
+- the Tab order on the player's page: row → pinned row → Next → Last, Shift+Tab back to the pinned row, and Enter on it opens the profile;
+- off the player's page (Fixture Rank 40): the pinned row reads "Jump to your position". Enter jumps to page 2 and keeps focus on the pinned row, which now reads "Open your statistics". The pager reads "Page 2 of 48" with First and Previous available, the order is row 40 → pinned row → pager, and Tab and Shift+Tab move between the pinned row and First.
+
+`fr-pinned-own-page` also gets the dispatcher's 30-press Tab walk. The two keyboard pages set `tabs: 0` because their ordered traversal replaces it. `tests/test_ui_ci.py` pins the runs and the key checks.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`full-rankings-pinned`, all 3 pages) | Pass, Axe 0 |
+| Text 225% (compact, all 3 pages) | Pass, Axe 0; the pinned row's two lines grow without clipping above the pager |
+| In-app Reduce Motion (medium, jump) | Pass, Axe 0 |
 
 No accessibility defect was found.
 

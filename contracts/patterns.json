@@ -945,6 +945,10 @@
             "symbol": "FloatingToolbarPlacement"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/BottomChromeSpacing.kt",
+            "symbol": "BottomChromeSpacing"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/search/GlobalSearch.kt",
             "symbol": "GlobalSearchEntry"
           },
@@ -1150,6 +1154,7 @@
         557,
         576,
         597,
+        578,
         604
       ]
     },
@@ -1558,6 +1563,10 @@
             "symbol": "SelectedScoreFooterRow"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsBoardScaffold.kt",
+            "symbol": "PinnedSelectedRow"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/SelectedRowNavigation.kt",
             "symbol": "SelectedRowAction"
           },
@@ -1792,7 +1801,8 @@
         381,
         409,
         461,
-        594
+        594,
+        578
       ]
     },
     {
