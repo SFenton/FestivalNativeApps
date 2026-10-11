@@ -105,13 +105,14 @@ TEST_RUNNER_FST_AUDIT_OUT=/tmp/history python3 tools/ios_sim.py uitest --device 
 - The image is an image named "Lead Expert CHOpt path", inside the `fst.paths.image-viewport` scroll view.
 - The selectors are 44 pt, and the reading order is bar (zoom group, Close), then image or table, then Instrument, Difficulty and View.
 - `performAccessibilityAudit` passes on each state: `.all` at Large, all but contrast at AX5.
-- A contrast flag on a selector capsule, or on an activation-card text in the table (the iPad cover flagged white "NOTE" and "BEAT" labels on the dark card), passes only once that element's rendered contrast measures at least 4.5:1 (as `PathsSwitchAccessibilityJourneyTests` and `SuggestionsAccessibilityJourneyTests`). A selector value flagged as clipped or as partial Dynamic Type passes only in the simulated inner display, which lays the 669-pt named row out inside the iPhone's narrower window; the iPad cover audits that row at a real width.
+- Text scaling: the Difficulty value ("Expert", the one selector named in every form) draws whole (`RecognizedText.showsWhole`), and each AX5 run first launches the same form at Large so its rendered glyph height (`SongsUITestSupport.brightGlyphHeight`, required below 90 % of the capsule so it measures text, not the capsule edge) grows more than 1.35× at AX5, while Close, the zoom group and the stacked selectors stay on screen and hittable.
+- A contrast flag on a selector capsule, or on an activation-card text in the table (the iPad cover flagged white "NOTE" and "BEAT" labels on the dark card), passes only once that element's rendered contrast measures at least 4.5:1 (as `PathsSwitchAccessibilityJourneyTests` and `SuggestionsAccessibilityJourneyTests`). A selector value flagged as clipped or as partial Dynamic Type passes only in the simulated inner display at Large, which lays the 669-pt named row out inside the iPhone's narrower window (the whole-text check is skipped there too); the iPad cover audits that row at a real width, and the AX5 runs stack the selectors and accept no Dynamic Type flag. Only in the simulated inner display at AX5 does the audit flag the View value ("Image") as clipped, though it renders the same pixels the iPhone AX5 form audits clean; that one "Text clipped" passes only once Vision reads the flagged selector's value whole and the selector lies wholly in the window, in the same run.
 - The Duo runs open the song by route (`FST_DEBUG_SONG=fixture-pulse`), because the folded vertical bar keeps Songs' search off the page.
 
 | Journey | Where (`apple-ci`) |
 |---|---|
 | `testPathsCloseAndZoomWithoutGestures`, `…AtAX5` | iPhone sheet; iPad full-window cover (#368, no system swipe) |
-| `…DuoFolded`, `…DuoUnfolded` | iPhone list only: `DebugDuoWindow` folded (sheet) and unfolded-portrait (cover) |
+| `…DuoFolded`, `…DuoUnfolded`, `…DuoFoldedAtAX5`, `…DuoUnfoldedAtAX5` | iPhone list only: `DebugDuoWindow` folded (sheet) and unfolded-portrait (cover), at Large and AX5 |
 
 ### iPad audit waivers
 

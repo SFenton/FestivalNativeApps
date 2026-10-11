@@ -139,6 +139,8 @@ jobs:
             PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesAtAX5
             PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoFolded
             PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoUnfolded
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoFoldedAtAX5
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoUnfoldedAtAX5
             SongSeasonAccessibilityJourneyTests/testTappedScoreSeasonIsReadableAtLargestText
             RivalsAccessibilityJourneyTests/testRivalRowsAreReadableAtAX5
         run: |

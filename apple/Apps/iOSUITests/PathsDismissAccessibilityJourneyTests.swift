@@ -30,11 +30,16 @@ import XCTest
 ///   (`testing/apple/accessibility.md`). A contrast flag on a selector capsule or an
 ///   activation-table text passes only once its rendered contrast measures 4.5:1 or more;
 ///   a selector clipped or not growing in the simulated inner display passes only there
-///   (the iPhone's real window is narrower).
+///   at Large (the iPhone's real window is narrower); at AX5 a selector flagged clipped
+///   there passes only once Vision reads its value whole in the same run.
+/// - **Text scaling:** the Difficulty value ("Expert", named in every form) draws whole
+///   (Vision) and, at AX5, its rendered glyphs (`SongsUITestSupport.brightGlyphHeight`) are
+///   over 1.35× as tall as in a paired Large launch of the same form, with Close, the zoom
+///   group and the stacked selectors still on screen and hittable.
 ///
-/// Forms: the iPhone sheet; the iPhone Duo folded sheet and the inner display's
-/// full-window cover (`DebugDuoWindow` simulation, as CI has no Duo device type); the
-/// iPad's full-window cover (#368), where no system swipe exists. Runs against
+/// Forms, each at Large and AX5: the iPhone sheet; the iPhone Duo folded sheet and the
+/// inner display's full-window cover (`DebugDuoWindow` simulation, as CI has no Duo device
+/// type); the iPad's full-window cover (#368), where no system swipe exists. Runs against
 /// `tools/mock_service.py --large-catalogue` (`apple-ci` default port 8765;
 /// `FST_PATHS_FIXTURE_URL` points a local run at another port).
 final class PathsDismissAccessibilityJourneyTests: XCTestCase {
@@ -51,7 +56,35 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         var auditTypes: XCUIAccessibilityAuditType = .all
         /// `DebugDuoWindow` to simulate, or nil for the device itself.
         var duoWindow: String?
+
+        /// Whether this run is at AX5, so it pairs with a Large launch to prove text growth.
+        var isAX5: Bool {
+            contentSize == UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue
+        }
+
+        /// An AX5 run: every audit type but contrast (`testing/apple/accessibility.md`).
+        ///
+        /// - Parameters:
+        ///   - name: Attachment and message name.
+        ///   - duoWindow: `DebugDuoWindow` to simulate, or nil.
+        /// - Returns: The run.
+        static func ax5(name: String, duoWindow: String? = nil) -> Run {
+            Run(
+                name: name,
+                contentSize: UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+                auditTypes: XCUIAccessibilityAuditType.all.subtracting(.contrast),
+                duoWindow: duoWindow
+            )
+        }
+
+        /// The same form at the default (Large) size, the AX5 run's growth baseline.
+        var large: Run { Run(name: "\(name)-large-baseline", duoWindow: duoWindow) }
     }
+
+    /// The Difficulty selector's value on the fixture's first chart: the Paths text measured
+    /// for Dynamic Type growth. Every form names it (Instrument and View go icon-only on a
+    /// phone and folded Duo), and it is white body text on the dark capsule.
+    private static let measuredValue = "Expert"
 
     // MARK: - Journeys
 
@@ -61,15 +94,12 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         try runJourney(Run(name: "default"))
     }
 
-    /// AX5: Close, the zoom group and the selectors stay reachable and the audit (all but
-    /// contrast) passes.
+    /// AX5: the Difficulty value grows over 1.35× its Large glyph height (a paired Large
+    /// launch) and draws whole; Close, the zoom group and the selectors stay reachable and the
+    /// audit (all but contrast) passes.
     @MainActor
     func testPathsCloseAndZoomWithoutGesturesAtAX5() throws {
-        try runJourney(Run(
-            name: "ax5",
-            contentSize: UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
-            auditTypes: XCUIAccessibilityAuditType.all.subtracting(.contrast)
-        ))
+        try runJourney(.ax5(name: "ax5"))
     }
 
     /// iPhone Duo folded: the compact sheet, titled "Paths · Lead" (#360).
@@ -86,47 +116,37 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         try runJourney(Run(name: "duo-unfolded", duoWindow: "unfolded-portrait"))
     }
 
+    /// iPhone Duo folded at AX5: the compact sheet's stacked selectors (icon-only
+    /// Instrument and View, #360) with the same growth, whole-text and reachability checks.
+    @MainActor
+    func testPathsCloseAndZoomWithoutGesturesDuoFoldedAtAX5() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The Duo window is simulated on an iPhone")
+        try runJourney(.ax5(name: "duo-folded-ax5", duoWindow: "folded"))
+    }
+
+    /// iPhone Duo inner display at AX5: the full-window cover's stacked, named selectors
+    /// with the same growth, whole-text and reachability checks.
+    @MainActor
+    func testPathsCloseAndZoomWithoutGesturesDuoUnfoldedAtAX5() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The Duo window is simulated on an iPhone")
+        try runJourney(.ax5(name: "duo-unfolded-ax5", duoWindow: "unfolded-portrait"))
+    }
+
     // MARK: - Journey
 
     /// Open Paths on Image, check it at fit and zoomed with the buttons, close it with
-    /// Close; reopen it on Text and close it with Close again.
+    /// Close; reopen it on Text and close it with Close again. An AX5 run first launches the
+    /// same form at Large to measure the Difficulty value's baseline glyph height.
     ///
     /// - Parameter run: Launch settings.
     /// - Throws: A skip without the fixture, or a failed requirement or audit.
     @MainActor
     private func runJourney(_ run: Run) throws {
         continueAfterFailure = false
-        XCUIDevice.shared.orientation = .portrait
-        var environment = [
-            "FST_API_BASE_URL": Self.origin,
-            "FST_UI_TEST_CLEAR_PROFILE": "1",
-            "FST_UI_TEST_RESET_SONG_CARDS": "1",
-        ]
-        if let duoWindow = run.duoWindow {
-            environment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
-            environment["FST_DEBUG_DUO_WINDOW"] = duoWindow
-            // The folded vertical bar keeps Songs' search off the page, so the Duo windows
-            // open the song by route (as `DuoSongTitleJourneyTests`).
-            environment["FST_DEBUG_SONG"] = "fixture-pulse"
-        }
-        let app = FestivalApp.makeApp(environment)
-        app.launchArguments += ["-UIPreferredContentSizeCategoryName", run.contentSize]
-        app.launch()
+        let baseline = run.isAX5 ? try measureBaseline(run.large) : nil
+        let app = try launchOnPaths(run)
         defer { app.terminate() }
         let open = app.buttons["fst.song-detail.paths"]
-        if let duoWindow = run.duoWindow {
-            guard open.waitForExistence(timeout: FestivalApp.budget(20)) else {
-                throw XCTSkip("Song Detail never loaded; run tools/mock_service.py --large-catalogue on \(Self.origin).")
-            }
-            waitForDuoWindow(duoWindow, in: app)
-            PathsUITestSupport.openPathsFromSongDetail(in: app)
-        } else {
-            let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
-            guard rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(20)) else {
-                throw XCTSkip("Songs never loaded; run tools/mock_service.py --large-catalogue on \(Self.origin).")
-            }
-            PathsUITestSupport.openPaths(in: app)
-        }
         let display = element("fst.paths.display", in: app)
 
         // Image at fit: Zoom Out off, Zoom In on, the image named and inside its viewport.
@@ -140,6 +160,7 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
                                  "Fitted image wider than its viewport (\(run.name))")
         assertCloseReachable(in: app, run: run, "image at fit")
         assertSelectorsReachable(in: app, run: run)
+        try assertMeasuredValue(in: app, run: run, baseline: baseline)
         assertOrder(["fst.paths.zoom-out", "fst.paths.zoom-in", "fst.paths.close", "fst.paths.image"]
                     + Self.selectors, in: app, "image at fit (\(run.name))")
         record(app, name: "paths-dismiss-\(run.name)-image-fit")
@@ -184,6 +205,68 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         XCTAssertTrue(open.isHittable, "Paths is reachable again after Close (\(run.name))")
     }
 
+    // MARK: - Launch
+
+    /// Launch the run's form at its text size and open Paths: from Songs on the device's
+    /// own form, by route from Song Detail in a simulated Duo window.
+    ///
+    /// - Parameter run: Launch settings.
+    /// - Returns: The app with the Paths viewer open.
+    /// - Throws: A skip when the fixture never loads.
+    @MainActor
+    private func launchOnPaths(_ run: Run) throws -> XCUIApplication {
+        XCUIDevice.shared.orientation = .portrait
+        var environment = [
+            "FST_API_BASE_URL": Self.origin,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
+        ]
+        if let duoWindow = run.duoWindow {
+            environment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
+            environment["FST_DEBUG_DUO_WINDOW"] = duoWindow
+            // The folded vertical bar keeps Songs' search off the page, so the Duo windows
+            // open the song by route (as `DuoSongTitleJourneyTests`).
+            environment["FST_DEBUG_SONG"] = "fixture-pulse"
+        }
+        let app = FestivalApp.makeApp(environment)
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", run.contentSize]
+        app.launch()
+        if let duoWindow = run.duoWindow {
+            guard app.buttons["fst.song-detail.paths"].waitForExistence(timeout: FestivalApp.budget(20)) else {
+                app.terminate()
+                throw XCTSkip("Song Detail never loaded; run tools/mock_service.py --large-catalogue on \(Self.origin).")
+            }
+            waitForDuoWindow(duoWindow, in: app)
+            PathsUITestSupport.openPathsFromSongDetail(in: app)
+        } else {
+            let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
+            guard rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(20)) else {
+                app.terminate()
+                throw XCTSkip("Songs never loaded; run tools/mock_service.py --large-catalogue on \(Self.origin).")
+            }
+            PathsUITestSupport.openPaths(in: app)
+        }
+        return app
+    }
+
+    /// The Difficulty value's rendered glyph height at Large in the AX5 run's form, on the
+    /// fitted image (the state the AX5 run measures).
+    ///
+    /// - Parameter run: The Large twin of the AX5 run (``Run/large``).
+    /// - Returns: The glyph height in screenshot pixels.
+    /// - Throws: A skip without the fixture, or a missing measurement.
+    @MainActor
+    private func measureBaseline(_ run: Run) throws -> Int {
+        let app = try launchOnPaths(run)
+        defer { app.terminate() }
+        PathsUITestSupport.choose("Image", in: element("fst.paths.display", in: app), app: app)
+        XCTAssertTrue(app.images["fst.paths.image"].waitForExistence(timeout: FestivalApp.budget(15)),
+                      "No path image (\(run.name))")
+        XCTAssertTrue(app.staticTexts["Zoom 100 percent"].waitForExistence(timeout: FestivalApp.budget(5)),
+                      "The image never settled at fit (\(run.name))")
+        return try measuredGlyphs(in: app, run: run)
+    }
+
     // MARK: - Assertions
 
     /// The image and its zoom group at one zoom level.
@@ -213,6 +296,61 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         for button in [zoomOut, zoomIn] where button.isEnabled {
             XCTAssertTrue(button.isHittable, "\(button.label) is reachable (\(run.name), \(zoom) %)")
         }
+    }
+
+    /// Text scaling on the Difficulty value (``measuredValue``): it draws whole (Vision reads
+    /// it with no ellipsis or cut letters) and, in an AX5 run, its glyphs render over 1.35×
+    /// as tall as at Large in the same form (`testing/apple/accessibility.md` Large text).
+    ///
+    /// The simulated inner display at Large lays its 669-pt named row out inside the
+    /// iPhone's narrower window, so there only the growth baseline is taken, not the
+    /// whole-text check (the audit's matching acceptance, below).
+    ///
+    /// - Parameters:
+    ///   - app: The viewer on the fitted image.
+    ///   - run: Launch settings.
+    ///   - baseline: The Large launch's glyph height, for an AX5 run.
+    /// - Throws: A missing screenshot or glyph pixels.
+    @MainActor
+    private func assertMeasuredValue(in app: XCUIApplication, run: Run, baseline: Int?) throws {
+        let difficulty = element("fst.paths.difficulty", in: app)
+        XCTAssertEqual(difficulty.value as? String, Self.measuredValue, "Difficulty value (\(run.name))")
+        let glyphs = try measuredGlyphs(in: app, run: run)
+        let frame = difficulty.frame
+        let window = app.windows.firstMatch.frame
+        let simulatedWide = simulatesInnerDisplay(run, in: window)
+        let reading = RecognizedText.recognize(difficulty, label: Self.measuredValue, frame: frame)
+        attach("paths-dismiss-\(run.name)-difficulty-text",
+               "glyphs \(glyphs) px, baseline \(baseline.map(String.init) ?? "-") px; "
+               + "read '\(reading.text ?? "")', line \(reading.lineHeight.map { "\($0)" } ?? "-") pt; frame \(frame)")
+        if run.isAX5 || !simulatedWide {
+            XCTAssertTrue(RecognizedText.showsWhole(Self.measuredValue, in: reading.text),
+                          "'\(Self.measuredValue)' draws whole: read '\(reading.text ?? "")' (\(run.name))")
+        }
+        if let baseline {
+            XCTAssertGreaterThan(CGFloat(glyphs), CGFloat(baseline) * RecognizedText.minimumGrowth,
+                                 "'\(Self.measuredValue)' grows at AX5: \(glyphs) px vs \(baseline) px at Large (\(run.name))")
+        }
+    }
+
+    /// The Difficulty value's rendered glyph height (`SongsUITestSupport.brightGlyphHeight`:
+    /// its white text and chevron on the dark capsule), required to sit inside the capsule
+    /// so it measures the text, not the capsule's edge.
+    ///
+    /// - Parameters:
+    ///   - app: The viewer, settled.
+    ///   - run: Launch settings, for messages.
+    /// - Returns: Glyph height in screenshot pixels.
+    /// - Throws: A missing screenshot or glyph pixels.
+    @MainActor
+    private func measuredGlyphs(in app: XCUIApplication, run: Run) throws -> Int {
+        let difficulty = element("fst.paths.difficulty", in: app)
+        XCTAssertTrue(difficulty.waitForExistence(timeout: FestivalApp.budget(5)), "No Difficulty (\(run.name))")
+        let glyphs = try SongsUITestSupport.brightGlyphHeight(in: difficulty)
+        let height = try XCTUnwrap(difficulty.screenshot().image.cgImage).height
+        XCTAssertLessThan(glyphs, height * 9 / 10,
+                          "Difficulty's bright pixels fill the capsule (\(glyphs) of \(height) px; \(run.name))")
+        return glyphs
     }
 
     /// Close: named, enabled, wholly on screen and hittable. It is the system `.close`
@@ -343,8 +481,26 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
             // selector value clipped there, or truncated so the audit sees it not grow, is
             // the simulation's. The iPad cover audits the same named row at a real width.
             if issue.auditType == .textClipped || issue.auditType == .dynamicType, let selector,
-               let duo = run.duoWindow, duo != "folded", window.width < 669 {
-                accepted.append("simulated \(duo) in a \(Int(window.width))-pt window: \(line) (\(selector.identifier))")
+               self.simulatesInnerDisplay(run, in: window), !run.isAX5 {
+                accepted.append("simulated \(run.duoWindow ?? "") in a \(Int(window.width))-pt window: \(line) "
+                    + "(\(selector.identifier))")
+                return true
+            }
+            // At AX5 the stacked selectors take the window's width, yet in the simulated inner
+            // display the audit still flags the View value ("Image") as clipped, though it
+            // renders the same pixels the iPhone AX5 form audits clean. Accept only "Text
+            // clipped", and only once Vision reads that selector's value whole and the
+            // selector lies wholly in the window, in this run.
+            if issue.auditType == .textClipped, let selector, run.isAX5, self.simulatesInnerDisplay(run, in: window) {
+                let value = selector.value as? String ?? ""
+                let reading = RecognizedText.recognize(selector, label: value, frame: selector.frame)
+                if RecognizedText.showsWhole(value, in: reading.text),
+                   window.insetBy(dx: -1, dy: -1).contains(selector.frame) {
+                    accepted.append("Vision reads '\(value)' whole ('\(reading.text ?? "")'): \(line) "
+                        + "(\(selector.identifier))")
+                    return true
+                }
+                issues.append("\(line); Vision read '\(reading.text ?? "")' for '\(value)'")
                 return true
             }
             issues.append(line)
@@ -356,6 +512,18 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
     }
 
     // MARK: - App helpers
+
+    /// Whether the run simulates the iPhone Duo inner display (`DebugDuoWindow`, 669 pt
+    /// wide in portrait) inside a narrower real window.
+    ///
+    /// - Parameters:
+    ///   - run: Launch settings.
+    ///   - window: The app's real window frame.
+    /// - Returns: True for an unfolded simulation in a window under 669 pt.
+    private func simulatesInnerDisplay(_ run: Run, in window: CGRect) -> Bool {
+        guard let duo = run.duoWindow else { return false }
+        return duo != "folded" && window.width < 669
+    }
 
     /// The first element with an identifier, of any type.
     @MainActor
