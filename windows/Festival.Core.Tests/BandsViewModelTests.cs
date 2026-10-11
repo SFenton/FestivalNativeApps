@@ -548,6 +548,9 @@ public class SongBandLeaderboardViewModelTests
         Assert.Equal(new AppRoute.Band("a:b", "Band_Duets", "a:b"), first.Route);
         Assert.Equal("", first.Season);
         Assert.Equal(990000, first.AccuracyValue);
+        // #455: one large-text name line per member, like band rankings rows.
+        Assert.Equal(2, ((ILeaderboardEntryRow)first).LargeTextNameLines);
+        Assert.Equal(2, vm.Spotlight!.Section!.NameLines);
         var unranked = first with { Entry = first.Entry with { Rank = 0 } };
         Assert.Equal("—", unranked.RankText);
         Assert.StartsWith("Your band. Open band. Ann + Bo", unranked.Announcement, StringComparison.Ordinal);

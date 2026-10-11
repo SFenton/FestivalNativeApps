@@ -36,6 +36,13 @@ public interface ILeaderboardEntryRow
 
     /// <summary>UIA name: the whole row is one stop that reads everything (Android one-stop-per-row learning).</summary>
     string Announcement { get; }
+
+    /// <summary>
+    /// Name lines this row asks its section to reserve at large text (<see cref="LeaderboardSection.NameLines"/>, issue
+    /// #455): <see cref="LeaderboardRowMetrics.PlayerNameLines"/> unless a row kind needs more (band rosters) or fewer
+    /// (date labels).
+    /// </summary>
+    int LargeTextNameLines => LeaderboardRowMetrics.PlayerNameLines;
 }
 
 /// <summary>
@@ -60,13 +67,34 @@ public static class LeaderboardRowMetrics
     public const int SkeletonRowCount = 5;
 
     /// <summary>
+    /// Name lines a player row reserves while names wrap at large text (150%+, <see cref="LargeText"/>; pattern
+    /// <c>leaderboard-row</c> R2, issue #455): Epic display names are at most 16 characters, which wrap onto at most two
+    /// lines in a leaderboard name column, so a long name keeps its row as tall as its neighbours and the skeleton. Android's
+    /// <c>STACKED_RANKING_NAME_LINES</c> (#188). A minimum, never a cap: a longer name still wraps (R3).
+    /// </summary>
+    public const int PlayerNameLines = 2;
+
+    /// <summary>Name lines a date-labelled row (Score History) reserves: its label is short and never a name.</summary>
+    public const int LabelNameLines = 1;
+
+    /// <summary>
+    /// Name lines a band row reserves at large text: one per member, never fewer than a player row (Android
+    /// <c>stackedBandNameLines</c>, #188), since the joined roster wraps about once per member.
+    /// </summary>
+    /// <param name="memberCount">Band members.</param>
+    /// <returns>Reserved lines.</returns>
+    public static int BandNameLines(int memberCount) => Math.Max(PlayerNameLines, memberCount);
+
+    /// <summary>
     /// The section a rankings card's skeleton fits like loaded rows (issue #281): a top-ten rank (<c>#10</c>) and the
     /// widest plausible songs label and rating for <paramref name="metric"/>, so at large text or in a narrow card the
-    /// skeleton stacks whenever the loaded rows would (<c>leaderboard-row</c> R2).
+    /// skeleton stacks whenever the loaded rows would (<c>leaderboard-row</c> R2), and the loaded rows' name budget, so it
+    /// is as tall as they are when names wrap (issue #455).
     /// </summary>
     /// <param name="metric">Card metric (band cards pass their metric's account equivalent).</param>
+    /// <param name="nameLines">Large-text name lines the loaded rows reserve (<see cref="BandNameLines"/> for band cards).</param>
     /// <returns>Section content for <see cref="LeaderboardColumnLayout.Fit"/>.</returns>
-    public static LeaderboardSection SkeletonSection(RankingMetric metric)
+    public static LeaderboardSection SkeletonSection(RankingMetric metric, int nameLines = PlayerNameLines)
     {
         var rating = metric switch
         {
@@ -75,16 +103,17 @@ public static class LeaderboardRowMetrics
             _ => RankingFormatting.WholeNumber(999_999_999),
         };
         return new LeaderboardSection(LeaderboardRowKind.Ranking, ScoreFormatting.Rank(LeaderboardPaging.CardSize).Length,
-            RankingFormatting.Songs(999, 999).Length, rating.Length, false, false);
+            RankingFormatting.Songs(999, 999).Length, rating.Length, false, false, NameLines: nameLines);
     }
 
     /// <summary>An overview card's skeleton rows: <see cref="SkeletonRowCount"/> placeholders sharing one section.</summary>
     /// <param name="metric">Card metric.</param>
     /// <param name="automationIdPrefix">Card automation ID; rows get <c>&lt;prefix&gt;.skeleton.&lt;n&gt;</c> in the raw view.</param>
+    /// <param name="nameLines">Large-text name lines the card's loaded rows reserve.</param>
     /// <returns>Placeholder rows.</returns>
-    public static IReadOnlyList<LeaderboardSkeletonRow> SkeletonRows(RankingMetric metric, string automationIdPrefix)
+    public static IReadOnlyList<LeaderboardSkeletonRow> SkeletonRows(RankingMetric metric, string automationIdPrefix, int nameLines = PlayerNameLines)
     {
-        var section = SkeletonSection(metric);
+        var section = SkeletonSection(metric, nameLines);
         return Enumerable.Range(0, SkeletonRowCount)
             .Select(i => new LeaderboardSkeletonRow(section, metric.IsPercentile(), $"{automationIdPrefix}.skeleton.{i}", i))
             .ToList();
@@ -143,6 +172,9 @@ public sealed class LeaderboardSkeletonRow(LeaderboardSection section, bool hasB
 
     /// <inheritdoc />
     public string BayesianText { get; } = hasBayesian ? Placeholder : "";
+
+    /// <summary>The section's name budget, so the placeholder is as tall as the loaded rows when names wrap (issue #455).</summary>
+    public int LargeTextNameLines => Section?.NameLines ?? LeaderboardRowMetrics.PlayerNameLines;
 }
 
 /// <summary>A score row (web <c>LeaderboardEntry</c>): season, score, accuracy badge and stars.</summary>
@@ -259,7 +291,8 @@ public static class LeaderboardColumns
     /// <summary>
     /// Measures every row of a section, including its pinned selected-player row, so all of them get one
     /// <see cref="LeaderboardColumnLayout.Fit"/> plan. Score rows measure seasons, scores, accuracy and stars; rankings
-    /// rows their songs labels and ratings. The chevron column is reserved when any row opens a destination.
+    /// rows their songs labels and ratings. The chevron column is reserved when any row opens a destination, and every
+    /// row reserves the most large-text name lines any row asks for (issue #455).
     /// </summary>
     /// <param name="rows">Section rows (score or rankings rows; the first decides the kind).</param>
     /// <returns>Section content.</returns>
@@ -268,16 +301,17 @@ public static class LeaderboardColumns
         var all = rows.ToList();
         var rank = Widest(all.Select(r => r.RankText));
         var routes = all.Count == 0 || all.Any(r => r.Route is not null);
+        var nameLines = all.Select(r => r.LargeTextNameLines).DefaultIfEmpty(LeaderboardRowMetrics.PlayerNameLines).Max();
         if (all.FirstOrDefault() is ILeaderboardRankingRow)
         {
             var rankings = all.OfType<ILeaderboardRankingRow>().ToList();
             return new LeaderboardSection(LeaderboardRowKind.Ranking, rank, Widest(rankings.Select(r => r.SongsText)),
-                Widest(rankings.Select(r => r.RatingText)), false, false, routes);
+                Widest(rankings.Select(r => r.RatingText)), false, false, routes, nameLines);
         }
         var scores = all.OfType<ILeaderboardScoreRow>().ToList();
         return new LeaderboardSection(LeaderboardRowKind.Score, rank, Widest(scores.Select(r => r.Season)),
             Widest(scores.Select(r => r.Score)), scores.Any(r => r.BadgeText.Length > 0), scores.Any(r => StarRating.From(r.StarCount) is not null),
-            routes);
+            routes, nameLines);
     }
 }
 #endregion
