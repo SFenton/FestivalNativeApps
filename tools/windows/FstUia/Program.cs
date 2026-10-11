@@ -2025,14 +2025,19 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
         var name = (string)step["name"]!;
         // A mid-swap check must land within the app's fade (~400 ms): reread the marked elements instead of searching
-        // the tree twice, and search again only when they no longer exist or are off screen.
+        // the tree twice, and search again only when they no longer exist, are off screen or read an empty rectangle
+        // (a swapped-out element can still answer with a zero rectangle, whose top 0 is no position: #571).
         double? cached = null;
         if (check && spanElements.TryGetValue(name, out var marks))
         {
             try
             {
                 if (!marks.Top.Properties.IsOffscreen.ValueOrDefault && !marks.Other.Properties.IsOffscreen.ValueOrDefault)
-                    cached = marks.Other.BoundingRectangle.Top - marks.Top.BoundingRectangle.Top;
+                {
+                    var topRect = marks.Top.BoundingRectangle;
+                    var otherRect = marks.Other.BoundingRectangle;
+                    if (!topRect.IsEmpty && !otherRect.IsEmpty) cached = otherRect.Top - topRect.Top;
+                }
             }
             catch (Exception error) when (error is FlaUI.Core.Exceptions.ElementNotAvailableException or COMException)
             {
