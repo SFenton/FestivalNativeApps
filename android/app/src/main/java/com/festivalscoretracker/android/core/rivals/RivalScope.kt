@@ -348,6 +348,17 @@ object RivalScopes {
         is RivalScope.Leaderboard -> scope.instrument
         else -> null
     }
+
+    /**
+     * Rival Detail's top app bar subtitle under the rival's name (owner, #604): the list it
+     * belongs to for a single chart ("Lead Rivals", shown after [singleInstrument]'s icon),
+     * else "Rivals" (Common, combos, Settings scopes and deep links without a scope).
+     *
+     * @param scope Route scope.
+     * @return Subtitle.
+     */
+    fun detailSubtitle(scope: RivalScope?): String =
+        if (singleInstrument(scope) != null) listTitle(scope) else RivalText.RIVALS
 }
 
 // endregion

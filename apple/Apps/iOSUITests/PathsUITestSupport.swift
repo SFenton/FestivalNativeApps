@@ -77,27 +77,4 @@ enum PathsUITestSupport {
         item.tap()
         XCTAssertTrue(item.waitForNonExistence(timeout: FestivalApp.budget(5)), "Menu \(option) did not close")
     }
-
-    /// Audit, retrying once when XCTest's own audit deadline passes on a slow runner
-    /// (precedent `SongsChromeJourneyTests.performAuditRetryingTimeout`).
-    ///
-    /// - Parameters:
-    ///   - app: The running app.
-    ///   - types: Audit types to run.
-    ///   - reset: Clears what the handler collected before the retry.
-    ///   - handler: Inspects each issue; true marks it handled.
-    /// - Throws: The audit's error, other than one deadline.
-    @MainActor
-    static func auditRetryingTimeout(
-        _ app: XCUIApplication, _ types: XCUIAccessibilityAuditType, reset: () -> Void,
-        _ handler: @escaping (XCUIAccessibilityAuditIssue) throws -> Bool
-    ) throws {
-        do {
-            try app.performAccessibilityAudit(for: types, handler)
-        } catch let error as NSError
-            where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56 {
-            reset()
-            try app.performAccessibilityAudit(for: types, handler)
-        }
-    }
 }

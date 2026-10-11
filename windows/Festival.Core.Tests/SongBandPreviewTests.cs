@@ -220,6 +220,23 @@ public class SongBandPreviewTests
     }
 
     [Fact]
+    public async Task EveryRowOfASection_SharesOneRankRail_MeasuredWithTheAppendedSelectedRank()
+    {
+        // Issue #594: the bold appended "#1,234" sizes the whole section's rail, so every card's members line up.
+        System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.InvariantCulture;
+        var (_, _, vm) = await Open(_ => Wire.Ok(All("s1", true,
+            Band("Band_Duets", [Entry("Band_Duets", 1), Entry("Band_Duets", 2)], 2000, player: Entry("Band_Duets", 1234, "", "me:x")),
+            Band("Band_Trios", [Entry("Band_Trios", 1)], 1)), (Pub, "7")), player: true);
+        var duos = vm.BandPreviews[0].Rows;
+        Assert.Equal("#1,234", duos[^1].Rank);
+        Assert.All(duos, r => Assert.Equal("#1,234", r.RailRank));
+        Assert.Equal("fst.song-detail.band-selected.Band_Duets.rank", duos[^1].RankAutomationId);
+        Assert.Equal("fst.song-detail.band-row.Band_Duets.0.members", duos[0].MembersAutomationId);
+        // Each section sizes its own rail.
+        Assert.Equal("#1", Assert.Single(vm.BandPreviews[1].Rows).RailRank);
+    }
+
+    [Fact]
     public async Task SelectedBandWithNoTopRows_StillShowsAsTheOnlyRow()
     {
         var (_, _, vm) = await Open(_ => Wire.Ok(All("s1", false, Band("Band_Quad", [], 3, player: Entry("Band_Quad", 3, "", "me:a:b:c"))), (Pub, "7")),

@@ -309,8 +309,8 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         var accepted: [String] = []
         let window = app.windows.firstMatch.frame
         let table = element("fst.paths.text.Solo_Guitar.expert", in: app)
-        try PathsUITestSupport.auditRetryingTimeout(
-            app, run.auditTypes, reset: { issues.removeAll(); accepted.removeAll() }
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            app, run.auditTypes, name: "paths dismiss \(run.name) \(state)", reset: { issues.removeAll(); accepted.removeAll() }
         ) { issue in
             let node = issue.element
             let line = "\(node?.identifier ?? "nil") '\(node?.label ?? "")' \(String(describing: node?.frame)): "

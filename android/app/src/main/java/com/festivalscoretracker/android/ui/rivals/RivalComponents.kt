@@ -1,24 +1,27 @@
 package com.festivalscoretracker.android.ui.rivals
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -27,11 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -55,6 +54,7 @@ import com.festivalscoretracker.android.core.rivals.RivalEntry
 import com.festivalscoretracker.android.core.rivals.RivalHeadToHead
 import com.festivalscoretracker.android.core.rivals.RivalSentiment
 import com.festivalscoretracker.android.core.rivals.RivalSongComparison
+import com.festivalscoretracker.android.core.rivals.RivalSongStanding
 import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
@@ -64,7 +64,10 @@ import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.isLargeText
+import com.festivalscoretracker.android.ui.design.CardSegment
 import com.festivalscoretracker.android.ui.design.GlassCard
+import com.festivalscoretracker.android.ui.design.GlassCardSegment
+import com.festivalscoretracker.android.ui.songdetail.RowSeparator
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SeeAllButton
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -94,7 +97,9 @@ private fun sentimentColor(sentiment: RivalSentiment): Color = when (sentiment) 
 // region Pills
 
 /**
- * Tinted count pill.
+ * Tinted status capsule (`rival-rows` R2, iOS `RivalStatusPill`): the hub rows' "N songs ahead /
+ * behind" counts and the song rows' "#rank Name" sides. The text always carries the meaning, so
+ * colour is never the only signal. One line, ellipsized; at large text it wraps instead.
  *
  * @param text Label.
  * @param win Green when true, red when false, neutral when null.
@@ -105,19 +110,21 @@ internal fun RivalPill(text: String, win: Boolean?, modifier: Modifier = Modifie
     val (fg, bg, border) = when (win) {
         true -> Triple(RivalColors.winText, RivalColors.winBackground, RivalColors.winBorder)
         false -> Triple(RivalColors.loseText, RivalColors.loseBackground, RivalColors.loseBorder)
-        null -> Triple(BrandTokens.textSecondary, RivalColors.neutralBackground, BrandTokens.glassBorder)
+        null -> Triple(BrandTokens.textPrimary, RivalColors.neutralBackground, BrandTokens.glassBorder)
     }
+    val large = isLargeText()
     Text(
         text,
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.labelMedium,
         fontWeight = FontWeight.SemiBold,
         color = fg,
-        maxLines = 1,
+        maxLines = if (large) Int.MAX_VALUE else 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = modifier
-            .clip(RoundedCornerShape(6.dp))
+            .clip(CircleShape)
             .background(bg)
-            .border(1.dp, border, RoundedCornerShape(6.dp))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .border(1.dp, border, CircleShape)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
     )
 }
 
@@ -126,10 +133,12 @@ internal fun RivalPill(text: String, win: Boolean?, modifier: Modifier = Modifie
 // region Rival row
 
 /**
- * One rival (web `RivalRow`): tint bar (red when the rival is ahead), name and
- * "songs ahead / songs behind" pills. Anonymous rows are not tappable. Unlike the web,
- * there is no shared-song count (owner decision, issues #40/#67): it is always
- * ahead + behind, so it only repeated the pills.
+ * One rival as a bare row of its list's card (`rival-rows`, iOS `RivalRowContent`): a status
+ * dot (green when you lead, red when the rival is ahead), the name and "songs ahead / songs
+ * behind" pills, then a chevron. Anonymous rows are not tappable. Unlike the web, there is no
+ * shared-song count (owner decision, issues #40/#67): it is always ahead + behind, so it only
+ * repeated the pills. Place it in one [GlassCard] with its siblings ([RivalPreviewRows]) or a
+ * [GlassCardSegment] (All Rivals), never in a card of its own (#603).
  *
  * @param entry Row data and side.
  * @param onClick Opens Rival Detail; ignored for anonymous rows. Null draws a decorative,
@@ -146,9 +155,10 @@ fun RivalRow(entry: RivalEntry, onClick: (() -> Unit)?, modifier: Modifier = Mod
     val behind = "${format.format(rival.aheadCount)} songs behind"
     val description = "${rival.shownName}, ${if (winning) "you lead" else "ahead of you"}, $ahead, $behind"
     val open = onClick?.takeIf { rival.isNavigable }
-    GlassCard(
+    Row(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .testTag(if (rival.isNavigable) "fst.rivals.row.${rival.accountId}" else "fst.rivals.row.anonymous")
             .clearAndSetSemantics {
                 contentDescription = description
@@ -156,53 +166,37 @@ fun RivalRow(entry: RivalEntry, onClick: (() -> Unit)?, modifier: Modifier = Mod
                     role = Role.Button
                     onClick(label = "Open rival") { open(); true }
                 }
-            },
-        onClick = open,
-    ) {
-        // The tint bar is drawn behind the row rather than measured with IntrinsicSize.Min:
-        // FlowRow's intrinsic height ignores wrapped lines, so at large text (or narrow widths)
-        // the wrapped "songs behind" pill was clipped off the card.
-        val tint = if (winning) BrandTokens.statusGreen else BrandTokens.statusRed
-        Row(Modifier.rivalTintBar(tint).padding(start = RIVAL_TINT_WIDTH)) {
-            Column(Modifier.weight(1f).padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val nameColor = if (rival.isNavigable) BrandTokens.textPrimary else BrandTokens.textMuted
-                if (isLargeText()) {
-                    // Large text: the name wraps instead of being squeezed to an ellipsis.
-                    Text(rival.shownName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = nameColor)
-                } else {
-                    // Web `RivalRow` truncates names with an ellipsis (operator 7.14: never marquee
-                    // every name on Compete/Rivals).
-                    Text(
-                        rival.shownName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = nameColor,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    RivalPill(ahead, win = true)
-                    RivalPill(behind, win = false)
-                }
             }
-            if (rival.isNavigable) RowChevron(Modifier.align(Alignment.CenterVertically).padding(end = 10.dp))
+            .then(if (open != null) Modifier.clickable(onClick = open) else Modifier)
+            .padding(start = 14.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(8.dp).background(if (winning) BrandTokens.statusGreen else BrandTokens.statusRed, CircleShape))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val nameColor = if (rival.isNavigable) BrandTokens.textPrimary else BrandTokens.textMuted
+            if (isLargeText()) {
+                // Large text: the name wraps instead of being squeezed to an ellipsis.
+                Text(rival.shownName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = nameColor)
+            } else {
+                // Web `RivalRow` truncates names with an ellipsis (operator 7.14: never marquee
+                // every name on Compete/Rivals).
+                Text(
+                    rival.shownName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = nameColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                RivalPill(ahead, win = true)
+                RivalPill(behind, win = false)
+            }
         }
+        if (rival.isNavigable) RowChevron()
     }
-}
-
-private val RIVAL_TINT_WIDTH = 4.dp
-
-/**
- * Draws the row's win/lose bar along its start edge at the row's full measured height.
- *
- * @param color Bar color.
- * @return The modifier with the bar drawn behind the content.
- */
-private fun Modifier.rivalTintBar(color: Color): Modifier = drawBehind {
-    val width = RIVAL_TINT_WIDTH.toPx()
-    val x = if (layoutDirection == LayoutDirection.Rtl) size.width - width else 0f
-    drawRect(color, topLeft = Offset(x, 0f), size = Size(width, size.height))
 }
 
 // endregion
@@ -255,8 +249,9 @@ fun RivalSectionHeader(
 }
 
 /**
- * The hub's per-scope card body: loading, inline failure, or preview rows plus
- * "View all rivals".
+ * The hub's and Compete's per-scope rivals card (`rival-rows`, iOS `FestivalGlassSection`): one
+ * [GlassCard] of hairline-separated [RivalRow]s ending in "View all rivals" inside the card
+ * (`view-all-cta` R1). The card fades in as one, with all its rows (`load-transition` R11).
  *
  * @param rows Preview rows.
  * @param onRival Row tap.
@@ -264,8 +259,8 @@ fun RivalSectionHeader(
  * @param viewAllLabel Button text.
  * @param revealed Whether the rows have finished loading ([festivalFadeIn]: web `nextStagger`).
  * @param cardName The card's title, spoken after the button label (`view-all-cta` R4).
- * @param firstStagger Entrance index of the first row; the rest and the button follow it (Compete
- *   continues its page-wide order, web `useStagger().next()`).
+ * @param firstStagger Entrance index of the card (Compete continues its page-wide order, web
+ *   `useStagger().next()`).
  */
 @Composable
 fun RivalPreviewRows(
@@ -277,21 +272,48 @@ fun RivalPreviewRows(
     cardName: String? = null,
     firstStagger: Int = 1,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        rows.forEachIndexed { index, entry ->
-            androidx.compose.runtime.key(entry.key(index)) {
-                RivalRow(entry, onClick = { onRival(entry) }, modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(firstStagger + index)))
+    GlassCard(Modifier.fillMaxWidth().testTag(RIVALS_CARD_TAG).festivalFadeIn(revealed, fadeInStagger(firstStagger))) {
+        Column(Modifier.padding(vertical = 4.dp)) {
+            rows.forEachIndexed { index, entry ->
+                androidx.compose.runtime.key(entry.key(index)) {
+                    if (index > 0) RowSeparator()
+                    RivalRow(entry, onClick = { onRival(entry) })
+                }
+            }
+            if (onViewAll != null) {
+                ViewFullLeaderboardButton(
+                    onClick = onViewAll,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    label = viewAllLabel,
+                    testTag = "fst.rivals.view-all",
+                    cardName = cardName,
+                )
             }
         }
-        if (onViewAll != null) {
-            ViewFullLeaderboardButton(
-                onClick = onViewAll,
-                modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(firstStagger + rows.size)),
-                label = viewAllLabel,
-                testTag = "fst.rivals.view-all",
-                cardName = cardName,
-            )
-        }
+    }
+}
+
+/** Test tag of every card that groups rival rows (one per list; addressed through its section's tag). */
+const val RIVALS_CARD_TAG = "fst.rivals.card"
+
+/** Test tag of each lazy slice of a long list's one card ([RivalCardSegment]). */
+const val RIVALS_CARD_SEGMENT_TAG = "fst.rivals.card.segment"
+
+/**
+ * One row's slice of a long rival list's single card (All Rivals, Rivalry): a [GlassCardSegment]
+ * with the hairline above every row but the first and the card's 4 dp end padding, so lazy rows
+ * stacked with no gap read as the one card [RivalPreviewRows] and Rival Detail draw.
+ *
+ * @param index Row index in the list.
+ * @param count Rows in the list.
+ * @param modifier Modifier (the card's shared fade).
+ * @param content The row.
+ */
+@Composable
+fun RivalCardSegment(index: Int, count: Int, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    GlassCardSegment(CardSegment.of(index, count), modifier.fillMaxWidth().testTag(RIVALS_CARD_SEGMENT_TAG)) {
+        if (index > 0) RowSeparator()
+        Box(Modifier.padding(top = if (index == 0) 4.dp else 0.dp, bottom = if (index == count - 1) 4.dp else 0.dp)) { content() }
     }
 }
 
@@ -358,11 +380,14 @@ fun RivalsMessage(title: String, subtitle: String?, tag: String, action: (() -> 
 // region Song comparison row
 
 /**
- * One shared song head to head (web `RivalSongRow`, standalone): art, title, artist ·
- * year and the chart icon(s), then You | rank & score gaps | Them. Tinted by the winner.
+ * One shared song head to head as a bare row of its list's card (`rival-rows` R3, iOS
+ * `RivalSongRowContent`, #558/#603): album art over the chart icon(s), the title, the artist and
+ * the player's and rival's "#rank Name" pills (green for the side that leads, red for the side
+ * behind, neutral when tied), then a delta badge with the rank gap. Place it in one [GlassCard]
+ * with its siblings (Rival Detail categories) or a [GlassCardSegment] (Rivalry).
  *
  * @param song Comparison.
- * @param catalogSong Catalogue entry for year/art/keys icon, if loaded.
+ * @param catalogSong Catalogue entry for the artist fallback and keys icon, if loaded.
  * @param artUrl Resolved artwork URL.
  * @param playerName Selected player's name.
  * @param rivalName Rival's name.
@@ -370,6 +395,7 @@ fun RivalsMessage(title: String, subtitle: String?, tag: String, action: (() -> 
  *   demos, issue #380) with the same look.
  * @param modifier Modifier.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RivalSongRow(
     song: RivalSongComparison,
@@ -380,23 +406,18 @@ fun RivalSongRow(
     onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    val format = NumberFormat.getIntegerInstance()
-    val delta = song.rankDelta
+    val delta = song.rankDelta.toLong()
+    val standing = RivalHeadToHead.standing(delta)
     val title = song.title ?: catalogSong?.title ?: song.songId
     val artist = song.artist ?: catalogSong?.artist.orEmpty()
-    val year = catalogSong?.year
     val you = playerName ?: "You"
     val them = rivalName ?: "Them"
-    val rankText = RivalHeadToHead.formatRankDelta(delta.toLong())
-    val scoreText = RivalHeadToHead.formatScoreDiff(song)
-    val scoreDiff = RivalHeadToHead.scoreDiff(song)
-    val leader = RivalHeadToHead.leaderPhrase(delta.toLong(), them)
-    val description = "$title, ${song.chart?.label.orEmpty()}, $you rank ${format.format(song.userRank)}, " +
-        "$them rank ${format.format(song.rivalRank)}, $leader, ${RivalHeadToHead.spokenScoreDiff(song)}"
+    val description = RivalHeadToHead.songRowLabel(song, title, song.chart?.label, you, them)
     val keyboard = catalogSong?.usesKeyboardIcon == true
-    GlassCard(
+    Row(
         modifier = modifier
             .fillMaxWidth()
+            .heightIn(min = 48.dp)
             .testTag("fst.rivals.song.${song.songId}.${song.instrument}")
             .clearAndSetSemantics {
                 contentDescription = description
@@ -404,74 +425,70 @@ fun RivalSongRow(
                     role = Role.Button
                     onClick(label = "Open song") { onClick(); true }
                 }
-            },
-        onClick = onClick,
+            }
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(Modifier.height(IntrinsicSize.Min)) {
-            Box(
-                Modifier.width(4.dp).fillMaxHeight().background(
-                    when {
-                        delta > 0 -> BrandTokens.statusGreen
-                        delta < 0 -> BrandTokens.statusRed
-                        else -> Color.Transparent
-                    },
-                ),
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            AsyncImage(
+                model = artUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(RIVAL_SONG_ART).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
             )
-            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AsyncImage(
-                        model = artUrl,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).background(BrandTokens.surfaceMuted),
-                    )
-                    Column(Modifier.weight(1f)) {
-                        FestivalMarqueeText(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary)
-                        FestivalMarqueeText(
-                            listOfNotNull(artist.takeIf { it.isNotEmpty() }, year?.toString()).joinToString(" · "),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = BrandTokens.textSecondary,
-                        )
-                    }
-                    val userChart = song.userChart
-                    val rivalChart = song.rivalChart
-                    if (userChart != null && rivalChart != null && userChart != rivalChart) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            InstrumentIcon(userChart, keyboard = keyboard, size = 28.dp, decorative = true)
-                            InstrumentIcon(rivalChart, keyboard = keyboard, size = 28.dp, decorative = true)
-                        }
-                    } else if (userChart != null) {
-                        InstrumentIcon(userChart, keyboard = keyboard, size = 36.dp, decorative = true)
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CompareEntry(you, song.userRank, song.userScore, win = delta > 0, alignEnd = false, modifier = Modifier.weight(1f))
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        RivalPill(rankText, win = if (delta == 0) null else delta > 0)
-                        RivalPill(scoreText, win = if (scoreDiff == 0L) null else scoreDiff > 0)
-                    }
-                    CompareEntry(them, song.rivalRank, song.rivalScore, win = delta < 0, alignEnd = true, modifier = Modifier.weight(1f))
+            val userChart = song.userChart
+            val rivalChart = song.rivalChart
+            if (userChart != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    InstrumentIcon(userChart, keyboard = keyboard, size = RIVAL_SONG_ICON, decorative = true)
+                    if (rivalChart != null && rivalChart != userChart) InstrumentIcon(rivalChart, keyboard = keyboard, size = RIVAL_SONG_ICON, decorative = true)
                 }
             }
         }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            FestivalMarqueeText(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = BrandTokens.textPrimary)
+            if (artist.isNotEmpty()) FestivalMarqueeText(artist, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary)
+            // One line when both fit, else one pill per line (iOS `ViewThatFits`).
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                RivalPill(RivalHeadToHead.standingPill(song.userRank, you), win = standing.playerWins)
+                RivalPill(RivalHeadToHead.standingPill(song.rivalRank, them), win = standing.rivalWins)
+            }
+        }
+        RivalDeltaBadge(delta, standing)
     }
 }
 
+/** Album art edge in a song row (`rival-rows` R4: the Songs list's 48 dp). */
+private val RIVAL_SONG_ART = 48.dp
+
+/** Chart icon edge under the art (iOS 22 pt). */
+private val RIVAL_SONG_ICON = 22.dp
+
+/**
+ * The song row's trailing rank gap: an up arrow (you lead), down arrow (the rival leads) or "="
+ * over the unsigned gap, coloured like the leader's pill. Decorative: the row's label speaks it.
+ *
+ * @param delta Signed rank delta.
+ * @param standing Who leads.
+ */
 @Composable
-private fun CompareEntry(name: String, rank: Int, score: Long?, win: Boolean, alignEnd: Boolean, modifier: Modifier) {
-    val format = NumberFormat.getIntegerInstance()
-    Column(modifier, horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start) {
-        FestivalMarqueeText(name, style = MaterialTheme.typography.labelMedium, color = BrandTokens.textSecondary)
-        Text(
-            "#${format.format(rank)}",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = if (win) FontWeight.Bold else FontWeight.Medium,
-            color = if (win) BrandTokens.textPrimary else BrandTokens.textSecondary,
-        )
-        if (score != null) Text(format.format(score), style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary)
+private fun RivalDeltaBadge(delta: Long, standing: RivalSongStanding) {
+    val color = when (standing.playerWins) {
+        true -> RivalColors.winText
+        false -> RivalColors.loseText
+        null -> BrandTokens.textPrimary
+    }
+    Column(Modifier.widthIn(min = 28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        when (standing) {
+            RivalSongStanding.PlayerAhead -> Icon(Icons.Filled.ArrowUpward, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+            RivalSongStanding.RivalAhead -> Icon(Icons.Filled.ArrowDownward, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+            RivalSongStanding.Tied -> Text("=", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = color)
+        }
+        Text(RivalHeadToHead.deltaMagnitude(delta), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = color, maxLines = 1)
     }
 }
-
 /**
  * Category heading color by sentiment.
  *

@@ -191,7 +191,10 @@ final class PathsSwitchAccessibilityJourneyTests: XCTestCase {
 
         var issues: [String] = []
         var measured: [String] = []
-        try auditRetryingTimeout(app, run.auditTypes, reset: { issues.removeAll(); measured.removeAll() }) { issue in
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            app, run.auditTypes, name: "paths switch \(run.name) \(form.rawValue)",
+            reset: { issues.removeAll(); measured.removeAll() }
+        ) { issue in
             let node = issue.element
             let line = "\(node?.identifier ?? "nil") '\(node?.label ?? "")' \(String(describing: node?.frame)): "
                 + issue.compactDescription
@@ -361,15 +364,6 @@ final class PathsSwitchAccessibilityJourneyTests: XCTestCase {
     @MainActor
     private func choose(_ option: String, in menu: XCUIElement, app: XCUIApplication) {
         PathsUITestSupport.choose(option, in: menu, app: app)
-    }
-
-    /// Audit, retrying once when XCTest's own audit deadline passes on a slow runner.
-    @MainActor
-    private func auditRetryingTimeout(
-        _ app: XCUIApplication, _ types: XCUIAccessibilityAuditType, reset: () -> Void,
-        _ handler: @escaping (XCUIAccessibilityAuditIssue) throws -> Bool
-    ) throws {
-        try PathsUITestSupport.auditRetryingTimeout(app, types, reset: reset, handler)
     }
 
     /// Attach a screenshot.

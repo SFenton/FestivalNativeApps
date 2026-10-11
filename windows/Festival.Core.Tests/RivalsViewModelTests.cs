@@ -552,7 +552,8 @@ public class RivalsViewModelTests
         Assert.Equal("Fixture Rival Golf", detail.Title);
         Assert.Equal("View Fixture Rival Golf's Profile", detail.ViewProfileLabel);
         Assert.Equal(new AppRoute.Player(Rival), detail.ProfileRoute);
-        Assert.Equal("Lead", detail.ScopeLabel);
+        // #604: titled with the rival's name over the decorative icon + "{Instrument} Rivals".
+        Assert.Equal(("Lead Rivals", "instrument_guitar.png", true), (detail.Subtitle, detail.SubtitleIconFile, detail.HasSubtitleIcon));
         Assert.Equal("4 shared songs · 2 ahead / 1 behind", detail.Summary);
         Assert.Equal(["closest_battles", "almost_passed", "barely_winning", "pulling_forward"], detail.Categories.Select(c => c.Category.Key));
         Assert.Equal(["rival-category:closest_battles", "rival-category:almost_passed", "rival-category:barely_winning", "rival-category:pulling_forward"],
@@ -606,7 +607,7 @@ public class RivalsViewModelTests
     {
         var fake = new RivalsFakeService();
         var detail = await Loaded(new RivalDetailViewModel(fake.Session(), new AppRoute.RivalDetail(Rival, "Hint")));
-        Assert.Equal("All Visible Instruments", detail.ScopeLabel);
+        Assert.Equal(("Rivals", "", false), (detail.Subtitle, detail.SubtitleIconFile, detail.HasSubtitleIcon));
         Assert.Equal(1, fake.Count($"/api/player/{Me}/rivals/Solo_Guitar/{Rival}"));
         Assert.Equal(1, fake.Count($"/api/player/{Me}/rivals/Solo_Bass/{Rival}"));
         Assert.Equal("4 shared songs · 2 ahead / 1 behind", detail.Summary);
@@ -639,15 +640,15 @@ public class RivalsViewModelTests
         var session = fake.Session(RivalsFakeService.Settings() with { ExperimentalRanks = true });
         var board = await Loaded(new RivalDetailViewModel(session,
             new AppRoute.RivalDetail(Rival, null, new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.Weighted))));
-        Assert.Equal("Lead · Leaderboard (Weighted)", board.ScopeLabel);
+        Assert.Equal(("Lead Rivals", "instrument_guitar.png"), (board.Subtitle, board.SubtitleIconFile));
         Assert.Single(fake.Service.Handler.Requests, r => r.Uri.AbsolutePath == $"/api/player/{Me}/leaderboard-rivals/Solo_Guitar/{Rival}");
 
         var combo = await Loaded(new RivalDetailViewModel(session, new AppRoute.RivalDetail(Rival, null, new RivalScope.Combo("03"))));
-        Assert.Equal("Combined: Lead, Bass", combo.ScopeLabel);
+        Assert.Equal(("Rivals", false), (combo.Subtitle, combo.HasSubtitleIcon));
         Assert.Equal(1, fake.Count($"/api/player/{Me}/rivals/03/{Rival}"));
 
         var common = new RivalDetailViewModel(session, new AppRoute.RivalDetail(Rival, null, new RivalScope.FromSettings(RivalSettingsScope.Common)));
-        Assert.Equal("Common Rivals · All Visible Instruments", common.ScopeLabel);
+        Assert.Equal(("Rivals", false), (common.Subtitle, common.HasSubtitleIcon));
     }
 
     [Fact]
@@ -739,7 +740,10 @@ public class RivalsViewModelTests
         rivalry.Activate();
         await Async.Until(() => rivalry.State == RivalPageState.Loaded);
         Assert.Equal("Closest Battles", rivalry.Title);
-        Assert.StartsWith("vs. Fixture Rival Golf · Songs where", rivalry.Subtitle);
+        // #604: the section titles the page, the rival's name is its subtitle and the description has its own line.
+        Assert.Equal("Fixture Rival Golf", rivalry.Subtitle);
+        Assert.StartsWith("Songs where", rivalry.Description);
+        Assert.True(rivalry.HasDescription);
         Assert.Equal("View Fixture Rival Golf's Profile", rivalry.ViewProfileLabel);
         Assert.Equal(new AppRoute.Player(Rival), rivalry.ProfileRoute);
         Assert.Equal(4, rivalry.Rows.Count);
@@ -770,7 +774,10 @@ public class RivalsViewModelTests
         await rivalry.LoadAsync();
         Assert.Equal(RivalPageState.Empty, rivalry.State);
         Assert.Equal("mystery", rivalry.Title);
-        Assert.Equal("vs. Fixture Rival Golf", rivalry.Subtitle);
+        Assert.Equal("Fixture Rival Golf", rivalry.Subtitle);
+        Assert.False(rivalry.HasDescription);
+        var unnamed = new RivalryViewModel(fake.Session(), new AppRoute.Rivalry(Rival, "x"));
+        Assert.Equal(("Rival", "Rival"), (unnamed.Subtitle, new RivalDetailViewModel(fake.Session(), new AppRoute.RivalDetail(Rival)).Title));
         Assert.Equal("No song data for this rival.", rivalry.EmptyTitle);
         Assert.Equal("View Profile", new RivalryViewModel(fake.Session(), new AppRoute.Rivalry(Rival, "x")).ViewProfileLabel);
         Assert.Equal("View Profile", new RivalDetailViewModel(fake.Session(), new AppRoute.RivalDetail(Rival)).ViewProfileLabel);

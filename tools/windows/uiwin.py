@@ -115,7 +115,11 @@ STEP_VERBS = {
     "narrate": "selector", "assertread": "read", "assertorder": "order",
     "assertpaint": "paint", "assertbold": "bold", "assertannouncedcount": "announcedcount",
     "assertmarquee": "marquee", "assertmarqueesync": "pair", "assertmotion": "motion",
+    "contrast": "contrast",
 }
+
+#: ``contrast:`` values: Windows 11 contrast themes (``FstUia`` maps them to the legacy scheme names) or ``off``.
+CONTRAST_THEMES = ("off", "aquatic", "desert", "dusk", "night-sky")
 
 #: ``assertpaint`` probe: ``[name:]<x>,<y>[,<x2>,<y2>][<op><expect>[~<tol>]]``. ``x`` is ``L``/``R``/``C`` and ``y``
 #: ``T``/``B``/``M`` plus a signed epx offset (from the left/top edge, inward from the right/bottom edge, or from the
@@ -128,10 +132,11 @@ PROBE = re.compile(
 #: ``assertstate`` properties and the values each accepts (``None`` = any non-empty text; ``scroll`` takes a rounded
 #: vertical scroll percent, ``0``-``100`` or ``-1`` when the content fits; ``type`` the lower-case UIA control type such as
 #: ``button`` or ``text``; ``invoke`` whether the Invoke pattern is offered; ``focusable`` UIA IsKeyboardFocusable;
-#: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option).
+#: ``value`` the UIA Value, else the name of the Selection pattern's selected item, e.g. a combo box's current option;
+#: ``help`` the UIA HelpText, e.g. a First Run demo's ``controls=`` census. A value starting with ``~`` is a regex.)
 STATE_KEYS = {"toggle": ("on", "off", "indeterminate"), "enabled": ("true", "false"), "selected": ("true", "false"),
               "name": None, "scroll": None, "type": None, "invoke": ("true", "false"), "focusable": ("true", "false"),
-              "value": None, "heading": tuple("0123456789")}
+              "value": None, "heading": tuple("0123456789"), "help": None}
 
 # endregion
 
@@ -292,8 +297,8 @@ def parse_step(step: str) -> dict:
     ``assertstatus:<sel>|<status>[@<seconds>]`` waits until the element's UIA ItemStatus equals
     ``<status>`` (or matches it as a .NET regex when it starts with ``~``; no ``;`` since steps split on it)
     (off-screen and raw-view elements count, e.g. ``fst.shell.artwork-background``; a status containing
-    ``not-visible``, ``=background`` or ``pulse=held`` is read without bringing the window to the front);
-    ``foreground:on`` activates the app window and ``foreground:off`` hands activation to the taskbar, leaving the window
+    ``not-visible``, ``=background``, ``pulse=held`` or ``scroll=paused`` is read without bringing the window to the
+    front); ``foreground:on`` activates the app window and ``foreground:off`` hands activation to the taskbar, leaving the window
     visible and uncovered but inactive (e.g. a first-run demo's ``rotation=background``; while the console is locked
     both send ``WM_ACTIVATE`` instead);
     ``assertstate:<sel>|<key>=<value>[@<seconds>]`` waits until the element's ``toggle`` state
@@ -302,7 +307,8 @@ def parse_step(step: str) -> dict:
     rounded: ``0`` is a list back at its top), ``heading`` (UIA heading level ``1``-``9``, ``0`` for none: Narrator's
     H/Shift+H stops, e.g. a pinned section title or one a Quick Links jump lands on), ``name`` or ``value`` (UIA Value,
     else the selected item's name: what Narrator reads after a combo box's name, e.g. ``Instrument, combo box, Bass``)
-    equals ``<value>``;
+    or ``help`` (UIA HelpText, e.g. a First Run demo's ``controls=`` census) equals ``<value>`` (or matches it as a .NET
+    regex when it starts with ``~``; ``raw=`` selectors search the raw view);
     ``pin:<sel>`` records the element's window-relative rectangle and ``assertpinned:<sel>`` (same selector, later in
     the same ``drive``) fails unless it is unchanged within 1 px, e.g. a toolbar that must stay put while a list scrolls;
     ``assertmarquee:<sel>|moving|<epx>`` fails unless the element is at most ``<epx>`` effective pixels high (one line)
@@ -349,6 +355,10 @@ def parse_step(step: str) -> dict:
     ``assertbold:<sel>|<run>|<run>…`` waits (5 s) until the bold runs (UIA TextPattern font weight ≥ 600, trimmed) of
     the element's text, or of its first descendant with a Text pattern, are exactly those runs in order
     (``assertbold:<sel>|`` expects none).
+    ``contrast:<off|aquatic|desert|dusk|night-sky>`` switches the Windows contrast theme while the app stays open (a live
+    switch, unlike an ``a11y_matrix`` mode applied before launch), so later steps check that code-built brushes followed
+    it. It changes the operator's real desktop: only ``a11y_matrix.py`` pages may use it, because that runner snapshots
+    the theme first and always restores it before releasing the desktop lock.
 
     Args:
         step: A step string.
@@ -499,7 +509,7 @@ def parse_step(step: str) -> dict:
         key, eq, value = assertion.partition("=")
         key, value = key.strip().lower(), value.strip()
         if not sep or not eq or key not in STATE_KEYS or not value:
-            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|value|scroll|type|invoke|focusable|heading=<value>[@<seconds>]")
+            raise ValueError(f"bad assertstate {arg!r}; use <selector>|toggle|enabled|selected|name|value|help|scroll|type|invoke|focusable|heading=<value>[@<seconds>]")
         allowed = STATE_KEYS[key]
         if allowed is not None and value.lower() not in allowed:
             raise ValueError(f"assertstate {key} must be one of {allowed}, not {value!r}")
@@ -546,6 +556,10 @@ def parse_step(step: str) -> dict:
         if arg.lower() not in ("on", "off"):
             raise ValueError(f"bad {verb} {arg!r}; use on or off")
         result["arg"] = arg.lower()
+    elif shape == "contrast":
+        if arg.lower() not in CONTRAST_THEMES:
+            raise ValueError(f"bad contrast {arg!r}; use one of {', '.join(CONTRAST_THEMES)}")
+        result["arg"] = arg.lower()
     elif shape == "listen":
         if arg.lower() != "announcements":
             raise ValueError(f"bad listen {arg!r}; use listen:announcements")
@@ -589,6 +603,25 @@ def parse_step(step: str) -> dict:
     if shape == "path":
         result["arg"] = str(Path(native_path(result["arg"])).resolve())
     return result
+
+
+def cli_steps(texts: list[str]) -> list[dict]:
+    """Parse command-line steps, refusing ``contrast:`` (only ``a11y_matrix.py`` restores the operator's theme).
+
+    Args:
+        texts: Step strings.
+
+    Returns:
+        Parsed steps.
+
+    Raises:
+        ValueError: A step is malformed or is a ``contrast:`` switch.
+    """
+    steps = [parse_step(s) for s in texts]
+    if any(step["verb"] == "contrast" for step in steps):
+        raise ValueError("contrast: steps change the operator's desktop; run them as an a11y_matrix.py page, "
+                         "which snapshots and restores the theme")
+    return steps
 
 
 def native_path(text: str) -> str:
@@ -1056,7 +1089,7 @@ def cmd_launch(args: argparse.Namespace) -> int:
                                  "out": str(Path(native_path(args.shot)).resolve())}, lock)
         if args.steps or args.steps_file:
             # Same hold as the launch: timing-sensitive first checks can't queue behind another lane.
-            steps = [parse_step(s) for s in parse_steps(args.steps, args.steps_file)]
+            steps = cli_steps(parse_steps(args.steps, args.steps_file))
             result = {**run_driver({"command": "drive", "pid": pid, "steps": steps}, lock, budget=lock.remaining()),
                       "pid": pid}
     _report(result)
@@ -1108,7 +1141,7 @@ def cmd_tree(args: argparse.Namespace) -> int:
 
 def cmd_drive(args: argparse.Namespace) -> int:
     """Run scripted UIA steps against the target window."""
-    steps = [parse_step(s) for s in parse_steps(args.steps, args.steps_file)]
+    steps = cli_steps(parse_steps(args.steps, args.steps_file))
     with _lock(args, "drive") as lock:
         _report(run_driver({"command": "drive", **_target(args), "steps": steps}, lock,
                            budget=lock.remaining()))
