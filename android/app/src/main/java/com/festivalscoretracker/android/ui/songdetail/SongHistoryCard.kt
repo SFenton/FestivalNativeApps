@@ -83,7 +83,10 @@ import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
 import com.festivalscoretracker.android.ui.design.InstrumentSelectorLook
+import com.festivalscoretracker.android.ui.design.LocalCurrentSeason
+import com.festivalscoretracker.android.ui.design.SeasonPill
 import com.festivalscoretracker.android.ui.design.SectionHeader
+import com.festivalscoretracker.android.ui.design.seasonPillDescription
 import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
 import com.festivalscoretracker.android.ui.leaderboards.FrostedPagerButton
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -450,12 +453,13 @@ internal fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String, sho
     }
     // Grouped rows keep 12 dp from the card's edge: the highlight's inset plus the row's own padding.
     val inset = if (grouped) SCORE_ROW_PADDING else 12.dp
+    val currentSeason = LocalCurrentSeason.current
     val modifier = surface
         .heightIn(min = 48.dp)
         .testTag(tag)
         // One stop that reads the summary once (not the summary and then each child text).
         .clearAndSetSemantics {
-            contentDescription = listOfNotNull(date, season?.let { "Season $it" }, "score $score", "accuracy $accuracy", "full combo".takeIf { point.isFullCombo }, "best score".takeIf { best }).joinToString(", ")
+            contentDescription = listOfNotNull(date, season?.let { seasonPillDescription(it, it == currentSeason) }, "score $score", "accuracy $accuracy", "full combo".takeIf { point.isFullCombo }, "best score".takeIf { best }).joinToString(", ")
         }
     val dateWeight = if (best) FontWeight.Bold else null
     if (isLargeText()) {
@@ -477,17 +481,6 @@ internal fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String, sho
             AccuracyText(accuracy, point.isFullCombo)
         }
     }
-}
-
-@Composable
-private fun SeasonPill(season: Int) {
-    Text(
-        "S$season",
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = BrandTokens.textPrimary,
-        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(BrandTokens.surfaceMuted).padding(horizontal = 8.dp, vertical = 2.dp),
-    )
 }
 
 @Composable

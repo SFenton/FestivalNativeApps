@@ -47,6 +47,8 @@ import com.festivalscoretracker.android.core.rankings.label
 import com.festivalscoretracker.android.ui.leaderboards.SelectedRowAnchor
 import com.festivalscoretracker.android.ui.leaderboards.revealSelectedRow
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
+import androidx.compose.runtime.CompositionLocalProvider
+import com.festivalscoretracker.android.ui.design.LocalCurrentSeason
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
@@ -122,13 +124,17 @@ fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, r
         val page by boardViewModel.page.collectAsStateWithLifecycle()
         SyncRouteArguments(routeState, "page" to page)
     }
-    SongLeaderboardScreen(
-        boardViewModel, settings.selectedPlayer?.accountId, container.selectedProfile.state, leeway, settings.visibleInstruments, api::artworkUrl,
-        background = container.background,
-        revealSelected = route.navToPlayer,
-        // Revealed once: Back or a recreated entry keeps the scroll position instead (web clears `navToPlayer`).
-        onRevealed = { routeState?.set("navToPlayer", false) },
-    )
+    val currentSeason by boardViewModel.currentSeason.collectAsStateWithLifecycle()
+    // Season pills invert for the catalogue's current season (pattern `metadata-pills` R2).
+    CompositionLocalProvider(LocalCurrentSeason provides currentSeason) {
+        SongLeaderboardScreen(
+            boardViewModel, settings.selectedPlayer?.accountId, container.selectedProfile.state, leeway, settings.visibleInstruments, api::artworkUrl,
+            background = container.background,
+            revealSelected = route.navToPlayer,
+            // Revealed once: Back or a recreated entry keeps the scroll position instead (web clears `navToPlayer`).
+            onRevealed = { routeState?.set("navToPlayer", false) },
+        )
+    }
 }
 
 /**

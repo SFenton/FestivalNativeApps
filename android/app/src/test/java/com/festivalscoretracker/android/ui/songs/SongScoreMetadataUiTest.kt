@@ -353,12 +353,15 @@ class SongScoreMetadataUiTest {
     }
 
     @Test
-    fun percentileTiersUseGoldFillGoldOutlineOrNeutral() {
+    fun percentileTiersUseGoldOutlinesOrNeutral() {
+        // Shared `PercentilePill` (pattern `metadata-pills` R4): Top 1% is the skewed gold outline, not a gold fill.
         show(project(source(full.copy(rank = 1, totalEntries = 1_000))))
         assertEquals("Top 1%", text(pillTag("percentile")))
         val one = capture(pillTag("percentile"))
-        assertTrue(hasColour(one, BrandTokens.gold))
-        assertTrue(hasColour(one, SongsTokens.darkGlyph, tolerance = 40))
+        assertTrue(hasColour(one, BrandTokens.gold, tolerance = 40))
+        assertTrue(hasColour(one, BrandTokens.goldStroke, tolerance = 24))
+        val inside = one.getPixel((8f * rule.activity.resources.displayMetrics.density).toInt(), one.height / 2)
+        assertTrue("Top 1% is an outline, not a solid gold fill", android.graphics.Color.green(inside) < 120)
 
         show(project(source(full.copy(rank = 50, totalEntries = 1_000))))
         assertEquals("Top 5%", text(pillTag("percentile")))
@@ -367,7 +370,7 @@ class SongScoreMetadataUiTest {
         show(project(source(full.copy(rank = 400, totalEntries = 1_000))))
         assertEquals("Top 40%", text(pillTag("percentile")))
         val ordinary = capture(pillTag("percentile"))
-        assertTrue(hasColour(ordinary, BrandTokens.surfaceMuted, tolerance = 8))
+        assertTrue(hasColour(ordinary, BrandTokens.textSecondary, tolerance = 40))
         assertFalse(hasColour(ordinary, BrandTokens.gold, tolerance = 8))
 
         show(project(source(full.copy(rank = null))))
@@ -392,13 +395,15 @@ class SongScoreMetadataUiTest {
         show(project(source(full.copy(season = 15))))
         assertEquals("S15", text(pillTag("season")))
         assertTrue(announcement().contains("Current season 15"))
-        assertTrue(hasColour(capture(pillTag("season")), BrandTokens.textPrimary, tolerance = 4))
+        // Shared `SeasonPill` (pattern `metadata-pills` R2): the current season inverts to dark on light.
+        assertTrue(hasColour(capture(pillTag("season")), BrandTokens.textSecondary, tolerance = 4))
 
         show(project(source(full.copy(season = 9))))
         assertEquals("S9", text(pillTag("season")))
         assertTrue(announcement().contains("Season 9"))
         assertFalse(announcement().contains("Current season"))
-        assertTrue(hasColour(capture(pillTag("season")), BrandTokens.surfaceMuted, tolerance = 8))
+        assertTrue(hasColour(capture(pillTag("season")), BrandTokens.surfaceSubtle, tolerance = 4))
+        assertFalse(hasColour(capture(pillTag("season")), BrandTokens.surfaceMuted, tolerance = 2))
     }
 
     @Test

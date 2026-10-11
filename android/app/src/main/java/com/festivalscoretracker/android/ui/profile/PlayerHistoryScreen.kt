@@ -41,6 +41,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -76,6 +77,8 @@ import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.LocalCurrentSeason
+import com.festivalscoretracker.android.ui.design.SeasonPill
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.leaderboards.HingeSplit
@@ -120,7 +123,10 @@ fun PlayerHistoryScreen(viewModel: PlayerHistoryViewModel) {
             HistoryPhase.Empty -> HistoryMessage("No History Yet", "No score history for ${viewModel.instrument.label} on this song.", padding)
             HistoryPhase.Loaded -> {
                 val (hinge, measure) = rememberHingeSplit()
-                HistoryLoaded(viewModel.instrument, state, revealed, padding, hinge, Modifier.fillMaxSize().then(measure))
+                // Season pills invert for the catalogue's current season (pattern `metadata-pills` R2).
+                CompositionLocalProvider(LocalCurrentSeason provides state.currentSeason) {
+                    HistoryLoaded(viewModel.instrument, state, revealed, padding, hinge, Modifier.fillMaxSize().then(measure))
+                }
             }
         }
     }
@@ -243,11 +249,12 @@ private fun LazyListScope.historyRows(rows: List<ScoreHistoryRow>, revealed: Boo
 @Composable
 internal fun HistoryRow(row: ScoreHistoryRow) {
     val border = if (row.isHighScore) BorderStroke(1.dp, BrandTokens.gold) else BorderStroke(1.dp, BrandTokens.glassBorder)
+    val currentSeason = LocalCurrentSeason.current
     Surface(
         color = if (row.isHighScore) BrandTokens.accentPurple.copy(alpha = 0.25f) else BrandTokens.surfaceFrosted,
         shape = RoundedCornerShape(12.dp),
         border = border,
-        modifier = Modifier.fillMaxWidth().testTag("fst.history.row").clearAndSetSemantics { contentDescription = row.announcement },
+        modifier = Modifier.fillMaxWidth().testTag("fst.history.row").clearAndSetSemantics { contentDescription = row.announcement(currentSeason) },
     ) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -260,13 +267,15 @@ internal fun HistoryRow(row: ScoreHistoryRow) {
                 )
                 if (row.stars > 0) StarRating(row.stars, Modifier.testTag("fst.history.stars"))
             }
-            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    listOfNotNull(row.date, row.season).joinToString(" · "),
+                    row.date,
                     style = MaterialTheme.typography.bodySmall,
                     color = BrandTokens.textSecondary,
                     modifier = Modifier.weight(1f),
                 )
+                // Web `PlayerHistoryPage` rows show the shared season pill (pattern `metadata-pills`).
+                row.entry.season?.let { SeasonPill(it) }
                 // Web `AccuracyDisplay`: a full combo is the gold-outlined accuracy, not an "FC" chip (7.11).
                 AccuracyPill(row.entry.accuracy, row.isFullCombo)
             }
