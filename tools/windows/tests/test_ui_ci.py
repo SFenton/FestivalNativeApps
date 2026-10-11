@@ -273,6 +273,37 @@ class UiCiTests(unittest.TestCase):
         self.assertIn("compact", large.sizes.split(","))
         self.assertGreaterEqual(large.tabs, 1)
 
+    def test_modal_legibility_runs_under_contrast_themes_and_largest_text(self):
+        # Issue #518 (#239): dialog command labels and the First Run pips paint without the Window-coloured text
+        # backplate under Desert and Night sky, and the Feedback field hints wrap at 225% text.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-modal-legibility.json"}
+        self.assertEqual({"hc-desert", "hc-night-sky", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan and not run.only for run in runs.values()))
+        pages = json.loads((ci.JOURNEYS / "a11y-modal-legibility.json").read_text(encoding="utf-8"))
+        ran = {mode: {page["name"] for page in m.mode_pages(pages, mode)} for mode in runs}
+        self.assertEqual({"modal-contrast-first-run-desert", "modal-contrast-settings-reset"}, ran["hc-desert"])
+        self.assertEqual({"modal-contrast-first-run-night-sky", "modal-contrast-settings-reset"}, ran["hc-night-sky"])
+        self.assertEqual({"modal-feedback-hints-wrap"}, ran["text-225"])
+        by_name = {page["name"]: page for page in pages}
+        pips = {"modal-contrast-first-run-desert": "#903909", "modal-contrast-first-run-night-sky": "#D6B4FD"}
+        for name, highlight in pips.items():
+            steps = by_name[name]["after_ready"]
+            self.assertTrue(by_name[name]["ready"][0].startswith("wait:"), "the contrast theme reaches the app late")
+            # A Window-coloured backplate would cover the label area, leaving no pixel of the button fill.
+            self.assertIn("assertpaint:id=PrimaryButton|fill:L6,M0|C-12,M-5,C12,M5=@fill~16", steps)
+            pip = next(step for step in steps if step.startswith("assertpaint:id=fst.first-run.pips|"))
+            self.assertIn(f"L6,M-8={highlight}", pip)
+            self.assertLess(steps.index("scrollto:id=fst.first-run.body,100"), steps.index(pip))
+        reset = by_name["modal-contrast-settings-reset"]["after_ready"]
+        self.assertIn("assertpaint:id=CloseButton|fill:L6,M0|C-12,M-5,C12,M5=@fill~16", reset)
+        hints = by_name["modal-feedback-hints-wrap"]["after_ready"]
+        for hint in ("A short summary of the problem, after [Bug].",
+                     "What went wrong? Include the page, song, instrument or player involved.",
+                     "What did you expect to happen instead?"):
+            self.assertIn(f"assertmarquee:name={hint}&class=TextBlock|wrapped|60", hints)
+        self.assertEqual("assertfocus:id=fst.settings.feedback.bug@3",
+                         by_name["modal-feedback-hints-wrap"]["teardown"][-1])
+
     def test_modal_motion_runs_at_default_largest_text_and_motion_off(self):
         """#436: the #83 work-behind-dialogs journey gates PRs (normal, compact) and runs at 225% text and motion off.
 
