@@ -3,10 +3,10 @@
 > **What:** Windows state of `/rivals/all`. **Read when:** changing `windows/Festival.App/Pages/AllRivalsPage*` or `AllRivalsViewModel`. Full Rivals notes (data, scope, IDs, tests): [../rivals/windows.md](../rivals/windows.md).
 
 - `AppRoute.AllRivals(RivalScope)` parses web queries (`category`, `mode=leaderboard`, `rankBy`, optional `instruments`); `category=common`/`combo` without instruments resolve against Settings at load, and an unresolvable scope shows "This rivals list could not be identified."
-- Virtualized `ListView` of `RivalRowView` rows (above, then below), centred to 960 epx; rows push Rival Detail with the same scope.
+- Virtualized `ListView` of `RivalRowView` rows (above, then below), centred to 960 epx; rows push Rival Detail with the same scope. Rule (#603, [rival-rows](../../patterns/rival-rows.md) R6): the rows are one grouped card (`GroupedRows.ApplyToContainer` slices, hairlines between rows, `FadeIn.Together`), like iOS and the #543 boards, never a card per row; the split view's selection fill follows the slice corners. Journey `a11y-rivals-cards.json` `rivals-cards-all-rivals`.
 - States: loading ring, shared `ServiceStatusView` (scrape freeze countdown), empty, no player.
 - Header: an instrument icon or none, the title, then a subtitle (metric and rank, or the chart list) that collapses when empty (`HasSubtitle`) and wraps. The web has no subtitle; it's a native addition. Accessibility matrix pages: `all-rivals`, `all-rivals-lead`, `-board`, `-empty` and `-freeze` in `journeys/a11y.json`. Validation: [windows-accessibility.md](../../testing/windows-accessibility.md#all-rivals-validation-issue-201-2026-10-03).
-- Design review (issue #201, `winui-design`/`winui-code-review`): the row container uses `OverlayCornerRadius`. Deliberate deviations:
+- Design review (issue #201, `winui-design`/`winui-code-review`): the grouped card uses the 12 epx card radius of the #543 boards (the per-row `OverlayCornerRadius` container went with #603). Deliberate deviations:
   - The app is dark-only, so the theme dictionaries are Default plus HighContrast.
   - Strings are inline because the repo has no `.resw`.
   - Field-style `[ObservableProperty]` follows the repo convention.

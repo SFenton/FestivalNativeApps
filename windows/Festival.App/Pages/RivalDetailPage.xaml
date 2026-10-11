@@ -84,7 +84,9 @@
                             </StackPanel>
                             <Border Style="{StaticResource FSTCardStyle}" Padding="8,8,8,12">
                                 <StackPanel Spacing="4">
-                                    <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Preview}">
+                                    <!-- One card per category: the rows share it with an inset hairline between them, like Apple's
+                                         FestivalGlassSection rows (RowSeparators; issue #603). -->
+                                    <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Preview}" controls:RowSeparators.Enabled="True">
                                         <ItemsRepeater.Layout>
                                             <StackLayout Spacing="2" />
                                         </ItemsRepeater.Layout>
@@ -93,7 +95,11 @@
                                                 <Button Style="{StaticResource FSTRivalRowButtonStyle}" Tag="{x:Bind Route}" Click="OnRouteClick"
                                                         AutomationProperties.Name="{x:Bind AccessibleName}"
                                                         AutomationProperties.AutomationId="{x:Bind AutomationId}">
-                                                    <controls:RivalSongRowView Item="{x:Bind}" Compact="True" />
+                                                    <Grid>
+                                                        <Border x:Name="RowSeparator" Height="1" Margin="0,-6,0,0" VerticalAlignment="Top" IsHitTestVisible="False" Visibility="Collapsed"
+                                                                Background="{ThemeResource FSTRowSeparatorBrush}" AutomationProperties.AccessibilityView="Raw" />
+                                                        <controls:RivalSongRowView Item="{x:Bind}" />
+                                                    </Grid>
                                                 </Button>
                                             </DataTemplate>
                                         </ItemsRepeater.ItemTemplate>

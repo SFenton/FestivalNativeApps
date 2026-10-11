@@ -193,6 +193,10 @@ RUNS: tuple[Run, ...] = (
     Run("grouped-boards-text-225", "a11y-grouped-boards.json", sizes="compact", mode="text-225", tabs=0),
     Run("grouped-boards-reduced", "a11y-grouped-boards.json", sizes="medium", mode="app-reduced", tabs=0,
         only="grouped-song-board-one-card"),
+    # Rivals lists as one card (issue #603, rival-rows R3, R6): Rivalry and All Rivals rows touch (0 epx), each stays one
+    # named 40+ epx stop in visual order (iOS-design song rows read title, artist, instrument, ranks, who leads), Up/Down.
+    Run("rivals-cards", "a11y-rivals-cards.json", tabs=0),
+    Run("rivals-cards-text-225", "a11y-rivals-cards.json", sizes="compact", mode="text-225", tabs=0),
     # Combo boards (issue #602): the OG band combo card is a level-2 heading group before Lead, its View All Rankings is
     # a 40+ epx Button named with the board label, Enter opens combo Full Rankings (no instrument picker, combo title,
     # pinned combo rank) and Back restores focus; rows stay 40+ epx stops with Down between them.

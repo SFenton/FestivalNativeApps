@@ -4440,7 +4440,7 @@
       "title": "Rival rows",
       "status": "current",
       "doc": ".agents/patterns/rival-rows.md",
-      "summary": "Rows inside Rivals cards: the hub's rival rows and the song comparison rows on Rival Detail, Rivalry and the Duo category cards. One row component per kind on every surface, one shared red/green status capsule with text (readable red text), album art leading every song row through the shared ArtworkTile (art vertically centred alone, above the instrument icon when both, owner #558), one spoken element per row that names who leads, and pills that stack and wrap at accessibility sizes. Apple song rows show '#rank Name' pills for both sides, the leader green and the trailer red (agent decision #558, owner may override).",
+      "summary": "Rows inside Rivals cards: the hub's rival rows and the song comparison rows on Rival Detail, Rivalry and the Duo category cards. One row component per kind on every surface, one shared red/green status capsule with text (readable red text), album art leading every song row through the shared ArtworkTile (art vertically centred alone, above the instrument icon when both, owner #558), one spoken element per row that names who leads, and pills that stack and wrap at accessibility sizes. Apple and Windows song rows show '#rank Name' pills for both sides, the leader green and the trailer red (agent decisions #558, #603, owner may override). Each rival list is one card of rows with hairlines, never a card per row (R6, #603).",
       "keywords": [
         "rival",
         "rivals",
@@ -4512,6 +4512,14 @@
           {
             "path": "windows/Festival.App/Controls/RivalSongRowView.xaml",
             "symbol": "RivalSongRowView"
+          },
+          {
+            "path": "windows/Festival.App/Controls/GroupedRows.cs",
+            "symbol": "ApplyToContainer"
+          },
+          {
+            "path": "windows/Festival.App/Controls/RowSeparators.cs",
+            "symbol": "RowSeparators"
           }
         ]
       },

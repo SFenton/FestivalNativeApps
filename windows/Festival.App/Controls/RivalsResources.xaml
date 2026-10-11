@@ -16,6 +16,7 @@
             <SolidColorBrush x:Key="FSTRivalLoseStrokeBrush" Color="#66F44336" />
             <SolidColorBrush x:Key="FSTRivalLoseTextBrush" Color="#FFFF8A80" />
             <SolidColorBrush x:Key="FSTRivalTieFillBrush" Color="#1FFFFFFF" />
+            <SolidColorBrush x:Key="FSTRivalTieStrokeBrush" Color="#66D7DEE8" />
             <SolidColorBrush x:Key="FSTRivalTieTextBrush" Color="#FFD7DEE8" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
@@ -26,6 +27,7 @@
             <SolidColorBrush x:Key="FSTRivalLoseStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTRivalLoseTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTRivalTieFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTRivalTieStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTRivalTieTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
