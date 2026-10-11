@@ -78,7 +78,7 @@ Artwork motion follows [artwork-background](../controls/artwork-background/windo
 | Settings link rows (`Themes/NavRowButtonResources.xaml`: Feedback, Licenses, Privacy) | translucent white hover fill | Window fill, Highlight outline (row text mixes inherited and WindowText-styled runs, so no Highlight fill) |
 | First Run Guides Show buttons (`Themes/FirstRunButtonResources.xaml`) | web `btnPrimary` blue | ButtonFace / ButtonText; hover and press Highlight / HighlightText |
 | Service Info progress (`FSTProgressFill/Track`) | blue fill, translucent track | Highlight fill, GrayText track |
-| Chart gridlines and axes (`FSTChartGridBrush`, `FSTChartAxisBrush`), bar outlines | 8% / 20% white, none | WindowText; bars get a 1 epx WindowText outline (Song Detail #195, rank history #212) |
+| Chart gridlines and axes (`FSTChartGridBrush`, `FSTChartAxisBrush`), bar outlines | 8% / 20% white, none | WindowText; bars get a 1 epx WindowText outline (Song Detail #195, rank history #212), with bar edges snapped to device pixels (`ScoreHistoryChartScale.SnapToPixel`, #571) so it stays one crisp pixel |
 | Paths text table (`FSTPath*`: captions, fret pills, Overdrive bar; issue #223) | `#8899AA` captions, web `FRET_COLORS` lit / `#223047` unlit pills, amber bar on `#162133` | WindowText captions; lit pills Highlight with a WindowText ring, unlit Window with a GrayText ring; Highlight bar on a GrayText track |
 
 Charts (rank history bars, score history bars and line) keep brand data hues; their values are on the axes and in each bar's UIA name. In contrast themes both charts draw axes, gridlines and bar outlines in WindowText (#195 Song Detail, #204 Rank History, #212 shared graph).
