@@ -592,6 +592,24 @@ Defects fixed:
 
 Harness rules: the flyout's expanded sections push later controls below the fold at 225% text, so each `assertorder`, `focus` or `expand` past the fold follows a `reveal:` (UIA scroll, no input). `assertread` phrases never include the heading level, so headings use `assertstate:…|heading=N`. A card's own Group and title TextBlock are not in the Narrator order (the card list item is named by its title).
 
+## Delayed and loaded-later content accessibility tests (issue #521, for #260, 2026-10-12)
+
+Backfills CI tests for the #260 Windows change (PR #274): Suggestions cards loaded after the first ten fade in on arrival (`FadeIn.Restagger(list, batchStart)` from `CardsAdded`), and Global Search song rows that waited behind the spinner for a slow player search fade in when it clears. The `fade_trace` perf-log journeys (`suggestions_journey.py fade`, `search_journey.py fade-delayed-results`) check the fades themselves, but they're outside `windows-ui`, and no CI page reached a later batch or a delayed result. New pages are explicit `windows-ui` runs in `tools/windows/ui_ci.py`:
+- `a11y-suggestions.json` `suggestions-load-more` (seed 1; batch 2 is cards 11–16): card 12 "Close the Gap vs Rival B0" exists only once batch 2 has loaded, and its title is a Level 2 heading; its first row reads its full name as a focusable button of at least 40×40; card 11's title is a heading, and "New on Pro Lead" (card 10, the last card of batch 1) reads before "Climb Past Rival B4" (card 11);
+- `suggestions-load-more-keyboard` (`tabs: 0`): Down from card 10's last row lands on card 11's first row and Up returns; Tab walks cards 11–16 one stop each into card 17's row (batch 3, loaded by the walk), and Shift+Tab steps back;
+- `a11y-search.json` `search-delayed-results` (`profile_fixture.py`, whose new `SLOW_SONG_PREFIX` "puls" answers player searches after 4 s while "Fixture Pulse" matches at once): while the spinner runs, it reads "Busy Searching, ProgressRing", no song row or section title is shown, and focus stays in the field; afterwards "Songs, text" is a Level 2 heading that isn't focusable, read between All and "Fixture Pulse by Synthetic Quartet, list item" (40×40, clear of the title); no Players section or empty state shows; and Tab goes field → All → row, with Shift+Tab back.
+
+The Suggestions pages run in the full `suggestions` and `suggestions-text-225` runs, then in `suggestions-load-more-reduced-motion` (in-app Reduce Motion) and `-no-animations` (Windows Animation effects off), both at medium. The Search page runs as `search-delayed-results` (compact, medium), `-text-225` (compact) and `-reduced-motion` (medium). `tests/test_ui_ci.py` pins the runs and the key checks, and `tests/test_profile_selection.py` pins the slow song search.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (all three pages; Tab walk 30 on `suggestions-load-more`) | Pass, Axe 0 |
+| Text 225% (compact, all three pages) | Pass, Axe 0 |
+| In-app Reduce Motion (medium, all three pages) | Pass, Axe 0; the cards and rows appear in place |
+| Animation effects off (medium, Suggestions pages) | Pass, Axe 0 |
+
+No accessibility defect was found. Fixed (test only): the first draft of the keyboard page ended its Shift+Tab on a list offset where card 18 sat exactly on the viewport's bottom edge, which gave 6 Axe `BoundingRectangleSizeReasonable` findings ([item 3](#open-issues)). Both Suggestions pages now end on `scrollinset:…|8` before the scan. Harness note: `assertmotion:…|still` can't prove that a 400 ms batch fade didn't play (its captures are 1.2 s apart, and the batch loads with the realization cache before any scripted scroll), so Reduce Motion fade evidence belongs to the perf-log `fade-play … motion=0` lines, not a matrix page.
+
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
 Accessibility tests for #77. The no-profile Filter pages moved into `journeys/a11y-songs-filter.json` (`songs-filter-anonymous`, `songs-filter-anonymous-year`, `kb-songs-filter-anonymous`), which `tools/windows/ui_ci.py` runs in `windows-ui` at default text (compact, medium) and 225% text (compact); `tests/test_ui_ci.py` keeps both runs. They assert Narrator phrases, reading order, 40×40 epx targets, the toggle and expand states, the applied "Filters applied" status and the keyboard walk ([songs-filter windows](../controls/songs-filter/windows.md#accessibility-tests-issue-432-no-profile)).
