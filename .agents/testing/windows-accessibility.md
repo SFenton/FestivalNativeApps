@@ -85,6 +85,13 @@ Scope: Song Detail's Duos/Trios/Quads previews (issue #64), on `song_band_previe
 `journeys/a11y-song-board-end.json` covers the end-of-list spacing #293 changed, with Fixture Player 1 (pinned row), Empty Player (no score) and no player. Down from the first row reaches row 25 with the list at its end. The row then sits 4 epx above the footer's first part (`assertgap`), is clear of it, reads before the pinned row and pager, keeps a 40 epx target, and Tab/Shift+Tab move to the footer and back. The fade reports `end`. All pages passed with 0 Axe errors at compact and medium, at 100% and 225% text. No defect was found. `windows-ui` picks the file up through `ui_ci.generated_runs`; `tests/test_song_leaderboard_a11y_journey.py` pins the steps.
 - Reach a far row with single `key:down` steps, not one `keys:` burst. On a locked console the burst is posted and dropped a press, leaving focus one row short.
 
+## Song board states (issue #511, for #197, 2026-10)
+
+`journeys/a11y-song-board-states.json` covers what #197 changed: the pinned row's own UIA ID, an empty board without "0 entries", the contrast-theme footer plate (`hc-desert`) and the trimmed-name tool tip (`app-reduced`). Each page runs only in the mode that shows its state. All passed with 0 Axe errors; details in [song-leaderboard/windows.md](../pages/song-leaderboard/windows.md#accessibility-tests-issue-443). No defect was found.
+- A row's name only trims (and gets a tool tip) while the marquee is stopped and the text is not large: at 225% text names wrap. Test the tool tip at medium with `app-reduced`.
+- Rows move with Up/Down; Tab leaves the list for the pinned row. Close the tool tip (`focus:` the header, `waitgone:class=ToolTip`) before the Axe scan.
+- A paint probe on a hard-edge footer can't see the contrast plate (the mask already hides rows there). Mutation-test such probes with every layer that hides the content removed.
+
 ## Leaderboard row columns validation (issue #242, 2026-10-04)
 
 Scope: the shared row-column fitter (issue #37) on every board, checked against the live public service with SFentonX. Results per configuration are in [song-leaderboard/windows.md](../pages/song-leaderboard/windows.md#validation-issue-242-2026-10-04).

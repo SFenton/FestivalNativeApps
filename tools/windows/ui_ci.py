@@ -148,6 +148,16 @@ RUNS: tuple[Run, ...] = (
     Run("song-leaderboard-text-225", "a11y-song-leaderboard.json", sizes="compact", mode="text-225"),
     Run("song-leaderboard-reduced-motion", "a11y-song-leaderboard.json", sizes="medium", mode="app-reduced",
         only="song-board-paging-keyboard"),
+    # Song leaderboard states #197 changed (issue #511): the pinned row is its own UIA element (not a second list-row
+    # ID), an empty board's header names no "0 entries" total, a contrast theme's footer plate keeps row text out of the
+    # footer (Desert), and with motion off a trimmed row name shows in full as the row's keyboard-focus tool tip. (The
+    # mode-only runs come first: generated_runs reads a file's last explicit run as its coverage.)
+    Run("song-board-states-reduced", "a11y-song-board-states.json", sizes="medium", mode="app-reduced",
+        only="song-board-name-tooltip"),
+    Run("song-board-states-contrast", "a11y-song-board-states.json", mode="hc-desert",
+        only="song-board-contrast-plate"),
+    Run("song-board-states", "a11y-song-board-states.json"),
+    Run("song-board-states-text-225", "a11y-song-board-states.json", sizes="compact", mode="text-225"),
     # The rows fade 40 epx above the footer at rest, mid-scroll and end, and cut hard under More Contrast and
     # Less Transparency (issue #93).
     Run("song-leaderboard-footer-fade", "a11y-board-footer-fade.json", only=SONG_BOARD_FOOTER_FADE),
