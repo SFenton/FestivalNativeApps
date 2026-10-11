@@ -13,9 +13,9 @@ with Animation effects off), the first-run song demos (issue #420), the header f
 push (issue #452), the Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438) and the Full
 Rankings pinned row (issue #466, also with in-app Reduce Motion), the Leaderboards card "your rank" row (issue #493,
 also with in-app Reduce Motion), the Search All section titles (issue #483, also with in-app Reduce Motion), the
-Song Band Leaderboard rows, empty and error states (issue #510) and the
-real-control First Run demos (issue #498, also with Animation effects off) run at default and 225% text, and
-that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
+Song Band Leaderboard rows, empty and error states (issue #510), the
+real-control First Run demos (issue #498, also with Animation effects off) and the profile title row (issue #446) run at
+default and 225% text, and that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -87,6 +87,10 @@ class Run:
 #: The ``a11y-section-index.json`` fixture pages for the #48 backward pick (the file's other pages are ``--live``-capable
 #: host checks).
 SECTION_INDEX_BACKWARD = "index-backward-after-scroll,index-backward-after-scroll-keyboard"
+
+#: The ``a11y-profile-title.json`` fixture pages (issues #97, #285, #446); its ``pt-live-*`` pages need the public service.
+PROFILE_TITLE_FIXTURE = ("pt-switch,pt-anonymous,pt-selected,pt-notice,pt-actions-row,pt-actions-wrap,"
+                         "pt-keyboard-switch,pt-keyboard-selected")
 
 #: The ``a11y-keyboard.json`` page for the Item Shop Filters flyout (#19, #428); the file's other pages stay host checks.
 SHOP_FILTER_KEYBOARD = "kb-shop-filter"
@@ -246,6 +250,12 @@ RUNS: tuple[Run, ...] = (
     # keyboard Settings replay with Esc focus return, demo frame clear of the title. At 225% the guide body scrolls.
     Run("first-run-demos", "a11y-first-run-demos.json"),
     Run("first-run-demos-text-225", "a11y-first-run-demos.json", sizes="compact", mode="text-225"),
+    # Player profile title row without the avatar card (issues #97, #446): the name is a non-focusable Level 1 heading
+    # with no PersonPicture, then Select/Switch/Deselect or the paused notice, then Overview; 40 epx actions, keyboard
+    # order and focus return, and Quick Links wrapping under the action at 225% text (#285).
+    Run("profile-title", "a11y-profile-title.json", tabs=0, only=PROFILE_TITLE_FIXTURE),
+    Run("profile-title-text-225", "a11y-profile-title.json", sizes="compact", mode="text-225", tabs=0,
+        only=PROFILE_TITLE_FIXTURE),
     # Real-control First Run demos (issues #380, #498): Sort Songs, the Score History chart and Suggestions' auto-scroll
     # are built from the page's own controls (census HelpText) yet stay out of the control view and the Tab order (slide
     # -> pip -> Next -> Back -> Close, 40x40 Close); the auto-scroll runs with its edge fades, pauses while minimized and
