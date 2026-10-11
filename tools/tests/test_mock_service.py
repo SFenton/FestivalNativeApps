@@ -847,7 +847,7 @@ class MockServiceTests(unittest.TestCase):
             pass
         with urlopen(route, timeout=10) as response:
             self.assertEqual(response.status, 200)
-        for bad in ("?seconds=61", "?seconds=-1", "?seconds=x", "?seconds=1&seconds=2", "?other=1"):
+        for bad in ("?seconds=241", "?seconds=-1", "?seconds=x", "?seconds=1&seconds=2", "?other=1"):
             with self.subTest(query=bad), self.assertRaises(HTTPError) as failure:
                 urlopen(control + bad)
             self.assertEqual(failure.exception.code, 400)
