@@ -1,3 +1,4 @@
+using Festival.App.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -46,8 +47,9 @@ public sealed partial class RivalryPage : Page
     private void OnContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         if (args.InRecycleQueue || args.Item is not RivalSongItem row) return;
-        AutomationProperties.SetName(args.ItemContainer, row.FullAccessibleName);
+        AutomationProperties.SetName(args.ItemContainer, row.AccessibleName);
         AutomationProperties.SetAutomationId(args.ItemContainer, row.AutomationId);
+        GroupedRows.ApplyToContainer(sender, args);
     }
 
     /// <summary>Opens the song on its chart.</summary>

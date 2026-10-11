@@ -72,6 +72,7 @@ fun playerHistoryViewModel(container: AppContainer, shell: ShellViewModel, route
             findSong = { id -> api.catalog().catalog.songs.firstOrNull { it.songId == id } },
             settings = shell.settings,
             backoff = container.backoff,
+            currentSeason = { api.catalog().catalog.currentSeason },
         )
     }
 }

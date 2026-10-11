@@ -418,7 +418,8 @@ public class RivalsViewModelTests
         var song = new Song { SongId = "s1", Title = "Catalog", Artist = "Band", Year = 2024, AlbumArt = "art.jpg", Sig = "Keyboard" };
         var item = new RivalSongItem(comparison, song, "Me", "Them");
         Assert.Equal("Catalog", item.Title);
-        Assert.Equal("Band · 2024", item.Subtitle);
+        Assert.Equal("Band", item.Artist);
+        Assert.True(item.HasArtist);
         Assert.Equal("art.jpg", item.AlbumArt);
         Assert.True(item.IsMixedInstrument);
         Assert.Equal("Pro Drums + Cymbals vs Pro Drums", item.InstrumentLabel);
@@ -427,26 +428,60 @@ public class RivalsViewModelTests
         Assert.False(item.IsLosing);
         Assert.Equal("#3", item.UserRankText);
         Assert.Equal("#9", item.RivalRankText);
-        Assert.Equal("1,000", item.UserScoreText);
-        Assert.Equal("", item.RivalScoreText);
         Assert.Equal("+6", item.RankDeltaText);
-        Assert.Equal("+1,000", item.ScoreDiffText);
-        Assert.Contains("you lead", item.AccessibleName);
         Assert.Equal(new AppRoute.SongDetail("s1", Instrument.ProCymbals), item.Route);
         Assert.Equal("fst.rivalry.song.s1.Solo_PeripheralCymbals", item.AutomationId);
 
         var plain = new RivalSongItem(comparison with { Title = "T", Artist = null, UserInstrument = null, RivalInstrument = null, RankDelta = 0 }, null, "Me", "Them");
         Assert.Equal("T", plain.Title);
-        Assert.Equal("", plain.Subtitle);
+        Assert.Equal("", plain.Artist);
+        Assert.False(plain.HasArtist);
         Assert.False(plain.IsMixedInstrument);
-        Assert.Contains("tied", plain.AccessibleName);
-        Assert.Equal("T, Lead, you rank 3 with 1,000 points, Them ranks 9, tied",
-            new RivalSongItem(comparison with { Title = "T", Artist = null, Instrument = "Solo_Guitar", UserInstrument = null, RivalInstrument = null, RankDelta = 0 },
-                null, "Me", "Them").FullAccessibleName);
-        Assert.Equal("Catalog, Band, 2024, Pro Drums + Cymbals vs Pro Drums, you rank 3 with 1,000 points, Them ranks 9 with 2,500 points, you lead",
-            new RivalSongItem(comparison with { RivalScore = 2500 }, song, "Me", "Them").FullAccessibleName);
         Assert.Equal(RivalSongOutcome.Losing, new RivalSongItem(comparison with { RankDelta = -1 }, null, "Me", "Them").Outcome);
-        Assert.Equal("Band", new RivalSongItem(comparison, song with { Year = null }, "Me", "Them").Subtitle);
+        Assert.Equal("Service Artist", new RivalSongItem(comparison with { Artist = "Service Artist" }, song, "Me", "Them").Artist);
+    }
+
+    [Fact]
+    public void RivalSongItem_StandingPillsMirrorWhoLeads()
+    {
+        // rival-rows R3 (issue #603): "#rank Name" for each side, the leader green, the trailer red, both neutral when tied.
+        var comparison = new RivalSongComparison("s1", "T", null, "Solo_Guitar", null, null, 1234, 9, 1225, null, null);
+        var leading = new RivalSongItem(comparison, null, "Me", "Them");
+        Assert.Equal("#1,234 Me", leading.PlayerPillText);
+        Assert.Equal("#9 Them", leading.RivalPillText);
+        Assert.Equal((RivalSongOutcome.Winning, RivalSongOutcome.Losing), (leading.Outcome, leading.RivalOutcome));
+
+        var trailing = new RivalSongItem(comparison with { RankDelta = -3 }, null, "Me", "Them");
+        Assert.Equal((RivalSongOutcome.Losing, RivalSongOutcome.Winning), (trailing.Outcome, trailing.RivalOutcome));
+
+        var tied = new RivalSongItem(comparison with { RankDelta = 0 }, null, "Me", "Them");
+        Assert.Equal((RivalSongOutcome.Tie, RivalSongOutcome.Tie), (tied.Outcome, tied.RivalOutcome));
+    }
+
+    [Theory]
+    [InlineData(6, "6")]
+    [InlineData(-6, "6")]
+    [InlineData(0, "0")]
+    [InlineData(-15_400, "15K")]
+    [InlineData(1_500_000, "1.5M")]
+    public void RivalSongItem_RankGapIsUnsigned(int delta, string expected)
+    {
+        // The badge's glyph carries the direction (▲/▼/=), so its number is the gap's magnitude in the web's compact form.
+        var comparison = new RivalSongComparison("s1", "T", null, "Solo_Guitar", null, null, 3, 9, delta, null, null);
+        Assert.Equal(expected, new RivalSongItem(comparison, null, "Me", "Them").RankGapText);
+    }
+
+    [Fact]
+    public void RivalSongItem_AccessibleNameReadsWhatTheRowShows()
+    {
+        // rival-rows R5: one stop per row reading the song, artist, chart, both ranks and who leads (the rival by name).
+        var comparison = new RivalSongComparison("s1", "Song", "Artist", "Solo_Guitar", null, null, 12, 13, 1, 1000, 900);
+        Assert.Equal("Song, Artist, Lead, you rank 12, Them ranks 13, you lead", new RivalSongItem(comparison, null, "Me", "Them").AccessibleName);
+        Assert.Equal("Song, Lead, you rank 12, Them ranks 13, Them leads",
+            new RivalSongItem(comparison with { Artist = null, RankDelta = -1 }, null, "Me", "Them").AccessibleName);
+        Assert.Equal("Song, Artist, Lead, you rank 12, Them ranks 12, tied",
+            new RivalSongItem(comparison with { RivalRank = 12, RankDelta = 0 }, null, "Me", "Them").AccessibleName);
+        Assert.DoesNotContain("points", new RivalSongItem(comparison, null, "Me", "Them").AccessibleName, StringComparison.Ordinal);
     }
     #endregion
 

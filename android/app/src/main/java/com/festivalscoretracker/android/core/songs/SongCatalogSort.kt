@@ -462,7 +462,8 @@ data class SongListInputs(
  *
  * @property songs Rows in order (grouped by first-seen bucket when headers apply).
  * @property sections Scrubber sections (Title/Artist/Year only).
- * @property headers In-list bucket headers, also the Quick Links targets.
+ * @property headers In-list section headers for every sort (Title/Artist `#`/A–Z too); the Quick Links
+ *   targets except where the section index navigates ([SongQuickLinkBuckets.quickLinkHeaders]).
  * @property effectiveSort Sort actually applied (a paused sort shows Title order).
  * @property sortPaused Why a saved sort is paused (none for a player sort while no player is selected).
  * @property shopFilterPaused Why a saved Shop filter is paused.
@@ -525,7 +526,9 @@ object SongListPipeline {
         val sortScores = if (scores != null && chart != null) SongSortScores(chart, played, scores) else null
         val sorted = sorter.sorted(rows, effective, input.ascending, input.offers?.keys.orEmpty(), sortScores, chart)
         val context = SongBucketContext(effective, chart, input.offers.orEmpty(), sortScores, input.nowEpochMillis)
-        val (ordered, headers) = if (effective.usesSectionIndex) sorted to emptyList() else SongQuickLinkBuckets.group(sorted, context)
+        // Every sort titles its sections, Title/Artist's `#`/A–Z too (web `getAlphaBucket`, issue #582);
+        // grouping first-seen keeps one title per letter, so the index sections match the headers.
+        val (ordered, headers) = SongQuickLinkBuckets.group(sorted, context)
         val applied = filter.isActive || general.catalogActive || (general.shopActive && shopPaused == null) || (scoped.appliesTo(filter.instrument) && scorePaused == null)
         // Without a player, player-dependent choices simply don't apply (web shows no notice).
         // Single-chart sorts count too: the instrument filter is player-only (issue #359).

@@ -47,8 +47,8 @@ import kotlinx.coroutines.flow.stateIn
  *
  * @property catalog Catalogue load state (drives loading/error views).
  * @property rows Projected rows in order.
- * @property sections Scrubber sections (Title/Artist/Year only).
- * @property headers In-list headers (Shop buckets).
+ * @property sections Section-index sections (Title/Artist only).
+ * @property headers In-list section headers (every sort with two or more sections).
  * @property notices Pause/status notices shown above the list.
  * @property sortPaused The saved sort's pause notice (one of [notices]; test ID `fst.songs.sort-paused`).
  * @property prefs Saved filters.
@@ -101,6 +101,9 @@ data class SongsUiState(
 
     /** Songs Quick Links title for the applied sort. */
     val quickLinksTitle: String get() = SongQuickLinkBuckets.title(effectiveSort)
+
+    /** Headers Quick Links offers (none while the section index navigates). */
+    val quickLinkHeaders: List<SongListHeader> get() = SongQuickLinkBuckets.quickLinkHeaders(effectiveSort, headers)
 
     /** Empty-list message. */
     val emptyMessage: String get() = if (filtersApplied) "No songs match the filters." else "No songs match your search."
