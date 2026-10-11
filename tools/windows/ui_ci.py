@@ -236,11 +236,14 @@ RUNS: tuple[Run, ...] = (
     # Real-control First Run demos (issues #380, #498): Sort Songs, the Score History chart and Suggestions' auto-scroll
     # are built from the page's own controls (census HelpText) yet stay out of the control view and the Tab order (slide
     # -> pip -> Next -> Back -> Close, 40x40 Close); the auto-scroll runs with its edge fades, pauses while minimized and
-    # holds at the top with in-app Reduce Motion or Windows' Animation effects off.
+    # holds at the top with in-app Reduce Motion or Windows' Animation effects off; with Windows' transparency effects
+    # off, or the app's Less Transparency or More Contrast, it scrolls with hard clipped edges (fade=off, scroll-edge R7).
     Run("first-run-real-demos", "a11y-first-run-real-demos.json"),
     Run("first-run-real-demos-text-225", "a11y-first-run-real-demos.json", sizes="compact", mode="text-225"),
     Run("first-run-real-demos-no-animations", "a11y-first-run-real-demos.json", sizes="compact", mode="no-animations",
         only="frrd-infinite-scroll-static"),
+    Run("first-run-real-demos-no-transparency", "a11y-first-run-real-demos.json", sizes="compact",
+        mode="no-transparency", only="frrd-infinite-scroll-no-transparency"),
     # Full boards as one grouped card (issue #543): song board, Full Rankings, Band Rankings and the song band board rows
     # touch (0 epx), each stays one 40+ epx Button stop in visual order, rows -> pinned row -> pager, Up/Down and Tab.
     Run("grouped-boards", "a11y-grouped-boards.json", tabs=0),
