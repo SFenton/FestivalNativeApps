@@ -8,6 +8,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -128,8 +129,10 @@ class ProfileUiTest {
         tap("fst.nav.profile")
         waitForTag("fst.statistics")
         waitForTag("fst.player.overview")
-        // Operator 7.12: Deselect lives in the drawer (web sidebar), not on the page.
-        assertEquals(0, rule.onAllNodesWithText("Deselect Profile").fetchSemanticsNodes().size)
+        // Issue #590: Deselect Profile is the pill beside Quick Links, never in the page content.
+        waitForTag("fst.player.deselect")
+        rule.onNodeWithTag("fst.player.deselect").assert(hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar.companion")))
+        assertEquals(0, rule.onAllNodes(hasTestTag("fst.player.deselect").and(hasAnyAncestor(hasTestTag("fst.player.available")))).fetchSemanticsNodes().size)
         assertEquals(1, transport.sent("/api/player/${Fixtures.ACCOUNT_A}").size)
 
         // Issue #290: back on Songs, the chip opens the selected profile, not the search sheet.

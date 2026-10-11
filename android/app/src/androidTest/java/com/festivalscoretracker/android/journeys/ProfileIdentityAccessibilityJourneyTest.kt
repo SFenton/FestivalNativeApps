@@ -43,10 +43,11 @@ import org.junit.runner.RunWith
  *
  * TalkBack must read the player's name once (the title, never a repeated card heading or
  * initials), then the identity row's stops (the paused-selection notice as text with a
- * silent icon), then the Overview heading with nothing else between them. Since #590 Select
- * and Switch are not in the page: they are their own pill beside Quick Links in the floating
- * toolbar row, a `Button` named "Select Profile" / "Switch to This Profile" (visible "Select" /
- * "Switch"), read immediately before Quick Links, with a 48 dp target that never overlaps
+ * silent icon), then the Overview heading with nothing else between them. Since #590 Select,
+ * Switch and Deselect are not in the page: they are their own pill beside Quick Links in the
+ * floating toolbar row, a `Button` named "Select Profile" / "Switch to This Profile" /
+ * "Deselect Profile" (visible "Select" / "Switch" / "Deselect"), read immediately before Quick
+ * Links, with a 48 dp target that never overlaps
  * Quick Links'. At 100% and 200% text the pill and notice grow without clipping and keep that
  * order. ATF runs on every step. Fixtures only;
  * `@DeviceCi` puts it in the `android-device` job. Run with `device.py test
@@ -148,25 +149,35 @@ class ProfileIdentityAccessibilityJourneyTest {
 
     /**
      * The selected player's own page has no identity row: Overview is the first page stop
-     * after the top bar, and the name is read once, as the title. Like iOS, it has no identity
-     * pill: Quick Links is the row's only pill (#590; Deselect is in the drawer).
+     * after the top bar, and the name is read once, as the title. Deselect Profile is its own
+     * pill read immediately before Quick Links (#590 acceptance), a 48 dp `Button` at every
+     * text size.
      */
     @Test
-    fun selectedPlayerPageStartsAtOverview() {
+    fun selectedPlayerPageReadsDeselectPillBeforeQuickLinksAtEveryTextSize() {
+        var scale by mutableFloatStateOf(1f)
         h.enableAccessibilityChecks()
-        h.launch(DebugLaunch(profile = PLAYER, route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true), transport())
+        h.launch(DebugLaunch(profile = PLAYER, route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true), transport(), fontScale = { scale })
         h.waitForTag(OVERVIEW)
         h.publishTalkBackTree()
-        assertFalse("A selected player's page shows the identity row", h.exists(IDENTITY))
-        assertIdentityRow(h.readingOrder("profile-selected", fresh = true), title(), emptyList(), "selected")
-        assertQuickLinksAlone("profile-selected")
+        val heights = SCALES.map { s ->
+            scale = s
+            rule.waitForIdle()
+            h.waitForTag(DESELECT)
+            h.waitForTag(OVERVIEW)
+            assertFalse("A selected player's page shows the identity row", h.exists(IDENTITY))
+            assertFalse("A selected player's page offers Select", h.exists(SELECT))
+            assertIdentityRow(h.readingOrder("profile-selected-${s}x", fresh = true), title(), emptyList(), "selected ${s}x")
+            assertPillBesideQuickLinks("profile-selected-${s}x", DESELECT_LABEL, DESELECT)
+            assertButton(DESELECT, DESELECT_LABEL, "selected ${s}x")
+        }
+        assertTrue("200% text did not grow the Deselect pill ($heights px)", heights[1] > heights[0])
         h.assertAccessible()
     }
 
     /**
      * Statistics (the same body under a "Statistics" title) starts at Overview and never reads
-     * the name as a page item. It offers no identity pill beside Quick Links; Deselect stays in
-     * the drawer (operator batches 7.10, 7.12; #590), covered by `ShellAccessibilityJourneyTest`.
+     * the name as a page item. Deselect Profile is its own pill read just before Quick Links (#590).
      */
     @Test
     fun statisticsStartsAtOverview() {
@@ -174,13 +185,15 @@ class ProfileIdentityAccessibilityJourneyTest {
         h.launch(DebugLaunch(section = FestivalSection.Statistics, profile = PLAYER, stillBackground = true), transport())
         h.waitForTag("fst.statistics")
         h.waitForTag(OVERVIEW)
+        h.waitForTag(DESELECT)
         h.publishTalkBackTree()
         assertFalse("Statistics shows the identity row", h.exists(IDENTITY))
         val order = h.readingOrder("statistics-selected", fresh = true)
         // The selected Statistics tab can repeat the title, so only the name is counted here.
         assertIdentityRow(order, title(), emptyList(), "statistics", titleOnce = false)
         assertTrue("Statistics reads the player's name as a page item: $order", order.none { it == PLAYER.displayName })
-        assertQuickLinksAlone("statistics-selected")
+        assertPillBesideQuickLinks("statistics-selected", DESELECT_LABEL, DESELECT)
+        assertButton(DESELECT, DESELECT_LABEL, "statistics")
         h.assertAccessible()
     }
 
@@ -236,39 +249,24 @@ class ProfileIdentityAccessibilityJourneyTest {
     }
 
     /**
-     * The identity pill and Quick Links are separate TalkBack stops, the pill (named [label])
-     * read immediately before Quick Links; both have 48 dp targets that do not overlap, in one row.
+     * The identity pill ([tag], named [label]) and Quick Links are separate TalkBack stops, the
+     * pill read immediately before Quick Links; both have 48 dp targets that do not overlap, in one row.
      */
-    private fun assertPillBesideQuickLinks(screen: String, label: String) {
+    private fun assertPillBesideQuickLinks(screen: String, label: String, tag: String = SELECT) {
         val stops = h.readingStops(screen)
-        val pill = stops.indexOfFirst { it.id == SELECT }
+        val pill = stops.indexOfFirst { it.id == tag }
         val links = stops.indexOfFirst { it.id == QUICK_LINKS }
         assertTrue("$screen: TalkBack never reaches the identity pill: ${stops.map { it.label }}", pill >= 0)
         assertEquals("$screen: the pill is not read just before Quick Links: ${stops.map { it.label }}", pill + 1, links)
         assertEquals("$screen: pill label", label, stops[pill].label)
-        h.assertTouchTarget(screen, SELECT)
+        h.assertTouchTarget(screen, tag)
         h.assertTouchTarget(screen, QUICK_LINKS)
         val a = stops[pill].bounds
         val b = stops[links].bounds
         assertFalse("$screen: the pill ($a) overlaps Quick Links ($b)", android.graphics.Rect.intersects(a, b))
         assertTrue("$screen: the pill ($a) is not before Quick Links ($b) in one row", a.right <= b.left && a.centerY() in b.top..b.bottom)
-        assertFalse("$screen: the pill is inside the Quick Links pill", rule.onAllNodes(hasTestTag(SELECT).and(hasAnyAncestor(hasTestTag(TOOLBAR)))).fetchSemanticsNodes().isNotEmpty())
-    }
-
-    /**
-     * The selected player's page: Quick Links is a 48 dp TalkBack stop and the toolbar row has
-     * no identity pill (no Select, Switch or Deselect beside it, the same as iOS).
-     */
-    private fun assertQuickLinksAlone(screen: String) {
-        h.waitForTag(QUICK_LINKS)
-        listOf(COMPANION, SELECT, PAGE_DESELECT).forEach { assertFalse("$screen: $it is on the selected player's page", h.exists(it)) }
-        val stops = h.readingStops(screen)
-        assertTrue("$screen: TalkBack never reaches Quick Links: ${stops.map { it.label }}", stops.any { it.id == QUICK_LINKS })
-        assertTrue(
-            "$screen: TalkBack reads a Deselect stop on the page: ${stops.map { it.label }}",
-            stops.none { it.label.contains("Deselect", ignoreCase = true) && it.id != DRAWER_DESELECT },
-        )
-        h.assertTouchTarget(screen, QUICK_LINKS)
+        assertFalse("$screen: the pill is inside the Quick Links pill", rule.onAllNodes(hasTestTag(tag).and(hasAnyAncestor(hasTestTag(TOOLBAR)))).fetchSemanticsNodes().isNotEmpty())
+        assertTrue("$screen: the pill is not in the companion slot", rule.onAllNodes(hasTestTag(tag).and(hasAnyAncestor(hasTestTag(COMPANION)))).fetchSemanticsNodes().isNotEmpty())
     }
 
     /**
@@ -331,8 +329,8 @@ class ProfileIdentityAccessibilityJourneyTest {
         const val QUICK_LINKS = "fst.quick-links.open"
         const val TOOLBAR = "fst.nav.floating-toolbar"
         const val COMPANION = "fst.nav.floating-toolbar.companion"
-        const val PAGE_DESELECT = "fst.player.deselect"
-        const val DRAWER_DESELECT = "fst.nav.drawer.deselect"
+        const val DESELECT = "fst.player.deselect"
+        const val DESELECT_LABEL = "Deselect Profile"
         const val UNPINNED_NOTICE = "These scores have no verified publication. Selection is paused."
     }
 }

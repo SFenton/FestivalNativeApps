@@ -223,6 +223,16 @@ fun DifficultyMeter(level: Double, modifier: Modifier = Modifier, raw: Boolean =
 fun festivalFilledButtonColors(): ButtonColors =
     ButtonDefaults.buttonColors(containerColor = BrandTokens.accentBlueFill, contentColor = BrandTokens.textPrimary)
 
+/**
+ * Colours for a filled destructive button (Deselect Profile): [BrandTokens.statusRed] behind white
+ * text (web `btnDanger`, iOS `ProfileIdentityAction.prominentFill`), WCAG AA contrast.
+ *
+ * @return Button colours.
+ */
+@Composable
+fun festivalDestructiveButtonColors(): ButtonColors =
+    ButtonDefaults.buttonColors(containerColor = BrandTokens.statusRed, contentColor = BrandTokens.textPrimary)
+
 // endregion
 
 // region Reading groups

@@ -143,7 +143,7 @@ internal fun profileHeadingInset(id: String): Dp =
 
 /**
  * Top bar, Quick Links (in the floating toolbar: menu on medium+ windows, sheet on compact) with
- * Select/Switch as its own pill beside it (#590), and the profile body.
+ * Select/Switch/Deselect as its own pill beside it (#590), and the profile body.
  */
 @Composable
 private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, isRoot: Boolean, tag: String) {
@@ -176,11 +176,20 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
     val windowWidthDp = with(density) { currentWindowSize().width.toDp().value.toInt() }
     val scrolled by remember(gridState) { derivedStateOf { gridState.canScrollBackward } }
     var confirm by rememberSaveable { mutableStateOf<PlayerIdentityAction?>(null) }
-    // Select/Switch: its own pill in the floating toolbar row, beside Quick Links (owner #590;
-    // iOS `ProfileIdentityToolbarItem`). Switch asks first; Deselect stays in the drawer.
-    val identityAction = if (state.offersSelect) {
-        FloatingToolbarAction(text = state.selectShortLabel, label = state.selectLabel, testTag = "fst.player.select") {
-            if (state.identity == PlayerIdentityAction.Switch) confirm = PlayerIdentityAction.Switch else viewModel.select()
+    // Select/Switch/Deselect: its own pill in the floating toolbar row, beside Quick Links (owner #590;
+    // iOS `ProfileIdentityToolbarItem`). Switch and Deselect ask first; Deselect is red.
+    val identityAction = if (state.offersIdentityAction) {
+        val deselect = state.identity == PlayerIdentityAction.Deselect
+        FloatingToolbarAction(
+            text = state.identityShortLabel,
+            label = state.identityLabel,
+            testTag = if (deselect) "fst.player.deselect" else "fst.player.select",
+            destructive = deselect,
+        ) {
+            when (state.identity) {
+                PlayerIdentityAction.Switch, PlayerIdentityAction.Deselect -> confirm = state.identity
+                else -> viewModel.select()
+            }
         }
     } else {
         null
@@ -207,6 +216,17 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
             onDismiss = { confirm = null },
         )
     }
+    if (confirm == PlayerIdentityAction.Deselect) {
+        // Same copy as the profile sheet's Deselect (iOS "Deselect profile?").
+        ConfirmDialog(
+            title = "Deselect Profile?",
+            text = "Scores and profile-only content will be hidden; app Settings stay saved.",
+            confirmLabel = "Deselect",
+            tag = "fst.player.deselect-confirm",
+            onConfirm = { confirm = null; viewModel.deselect() },
+            onDismiss = { confirm = null },
+        )
+    }
 }
 
 // endregion
@@ -215,7 +235,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
 
 /**
  * The shared player-profile body: the paused-selection notice or Select error (only when one
- * applies; Select/Switch itself is a pill beside Quick Links, #590; no avatar or name, the top bar
+ * applies; Select/Switch/Deselect itself is a pill beside Quick Links, #590; no avatar or name, the top bar
  * names the page),
  * Overview, one card
  * per Settings-visible chart (stats, global rank, rank history, percentiles), top and

@@ -370,18 +370,34 @@ data class PlayerProfileUiState(
     fun canRun(action: PlayerTileAction): Boolean =
         isSelected || identity == PlayerIdentityAction.Select || identity == PlayerIdentityAction.Switch || !action.requiresSelection
 
-    /** Select action's full label (TalkBack, and the top bar outside the shell). */
-    val selectLabel: String get() = if (identity == PlayerIdentityAction.Switch) "Switch to This Profile" else "Select Profile"
+    /** Identity action's full label (TalkBack, and the top bar outside the shell; iOS `title`). */
+    val identityLabel: String
+        get() = when (identity) {
+            PlayerIdentityAction.Switch -> "Switch to This Profile"
+            PlayerIdentityAction.Deselect -> "Deselect Profile"
+            else -> "Select Profile"
+        }
 
-    /** Select action's short visible text in the floating toolbar row (iOS `shortTitle`, #590). */
-    val selectShortLabel: String get() = if (identity == PlayerIdentityAction.Switch) "Switch" else "Select"
+    /** Identity action's short visible text in the floating toolbar row (iOS `shortTitle`, #590). */
+    val identityShortLabel: String
+        get() = when (identity) {
+            PlayerIdentityAction.Switch -> "Switch"
+            PlayerIdentityAction.Deselect -> "Deselect"
+            else -> "Select"
+        }
 
     /**
-     * Whether the page offers Select/Switch, as its own pill beside Quick Links (#590). Deselect
-     * stays in the drawer, never on the page (operator batch 7.10, same as iOS).
+     * Whether the page offers Select, Switch or Deselect as its own pill beside Quick Links
+     * (owner #590 acceptance: "Select/Switch/Deselect Profile appears in the floating toolbar row").
+     * Paused (unverified or changed) reads offer none; their notice stays in the identity row.
      */
-    val offersSelect: Boolean
-        get() = phase == ProfilePhase.Loaded && (identity == PlayerIdentityAction.Select || identity == PlayerIdentityAction.Switch)
+    val offersIdentityAction: Boolean
+        get() = phase == ProfilePhase.Loaded && identity in IDENTITY_PILL_ACTIONS
+
+    private companion object {
+        /** The identity actions drawn as the floating-toolbar companion pill (#590). */
+        val IDENTITY_PILL_ACTIONS = setOf(PlayerIdentityAction.Select, PlayerIdentityAction.Switch, PlayerIdentityAction.Deselect)
+    }
 
     /** Why selection is paused, or null. */
     val identityNotice: String?
@@ -400,7 +416,7 @@ data class PlayerProfileUiState(
 
     /**
      * Whether the page needs its identity row: a paused-selection notice or an action error.
-     * Select/Switch is not in it: it sits beside Quick Links in the floating toolbar row (#590).
+     * Select/Switch/Deselect is not in it: it sits beside Quick Links in the floating toolbar row (#590).
      */
     val showsIdentityRow: Boolean
         get() = identityNotice != null || actionError != null

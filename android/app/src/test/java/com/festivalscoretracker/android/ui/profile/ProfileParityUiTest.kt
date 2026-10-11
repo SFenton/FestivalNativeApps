@@ -532,15 +532,43 @@ class ProfileParityUiTest {
         // Nothing to act on: no identity row, so Overview is the first row (no empty gap).
         assertEquals(0, rule.onAllNodesWithTag("fst.player.identity").fetchSemanticsNodes().size)
         assertEquals(0, rule.onAllNodesWithTag("fst.player.name").fetchSemanticsNodes().size)
-        // Issue #590: like iOS, the selected player's page offers no identity pill beside Quick
-        // Links; Deselect lives only in the drawer (operator batches 7.10, 7.12).
+        // Issue #590 acceptance: the selected player's page offers Deselect Profile as its own red
+        // pill beside Quick Links (not inside the toolbar pill, not in the page content).
         rule.onNodeWithTag("fst.quick-links.open").assertIsDisplayed()
-        listOf("fst.nav.floating-toolbar.companion", "fst.player.select", "fst.player.deselect").forEach {
-            assertEquals("$it on the selected player's page", 0, rule.onAllNodesWithTag(it).fetchSemanticsNodes().size)
-        }
+        assertEquals(0, rule.onAllNodesWithTag("fst.player.select").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("fst.player.deselect")
+            .assert(hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar.companion")))
+            .assert(hasContentDescription("Deselect Profile"))
+        assertEquals(0, rule.onAllNodes(hasTestTag("fst.player.deselect").and(hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar")))).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodes(hasTestTag("fst.player.deselect").and(hasAnyAncestor(hasTestTag("fst.player.available")))).fetchSemanticsNodes().size)
+        val pill = rule.onNodeWithTag("fst.nav.floating-toolbar.companion").fetchSemanticsNode().boundsInRoot
+        val links = rule.onNodeWithTag("fst.nav.floating-toolbar").fetchSemanticsNode().boundsInRoot
+        assertTrue("Deselect pill sits before Quick Links, without overlapping", pill.right <= links.left)
+        assertEquals("Same toolbar row", pill.center.y, links.center.y, 1f)
+        assertTrue(rule.onNodeWithTag("fst.player.deselect").getUnclippedBoundsInRoot().height >= 48.dp)
         val grid = rule.onNodeWithTag("fst.player.available").fetchSemanticsNode().boundsInRoot
         val overview = rule.onNodeWithTag("fst.player.overview").fetchSemanticsNode().boundsInRoot
         assertTrue("Overview starts within the grid's top padding", overview.top - grid.top < 400f)
+    }
+
+    @Test
+    fun deselectPillConfirmsThenLeavesTheSameReadSelectable() {
+        // Issue #590: Deselect beside Quick Links confirms first; Cancel keeps the selection, and
+        // confirming leaves the page as a viewed profile offering Select in the same pill.
+        journey.launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true))
+        journey.tap("fst.player.deselect")
+        journey.waitForTag("fst.player.deselect-confirm")
+        journey.tap("fst.player.deselect-confirm.cancel")
+        journey.waitGone("fst.player.deselect-confirm")
+        rule.onNodeWithTag("fst.player.deselect").assertIsDisplayed()
+        journey.tap("fst.player.deselect")
+        journey.tap("fst.player.deselect-confirm.ok")
+        journey.waitForTag("fst.player.select")
+        rule.onNodeWithTag("fst.player.select")
+            .assert(hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar.companion")))
+            .assert(hasContentDescription("Select Profile"))
+        assertEquals(0, rule.onAllNodesWithTag("fst.player.deselect").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("fst.player.overview").assertExists()
     }
 
     @Test

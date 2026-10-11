@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.traversalIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.shell.PxSpan
+import com.festivalscoretracker.android.ui.design.festivalDestructiveButtonColors
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
@@ -151,21 +152,28 @@ fun FloatingToolbarContent(
  * A page's primary action shown as its own pill beside the floating toolbar, in the same row but
  * never inside the toolbar pill (owner-approved `page-tools-and-nav-chrome` R6 variant, #590;
  * Material 3 Expressive pairs a floating toolbar with one separate primary action the same way).
- * Only the player page and Statistics use it (Select/Switch, like the iOS header's own
+ * Only the player page and Statistics use it (Select/Switch/Deselect, like the iOS header's own
  * `ProfileIdentityToolbarItem`); every other page keeps one toolbar.
  *
- * @property text Short visible text (iOS `shortTitle`: "Select", "Switch").
+ * @property text Short visible text (iOS `shortTitle`: "Select", "Switch", "Deselect").
  * @property label Full TalkBack label ("Select Profile").
  * @property testTag Test tag of the button.
+ * @property destructive Draw the button red (Deselect; web `btnDanger`, iOS `isDestructive`).
  * @property onClick Runs the action.
  */
 @Immutable
-data class FloatingToolbarAction(val text: String, val label: String, val testTag: String, val onClick: () -> Unit)
+data class FloatingToolbarAction(
+    val text: String,
+    val label: String,
+    val testTag: String,
+    val destructive: Boolean = false,
+    val onClick: () -> Unit,
+)
 
 /**
- * The companion action's button: a prominent filled button (accent blue, the iOS prominent fill)
- * with a 48 dp minimum height that grows with the font scale. TalkBack reads [action]'s full label
- * once, as a button.
+ * The companion action's button: a prominent filled button (accent blue, the iOS prominent fill;
+ * red [BrandTokens.statusRed] for a destructive action) with a 48 dp minimum height that grows with
+ * the font scale. TalkBack reads [action]'s full label once, as a button.
  *
  * @param action Action.
  * @param modifier Modifier.
@@ -174,7 +182,7 @@ data class FloatingToolbarAction(val text: String, val label: String, val testTa
 fun FloatingToolbarActionButton(action: FloatingToolbarAction, modifier: Modifier = Modifier) {
     Button(
         onClick = action.onClick,
-        colors = festivalFilledButtonColors(),
+        colors = if (action.destructive) festivalDestructiveButtonColors() else festivalFilledButtonColors(),
         modifier = modifier
             .heightIn(min = 48.dp)
             .testTag(action.testTag)

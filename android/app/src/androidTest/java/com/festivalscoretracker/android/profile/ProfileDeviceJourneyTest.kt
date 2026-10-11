@@ -112,7 +112,9 @@ class ProfileDeviceJourneyTest {
         waitForTag("fst.nav.tab.shop")
         waitForTag("fst.player.overview")
         assertNothingStraddles("fst.player.overview", "fst.player.instrument.Solo_Guitar", "fst.player.instrument.Solo_Bass")
-        // Operator 7.12: no page-header Deselect (the drawer owns it, like the web sidebar).
+        // Issue #590: once selected, the same pill offers Deselect, still clear of the fold.
+        waitForTag("fst.player.deselect")
+        assertNothingStraddles("fst.nav.floating-toolbar.companion", "fst.nav.floating-toolbar")
         waitForTag("fst.player")
     }
 
