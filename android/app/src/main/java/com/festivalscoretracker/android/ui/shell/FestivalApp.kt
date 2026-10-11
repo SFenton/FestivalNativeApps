@@ -87,7 +87,9 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavGraph
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -136,7 +138,18 @@ import com.festivalscoretracker.android.presentation.search.GlobalSearchViewMode
 import com.festivalscoretracker.android.presentation.settings.SettingsViewModel
 import com.festivalscoretracker.android.ui.background.ArtworkBackground
 import com.festivalscoretracker.android.ui.bands.bandsDestinations
+import com.festivalscoretracker.android.core.layout.OnDemandSplitPolicy
+import com.festivalscoretracker.android.core.layout.SplitContext
+import com.festivalscoretracker.android.core.layout.SplitListPage
+import com.festivalscoretracker.android.core.layout.SplitStackItem
 import com.festivalscoretracker.android.ui.common.ComingSoonScreen
+import com.festivalscoretracker.android.ui.common.LocalOnDemandSplit
+import com.festivalscoretracker.android.ui.common.OnDemandSplit
+import com.festivalscoretracker.android.ui.common.OnDemandSplitEnvironment
+import com.festivalscoretracker.android.ui.common.SplitBackRegistry
+import com.festivalscoretracker.android.ui.common.SplitHandoffs
+import com.festivalscoretracker.android.ui.common.paneRoute
+import com.festivalscoretracker.android.ui.common.splitListPage
 import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_HEIGHT_DP
 import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_MARGIN_DP
 import com.festivalscoretracker.android.ui.common.FloatingToolbar
@@ -431,6 +444,9 @@ private fun FestivalShell(
     // a rail or drawer (owner, #576, replacing #309's top-app-bar tools on wider windows).
     // Global search stays in the top app bar and page filters inline above the content (#309).
     val floatingToolbar = remember { FloatingToolbarHost() }
+    // On-demand split (#583): sub-pages moving into a pane, and Back for open panes.
+    val splitHandoffs = remember { SplitHandoffs() }
+    val splitBack = remember { SplitBackRegistry() }
     // Beside a rail or drawer the content reaches the window bottom: the toolbar rises above the
     // system navigation bar, and the band every page reserves for it grows by the same amount.
     val toolbarLift = if (layout == NavigationLayout.BottomBar) 0.dp else navBars.calculateBottomPadding()
@@ -574,12 +590,52 @@ private fun FestivalShell(
                             contentWidthPx = it.size.width
                         },
                 ) {
-                    FestivalNavHost(
-                        navController = navController,
-                        container = container,
-                        shellViewModel = shellViewModel,
-                        settings = settings,
+                    // Rivals, Compete, Leaderboards and Song Detail open their sub-pages in a
+                    // trailing pane where the window allows the iPhone Duo's split (#583).
+                    val safeSpan = WindowInsets.safeDrawing.let { safe ->
+                        PxSpan(safe.getLeft(density, LayoutDirection.Ltr), windowSize.width - safe.getRight(density, LayoutDirection.Ltr))
+                    }
+                    val splitGeometry = OnDemandSplitPolicy.geometry(
+                        SplitContext(
+                            windowWidthPx = windowSize.width,
+                            windowHeightPx = windowSize.height,
+                            density = density.density,
+                            fontScale = density.fontScale,
+                            container = PxSpan(contentLeftPx, contentLeftPx + contentWidthPx),
+                            safe = safeSpan,
+                            hinge = verticalHinge?.let { PxSpan(it.bounds.left.toInt(), it.bounds.right.toInt()) },
+                            rtl = direction == LayoutDirection.Rtl,
+                        ),
                     )
+                    val split = remember(splitGeometry, toolbarLift, settings) {
+                        OnDemandSplitEnvironment(
+                            geometry = splitGeometry,
+                            paneGraph = { festivalDestinations(navController, container, shellViewModel, settings) },
+                            handoffs = splitHandoffs,
+                            back = splitBack,
+                            toolbarLift = toolbarLift,
+                        )
+                    }
+                    // A full-width sub-page of a list page moves into its pane once the window splits.
+                    LaunchedEffect(splitGeometry != null, stack) {
+                        if (splitGeometry == null) return@LaunchedEffect
+                        val entries = stack.filter { it.destination !is NavGraph }
+                        val cut = OnDemandSplitPolicy.expandCut(entries.map { SplitStackItem(it.splitListPage(), it.paneRoute()) }) ?: return@LaunchedEffect
+                        val list = entries[cut]
+                        splitHandoffs.put(list.id, entries.drop(cut + 1).mapNotNull { it.paneRoute() })
+                        navController.popBackStack(list.destination.id, inclusive = false)
+                    }
+                    CompositionLocalProvider(LocalOnDemandSplit provides split) {
+                        FestivalNavHost(
+                            navController = navController,
+                            container = container,
+                            shellViewModel = shellViewModel,
+                            settings = settings,
+                        )
+                    }
+                    // Composed after the NavHost, so an open trailing pane takes system Back before
+                    // the page is popped, and before the drawer and global search, composed later.
+                    BackHandler(enabled = splitBack.enabled) { splitBack.back() }
                     // Clipped to the content area: hidden on scroll it slides behind the bottom
                     // bar's edge instead of ghosting through the translucent bar (issue #102).
                     // The clip layer has no input or semantics, so touches and TalkBack pass through.
@@ -745,54 +801,75 @@ private fun FestivalNavHost(
     shellViewModel: ShellViewModel,
     settings: AppSettings,
 ) {
-    val api = container.api
     NavHost(navController = navController, startDestination = SongsTab, modifier = Modifier.fillMaxSize()) {
-        composable<SongsTab> {
-            // Songs never splits into list | detail (Apple OnDemandSplitPolicy): it fills the window
-            // and lays its rows in two columns where `wide-columns` allows (#581); a tap always pushes
-            // Song Detail full width.
-            SongsRoute(container, shellViewModel, settings, onSongClick = { navController.navigate(SongDetailRoute(it.songId)) })
-        }
-        composable<SongDetailRoute> { entry ->
-            val route = entry.toRoute<SongDetailRoute>()
+        festivalDestinations(navController, container, shellViewModel, settings)
+    }
+}
+
+/**
+ * Register every app destination: the shell's `NavHost` and each list page's trailing pane
+ * ([OnDemandSplit], issue #583) use the same graph.
+ *
+ * @param navController The shell's controller (Songs pushes Song Detail on it).
+ * @param container App services.
+ * @param shellViewModel Shell state.
+ * @param settings Current settings.
+ */
+private fun NavGraphBuilder.festivalDestinations(
+    navController: NavHostController,
+    container: AppContainer,
+    shellViewModel: ShellViewModel,
+    settings: AppSettings,
+) {
+    val api = container.api
+    composable<SongsTab> {
+        // Songs never splits into list | detail (Apple OnDemandSplitPolicy): it fills the window
+        // and lays its rows in two columns where `wide-columns` allows (#581); a tap always pushes
+        // Song Detail full width.
+        SongsRoute(container, shellViewModel, settings, onSongClick = { navController.navigate(SongDetailRoute(it.songId)) })
+    }
+    composable<SongDetailRoute> { entry ->
+        val route = entry.toRoute<SongDetailRoute>()
+        // The song's boards and Score History open beside it where the window splits (#583).
+        OnDemandSplit(SplitListPage.SongDetail) {
             SongDetailRouteScreen(container, shellViewModel, settings, route.songId, embedded = false, instrument = route.instrument)
         }
-        composable<SongLeaderboardRoute> { entry ->
-            SongLeaderboardRouteScreen(container, settings, entry.savedStateHandle.toRoute<SongLeaderboardRoute>(), entry.savedStateHandle)
-        }
-        leaderboardsGraph(container, shellViewModel, container.leaderboardPreferences)
-        composable<SettingsTab> {
-            val settingsViewModel: SettingsViewModel = viewModel {
-                SettingsViewModel(container.settings, readServiceInfo = api::serviceInfo, readServiceVersion = api::serviceVersion)
-            }
-            val replayScope = rememberCoroutineScope()
-            val compact = !AdaptiveLayoutPolicy.isRegularWidth(with(LocalDensity.current) { currentWindowSize().width.toDp().value.toInt() })
-            SettingsScreen(settings, settingsViewModel, api.origin, onReplayFirstRun = { page ->
-                replayScope.launch { container.firstRun.beginReplay(page, compact) }
-            }, onShowWhatsNew = { replayScope.launch { container.whatsNew.replay() } }, feedback = rememberFeedbackViewModel(api))
-        }
-        suggestionsDestinations(container, shellViewModel.settings)
-        composable<LicensesRoute> { LicensesScreen() }
-        composable<StatisticsTab> {
-            StatisticsScreen(profileViewModel(container, shellViewModel, accountId = null, name = null))
-        }
-        composable<StatisticsRoute> {
-            StatisticsScreen(profileViewModel(container, shellViewModel, accountId = null, name = null), isRoot = false)
-        }
-        composable<PlayerRoute> { entry ->
-            val route = entry.toRoute<PlayerRoute>()
-            PlayerProfileScreen(profileViewModel(container, shellViewModel, route.accountId, route.displayName))
-        }
-        composable<PlayerHistoryRoute> { entry ->
-            val route = entry.toRoute<PlayerHistoryRoute>()
-            PlayerHistoryScreen(playerHistoryViewModel(container, shellViewModel, route))
-        }
-        bandsDestinations(container, shellViewModel.settings)
-        rivalsDestinations(container, settings)
-        competeDestinations(container, settings)
-        composable<ShopTab> { ShopRouteScreen(container, shellViewModel, isRoot = true) }
-        composable<ShopRoute> { ShopRouteScreen(container, shellViewModel) }
     }
+    composable<SongLeaderboardRoute> { entry ->
+        SongLeaderboardRouteScreen(container, settings, entry.savedStateHandle.toRoute<SongLeaderboardRoute>(), entry.savedStateHandle)
+    }
+    leaderboardsGraph(container, shellViewModel, container.leaderboardPreferences)
+    composable<SettingsTab> {
+        val settingsViewModel: SettingsViewModel = viewModel {
+            SettingsViewModel(container.settings, readServiceInfo = api::serviceInfo, readServiceVersion = api::serviceVersion)
+        }
+        val replayScope = rememberCoroutineScope()
+        val compact = !AdaptiveLayoutPolicy.isRegularWidth(with(LocalDensity.current) { currentWindowSize().width.toDp().value.toInt() })
+        SettingsScreen(settings, settingsViewModel, api.origin, onReplayFirstRun = { page ->
+            replayScope.launch { container.firstRun.beginReplay(page, compact) }
+        }, onShowWhatsNew = { replayScope.launch { container.whatsNew.replay() } }, feedback = rememberFeedbackViewModel(api))
+    }
+    suggestionsDestinations(container, shellViewModel.settings)
+    composable<LicensesRoute> { LicensesScreen() }
+    composable<StatisticsTab> {
+        StatisticsScreen(profileViewModel(container, shellViewModel, accountId = null, name = null))
+    }
+    composable<StatisticsRoute> {
+        StatisticsScreen(profileViewModel(container, shellViewModel, accountId = null, name = null), isRoot = false)
+    }
+    composable<PlayerRoute> { entry ->
+        val route = entry.toRoute<PlayerRoute>()
+        PlayerProfileScreen(profileViewModel(container, shellViewModel, route.accountId, route.displayName))
+    }
+    composable<PlayerHistoryRoute> { entry ->
+        val route = entry.toRoute<PlayerHistoryRoute>()
+        PlayerHistoryScreen(playerHistoryViewModel(container, shellViewModel, route))
+    }
+    bandsDestinations(container, shellViewModel.settings)
+    rivalsDestinations(container, settings)
+    competeDestinations(container, settings)
+    composable<ShopTab> { ShopRouteScreen(container, shellViewModel, isRoot = true) }
+    composable<ShopRoute> { ShopRouteScreen(container, shellViewModel) }
 }
 
 /**
@@ -802,7 +879,7 @@ private fun FestivalNavHost(
  * @param title Screen title.
  * @param isRoot Whether it is a tab root.
  */
-private inline fun <reified T : AppRoute> androidx.navigation.NavGraphBuilder.placeholder(title: String, isRoot: Boolean = false) {
+private inline fun <reified T : AppRoute> NavGraphBuilder.placeholder(title: String, isRoot: Boolean = false) {
     composable<T> { entry -> ComingSoonScreen(title, isRoot, detail = entry.destination.route?.substringAfterLast('.')) }
 }
 
