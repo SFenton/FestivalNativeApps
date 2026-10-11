@@ -185,15 +185,18 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
 
         // Keyboard operation: Next Section moves Quick Links on; Previous Section returns.
         let open = app.buttons[Self.quickLinks.id]
-        let first = try XCTUnwrap(open.value as? String)
+        // The section is the value, or in a system bar joined to the label (R17).
+        let spoken = { "\(open.label)|\((open.value as? String) ?? "")" }
+        let first = spoken()
+        XCTAssertNotEqual(first, "\(Self.quickLinks.label)|", "Quick Links reads no current section")
         app.typeKey(XCUIKeyboardKey.downArrow.rawValue, modifierFlags: [.option, .command])
-        let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", first), object: open)
+        let moved = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in spoken() != first }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: FestivalApp.budget(10)), .completed,
                        "⌥⌘↓ left Quick Links on \(first)")
         app.typeKey(XCUIKeyboardKey.upArrow.rawValue, modifierFlags: [.option, .command])
-        let back = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", first), object: open)
+        let back = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in spoken() == first }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [back], timeout: FestivalApp.budget(10)), .completed,
-                       "⌥⌘↑ did not return Quick Links to \(first): \((open.value as? String) ?? "")")
+                       "⌥⌘↑ did not return Quick Links to \(first): \(spoken())")
     }
 
     // MARK: - Launch
@@ -363,8 +366,11 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
             // pads its items more at larger text (55 pt on iPad at AX5), so allow 72.
             XCTAssertLessThanOrEqual(node.frame.width, 72,
                                      "Quick Links is wider than one icon button: \(node.frame)", file: file, line: line)
-            XCTAssertFalse(((node.value as? String) ?? "").isEmpty, "Quick Links reads no current section",
-                           file: file, line: line)
+            // The current section is its value, or in a system bar joined to its name (R17).
+            let section = (node.value as? String) ?? ""
+            XCTAssertTrue(!section.isEmpty || node.label.hasPrefix("\(Self.quickLinks.label), "),
+                          "Quick Links reads no current section: '\(node.label)' / '\(section)'",
+                          file: file, line: line)
         }
         // Read in drawn order: left to right in a horizontal bar, top to bottom in the
         // Duo vertical bar.
