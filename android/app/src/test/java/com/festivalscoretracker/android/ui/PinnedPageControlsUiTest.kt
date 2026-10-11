@@ -287,7 +287,7 @@ class MediumPinnedPageControlsUiTest {
     fun suggestionsFilterStaysInTheFloatingToolbar() = suggestionsStayPinned(h)
 }
 
-/** Expanded window (list-detail): the same pinning, with Songs' tools over the list pane (issues #160, #576). */
+/** Expanded window: the same pinning over Songs' two columns (no list/detail split, #581) and on Suggestions (issues #160, #576). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
 class ExpandedPinnedPageControlsUiTest {
@@ -297,17 +297,18 @@ class ExpandedPinnedPageControlsUiTest {
     private val h by lazy { PinnedHarness(rule) }
 
     @Test
-    fun songsSearchFieldAndFloatingToolsStayPinned() = songsStayPinned(h, split = true)
+    fun songsSearchFieldAndFloatingToolsStayPinned() = songsStayPinned(h, wide = true)
 
     @Test
     fun suggestionsFilterStaysInTheFloatingToolbar() = suggestionsStayPinned(h)
 }
 
 /**
- * Landscape phone (list-detail with a narrow list pane): the page tools float over the list pane
- * instead of moving to the top app bar or behind ⋮ (owner, #576); the toolbar, the pinned search
- * field and global search stay put while scrolled and the tools open while scrolled (issue #160).
- * Native graphics, so the title measures real text.
+ * Landscape phone: Songs fills the window in two columns (`wide-columns`, issue #581; no narrow
+ * list pane), and its page tools float in the shell's toolbar instead of moving to the top app bar
+ * or behind ⋮ (owner, #576); the toolbar, the pinned search field and global search stay put while
+ * scrolled and the tools open while scrolled (issue #160). Native graphics, so the title measures
+ * real text.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w923dp-h411dp-land-xxhdpi")
@@ -319,7 +320,7 @@ class LandscapePhonePinnedPageControlsUiTest {
     private val h by lazy { PinnedHarness(rule) }
 
     @Test
-    fun songsToolsFloatOverTheListPaneAndStayPinned() = songsStayPinned(h, split = true, player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"))
+    fun songsToolsFloatOverTwoColumnsAndStayPinned() = songsStayPinned(h, wide = true, player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"))
 }
 
 /** Page tools are in the floating toolbar, never in the top app bar or behind ⋮; global search stays in the top app bar (#576). */
@@ -333,15 +334,16 @@ private fun assertFloatingTools(h: PinnedHarness, tools: List<String>) {
     assertTrue("Profile in the top app bar", h.within("fst.nav.top-bar", "fst.nav.profile"))
 }
 
-private fun songsStayPinned(h: PinnedHarness, split: Boolean = false, player: SelectedPlayer? = null) {
+private fun songsStayPinned(h: PinnedHarness, wide: Boolean = false, player: SelectedPlayer? = null) {
     h.launchSongs(player = player)
     val tools = SONG_TOOLS.split('|')
     assertFloatingTools(h, tools)
     val toolbar = h.bounds("fst.nav.floating-toolbar")
-    if (split) {
-        // Songs' tools float over the list they act on, never over (or across) the detail pane.
-        val detail = h.bounds("fst.songs.detail-pane")
-        assertTrue("toolbar $toolbar inside the list pane (detail $detail)", toolbar.right <= detail.left)
+    if (wide) {
+        // Songs fills the window (two columns, #581): no detail pane, the tools float over the list they act on.
+        assertTrue("no list/detail split", !h.exists("fst.songs.detail-pane"))
+        val list = h.bounds("fst.songs.list")
+        assertTrue("toolbar $toolbar over the list $list", toolbar.left >= list.left && toolbar.right <= list.right)
     }
     val atTop = (tools + "fst.songs.search" + "fst.nav.floating-toolbar").associateWith(h::bounds)
     h.scroll("fst.songs.list", down = true)

@@ -274,7 +274,7 @@
       "title": "Section-jump landing",
       "status": "current",
       "doc": ".agents/patterns/section-jump-landing.md",
-      "summary": "Quick Links and Songs section-index jumps land ordinary targets 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear and never leave a large title resting part-way collapsed; a section index fits the height it is given, condensing its labels rather than growing the page, and its labels follow the text size within that fit, never starting under the expanded navigation bar.",
+      "summary": "Quick Links and Songs section-index jumps land ordinary targets' titles (not their headers' padding) 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear and never leave a large title resting part-way collapsed; a section index fits the height it is given, condensing its labels rather than growing the page, and its labels follow the text size within that fit, never starting under the expanded navigation bar.",
       "keywords": [
         "quick links",
         "section jump",
@@ -616,7 +616,7 @@
       "title": "Surface materials",
       "status": "current",
       "doc": ".agents/patterns/surface-materials.md",
-      "summary": "Use one native frosted material surface for content cards, rows and custom floating controls; reserve Liquid Glass and system materials for navigation and chrome; opaque fallbacks win for contrast and reduced transparency.",
+      "summary": "Use one native frosted material surface for content cards, rows and custom floating controls; reserve Liquid Glass and system materials for navigation and chrome; opaque fallbacks win for contrast and reduced transparency. Owner-approved #596 variant: the Apple profile's Duos, Trios and Quads band previews are one grouped card each (rows with hairlines, purple View All inside), unlike the web's per-band frosted cards.",
       "keywords": [
         "material",
         "glass",
@@ -803,7 +803,8 @@
         319,
         381,
         461,
-        588
+        588,
+        596
       ]
     },
     {
@@ -996,6 +997,10 @@
           {
             "path": "windows/Festival.App/Controls/PopupHosting.cs",
             "symbol": "PopupHosting"
+          },
+          {
+            "path": "windows/Festival.App/Controls/InstrumentIconRow.cs",
+            "symbol": "InstrumentIconRow"
           }
         ]
       },
@@ -1118,7 +1123,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586).",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612).",
       "keywords": [
         "modal",
         "sheet",
@@ -1717,7 +1722,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant).",
+      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence, chart swaps keep the card's size and paging a chart slides it to the new window over the web 400 ms (#593 decision); the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant).",
       "keywords": [
         "loading",
         "spinner",
@@ -1728,6 +1733,7 @@
         "transition",
         "reduce motion",
         "graph card",
+        "chart paging",
         "accordion",
         "expand",
         "collapse",
@@ -1879,6 +1885,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/AccordionMotion.kt",
             "symbol": "AccordionMotion"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/ChartPageMotion.kt",
+            "symbol": "ChartPageMotion"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ChartPageSlide.kt",
+            "symbol": "rememberChartPageSlide"
           }
         ],
         "windows": [
@@ -2969,7 +2983,7 @@
       "title": "View all call to action",
       "status": "current",
       "doc": ".agents/patterns/view-all-cta.md",
-      "summary": "A card of preview rows ends with one full-width brand-purple button after the rows (on Apple inside the group card as FestivalGlassSection's action, a flat opaque purple and never Liquid Glass, agent decision #382; on Android inside the GlassCard of Song Detail's instrument, band and Score History cards, #588; on the Windows and Android profile each Duos/Trios/Quads group is one card ending in it, owner-approved variant #596) (View Full Leaderboard, View All Rivals, View All on Rival Detail categories, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours. The preview keeps its capped length: the button navigates to the full list's own page (pushed, or the trailing pane in a split; Song Detail View All Scores opens Player History with its sorts) and never expands the card in place (R8, owner #324); Leaderboards' View All Rankings opens Full Rankings beside the overview (#352).",
+      "summary": "A card of preview rows ends with one full-width brand-purple button after the rows (on Apple inside the group card as FestivalGlassSection's action, a flat opaque purple and never Liquid Glass, agent decision #382; on Android inside the GlassCard of Song Detail's instrument, band and Score History cards, #588; on the Windows, Android and Apple profile each Duos/Trios/Quads group is one card ending in it, owner-approved variant #596) (View Full Leaderboard, View All Rivals, View All on Rival Detail categories, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours. The preview keeps its capped length: the button navigates to the full list's own page (pushed, or the trailing pane in a split; Song Detail View All Scores opens Player History with its sorts) and never expands the card in place (R8, owner #324); Leaderboards' View All Rankings opens Full Rankings beside the overview (#352).",
       "keywords": [
         "view all",
         "view full leaderboard",
@@ -3677,7 +3691,7 @@
       "title": "Wide columns",
       "status": "current",
       "doc": ".agents/patterns/wide-columns.md",
-      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as the Mac Settings window panes flow column by column in balanced columns; the Settings page on iPad, iPhone Duo and Android tablets/foldables is a list/detail split instead, split-panes R6, owner-approved #371), meeting at the Duo hinge in book pose and at the free content area's midpoint when fully unfolded (owner-approved, #361), reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; the Item Shop list pairs its rows (its card grid keeps its own even-column policy); full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column.",
+      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as the Mac Settings window panes flow column by column in balanced columns; the Settings page on iPad, iPhone Duo and Android tablets/foldables is a list/detail split instead, split-panes R6, owner-approved #371), meeting at the Duo hinge in book pose and at the free content area's midpoint when fully unfolded (owner-approved, #361), reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; the Item Shop list pairs its rows (its card grid keeps its own even-column policy); full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column. Owner-approved Android variant (#581): Android Songs shows two row-major columns in any landscape window or across a vertical fold with room for two 320 dp columns (no height-class gate), one column in portrait, at large text or under TalkBack, and no longer splits list/detail (a tap pushes Song Detail).",
       "keywords": [
         "two column",
         "two-column",
@@ -3739,7 +3753,28 @@
             "symbol": "ShopScreen"
           }
         ],
-        "android": [],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/layout/WideColumns.kt",
+            "symbol": "WideColumns"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/layout/WideColumns.kt",
+            "symbol": "WideColumnLines"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/WideColumnsLayout.kt",
+            "symbol": "rememberWideColumns"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/WideColumnsLayout.kt",
+            "symbol": "WideColumnsLine"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/WideColumnsLayout.kt",
+            "symbol": "KeepPlaceAcrossColumnChanges"
+          }
+        ],
         "windows": []
       },
       "related": {
@@ -3774,7 +3809,8 @@
         355,
         361,
         371,
-        378
+        378,
+        581
       ]
     },
     {
@@ -3885,9 +3921,7 @@
           "glob": "android/app/src/main/**/*.kt",
           "regex": "\\bVerticalDivider\\s*\\(",
           "allow": [],
-          "debt": [
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt"
-          ],
+          "debt": [],
           "message": "Split panes are separated by space, not a drawn divider; a hairline only under high contrast at a midpoint (split-panes R1, R2)."
         }
       ],
@@ -4061,7 +4095,7 @@
       "title": "Experimental ranks",
       "status": "current",
       "doc": ".agents/patterns/experimental-ranks.md",
-      "summary": "Settings → Enable Experimental Leaderboard Ranks (off by default, reset by Reset) is the one gate for the experimental ranking metrics app-wide like the web: while off, Rank By offers Total Score only and is hidden in-page (the Mac View › Rank By submenu lists only Total Score); saved, routed and selected metrics are coerced to Total Score at read time, never rewritten; turning it off returns open pages to Total Score; on offers Adjusted, Weighted, FC Rate and Max Score (bands without Max Score); Rivals Rank By, profile rank tiles, rank notifications (web projection) and the first-run slide follow it (#541).",
+      "summary": "Settings \u2192 Enable Experimental Leaderboard Ranks (off by default, reset by Reset) is the one gate for the experimental ranking metrics app-wide like the web: while off, Rank By offers Total Score only and is hidden in-page (the Mac View \u203a Rank By submenu lists only Total Score); saved, routed and selected metrics are coerced to Total Score at read time, never rewritten; turning it off returns open pages to Total Score; on offers Adjusted, Weighted, FC Rate and Max Score (bands without Max Score); Rivals Rank By, profile rank tiles, rank notifications (web projection) and the first-run slide follow it (#541).",
       "keywords": [
         "experimental ranks",
         "experimental leaderboard ranks",
@@ -4207,7 +4241,7 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/firstrun/FirstRunRotatingDemos.kt"
           ],
           "debt": [],
-          "message": "Rank By menus and metric lists offer RankingMetric.enabled / BandRankingMetric.enabled (or a view model's gated options), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1)."
+          "message": "Rank By menus and metric lists offer RankingMetric.enabled / BandRankingMetric.enabled (or a view model's gated options), never every metric, so Settings \u2192 Experimental Ranks gates them (experimental-ranks R1)."
         },
         {
           "id": "apple-ungated-metric-list",
@@ -4229,7 +4263,7 @@
             "windows/Festival.Core/ViewModels/RivalsViewModels.cs"
           ],
           "debt": [],
-          "message": "Rank By menus offer RankingMetricInfo.Enabled / BandRankingMetricInfo.Enabled (a view model's gated MetricOptions), never every metric, so Settings → Experimental Ranks gates them (experimental-ranks R1). Band Detail and the Rivals hub list every metric only behind ShowRankBy / ShowMetricPicker."
+          "message": "Rank By menus offer RankingMetricInfo.Enabled / BandRankingMetricInfo.Enabled (a view model's gated MetricOptions), never every metric, so Settings \u2192 Experimental Ranks gates them (experimental-ranks R1). Band Detail and the Rivals hub list every metric only behind ShowRankBy / ShowMetricPicker."
         }
       ],
       "supersedes": [],
@@ -4531,7 +4565,7 @@
       "title": "Search scopes: global and profile search",
       "status": "current",
       "doc": ".agents/patterns/search-scopes.md",
-      "summary": "Every song/player/band search runs the platform's global-search engine with the kinds it needs as targets; the profile search offers All · Players · Bands and starts on All with players and bands searched together (owner #600, web SearchModal targets players|bands), reuses global search's rows, order and All-only titles, opens a player or a band's page (no gate message), and uses a native scope control with an explicit All (Apple scope bar, Android M3 segmented buttons, Windows SelectorBar; agent decision #600). Find Rival stays players-only.",
+      "summary": "Every song/player/band search runs the platform's global-search engine with the kinds it needs as targets; the profile search offers All · Players · Bands and starts on All with players and bands searched together (owner #600, web SearchModal targets players|bands), names the scope's targets in its prompt (\"Search players or bands\"), reuses global search's rows, order and All-only titles, opens a player or a band's page (no gate message), and uses a native scope control with an explicit All (Apple scope bar, Android M3 segmented buttons, Windows SelectorBar; agent decision #600). Find Rival stays players-only.",
       "keywords": [
         "search scope",
         "scope bar",
@@ -4541,9 +4575,18 @@
         "players and bands",
         "segmented button",
         "selectorbar",
-        "all players bands"
+        "all players bands",
+        "global search",
+        "band search",
+        "player search",
+        "segmented control",
+        "targets"
       ],
       "web": [
+        {
+          "path": "App.tsx",
+          "symbol": "PROFILE_SEARCH_CONFIG"
+        },
         {
           "path": "components/search/SearchModal.tsx",
           "symbol": "SearchModal"
@@ -4556,12 +4599,20 @@
       "canonical": {
         "apple": [
           {
+            "path": "apple/Sources/FestivalCore/GlobalSearch.swift",
+            "symbol": "GlobalSearchTargets"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchModel.swift",
             "symbol": "GlobalSearchModel"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
             "symbol": "GlobalSearchResults"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
+            "symbol": "GlobalSearchIdentifiers"
           }
         ],
         "android": [
@@ -4588,6 +4639,10 @@
         ],
         "windows": [
           {
+            "path": "windows/Festival.Core/Domain/GlobalSearchResults.cs",
+            "symbol": "SearchScopes"
+          },
+          {
             "path": "windows/Festival.Core/ViewModels/GlobalSearchViewModel.cs",
             "symbol": "GlobalSearchViewModel"
           }
@@ -4604,13 +4659,16 @@
         ],
         "pages": []
       },
+      "guards": [],
       "issues": [
         299,
         320,
         348,
         573,
         600
-      ]
+      ],
+      "supersedes": [],
+      "supersededBy": null
     }
   ]
 }
