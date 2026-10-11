@@ -129,7 +129,8 @@ class CompeteComboBoardAccessibilityJourneyTest {
             if (spokenSeeAll in order) assertTrue("View Full Leaderboards is read before the header link: $order", order.indexOf(spokenSeeAll) < at)
         }
         assertTrue("200% text did not grow View Full Leaderboards ($heights px)", heights[1] > heights[0])
-        h.assertAccessible()
+        // ATF findings so far are asserted once Back has shown the floating toolbar again: on wide
+        // windows it hides while the grid scrolls, and ATF measures its sliver (CompeteReturn journey).
 
         scale = 1f
         rule.waitForIdle()
@@ -176,13 +177,14 @@ class CompeteComboBoardAccessibilityJourneyTest {
         } else {
             assertTrue("${scope.label}'s board lost its instrument picker ($via)", h.exists(INSTRUMENT_MENU))
         }
-        h.assertAccessible()
 
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
         rule.waitForIdle()
         h.waitForTag(scopeCard)
         h.awaitAccessibilityTree(present = scopeCard, absent = FULL_BOARD)
         assertTrue("Compete showed a loading placeholder on return ($via)", !h.exists("$scopeCard.loading") && !h.exists(PAGE_LOADING))
+        // Every finding so far, the board's included, with Compete's toolbar shown again.
+        h.assertAccessible()
     }
 
     private companion object {
