@@ -339,12 +339,16 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
             let index = try XCTUnwrap(matches.first, file: file, line: line)
             let node = entries[index].node
             XCTAssertEqual(node.elementType, .button, "\(tool.id) role", file: file, line: line)
-            XCTAssertEqual(node.label, tool.label, "\(tool.id) name", file: file, line: line)
+            let inBar = ancestors(of: index).contains { entries[$0].node.elementType == .navigationBar }
+            // A system navigation bar drops a toolbar item's value, so there the tool's
+            // state joins its name ("Sort, Year, ascending"; page-tools-and-nav-chrome R17,
+            // `BarItemSpokenState`); the accessory keeps the bare name.
+            let named = node.label == tool.label || (inBar && node.label.hasPrefix("\(tool.label), "))
+            XCTAssertTrue(named, "\(tool.id) name '\(node.label)'", file: file, line: line)
             // A navigation-bar item's element is the system's 36 pt glass shape and the
             // bar extends its hit region to 44 pt, so the `.hitRegion` audit below proves
             // it (same as Choose Profile, `NavButtonHitRegionJourneyTests`); the
             // accessory's own slots are 44 pt elements.
-            let inBar = ancestors(of: index).contains { entries[$0].node.elementType == .navigationBar }
             let minimum: CGFloat = inBar ? 36 : 44
             XCTAssertGreaterThanOrEqual(node.frame.width, minimum, "\(tool.id) \(node.frame)", file: file, line: line)
             XCTAssertGreaterThanOrEqual(node.frame.height, minimum, "\(tool.id) \(node.frame)", file: file, line: line)
