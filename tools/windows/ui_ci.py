@@ -11,7 +11,8 @@ that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
 push (issue #452), the Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438) and the Full
-Rankings pinned row (issue #466, also with in-app Reduce Motion) run at default and 225% text, and
+Rankings pinned row (issue #466, also with in-app Reduce Motion) and the Leaderboards card "your rank" row (issue #493,
+also with in-app Reduce Motion) run at default and 225% text, and
 that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
@@ -157,6 +158,14 @@ RUNS: tuple[Run, ...] = (
         only="fr-pinned-jump-keyboard"),
     Run("full-rankings-pinned", "a11y-full-rankings.json"),
     Run("full-rankings-pinned-text-225", "a11y-full-rankings.json", sizes="compact", mode="text-225"),
+    # A Leaderboards card's "your rank" row (issues #370, #493): outside the top ten it reads "Your rank, 40th. Jump to
+    # your position" and Button, keeps 40x40 apart from View All and sits between the rows and View All in reading and
+    # Tab order; Enter opens Full Rankings on the player's page with their row in view (also with in-app Reduce Motion)
+    # and Back returns focus to it; inside the top ten the player's highlighted row opens the profile instead.
+    Run("leaderboards-card-jump-reduced-motion", "a11y-leaderboards-card-jump.json", sizes="medium",
+        mode="app-reduced", tabs=0, only="card-jump-row-keyboard"),
+    Run("leaderboards-card-jump", "a11y-leaderboards-card-jump.json"),
+    Run("leaderboards-card-jump-text-225", "a11y-leaderboards-card-jump.json", sizes="compact", mode="text-225"),
     # Back from View All or a rival to cached Leaderboards and Rivals (issues #82, #276, #435): the opener and its card
     # stay put, focus returns to the opener, it reads "<name>, button" after its card and heading, keeps a 40 epx target,
     # and Tab/Shift+Tab continue from it; by keys (Enter, Alt+Left) and pointer (the title-bar Back).
