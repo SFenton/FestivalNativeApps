@@ -201,6 +201,42 @@ class ShellAccessibilityJourneyTest {
         h.assertAccessible()
     }
 
+    /**
+     * #610: on a phone, Leaderboards from the drawer opens as a child of Compete: the bar keeps
+     * Compete selected, Back is the first stop, and Back returns to Compete's root. On a rail,
+     * Leaderboards is a tab and the drawer row selects it (unchanged); the permanent drawer has
+     * no modal drawer to open.
+     */
+    @Test
+    fun drawerLeaderboardsOpensUnderItsTab() {
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(profile = player, stillBackground = true), navigationTransport)
+        h.waitForTag("fst.songs.list")
+        if (!h.exists("fst.nav.drawer")) return
+        h.tap("fst.nav.drawer")
+        h.waitForTag("fst.nav.drawer.leaderboards")
+        h.tap("fst.nav.drawer.leaderboards")
+        h.waitForTag("fst.leaderboards")
+        h.waitGone("fst.songs.list")
+        h.awaitAccessibilityTree("fst.leaderboards", absent = "fst.songs.list")
+        if (h.exists("fst.nav.tab.compete")) {
+            rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+            h.waitForTag("fst.nav.back")
+            h.assertFullTouchTarget("fst.nav.back")
+            val order = h.readingOrder("nav-drawer-leaderboards-child")
+            assertTrue(order.first().contains("Back", ignoreCase = true))
+            h.tap("fst.nav.back")
+            h.waitGone("fst.leaderboards")
+            h.waitGone("fst.nav.back")
+            rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+            h.readingOrder("nav-drawer-compete-root")
+        } else {
+            rule.onNodeWithTag("fst.nav.tab.leaderboards").assertIsSelected()
+            h.readingOrder("nav-drawer-leaderboards-tab")
+        }
+        h.assertAccessible()
+    }
+
     private companion object {
         /** Navigation chrome that must never straddle a hinge. */
         val NAV_TAGS = arrayOf(

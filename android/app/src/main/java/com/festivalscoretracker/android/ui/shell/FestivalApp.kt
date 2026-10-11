@@ -117,6 +117,7 @@ import com.festivalscoretracker.android.core.search.SearchDestination
 import com.festivalscoretracker.android.core.search.SearchScope
 import com.festivalscoretracker.android.core.search.ShellShortcut
 import com.festivalscoretracker.android.core.settings.AppSettings
+import com.festivalscoretracker.android.core.shell.DrawerEntry
 import com.festivalscoretracker.android.core.shell.DrawerPolicy
 import com.festivalscoretracker.android.core.shell.DrawerTarget
 import com.festivalscoretracker.android.core.shell.FloatingToolbarPlacement
@@ -266,6 +267,21 @@ private fun sectionFor(stack: List<NavBackStackEntry>): FestivalSection =
     } ?: FestivalSection.Songs
 
 /**
+ * The drawer page shown above the selected tab's root (Rivals under Compete, Statistics on
+ * Songs), so the modal drawer highlights the page rather than the tab under it (#610).
+ *
+ * @param stack Current back stack.
+ * @return The drawer row, or null on a tab's own pages.
+ */
+private fun drawerPageFor(stack: List<NavBackStackEntry>): DrawerEntry? =
+    DrawerPolicy.pageOf(
+        stack.asReversed()
+            .takeWhile { entry -> FestivalSection.entries.none { entry.destination.hasRoute(it.root::class) } }
+            .asReversed()
+            .map { entry -> { route: AppRoute -> entry.destination.hasRoute(route::class) } },
+    )
+
+/**
  * Switch tabs keeping per-tab history (except Statistics), or pop to the root on re-tap.
  *
  * @param target Section to show.
@@ -280,6 +296,36 @@ private fun NavHostController.selectSection(target: FestivalSection, current: Fe
         popUpTo(graph.findStartDestination().id) { saveState = !FestivalTabPolicy.resetsPathOnLeave(current) }
         launchSingleTop = true
         restoreState = !FestivalTabPolicy.resetsPathOnLeave(target)
+    }
+}
+
+/**
+ * Open [route] as a child of [parent]'s tab (Rivals and Leaderboards under Compete on a phone,
+ * #610): select the tab, keeping the tab being left in its saved state, return it to its root
+ * and push [route], so the bar shows [parent] and Back returns to its root page. Choosing the
+ * same row again resets the tab to root › [route], like re-tapping a tab.
+ *
+ * @param parent Tab the page belongs to.
+ * @param route Page to push.
+ * @param current Section shown now.
+ */
+private fun NavHostController.openChild(parent: FestivalSection, route: AppRoute, current: FestivalSection) {
+    selectSection(parent, current)
+    if (parent != current) popBackStack(parent.root, inclusive = false)
+    navigate(route) { launchSingleTop = true }
+}
+
+/**
+ * Open a drawer, Profile button, search or launch [target].
+ *
+ * @param target Where to go.
+ * @param current Section shown now.
+ */
+private fun NavHostController.open(target: DrawerTarget, current: FestivalSection) {
+    when (target) {
+        is DrawerTarget.Section -> selectSection(target.section, current)
+        is DrawerTarget.Child -> openChild(target.parent, target.route, current)
+        is DrawerTarget.Push -> navigate(target.route) { launchSingleTop = true }
     }
 }
 
@@ -309,6 +355,7 @@ private fun FestivalShell(
     val navController = rememberNavController()
     val stack by navController.currentBackStack.collectAsStateWithLifecycle()
     val selected = sectionFor(stack)
+    val drawerPage = drawerPageFor(stack)
     val drawerState = rememberDrawerState(if (launch.opensDrawer) DrawerValue.Open else DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var showProfile by rememberSaveable { mutableStateOf(launch.opensProfileSheet) }
@@ -346,11 +393,7 @@ private fun FestivalShell(
     }
     LaunchedEffect(Unit) {
         // A launch section that is not a tab at this width opens its pushed page (Statistics, #601).
-        when (val target = launch.section?.let { DrawerPolicy.sectionTarget(it, sections) }) {
-            is DrawerTarget.Section -> navController.selectSection(target.section, FestivalSection.Songs)
-            is DrawerTarget.Push -> navController.navigate(target.route)
-            null -> Unit
-        }
+        launch.section?.let { DrawerPolicy.sectionTarget(it, sections) }?.let { navController.open(it, FestivalSection.Songs) }
         launch.route?.let { navController.navigate(it) }
         launch.songQuery?.let { navController.navigate(SongDetailRoute(it, launch.songInstrument)) }
     }
@@ -444,10 +487,7 @@ private fun FestivalShell(
     val profileChip: () -> Unit = {
         when (val action = ProfileChipPolicy.action(shellViewModel.profileKind(settings), sections)) {
             ProfileChipAction.ChooseProfile -> showProfile = true
-            is ProfileChipAction.Open -> when (val target = action.target) {
-                is DrawerTarget.Section -> navController.selectSection(target.section, selected)
-                is DrawerTarget.Push -> navController.navigate(target.route) { launchSingleTop = true }
-            }
+            is ProfileChipAction.Open -> navController.open(action.target, selected)
         }
     }
     val actions = ShellActions(
@@ -471,11 +511,7 @@ private fun FestivalShell(
     val openDestination: (SearchDestination) -> Unit = { destination ->
         when (destination) {
             is SearchDestination.Push -> navController.navigate(destination.route)
-            is SearchDestination.Section -> when (val target = DrawerPolicy.sectionTarget(destination.section, sections)) {
-                is DrawerTarget.Section -> navController.selectSection(target.section, selected)
-                is DrawerTarget.Push -> navController.navigate(target.route) { launchSingleTop = true }
-                null -> Unit
-            }
+            is SearchDestination.Section -> DrawerPolicy.sectionTarget(destination.section, sections)?.let { navController.open(it, selected) }
         }
     }
 
@@ -495,6 +531,12 @@ private fun FestivalShell(
                 navController.selectSection(it, selected)
             },
             onRoute = actions.navigate,
+            onChild = { parent, route ->
+                scope.launch { drawerState.close() }
+                navController.openChild(parent, route, selected)
+            },
+            // The permanent drawer is the tab navigation, so it keeps showing the selected tab.
+            page = if (tabTags) null else drawerPage,
             onOpenProfile = {
                 scope.launch { drawerState.close() }
                 showProfile = true

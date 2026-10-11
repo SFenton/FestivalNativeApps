@@ -1,10 +1,13 @@
 package com.festivalscoretracker.android.core
 
+import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.nav.FestivalTabPolicy
+import com.festivalscoretracker.android.core.nav.LeaderboardsRoute
 import com.festivalscoretracker.android.core.nav.ProfileKind
 import com.festivalscoretracker.android.core.nav.RivalsRoute
 import com.festivalscoretracker.android.core.nav.ShopRoute
+import com.festivalscoretracker.android.core.nav.SongDetailRoute
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
 import com.festivalscoretracker.android.core.shell.DrawerEntry
 import com.festivalscoretracker.android.core.shell.DrawerPolicy
@@ -33,8 +36,13 @@ class DrawerPolicyTest {
     fun visibleTabsSwitchOthersPush() {
         val phone = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = false)
         val rail = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = true)
-        assertEquals(DrawerTarget.Push(RivalsRoute), DrawerPolicy.target(DrawerEntry.Rivals, phone))
+        // #610: on a phone Rivals and Leaderboards open under Compete; on a rail they are tabs.
+        assertEquals(DrawerTarget.Child(FestivalSection.Compete, RivalsRoute), DrawerPolicy.target(DrawerEntry.Rivals, phone))
+        assertEquals(DrawerTarget.Child(FestivalSection.Compete, LeaderboardsRoute), DrawerPolicy.target(DrawerEntry.Leaderboards, phone))
         assertEquals(DrawerTarget.Section(FestivalSection.Rivals), DrawerPolicy.target(DrawerEntry.Rivals, rail))
+        assertEquals(DrawerTarget.Section(FestivalSection.Leaderboards), DrawerPolicy.target(DrawerEntry.Leaderboards, rail))
+        // Without a visible parent tab the page still pushes on the current tab.
+        assertEquals(DrawerTarget.Push(RivalsRoute), DrawerPolicy.target(DrawerEntry.Rivals, listOf(FestivalSection.Songs, FestivalSection.Settings)))
         assertEquals(DrawerTarget.Push(StatisticsRoute), DrawerPolicy.target(DrawerEntry.Statistics, emptyList()))
         // #601: Item Shop is a tab with a profile, so its row switches to it; otherwise it pushes.
         assertEquals(DrawerTarget.Section(FestivalSection.Shop), DrawerPolicy.target(DrawerEntry.Shop, phone))
@@ -55,9 +63,32 @@ class DrawerPolicyTest {
         assertEquals(DrawerTarget.Push(StatisticsRoute), DrawerPolicy.sectionTarget(FestivalSection.Statistics, phone))
         assertEquals(DrawerTarget.Section(FestivalSection.Shop), DrawerPolicy.sectionTarget(FestivalSection.Shop, phone))
         assertEquals(DrawerTarget.Push(ShopRoute), DrawerPolicy.sectionTarget(FestivalSection.Shop, hidden))
-        assertEquals(DrawerTarget.Push(RivalsRoute), DrawerPolicy.sectionTarget(FestivalSection.Rivals, phone))
+        assertEquals(DrawerTarget.Child(FestivalSection.Compete, RivalsRoute), DrawerPolicy.sectionTarget(FestivalSection.Rivals, phone))
+        assertEquals(DrawerTarget.Child(FestivalSection.Compete, LeaderboardsRoute), DrawerPolicy.sectionTarget(FestivalSection.Leaderboards, phone))
         assertEquals(DrawerTarget.Section(FestivalSection.Settings), DrawerPolicy.sectionTarget(FestivalSection.Settings, phone))
         assertEquals(null, DrawerPolicy.sectionTarget(FestivalSection.Compete, FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = true)))
+    }
+}
+
+/** #610: the drawer highlights the page on screen (web sidebar `NavLink`), not the tab under it. */
+class DrawerPageTest {
+    private fun stack(vararg routes: AppRoute): List<(AppRoute) -> Boolean> = routes.map { shown -> { route: AppRoute -> route == shown } }
+
+    @Test
+    fun pageIsTheTopmostDrawerRouteAboveTheTabRoot() {
+        assertEquals(null, DrawerPolicy.pageOf(emptyList()))
+        assertEquals(null, DrawerPolicy.pageOf(stack(SongDetailRoute("s-alpha"))))
+        assertEquals(DrawerEntry.Rivals, DrawerPolicy.pageOf(stack(RivalsRoute)))
+        assertEquals(DrawerEntry.Rivals, DrawerPolicy.pageOf(stack(RivalsRoute, SongDetailRoute("s-alpha"))))
+        assertEquals(DrawerEntry.Statistics, DrawerPolicy.pageOf(stack(RivalsRoute, StatisticsRoute, SongDetailRoute("s-alpha"))))
+    }
+
+    @Test
+    fun pushedPageWinsOverTheSelectedTab() {
+        assertTrue(DrawerPolicy.isSelected(DrawerEntry.Rivals, FestivalSection.Compete, DrawerEntry.Rivals))
+        assertFalse(DrawerPolicy.isSelected(DrawerEntry.Songs, FestivalSection.Songs, DrawerEntry.Statistics))
+        assertTrue(DrawerPolicy.isSelected(DrawerEntry.Statistics, FestivalSection.Songs, DrawerEntry.Statistics))
+        assertTrue(DrawerPolicy.isSelected(DrawerEntry.Songs, FestivalSection.Songs, null))
     }
 }
 
