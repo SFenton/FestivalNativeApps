@@ -592,7 +592,7 @@ Backfills a CI test for the #242 Windows change: `LeaderboardEntryRow` sets its 
 | `cols-song-board-contrast-switch`, medium, Desert switched live | Pass, Axe 0 |
 | Regression check: `ContrastTheme.Changed` subscription removed | Fails: row 3 keeps the card surface under Desert (0 px of `#FFFAEF`, centre `#464A53`) |
 
-No app accessibility defect was found. **Failed, fixed (test):** since #606 the season pill names the current season "current season 9", but the column pages still expected "season 9", so `cols-song-board` failed. The expectations now say "current season 9".
+No app accessibility defect was found. **Failed, fixed (test):** since #606 the season pill names the current season "current season 9", but the column pages still expected "season 9", so `cols-song-board` failed. The expectations now say "current season 9"; Fixture Player 2's board row still reads the board's 98% (only the selected player's pinned row reads the profile's 97.9%).
 
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
