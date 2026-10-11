@@ -96,14 +96,14 @@ TEST_RUNNER_FST_AUDIT_OUT=/tmp/history python3 tools/ios_sim.py uitest --device 
 
 ### Paths without gestures (#96, backfilled by #445)
 
-`apple/Apps/iOSUITests/PathsDismissAccessibilityJourneyTests.swift` checks what replaces the Paths viewer's gestures for VoiceOver, Switch Control and Voice Control users: the swipe-down #96 enabled and the pinch zoom. HIG Accessibility: "Offer another physical interaction for core functionality—for example, provide a button as well as swipe-to-dismiss". Against `mock_service.py --large-catalogue` (`FST_PATHS_FIXTURE_URL`, default 127.0.0.1:8765), Image at fit, Image zoomed past the viewport with Zoom In (the two-axis state #96 introduced) and Text:
+`apple/Apps/iOSUITests/PathsDismissAccessibilityJourneyTests.swift` checks what replaces the Paths viewer's gestures for VoiceOver, Switch Control and Voice Control users: the swipe-down #96 enabled and the pinch zoom. HIG Accessibility: "Offer another physical interaction for core functionality—for example, provide a button as well as swipe-to-dismiss". Against `mock_service.py --large-catalogue` (`FST_PATHS_FIXTURE_URL`, default 127.0.0.1:8765), Image at fit, Image zoomed with Zoom In (on a phone past the viewport, the two-axis state #96 introduced; fit never enlarges the image, so the fixture's narrow path still fits the iPad cover at 300 %) and Text:
 
 - Close is named, enabled, wholly on screen and hittable, and it closes back to Song Detail with Paths reachable.
 - Zoom Out and Zoom In are named. Zoom Out is disabled at 100 % and Zoom In at 300 %, and the zoom reads "Zoom <n> percent".
 - The image is an image named "Lead Expert CHOpt path", inside the `fst.paths.image-viewport` scroll view.
 - The selectors are 44 pt, and the reading order is bar (zoom group, Close), then image or table, then Instrument, Difficulty and View.
 - `performAccessibilityAudit` passes on each state: `.all` at Large, all but contrast at AX5.
-- A contrast flag on a selector capsule passes only once its rendered contrast measures at least 4.5:1 (as `PathsSwitchAccessibilityJourneyTests`). A clipped selector value passes only in the simulated inner display, which lays the 669-pt named row out inside the iPhone's narrower window; the iPad cover audits that row at a real width.
+- A contrast flag on a selector capsule, or on an activation-card text in the table (the iPad cover flagged white "NOTE" and "BEAT" labels on the dark card), passes only once that element's rendered contrast measures at least 4.5:1 (as `PathsSwitchAccessibilityJourneyTests` and `SuggestionsAccessibilityJourneyTests`). A selector value flagged as clipped or as partial Dynamic Type passes only in the simulated inner display, which lays the 669-pt named row out inside the iPhone's narrower window; the iPad cover audits that row at a real width.
 - The Duo runs open the song by route (`FST_DEBUG_SONG=fixture-pulse`), because the folded vertical bar keeps Songs' search off the page.
 
 | Journey | Where (`apple-ci`) |

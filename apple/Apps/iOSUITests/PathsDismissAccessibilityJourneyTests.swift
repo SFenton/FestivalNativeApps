@@ -18,18 +18,19 @@ import XCTest
 ///   and zoomed) and in Text, and tapping it closes the viewer back to Song Detail with
 ///   Paths still reachable.
 /// - **Zoom Out / Zoom In** stand in for the pinch: named, Zoom Out disabled at 100 %,
-///   Zoom In at 300 %, with the zoom read as "Zoom <n> percent". Zooming past the
-///   viewport's width (the two-axis state #96 introduced) keeps the image named and every
-///   control reachable.
+///   Zoom In at 300 %, with the zoom read as "Zoom <n> percent". Zooming in scales the
+///   image (on a phone past the viewport's width, the two-axis state #96 introduced) and
+///   keeps it named and every control reachable.
 /// - **The path image** is an image named "Lead Expert CHOpt path" inside the
 ///   `fst.paths.image-viewport` scroll view.
 /// - **Reading order:** the bar's zoom group and Close, then the image or table, then
 ///   Instrument, Difficulty and View.
 /// - `performAccessibilityAudit` on the fitted image, the zoomed image and the table:
 ///   every type at the default size, every type but contrast at AX5
-///   (`testing/apple/accessibility.md`). A contrast flag on a selector capsule passes only
-///   once its rendered contrast measures 4.5:1 or more; a selector clipped in the
-///   simulated inner display passes only there (the iPhone's real window is narrower).
+///   (`testing/apple/accessibility.md`). A contrast flag on a selector capsule or an
+///   activation-table text passes only once its rendered contrast measures 4.5:1 or more;
+///   a selector clipped or not growing in the simulated inner display passes only there
+///   (the iPhone's real window is narrower).
 ///
 /// Forms: the iPhone sheet; the iPhone Duo folded sheet and the inner display's
 /// full-window cover (`DebugDuoWindow` simulation, as CI has no Duo device type); the
@@ -134,7 +135,8 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         XCTAssertTrue(image.waitForExistence(timeout: FestivalApp.budget(15)), "No path image (\(run.name))")
         let viewport = element("fst.paths.image-viewport", in: app)
         assertImage(image, in: viewport, app: app, zoom: 100, run: run)
-        XCTAssertLessThanOrEqual(image.frame.width, viewport.frame.width + 1,
+        let fitWidth = image.frame.width
+        XCTAssertLessThanOrEqual(fitWidth, viewport.frame.width + 1,
                                  "Fitted image wider than its viewport (\(run.name))")
         assertCloseReachable(in: app, run: run, "image at fit")
         assertSelectorsReachable(in: app, run: run)
@@ -143,13 +145,19 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         record(app, name: "paths-dismiss-\(run.name)-image-fit")
         try audit(app, run: run, "image-fit")
 
-        // Zoomed with the buttons past the viewport's width (two-axis scrolling, #96).
+        // Zoomed with the buttons; on a phone past the viewport's width (two-axis
+        // scrolling, #96). Fit never enlarges the image, so the fixture's narrow path
+        // still fits the iPad cover's width at 300 %.
         let zoomIn = app.buttons["fst.paths.zoom-in"]
         zoomIn.tap()
         zoomIn.tap()
         assertImage(image, in: viewport, app: app, zoom: 225, run: run)
-        XCTAssertGreaterThan(image.frame.width, viewport.frame.width + 1,
-                             "Zoom In did not widen the image past its viewport (\(run.name))")
+        XCTAssertEqual(image.frame.width, fitWidth * 2.25, accuracy: 2,
+                       "Zoom In did not scale the image (\(run.name))")
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            XCTAssertGreaterThan(image.frame.width, viewport.frame.width + 1,
+                                 "Zoom In did not widen the image past its viewport (\(run.name))")
+        }
         assertCloseReachable(in: app, run: run, "image zoomed")
         assertSelectorsReachable(in: app, run: run)
         record(app, name: "paths-dismiss-\(run.name)-image-zoomed")
@@ -300,6 +308,7 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         var issues: [String] = []
         var accepted: [String] = []
         let window = app.windows.firstMatch.frame
+        let table = element("fst.paths.text.Solo_Guitar.expert", in: app)
         try PathsUITestSupport.auditRetryingTimeout(
             app, run.auditTypes, reset: { issues.removeAll(); accepted.removeAll() }
         ) { issue in
@@ -320,12 +329,21 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
                 accepted.append("measured ≥ 4.5:1: \(line)")
                 return true
             }
+            // The iPad cover's audit flags some white activation-card labels ("NOTE", "BEAT",
+            // a value) on the dark card. Accept a flagged text in the table only once its own
+            // rendered contrast measures at least 4.5:1 (as `SuggestionsAccessibilityJourneyTests`).
+            if issue.auditType == .contrast, let node, node.elementType == .staticText, !node.frame.isEmpty,
+               table.exists, table.frame.contains(CGPoint(x: node.frame.midX, y: node.frame.midY)) {
+                try SongsUITestSupport.assertHeaderContrast(node, in: app)
+                accepted.append("measured ≥ 4.5:1: \(line)")
+                return true
+            }
             // `DebugDuoWindow` lays the inner display's 669-pt named selector row out inside
             // the iPhone's real, narrower window ("shell evidence, not a capture"), so a
-            // selector value clipped there is the simulation's. The iPad cover audits the
-            // same named row at a real width.
-            if issue.auditType == .textClipped, let selector, let duo = run.duoWindow, duo != "folded",
-               window.width < 669 {
+            // selector value clipped there, or truncated so the audit sees it not grow, is
+            // the simulation's. The iPad cover audits the same named row at a real width.
+            if issue.auditType == .textClipped || issue.auditType == .dynamicType, let selector,
+               let duo = run.duoWindow, duo != "folded", window.width < 669 {
                 accepted.append("simulated \(duo) in a \(Int(window.width))-pt window: \(line) (\(selector.identifier))")
                 return true
             }
