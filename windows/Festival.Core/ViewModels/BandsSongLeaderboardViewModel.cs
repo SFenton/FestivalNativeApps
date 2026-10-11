@@ -370,6 +370,9 @@ public sealed record SongBandRow
     /// <summary>Automation ID (<c>fst.song-band-leaderboard.row.&lt;key&gt;:&lt;rank&gt;</c>).</summary>
     public string AutomationId => $"fst.song-band-leaderboard.row.{(Entry.BandId.Length > 0 ? Entry.BandId : Entry.TeamKey)}:{Entry.Rank}";
 
+    /// <summary>Raw-view ID of the board row's rank text (<c>&lt;row&gt;.rank</c>), for column-alignment checks.</summary>
+    public string RankAutomationId => AutomationId + ".rank";
+
     /// <summary>Raw-view ID of the board row's member list (<c>&lt;row&gt;.members</c>), for column-alignment checks.</summary>
     public string MembersAutomationId => AutomationId + ".members";
 

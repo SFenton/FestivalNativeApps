@@ -85,7 +85,7 @@
                                                Style="{StaticResource BodyStrongTextBlockStyle}" FontWeight="Bold" Typography.NumeralAlignment="Tabular"
                                                HighContrastAdjustment="None" AutomationProperties.AccessibilityView="Raw" />
                                     <TextBlock Text="{x:Bind Rank}" VerticalAlignment="Top" Margin="0,4,0,0" Style="{StaticResource BodyStrongTextBlockStyle}"
-                                               Typography.NumeralAlignment="Tabular"
+                                               Typography.NumeralAlignment="Tabular" AutomationProperties.AutomationId="{x:Bind RankAutomationId}"
                                                Foreground="{x:Bind pages:BandsSongLeaderboardPage.Secondary(IsSelected)}" AutomationProperties.AccessibilityView="Raw" />
                                     <ItemsRepeater Grid.Column="1" ItemsSource="{x:Bind Members}" AutomationProperties.AccessibilityView="Raw"
                                                    AutomationProperties.AutomationId="{x:Bind MembersAutomationId}">

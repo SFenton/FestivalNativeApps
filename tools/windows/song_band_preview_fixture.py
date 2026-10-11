@@ -12,12 +12,16 @@ Mode            ``/bands/all`` answer
 ``full``        Ten rows per size with two, three and four members, ``showLeaderboardEntryTotals`` on. With a
                 ``fixture-player-*`` ``accountId``: Duos appends the player's rank-14 band, Trios highlights rank 3
                 in place (``selectedBandEntry``), Quads has no selection
-``far``         ``full`` with the player's appended Duos band at rank 1,234 (one shared rank rail, issue #594)
+``far``         ``full`` with the player's appended Duos band at rank 1,234 (one shared rank rail, issue #594); the
+                full ``fixture-pulse`` Duos board (``/bands/Band_Duets``) also runs to rank :data:`FAR_BOARD_TOTAL`, so
+                page 40 (ranks 976–1,000) and page 400 (9,976–10,000) mix rank widths on one page
 ``slow``        The mock's answer after :data:`SLOW_SECONDS` (each section's loading ring)
 ``error``       HTTP 500 on odd-numbered reads, the mock's answer on even ones (failed state, then Retry recovers)
 ``frozen``      503 + ``Retry-After: 30`` + ``X-FST-Public-Read-Freeze-Reason: scrape`` (scores updating countdown)
 ``invalid``     200 with another song's ID (a response that fails validation is a failure, never an empty board)
 ==============  ===================================================================================================
+
+Only ``far`` answers a second route: the full Song Band Leaderboard's ``fixture-pulse`` Duos board.
 
 Usage: ``python tools/windows/song_band_preview_fixture.py --port 0 --bands full`` (other flags pass through).
 """
@@ -44,6 +48,8 @@ SELECTED_DUOS_RANK = {"full": 14, "far": 1_234}
 SLOW_SECONDS = 20.0
 #: Ranks past this score and accuracy like it.
 MAX_RANK_STEP = 60
+#: Bands on ``far``'s full ``fixture-pulse`` Duos board: past both the 1,000 and the 10,000 rank-width boundaries.
+FAR_BOARD_TOTAL = 10_025
 #: Instruments cycled through a band's members.
 INSTRUMENTS = ("Solo_Guitar", "Solo_Bass", "Solo_Drums", "Solo_Vocals")
 #: Band sizes in service order with their member counts.
@@ -110,6 +116,31 @@ def full_payload(song_id: str, top: int, account_id: str | None, selected_rank: 
     return {"songId": song_id, "showLeaderboardEntryTotals": True, "bands": bands}
 
 
+def far_board_payload(song_id: str, top: int, offset: int, account_id: str | None) -> dict:
+    """The ``far`` mode's full Duos board page (``GET /api/leaderboard/{songId}/bands/Band_Duets``).
+
+    Args:
+        song_id: Requested song, echoed back.
+        top: Rows per page.
+        offset: Rows skipped (``(page - 1) * top``).
+        account_id: Selected player from the ``accountId`` query; a ``fixture-player-*`` one owns rank 1,234 and is
+            the pinned ``selectedPlayerEntry``.
+
+    Returns:
+        A ``SongBandLeaderboardResponse`` object.
+    """
+    selected = account_id if account_id and account_id.startswith("fixture-player-") else None
+    rank_of_selected = SELECTED_DUOS_RANK["far"]
+    ranks = range(offset + 1, min(offset + top, FAR_BOARD_TOTAL) + 1)
+    rows = [entry("Band_Duets", 2, rank, selected if rank == rank_of_selected else None) for rank in ranks]
+    return {
+        "songId": song_id, "bandType": "Band_Duets", "showLeaderboardEntryTotals": True, "count": len(rows),
+        "totalEntries": FAR_BOARD_TOTAL, "localEntries": FAR_BOARD_TOTAL, "entries": rows,
+        "selectedPlayerEntry": entry("Band_Duets", 2, rank_of_selected, selected) if selected else None,
+        "selectedBandEntry": None,
+    }
+
+
 class BandsMode:
     """The fixture's ``--bands`` mode and its read counter (``error`` alternates failure and success)."""
 
@@ -130,7 +161,7 @@ class BandsMode:
 
 
 def install(state: BandsMode) -> None:
-    """Patches the mock handler so ``/bands/all`` answers per ``state``.
+    """Patches the mock handler so ``/bands/all`` (and ``far``'s full Duos board) answers per ``state``.
 
     Args:
         state: Mode and read counter shared by the handler threads.
@@ -140,10 +171,16 @@ def install(state: BandsMode) -> None:
 
     def do_GET(self) -> None:  # noqa: N802  (stdlib handler name)
         parsed = urlsplit(self.path)
+        unsafe = any(name.lower().startswith("x-fst-selected-") or name.lower() == "x-api-key" for name in self.headers)
+        board = mock_service.SONG_BAND_LEADERBOARD.fullmatch(parsed.path)
+        if state.mode == "far" and not unsafe and board and board.groups() == ("fixture-pulse", "Band_Duets"):
+            query = parse_qs(parsed.query)
+            top = int(query.get("top", ["25"])[0])
+            offset = int(query.get("offset", ["0"])[0])
+            self._json(200, far_board_payload("fixture-pulse", top, offset, query.get("accountId", [None])[0]))
+            return
         match = mock_service.SONG_BAND_LEADERBOARDS_ALL.fullmatch(parsed.path)
-        if match is None or state.mode == "demo" or any(
-            name.lower().startswith("x-fst-selected-") or name.lower() == "x-api-key" for name in self.headers
-        ):
+        if match is None or state.mode == "demo" or unsafe:
             original_get(self)
             return
         read = state.next_read()

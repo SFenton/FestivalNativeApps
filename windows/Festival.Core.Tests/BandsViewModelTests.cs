@@ -522,7 +522,8 @@ public class SongBandLeaderboardViewModelTests
         Assert.All(vm.Rows, r => Assert.Equal(SongBandRow.WidestRank(vm.Rows.Select(x => x.Entry)), r.RailRank));
         Assert.Equal(3, own.RailRank.Length); // "#26"–"#50"
         Assert.Equal("#1,000", SongBandRow.WidestRank([own.Entry with { Rank = 1 }, own.Entry with { Rank = 1000 }]));
-        Assert.EndsWith(".members", own.MembersAutomationId, StringComparison.Ordinal);
+        Assert.Equal(own.AutomationId + ".members", own.MembersAutomationId);
+        Assert.Equal(own.AutomationId + ".rank", own.RankAutomationId);
         Assert.True(vm.ShowSpotlight); // Still pinned on the band's own page (web hasSelectedFooter), now opening Band Detail.
         Assert.False(vm.CanJump);
         Assert.StartsWith("Your band's rank, 30th. Open band. ", vm.Spotlight!.Announcement, StringComparison.Ordinal);
