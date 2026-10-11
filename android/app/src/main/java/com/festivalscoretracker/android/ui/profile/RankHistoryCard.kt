@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -326,7 +325,7 @@ private fun SnapshotContent(point: PlayerRankHistorySnapshot, totalAccounts: Int
         rank = HistoryCell(rank, rgb(RankHistoryColors.rank(point.totalScoreRank, point.rankedAccountCount ?: totalAccounts)), if (bold) FontWeight.Bold else FontWeight.SemiBold),
         value = HistoryCell(score, BrandTokens.textPrimary, weight),
         style = MaterialTheme.typography.bodyMedium,
-        modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 10.dp).clearAndSetSemantics { contentDescription = "$date: rank $rank, Total Score $score" },
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp).clearAndSetSemantics { contentDescription = "$date: rank $rank, Total Score $score" },
         probeKey = "player.$probeKey",
     )
 }

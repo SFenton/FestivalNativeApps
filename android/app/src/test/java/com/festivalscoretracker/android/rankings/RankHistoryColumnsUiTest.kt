@@ -104,9 +104,43 @@ class RankHistoryColumnsUiTest {
 
     private fun bound(key: String): Rect = bounds[key] ?: error("no $key in ${bounds.keys}")
 
+    /** Robolectric xxhdpi: px per dp. */
+    private val density = 3f
+
+    /**
+     * Asserts every row in [keys] is at least the shared 48 dp row baseline (`leaderboard-row` R2).
+     *
+     * @param keys Probe keys.
+     */
+    private fun assertRowsAtLeast48(keys: List<String>) {
+        keys.forEach { key -> assertTrue("row height $key: ${bound("history.row.$key").height / density} dp", bound("history.row.$key").height >= 48f * density - 0.5f) }
+    }
+
+    /**
+     * Asserts [keys] use the lines layout (value under rank) and each column keeps its one
+     * measured width, right-aligned, rather than spanning the row (`leaderboard-row` R11).
+     *
+     * @param keys Probe keys.
+     */
+    private fun assertLinesKeepMeasuredColumns(keys: List<String>) {
+        assertColumnsAligned(keys)
+        assertRowsAtLeast48(keys)
+        keys.forEach { key ->
+            val rank = bound("history.rank.$key")
+            val value = bound("history.value.$key")
+            val row = bound("history.row.$key")
+            assertTrue("$key lines: rank $rank above value $value", value.top >= rank.bottom - 1f)
+            assertEquals("$key: rank and value share the right edge", rank.right, value.right, 1f)
+            assertTrue("$key: rank keeps its measured width ${rank.width} < row ${row.width}", rank.width < row.width - 1f)
+            assertTrue("$key: value keeps its measured width ${value.width} < row ${row.width}", value.width < row.width - 1f)
+            // Cells spanning the row would share one width; measured columns differ.
+            assertTrue("$key: rank ${rank.width} and value ${value.width} keep their own widths", kotlin.math.abs(rank.width - value.width) > 1f)
+        }
+    }
+
     // region Leaderboards
 
-    private fun leaderboards() {
+    private fun leaderboards(days: List<Pair<Int, Long>> = this.days) {
         val fake = FakeReads()
         val today = LocalDate.now()
         val history = days.mapIndexed { i, (rank, score) ->
@@ -129,7 +163,9 @@ class RankHistoryColumnsUiTest {
     }
 
     private fun assertLeaderboardsAligned() {
-        assertColumnsAligned((0..4).map { "leaderboards.row.$it" } + "leaderboards.detail.row")
+        val keys = (0..4).map { "leaderboards.row.$it" } + "leaderboards.detail.row"
+        assertColumnsAligned(keys)
+        assertRowsAtLeast48(keys)
     }
 
     @Test
@@ -143,6 +179,17 @@ class RankHistoryColumnsUiTest {
         RuntimeEnvironment.setFontScale(2f)
         leaderboards()
         assertLeaderboardsAligned()
+    }
+
+    /** Eight-digit ranks and twelve-digit values: at 200% on a 320 dp phone, rank and value no longer fit on one line. */
+    private val wideDays = listOf(12_345_678 to 987_654_321_012L, 23_456_789 to 876_543_210_987L, 34_567_890 to 765_432_109_876L, 45_678_901 to 654_321_098_765L, 56_789_012 to 543_210_987_654L, 67_890_123 to 432_109_876_543L)
+
+    @Test
+    @Config(qualifiers = "w320dp-h891dp-xxhdpi")
+    fun leaderboardsRankHistoryLinesKeepMeasuredColumnsAt200Percent() {
+        RuntimeEnvironment.setFontScale(2f)
+        leaderboards(wideDays)
+        assertLinesKeepMeasuredColumns((0..4).map { "leaderboards.row.$it" } + "leaderboards.detail.row")
     }
 
     // endregion
@@ -161,25 +208,31 @@ class RankHistoryColumnsUiTest {
 
     @Test
     fun profileRankHistoryRowsShareColumns() {
-        assertColumnsAligned(profile())
+        val keys = profile()
+        assertColumnsAligned(keys)
+        assertRowsAtLeast48(keys)
     }
 
     @Test
     fun profileRankHistoryRowsShareColumnsAt200Percent() {
         RuntimeEnvironment.setFontScale(2f)
-        assertColumnsAligned(profile())
+        val keys = profile()
+        assertColumnsAligned(keys)
+        assertRowsAtLeast48(keys)
     }
 
     // endregion
 
     // region Band
 
-    private fun band() {
+    private fun band(rankBase: Int = 0) {
         val transport = BandFixtures.install(
             FakeTransport.standard().apply {
                 on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
             },
-        )
+        ).apply {
+            on("/api/rankings/bands/Band_Duets/${BandFixtures.DUO_KEY}/history", headers = mapOf("X-FST-Publication-Id" to "7")) { BandFixtures.history(rankBase = rankBase) }
+        }
         val debug = DebugLaunch(route = DebugLaunch.parseRoute("band:${BandFixtures.DUO_ID}:Band_Duets:${BandFixtures.DUO_KEY}"), stillBackground = true)
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = InMemoryPreferences())
         rule.setContent { CompositionLocalProvider(LocalColumnProbe provides probe) { FestivalApp(container, debug) } }
@@ -194,6 +247,7 @@ class RankHistoryColumnsUiTest {
     fun bandRankHistoryRowsShareColumns() {
         band()
         assertColumnsAligned(bandRows)
+        assertRowsAtLeast48(bandRows)
     }
 
     @Test
@@ -201,6 +255,15 @@ class RankHistoryColumnsUiTest {
         RuntimeEnvironment.setFontScale(2f)
         band()
         assertColumnsAligned(bandRows)
+        assertRowsAtLeast48(bandRows)
+    }
+
+    @Test
+    @Config(qualifiers = "w320dp-h891dp-xxhdpi")
+    fun bandRankHistoryLinesKeepMeasuredColumnsAt200Percent() {
+        RuntimeEnvironment.setFontScale(2f)
+        band(rankBase = 123_456_780)
+        assertLinesKeepMeasuredColumns(bandRows)
     }
 
     // endregion

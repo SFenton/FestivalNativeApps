@@ -408,6 +408,8 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     fun overviewRowsNameTheirTalkBackActions() {
         launch("leaderboards", selected)
         val other = "fst.rankings.row.${RankingsFixtures.accountId(1)}"
+        // Rank History comes first; its 48 dp rows (leaderboard-row R2) can push the cards below the composed viewport.
+        rule.waitUntil(10_000) { settle(100); runCatching { scrollTo("fst.leaderboards", other) }.isSuccess }
         waitForTag(other)
         // TalkBack says "Double-tap to open profile" rather than a bare "open" (issue #114).
         assertEquals("Open profile", clickLabel(other))

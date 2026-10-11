@@ -324,7 +324,7 @@ private fun LegendSwatch(label: String, swatch: @Composable () -> Unit) {
 @Composable
 private fun HistoryRow(row: RankHistoryRow, columns: HistoryColumnPlan, probeKey: String, background: Modifier? = null) {
     val shape = RoundedCornerShape(10.dp)
-    var modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(shape)
+    var modifier = Modifier.fillMaxWidth().clip(shape)
     modifier = when {
         background != null -> modifier.then(background)
         row.latest -> modifier.background(BrandTokens.accentPurple.copy(alpha = 0.18f)).border(BorderStroke(1.dp, BrandTokens.accentPurple), shape)

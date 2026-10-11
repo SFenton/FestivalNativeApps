@@ -10,6 +10,7 @@ import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
@@ -48,7 +49,7 @@ class RankHistoryAlignmentAccessibilityJourneyTest {
     /** Total Score ranks of one to three digits (values from 100,000 to 89,300,000), newest last. */
     private val ranks = listOf(7, 899, 98, 40)
 
-    /** Asserts the rows' and the detail's rank and value columns share their left and right edges. */
+    /** Asserts the rows' and the detail's rank and value columns share their left and right edges, and every row is at least 48 dp (`leaderboard-row` R2). */
     private fun assertAligned(screen: String) {
         val keys = (0 until ranks.size).map { "leaderboards.row.$it" } + "leaderboards.detail.row"
         listOf("rank", "value").forEach { column ->
@@ -57,6 +58,11 @@ class RankHistoryAlignmentAccessibilityJourneyTest {
                 assertEquals("$screen: $column right, ${keys[i + 1]}", edges.first().right, other.right, 1.5f)
                 assertEquals("$screen: $column left, ${keys[i + 1]}", edges.first().left, other.left, 1.5f)
             }
+        }
+        val minRow = with(rule.density) { 48.dp.toPx() } - 1f
+        keys.forEach { key ->
+            val row = bounds["history.row.$key"] ?: error("$screen: no row $key in ${bounds.keys}")
+            assertTrue("$screen: $key is ${row.height}px, below 48 dp", row.height >= minRow)
         }
     }
 

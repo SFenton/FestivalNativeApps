@@ -78,6 +78,19 @@ class HistoryColumnsTest {
     }
 
     @Test
+    fun linesKeepEachColumnsMeasuredWidthAndCapOnlyAColumnWiderThanTheRow() {
+        val plan = HistoryColumnPlan(dateWidth = 90f, rankWidth = 160f, valueWidth = 210f, gap = 12f)
+        assertEquals(HistoryRowLayout.Lines, plan.layoutFor(260f))
+        // Lines keep the measured widths, not the row width.
+        assertEquals(160f, plan.columnWidth(plan.rankWidth, 260f))
+        assertEquals(210f, plan.columnWidth(plan.valueWidth, 260f))
+        // Only a column wider than the whole row is capped at it (it then wraps, never clips).
+        assertEquals(200f, plan.columnWidth(plan.valueWidth, 200f))
+        assertEquals(210f, plan.columnWidth(plan.valueWidth, Float.NaN))
+        assertEquals(210f, plan.columnWidth(plan.valueWidth, 0f))
+    }
+
+    @Test
     fun anUnmeasuredRowUsesOneLine() {
         val plan = HistoryColumnPlan(dateWidth = 900f, rankWidth = 600f, valueWidth = 800f, gap = 12f)
         assertEquals(HistoryRowLayout.Line, plan.layoutFor(Float.NaN))

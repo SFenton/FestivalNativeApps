@@ -445,7 +445,6 @@ private fun HistorySection(state: LoadState<BandRankHistoryResponse>, metric: Ba
                             style = style,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 40.dp)
                                 .testTag("fst.band.history-row.${row.date}")
                                 .clearAndSetSemantics { contentDescription = "${row.dateText}, rank ${row.rankText}, ${row.valueText}" }
                                 .padding(vertical = 4.dp),

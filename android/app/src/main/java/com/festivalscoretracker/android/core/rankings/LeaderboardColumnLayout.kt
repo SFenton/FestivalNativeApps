@@ -326,7 +326,10 @@ enum class HistoryRowLayout {
     /** The date on its own line over the rank and value columns (large text). */
     DateAbove,
 
-    /** Date, rank and value each on their own line, rank and value right-aligned (extreme text sizes). */
+    /**
+     * Date, rank and value each on their own line (extreme text sizes); the rank and value keep
+     * their measured widths, right-aligned on their lines ([HistoryColumnPlan.columnWidth]).
+     */
     Lines,
 }
 
@@ -358,6 +361,19 @@ data class HistoryColumnPlan(val dateWidth: Float, val rankWidth: Float, val val
         rankWidth + gap + valueWidth <= rowWidth -> HistoryRowLayout.DateAbove
         else -> HistoryRowLayout.Lines
     }
+
+    /**
+     * A rank or value column's width in a row of [rowWidth]: always its one measured [width]
+     * (`leaderboard-row` R11), also on [HistoryRowLayout.Lines], where it sits right-aligned on
+     * its own line. Only a single column wider than the whole row is capped at the row (and then
+     * wraps rather than clips); every row has the same width, so the cap is the same for all.
+     *
+     * @param width Measured column width ([rankWidth] or [valueWidth]).
+     * @param rowWidth Row content width in dp; NaN or 0 before the first layout.
+     * @return Width to draw the column at.
+     */
+    fun columnWidth(width: Float, rowWidth: Float): Float =
+        if (rowWidth.isFinite() && rowWidth > 0f) minOf(width, rowWidth) else width
 }
 
 // endregion
