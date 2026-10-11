@@ -34,8 +34,9 @@ public sealed partial class MarqueeText : Panel
         nameof(TextStyle), typeof(Style), typeof(MarqueeText), new PropertyMetadata(null, (d, _) => ((MarqueeText)d).OnStyleChanged()));
 
     /// <summary>
-    /// Wrap instead of scrolling at large Windows text sizes (in-page song header lines, pattern <c>song-header</c> R3).
-    /// Off by default: rows, cards and bar titles stay on one line at every text size.
+    /// Wrap instead of scrolling at large Windows text sizes: in-page song header lines (pattern <c>song-header</c> R3) and
+    /// leaderboard row names (pattern <c>leaderboard-row</c> R3, issue #455). Off by default: other rows, cards and bar
+    /// titles stay on one line at every text size.
     /// </summary>
     public static readonly DependencyProperty WrapsAtLargeTextProperty = DependencyProperty.Register(
         nameof(WrapsAtLargeText), typeof(bool), typeof(MarqueeText), new PropertyMetadata(false, (d, _) => ((MarqueeText)d).OnWrapsAtLargeTextChanged()));
