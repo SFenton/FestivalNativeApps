@@ -158,8 +158,8 @@ data class CompeteStaggerPlan(val leaderboardsHeader: Int, val boards: List<Int>
         /** Rows, the player's row and View Full Leaderboards; otherwise one empty or error card. */
         private fun boardItems(section: CompeteSection): Int {
             val board = section.board.valueOrNull?.takeIf { it.hasNavigation } ?: return 1
-            val viewFull = if (section.scope is CompeteScope.Single) 1 else 0
-            return board.entries.size + (if (board.spotlight != null) 1 else 0) + viewFull
+            // Every scope ends with View Full Leaderboards, combos included (#602).
+            return board.entries.size + (if (board.spotlight != null) 1 else 0) + 1
         }
 
         /** Rival rows and View All Rivals; otherwise one empty or error card. */

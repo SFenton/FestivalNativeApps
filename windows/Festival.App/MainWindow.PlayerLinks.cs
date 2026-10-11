@@ -16,5 +16,8 @@ public sealed partial class MainWindow
         if (frames.TryGetValue(AppSection.Songs, out var frame) && frame.Content is SongsPage songs)
             songs.ViewModel.SearchText = "";
     }
+
+    /// <summary>Opens the Settings section (web <c>navigate('/settings')</c>, e.g. the Filtered Score alert's Settings command).</summary>
+    public void ShowSettings() => Show(AppSection.Settings);
 }
 #endregion

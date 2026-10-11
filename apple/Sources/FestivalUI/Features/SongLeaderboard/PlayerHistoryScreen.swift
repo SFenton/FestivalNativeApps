@@ -236,6 +236,8 @@ struct PlayerHistoryScreen: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
         }
+        // One score column for every row, like the web's `scoreWidth` (#594).
+        .leaderboardSectionColumns(.scoreHistory(entries.map(\.newScore)))
     }
 
     // MARK: States

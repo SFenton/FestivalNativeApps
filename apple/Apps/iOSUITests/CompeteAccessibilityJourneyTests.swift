@@ -8,16 +8,21 @@ import XCTest
 /// `FestivalReloadGate`, "Loading Compete") has left.
 ///
 /// The app reads the loopback fixture (`tools/mock_service.py`) as `fixture-riv` with Lead and
-/// Bass shown: each board lists Fixture Player 1, Fixture Player 2 and Fixture Rank 3. Each
-/// launch waits for the spinner to leave the tree, checks the reading order (the Leaderboards
-/// heading, each instrument heading, its rows, its "View Full Leaderboard, <instrument>"
-/// button, then the Rivals heading; headings with the header trait), and brings every one of
+/// Bass shown: the Lead + Bass combo board (#602), then the Lead and Bass boards, each listing
+/// Fixture Player 1, Fixture Player 2 and Fixture Rank 3. Each launch waits for the spinner to
+/// leave the tree, checks the reading order (the Leaderboards heading, each board's heading,
+/// its rows, its "View Full Leaderboard, <board>" button, then the Rivals heading; headings
+/// with the header trait), checks that the section's only buttons are those rows and View Full
+/// Leaderboard buttons (no Leaderboards Overview, removed by #36, backfilled by #408), and
+/// brings every one of
 /// those elements wholly into view between the navigation bar and the bottom chrome (tab-bar
 /// accessory and tab bar). At AX5 each one must read back whole from its own capture (no
 /// ellipsis, no clipped word), render glyphs more than 1.35× taller than at the default size
 /// (recognized line height), and every row and button must be hittable there, the buttons at
 /// least 44 × 44 pt. A scoped audit covers Dynamic Type, clipped text, hit regions and
-/// descriptions on Compete's own elements. macOS hosting cannot scale text, so this journey is
+/// descriptions on Compete's own elements. A second journey goes Back from View Full
+/// Leaderboard at AX5 and checks that the same page returns without its spinner (#39, #410).
+/// macOS hosting cannot scale text, so this journey is
 /// the AX5 evidence; `FestivalUITests/CompeteLoadingAccessibilityTests` covers the spinner's
 /// name, role and the VoiceOver tree in `apple-ci`.
 ///
@@ -51,27 +56,47 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
         let drawn: String
         /// Which match of `label` (a row's rank repeats on each board).
         let occurrence: Int
+        /// More text it draws, each read back whole on its own (not ordered after `drawn`).
+        var also: [String] = []
 
         var description: String { "\(label) [\(occurrence)]" }
     }
 
-    /// The fixture's board rows: rank, name, songs and score.
+    /// The fixture's instrument board rows: rank, name, songs and score.
     private static let rows = [
         (rank: 1, name: "Fixture Player 1", songs: "39 / 50", score: "89,000,000"),
         (rank: 2, name: "Fixture Player 2", songs: "38 / 50", score: "88,000,000"),
         (rank: 3, name: "Fixture Rank 3", songs: "37 / 50", score: "87,000,000"),
     ]
 
+    /// The Lead + Bass combo board's rows: rank, name and both instruments' scores summed.
+    /// On a portrait iPhone the combo card drops songs played to keep names whole (#38),
+    /// and text recognition reads its trailing score first, so the score is checked apart.
+    private static let comboRows = [
+        (rank: 1, name: "Fixture Player 1", score: "178,000,000"),
+        (rank: 2, name: "Fixture Player 2", score: "176,000,000"),
+        (rank: 3, name: "Fixture Rank 3", score: "174,000,000"),
+    ]
+
     /// The Leaderboards section in reading order, then the Rivals heading.
     private static let readingOrder: [Item] = {
         var items = [Item(kind: .heading, label: "Leaderboards", drawn: "Leaderboards", occurrence: 0)]
-        for (board, instrument) in ["Lead", "Bass"].enumerated() {
+        for (board, instrument) in ["Lead + Bass", "Lead", "Bass"].enumerated() {
             items.append(Item(kind: .heading, label: instrument, drawn: instrument, occurrence: 0))
-            for row in rows {
-                items.append(Item(
-                    kind: .row, label: "#\(row.rank)",
-                    drawn: "#\(row.rank) \(row.name) \(row.songs) \(row.score)", occurrence: board
-                ))
+            if board == 0 {
+                for row in comboRows {
+                    items.append(Item(
+                        kind: .row, label: "#\(row.rank)", drawn: "#\(row.rank) \(row.name)", occurrence: board,
+                        also: [row.score]
+                    ))
+                }
+            } else {
+                for row in rows {
+                    items.append(Item(
+                        kind: .row, label: "#\(row.rank)",
+                        drawn: "#\(row.rank) \(row.name) \(row.songs) \(row.score)", occurrence: board
+                    ))
+                }
             }
             items.append(Item(
                 kind: .action, label: "View Full Leaderboard, \(instrument)", drawn: "View Full Leaderboard", occurrence: 0
@@ -98,6 +123,10 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
             let reading = RecognizedText.recognize(element, label: item.drawn, frame: frame)
             XCTAssertTrue(RecognizedText.showsWhole(item.drawn, in: reading.text),
                           "\(item) reads back whole at the default size: '\(reading.text ?? "nil")'")
+            for text in item.also {
+                XCTAssertTrue(RecognizedText.showsWhole(text, in: reading.text),
+                              "\(item) draws \(text) whole at the default size: '\(reading.text ?? "nil")'")
+            }
             let height = try XCTUnwrap(reading.lineHeight, "\(item) recognized at the default size")
             XCTAssertGreaterThan(height, 4, "\(item) has a measurable line height")
             baseline.append(height)
@@ -120,6 +149,10 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
             let reading = RecognizedText.recognize(element, label: item.drawn, frame: frame)
             XCTAssertTrue(RecognizedText.showsWhole(item.drawn, in: reading.text),
                           "\(item) reads back whole at AX5: '\(reading.text ?? "nil")'")
+            for text in item.also {
+                XCTAssertTrue(RecognizedText.showsWhole(text, in: reading.text),
+                              "\(item) draws \(text) whole at AX5: '\(reading.text ?? "nil")'")
+            }
             let height = try XCTUnwrap(reading.lineHeight, "\(item) recognized at AX5")
             let ratio = height / baseline[index]
             growth.append(String(format: "%@ %.2f", item.description, ratio))
@@ -135,7 +168,78 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
         }
         attach("compete-ax5-growth", growth.joined(separator: "\n"))
         record(app, name: "compete-ax5-end")
+        try auditCompete(app, size: "AX5")
+    }
 
+    // MARK: - Back from View Full Leaderboard (issue #39, backfilled by #410)
+
+    /// How long Compete is watched after Back for a spinner or a moved button.
+    private static let returnWatch: TimeInterval = 2
+    /// How far, in points, the View Full Leaderboard button may sit from where it was.
+    private static let returnTolerance: CGFloat = 1
+
+    /// Back from a board's View Full Leaderboard (#39) returns to the same loaded Compete
+    /// at AX5: the page spinner never comes back, the button the reader left from is where
+    /// it was (no reload jitter), still a hittable button of at least 44 × 44 pt, the page
+    /// reads in the same order with the same heading traits, and the scoped audit is clean.
+    ///
+    /// HIG VoiceOver: "be sure to keep labels current as interface and content change";
+    /// HIG Progress indicators show only while an operation is ongoing.
+    @MainActor
+    func testBackFromFullLeaderboardKeepsCompeteReadableAtAX5() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+
+        let app = launch(contentSize: UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue)
+        guard let bass = Self.readingOrder.last(where: { $0.kind == .action }) else {
+            return XCTFail("the reading order ends with a board's View Full Leaderboard")
+        }
+        let (button, before) = reveal(bass, in: app)
+        XCTAssertTrue(button.isHittable, "\(bass) is reachable before leaving")
+        assertReadingOrder(app, size: "AX5 before View Full Leaderboard")
+        record(app, name: "compete-ax5-before-full-leaderboard")
+
+        button.tap()
+        XCTAssertTrue(app.navigationBars["Bass Rankings"].waitForExistence(timeout: FestivalApp.budget(15)),
+                      "View Full Leaderboard, Bass pushes Bass Rankings")
+        let back = app.buttons["BackButton"]
+        (back.exists && back.isHittable ? back : app.navigationBars.buttons.firstMatch).tap()
+        XCTAssertTrue(app.navigationBars["Compete"].waitForExistence(timeout: FestivalApp.budget(15)), "Back returns to Compete")
+        XCTAssertTrue(app.navigationBars["Bass Rankings"].waitForNonExistence(timeout: FestivalApp.budget(5)),
+                      "the full leaderboard has left")
+
+        let spinner = app.descendants(matching: .any)["fst.compete.loading"]
+        let deadline = Date().addingTimeInterval(FestivalApp.budget(Self.returnWatch))
+        var samples: [String] = []
+        repeat {
+            XCTAssertFalse(spinner.exists, "Compete does not show its spinner again after Back")
+            XCTAssertTrue(button.exists, "\(bass) stays on the page after Back")
+            samples.append("\(button.frame)")
+        } while Date() < deadline
+        attach("compete-ax5-return-frames", samples.joined(separator: "\n"))
+
+        let after = button.frame
+        XCTAssertEqual(after.minY, before.minY, accuracy: Self.returnTolerance, "\(bass) keeps its place: \(after) vs \(before)")
+        XCTAssertEqual(after.minX, before.minX, accuracy: Self.returnTolerance, "\(bass) keeps its place: \(after) vs \(before)")
+        XCTAssertEqual(after.height, before.height, accuracy: Self.returnTolerance, "\(bass) keeps its size: \(after) vs \(before)")
+        XCTAssertTrue(button.isHittable, "\(bass) is reachable after Back")
+        XCTAssertGreaterThanOrEqual(after.height, 44, "\(bass) is at least 44 pt tall after Back: \(after)")
+        XCTAssertGreaterThanOrEqual(after.width, 44, "\(bass) is at least 44 pt wide after Back: \(after)")
+        assertReadingOrder(app, size: "AX5 after Back")
+        record(app, name: "compete-ax5-after-back")
+        try auditCompete(app, size: "AX5 after Back")
+    }
+
+    // MARK: - Audit
+
+    /// Run the scoped audit (Dynamic Type, clipped text, hit regions, descriptions) and fail on
+    /// any issue in Compete's own elements.
+    ///
+    /// - Parameters:
+    ///   - app: The launched, loaded app showing Compete.
+    ///   - size: Label for failure messages.
+    @MainActor
+    private func auditCompete(_ app: XCUIApplication, size: String) throws {
         var issues: [String] = []
         let labels = Set(Self.readingOrder.filter { $0.kind != .row }.map(\.label))
         try app.performAccessibilityAudit(
@@ -149,7 +253,7 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
             issues.append("\(id) '\(label)': \(issue.compactDescription)")
             return true
         }
-        XCTAssertEqual(issues, [], "Compete audit issues at AX5")
+        XCTAssertEqual(issues, [], "Compete audit issues at \(size)")
     }
 
     // MARK: - Reading order
@@ -183,6 +287,36 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
         for node in read where node.label.hasPrefix("View Full Leaderboard") {
             XCTAssertEqual(node.elementType, .button, "'\(node.label)' is a button at \(size)")
         }
+        assertOnlyBoardButtons(snapshot, size: size)
+    }
+
+    /// Between the Leaderboards and Rivals headings the only buttons are ranking rows and
+    /// each board's View Full Leaderboard: the Leaderboards Overview #36 removed (web
+    /// parity) must not come back, and nothing reads as an overview.
+    ///
+    /// - Parameters:
+    ///   - snapshot: The app's snapshot.
+    ///   - size: Label for failure messages.
+    @MainActor
+    private func assertOnlyBoardButtons(_ snapshot: XCUIElementSnapshot, size: String) {
+        var inSection = false
+        var strays: [String] = []
+        var overview: [String] = []
+        Self.walk(snapshot) { node in
+            if node.label.localizedCaseInsensitiveContains("overview")
+                || node.identifier.localizedCaseInsensitiveContains("overview") {
+                overview.append("\(node.elementType.rawValue) \(node.identifier) '\(node.label)'")
+            }
+            guard [.staticText, .button].contains(node.elementType) else { return }
+            if node.elementType == .staticText, node.label == "Leaderboards" { inSection = true }
+            if node.elementType == .staticText, node.label == "Rivals" { inSection = false }
+            if inSection, node.elementType == .button, !node.label.hasPrefix("#"),
+               !node.label.hasPrefix("View Full Leaderboard, ") {
+                strays.append("\(node.identifier) '\(node.label)'")
+            }
+        }
+        XCTAssertEqual(strays, [], "only rows and View Full Leaderboard act in Leaderboards at \(size)")
+        XCTAssertEqual(overview, [], "no Leaderboards Overview at \(size)")
     }
 
     /// The reading-order key for a label: a row's rank (its label starts "#1, …"), else the label.
