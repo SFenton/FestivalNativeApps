@@ -28,7 +28,10 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.toSize
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.core.shell.BottomChromeSpacing
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
@@ -36,13 +39,15 @@ import com.festivalscoretracker.android.data.HttpRequest
 import com.festivalscoretracker.android.data.HttpResult
 import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
+import kotlinx.coroutines.runBlocking
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import com.festivalscoretracker.android.core.settings.SettingsRegistry
+import org.junit.Assert.assertFalse
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.EmptyRegionAssertions.assertFillsAndCentres
 import com.festivalscoretracker.android.testing.EmptyRegionAssertions.boundsOf
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
-import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_HEIGHT_DP
-import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_MARGIN_DP
 import com.festivalscoretracker.android.ui.common.spinnerShowsDuring
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
@@ -56,6 +61,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 /** Whole-shell Bands journeys on Robolectric against synthetic band fixtures. */
 @RunWith(AndroidJUnit4::class)
@@ -77,7 +83,9 @@ class BandsUiTest {
 
     private lateinit var container: AppContainer
 
-    private fun launch(route: String, profile: SelectedPlayer? = null) {
+    private fun launch(route: String, profile: SelectedPlayer? = null, experimentalRanks: Boolean = true) {
+        val store = InMemoryPreferences()
+        runBlocking { store.updateData { it.toMutablePreferences().apply { this[booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS)] = experimentalRanks } } }
         val debug = DebugLaunch(route = DebugLaunch.parseRoute(route), profile = profile, stillBackground = true)
         val gated = object : HttpTransport {
             override suspend fun send(request: HttpRequest): HttpResult {
@@ -85,7 +93,7 @@ class BandsUiTest {
                 return transport.send(request)
             }
         }
-        container = AppContainer(rule.activity, OkHttpClient(), debug, transport = gated, settingsStore = InMemoryPreferences())
+        container = AppContainer(rule.activity, OkHttpClient(), debug, transport = gated, settingsStore = store)
         rule.setContent { FestivalApp(container, debug) }
         settle()
     }
@@ -194,6 +202,7 @@ class BandsUiTest {
         click("fst.player-bands.page-next")
         waitForTag("fst.player-bands.row.band-25")
         assertTrue(transport.requests.last().url.contains("page=2"))
+        scrollTo("fst.player-bands.list", "fst.player-bands.page-first")
         click("fst.player-bands.page-first")
         click("fst.player-bands.group.duos")
         waitForTag("fst.player-bands.empty")
@@ -218,16 +227,16 @@ class BandsUiTest {
         click("fst.player-bands.group.duos")
         waitForTag("fst.player-bands.empty")
         settle()
-        // The grid ends at its own bottom less the shell's bottom padding (the compact floating
-        // toolbar's room) and its 24 dp; the empty pager row adds one 12 dp item gap after the state.
-        val compact = exists("fst.nav.bar")
-        val shellBottom = if (compact) (FLOATING_TOOLBAR_HEIGHT_DP + 2 * FLOATING_TOOLBAR_MARGIN_DP).toFloat() else 0f
+        // The grid ends at its own bottom less the shell's bottom padding: Player Bands has no page
+        // tools, so only one standard gap above the bottom bar (issue #578); the empty pager row
+        // adds one 12 dp item gap after the state.
+        val shellBottom = BottomChromeSpacing.contentBottomDp(0f, 0f)
         rule.assertFillsAndCentres(
             "fst.player-bands.empty",
             above = rule.boundsOf("fst.player-bands.group-picker"),
             gapAbove = 12f,
             belowTop = rule.boundsOf("fst.player-bands.list").bottom,
-            gapBelow = 12f + 24f + shellBottom,
+            gapBelow = 12f + shellBottom,
             firstText = "No bands found",
             lastText = "No duos have been recorded for this player yet.",
             density = rule.density.density,
@@ -328,6 +337,41 @@ class BandsUiTest {
     }
 
     @Test
+    @Config(qualifiers = "w300dp-h800dp-xxhdpi")
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun bandStatTilesShareTheGridHeightAndSpanWholeSlots() {
+        // Pattern `stat-tile-grid` (#591): one height for every stat card; a card is one or
+        // two whole slots wide, and only the last row may leave slots empty.
+        launch(duoRoute)
+        waitForTag("fst.band.statistics-section")
+        settle(1_000)
+        val ids = listOf("rank", "songs-played", "full-combos", "total-score", "fc-rate", "avg-accuracy", "avg-stars", "best-rank", "avg-rank")
+        // Unclipped bounds: tiles below the viewport still have their laid-out size.
+        val tiles = ids.map { id ->
+            val node = rule.onNodeWithTag("fst.band.stat.$id").fetchSemanticsNode()
+            androidx.compose.ui.geometry.Rect(node.positionInRoot, node.size.toSize())
+        }
+        assertEquals("$tiles", 1, tiles.map { it.height }.distinct().size)
+        val left = tiles.minOf { it.left }
+        val right = tiles.maxOf { it.right }
+        val slot = tiles.minOf { it.width }
+        val gap = with(rule.density) { 8.dp.toPx() }
+        tiles.forEach { assertTrue("$it slot $slot", kotlin.math.abs(it.width - slot) < 2f || kotlin.math.abs(it.width - (slot * 2 + gap)) < 2f) }
+        val rows = tiles.groupBy { it.top }.toSortedMap()
+        rows.values.toList().dropLast(1).forEach { row -> assertEquals("$row", right - left, row.maxOf { it.right } - row.minOf { it.left }, 2f) }
+        // Web order is reading order.
+        assertEquals(tiles, tiles.sortedWith(compareBy({ it.top }, { it.left })))
+    }
+
+    @Test
+    fun bandDetailRankByWaitsForExperimentalRanks() {
+        launch(duoRoute, experimentalRanks = false)
+        waitForTag("fst.band.statistics-section")
+        assertFalse(exists("fst.band.rank-by"))
+        rule.onNodeWithTag("fst.band.stat.rank").assert(hasContentDescription("Total Score Rank", substring = true))
+    }
+
+    @Test
     fun bandMemberOpensPlayerAndStatLinksRankings() {
         launch(duoRoute)
         waitForTag("fst.band.member.${Fixtures.ACCOUNT_A}")
@@ -403,13 +447,30 @@ class BandsUiTest {
 
     @Test
     @Config(qualifiers = "w1280dp-h800dp-mdpi")
-    fun expandedBandDetailSplitsIntoPanes() {
+    fun expandedBandDetailPairsSectionsInRowsUnderAFullWidthHeader() {
         launch(duoRoute)
-        waitForTag("fst.band.pane.leading")
-        assertTrue(exists("fst.band.pane.trailing"))
+        waitForTag("fst.band.row.0.leading")
         waitForTag("fst.band.history-chart")
-        // Both panes show every section: no Quick Links.
-        assertTrue(!exists("fst.quick-links.open"))
+        waitForTag("fst.band.worst-songs")
+        fun box(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        // #584: one scrolling page whose rows keep both sections on one top edge, read in web order.
+        listOf(
+            Triple(0, "fst.band.members-section", "fst.band.summary-section"),
+            Triple(1, "fst.band.statistics-section", "fst.band.history-section"),
+            Triple(2, "fst.band.songs-section", "fst.band.worst-songs-section"),
+        ).forEach { (row, leading, trailing) ->
+            val lead = box("fst.band.row.$row.leading")
+            val trail = box("fst.band.row.$row.trailing")
+            assertEquals("row $row: sides start on one top edge", lead.top, trail.top, 0.5f)
+            assertTrue("row $row: $leading is not in the leading cell", box(leading).left >= lead.left && box(leading).right <= lead.right)
+            assertTrue("row $row: $trailing is not in the trailing cell", box(trailing).left >= trail.left && box(trailing).right <= trail.right)
+        }
+        // The header spans both panes; the rows sit beneath it.
+        val header = box("fst.band.header")
+        val row = box("fst.band.row.0")
+        assertEquals(row.width, header.width, 1f)
+        assertTrue(header.bottom <= row.top + 0.5f)
+        assertTrue(exists("fst.band.content"))
     }
 
     // endregion
@@ -603,6 +664,37 @@ class BandsUiTest {
         waitForTag("fst.song-band-leaderboard.row.band-47:47")
         rule.waitUntil(10_000) { settle(100); inView("fst.song-band-leaderboard.row.band-47:47") }
         assertEquals("Open band", clickLabel("fst.song-band-leaderboard.spotlight-footer"))
+    }
+
+    @Test
+    fun songBandLeaderboardGroupsThePageInOneCard() {
+        // Owner #543 (`leaderboard-row` R10): the page's bands share one card with hairlines
+        // between them, like the solo board, not a card per band; the selected band keeps its
+        // fill inside that card and the pinned band stays a separate floating row.
+        selectedDuoAt(2)
+        launch("songBandLeaderboard:s-alpha:Band_Duets", player)
+        waitForTag("fst.song-band-leaderboard.row.band-2:2")
+        waitForTag("fst.song-band-leaderboard.spotlight-footer")
+        settle()
+        assertEquals(1, rule.onAllNodesWithTag("fst.song-band-leaderboard.rows", useUnmergedTree = true).fetchSemanticsNodes().size)
+        val card = bounds("fst.song-band-leaderboard.rows")
+        val first = bounds("fst.song-band-leaderboard.row.band-1:1")
+        val second = bounds("fst.song-band-leaderboard.row.band-2:2")
+        val dp = rule.density.density
+        listOf(first, second).forEach { row ->
+            assertTrue("row $row inside the card $card", row.left >= card.left && row.right <= card.right && row.top >= card.top && row.bottom <= card.bottom)
+            assertTrue("row ${row.height / dp} dp tall (>= 48 dp)", row.height >= 48 * dp - 1)
+        }
+        // Only the 1 dp hairline separates neighbours (a card per row left an 8 dp gap).
+        assertTrue("gap ${(second.top - first.bottom) / dp} dp", second.top - first.bottom in 0f..(1.5f * dp))
+        // The selected band in the card is still one "Your band" button that opens the Band page.
+        rule.onNodeWithTag("fst.song-band-leaderboard.row.band-2:2")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+        assertTrue(rule.onNodeWithTag("fst.song-band-leaderboard.row.band-2:2").fetchSemanticsNode().config[SemanticsProperties.ContentDescription].joinToString().startsWith("Your band, Rank 2, "))
+        assertEquals("Open band", clickLabel("fst.song-band-leaderboard.row.band-2:2"))
+        // The pinned band floats outside the card, above the pager.
+        val footer = bounds("fst.song-band-leaderboard.spotlight-footer")
+        assertTrue("footer $footer below the list", footer.top >= bounds("fst.song-band-leaderboard.bottom-bar").top)
     }
 
     // endregion

@@ -13,7 +13,8 @@ namespace Festival.App.Controls;
 /// overview has at most twelve cards and Song Detail at most one per instrument and band size. With
 /// <see cref="MaxColumns"/> 1 and <see cref="MinColumnWidth"/> 0 it is a plain non-virtualizing stack, used for the
 /// top-ten rows inside cached pages' cards: a virtualizing <see cref="StackLayout"/> drops off-screen rows while the
-/// page is away and re-estimates their heights on Back, which moved the page (#276).
+/// page is away and re-estimates their heights on Back, which moved the page (#276). Player Profile stacks its instrument
+/// sections and band groups the same way: re-estimating them near the page end pulled the scroll back (#533).
 /// </summary>
 public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
 {

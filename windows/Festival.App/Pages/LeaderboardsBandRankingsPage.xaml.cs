@@ -58,6 +58,7 @@ public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
             "Loading band rankings");
         Bindings.Update();
         if (created) await ViewModel.LoadAsync();
+        else if (ViewModel.SyncExperimentalRanks() is { } reload) await reload; // Settings' Experimental Ranks changed.
     }
 
     /// <inheritdoc />

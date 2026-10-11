@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,7 +41,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -61,7 +62,13 @@ import com.festivalscoretracker.android.core.profile.RankHistoryChartModel
 import com.festivalscoretracker.android.core.profile.RankHistoryColors
 import com.festivalscoretracker.android.core.profile.RankHistoryPlot
 import com.festivalscoretracker.android.core.profile.RankHistoryWindow
+import com.festivalscoretracker.android.core.shell.ChartPage
+import com.festivalscoretracker.android.ui.common.rememberChartPageSlide
 import com.festivalscoretracker.android.ui.leaderboards.FrostedPagerButton
+import com.festivalscoretracker.android.ui.leaderboards.HistoryCell
+import com.festivalscoretracker.android.ui.leaderboards.HistoryColumnsRow
+import com.festivalscoretracker.android.ui.leaderboards.rememberHistoryColumns
+import com.festivalscoretracker.android.core.rankings.HistoryColumnPlan
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import kotlin.math.abs
 import com.festivalscoretracker.android.ui.common.ChartBandLabels
@@ -91,6 +98,9 @@ internal fun rgb(value: Int, alpha: Float = 1f): Color = Color(0xFF000000 or val
 fun RankHistoryChart(chart: RankHistoryChartModel, modifier: Modifier = Modifier) {
     var offset by rememberSaveable(chart.snapshots) { mutableStateOf(0) }
     var selected by rememberSaveable(chart.snapshots) { mutableStateOf<Int?>(null) }
+    // One rank and Total Score width over every snapshot, so the rows and any tapped bar line up (issue #594).
+    val texts = remember(chart) { chart.columnTexts() }
+    val columns = rememberHistoryColumns(texts, MaterialTheme.typography.bodyMedium, SNAPSHOT_GAP)
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Legend()
         BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -100,12 +110,12 @@ fun RankHistoryChart(chart: RankHistoryChartModel, modifier: Modifier = Modifier
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Plot(window, chart.totalAccounts, update)
                 if (window.needsPagination) Pager(window, update)
-                window.selectedPoint?.let { point -> Detail(point, chart.totalAccounts) }
+                window.selectedPoint?.let { point -> Detail(point, chart.totalAccounts, columns) }
             }
         }
         // Web `GraphCard` lists the newest snapshots under the chart without a heading.
         RankHistoryPlot.recent(chart.snapshots).forEachIndexed { index, point ->
-            SnapshotRow(point, chart.totalAccounts, best = index == 0, modifier = Modifier.testTag("fst.player.rank-history.row.${point.snapshotDate}"))
+            SnapshotRow(point, chart.totalAccounts, best = index == 0, columns, modifier = Modifier.testTag("fst.player.rank-history.row.${point.snapshotDate}"))
         }
     }
 }
@@ -136,6 +146,11 @@ private fun Legend() {
 @Composable
 private fun Plot(window: RankHistoryWindow, totalAccounts: Int, onChange: (RankHistoryWindow) -> Unit) {
     val plot = remember(window, totalAccounts) { RankHistoryPlot.build(window, totalAccounts) }
+    val slide = rememberChartPageSlide(
+        ChartPage(window.pageStart, window.visible.size, window.points.size),
+        RankHistoryPlot.valueTop(window).toFloat(),
+        key = window.points,
+    )
     val current by rememberUpdatedState(window)
     val change by rememberUpdatedState(onChange)
     var dragged by remember { mutableFloatStateOf(0f) }
@@ -176,30 +191,11 @@ private fun Plot(window: RankHistoryWindow, totalAccounts: Int, onChange: (RankH
                     val y = tick.y * size.height
                     drawLine(BrandTokens.glassBorder.copy(alpha = 0.3f), Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
                 }
-                plot.bars.forEach { bar ->
-                    val rect = ChartGeometry.bandBar(bar.bar, plot.bars.size, size.width, size.height, MAX_BAR_WIDTH.dp.toPx())
-                    drawRoundRect(
-                        rgb(bar.color, RankHistoryColors.BAR_ALPHA),
-                        topLeft = Offset(rect.left, rect.top),
-                        size = Size(rect.width, rect.height),
-                        cornerRadius = CornerRadius(4.dp.toPx()),
-                    )
-                    if (bar.selected) {
-                        drawRoundRect(
-                            BrandTokens.accentPurple,
-                            topLeft = Offset(rect.left, rect.top),
-                            size = Size(rect.width, rect.height),
-                            cornerRadius = CornerRadius(4.dp.toPx()),
-                            style = Stroke(width = 3.dp.toPx()),
-                        )
-                    }
-                }
-                val points = plot.line.map { ChartGeometry.point(it, size.width, size.height, 0f).let { p -> Offset(p.x, p.y) } }
-                val path = Path()
-                points.forEachIndexed { i, p -> if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y) }
-                val blue = rgb(RankHistoryColors.RANK_LINE)
-                drawPath(path, blue, style = Stroke(width = 2.dp.toPx()))
-                points.forEachIndexed { i, p -> drawCircle(blue, radius = (if (plot.line[i].highlight) 6 else 4).dp.toPx(), center = p) }
+                drawRankHistoryMarks(
+                    RankHistoryPlot.marks(window, totalAccounts, slide.start, slide.valueTop.toDouble()),
+                    bands = window.visible.size,
+                    maxBarWidth = MAX_BAR_WIDTH.dp.toPx(),
+                )
             }
             AxisColumn(plot.rankTicks, TextAlign.Start)
         }
@@ -210,7 +206,47 @@ private fun Plot(window: RankHistoryWindow, totalAccounts: Int, onChange: (RankH
             style = MaterialTheme.typography.labelSmall,
             color = BrandTokens.textMuted,
             modifier = Modifier.padding(vertical = 4.dp).testTag("fst.player.rank-history.dates"),
+            shift = { slide.labelShift },
         )
+    }
+}
+
+/**
+ * Draw a rank-history window's bars (selected bar outlined) and rank line, clipped to the
+ * plot's width so bars sliding in or out of a page (`load-transition` R12) stop at its edges.
+ * Shared by the Profile and Leaderboards rank-history charts.
+ *
+ * @param marks Bars and line ([RankHistoryPlot.marks]).
+ * @param bands Bars the plot shows at once.
+ * @param maxBarWidth Widest bar in pixels.
+ */
+internal fun DrawScope.drawRankHistoryMarks(marks: RankHistoryPlot.Marks, bands: Int, maxBarWidth: Float) {
+    // Clip sideways only: a #1 rank dot sits on the top edge and must stay whole.
+    clipRect(left = 0f, top = -size.height, right = size.width, bottom = size.height * 2) {
+        marks.bars.forEach { bar ->
+            val rect = ChartGeometry.bandBar(bar.bar, bands, size.width, size.height, maxBarWidth)
+            drawRoundRect(
+                rgb(bar.color, RankHistoryColors.BAR_ALPHA),
+                topLeft = Offset(rect.left, rect.top),
+                size = Size(rect.width, rect.height),
+                cornerRadius = CornerRadius(4.dp.toPx()),
+            )
+            if (bar.selected) {
+                drawRoundRect(
+                    BrandTokens.accentPurple,
+                    topLeft = Offset(rect.left, rect.top),
+                    size = Size(rect.width, rect.height),
+                    cornerRadius = CornerRadius(4.dp.toPx()),
+                    style = Stroke(width = 3.dp.toPx()),
+                )
+            }
+        }
+        val points = marks.line.map { ChartGeometry.point(it, size.width, size.height, 0f).let { p -> Offset(p.x, p.y) } }
+        val path = Path()
+        points.forEachIndexed { i, p -> if (i == 0) path.moveTo(p.x, p.y) else path.lineTo(p.x, p.y) }
+        val blue = rgb(RankHistoryColors.RANK_LINE)
+        drawPath(path, blue, style = Stroke(width = 2.dp.toPx()))
+        points.forEachIndexed { i, p -> drawCircle(blue, radius = (if (marks.line[i].highlight) 6 else 4).dp.toPx(), center = p) }
     }
 }
 
@@ -249,47 +285,49 @@ private fun PagerButton(icon: androidx.compose.ui.graphics.vector.ImageVector, l
     FrostedPagerButton(icon, label, tag, enabled, onClick)
 
 @Composable
-private fun Detail(point: PlayerRankHistorySnapshot, totalAccounts: Int) {
+private fun Detail(point: PlayerRankHistorySnapshot, totalAccounts: Int, columns: HistoryColumnPlan) {
     Surface(
         color = BrandTokens.accentPurple.copy(alpha = 0.25f),
         shape = RoundedCornerShape(10.dp),
         modifier = Modifier.fillMaxWidth().testTag("fst.player.rank-history.detail").semantics { liveRegion = LiveRegionMode.Polite },
     ) {
-        SnapshotContent(point, totalAccounts, bold = true)
+        SnapshotContent(point, totalAccounts, bold = true, columns, probeKey = "detail")
     }
 }
 
 @Composable
-private fun SnapshotRow(point: PlayerRankHistorySnapshot, totalAccounts: Int, best: Boolean, modifier: Modifier) {
+private fun SnapshotRow(point: PlayerRankHistorySnapshot, totalAccounts: Int, best: Boolean, columns: HistoryColumnPlan, modifier: Modifier) {
     Surface(
         color = if (best) BrandTokens.accentPurple.copy(alpha = 0.25f) else BrandTokens.surfaceSubtle.copy(alpha = 0.7f),
         shape = RoundedCornerShape(10.dp),
         modifier = modifier.fillMaxWidth(),
     ) {
-        SnapshotContent(point, totalAccounts, bold = best)
+        SnapshotContent(point, totalAccounts, bold = best, columns, probeKey = point.snapshotDate)
     }
 }
 
+/** Gap between a snapshot row's date, rank and Total Score. */
+private val SNAPSHOT_GAP = 16.dp
+
+/**
+ * A snapshot's date, rank and Total Score on the chart's shared columns (web
+ * `RankHistoryChart` fixed `tabular-nums` widths, issue #594).
+ */
 @Composable
-private fun SnapshotContent(point: PlayerRankHistorySnapshot, totalAccounts: Int, bold: Boolean) {
+private fun SnapshotContent(point: PlayerRankHistorySnapshot, totalAccounts: Int, bold: Boolean, columns: HistoryColumnPlan, probeKey: String) {
     val weight = if (bold) FontWeight.Bold else FontWeight.Normal
     val date = RankHistoryPlot.displayDate(point)
     val rank = ProfileFormatting.rank(point.totalScoreRank)
-    val score = point.totalScore?.let { ProfileFormatting.count(it) } ?: "—"
-    Row(
-        Modifier.heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 10.dp).clearAndSetSemantics { contentDescription = "$date: rank $rank, Total Score $score" },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Text(date, style = MaterialTheme.typography.bodyMedium, fontWeight = weight, color = BrandTokens.textPrimary, modifier = Modifier.weight(1f))
-        Text(
-            rank,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (bold) FontWeight.Bold else FontWeight.SemiBold,
-            color = rgb(RankHistoryColors.rank(point.totalScoreRank, point.rankedAccountCount ?: totalAccounts)),
-        )
-        Text(score, style = MaterialTheme.typography.bodyMedium, fontWeight = weight, color = BrandTokens.textPrimary)
-    }
+    val score = RankHistoryChartModel.snapshotValue(point)
+    HistoryColumnsRow(
+        plan = columns,
+        date = HistoryCell(date, BrandTokens.textPrimary, weight),
+        rank = HistoryCell(rank, rgb(RankHistoryColors.rank(point.totalScoreRank, point.rankedAccountCount ?: totalAccounts)), if (bold) FontWeight.Bold else FontWeight.SemiBold),
+        value = HistoryCell(score, BrandTokens.textPrimary, weight),
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp).clearAndSetSemantics { contentDescription = "$date: rank $rank, Total Score $score" },
+        probeKey = "player.$probeKey",
+    )
 }
 
 // endregion

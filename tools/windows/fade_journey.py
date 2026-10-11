@@ -8,11 +8,13 @@ through ``uiwin.py`` and judges the ``FadeIn`` lines each phase appended (``fade
 Scenario          What the trace must show
 ================  ======================================================================================================
 ``song-reveal``   Song Details: a scroll of the page rushes its entrance (header, sections, cards, the reloaded song's
-                  arm) with no pending fade keeping its delay. Invoking player 17's preview row opens the Lead board's first page with
-                  ``navToPlayer``: the pinned "your score" row enters with the board's rows, the reveal waits for row
-                  17's entrance (web ``navToPlayer``), rushes the board and only then scrolls; no row it realizes
+                  arm) with no pending fade keeping its delay, and its preview rows ride their card's fade rather than
+                  staggering inside it (issue #614). Invoking player 17's preview row opens the Lead board's first page with
+                  ``navToPlayer``: the pinned "your score" row enters with the board's rows as one fade, the reveal waits
+                  for that entrance (web ``navToPlayer``), rushes the board and only then scrolls; no row it realizes
                   staggers.
-``song-board``    Song leaderboard: the pinned row enters with the rows, and a scroll to the end rushes both.
+``song-board``    Song leaderboard: the board's rows and pinned row fade in as one card (issue #614), and a scroll to
+                  the end rushes both.
 ``band-board``    Song band leaderboard: the same, with the selected band's pinned row.
 ``full-rankings`` Full Rankings: the same, with the pinned footer.
 ``profile``       Statistics (Player Profile): a Quick Links jump during the overview entrance rushes its title,
@@ -57,7 +59,8 @@ SONG_DETAIL_PARTS = ("FullHeader", "IntensitySection", "HistorySection", "Leader
 PLAYER_ROW = "id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17"
 
 
-def board_rush(open_steps: list[str], list_id: str, owner: str, pinned: str) -> list[fade_trace.Phase]:
+def board_rush(open_steps: list[str], list_id: str, owner: str, pinned: str,
+               ready: str | None = None) -> list[fade_trace.Phase]:
     """The phase of a board scenario: open the board, then scroll to its end inside the entrance.
 
     The board opens inside the drive (not at launch), so the scroll follows its load even when the drive first waits
@@ -68,12 +71,18 @@ def board_rush(open_steps: list[str], list_id: str, owner: str, pinned: str) -> 
         list_id: The board list's AutomationId.
         owner: The trace name of the board's list (``RowsRepeater`` or ``Rows``).
         pinned: The trace name of its pinned "your score" row.
+        ready: A row selector to wait for before scrolling: a slow host shows the list before its rows are laid out,
+            when UI Automation cannot scroll it yet (issue #532).
 
     Returns:
-        One phase: the pinned row is enrolled in the board's entrance and the scroll rushes every pending fade.
+        One phase: the pinned row is enrolled in the board's entrance, the board's rows and pinned row start one fade
+        (issue #614) and the scroll rushes every pending fade.
     """
-    return [fade_trace.Phase("load-scroll", [*open_steps, f"waitfor:id={list_id}@30", f"scrollto:id={list_id},100"],
-                             lambda events: fade_trace.check_entrance_rush(events, owner, [pinned], FADE_WINDOW_MS))]
+    wait_rows = [f"waitfor:{ready}@30"] if ready else []
+    return [fade_trace.Phase("load-scroll", [*open_steps, f"waitfor:id={list_id}@30", *wait_rows,
+                                             f"scrollto:id={list_id},100"],
+                             lambda events: fade_trace.check_together(events, owner, [pinned])
+                             + fade_trace.check_entrance_rush(events, owner, [pinned], FADE_WINDOW_MS))]
 
 
 def from_song_detail(button: str) -> list[str]:
@@ -97,14 +106,16 @@ SCENARIOS = {
                                            "waitfor:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-1@30",
                                            "scrollto:id=fst.song-detail,100"],
                          lambda events: fade_trace.check_entrance_rush(events, "Scroller", SONG_DETAIL_PARTS,
-                                                                       FADE_WINDOW_MS)),
+                                                                       FADE_WINDOW_MS)
+                         + fade_trace.check_no_row_stagger(events, "PreviewRows")),
         fade_trace.Phase("score-to-row", [f"scrollinto:{PLAYER_ROW}@10", f"invoke:{PLAYER_ROW}","waitfor:id=fst.song-leaderboard.list@30",
                                           "waitfor:id=fst.song-leaderboard.row.fixture-player-17@15", "wait:3"],
-                         lambda events: fade_trace.check_reveal(events, "RowsRepeater", 16, ["SpotlightPanel"])),
+                         lambda events: fade_trace.check_together(events, "RowsRepeater", ["SpotlightPanel"])
+                         + fade_trace.check_reveal(events, "RowsRepeater", 16, ["SpotlightPanel"])),
     ]),
     "song-board": Scenario("/songs/fixture-pulse", DEEP, board_rush(
         from_song_detail("fst.song-detail.view-all.Solo_Guitar"), "fst.song-leaderboard.list", "RowsRepeater",
-        "SpotlightPanel")),
+        "SpotlightPanel", ready="id=fst.song-leaderboard.row.fixture-player-1")),
     "band-board": Scenario("/songs/fixture-pulse", TOP, board_rush(
         from_song_detail("fst.song-detail.band-view-all.Band_Duets"), "fst.song-band-leaderboard.list", "Rows",
         "SpotlightPanel")),

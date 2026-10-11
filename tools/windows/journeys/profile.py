@@ -293,14 +293,17 @@ JOURNEYS = [
     Journey(
         name="bands-scope",
         launch=["--tab", "songs", *ANONYMOUS],
+        # Issue #600: the Bands scope searches bands (no gate) and drops the player rows.
         steps=[["invoke:id=fst.shell.profile", "waitfor:id=fst.profile.scope.bands@5",
-                "select:id=fst.profile.scope.bands", "wait:1"]],
-        expect=[["Find Band", "Choosing a band as your profile isn"]],
-        forbid=[["fst.profile.retry"]],
+                "select:id=fst.profile.scope.bands", "setvalue:id=fst.profile.search|Fixture",
+                "waitfor:id=fst.profile.result.band@10"]],
+        expect=[["Search players or bands", "fst.profile.result.band"]],
+        forbid=[["fst.profile.retry", "fst.profile.result.fixture-player-1", "Choosing a band as your profile isn"]],
     ),
     # Inline Bands section (issue #312, .agents/pages/player-profile/windows.md): fixture-player-1 has 18 duos,
-    # 8 trios and 4 quads, so Duos and Trios show six cards and View All, Quads shows all four and no View All.
-    # Each phase fails on the old link-only profile (no group headers, cards or View All buttons).
+    # 8 trios and 4 quads, so Duos and Trios show six rows and View All, Quads shows all four and no View All.
+    # Each phase fails on the old link-only profile (no group headers, cards or View All buttons). Owner #596: each
+    # group is one card of separated rows (no gap between them) ending in the purple View All, and rows drop the pill.
     Journey(
         name="bands-section",
         launch=["--route", "/player/fixture-player-1", *ANONYMOUS],
@@ -308,12 +311,15 @@ JOURNEYS = [
         steps=[
             ["waitfor:id=fst.player.overview@15", "reveal:id=fst.player.bands@10",
              "reveal:id=fst.player.bands.header.duos@15", "reveal:id=fst.player-bands.row.fixture-band-1@5",
+             "reveal:id=fst.player-bands.row.fixture-pband-duo-2@5",
+             "assertgap:id=fst.player-bands.row.fixture-band-1|id=fst.player-bands.row.fixture-pband-duo-2|0",
+             "assertread:id=fst.player-bands.row.fixture-band-1|~^View band: (?!.*Duos).*\\. \\d+ appearances?, button",
              "reveal:id=fst.player.bands.view-all.duos@5", "assertname:id=fst.player.bands.view-all.duos|View All Bands (18), Duos",
+             "assertgap:id=fst.player-bands.row.fixture-pband-duo-6|id=fst.player.bands.view-all.duos|4",
              "reveal:id=fst.player.bands.header.trios@5", "reveal:id=fst.player.bands.view-all.trios@5",
              "assertname:id=fst.player.bands.view-all.trios|View All Bands (8), Trios",
-             # Frosted card, not the purple CTA (surface-materials R7): no brand-purple fill, and the white in-card
-             # chevron sits right of the centred label (label ends ~C47, chevron ~C59-64 at default text size).
-             "assertpaint:id=fst.player.bands.view-all.trios|L8,M0!=#7C3AED~48|C53,T10,C76,B10=#FFFFFF~64",
+             # The shared purple CTA inside the card (view-all-cta, owner-approved variant #596), not the frosted card.
+             "assertpaint:id=fst.player.bands.view-all.trios|L8,M0=#7C3AED~40",
              "reveal:id=fst.player.bands.header.quads@5", "reveal:id=fst.player-bands.row.fixture-pband-quad-4@5"],
             ["reveal:id=fst.player.bands.view-all.duos@10", "invoke:id=fst.player.bands.view-all.duos",
              "waitfor:id=fst.player-bands.title@10",
@@ -344,10 +350,17 @@ JOURNEYS = [
         preset="portrait-tablet",
         steps=[["waitfor:id=fst.player.overview@15", "reveal:id=fst.player.bands@10",
                 "reveal:id=fst.player.bands.empty.duos@15", "reveal:id=fst.player.bands.empty.trios@5",
-                "reveal:id=fst.player.bands.empty.quads@5"]],
+                "reveal:id=fst.player.bands.empty.quads@5"],
+               # #533: the page end stays reachable (virtualized sections used to pull 100% back to ~76%), and
+               # Narrator reads the groups heading-first, in size order.
+               ["scrollto:id=fst.player.available,100", "waitfor:id=fst.player.bands.empty.quads@5",
+                "assertorder:id=fst.player.bands|id=fst.player.bands.header.duos|id=fst.player.bands.empty.duos"
+                "|id=fst.player.bands.header.trios|id=fst.player.bands.empty.trios"
+                "|id=fst.player.bands.header.quads|id=fst.player.bands.empty.quads"]],
         expect=[["Fixture Player 2's Bands", "No Bands Yet", "Band lineups will appear here",
-                 "fst.player.bands.header.duos", "fst.player.bands.header.trios", "fst.player.bands.header.quads"]],
-        forbid=[["fst.player.bands.view-all.", "fst.player-bands.row.", "fst.player.bands.retry"]],
+                 "fst.player.bands.header.duos", "fst.player.bands.header.trios", "fst.player.bands.header.quads"],
+                ["No Bands Yet", "fst.player.bands.empty.quads"]],
+        forbid=[["fst.player.bands.view-all.", "fst.player-bands.row.", "fst.player.bands.retry"], []],
     ),
     # Every group read answers 500 once (rivals_fixture.py --player-bands fail-once): the section shows Retry while
     # the rest of the profile stays, and Retry loads the groups.

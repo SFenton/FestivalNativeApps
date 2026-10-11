@@ -23,6 +23,7 @@
 ## Behavior
 
 - Tapping a row marks it seen; a row with a destination also closes the sheet and pushes Song Detail (`SongDetailRoute`) or, for rank events, `FullRankingsRoute(instrument, rankBy)` (Leaderboards hub without an instrument). Live coalesced rank events carry no instrument, so routing falls back to the row's `instrument` (issue #136). Closing the sheet marks every loaded row seen.
+- Settings → Experimental Ranks ([experimental-ranks](../../patterns/experimental-ranks.md) R4, #541): while it is off, `NotificationRouting.projectExperimentalRanks` (web `projectExperimentalRankNotification`) hides rows whose rank events are all experimental and reduces a mixed coalesced row to its other events; the view model re-projects when the setting changes, and Mark All Read marks only the shown rows.
 - No-player state offers Select Player Profile (opens the profile sheet). Never sends selected-profile headers (the gate rejects them; the UI journey asserts it).
 - Debug: `FST_DEBUG_SHEET=notifications` opens the sheet at launch.
 
@@ -37,11 +38,11 @@ Emulator API 37, debug build, live public service (keyless `GET /api/player/{id}
 | Configuration | Result |
 |---|---|
 | FST_Phone portrait, font 1.0 and 2.0; system light and dark | OK: `NEW` rows with gold dots, chevrons only on navigable rows, flag pills. At 2.0 titles wrap (the marquee title wraps at large text), the message and pills grow and nothing clips; the list scrolls. Closing marks every row seen; reopening shows `OLDER` only. |
-| FST_Phone landscape, font 1.0 and 2.0 | OK; the sheet opens partially expanded and the drag handle expands it. |
+| FST_Phone landscape, font 1.0 and 2.0 | OK; the sheet opens fully expanded (`modal-shell` R13) and its list scrolls. |
 | FST_Phone navigation | Personal-best row → Song Detail (Night Terror, Drums); back; Karaoke weighted-rank row → **Karaoke full rankings** with SFentonX pinned (was the Leaderboards hub, fixed below). |
 | FST_Phone no profile (`FST_DEBUG_ANONYMOUS`) | OK: "Select a player profile…" with Select Player Profile; no feed request. |
 | FST_Phone reduced motion (animator scales 0) | The sheet opens and closes without animation; long titles end in an ellipsis instead of scrolling (`FestivalMarqueeText`). |
-| FST_Tablet landscape ⇄ portrait, font 1.0 and 2.0 | OK; centred sheet (640 dp max) opens partially expanded; rank row opens full rankings. |
+| FST_Tablet landscape ⇄ portrait, font 1.0 and 2.0 | OK; centred sheet (640 dp max) opens fully expanded (`modal-shell` R13); rank row opens full rankings. |
 | FST_Resizable phone / foldable / tablet / desktop, desktop font 2.0 | OK; bottom bar at compact, rail at medium and expanded, centred sheet. |
 | FST_Book_Fold folded / unfolded / half-open, half at font 2.0 | OK. Half-open: the sheet sits in the start pane beside the vertical hinge (`festivalSheetHingeSide`). Long titles stay on one line at 1.0 (marquee, or an ellipsis with animations off; TalkBack reads the full title) and wrap at 2.0. |
 | FST_Passport_Fold folded / unfolded / half-open, half at font 2.0 | OK; same hinge behaviour. |

@@ -9,7 +9,8 @@ namespace Festival.App.Controls;
 /// <summary>
 /// The header that sits above (outside) a card, as on the web (<c>InstrumentHeader</c> in a card's <c>cardLabel</c>):
 /// an optional 36 epx instrument icon, a white title (UIA heading) and an optional subtitle such as
-/// "12,345 total entries". Band-size headers (Duos/Trios/Quads) have no icon. The icon is decorative; the title
+/// "12,345 total entries". Band-size headers (Duos/Trios/Quads) have no icon. A combo board (issue #602) shows its
+/// instruments' icons in a row above the title instead (web <c>CompeteScopeHeader</c>). Icons are decorative; the title
 /// carries the name.
 /// </summary>
 public sealed partial class CardHeader : Grid
@@ -26,6 +27,10 @@ public sealed partial class CardHeader : Grid
     public static readonly DependencyProperty IconFileProperty = DependencyProperty.Register(
         nameof(IconFile), typeof(string), typeof(CardHeader), new PropertyMetadata(null, (d, _) => ((CardHeader)d).Update()));
 
+    /// <summary>A combo's icon files: two or more draw a row of icons above the title in place of <see cref="IconFile"/>.</summary>
+    public static readonly DependencyProperty IconFilesProperty = DependencyProperty.Register(
+        nameof(IconFiles), typeof(object), typeof(CardHeader), new PropertyMetadata(null, (d, _) => ((CardHeader)d).Update()));
+
     /// <summary>Automation ID of the title text.</summary>
     public static readonly DependencyProperty TitleAutomationIdProperty = DependencyProperty.Register(
         nameof(TitleAutomationId), typeof(string), typeof(CardHeader), new PropertyMetadata(null, (d, _) => ((CardHeader)d).Update()));
@@ -36,6 +41,7 @@ public sealed partial class CardHeader : Grid
         new PropertyMetadata(AutomationHeadingLevel.Level2, (d, _) => ((CardHeader)d).Update()));
 
     private readonly InstrumentIcon icon = new() { Width = 36, Height = 36, VerticalAlignment = VerticalAlignment.Center };
+    private readonly InstrumentIconRow iconRow = new() { Margin = new Thickness(0, 0, 0, 4) };
     private readonly MarqueeText title = new();
     private readonly MarqueeText subtitle = new();
 
@@ -51,6 +57,7 @@ public sealed partial class CardHeader : Grid
         title.TextStyle = (Style)Application.Current.Resources["FSTCardHeaderTitleStyle"];
         subtitle.TextStyle = (Style)Application.Current.Resources["FSTCardHeaderSubtitleStyle"];
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        text.Children.Add(iconRow);
         text.Children.Add(title);
         text.Children.Add(subtitle);
         SetColumn(text, 1);
@@ -80,6 +87,13 @@ public sealed partial class CardHeader : Grid
         set => SetValue(IconFileProperty, value);
     }
 
+    /// <summary>A combo's icon files (two or more replace the single icon with a row above the title).</summary>
+    public object? IconFiles
+    {
+        get => GetValue(IconFilesProperty);
+        set => SetValue(IconFilesProperty, value);
+    }
+
     /// <summary>Automation ID of the title text.</summary>
     public string? TitleAutomationId
     {
@@ -102,7 +116,9 @@ public sealed partial class CardHeader : Grid
         if (TitleAutomationId is { Length: > 0 } id) AutomationProperties.SetAutomationId(title, id);
         subtitle.Text = Subtitle ?? "";
         subtitle.Visibility = string.IsNullOrEmpty(Subtitle) ? Visibility.Collapsed : Visibility.Visible;
-        var hasIcon = !string.IsNullOrEmpty(IconFile);
+        var hasRow = IconFiles is IReadOnlyCollection<string> { Count: > 1 };
+        iconRow.Files = hasRow ? IconFiles : null;
+        var hasIcon = !hasRow && !string.IsNullOrEmpty(IconFile);
         icon.Visibility = hasIcon ? Visibility.Visible : Visibility.Collapsed;
         if (hasIcon)
         {

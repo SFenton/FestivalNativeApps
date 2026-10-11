@@ -127,6 +127,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 "close" => Close(request),
                 "sysset" => SysSet(request),
                 "scan" => Scan(FindWindow(request), (string)request["out"]!, (string?)request["scanid"] ?? "scan"),
+                "ellipsis" => Ellipsis((string)request["image"]!, request["rect"]?.AsArray()),
                 _ => throw new ArgumentException($"unknown command {command}"),
             };
         }
@@ -164,6 +165,27 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         foreach (var blocker in blockers) covered.Add(JsonValue.Create($"{blocker.Title} (pid {blocker.Pid})"));
         return new JsonObject { ["foreground"] = foreground, ["covered_by"] = covered };
     }
+
+    /// <summary>
+    /// Raises the target above overlapping windows before a motion assertion. The app pauses looping motion (marquees,
+    /// shimmers) while its window is covered (<c>OcclusionTracker</c>), so on a shared desktop another lane's window
+    /// would otherwise turn a moving check into a false "did not scroll" failure. Waits briefly after raising so the
+    /// app's occlusion poll resumes motion; throws (via <see cref="EnsureForeground"/>) when it stays covered.
+    /// </summary>
+    /// <param name="window">Target.</param>
+    private void UncoverForMotion(Window window)
+    {
+        if (postKeys) return; // a locked console cannot activate windows; nothing covers it there either
+        var hwnd = window.Properties.NativeWindowHandle.Value;
+        var above = Native.WindowsAbove(hwnd, window.Properties.ProcessId.Value);
+        if (above.Count == 0) return;
+        Log("motion check: window covered by " + string.Join(", ", above.Select(b => $"\"{b.Title}\"")) + "; raising it");
+        EnsureForeground(window);
+        Thread.Sleep(MotionResumeDelay);
+    }
+
+    /// <summary>Time for the app's occlusion poll to notice it is uncovered and resume motion.</summary>
+    private static readonly TimeSpan MotionResumeDelay = TimeSpan.FromMilliseconds(800);
 
     /// <summary>Minimizes visible, overlapping top-level windows of other processes with the target's name.</summary>
     /// <param name="hwnd">Target window.</param>
@@ -696,6 +718,14 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "scrollto":
                 var scroller = Find(window, step);
                 if (!scroller.Patterns.Scroll.IsSupported) throw new InvalidOperationException("scrollto target has no Scroll pattern");
+                // Content that fits (e.g. short What's New notes in a tall window, or a
+                // flyout list that scrolls only at large text sizes, issue #428) is already at every position, and UIA
+                // rejects SetScrollPercent on a non-scrollable axis with UIA_E_INVALIDOPERATION.
+                if (!scroller.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault)
+                {
+                    Log($"scrollto: {arg} is not vertically scrollable (content fits); nothing to scroll");
+                    break;
+                }
                 scroller.Patterns.Scroll.Pattern.SetScrollPercent(-1, (double)step["percent"]!);
                 break;
             case "reveal":
@@ -780,12 +810,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 Pin(window, step, verb == "pin");
                 break;
             case "assertmarquee":
+                UncoverForMotion(window);
                 AssertMarquee(window, step);
                 break;
             case "assertmarqueesync":
+                UncoverForMotion(window);
                 AssertMarqueeSync(window, step);
                 break;
             case "assertmotion":
+                UncoverForMotion(window);
                 AssertMotion(window, step);
                 break;
             case "listen":
@@ -828,13 +861,38 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertannouncedcount":
                 AssertAnnouncedCount(step);
                 break;
+            case "contrast":
+                // A live contrast-theme switch with the app open; a11y_matrix restores the previous theme.
+                SetHighContrast(arg);
+                break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
         }
         Thread.Sleep(150);
     }
 
-    private void Click(Window window, JsonObject step, MouseButton button) => Mouse.Click(ScreenPoint(window, step), button);
+    /// <summary>
+    /// Real mouse click at a step's selector. A window-relative <c>x,y</c> point (physical pixels, so DPI-dependent) must
+    /// land on the app's own window: on a 100% display a point chosen at 300% falls below the window onto the taskbar or
+    /// another lane's window (issue #531), so the click is refused instead. Prefer <c>clickat</c> (effective pixels).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with a selector.</param>
+    /// <param name="button">Mouse button.</param>
+    /// <exception cref="InvalidOperationException">An <c>x,y</c> point outside the app window or covered by another process.</exception>
+    private void Click(Window window, JsonObject step, MouseButton button)
+    {
+        var point = ScreenPoint(window, step);
+        if ((string)step["selector"]!["kind"]! == "xy")
+        {
+            var bounds = Native.VisibleBounds(window.Properties.NativeWindowHandle.Value);
+            if (!bounds.Contains(point))
+                throw new InvalidOperationException($"{(string)step["arg"]!}: the point {point} is outside the app window {bounds}; no input sent");
+            if (Native.ProcessAt(point) is var owner && owner != window.Properties.ProcessId.ValueOrDefault)
+                throw new InvalidOperationException($"{(string)step["arg"]!}: the point {point} is covered by process {owner}; no input sent");
+        }
+        Mouse.Click(point, button);
+    }
 
     /// <summary>
     /// Brings the target on screen without real input (works on a locked console): an existing target is scrolled into view
@@ -1067,8 +1125,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
     /// (<c>true</c>/<c>false</c>), SelectionItem <c>IsSelected</c> (<c>true</c>/<c>false</c>), rounded vertical scroll
-    /// percent (<c>scroll</c>), UIA heading level (<c>heading</c>: <c>1</c>–<c>9</c>, <c>0</c> for none) or name equals
-    /// the step's value.
+    /// percent (<c>scroll</c>), control type, Invoke support, keyboard focusability, value, UIA heading level
+    /// (<c>heading</c>: <c>1</c>–<c>9</c>, <c>0</c> for none) or name equals the step's value.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
@@ -1268,14 +1326,33 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var (condition, label) = Condition(step, key);
         var raw = IsRaw(step, key);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        var retried = false;
         while (true)
         {
-            var found = InView(raw, () => window.FindFirstDescendant(condition));
-            if (found is not null && (!onScreen || !found.Properties.IsOffscreen.ValueOrDefault)) return found;
+            try
+            {
+                var found = InView(raw, () => window.FindFirstDescendant(condition));
+                if (found is not null && (!onScreen || !found.Properties.IsOffscreen.ValueOrDefault)) return found;
+            }
+            // A busy app (e.g. restoring a page after Back on a slow runner) can time out one UIA call or drop an
+            // element mid-search; search again within the step's timeout, at least once (#552), and still fail if
+            // it persists.
+            catch (Exception error) when (IsTransientUia(error) && (!retried || DateTime.UtcNow <= until))
+            {
+                retried = true;
+                Thread.Sleep(200);
+                continue;
+            }
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"no on-screen element {label}");
             Thread.Sleep(200);
         }
     }
+
+    /// <summary>Whether a UI Automation error is a passing provider state worth searching again for.</summary>
+    /// <param name="error">The error a UIA call threw.</param>
+    /// <returns>True for a UIA call timeout (<c>UIA_E_TIMEOUT</c>, 0x80131505) or an element that went away.</returns>
+    internal static bool IsTransientUia(Exception error) =>
+        error is TimeoutException or FlaUI.Core.Exceptions.ElementNotAvailableException;
 
     /// <summary>
     /// Waits until the step's element is on screen with exactly the step's UIA Name; each <c>*</c> in the text matches
@@ -1609,7 +1686,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Real left-button mouse drag from the first element's left edge (16 epx in, vertically centred: a reorder row's grip)
     /// to the second element's centre plus <c>dy</c> epx, moved in small steps so a <c>ListView</c> starts its drag and
-    /// shows the insertion point (issue #372). Needs an unlocked console, and the app's own window must be the topmost
+    /// shows the insertion point (issue #372). Every move is a real <c>SendInput</c> event (<see cref="Native.MouseAt"/>):
+    /// FlaUI's <c>SetCursorPos</c> moves never started the WinUI drag on hosted CI runners (issue #531). The press first
+    /// crosses the drag threshold in 3 epx moves and pauses so the drag starts, then travels, settles with small moves
+    /// at the target and holds before releasing. Needs an unlocked console, and the app's own window must be the topmost
     /// window at both points. Results in <c>drags</c>; the following steps assert what moved.
     /// </summary>
     /// <param name="window">App window.</param>
@@ -1632,19 +1712,34 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 throw new InvalidOperationException($"{arg}: the point {point} is covered by process {owner}; no input sent");
         response["drags"] ??= new JsonArray();
         response["drags"]!.AsArray().Add(new JsonObject { ["arg"] = arg, ["from"] = $"{start.X},{start.Y}", ["to"] = $"{end.X},{end.Y}" });
-        Mouse.MoveTo(start);
+        Native.MouseAt(start);
         Thread.Sleep(150);
-        Mouse.Down(MouseButton.Left);
-        Thread.Sleep(200);
-        const int steps = 24;
+        Native.MouseAt(start, 0x0002);
+        Thread.Sleep(250);
+        // Cross the system drag threshold in small moves, then let ListView start its drag before travelling.
+        var direction = Math.Sign(end.Y - start.Y);
+        for (var i = 1; i <= 4; i++)
+        {
+            Native.MouseAt(new Point(start.X, start.Y + (int)Math.Round(direction * 3 * i * scale)));
+            Thread.Sleep(40);
+        }
+        Thread.Sleep(350);
+        var from = new Point(start.X, start.Y + (int)Math.Round(direction * 12 * scale));
+        const int steps = 30;
         for (var i = 1; i <= steps; i++)
         {
-            Mouse.MoveTo(new Point(start.X + (end.X - start.X) * i / steps, start.Y + (end.Y - start.Y) * i / steps));
-            Thread.Sleep(25);
+            Native.MouseAt(new Point(from.X + (end.X - from.X) * i / steps, from.Y + (end.Y - from.Y) * i / steps));
+            Thread.Sleep(30);
         }
-        Thread.Sleep(400);
-        Mouse.Up(MouseButton.Left);
-        Thread.Sleep(400);
+        // Small moves at the target keep the drag loop's insertion point fresh before the drop.
+        foreach (var jiggle in new[] { 2, -2, 1, -1, 0 })
+        {
+            Native.MouseAt(new Point(end.X, end.Y + (int)Math.Round(jiggle * scale)));
+            Thread.Sleep(60);
+        }
+        Thread.Sleep(500);
+        Native.MouseAt(end, 0x0004);
+        Thread.Sleep(500);
     }
 
     #endregion
@@ -1782,10 +1877,30 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     }
 
     /// <summary>
+    /// Offline <see cref="EndsInEllipsis"/> check of a saved capture (no window): lets tool tests replay a failing
+    /// <c>assertmarquee</c> line from a CI screenshot.
+    /// </summary>
+    /// <param name="image">PNG path.</param>
+    /// <param name="rect">Optional <c>[x, y, width, height]</c> crop in image pixels (the element's bounds).</param>
+    /// <returns><c>ellipsis</c> and, when false, <c>detail</c>.</returns>
+    private static JsonNode Ellipsis(string image, JsonArray? rect)
+    {
+        using var source = new Bitmap(image);
+        var bounds = rect is null
+            ? new Rectangle(0, 0, source.Width, source.Height)
+            : new Rectangle((int)rect[0]!, (int)rect[1]!, (int)rect[2]!, (int)rect[3]!);
+        using var line = source.Clone(bounds, PixelFormat.Format32bppArgb);
+        var ellipsis = EndsInEllipsis(line, out var detail);
+        return new JsonObject { ["ellipsis"] = ellipsis, ["detail"] = detail };
+    }
+
+    /// <summary>
     /// Whether one rendered text line ends in "…": ink is any pixel whose luminance differs from the line's most common
     /// (background) luminance by more than 40. In the last third of a line height before the rightmost ink column, an
     /// ellipsis leaves only a short band of ink (at most a quarter of the line height: dots on the baseline) split into at
-    /// least two separate dots; the last glyph of clipped text is taller or one connected stroke.
+    /// least two separate dots; the last glyph of clipped text is taller or one connected stroke. A dot is a run of columns
+    /// at least half as dark as the band's darkest column: at 100% scale a small line's dots are one pixel apart, and
+    /// anti-aliasing leaves faint ink between them (issue #529, the pinned artist on the hosted runner).
     /// </summary>
     /// <param name="line">Capture of the text line.</param>
     /// <param name="detail">Why it is not an ellipsis.</param>
@@ -1816,18 +1931,24 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             return false;
         }
         var span = Math.Max(3, (int)Math.Round(height / 3.0));
+        var left = Math.Max(0, right - span + 1);
+        var contrast = new int[right - left + 1];
         int top = height, bottom = -1, runs = 0;
-        var inRun = false;
-        for (var x = Math.Max(0, right - span + 1); x <= right; x++)
+        for (var x = left; x <= right; x++)
         {
-            var inked = false;
             for (var y = 0; y < height; y++)
             {
                 if (!Ink(x, y)) continue;
-                inked = true;
+                contrast[x - left] = Math.Max(contrast[x - left], Math.Abs(lum[x, y] - background));
                 top = Math.Min(top, y);
                 bottom = Math.Max(bottom, y);
             }
+        }
+        var dot = contrast.Max() / 2.0;
+        var inRun = false;
+        foreach (var column in contrast)
+        {
+            var inked = column > 0 && column >= dot;
             if (inked && !inRun) runs++;
             inRun = inked;
         }
@@ -2167,6 +2288,35 @@ internal static class Native
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MOUSEINPUT { public int dx, dy; public uint mouseData, dwFlags, time; public IntPtr dwExtraInfo; }
+
+    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
+
+    /// <summary>
+    /// Injects one absolute mouse event at a physical screen point (<c>SendInput</c> with
+    /// <c>MOUSEEVENTF_MOVE | ABSOLUTE | VIRTUALDESK</c> plus <paramref name="buttons"/>). Unlike <c>SetCursorPos</c>
+    /// (FlaUI's <c>Mouse.MoveTo</c>), this is real mouse input, so WinUI sees pointer moves and an OLE drag loop sees the
+    /// cursor move (issue #531).
+    /// </summary>
+    /// <param name="point">Physical screen point.</param>
+    /// <param name="buttons"><c>0</c> (move only), <c>0x0002</c> (left down) or <c>0x0004</c> (left up).</param>
+    /// <exception cref="InvalidOperationException"><c>SendInput</c> was blocked.</exception>
+    public static void MouseAt(System.Drawing.Point point, uint buttons = 0)
+    {
+        int left = GetSystemMetrics(76), top = GetSystemMetrics(77);
+        int width = Math.Max(2, GetSystemMetrics(78)), height = Math.Max(2, GetSystemMetrics(79));
+        var input = new INPUT
+        {
+            type = 0,
+            mi = new MOUSEINPUT
+            {
+                dx = (int)Math.Round((point.X - left) * 65535.0 / (width - 1)),
+                dy = (int)Math.Round((point.Y - top) * 65535.0 / (height - 1)),
+                dwFlags = 0x0001 | 0x8000 | 0x4000 | buttons,
+            },
+        };
+        if (SendInput(1, [input], Marshal.SizeOf<INPUT>()) != 1)
+            throw new InvalidOperationException($"SendInput blocked at {point.X},{point.Y} (error {Marshal.GetLastWin32Error()})");
+    }
 
     #endregion
 

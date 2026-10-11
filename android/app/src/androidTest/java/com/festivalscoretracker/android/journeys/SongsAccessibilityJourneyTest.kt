@@ -4,6 +4,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -16,12 +17,15 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.dp
 import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
+import com.festivalscoretracker.android.core.quicklinks.QuickLinks
+import kotlin.math.abs
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
@@ -170,8 +174,8 @@ class SongsAccessibilityJourneyTest {
     /**
      * Instrument status chips (issue #134): ATF over Songs rows with chips (each row one ≥48 dp
      * button whose description speaks every chart's status in service order; the chips are not
-     * separate stops), the chip group never across a separating hinge (`--posture half`), and the
-     * same on the selected row of the two-pane layout when the window shows one.
+     * separate stops) and the chip group never across a separating hinge (`--posture half`).
+     * Songs has no list/detail split (#581), so a tap pushes Song Detail.
      */
     @Test
     fun songsInstrumentStatusChipsReadAsOneRowSummary() {
@@ -187,12 +191,6 @@ class SongsAccessibilityJourneyTest {
         h.assertNothingStraddles("fst.songs.instrument-status.s-alpha", "fst.songs.instrument-status.s-beta", "fst.songs.instrument-status.s-gamma")
         h.tap("fst.songs.row.s-alpha")
         h.waitForTag("fst.song-detail.list")
-        val selected = rule.onAllNodesWithTag("fst.songs.row.s-alpha").fetchSemanticsNodes()
-            .any { it.config.getOrElseNullable(SemanticsProperties.Selected) { null } == true }
-        if (selected) {
-            h.readingOrder("songs-instrument-status-selected")
-            h.assertNothingStraddles("fst.songs.instrument-status.s-alpha")
-        }
         h.assertAccessible()
     }
 
@@ -227,8 +225,72 @@ class SongsAccessibilityJourneyTest {
     }
 
     /**
-     * Issue #169: switching Score History from Lead (two scores) to Bass (one) keeps the card's
+     * Issue #587: a Quick Links jump to Bass on Song Detail lands the Bass header row on the 32 dp line
+     * below the top bar (not its 12 dp top padding, which left dead space), the entry then names Bass,
+     * the header stays one heading, and TalkBack reads it first on the page. 100% text.
+     */
+    @Test
+    @DeviceCi
+    fun songDetailQuickLinksJumpLandsTheHeadingOnTheLine() = songDetailQuickLinksJourney(1f)
+
+    /** The same at 200% text: the chooser row stays a 48 dp target and the grown heading lands on the line. */
+    @Test
+    @DeviceCi
+    fun songDetailQuickLinksJumpAtDoubleTextLandsTheHeading() = songDetailQuickLinksJourney(2f)
+
+    private fun songDetailQuickLinksJourney(scale: Float) {
+        val config = "${scale}x"
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), transport, fontScale = { scale })
+        h.waitForTag("fst.song-detail.intensity")
+        h.publishTalkBackTree()
+        h.tap("fst.quick-links.open")
+        val sheet = QuickLinks.usesSheet(with(rule.density) { rule.activity.window.decorView.width.toDp().value.toInt() })
+        h.waitForTag(if (sheet) "fst.quick-links.sheet" else "fst.quick-links.menu")
+        val bass = "fst.quick-links.item.instrument-Solo_Bass"
+        if (sheet) {
+            // The long sheet opens fully expanded (modal-shell R13, #586); its lower rows are reached by scrolling the list.
+            h.scrollTo("fst.quick-links.list", bass)
+        } else {
+            rule.onNodeWithTag(bass).performScrollTo()
+        }
+        rule.waitForIdle()
+        rule.onNodeWithTag(bass).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Bass Leaderboard")))
+        h.assertTouchTarget("$config chooser", bass)
+        h.readingOrder("song-detail-quick-links-$config")
+        h.tap(bass)
+        h.waitGone(if (sheet) "fst.quick-links.sheet" else "fst.quick-links.menu")
+        rule.waitUntil(10_000) { entryLabel() == "Quick Links, current section Bass" }
+        rule.waitForIdle()
+
+        val heading = "fst.song-detail.heading.Solo_Bass"
+        val top = rule.onNodeWithTag(heading, useUnmergedTree = true).fetchSemanticsNode().layoutInfo.coordinates.positionInWindow().y
+        val line = rule.onNodeWithTag("fst.nav.top-bar", useUnmergedTree = true).fetchSemanticsNode().boundsInWindow.bottom +
+            with(rule.density) { QuickLinks.LANDING_OFFSET_DP.dp.toPx() }
+        val tolerance = with(rule.density) { QuickLinks.COMPLETE_THRESHOLD_DP.dp.toPx() }
+        assertTrue("$config: the Bass heading landed at $top px, not on the landing line $line px", abs(top - line) <= tolerance)
+        rule.onNodeWithTag(heading).assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading))
+        h.assertTouchTarget("$config entry", "fst.quick-links.open")
+
+        val order = h.readingOrder("song-detail-quick-links-jumped-$config", fresh = true)
+        // The entry sits in the shell's floating toolbar (#576), read after the page.
+        assertTrue("$config: the entry does not name Bass: $order", order.any { it.startsWith("Quick Links, current section Bass") })
+        val bassHeading = order.indexOfFirst { it == "Bass" || it.startsWith("Bass,") }
+        assertTrue("$config: the landed Bass heading is not read: $order", bassHeading >= 0)
+        val earlier = listOf("Song Intensity", "Intensity", "Score History", "Lead")
+        assertTrue("$config: a section above Bass is read before the landed heading: $order",
+            order.take(bassHeading).none { stop -> earlier.any { stop == it || stop.startsWith("$it,") } })
+        h.assertAccessible()
+    }
+
+    /** What TalkBack reads for the Quick Links entry. */
+    private fun entryLabel(): String? = rule.onAllNodesWithTag("fst.quick-links.open").fetchSemanticsNodes().firstOrNull()
+        ?.config?.getOrNull(SemanticsProperties.ContentDescription)?.joinToString(" ")
+
+    /**
+     * Issue #169: switching Score History from Lead (two scores) to Bass (one) keeps the graph's
      * size on the device, selects Bass, drops to one best-score row and stays accessible.
+     * Issue #588: the selector, chart and best scores are one card, read in that order.
      */
     @Test
     fun songDetailScoreHistorySwitchKeepsTheCardAndSelectsTheNewChart() {
@@ -236,18 +298,54 @@ class SongsAccessibilityJourneyTest {
         h.launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), transport)
         h.scrollTo("fst.song-detail.list", "fst.song-detail.history.card")
         h.waitForTag("fst.song-detail.history.top.1")
-        fun card() = rule.onNodeWithTag("fst.song-detail.history.card").fetchSemanticsNode().size
-        val before = card()
-        h.readingOrder("song-detail-history-lead")
+        fun graph() = rule.onNodeWithTag("fst.song-detail.history.graph").fetchSemanticsNode().size
+        fun inCard(tag: String) = rule.onAllNodes(hasTestTag(tag) and hasAnyAncestor(hasTestTag("fst.song-detail.history.card"))).fetchSemanticsNodes().size == 1
+        listOf("fst.song-detail.history.chart", "fst.song-detail.history.top.0", "fst.song-detail.history.top.1").forEach {
+            assertTrue("$it inside the Score History card", inCard(it))
+        }
+        val before = graph()
+        val stops = h.readingStops("song-detail-history-lead").mapNotNull { it.id }
+        val order = listOf("fst.song-detail.history.chart", "fst.song-detail.history.top.0", "fst.song-detail.history.top.1").map { stops.indexOf(it) }
+        assertTrue("chart, then the best scores: $order", order.all { it >= 0 } && order == order.sorted())
         val compact = h.exists("fst.song-detail.history.instrument.compact")
         h.tap(if (compact) "fst.song-detail.history.instrument.next" else "fst.song-detail.history.instrument.Solo_Bass")
         rule.waitUntil(5_000) { !h.exists("fst.song-detail.history.top.1") }
         rule.waitForIdle()
-        assertEquals("Score History card size after the switch", before, card())
+        assertEquals("Score History graph size after the switch", before, graph())
         val bass = if (compact) "fst.song-detail.history.instrument.preview" else "fst.song-detail.history.instrument.Solo_Bass"
         rule.onNodeWithTag(bass).assertIsSelected().assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Bass")))
         h.waitForTag("fst.song-detail.history.top.0")
         h.readingOrder("song-detail-history-bass")
+        h.assertAccessible()
+    }
+
+    /**
+     * Issue #588 review (`view-all-cta` R4): with more than five Lead scores, View All Scores ends
+     * the Score History card after the five best-score rows, TalkBack reads it after them as one
+     * button named label first ("View All Scores, Lead Score History"), at least 48 dp tall; ATF
+     * over the card.
+     */
+    @Test
+    fun songDetailScoreHistoryViewAllScoresReadsLabelFirstAfterTheRows() {
+        transport.on("/api/player/${Fixtures.ACCOUNT_A}/history") { ProfileFixtures.longHistory() }
+        h.enableAccessibilityChecks()
+        h.launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), transport)
+        h.scrollTo("fst.song-detail.list", "fst.song-detail.history.view-all")
+        h.waitForTag("fst.song-detail.history.top.4")
+        val cta = "fst.song-detail.history.view-all"
+        assertEquals(1, rule.onAllNodes(hasTestTag(cta) and hasAnyAncestor(hasTestTag("fst.song-detail.history.card"))).fetchSemanticsNodes().size)
+        assertTrue("five best scores only", !h.exists("fst.song-detail.history.top.5"))
+        rule.onNodeWithTag(cta).assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("View All Scores, Lead Score History")))
+        val min = with(rule.density) { 48.dp.toPx() } - 1
+        assertTrue(rule.onNodeWithTag(cta).fetchSemanticsNode().size.height >= min)
+        val stops = h.readingStops("song-detail-history-view-all")
+        val button = stops.indexOfFirst { it.id == cta }
+        assertTrue("View All Scores is a stop: ${stops.map { it.id to it.label }}", button >= 0)
+        assertEquals("View All Scores, Lead Score History", stops[button].label)
+        assertTrue(stops[button].isClickable)
+        val rows = (0 until 5).map { i -> stops.indexOfFirst { it.id == "fst.song-detail.history.top.$i" } }.filter { it >= 0 }
+        assertTrue("the last best score is read: $rows", stops.any { it.id == "fst.song-detail.history.top.4" })
+        assertTrue("rows in order, then View All Scores: $rows / $button", rows == rows.sorted() && rows.all { it < button })
         h.assertAccessible()
     }
 
@@ -286,8 +384,9 @@ class SongsAccessibilityJourneyTest {
     /**
      * Item Shop list rows are the Songs page's shared `SongRowCard` (issue #18; device backfill
      * #397). At 1.0× and again at 2.0× font scale, with ATF on every step: each row is one
-     * clickable stop that reads its title, artist line and New / Leaving Tomorrow badge and is
-     * never "selected"; its cart link is the next stop, a separate labelled button; rows read in
+     * clickable stop that reads its title, artist line and New / Leaving Tomorrow status and is
+     * never "selected" (New is spoken only; the row draws no New label, issue #562); its cart link
+     * is the next stop, a separate labelled button; rows read in
      * sort order; row and link are at least 48 × 48 dp and the title stays inside its row.
      */
     @Test
@@ -354,6 +453,14 @@ class SongsAccessibilityJourneyTest {
             val title = rule.onAllNodes(hasText(row.title) and hasAnyAncestor(hasTestTag(tag)), useUnmergedTree = true).fetchSemanticsNodes().single().boundsInWindow
             assertTrue("$screen: ${row.id} title $title inside row $box", title.left >= box.left - 1 && title.top >= box.top - 1 && title.bottom <= box.bottom + 1 && title.right <= box.right + 1)
             if (i == 0) firstTitleHeight = title.height
+            // Issue #562: New is spoken as the row's state but never drawn (web: gold outline only); Leaving Tomorrow stays visible.
+            if (row.badge == "New") {
+                assertTrue("$screen: ${row.id} draws no New label", rule.onAllNodesWithTag("fst.shop.badge.new.${row.id}", useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+                assertEquals("$screen: ${row.id} state", "New", node.config.getOrNull(SemanticsProperties.StateDescription))
+            } else if (row.badge != null) {
+                val pill = rule.onNodeWithTag("fst.shop.badge.leaving.${row.id}", useUnmergedTree = true).fetchSemanticsNode().size
+                assertTrue("$screen: ${row.id} shows its Leaving Tomorrow label", pill.width > 0 && pill.height > 0)
+            }
         }
         return firstTitleHeight
     }

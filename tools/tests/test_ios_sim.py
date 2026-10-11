@@ -34,7 +34,10 @@ from tools.ios_sim import (
     pose_presses,
     rank_device_windows,
     driver_build_stale,
+    existing_ci_device,
     output_paths,
+    pick_ci_runtime,
+    skip_problem,
     parse_steps,
     resolve_device,
     source_hash,
@@ -138,6 +141,100 @@ class ResolveDeviceTests(unittest.TestCase):
 
     def test_unknown_alias_passes_through_as_udid(self):
         self.assertEqual(resolve_device("SOME-OTHER-UDID"), "SOME-OTHER-UDID")
+
+
+class CiDeviceTests(unittest.TestCase):
+    """`ci-device` picks the newest iOS runtime for the iPhone and only runs in CI."""
+
+    RUNTIMES = [
+        {"platform": "iOS", "version": "26.5", "identifier": "ios-26-5", "isAvailable": True,
+         "supportedDeviceTypes": [{"name": "iPhone 17 Pro", "identifier": "dt.iphone-17-pro"}]},
+        {"platform": "iOS", "version": "27.1", "identifier": "ios-27-1", "isAvailable": True,
+         "supportedDeviceTypes": [{"name": "iPhone 17 Pro", "identifier": "dt.iphone-17-pro"},
+                                  {"name": "iPhone Duo", "identifier": "dt.duo"}]},
+        {"platform": "iOS", "version": "28.0", "identifier": "ios-28-0", "isAvailable": False,
+         "supportedDeviceTypes": [{"name": "iPhone 17 Pro", "identifier": "dt.iphone-17-pro"}]},
+        {"platform": "watchOS", "version": "30.0", "identifier": "watch-30", "isAvailable": True,
+         "supportedDeviceTypes": [{"name": "iPhone 17 Pro", "identifier": "dt.iphone-17-pro"}]},
+    ]
+
+    def test_newest_available_ios_runtime_wins(self):
+        self.assertEqual(pick_ci_runtime(self.RUNTIMES), ("ios-27-1", "dt.iphone-17-pro"))
+
+    def test_runtime_must_support_the_device_type(self):
+        self.assertEqual(pick_ci_runtime(self.RUNTIMES, "iPhone Duo"), ("ios-27-1", "dt.duo"))
+        with self.assertRaises(LookupError):
+            pick_ci_runtime(self.RUNTIMES, "iPad Pro")
+
+    def test_older_listing_without_platform_key_uses_the_name(self):
+        runtimes = [{"name": "iOS 26.5", "version": "26.5", "identifier": "ios-26-5",
+                     "supportedDeviceTypes": [{"name": "iPhone 17 Pro", "identifier": "dt"}]}]
+        self.assertEqual(pick_ci_runtime(runtimes), ("ios-26-5", "dt"))
+
+    def test_reuses_the_device_it_created(self):
+        devices = {"ios-27-1": [{"name": "Other", "udid": "A"}, {"name": ios_sim.CI_DEVICE_NAME, "udid": "B"}]}
+        self.assertEqual(existing_ci_device(devices, "ios-27-1"), "B")
+        self.assertIsNone(existing_ci_device(devices, "ios-26-5"))
+
+    def test_each_device_type_has_its_own_name(self):
+        self.assertEqual(ios_sim.ci_device_name(), ios_sim.CI_DEVICE_NAME)
+        ipad = ios_sim.ci_device_name(ios_sim.CI_IPAD_DEVICE_TYPE)
+        self.assertNotEqual(ipad, ios_sim.CI_DEVICE_NAME)
+        devices = {"ios-27-1": [{"name": ios_sim.CI_DEVICE_NAME, "udid": "PHONE"}]}
+        self.assertIsNone(existing_ci_device(devices, "ios-27-1", ipad))
+        devices["ios-27-1"].append({"name": ipad, "udid": "PAD"})
+        self.assertEqual(existing_ci_device(devices, "ios-27-1", ipad), "PAD")
+
+    def test_creates_the_ipad_beside_the_iphone(self):
+        import argparse
+        import contextlib
+        import io
+        import json
+        import os
+        import subprocess
+        from unittest import mock
+
+        runtimes = {"runtimes": [{"platform": "iOS", "version": "27.1", "identifier": "ios-27-1",
+                                  "supportedDeviceTypes": [{"name": ios_sim.CI_IPAD_DEVICE_TYPE, "identifier": "dt.ipad"}]}]}
+        devices = {"devices": {"ios-27-1": [{"name": ios_sim.CI_DEVICE_NAME, "udid": "PHONE"}]}}
+        replies = [json.dumps(runtimes), json.dumps(devices), "IPAD\n"]
+        calls = []
+
+        def run(cmd, **_):
+            calls.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, stdout=replies[len(calls) - 1])
+
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}), mock.patch.object(ios_sim, "_run", run), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(ios_sim.cmd_ci_device(argparse.Namespace(type=ios_sim.CI_IPAD_DEVICE_TYPE)), 0)
+        self.assertEqual(out.getvalue().strip(), "IPAD")
+        self.assertEqual(calls[-1][-4:], ["create", ios_sim.ci_device_name(ios_sim.CI_IPAD_DEVICE_TYPE), "dt.ipad", "ios-27-1"])
+
+    def test_refuses_outside_ci(self):
+        import argparse
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}), mock.patch.object(ios_sim, "_run") as run:
+            self.assertEqual(ios_sim.cmd_ci_device(argparse.Namespace(type=ios_sim.CI_DEVICE_TYPE)), 2)
+        run.assert_not_called()
+
+
+class FailOnSkipTests(unittest.TestCase):
+    """`uitest --fail-on-skip` fails a green batch that skipped or ran nothing."""
+
+    def test_all_passed_is_fine(self):
+        self.assertIsNone(skip_problem({"passedTests": 1, "skippedTests": 0, "failedTests": 0}))
+
+    def test_a_skip_fails(self):
+        self.assertIn("skipped", skip_problem({"passedTests": 2, "skippedTests": 1}))
+
+    def test_nothing_ran_fails(self):
+        self.assertEqual(skip_problem({"passedTests": 0, "skippedTests": 0}), "no test ran")
+
+    def test_unreadable_summary_fails(self):
+        self.assertIsNotNone(skip_problem(None))
 
 
 class SourceHashTests(unittest.TestCase):
@@ -452,6 +549,22 @@ class A11yCommandsTests(unittest.TestCase):
         self.assertEqual(enable[0][4:6], ["defaults", "write"])
         self.assertIn("EnhancedTextLegibilityEnabled", enable[0])
         self.assertEqual(restore[0][4:7], ["defaults", "delete", "com.apple.Accessibility"])
+
+    def test_full_keyboard_access_notifies_after_enabling_and_restoring(self):
+        enable, restore = a11y_commands("UDID", ["full-keyboard-access"])
+        self.assertIn("FullKeyboardAccessUsesSimulatedKeyboardForAutomation", enable[0])
+        self.assertIn("FullKeyboardAccessEnabled", enable[1])
+        self.assertEqual(enable[2][4:], ["notifyutil", "-p", "com.apple.accessibility.fullkeyboardaccess.status"])
+        self.assertEqual([cmd[4:6] for cmd in restore[:2]], [["defaults", "delete"]] * 2)
+        self.assertIn("FullKeyboardAccessEnabled", restore[0])
+        self.assertIn("FullKeyboardAccessUsesSimulatedKeyboardForAutomation", restore[1])
+        self.assertEqual(restore[2], enable[2])
+
+    def test_settings_restore_independently(self):
+        enable, restore = a11y_commands("UDID", ["bold-text", "full-keyboard-access"])
+        self.assertEqual(len(enable), 4)
+        self.assertIn("notifyutil", restore[2])
+        self.assertIn("EnhancedTextLegibilityEnabled", restore[3])
 
     def test_unknown_setting_is_rejected(self):
         with self.assertRaises(ValueError):

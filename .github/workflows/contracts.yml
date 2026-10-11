@@ -7,6 +7,10 @@ on:
     types: [opened, synchronize, reopened, edited]
 permissions:
   contents: read
+# A newer push (or description edit) supersedes a PR's older run; master runs are never cancelled.
+concurrency:
+  group: contracts-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   inventory:
     runs-on: ubuntu-latest

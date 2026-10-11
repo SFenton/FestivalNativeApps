@@ -306,7 +306,7 @@
       "medium"
     ],
     "ready": [
-      "waitfor:id=fst.leaderboards.card.Solo_Guitar.spotlight.unranked@20"
+      "waitfor:id=fst.leaderboards.card.0f.spotlight.unranked@20"
     ]
   },
   {
@@ -324,6 +324,7 @@
   {
     "name": "leaderboards-rank-by-menu",
     "route": "/leaderboards",
+    "settings": {"experimentalRanks": true},
     "sizes": [
       "compact",
       "medium"
@@ -765,27 +766,6 @@
     "tabs": 20
   },
   {
-    "name": "songs-filter-anonymous",
-    "tab": "songs",
-    "ready": [
-      "waitfor:id=fst.songs.row.fixture-pulse@20"
-    ],
-    "after_ready": [
-      "invoke:id=fst.songs.filter",
-      "waitfor:id=fst.songs.filter.reset@5",
-      "waitgone:id=fst.songs.filter.score.global",
-      "scrollinto:id=fst.songs.filter.double-bass@5",
-      "expand:id=fst.songs.filter.double-bass",
-      "scrollinto:id=fst.songs.filter.double-bass.unsupported@5",
-      "wait:0.5"
-    ],
-    "teardown": [
-      "key:esc",
-      "wait:0.5"
-    ],
-    "tabs": 10
-  },
-  {
     "name": "notifications-flyout",
     "tab": "songs",
     "profile": "fixture-player-1:Demo Player",
@@ -826,6 +806,7 @@
   {
     "name": "rank-by-menu",
     "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "settings": {"experimentalRanks": true},
     "sizes": [
       "medium"
     ],

@@ -29,8 +29,16 @@ struct SongSectionIndexScrubber: View {
     static let labelSpacing: CGFloat = 1
     /// Margin above and below the capsule, inside the strip's frame.
     static let outerPadding: CGFloat = 8
-    /// The label line height before the first label is measured (10 pt rounded).
+    /// The label line height before the first label is measured.
     static let defaultLabelHeight: CGFloat = 12
+    /// The capsule's width at the default text size; it widens with the labels.
+    static let baseWidth: CGFloat = 22
+    /// The largest text size the labels grow to (issue #388): Caption 2 at AX2 is 24 pt,
+    /// 218% of its 11 pt default, past HIG Accessibility's "Support enlargement up to
+    /// 200%", while the strip stays narrow enough (48 pt) to leave the rows their width
+    /// and keeps enough letters to stay useful (an uncapped AX5 strip would be 80 pt
+    /// wide and condense to a handful).
+    static let maxTypeSize = DynamicTypeSize.accessibility2
     /// What stands in for the labels a condensed strip skips.
     static let bullet = "•"
 
@@ -68,6 +76,7 @@ struct SongSectionIndexScrubber: View {
     let sections: [SongSection]
     let onSelect: (Int) -> Void
     @Environment(\.deviceLayout) private var deviceLayout
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var activeIndex: Int = 0
     @State private var isActive = false
     /// The section under the current touch; nil between touches, so every new touch
@@ -102,7 +111,13 @@ struct SongSectionIndexScrubber: View {
     private var entries: [Entry] {
         Self.entries(
             labels: sections.map(\.label),
-            capacity: Self.capacity(availableHeight: availableHeight, labelHeight: labelHeight)
+            capacity: Self.capacity(
+                availableHeight: Self.heightLimit(
+                    labelCount: sections.count, labelHeight: labelHeight,
+                    scale: Self.scale(for: dynamicTypeSize)
+                ).map { min($0, availableHeight ?? $0) } ?? availableHeight,
+                labelHeight: labelHeight
+            )
         )
     }
 
@@ -125,7 +140,7 @@ struct SongSectionIndexScrubber: View {
         VStack(spacing: Self.labelSpacing) {
             ForEach(Array(entries.enumerated()), id: \.offset) { row, entry in
                 Text(entry.label)
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .font(.caption2.weight(.semibold))
                     .frame(maxWidth: .infinity)
                     .foregroundStyle(
                         isActive && entry.sections.contains(activeIndex)
@@ -136,11 +151,15 @@ struct SongSectionIndexScrubber: View {
                     }
             }
         }
+        // Caption 2 grows with Dynamic Type up to `maxTypeSize` (issue #388: fixed 10 pt
+        // labels were audited "Dynamic Type font sizes are unsupported"); a strip too
+        // tall for the larger labels condenses (`entries`).
+        .dynamicTypeSize(...Self.maxTypeSize)
         .padding(.vertical, Self.labelInset)
         // Intrinsic size — as tall as its own letters, never the full list height.
         // The caller centers it in a region with a fixed top, so a collapsing large
         // title does not move it.
-        .frame(width: 22)
+        .frame(width: Self.width(for: dynamicTypeSize))
         .festivalCardCapsule()
         .contentShape(Rectangle())
         .background(
@@ -242,6 +261,51 @@ struct SongSectionIndexScrubber: View {
         let position = (y - inset) / span * CGFloat(entries.count) - CGFloat(row)
         let step = Int((min(1, max(0, position)) * CGFloat(sections.count)).rounded(.down))
         return sections.lowerBound + min(sections.count - 1, step)
+    }
+
+    /// How much the labels grow at a text size: iOS Caption 2's point size there over its
+    /// 11 pt default (HIG Typography, iOS Dynamic Type sizes), capped at ``maxTypeSize``.
+    /// macOS has no Dynamic Type, so it stays at 1 there.
+    ///
+    /// - Parameter size: The environment's Dynamic Type size.
+    /// - Returns: The scale factor, from 1 to 24 / 11.
+    nonisolated static func scale(for size: DynamicTypeSize) -> CGFloat {
+        let points: CGFloat
+        switch min(size, maxTypeSize) {
+        case .xSmall, .small, .medium, .large: points = 11
+        case .xLarge: points = 13
+        case .xxLarge: points = 15
+        case .xxxLarge: points = 17
+        case .accessibility1: points = 20
+        default: points = 24
+        }
+        return points / 11
+    }
+
+    /// The capsule's width at a text size, which the Songs list also keeps clear.
+    ///
+    /// - Parameter size: The environment's Dynamic Type size.
+    /// - Returns: ``baseWidth`` scaled like the labels, rounded to whole points.
+    nonisolated static func width(for size: DynamicTypeSize) -> CGFloat {
+        (baseWidth * scale(for: size)).rounded()
+    }
+
+    /// The tallest the strip grows at a larger text size: every label at the default
+    /// size (issue #388). Larger labels condense into that height instead of reaching up
+    /// beside the navigation bar's expanded search field, which a strip filling its
+    /// whole region overlapped at accessibility sizes.
+    ///
+    /// - Parameters:
+    ///   - labelCount: How many sections the strip indexes.
+    ///   - labelHeight: One label's measured line height at the current size.
+    ///   - scale: The labels' growth at the current size (``scale(for:)``).
+    /// - Returns: The strip's height limit, its outer padding included, or nil at the
+    ///   default size, where it only fits the offered height.
+    nonisolated static func heightLimit(labelCount: Int, labelHeight: CGFloat, scale: CGFloat) -> CGFloat? {
+        guard scale > 1, labelCount > 0, labelHeight.isFinite, labelHeight > 0 else { return nil }
+        let defaultLabel = labelHeight / scale
+        return 2 * outerPadding + 2 * labelInset
+            + CGFloat(labelCount) * (defaultLabel + labelSpacing) - labelSpacing
     }
 
     /// How many rows fit the height offered to the strip.

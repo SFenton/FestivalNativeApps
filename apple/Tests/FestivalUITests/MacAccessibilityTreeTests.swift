@@ -22,6 +22,8 @@ struct MacAXNode: CustomStringConvertible {
     /// `isAccessibilityElement`: false for containers and for elements assistive
     /// technologies skip (SwiftUI's `accessibilityHidden`).
     let isElement: Bool
+    /// `isAccessibilityEnabled`: false for a disabled control VoiceOver reads as dimmed.
+    var isEnabled = true
 
     /// The name VoiceOver speaks first: label, else title, else value.
     var spokenName: String { [label, title, value].first { !$0.isEmpty } ?? "" }
@@ -30,14 +32,23 @@ struct MacAXNode: CustomStringConvertible {
         "\(String(repeating: " ", count: depth))\(role)\(subrole.isEmpty ? "" : "/\(subrole)")"
             + " '\(spokenName)'" + (!value.isEmpty && value != spokenName ? " = '\(value)'" : "")
             + (identifier.isEmpty ? "" : " #\(identifier)") + (selected ? " [selected]" : "")
-            + (isElement ? "" : " (not element)")
+            + (isEnabled ? "" : " [disabled]") + (isElement ? "" : " (not element)")
     }
 }
 
 /// Walk the accessibility tree of a hosted view (accessibility children and AppKit
 /// subviews), recording role, names, identifier and selection for each element.
+///
+/// - Parameters:
+///   - root: The hosted view to walk.
+///   - navigationOrder: Visit children in `accessibilityChildrenInNavigationOrder`, the
+///     order VoiceOver reads (SwiftUI applies `accessibilitySortPriority` there), rather
+///     than `accessibilityChildren` order. Raw children keep view order inside a `.contain`
+///     container, so an overlay (the Songs section bar) lists after the List it is read
+///     before (#388).
+/// - Returns: The visited nodes, depth first.
 @MainActor
-func macAccessibilityTree(_ root: NSView) -> [MacAXNode] {
+func macAccessibilityTree(_ root: NSView, navigationOrder: Bool = false) -> [MacAXNode] {
     var nodes: [MacAXNode] = []
     var seen = Set<ObjectIdentifier>()
     func read(_ object: NSObject, _ key: String) -> Any? {
@@ -62,10 +73,12 @@ func macAccessibilityTree(_ root: NSView) -> [MacAXNode] {
                 label: string(object, "accessibilityLabel"), title: string(object, "accessibilityTitle"),
                 value: string(object, "accessibilityValue"), identifier: string(object, "accessibilityIdentifier"),
                 selected: (read(object, "isAccessibilitySelected") as? Bool) ?? false,
-                help: string(object, "accessibilityHelp"), isElement: isElement
+                help: string(object, "accessibilityHelp"), isElement: isElement,
+                isEnabled: (read(object, "isAccessibilityEnabled") as? Bool) ?? true
             ))
         }
-        for child in (read(object, "accessibilityChildren") as? [Any]) ?? [] {
+        let ordered = navigationOrder ? read(object, "accessibilityChildrenInNavigationOrder") as? [Any] : nil
+        for child in ordered ?? (read(object, "accessibilityChildren") as? [Any]) ?? [] {
             walk(child, depth: depth + 1)
         }
         if let view = object as? NSView {

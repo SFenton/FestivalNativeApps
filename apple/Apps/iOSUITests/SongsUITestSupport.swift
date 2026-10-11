@@ -10,6 +10,14 @@ import XCTest
 /// `extension XCTestCase`) so it cannot collide with another lane's identically named helper
 /// when both are extracted from the same monolith in parallel.
 enum SongsUITestSupport {
+    /// Loopback `tools/mock_service.py` origin for the default fixture.
+    ///
+    /// `apple-ci` and a manual run use `mock_service.py`'s default port; a lane whose port
+    /// 8765 is taken serves its own mock and passes it as `TEST_RUNNER_FST_FIXTURE_URL`.
+    static var fixtureURL: String {
+        ProcessInfo.processInfo.environment["FST_FIXTURE_URL"] ?? "http://127.0.0.1:8765"
+    }
+
     /// Start each fixture journey without a previously selected app profile.
     ///
     /// - Returns: Native app launcher that clears only the Debug selected-identity key.
@@ -19,6 +27,29 @@ enum SongsUITestSupport {
             "FST_UI_TEST_CLEAR_PROFILE": "1",
             "FST_UI_TEST_RESET_SONG_CARDS": "1",
         ])
+    }
+
+    /// Whether a snapshot node is a Songs row (`fst.songs.row.<song id>`), for
+    /// ``FestivalApp/snapshotNodes(in:where:)``.
+    ///
+    /// - Parameter node: A snapshot node.
+    /// - Returns: `true` for a Songs row button.
+    static func isSongsRow(_ node: XCUIElementSnapshot) -> Bool {
+        node.elementType == .button && node.identifier.hasPrefix("fst.songs.row.")
+    }
+
+    /// The first Songs rows of one snapshot, each bound to its identifier rather than its
+    /// index, so tapping or measuring it later reaches that row even after the lazy list
+    /// recycles cells (#572).
+    ///
+    /// - Parameters:
+    ///   - app: Songs.
+    ///   - limit: How many rows to return, in list order.
+    /// - Returns: Up to `limit` rows; empty when the snapshot fails.
+    @MainActor
+    static func songsRows(in app: XCUIApplication, limit: Int) -> [XCUIElement] {
+        let nodes = (try? FestivalApp.snapshotNodes(in: app, where: isSongsRow)) ?? []
+        return nodes.prefix(limit).map { app.buttons[$0.identifier] }
     }
     /// Choose the source's icons-off variant for tests of numeric score metadata.
     ///
@@ -87,7 +118,7 @@ enum SongsUITestSupport {
         let action = app.buttons["fst.shell.profile"]
         XCTAssertTrue(action.waitForExistence(timeout: 10))
         action.tap()
-        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Search players or bands")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText(query + "\n")
@@ -592,6 +623,22 @@ enum SongsUITestSupport {
         guard issue.auditType == .contrast, let element = issue.element else { return false }
         return element.elementType == .searchField
             || issue.compactDescription.contains("UISearchBarTextField")
+    }
+
+    /// Whether an accessibility-audit issue is the system search field's own clear button
+    /// hit region (issue #600).
+    ///
+    /// A `.searchable` field with text shows UIKit's `_UITextFieldClearButton`, which the
+    /// audit reports as smaller than 44 pt. It is system chrome the app cannot size, so
+    /// only that issue is accepted alongside `isSystemSearchPlaceholderContrast(_:)`.
+    ///
+    /// - Parameter issue: Issue reported by `performAccessibilityAudit`.
+    /// - Returns: True to ignore the issue.
+    @MainActor
+    static func isSystemSearchIssue(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
+        if isSystemSearchPlaceholderContrast(issue) { return true }
+        return issue.auditType == .hitRegion
+            && (issue.detailedDescription + issue.compactDescription).contains("_UITextFieldClearButton")
     }
 
     /// The Songs list's pinned `.searchable` field, ready to type into.

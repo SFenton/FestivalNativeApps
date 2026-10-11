@@ -1,6 +1,7 @@
 package com.festivalscoretracker.android.ui.bands
 
 import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
+import com.festivalscoretracker.android.ui.common.isSplitPaneRoot
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.leaderboards.awaitSelectedRowEntrance
 import androidx.compose.foundation.BorderStroke
@@ -20,6 +21,11 @@ import com.festivalscoretracker.android.core.rankings.label
 import com.festivalscoretracker.android.core.shell.LoadSwapPhase
 import com.festivalscoretracker.android.ui.leaderboards.AnchoredFooter
 import com.festivalscoretracker.android.ui.leaderboards.AnchoredRowCard
+import com.festivalscoretracker.android.ui.songdetail.RowSeparator
+import com.festivalscoretracker.android.ui.leaderboards.SelectedRowAnchor
+import com.festivalscoretracker.android.ui.common.BOARD_CARD_INDEX
+import com.festivalscoretracker.android.ui.songdetail.selectedRowHighlight
+import androidx.compose.foundation.clickable
 import com.festivalscoretracker.android.ui.leaderboards.LeaderboardSectionMember
 import com.festivalscoretracker.android.ui.leaderboards.RankingsBoardLayout
 import com.festivalscoretracker.android.ui.leaderboards.RankingsPager
@@ -45,8 +51,6 @@ import androidx.compose.ui.layout.positionInWindow
 import com.festivalscoretracker.android.core.bands.BandLayout
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.starsDescription
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -61,7 +65,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -70,14 +73,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.onClick as onClickAction
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -111,7 +111,6 @@ import com.festivalscoretracker.android.core.nav.BandRoute
 import com.festivalscoretracker.android.presentation.BackgroundController
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.bands.SongBandLeaderboardViewModel
-import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.fillEmptyRegion
 import com.festivalscoretracker.android.ui.common.rememberEmptyRegion
@@ -120,7 +119,6 @@ import com.festivalscoretracker.android.ui.common.loadSwapSpinnerItem
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.design.AccuracyPill
 import com.festivalscoretracker.android.ui.design.GlassCard
-import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -180,6 +178,7 @@ fun SongBandLeaderboardScreen(
         SelectedRowAction.footer(it.rank, visible, page, BandPaging.PAGE_SIZE)
     }
     var revealPending by rememberSaveable { mutableStateOf(revealSelected) }
+    val anchor = remember { SelectedRowAnchor() }
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
     // The page's fade window, here so the reveal can rush the rows its scroll reaches (load-transition R5).
     val fadeIn = rememberPageFadeInWindow()
@@ -196,26 +195,29 @@ fun SongBandLeaderboardScreen(
     // Opened (or jumped) to the band's page: centre its highlighted row once it shows.
     LaunchedEffect(revealPending, pageShown, shown) {
         if (!revealPending || !pageShown) return@LaunchedEffect
-        // Like the web's navToBand: scroll once the row's own entrance has finished (issue #323).
-        if (selectedIndex >= 0 && awaitSelectedRowEntrance(fadeIn, fadeInStagger(selectedIndex), reduceMotion)) {
+        // Like the web's navToBand: scroll once the row's own entrance has finished (issue #323);
+        // the row enters with the board's card (load-transition R11, #614).
+        if (selectedIndex >= 0 && awaitSelectedRowEntrance(fadeIn, fadeInStagger(BOARD_CARD_INDEX), reduceMotion)) {
             withFrameNanos { }
+            val bounds = anchor.bounds()
             // Single pane: the header and size switcher are the list's first item.
-            val index = selectedIndex + if (twoPane) 0 else 1
-            listState.revealSelectedRow(shown!!.entries[selectedIndex].key, index, animate = !reduceMotion)
+            if (bounds != null) listState.revealSelectedRow(BAND_ROWS_KEY, if (twoPane) 0 else 1, bounds.first, bounds.second, animate = !reduceMotion)
         }
         revealPending = false
         onRevealed()
     }
 
     // Like the solo board (pattern `song-leaderboard-header` R3, issue #317): the song header and band size
-    // scroll with the rows and the top bar takes the song title once they have scrolled away.
-    // Across a hinge the header stays in the leading pane, so the bar stays empty.
+    // scroll with the rows and the top bar takes the song title, over the band size (no icon, issue #580),
+    // once they have scrolled away. Across a hinge the header stays in the leading pane, so the bar stays empty.
+    // Beside Song Detail in a split there is no song header and the bar takes the band size (#342, Android #583).
+    val besideList = isSplitPaneRoot()
     val headerGone by remember(listState) { derivedStateOf { !twoPane && listState.firstVisibleItemIndex > 0 } }
     FestivalScreen(
-        title = if (headerGone) song?.title.orEmpty() else "",
+        title = if (!headerGone) "" else if (besideList) type.label else song?.title.orEmpty(),
         isRoot = false,
         scrolled = headerGone,
-        marqueeTitle = true,
+        subtitle = if (besideList) null else type.label,
         modifier = Modifier.testTag("fst.song-band-leaderboard.screen"),
         fadeInWindow = fadeIn,
     ) { padding ->
@@ -230,7 +232,7 @@ fun SongBandLeaderboardScreen(
                 controls = {
                     // The solo board's header, with the band size where the instrument goes (web `SongInfoHeader`;
                     // its `onTitleClick` opens Song Detail, issue #315).
-                    song?.let {
+                    song?.takeUnless { besideList }?.let {
                         SongHeader(
                             it,
                             artworkUrl(it.albumArt),
@@ -273,11 +275,8 @@ fun SongBandLeaderboardScreen(
                         }
                     }
                 },
-                // Hidden for a single page (7.4), as before.
-                pager = {
-                    val pageCount = shown?.pageCount(BandPaging.PAGE_SIZE) ?: 1
-                    if (pageCount > 1) RankingsPager(page, pageCount, "fst.song-band-leaderboard", viewModel::goTo)
-                },
+                // Hidden until the band size's page count loads and for a single page (load-transition R4, #575).
+                pager = { RankingsPager(page, shown?.pageCount(BandPaging.PAGE_SIZE), "fst.song-band-leaderboard", viewModel::goTo) },
             ) {
                 val state = swap.shown
                 if (swap.showsSpinner || state is LoadState.Loading) {
@@ -309,10 +308,22 @@ fun SongBandLeaderboardScreen(
                             }
                         }
                         val selected = response.selectedPlayerEntry
-                        itemsIndexed(response.entries, key = { _, entry -> entry.key }) { index, entry ->
-                            Box(with(swap) { Modifier.staggered(index) }) {
-                                // The selected player's band keeps the purple treatment in place and opens the Band page.
-                                BandScoreRow(entry, song, selected = selected?.sameBand(entry) == true, columns = rowColumns) { onNavigate(entry.bandRoute()) }
+                        // One card for the page's bands with hairlines between them, like the solo
+                        // board (owner #543, `leaderboard-row` R10); padded like the pinned row's card
+                        // so the ranks line up (R1). It fades in as one with all its rows, never row by
+                        // row (load-transition R11, owner #614).
+                        if (response.entries.isNotEmpty()) item(key = BAND_ROWS_KEY) {
+                            GlassCard(anchor.item.fillMaxWidth().then(with(swap) { Modifier.card() }).testTag("fst.song-band-leaderboard.rows")) {
+                                Column(Modifier.padding(horizontal = ANCHORED_ROW_CARD_PADDING, vertical = 6.dp)) {
+                                    response.entries.forEachIndexed { index, entry ->
+                                        val isSelected = selected?.sameBand(entry) == true
+                                        Column(if (isSelected) anchor.row else Modifier) {
+                                            if (index > 0) RowSeparator()
+                                            // The selected player's band keeps the purple treatment in place and opens the Band page.
+                                            BandScoreRow(entry, song, selected = isSelected, columns = rowColumns) { onNavigate(entry.bandRoute()) }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -330,7 +341,7 @@ fun SongBandLeaderboardScreen(
 private fun SongBandLeaderboardEntry.bandRoute(): BandRoute = BandRoute(bandId.ifEmpty { teamKey }, membersLabel, bandType, teamKey)
 
 /**
- * The page's single column on the shared [RankingsBoardLayout] (cards scroll under the pinned
+ * The page's single column on the shared [RankingsBoardLayout] (the rows card scrolls under the pinned
  * band footer and pager, fading above them), or — across a separating vertical hinge
  * (half-open book or passport fold) — the song header, size switcher, footer and pager on
  * the leading side and the score rows on the trailing side, so no card or segment straddles
@@ -355,7 +366,7 @@ internal fun SongBandLeaderboardLayout(
     rows: LazyListScope.() -> Unit,
 ) {
     val top = padding.calculateTopPadding()
-    val bottom = padding.calculateBottomPadding() + 24.dp
+    val bottom = padding.calculateBottomPadding()
     val leading = split.leadingWidth
     if (split.twoPane && leading != null) {
         Row(Modifier.fillMaxSize()) {
@@ -389,7 +400,7 @@ internal fun SongBandLeaderboardLayout(
                 controls = { controls() },
                 footer = footer,
                 pager = pager,
-                // Cards fade out above the pinned band and pager, like the solo board (issue #93).
+                // The rows card fades out above the pinned band and pager, like the solo board (issue #93).
                 fadeAboveFooter = true,
                 itemGap = 8.dp,
                 rows = rows,
@@ -404,9 +415,11 @@ internal fun SongBandLeaderboardLayout(
 
 /**
  * One band score: rank, members with instruments and per-member scores, team
- * score, FC badge, accuracy and stars. The whole card opens Band Detail. Shared with
- * Song Detail's band previews, where the selected player's band gets the web
- * `selectedCard` purple treatment.
+ * score, FC badge, accuracy and stars. The whole row opens Band Detail. A grouped row
+ * with no card of its own: the song band board and Song Detail's band previews put a
+ * section's rows into one [GlassCard] with separators, like the solo rows (owner #543,
+ * `leaderboard-row` R10). The selected player's band takes the solo rows' purple
+ * treatment ([selectedRowHighlight]).
  *
  * @param entry Wire row.
  * @param song Song, for keyboard-variant icons.
@@ -431,30 +444,27 @@ internal fun BandScoreRow(
     val keyboard = song?.sig == "Keyboard"
     val announcement = bandScoreAnnouncement(entry, selected)
     val probe = LocalColumnProbe.current
-    GlassCard(
+    Box(
         Modifier
             .fillMaxWidth()
+            .selectedRowHighlight(selected)
+            .clickable(role = Role.Button, onClickLabel = actionLabel, onClick = onClick)
             .testTag(tag)
-            .semantics(mergeDescendants = true) {
-                contentDescription = announcement
-                role = Role.Button
-                onClickAction(label = actionLabel) { onClick(); true }
-            },
-        onClick = onClick,
-        accent = if (selected) BrandTokens.purpleHighlightBorder else null,
+            .semantics(mergeDescendants = true) { contentDescription = announcement },
     ) {
-        // Narrow cards (phones, one side of a hinge) move the team score under the members
+        // Narrow rows (phones, one side of a hinge) move the team score under the members
         // (web `scoreFooter`), so member names keep their width.
-        // The card's description is the whole announcement; the texts inside add nothing for TalkBack.
+        // The row's description is the whole announcement; the texts inside add nothing for TalkBack.
         BoxWithConstraints(
             Modifier
-                .background(if (selected) BrandTokens.purpleHighlight else Color.Transparent)
-                .padding(start = columns.rankStart, top = BAND_ROW_PADDING, end = BAND_ROW_PADDING, bottom = BAND_ROW_PADDING)
+                .padding(horizontal = SCORE_ROW_PADDING, vertical = BAND_ROW_PADDING)
                 .clearAndSetSemantics { },
         ) {
+            // The whole card's width: these insets plus the card's own padding on each side.
+            val cardWidth = maxWidth + (SCORE_ROW_PADDING + SELECTED_HIGHLIGHT_INSET + columns.cardPadding) * 2
             val stacked = maxWidth < BAND_ROW_STACK_WIDTH
             // Without a pinned row to follow, the gap is the one a footer row of this card's width would use.
-            val gap = columns.gap ?: LeaderboardColumnLayout.gapFor((maxWidth + columns.rankStart + BAND_ROW_PADDING - ANCHORED_ROW_CARD_PADDING * 2).value).dp
+            val gap = columns.gap ?: LeaderboardColumnLayout.gapFor((cardWidth - ANCHORED_ROW_CARD_PADDING * 2).value).dp
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(gap)) {
                     Text(
@@ -464,9 +474,15 @@ internal fun BandScoreRow(
                         color = BrandTokens.textPrimary,
                         modifier = Modifier.widthIn(min = columns.rankWidth).columnProbe(probe, "band.rank.${entry.rank}"),
                     )
-                    Column(Modifier.weight(1f).columnProbe(probe, "band.name.${entry.rank}"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        BandMember.distinct(entry.members).forEach { BandMemberScoreLine(it, keyboard) }
-                    }
+                    // Names lead and share one edge; score and icons trail (web `BandMemberRow`, #589).
+                    BandMemberRows(
+                        entry.members,
+                        Modifier.weight(1f).columnProbe(probe, "band.name.${entry.rank}"),
+                        iconSize = 18.dp,
+                        keyboard = keyboard,
+                        lineGap = 4.dp,
+                        value = { member -> member.score?.let(BandFormatting::count) },
+                    )
                     if (!stacked) {
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             BandTeamScore(entry)
@@ -477,42 +493,6 @@ internal fun BandScoreRow(
                 }
                 if (stacked) BandScoreFooter(entry, Modifier.padding(start = columns.rankWidth + gap, end = 34.dp))
             }
-        }
-    }
-}
-
-/**
- * One member: instrument icons, name and member score. Large text wraps names
- * ([FestivalMarqueeText]), so the score flows under the name instead of squeezing it mid-word.
- *
- * @param member Member.
- * @param keyboard Keyboard-variant icons.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-internal fun BandMemberScoreLine(member: BandMember, keyboard: Boolean) {
-    val icons: @Composable () -> Unit = {
-        member.chartedInstruments.forEach { InstrumentIcon(it, keyboard = keyboard, size = 18.dp, decorative = true) }
-    }
-    val score: @Composable () -> Unit = {
-        member.score?.let { Text(BandFormatting.count(it), style = MaterialTheme.typography.bodySmall, color = BrandTokens.textPrimary) }
-    }
-    if (isLargeText()) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-            icons()
-            FestivalMarqueeText(member.resolvedName, style = MaterialTheme.typography.bodyMedium, color = BrandTokens.textPrimary)
-            score()
-        }
-    } else {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            icons()
-            FestivalMarqueeText(
-                member.resolvedName,
-                style = MaterialTheme.typography.bodyMedium,
-                color = BrandTokens.textPrimary,
-                modifier = Modifier.weight(1f, fill = false),
-            )
-            score()
         }
     }
 }
@@ -579,49 +559,57 @@ internal fun bandScoreAnnouncement(entry: SongBandLeaderboardEntry, selected: Bo
 /** Spoken prefix of the selected player's band row. */
 internal const val YOUR_BAND = "Your band"
 
-/** Card width below which the team score moves under the members. */
+/** Lazy key of the song band board's rows card (the reveal finds the selected band inside it). */
+private const val BAND_ROWS_KEY = "rows"
+
+/** Row content width below which the team score moves under the members. */
 private val BAND_ROW_STACK_WIDTH = 400.dp
 
 /** Smallest band rank column (fits "#10" at default text). */
 internal val BAND_RANK_MIN_WIDTH = 44.dp
 
-/** Gap between the rank column and the members on Song Detail's band cards. */
+/** Gap between the rank column and the members on Song Detail's band rows. */
 private val BAND_RANK_GAP = 10.dp
 
-/** Band card padding (and Song Detail's rank inset). */
+/** Band row vertical padding. */
 private val BAND_ROW_PADDING = 12.dp
 
 /**
  * One band section's shared row geometry (`leaderboard-row` R1).
  *
  * @property rankWidth Rank column width ([rememberBandRankWidth]).
- * @property rankStart Inset from the card's leading edge to the rank column.
+ * @property cardPadding Horizontal padding of the section's card around its rows: 0 on Song
+ *   Detail (rank 12 dp from the card edge, like its solo rows), [ANCHORED_ROW_CARD_PADDING]
+ *   on the full board (rank 20 dp from the card edge, like the pinned footer row).
  * @property gap Space between the rank and the members; null takes the gap a pinned score
  *   row of the card's width would use ([LeaderboardColumnLayout.gapFor]).
  */
 @Immutable
 internal data class BandRowColumns(
     val rankWidth: Dp = BAND_RANK_MIN_WIDTH,
-    val rankStart: Dp = BAND_ROW_PADDING,
+    val cardPadding: Dp = 0.dp,
     val gap: Dp? = BAND_RANK_GAP,
 )
 
 /**
- * The full song band board's row geometry: member cards put their rank and members exactly
+ * The full song band board's row geometry: band rows put their rank and members exactly
  * where the pinned selected band's solo-style footer row ([SelectedScoreFooterRow] in an
  * [AnchoredRowCard]) puts its rank and name, so the pinned band shares the board's columns
- * (`leaderboard-row` R1, R5) whether it is on this page or not. The member cards use the
- * same geometry while no band is pinned, so switching band sizes never moves the columns.
+ * (`leaderboard-row` R1, R5) whether it is on this page or not. The rows card is padded like
+ * the [AnchoredRowCard] and each row is inset like the footer's [selectedRowHighlight], so
+ * both ranks start [ANCHORED_ROW_CARD_PADDING] + [SELECTED_HIGHLIGHT_INSET] +
+ * [SCORE_ROW_PADDING] from their card's edge. The rows use the same geometry while no band
+ * is pinned, so switching band sizes never moves the columns.
  *
  * @param plan The footer's plan, fitted with the board's rank width.
  * @param rankWidth Board rank width ([rememberBandRankWidth] over the page and the pinned band).
  * @param hasFooter Whether a band is pinned (its plan's gap is known).
- * @return Member card geometry.
+ * @return Band row geometry.
  */
 @Composable
 internal fun bandBoardColumns(plan: LeaderboardColumnPlan, rankWidth: Dp, hasFooter: Boolean): BandRowColumns = BandRowColumns(
     rankWidth = maxOf(rankWidth, plan.rankWidth.dp),
-    rankStart = ANCHORED_ROW_CARD_PADDING + SELECTED_HIGHLIGHT_INSET + SCORE_ROW_PADDING,
+    cardPadding = ANCHORED_ROW_CARD_PADDING,
     gap = when {
         isLargeText() -> STACKED_RANK_GAP
         hasFooter -> plan.gap.dp

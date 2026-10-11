@@ -19,8 +19,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Info
@@ -57,6 +58,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.readingGroup
@@ -80,6 +82,7 @@ import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoading
 import com.festivalscoretracker.android.ui.common.FestivalScreen
+import com.festivalscoretracker.android.ui.common.FoldLane
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
@@ -91,6 +94,7 @@ import com.festivalscoretracker.android.ui.common.rememberRevealed
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.SectionHeader
+import com.festivalscoretracker.android.ui.design.SECTION_HEADER_TOP_PADDING
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
@@ -123,14 +127,23 @@ fun StatisticsScreen(viewModel: PlayerProfileViewModel, isRoot: Boolean = true) 
 }
 
 /**
+ * How far a profile section's heading sits below the top of its grid row: chart statistics open with the
+ * flush instrument row; Overview, Top Songs and Bands open with a [SectionHeader] (`section-jump-landing`
+ * R2, issue #587).
+ *
+ * @param id Quick Links section ID.
+ * @return Heading inset.
+ */
+internal fun profileHeadingInset(id: String): Dp = if (ProfileSections.isInstrumentId(id)) 0.dp else SECTION_HEADER_TOP_PADDING
+
+/**
  * Top bar, Quick Links (top-bar entry: menu on medium+ windows, sheet on compact; formerly a trailing pane on wide pages without a
  * fold) and the profile body.
  */
 @Composable
 private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, isRoot: Boolean, tag: String) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    var splitAtFold by rememberSaveable { mutableStateOf(false) }
-    val gridState = rememberProfileGridState(splitAtFold)
+    val gridState = rememberLazyGridState()
     val loaded = state.phase == ProfilePhase.Loaded
     val visible = state.instruments.map { it.instrument }
     val showIdentity = state.showsIdentityRow
@@ -140,7 +153,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
     val sections = remember(visible, loaded, state.displayName) { if (loaded) ProfileSections.quickLinks(visible, state.displayName) else emptyList() }
     // The grid's fade window, here so Quick Links jumps rush it (load-transition R5).
     val fadeWindow = rememberFadeInWindow(gridState, reset = state.accountId)
-    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeWindow) { id ->
+    val quickLinks = rememberQuickLinks(gridState, "Quick Links", sections, fadeInWindow = fadeWindow, headingInset = ::profileHeadingInset) { id ->
         rows.indexOfFirst { it.key == ProfileSections.rowKey(id) }.takeIf { it >= 0 }
     }
     val density = LocalDensity.current
@@ -154,7 +167,7 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
             actions = { QuickLinksAction(quickLinks, windowWidthDp) },
             modifier = Modifier.semantics { testTagsAsResourceId = true }.testTag(tag),
         ) { padding ->
-            Box(Modifier.fillMaxSize()) { PlayerProfileContent(viewModel, padding, gridState, rows, onSplitChange = { splitAtFold = it }, fadeWindow = fadeWindow) }
+            Box(Modifier.fillMaxSize()) { PlayerProfileContent(viewModel, padding, gridState, rows, fadeWindow = fadeWindow) }
         }
     }
 }
@@ -175,16 +188,14 @@ private fun ProfileScaffold(viewModel: PlayerProfileViewModel, title: String, is
  * @param padding Scaffold padding.
  * @param gridState Grid state shared with Quick Links.
  * @param rows Rows in page order.
- * @param onSplitChange Receives the grid's fold split (see [rememberProfileGridState]).
  * @param fadeWindow The grid's fade window when the caller also scrolls it (Quick Links); by default the content creates it.
  */
 @Composable
 fun PlayerProfileContent(
     viewModel: PlayerProfileViewModel,
     padding: PaddingValues,
-    gridState: LazyStaggeredGridState,
+    gridState: LazyGridState,
     rows: List<ProfileRow>,
-    onSplitChange: (Boolean) -> Unit = {},
     fadeWindow: FadeInWindow? = null,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -212,9 +223,21 @@ fun PlayerProfileContent(
             onRetry = viewModel::retry,
         )
         is ProfilePhase.Failed -> ServiceStatusView(phase.issue, "Profile unavailable", phase.countdown, viewModel::retry, contentPadding = padding)
-        ProfilePhase.Loaded -> LoadedProfile(viewModel, state, padding, gridState, rows, revealed, onSplitChange)
+        ProfilePhase.Loaded -> LoadedProfile(viewModel, state, padding, gridState, rows, revealed)
     }
     }
+}
+
+/**
+ * Wraps a line-spanning profile row in [FoldLane] (leading panel only in book posture); other
+ * rows are one column wide already.
+ *
+ * @param fullWidth Whether the row spans the line.
+ * @param content The row.
+ */
+@Composable
+private fun FullWidthLane(fullWidth: Boolean, content: @Composable () -> Unit) {
+    if (fullWidth) FoldLane(content = content) else content()
 }
 
 @Composable
@@ -222,10 +245,9 @@ private fun LoadedProfile(
     viewModel: PlayerProfileViewModel,
     state: PlayerProfileUiState,
     padding: PaddingValues,
-    gridState: LazyStaggeredGridState,
+    gridState: LazyGridState,
     rows: List<ProfileRow>,
     revealed: Boolean,
-    onSplitChange: (Boolean) -> Unit,
 ) {
     val shell = LocalShellActions.current
     val ranks by viewModel.ranks.collectAsStateWithLifecycle()
@@ -249,13 +271,14 @@ private fun LoadedProfile(
     val direction = LocalLayoutDirection.current
     ProfileGrid(
         state = gridState,
-        contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+        contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding()),
         modifier = Modifier.padding(start = padding.calculateStartPadding(direction) + 16.dp, end = padding.calculateEndPadding(direction) + 16.dp),
-        onSplitChange = onSplitChange,
-    ) { split ->
+    ) {
         rows.forEachIndexed { index, row ->
-            val span = if (row.fullWidth && !split) StaggeredGridItemSpan.FullLine else StaggeredGridItemSpan.SingleLane
-            item(key = row.key, span = span) {
+            // Full-width rows span the line, their content in the leading panel at a fold (FoldLane, #584).
+            val spans = row.fullWidth
+            item(key = row.key, span = { if (spans) GridItemSpan(maxLineSpan) else GridItemSpan(1) }) {
+                FullWidthLane(spans) {
                 Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index)).readingGroup()) {
                 when (row) {
                     ProfileRow.Identity -> IdentityActions(state, onSelect = {
@@ -285,14 +308,10 @@ private fun LoadedProfile(
                         LaunchedEffect(state.accountId) { viewModel.ensureBands() }
                         ProfileBandsHeading(state, bands, onRetry = viewModel::retryBands, onNavigate = shell.navigate)
                     }
-                    is ProfileRow.BandGroupHeader -> ProfileBandGroupHeader(row.group)
-                    is ProfileRow.BandCard -> Box(Modifier.festivalFadeIn(bandsRevealed, fadeInStagger(row.index))) {
-                        ProfileBandCard(row.entry, onNavigate = shell.navigate)
+                    is ProfileRow.BandGroup -> Box(Modifier.festivalFadeIn(bandsRevealed, fadeInStagger(ProfileSections.BAND_GROUPS.indexOf(row.group).coerceAtLeast(0)))) {
+                        ProfileBandGroupSection(state, row, onNavigate = shell.navigate)
                     }
-                    is ProfileRow.BandsEmpty -> Box(Modifier.festivalFadeIn(bandsRevealed)) { ProfileBandsEmpty(row.group) }
-                    is ProfileRow.BandsViewAll -> Box(Modifier.festivalFadeIn(bandsRevealed)) {
-                        ProfileBandsViewAll(state, row.group, row.total, onNavigate = shell.navigate)
-                    }
+                }
                 }
                 }
             }
@@ -414,7 +433,7 @@ private fun InstrumentSection(
         }
         RankHistorySection(instrument, history, onRetryHistory)
         StatGrid(
-            section.stats + RankLoad.tile(rank) + section.trailing,
+            section.stats + RankLoad.tiles(rank, state.experimentalRanks) + section.trailing,
             instrument.wireId,
             state::canRun,
             onAction,

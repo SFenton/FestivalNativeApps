@@ -58,8 +58,23 @@ object InvalidScorePolicy {
     fun isValid(score: PlayerScore, song: Song?, chart: Instrument, leeway: Double): Boolean {
         val min = score.minLeeway
         if (min != null) return min <= leeway
-        val limit = threshold(song, chart, leeway) ?: return true
-        return score.score <= limit
+        return !exceedsCeiling(score.score.toLong(), song, chart, leeway)
+    }
+
+    /**
+     * Whether a positive score is above the chart's CHOpt maximum × (1 + leeway / 100),
+     * unrounded (web `isScoreValid`, which the Over CHOpt Threshold check uses; the
+     * service's `minLeeway` is rounded to 0.1 and can call a score just over it valid).
+     *
+     * @param score Shown score.
+     * @param song Catalogue row.
+     * @param chart Chart.
+     * @param leeway Leeway percent.
+     * @return True when over; false without a CHOpt maximum.
+     */
+    fun exceedsCeiling(score: Long, song: Song?, chart: Instrument, leeway: Double): Boolean {
+        val limit = threshold(song, chart, leeway) ?: return false
+        return score > 0 && score > limit
     }
 
     /**
@@ -98,20 +113,48 @@ object InvalidScorePolicy {
     ): InvalidScoreResolution {
         if (isValid(score, song, chart, leeway)) return InvalidScoreResolution(raw, null)
         if (showOverThreshold) return InvalidScoreResolution(raw, InvalidScoreReason.OverThreshold)
-        val variants = score.validScores
-        if (!variants.isNullOrEmpty()) {
-            val fallback = variants.firstOrNull { it.minLeeway <= leeway }
-                ?: return InvalidScoreResolution(null, InvalidScoreReason.NoFallback)
-            val detail = raw.copy(
-                score = fallback.score.toLong(),
-                accuracy = fallback.accuracy ?: raw.accuracy,
-                isFullCombo = fallback.isFullCombo ?: raw.isFullCombo,
-                stars = fallback.stars ?: raw.stars,
-                rank = rankAt(fallback.rankTiers, leeway) ?: raw.rank,
-                totalEntries = song?.filteredPopulation(chart, leeway) ?: raw.totalEntries,
-            )
-            return InvalidScoreResolution(detail, InvalidScoreReason.Fallback)
+        if (!score.validScores.isNullOrEmpty()) return variant(score, raw, song, chart, leeway)
+        return legacy(score, raw)
+    }
+
+    /**
+     * Resolve one raw score for Song Details (web `filterPlayerScores`, pattern R4):
+     * with `minLeeway`, only a `validScores` variant can replace it; without it, the
+     * CHOpt ceiling decides and only the legacy `validScore` fields can replace it.
+     * There is no Over CHOpt Threshold here.
+     *
+     * @param score Raw wire score.
+     * @param raw Its unfiltered detail.
+     * @param song Catalogue row (maximum and population tiers).
+     * @param chart Chart.
+     * @param leeway Leeway percent.
+     * @return Effective detail and reason.
+     */
+    fun resolveFiltered(score: PlayerScore, raw: SongScoreDetail, song: Song?, chart: Instrument, leeway: Double): InvalidScoreResolution {
+        val min = score.minLeeway
+        if (min != null) {
+            if (min <= leeway) return InvalidScoreResolution(raw, null)
+            return variant(score, raw, song, chart, leeway)
         }
+        if (!exceedsCeiling(score.score.toLong(), song, chart, leeway)) return InvalidScoreResolution(raw, null)
+        return legacy(score, raw)
+    }
+
+    private fun variant(score: PlayerScore, raw: SongScoreDetail, song: Song?, chart: Instrument, leeway: Double): InvalidScoreResolution {
+        val fallback = score.validScores.orEmpty().firstOrNull { it.minLeeway <= leeway }
+            ?: return InvalidScoreResolution(null, InvalidScoreReason.NoFallback)
+        val detail = raw.copy(
+            score = fallback.score.toLong(),
+            accuracy = fallback.accuracy ?: raw.accuracy,
+            isFullCombo = fallback.isFullCombo ?: raw.isFullCombo,
+            stars = fallback.stars ?: raw.stars,
+            rank = rankAt(fallback.rankTiers, leeway) ?: raw.rank,
+            totalEntries = song?.filteredPopulation(chart, leeway) ?: raw.totalEntries,
+        )
+        return InvalidScoreResolution(detail, InvalidScoreReason.Fallback)
+    }
+
+    private fun legacy(score: PlayerScore, raw: SongScoreDetail): InvalidScoreResolution {
         val legacy = score.validScore ?: return InvalidScoreResolution(null, InvalidScoreReason.NoFallback)
         val detail = raw.copy(
             score = legacy.toLong(),

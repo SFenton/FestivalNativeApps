@@ -115,7 +115,11 @@ STEP_VERBS = {
     "narrate": "selector", "assertread": "read", "assertorder": "order",
     "assertpaint": "paint", "assertbold": "bold", "assertannouncedcount": "announcedcount",
     "assertmarquee": "marquee", "assertmarqueesync": "pair", "assertmotion": "motion",
+    "contrast": "contrast",
 }
+
+#: ``contrast:`` values: Windows 11 contrast themes (``FstUia`` maps them to the legacy scheme names) or ``off``.
+CONTRAST_THEMES = ("off", "aquatic", "desert", "dusk", "night-sky")
 
 #: ``assertpaint`` probe: ``[name:]<x>,<y>[,<x2>,<y2>][<op><expect>[~<tol>]]``. ``x`` is ``L``/``R``/``C`` and ``y``
 #: ``T``/``B``/``M`` plus a signed epx offset (from the left/top edge, inward from the right/bottom edge, or from the
@@ -143,7 +147,9 @@ def parse_selector(text: str) -> dict:
 
     Forms: ``id=<AutomationId>``, ``name=<Name>``, ``class=<ClassName>``, ``raw=<AutomationId>`` (searches the
     raw view, for parts a control marks ``AccessibilityView=Raw`` such as a score row's badge text) or
-    ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick``/``hover`` only). An ``id=``/``name=``
+    ``<x>,<y>`` (window-relative physical pixels, ``click``/``rightclick``/``hover`` only; physical pixels depend on the
+    display scale, so the driver refuses a click whose point is off the app's own window, and a scale-independent press
+    uses ``clickat`` effective pixels instead, issue #531). An ``id=``/``name=``
     selector may end with ``&class=<ClassName>`` to also match the class, e.g. ``id=1&class=Button`` for a
     system file picker's Open button, which shares AutomationId ``1`` with the picker's first folder.
 
@@ -256,8 +262,9 @@ def parse_step(step: str) -> dict:
     ``setvalue:<sel>|<text>`` writes text through the UIA Value pattern (no keyboard input,
     so it also works while the console session is locked; an empty text clears the field);
     ``scrollto:<selector>,<percent>`` sets a scroller's vertical position through the UIA
-    Scroll pattern and ``reveal:<selector>`` scrolls the target into view (UIA ScrollItem, else
-    stepping its scroller from the top), with no input, so both work while the console is locked;
+    Scroll pattern (a no-op when the content fits and the scroller can't scroll) and ``reveal:<selector>``
+    scrolls the target into view (UIA ScrollItem, else stepping its scroller from the top), with no input,
+    so both work while the console is locked;
     ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text (each ``*`` matches
     any run of characters, so ``|*<text>`` waits until it ends with the text, for names that start with a local-time date);
     ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column);
@@ -346,6 +353,10 @@ def parse_step(step: str) -> dict:
     ``assertbold:<sel>|<run>|<run>…`` waits (5 s) until the bold runs (UIA TextPattern font weight ≥ 600, trimmed) of
     the element's text, or of its first descendant with a Text pattern, are exactly those runs in order
     (``assertbold:<sel>|`` expects none).
+    ``contrast:<off|aquatic|desert|dusk|night-sky>`` switches the Windows contrast theme while the app stays open (a live
+    switch, unlike an ``a11y_matrix`` mode applied before launch), so later steps check that code-built brushes followed
+    it. It changes the operator's real desktop: only ``a11y_matrix.py`` pages may use it, because that runner snapshots
+    the theme first and always restores it before releasing the desktop lock.
 
     Args:
         step: A step string.
@@ -543,6 +554,10 @@ def parse_step(step: str) -> dict:
         if arg.lower() not in ("on", "off"):
             raise ValueError(f"bad {verb} {arg!r}; use on or off")
         result["arg"] = arg.lower()
+    elif shape == "contrast":
+        if arg.lower() not in CONTRAST_THEMES:
+            raise ValueError(f"bad contrast {arg!r}; use one of {', '.join(CONTRAST_THEMES)}")
+        result["arg"] = arg.lower()
     elif shape == "listen":
         if arg.lower() != "announcements":
             raise ValueError(f"bad listen {arg!r}; use listen:announcements")
@@ -586,6 +601,25 @@ def parse_step(step: str) -> dict:
     if shape == "path":
         result["arg"] = str(Path(native_path(result["arg"])).resolve())
     return result
+
+
+def cli_steps(texts: list[str]) -> list[dict]:
+    """Parse command-line steps, refusing ``contrast:`` (only ``a11y_matrix.py`` restores the operator's theme).
+
+    Args:
+        texts: Step strings.
+
+    Returns:
+        Parsed steps.
+
+    Raises:
+        ValueError: A step is malformed or is a ``contrast:`` switch.
+    """
+    steps = [parse_step(s) for s in texts]
+    if any(step["verb"] == "contrast" for step in steps):
+        raise ValueError("contrast: steps change the operator's desktop; run them as an a11y_matrix.py page, "
+                         "which snapshots and restores the theme")
+    return steps
 
 
 def native_path(text: str) -> str:
@@ -1053,7 +1087,7 @@ def cmd_launch(args: argparse.Namespace) -> int:
                                  "out": str(Path(native_path(args.shot)).resolve())}, lock)
         if args.steps or args.steps_file:
             # Same hold as the launch: timing-sensitive first checks can't queue behind another lane.
-            steps = [parse_step(s) for s in parse_steps(args.steps, args.steps_file)]
+            steps = cli_steps(parse_steps(args.steps, args.steps_file))
             result = {**run_driver({"command": "drive", "pid": pid, "steps": steps}, lock, budget=lock.remaining()),
                       "pid": pid}
     _report(result)
@@ -1105,7 +1139,7 @@ def cmd_tree(args: argparse.Namespace) -> int:
 
 def cmd_drive(args: argparse.Namespace) -> int:
     """Run scripted UIA steps against the target window."""
-    steps = [parse_step(s) for s in parse_steps(args.steps, args.steps_file)]
+    steps = cli_steps(parse_steps(args.steps, args.steps_file))
     with _lock(args, "drive") as lock:
         _report(run_driver({"command": "drive", **_target(args), "steps": steps}, lock,
                            budget=lock.remaining()))

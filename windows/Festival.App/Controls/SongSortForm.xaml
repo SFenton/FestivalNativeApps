@@ -44,7 +44,7 @@
             </RadioButton>
         </RadioButtons>
         <!-- Changes apply live; Reset restores the default sort. -->
-        <Button x:Name="ResetButton" Content="Reset" HorizontalAlignment="Stretch" Command="{x:Bind Draft.ResetCommand, Mode=OneWay}">
+        <Button x:Name="ResetButton" Content="Reset" HorizontalAlignment="Stretch" MinHeight="{StaticResource FSTMinTargetSize}" Command="{x:Bind Draft.ResetCommand, Mode=OneWay}">
             <Button.Resources>
                 <!-- Web Modal reset: a full-width red (btnDanger #C62828) button (operator batch 7.10). -->
                 <StaticResource x:Key="ButtonBackground" ResourceKey="FSTDangerBackgroundBrush" />

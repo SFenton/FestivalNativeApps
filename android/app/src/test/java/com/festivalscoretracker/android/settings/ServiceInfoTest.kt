@@ -1,6 +1,14 @@
 package com.festivalscoretracker.android.settings
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.view.ViewGroup
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Column
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import com.festivalscoretracker.android.ui.theme.BrandTokens
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.CompositionLocalProvider
@@ -15,7 +23,6 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -38,6 +45,7 @@ import com.festivalscoretracker.android.data.serviceinfo.serviceInfo
 import com.festivalscoretracker.android.data.serviceinfo.serviceVersion
 import com.festivalscoretracker.android.presentation.settings.ServiceInfoPoller
 import com.festivalscoretracker.android.testing.FakeTransport
+import com.festivalscoretracker.android.ui.settings.SERVICE_PROGRESS_BAR_HEIGHT
 import com.festivalscoretracker.android.ui.settings.ServiceInfoSection
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import java.time.Instant
@@ -532,7 +540,7 @@ class ServiceInfoTest {
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ServiceInfoSectionUiTest {
     @get:Rule
-    val rule = createComposeRule()
+    val rule = createAndroidComposeRule<ComponentActivity>()
 
     private fun render(reduceMotion: Boolean, snapshot: ServiceInfoSnapshot, fontScale: Float? = null, width: Dp? = null) {
         val poller = ServiceInfoPoller(read = { snapshot })
@@ -659,6 +667,52 @@ class ServiceInfoSectionUiTest {
         assertEquals(title.left.value, process.left.value, 0.5f)
         // The title is laid out at its full width on one line, never squeezed.
         assertTrue(title.right - title.left < 260.dp)
+    }
+
+    /** The bar's pixels, drawn in software (Robolectric's `captureToImage` never gets a frame). */
+    private fun captureBar(): Bitmap {
+        val view = rule.activity.findViewById<ViewGroup>(android.R.id.content).getChildAt(0)
+        val whole = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
+        view.draw(Canvas(whole))
+        val b = rule.onNodeWithTag("fst.settings.service-info.bar", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        return Bitmap.createBitmap(whole, b.left.toInt(), b.top.toInt(), b.width.toInt(), b.height.toInt())
+    }
+
+    private fun near(pixel: Int, colour: Color, tolerance: Int = 12): Boolean {
+        val rgb = colour.toArgb()
+        return android.graphics.Color.alpha(pixel) == 255 &&
+            listOf(16, 8, 0).all { shift -> kotlin.math.abs((pixel shr shift and 0xFF) - (rgb shr shift and 0xFF)) <= tolerance }
+    }
+
+    @Test
+    fun determinateBarIsOneCapsuleWithThePurpleFillInsideTheTrack() {
+        // Issue #598: M3's round-cap track gap (the stroke width even at gapSize 0) drew the track
+        // as a second pill whose rounded start only touched the fill's rounded end on the centre
+        // line, with the card showing through above and below. Like the web `.progressTrack`,
+        // every row across the bar's middle must read fill, then track, to the end: no
+        // background between them and no stop dot.
+        render(reduceMotion = true, discovery)
+        rule.waitForIdle()
+        val bar = captureBar()
+        val stroke = (SERVICE_PROGRESS_BAR_HEIGHT.value * 3).toInt() // xxhdpi
+        fun row(y: Int) = (0 until bar.width).map { bar.getPixel(it, y) }
+        fun inBar(pixel: Int) = near(pixel, BrandTokens.accentPurple) || near(pixel, BrandTokens.surfaceMuted)
+        // The bar's centre line is the row it covers most.
+        val centre = (0 until bar.height).maxBy { y -> row(y).count(::inBar) }
+        val middle = row(centre)
+        val fillEnd = middle.indexOfLast { near(it, BrandTokens.accentPurple) }
+        assertTrue("fill starts at the leading edge", near(middle[1], BrandTokens.accentPurple))
+        // M3's round cap ends the fill half a stroke past the value.
+        assertEquals("fill ends at 24.8% plus the round cap", 0.248f * bar.width + stroke / 2f, fillEnd + 1f, 3f)
+        assertTrue("no fill past its end", middle.subList(fillEnd + 1, bar.width).none { near(it, BrandTokens.accentPurple) })
+        // Rows up to a third of the stroke from the centre, clear of the outer caps' curves.
+        for (y in centre - stroke / 3..centre + stroke / 3) {
+            val inner = row(y).subList(stroke / 2, bar.width - stroke / 2)
+            val outside = inner.count { !inBar(it) }
+            assertTrue("row ${y - centre}: $outside px of background inside the capsule", outside <= 2)
+            val trackStart = inner.indexOfFirst { near(it, BrandTokens.surfaceMuted) }
+            assertTrue("row ${y - centre}: track runs to the trailing edge, no stop dot", inner.subList(trackStart, inner.size).count { !near(it, BrandTokens.surfaceMuted) } == 0)
+        }
     }
 
     @Test

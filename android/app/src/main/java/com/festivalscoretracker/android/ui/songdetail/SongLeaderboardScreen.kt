@@ -47,6 +47,8 @@ import com.festivalscoretracker.android.core.rankings.label
 import com.festivalscoretracker.android.ui.leaderboards.SelectedRowAnchor
 import com.festivalscoretracker.android.ui.leaderboards.revealSelectedRow
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
+import androidx.compose.runtime.CompositionLocalProvider
+import com.festivalscoretracker.android.ui.design.LocalCurrentSeason
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
@@ -78,8 +80,9 @@ import com.festivalscoretracker.android.presentation.SongLeaderboardViewModel
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileState
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
+import com.festivalscoretracker.android.ui.common.isSplitPaneRoot
 import com.festivalscoretracker.android.ui.common.fadeInStagger
-import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.BOARD_CARD_INDEX
 import com.festivalscoretracker.android.ui.common.loadSwapSpinnerItem
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
@@ -122,13 +125,17 @@ fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, r
         val page by boardViewModel.page.collectAsStateWithLifecycle()
         SyncRouteArguments(routeState, "page" to page)
     }
-    SongLeaderboardScreen(
-        boardViewModel, settings.selectedPlayer?.accountId, container.selectedProfile.state, leeway, settings.visibleInstruments, api::artworkUrl,
-        background = container.background,
-        revealSelected = route.navToPlayer,
-        // Revealed once: Back or a recreated entry keeps the scroll position instead (web clears `navToPlayer`).
-        onRevealed = { routeState?.set("navToPlayer", false) },
-    )
+    val currentSeason by boardViewModel.currentSeason.collectAsStateWithLifecycle()
+    // Season pills invert for the catalogue's current season (pattern `metadata-pills` R2).
+    CompositionLocalProvider(LocalCurrentSeason provides currentSeason) {
+        SongLeaderboardScreen(
+            boardViewModel, settings.selectedPlayer?.accountId, container.selectedProfile.state, leeway, settings.visibleInstruments, api::artworkUrl,
+            background = container.background,
+            revealSelected = route.navToPlayer,
+            // Revealed once: Back or a recreated entry keeps the scroll position instead (web clears `navToPlayer`).
+            onRevealed = { routeState?.set("navToPlayer", false) },
+        )
+    }
 }
 
 /**
@@ -208,9 +215,9 @@ fun SongLeaderboardScreen(
     LaunchedEffect(revealPending, pageShown, loaded) {
         if (!revealPending || !pageShown) return@LaunchedEffect
         if (selectedOnPage) {
-            // Like the web's navToPlayer: scroll once the row's own entrance has finished (issue #323).
-            val index = loaded.entries.indexOfFirst { RankingSpotlight.isSelected(selectedAccountId, it.accountId) }
-            if (awaitSelectedRowEntrance(fadeIn, fadeInStagger(index), reduceMotion)) {
+            // Like the web's navToPlayer: scroll once the row's own entrance has finished (issue #323);
+            // the row enters with the board's card (load-transition R11, #614).
+            if (awaitSelectedRowEntrance(fadeIn, fadeInStagger(BOARD_CARD_INDEX), reduceMotion)) {
                 withFrameNanos { }
                 val bounds = anchor.bounds()
                 if (bounds != null) listState.revealSelectedRow("rows", null, bounds.first, bounds.second, animate = !reduceMotion)
@@ -221,13 +228,19 @@ fun SongLeaderboardScreen(
     }
 
     // The song header (art, title, artist, instrument) scrolls with the rows; the top bar
-    // takes the title once it has scrolled away (operator 7.8, like Song Detail).
+    // takes the title once it has scrolled away (operator 7.8, like Song Detail), over the
+    // board's instrument led by its icon (`song-header` R4, issue #580). Beside Song Detail in a
+    // split the song is already on screen: no song header, and the bar takes the instrument
+    // (`song-leaderboard-header` variant #342, Android #583).
+    val besideList = isSplitPaneRoot()
     val headerGone by remember(listState) { derivedStateOf { listState.firstVisibleItemIndex > 0 } }
     FestivalScreen(
-        title = if (headerGone) title else "",
+        title = if (!headerGone) "" else if (besideList) viewModel.instrument.label else title,
         isRoot = false,
         scrolled = headerGone,
-        marqueeTitle = true,
+        titleIcon = if (besideList) ({ size -> InstrumentIcon(viewModel.instrument, size = size, decorative = true) }) else null,
+        subtitle = if (besideList) null else viewModel.instrument.label,
+        subtitleIcon = { size -> InstrumentIcon(viewModel.instrument, size = size, decorative = true) },
         modifier = Modifier.semantics { testTagsAsResourceId = true },
         fadeInWindow = fadeIn,
     ) { padding ->
@@ -242,7 +255,7 @@ fun SongLeaderboardScreen(
             idPrefix = "fst.song-leaderboard",
             controls = {
                 val loadedSong = (song as? LoadState.Loaded)?.value
-                loadedSong?.let { SongHeader(it, artworkUrl(it.albumArt), artSize = 64.dp) }
+                loadedSong?.takeUnless { besideList }?.let { SongHeader(it, artworkUrl(it.albumArt), artSize = 64.dp) }
                 val charts = loadedSong?.let { current -> Instrument.entries.filter { it in visibleInstruments && current.supports(it) } }.orEmpty()
                 InstrumentSwitcher(viewModel.instrument, charts) { chart ->
                     loadedSong?.let { navigate(SongLeaderboardRoute(it.songId, chart.wireId)) }
@@ -274,14 +287,16 @@ fun SongLeaderboardScreen(
                     }
                 }
             },
-            pager = { RankingsPager(page, loaded?.pageCount() ?: page, "fst.song-leaderboard", viewModel::goTo) },
+            // No pager until this board's page count has loaded (a switched instrument is a new route), and none for one page (#575).
+            pager = { RankingsPager(page, loaded?.pageCount(), "fst.song-leaderboard", viewModel::goTo) },
             // Rows fade out above the pinned score and pager, as on the web (issue #93).
             fadeAboveFooter = true,
         ) {
             if (swap.showsSpinner || loaded == null) {
                 loadSwapSpinnerItem(swap, "Loading leaderboard", "fst.song-leaderboard.loading")
             } else item(key = "rows") {
-                GlassCard(anchor.item.fillMaxWidth().then(swap.contentModifier)) {
+                // The card fades in as one with all its rows, never row by row (load-transition R11, owner #614).
+                GlassCard(anchor.item.fillMaxWidth().then(with(swap) { Modifier.card() })) {
                     // Same 8 dp horizontal inset as AnchoredRowCard, so the pinned row's columns line up (issue #37).
                     LeaderboardSectionMember(columns, "rows", Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
                         when {
@@ -289,8 +304,7 @@ fun SongLeaderboardScreen(
                             else -> {
                                 loaded.entries.forEachIndexed { index, entry ->
                                     val selected = RankingSpotlight.isSelected(selectedAccountId, entry.accountId)
-                                    // The reveal anchor sits outside the fade-in so it measures the settled row.
-                                    Column((if (selected) anchor.row else Modifier).festivalFadeIn(swap.revealed, fadeInStagger(index))) {
+                                    Column(if (selected) anchor.row else Modifier) {
                                         if (index > 0) RowSeparator()
                                         SongLeaderboardRow(
                                             entry = entry,

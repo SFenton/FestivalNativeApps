@@ -186,6 +186,18 @@ public sealed class BandRankingRowViewModel : ILeaderboardRankingRow
 public delegate Task<AccountRankingEntry?> OwnRankingReader(Instrument instrument, string accountId, CancellationToken cancellationToken);
 
 /// <summary>
+/// Reads one account's row on a combo board for one metric (<c>GET /api/rankings/combo/{accountId}?combo=&amp;rankBy=</c>,
+/// issue #602): unlike an instrument row, a combo row carries one rank, for the requested metric.
+/// Returns <see langword="null"/> when the account is unranked (404).
+/// </summary>
+/// <param name="board">Combo board.</param>
+/// <param name="accountId">Selected player.</param>
+/// <param name="metric">Rank By metric.</param>
+/// <param name="cancellationToken">Cancellation.</param>
+/// <returns>The row, or <see langword="null"/> when unranked.</returns>
+public delegate Task<AccountRankingEntry?> ComboRankingReader(RankingBoard board, string accountId, RankingMetric metric, CancellationToken cancellationToken);
+
+/// <summary>
 /// The selected player's spotlight on one board: highlighted in place, loading, failed (inline retry),
 /// unranked, or a separate "your rank" row. A pinned spotlight (Full Rankings) never
 /// goes inline: the row stays above the pager on every page and is itself the control, jumping to the player's page while it is elsewhere and opening their profile once it is shown (pattern <c>leaderboard-row</c> R7, issue #318).
@@ -193,8 +205,8 @@ public delegate Task<AccountRankingEntry?> OwnRankingReader(Instrument instrumen
 /// </summary>
 public sealed partial class RankingSpotlightViewModel : ObservableObject
 {
-    private readonly OwnRankingReader? reader;
-    private readonly Instrument instrument;
+    private readonly Func<string, CancellationToken, Task<AccountRankingEntry?>>? reader;
+    private readonly RankingBoard board;
     private readonly Func<int, Task>? jump;
     private readonly bool pinned;
     private readonly bool opensFullBoard;
@@ -223,8 +235,23 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
     /// </param>
     public RankingSpotlightViewModel(Instrument instrument, OwnRankingReader? reader, TimeProvider time, string scope, Func<int, Task>? jump = null,
         bool pinned = false, bool opensFullBoard = false)
+        : this(RankingBoard.Single(instrument), reader is null ? null : (account, token) => reader(instrument, account, token), time, scope,
+            jump, pinned, opensFullBoard)
     {
-        this.instrument = instrument;
+    }
+
+    /// <summary>Creates the spotlight for any board (an instrument or a combo, issue #602).</summary>
+    /// <param name="board">Board.</param>
+    /// <param name="reader">Own-row read for an account; <see langword="null"/> keeps the spotlight pending.</param>
+    /// <param name="time">Clock for the inline status.</param>
+    /// <param name="scope">Backoff scope.</param>
+    /// <param name="jump">Page change run by the pinned row (Full Rankings only).</param>
+    /// <param name="pinned">Whether the row is pinned on every page (Full Rankings).</param>
+    /// <param name="opensFullBoard">Whether an overview card's separate row opens the full board at the player's page.</param>
+    public RankingSpotlightViewModel(RankingBoard board, Func<string, CancellationToken, Task<AccountRankingEntry?>>? reader, TimeProvider time,
+        string scope, Func<int, Task>? jump = null, bool pinned = false, bool opensFullBoard = false)
+    {
+        this.board = board;
         this.reader = reader;
         this.jump = jump;
         this.pinned = pinned;
@@ -274,7 +301,7 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
     public bool ShowRow => Kind == SpotlightPlacementKind.Footer;
 
     /// <summary>Unranked text.</summary>
-    public string UnrankedText => $"Not yet ranked on {instrument.Label()}.";
+    public string UnrankedText => $"Not yet ranked on {board.Label}.";
 
     /// <summary>
     /// Whether activating the pinned row jumps to the player's page (Full Rankings, row on another page) rather than opening
@@ -299,7 +326,7 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
         Recompute();
         try
         {
-            var result = await reader(instrument, accountId, cancellationToken);
+            var result = await reader(accountId, cancellationToken);
             if (!RankingSpotlight.SameAccount(loadedFor, accountId)) return;
             own = result;
             ownLoaded = true;
@@ -392,7 +419,7 @@ public sealed partial class RankingSpotlightViewModel : ObservableObject
             return new RankingRowViewModel(entry, metric, true)
             {
                 PinnedAction = action,
-                JumpRoute = new AppRoute.FullRankings(instrument, metric.ServiceId(), page, RevealSelected: true),
+                JumpRoute = AppRoute.FullRankings.For(board, metric.ServiceId(), page, revealSelected: true),
             };
         return new RankingRowViewModel(entry, metric, true);
     }
@@ -459,6 +486,13 @@ public sealed partial class RankingsPagerViewModel(string idPrefix, Func<int, Ta
         TotalPages = Math.Max(1, total);
         Page = Math.Clamp(current, 1, TotalPages);
     }
+
+    /// <summary>
+    /// Forgets the page count when a switch (instrument, metric, band size) starts loading a different board: the pager
+    /// hides until <see cref="Update"/> commits that board's real count, never showing the old board's count or a
+    /// "1 / 1" placeholder (load-transition R4, issue #575). Page-only reloads don't call this.
+    /// </summary>
+    public void Reset() => Update(1, 1);
 
     /// <summary>Page 1.</summary>
     /// <returns>Move task.</returns>

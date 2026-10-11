@@ -520,8 +520,9 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertEqual(filter.value as? String, "No filters")
     }
 
-    /// Pause saved score checks honestly, then reset every filter on deselect like the
-    /// web's `resetSongSettingsForDeselect` (#359).
+    /// Keep saved score checks applied and enabled under Filter Invalid Scores (#615),
+    /// pause them honestly while their charts are hidden, then reset every filter on
+    /// deselect like the web's `resetSongSettingsForDeselect` (#359).
     ///
     /// - Throws: Raw-score filtering, hidden-chart leakage, a kept filter or stale identity.
     @MainActor
@@ -529,7 +530,7 @@ final class SongsJourneyTests: XCTestCase {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = SongsUITestSupport.fixtureApp()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_API_BASE_URL"] = SongsUITestSupport.fixtureURL
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launchArguments += [
             "-fst.settings.hideShop", "NO",
@@ -567,18 +568,50 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.reveal(invalid, in: app, scrollingUp: false)
         SongsUITestSupport.setSwitch(invalid, to: "1")
         SongsUITestSupport.rootControl("Songs", app: app).tap()
+        // Filter Invalid Scores applies the saved checks to effective scores instead of
+        // pausing them (#613, #615); every fixture score is valid, so rows don't change.
         let paused = app.descendants(matching: .any)
             .matching(identifier: "fst.songs.score-filter-paused").firstMatch
-        XCTAssertTrue(paused.waitForExistence(timeout: 10))
-        XCTAssertTrue(paused.label.contains("Filter Invalid Scores"))
-        XCTAssertTrue(pulse.exists && orbit.exists)
+        XCTAssertTrue(pulse.waitForExistence(timeout: 10))
+        XCTAssertFalse(orbit.exists)
+        XCTAssertFalse(paused.exists)
+        XCTAssertTrue((filter.value as? String)?.contains("1 player score check") == true)
         filter.tap()
         XCTAssertEqual(scoreSections.value as? String, "Expanded")
-        XCTAssertFalse(SongsUITestSupport.revealFilterOption(
+        let globalHas = SongsUITestSupport.revealFilterOption(
             app.switches["fst.songs.filter.score.global.hasScores"], in: app
-        ).isEnabled)
+        )
+        XCTAssertTrue(globalHas.isEnabled)
+        XCTAssertEqual(globalHas.label, "Has Scores")
+        let globalOver = SongsUITestSupport.revealFilterOption(
+            app.switches["fst.songs.filter.score.global.overThreshold"], in: app
+        )
+        XCTAssertTrue(globalOver.isEnabled)
+        XCTAssertEqual(globalOver.label, "Over CHOpt Threshold")
+        XCTAssertEqual(globalOver.value as? String, "0")
+        // The re-enabled checks stay full-size switch rows. The sheet's whole-page audit has
+        // open findings in rows this change leaves alone (accessibility.md, Open findings).
+        XCTAssertGreaterThanOrEqual(globalHas.frame.height, 43)
+        XCTAssertGreaterThanOrEqual(globalOver.frame.height, 43)
+        SongsUITestSupport.record(app, name: "songs-score-filter-invalid-score-mode-global")
+        SongsUITestSupport.revealFilterOption(drums, in: app).tap()
+        let savedDrums = SongsUITestSupport.revealFilterOption(hasDrums, in: app)
+        XCTAssertTrue(savedDrums.isEnabled)
+        XCTAssertEqual(savedDrums.value as? String, "1")
+        let overDrums = SongsUITestSupport.revealFilterOption(
+            app.switches["fst.songs.filter.score.chart.Solo_Drums.overThreshold"], in: app
+        )
+        XCTAssertTrue(overDrums.isEnabled)
+        XCTAssertEqual(overDrums.label, "Drums Over CHOpt Threshold")
+        XCTAssertGreaterThanOrEqual(savedDrums.frame.height, 43)
+        XCTAssertGreaterThanOrEqual(overDrums.frame.height, 43)
+        XCTAssertFalse(app.staticTexts.containing(
+            NSPredicate(format: "label CONTAINS %@", "paused while Filter Invalid Scores")
+        ).firstMatch.exists)
+        SongsUITestSupport.record(app, name: "songs-score-filter-invalid-score-mode-enabled")
         app.buttons["fst.songs.filter.done"].tap()
-        SongsUITestSupport.record(app, name: "songs-score-filter-invalid-score-mode-paused")
+        XCTAssertTrue(pulse.waitForExistence(timeout: 10))
+        XCTAssertFalse(orbit.exists)
 
         SongsUITestSupport.rootControl("Settings", app: app).tap()
         SongsUITestSupport.reveal(invalid, in: app, scrollingUp: false)
@@ -617,7 +650,11 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertFalse(paused.exists, "No score-filter notice without a player (#359)")
         SongsUITestSupport.viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
         SongsUITestSupport.selectViewedPlayer(in: app)
-        XCTAssertEqual(XCTWaiter.wait(for: [reset], timeout: 10), .completed)
+        let stillReset = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "No filters"),
+            object: filter
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [stillReset], timeout: 10), .completed)
         XCTAssertTrue(pulse.waitForExistence(timeout: 10) && orbit.exists)
     }
 
@@ -1283,6 +1320,43 @@ final class SongsJourneyTests: XCTestCase {
         try app.performAccessibilityAudit(for: .all)
     }
 
+    /// A Filter disclosure header speaks the state the person asked for at once (pattern
+    /// `accordion` R4, #561): Collapsed → tap → Expanded with readable, hittable 44 pt
+    /// switches after the fade; tap → Collapsed straight away, then the switches leave.
+    ///
+    /// - Throws: A missing Year accordion.
+    @MainActor
+    func testSongsFilterDisclosureSpeaksRequestedState() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        _ = SongsUITestSupport.openFilterSheet(in: app)
+        let year = app.buttons["fst.songs.filter.year"]
+        XCTAssertTrue(year.waitForExistence(timeout: 10))
+        XCTAssertEqual(year.value as? String, "Collapsed")
+        let decades = app.switches.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.filter.year.")
+        )
+        XCTAssertEqual(decades.count, 0, "Year options showed while collapsed")
+
+        year.tap()
+        XCTAssertEqual(year.value as? String, "Expanded")
+        let first = decades.firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 5), "Opening Year did not reveal its options")
+        XCTAssertTrue(first.isHittable, "The revealed option is not hittable")
+        XCTAssertFalse(first.label.isEmpty, "The revealed option has no label")
+        XCTAssertGreaterThanOrEqual(first.frame.height, 44, "The revealed option's target is too short")
+        SongsUITestSupport.record(app, name: "songs-filter-year-expanded")
+
+        year.tap()
+        XCTAssertEqual(year.value as? String, "Collapsed")
+        XCTAssertTrue(first.waitForNonExistence(timeout: 5), "Closing Year did not remove its options")
+        app.buttons["fst.songs.filter.done"].tap()
+    }
+
     /// Exercise real native no-results and service-error presentation.
     ///
     /// - Throws: A missing fixture-only state or retry action.
@@ -1934,6 +2008,123 @@ final class SongsJourneyTests: XCTestCase {
                 + "\(quickLinks.value as? String ?? "<missing>")"
         )
         SongsUITestSupport.record(app, name: "songs-shop-quick-links-jumped")
+    }
+
+    /// Item Shop section titles stay readable, unclipped headings at the largest text size
+    /// (#91, tests #441): each title grows with Dynamic Type, is named as shown, sits above
+    /// its own song with no opaque band, keeps 4.5:1 rendered contrast and passes the audit.
+    /// The macOS hosted check for every grouped sort is `SongsSectionTitleAccessibilityTests`.
+    /// `apple-ci` runs this journey on an iPhone simulator (`JOURNEYS` in `apple-ci.yml`).
+    ///
+    /// - Throws: A missing or clipped title, rows read out of order or an audit finding.
+    @MainActor
+    func testSongsShopSortSectionTitlesAreAccessibleAtAX5() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = SongsUITestSupport.fixtureURL
+        app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
+        let size = UIContentSizeCategory.accessibilityExtraExtraExtraLarge
+        app.launchArguments += [
+            "-fst.settings.hideShop", "NO",
+            "-fst.songs.sortMode", "shop",
+            "-fst.songs.sortAscending", "YES",
+            "-UIPreferredContentSizeCategoryName", size.rawValue,
+        ]
+        app.launch()
+        let leaving = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-section.leaving-tomorrow").firstMatch
+        let orbit = app.buttons["fst.songs.row.fixture-orbit"]
+        XCTAssertTrue(leaving.waitForExistence(timeout: FestivalApp.budget(15)))
+        XCTAssertTrue(orbit.waitForExistence(timeout: FestivalApp.budget(10)))
+        XCTAssertEqual(leaving.label, "Leaving Tomorrow")
+        XCTAssertNotEqual(leaving.elementType, .button, "A section title is a heading, not a control")
+        let line = UIFont.preferredFont(
+            forTextStyle: .subheadline, compatibleWith: UITraitCollection(preferredContentSizeCategory: size)
+        ).lineHeight
+        XCTAssertGreaterThanOrEqual(
+            leaving.frame.height, line - 1,
+            "Title \(leaving.frame) did not grow to the AX5 \(line)pt line"
+        )
+        XCTAssertLessThanOrEqual(leaving.frame.maxY, orbit.frame.minY + 1, "Title must read above its song")
+        XCTAssertLessThan(
+            orbit.frame.minY - leaving.frame.maxY, 12,
+            "Title \(leaving.frame) drifted away from its song \(orbit.frame)"
+        )
+        try SongsUITestSupport.assertHeaderContrast(leaving, in: app, leadingTextWidth: 260)
+        SongsUITestSupport.record(app, name: "songs-shop-section-titles-ax5")
+
+        let inShop = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.shop-section.in-shop").firstMatch
+        let pulse = app.buttons["fst.songs.row.fixture-pulse"]
+        let list = app.collectionViews["fst.songs.list"]
+        for _ in 0..<6 where !(inShop.exists && pulse.exists && pulse.isHittable) {
+            list.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(inShop.exists && pulse.exists)
+        XCTAssertEqual(inShop.label, "In Shop")
+        XCTAssertGreaterThanOrEqual(inShop.frame.minY, orbit.frame.maxY - 1, "In Shop must read after Leaving Tomorrow's song")
+        XCTAssertLessThanOrEqual(inShop.frame.maxY, pulse.frame.minY + 1, "In Shop must read above its song")
+        try auditSectionTitlePage(app)
+    }
+
+    /// Run the full accessibility audit on Songs' grouped Item Shop list (#441).
+    ///
+    /// Only text the shared scroll-edge pattern dims by design is accepted: rows under the
+    /// pinned title's 40 pt row fade (`scroll-edge` R2/R5) and text behind the bottom chrome,
+    /// both covered by their own journeys. A section title above the bottom chrome is never
+    /// accepted, and every such title must measure at least 4.5:1 rendered before an unattributed
+    /// issue is; any other flagged text must measure at least 4.5:1 rendered. A larger catalogue's
+    /// next title (Not in Shop) may sit behind the tab bar, where it is chrome-band text like any
+    /// row there. Every issue is attached.
+    ///
+    /// - Parameter app: Running app on the Shop sort with both section titles on screen.
+    /// - Throws: An audit failure outside the fade bands.
+    @MainActor
+    private func auditSectionTitlePage(_ app: XCUIApplication) throws {
+        let window = app.windows.firstMatch.frame
+        let chromeTop = app.tabBars.firstMatch.exists ? app.tabBars.firstMatch.frame.minY : window.maxY
+        // One snapshot for the titles and rows: a bound-by-index walk of the lazy list fails
+        // when it recycles a row mid-walk (#572).
+        let tree = try FestivalApp.snapshotNodes(in: app) {
+            $0.identifier.hasPrefix("fst.songs.shop-section.") || SongsUITestSupport.isSongsRow($0)
+        }
+        let titles = tree.filter {
+            $0.identifier.hasPrefix("fst.songs.shop-section.") && window.intersects($0.frame)
+                && $0.frame.maxY <= chromeTop
+        }
+        XCTAssertTrue(
+            titles.contains { $0.identifier == "fst.songs.shop-section.in-shop" },
+            "In Shop must be audited above the bottom chrome"
+        )
+        let pinned = try XCTUnwrap(titles.min { $0.frame.minY < $1.frame.minY }, "No section title on screen")
+        let fadeEnd = pinned.frame.maxY + 40
+        let rows = tree.filter(SongsUITestSupport.isSongsRow).map(\.frame).filter(window.intersects)
+        let rowInFade = rows.contains { $0.minY < fadeEnd || $0.maxY > chromeTop }
+        // The audit may not attribute a contrast issue; no title it could mean may read below 4.5:1.
+        for title in Set(titles.map(\.identifier)).sorted() {
+            let element = app.descendants(matching: .any).matching(identifier: title).firstMatch
+            try SongsUITestSupport.assertHeaderContrast(element, in: app, leadingTextWidth: 260)
+        }
+        try app.performAccessibilityAudit(for: .all) { issue in
+            let element = issue.element
+            let attachment = XCTAttachment(
+                string: "\(issue.auditType): \(issue.detailedDescription); "
+                    + "element=\(element?.identifier ?? "unidentified"), label=\(element?.label ?? "unidentified"), "
+                    + "frame=\(String(describing: element?.frame)), fadeEnd=\(fadeEnd), chromeTop=\(chromeTop), "
+                    + "rowInFade=\(rowInFade)"
+            )
+            attachment.name = "songs-section-titles-audit-issue"
+            attachment.lifetime = .keepAlways
+            self.add(attachment)
+            guard issue.auditType == .contrast else { return false }
+            guard let element, !element.frame.isEmpty else { return rowInFade }
+            if element.frame.maxY > chromeTop { return true }
+            if element.identifier.hasPrefix("fst.songs.shop-section.") { return false }
+            if element.frame.minY < fadeEnd { return true }
+            try SongsUITestSupport.assertHeaderContrast(element, in: app)
+            return true
+        }
     }
 
     /// Depth-first search of one accessibility snapshot.

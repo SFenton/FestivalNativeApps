@@ -28,7 +28,8 @@ import org.junit.runner.RunWith
  * FST AVD runs it, with ATF on every state, nothing across a separating hinge and the layout the
  * window calls for (`fst.first-run.layout.side-by-side` on short wide windows, otherwise stacked).
  * States: `new-slides-only` (a fresh store), `dismissed` (with Close, system Back and Esc, each
- * marking only the displayed slides seen), `hidden-all-seen` and `replay-all`
+ * marking only the displayed slides seen), `dismissed-revisit` (issue #608: a closed tour stays
+ * closed when the user returns to the page), `hidden-all-seen` and `replay-all`
  * (`device.py test com.festivalscoretracker.android.journeys.FirstRunJourneyTest --avd …`).
  * `gated` and `waiting-not-ready` need controlled settings and timing, so they are covered by
  * the Robolectric `FirstRunStatesUiTest`.
@@ -126,6 +127,41 @@ class FirstRunJourneyTest {
         assertTrue("the key closed only the tour", h.exists("fst.songs.list"))
         val seen = runBlocking { container.firstRun.store.load().keys }
         assertEquals(displayed, seen)
+    }
+
+    /**
+     * Issue #608: a tour closed early on slide 2 never comes back when the user leaves the page
+     * and returns (another tab, then Songs again), however long the page then sits; only the two
+     * displayed slides are persisted, so the rest wait for the next launch.
+     */
+    @Test
+    fun aDismissedTourStaysClosedWhenTheUserComesBack() {
+        h.enableAccessibilityChecks()
+        val debug = DebugLaunch(firstRun = "on", stillBackground = true)
+        val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = MemoryPreferences())
+        rule.setContent { FestivalApp(container, debug) }
+        h.waitForTag("fst.first-run.dialog")
+        val displayed = container.firstRun.active.value!!.slides.take(2).map { it.id }.toSet()
+        h.tap("fst.first-run.next")
+        rule.waitUntil(5_000) { position().startsWith("Slide 2 of ") }
+        h.tap("fst.first-run.close")
+        h.waitGone("fst.first-run.dialog")
+        rule.waitUntil(5_000) { container.firstRun.active.value == null }
+        h.tap("fst.nav.tab.settings")
+        h.waitForTag("fst.settings.list")
+        h.tap("fst.nav.tab.songs")
+        h.waitForTag("fst.songs.list")
+        // Well past the host's 600 ms settle delay, when a pending tour would present.
+        rule.mainClock.advanceTimeBy(3_000)
+        rule.waitForIdle()
+        Thread.sleep(1_500)
+        rule.waitForIdle()
+        assertTrue("the dismissed tour stays closed", !h.exists("fst.first-run.dialog"))
+        assertEquals(null, container.firstRun.active.value)
+        assertEquals(displayed, runBlocking { container.firstRun.store.load().keys })
+        val order = h.readingOrder("first-run-dismissed-revisit")
+        assertTrue("TalkBack reaches no tour controls: $order", order.none { it.startsWith("Feature tour") || it == "Next" || it == "Done" })
+        h.assertAccessible()
     }
 
     /** `hidden-all-seen` on launch, then `replay-all` from Settings' replay entry point. */

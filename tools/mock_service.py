@@ -8,6 +8,7 @@ import hashlib
 import json
 import math
 import re
+import socketserver
 import struct
 import threading
 import time
@@ -26,6 +27,10 @@ SLOW_ACCOUNT_SEARCH_SECONDS = 4
 # see the reload spinner under a kept song header, and the last page fails with 500.
 SONG_LEADERBOARD_PAGING_ENTRIES = 100
 SLOW_SONG_LEADERBOARD_PAGE_SECONDS = 3
+# Longest `/__fixture__/hold-paths` hold (issue #430): a held Paths read is answered when
+# the test releases it or this many seconds after the hold began, so a test that dies
+# mid-hold never leaves the listener stalling path reads.
+PATH_HOLD_LIMIT_SECONDS = 60
 
 
 def load_fixture(name: str) -> tuple[dict, str]:
@@ -128,6 +133,13 @@ PLAYER_BANDS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/bands$")
 RANKINGS = re.compile(r"^/api/rankings/([A-Za-z_]+)$")
 PLAYER_RANK_HISTORY = re.compile(r"^/api/rankings/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
 PLAYER_INSTRUMENT_RANKING = re.compile(r"^/api/rankings/([A-Za-z_]+)/(fixture-[a-z0-9-]+)$")
+# `/api/rankings/combo?combo=` and its single-account read (issue #602). Dispatched before
+# `PLAYER_INSTRUMENT_RANKING` / `RANKINGS`, whose instrument segment would match "combo".
+COMBO_RANKINGS = re.compile(r"^/api/rankings/combo$")
+PLAYER_COMBO_RANKING = re.compile(r"^/api/rankings/combo/(fixture-[a-z0-9-]+)$")
+# Within-group combo bitmasks (bit = the instrument's index in the service order): any
+# two or more of Lead/Bass/Drums/Vocals (bits 0-3), or Pro Lead + Pro Bass (bits 4-5).
+COMBO_GROUP_MASKS = (0x0F, 0x30)
 BAND_RANKINGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)$")
 BAND_HISTORY = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
 BAND_SONGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/songs$")
@@ -214,6 +226,48 @@ def _ranking_entry(rank: int, account_id: str, display_name: str) -> dict:
         "avgAccuracy": max(500_000, 990_000 - rank * 1_000), "fullComboCount": max(0, 20 - rank),
         "avgStars": 4.9, "bestRank": 1, "avgRank": float(rank),
     }
+
+
+def _combo_ranking_entry(rank: int, account_id: str, display_name: str) -> dict:
+    """One deterministic `/api/rankings/combo` row, in the live wire shape (2026-10-10).
+
+    Args:
+        rank: 1-based rank for the requested metric; also seeds the values.
+        account_id: Fixture player id.
+        display_name: Row's display name.
+
+    Returns:
+        A JSON-ready `ComboRankingEntry` object.
+    """
+    songs = max(1, 80 - rank)
+    full_combos = max(0, min(songs, 30 - rank))
+    return {
+        "rank": rank, "accountId": account_id, "displayName": display_name,
+        "adjustedRating": max(0.001, 0.05 - rank * 0.01),
+        "weightedRating": max(0.001, 0.06 - rank * 0.01),
+        "fcRate": full_combos / songs, "totalScore": max(1_000, 180_000_000 - rank * 2_000_000),
+        "maxScorePercent": max(0.5, 0.98 - rank * 0.02), "songsPlayed": songs,
+        "totalChartedSongs": 100, "fullComboCount": full_combos,
+        "computedAt": "2026-10-10T00:00:00Z",
+    }
+
+
+def _combo_id_status(combo: str) -> int | None:
+    """Classify a combo id like `/api/rankings/combo` does.
+
+    Args:
+        combo: Lowercased hex bitmask from the `combo` query.
+
+    Returns:
+        None for a within-group combo of two or more instruments, 400 when it names fewer
+        than two instruments (or is malformed) and 404 for a cross-group combo.
+    """
+    if not re.fullmatch(r"[0-9a-f]{2}", combo):
+        return 400
+    mask = int(combo, 16)
+    if bin(mask).count("1") < 2:
+        return 400
+    return None if any(mask & group == mask for group in COMBO_GROUP_MASKS) else 404
 
 
 def _band_ranking_entry(rank: int) -> dict:
@@ -635,6 +689,18 @@ class FixtureServer(ThreadingHTTPServer):
     request_queue_size = 128
     daemon_threads = True
 
+    def server_bind(self) -> None:
+        """Bind without ``HTTPServer``'s reverse DNS lookup of the loopback host.
+
+        ``HTTPServer.server_bind`` calls ``socket.getfqdn``, which stalls on hosted macOS
+        runners before the ready line prints (#441 ``apple-ci``); a loopback fixture needs
+        no host name.
+        """
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name = str(host)
+        self.server_port = port
+
     def __init__(
         self, address: tuple[str, int], handler: type[BaseHTTPRequestHandler],
         *, unpinned: bool = False, rollover_on_read: int | None = None,
@@ -731,6 +797,9 @@ class FixtureServer(ThreadingHTTPServer):
             "shop": None, "player": None, "failedSongs": None,
         }
         self._lock = threading.Lock()
+        self._path_hold = threading.Condition(self._lock)
+        self._path_hold_until = 0.0
+        self._path_hold_waiting = 0
         super().__init__(address, handler)
 
     @property
@@ -765,6 +834,46 @@ class FixtureServer(ThreadingHTTPServer):
                 return False
             self._publication_id = 8
             return True
+
+    def hold_paths(self, seconds: int) -> dict:
+        """Hold every Paths artifact read for up to `seconds`, or release them with 0.
+
+        Args:
+            seconds: Hold length, 0 to ``PATH_HOLD_LIMIT_SECONDS``; 0 answers held reads now.
+
+        Returns:
+            The hold's status (see ``path_hold_status``).
+        """
+        with self._path_hold:
+            self._path_hold_until = time.monotonic() + seconds if seconds else 0.0
+            self._path_hold.notify_all()
+            return self._path_hold_status_locked()
+
+    def path_hold_status(self) -> dict:
+        """Return whether Paths reads are held and how many are waiting.
+
+        Returns:
+            ``{"held": bool, "waiting": int}``.
+        """
+        with self._path_hold:
+            return self._path_hold_status_locked()
+
+    def _path_hold_status_locked(self) -> dict:
+        """Status body; the caller holds the lock."""
+        return {
+            "held": time.monotonic() < self._path_hold_until,
+            "waiting": self._path_hold_waiting,
+        }
+
+    def wait_for_path_release(self) -> None:
+        """Block one Paths read while a hold lasts (returns at once without one)."""
+        with self._path_hold:
+            self._path_hold_waiting += 1
+            try:
+                while (remaining := self._path_hold_until - time.monotonic()) > 0:
+                    self._path_hold.wait(timeout=remaining)
+            finally:
+                self._path_hold_waiting -= 1
 
     def record_score_query(self, top: int, offset: int, leeway: float | None) -> None:
         """Retain only validated synthetic query numbers, never account identifiers.
@@ -1080,6 +1189,17 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(404, {"status": "not_found"})
             else:
                 self._json(200, self.fixture.publication_join_reads())
+        elif path == "/__fixture__/hold-paths":
+            # Holds Paths reads so a UI test can inspect the switch spinner (issue #430).
+            seconds = query.get("seconds", [])
+            if set(query) - {"seconds"} or len(seconds) > 1:
+                self._json(400, {"status": "invalid_fixture_query"})
+            elif not seconds:
+                self._json(200, self.fixture.path_hold_status())
+            elif not seconds[0].isdigit() or int(seconds[0]) > PATH_HOLD_LIMIT_SECONDS:
+                self._json(400, {"status": "invalid_fixture_query"})
+            else:
+                self._json(200, self.fixture.hold_paths(int(seconds[0])))
         elif path == "/__fixture__/last-score-query":
             self._json(200, {"last": self.fixture.last_score_query()})
         elif path == "/__fixture__/last-full-score-query":
@@ -1406,6 +1526,62 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self._json(200, {
                 "bandType": band_type, "teamKey": team_key, "limit": limit,
                 "best": best[:limit], "worst": worst[:limit],
+            })
+        elif COMBO_RANKINGS.fullmatch(path) or PLAYER_COMBO_RANKING.fullmatch(path):
+            # Pure-read `GET /api/rankings/combo[/{accountId}]?combo=&rankBy=` (issue #602): 400 for fewer
+            # than two instruments, 404 for cross-group combos, like the service; the fixture roster ranks
+            # the same three players (padded by `--large-rankings`).
+            combo = query.get("combo", [""])[0].lower()
+            if (status := _combo_id_status(combo)) is not None:
+                self._json(status, {"status": "invalid_combo" if status == 400 else "unsupported_combo"})
+                return
+            rank_by = query.get("rankBy", ["totalscore"])[0]
+            roster = [
+                ("fixture-player-1", "Fixture Player 1"),
+                ("fixture-player-2", "Fixture Player 2"),
+                ("fixture-rank-3", "Fixture Rank 3"),
+            ]
+            if self.fixture.large_rankings:
+                roster += [
+                    (f"fixture-rank-{n}", f"Fixture Rank {n}")
+                    for n in range(len(roster) + 1, LARGE_RANKINGS_ACCOUNTS + 1)
+                ]
+            total = len(roster)
+            if match := PLAYER_COMBO_RANKING.fullmatch(path):
+                account_id = match.group(1)
+                if account_id == "fixture-rank-fail":
+                    self._json(500, {"status": "internal_error"})
+                    return
+                ranks = {account: rank for rank, (account, _) in enumerate(roster, start=1)}
+                if account_id not in ranks:
+                    self._json(404, {"status": "account_not_ranked"})
+                    return
+                rank = ranks[account_id]
+                self._json(200, {
+                    **_combo_ranking_entry(rank, account_id, roster[rank - 1][1]),
+                    "comboId": combo, "rankBy": rank_by, "totalAccounts": total,
+                })
+                return
+            pin = self.headers.get("X-FST-Publication-Id")
+            if pin is not None and pin != str(self.fixture.publication_id):
+                self._json(409, {"status": "publication_changed"})
+                return
+            try:
+                page = int(query.get("page", ["1"])[0])
+                page_size = int(query.get("pageSize", ["10"])[0])
+            except ValueError:
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            if page < 1 or not 1 <= page_size <= 200:
+                self._json(400, {"status": "invalid_pagination"})
+                return
+            start = (page - 1) * page_size
+            self._json(200, {
+                "comboId": combo, "rankBy": rank_by, "page": page, "pageSize": page_size, "totalAccounts": total,
+                "entries": [
+                    _combo_ranking_entry(rank, account_id, display_name)
+                    for rank, (account_id, display_name) in enumerate(roster[start:start + page_size], start=start + 1)
+                ],
             })
         elif match := PLAYER_INSTRUMENT_RANKING.fullmatch(path):
             instrument, account_id = match.group(1), match.group(2)
@@ -1767,6 +1943,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if difficulty not in ("easy", "medium", "hard", "expert"):
                 self._json(400, {"status": "invalid_path_difficulty"})
                 return
+            self.fixture.wait_for_path_release()
             if (song_id != "fixture-pulse"
                     or query.get("generationId", ["fixture-path-generation"])[0]
                         != "fixture-path-generation"

@@ -9,15 +9,19 @@ import FestivalDesign
 ///
 /// `scope` is forwarded unchanged from the `.rivalDetail` push that reached this
 /// screen (native `AppRoute` carries it directly; there is no bridge to re-stash).
+///
+/// The page is one flat list of songs, so it offers no Quick Links: a chooser with
+/// one entry per row only repeats the list (owner, #545; pattern `quick-links` R3).
 struct RivalryScreen: View {
     let session: FestivalSession
     let rivalId: String
     let mode: String
     let name: String?
-    let scope: RivalScope?
+    /// The scope the route carried (it may name an experimental metric).
+    let routeScope: RivalScope?
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @State private var state: RivalsLoadState<RivalDetailResponse> = .loading
     @State private var songsById: [String: Song] = [:]
-    @State private var quickLinks = QuickLinksController()
     @Environment(\.openProfile) private var openProfile
     /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
     @Environment(\.pageToolsRegistry) private var pageTools
@@ -39,7 +43,13 @@ struct RivalryScreen: View {
         self.rivalId = rivalId
         self.mode = mode
         self.name = name
-        self.scope = scope
+        self.routeScope = scope
+    }
+
+    /// The scope in effect: a leaderboard scope's experimental metric reads Total
+    /// Score while Settings › Experimental Ranks is off (pattern `experimental-ranks`).
+    private var scope: RivalScope? {
+        routeScope?.coerced(experimentalRanks: experimentalRanks)
     }
 
     private static let modeTitles: [String: String] = [
@@ -70,9 +80,8 @@ struct RivalryScreen: View {
                     .accessibilityIdentifier("fst.rivalry.view-profile")
                 }
             }
-            QuickLinksToolbarItem(quickLinks)
         }
-        // iPhone tab-bar accessory (issue #92): View Profile before Quick Links.
+        // iPhone tab-bar accessory (issue #92): View Profile is the page's only tool.
         .festivalPageTool(token: rivalName ?? "", order: PageToolOrder.primary) {
             Button {
                 pushRoute?(.player(accountId: rivalId, displayName: rivalName))
@@ -108,19 +117,13 @@ struct RivalryScreen: View {
             if let category, !category.songs.isEmpty {
                 ScrollView {
                     FestivalGlassSection {
-                        ForEach(Array(category.songs.enumerated()), id: \.element.id) { index, song in
+                        ForEach(category.songs) { song in
                             songRow(song, rivalName: detail.rival.displayName ?? name ?? "Rival")
-                                .quickLinkSection(QuickLinkSection(
-                                    id: "\(song.songId):\(song.instrument):\(index)",
-                                    title: song.title ?? song.songId,
-                                    icon: Instrument(rawValue: song.instrument).map(QuickLinkIcon.instrument)
-                                ))
                         }
                     }
                     .padding(16)
                     .festivalFadeIn(isLoaded: true)
                 }
-                .quickLinks(quickLinks, title: "Quick Links")
             } else {
                 FestivalEmptyState(
                     "No Songs", systemImage: "music.note.list",
@@ -132,10 +135,12 @@ struct RivalryScreen: View {
 
     @ViewBuilder
     private func songRow(_ song: RivalSongComparison, rivalName: String) -> some View {
+        let match = songsById[song.songId]
         let row = RivalSongRowContent(
-            song: song, playerName: session.selectedPlayer?.displayName ?? "You", rivalName: rivalName
+            song: song, albumArt: match?.albumArt, session: session,
+            playerName: session.selectedPlayer?.displayName ?? "You", rivalName: rivalName
         )
-        if let match = songsById[song.songId] {
+        if let match {
             NavigationLink(value: AppRoute.songDetail(match)) { row }
         } else {
             row

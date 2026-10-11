@@ -2,7 +2,6 @@ package com.festivalscoretracker.android.presentation.profile
 
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
-import com.festivalscoretracker.android.core.model.PlayerSearchResult
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.profile.PlayerHistoryPayload
 import com.festivalscoretracker.android.core.profile.PlayerHistoryResponse
@@ -18,9 +17,6 @@ import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.data.FestivalApi
-import com.festivalscoretracker.android.presentation.ProfileSearchScope
-import com.festivalscoretracker.android.presentation.ProfileSearchState
-import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.MainDispatcherRule
 import com.festivalscoretracker.android.testing.ProfileFixtures
@@ -154,8 +150,9 @@ class ProfileViewModelsTest {
         vm.ensureInstrument(Instrument.Drums)
         advanceUntilIdle()
         val rank = vm.ranks.value[Instrument.Lead] as RankLoad.Available
-        assertEquals("#8", rank.tiles.single().value)
-        assertEquals(RankLoad.tile(vm.ranks.value[Instrument.Lead]), rank.tiles.single())
+        assertEquals("#8", RankLoad.tiles(rank, experimentalRanks = false).single().value)
+        assertEquals(RankLoad.tile(vm.ranks.value[Instrument.Lead]), RankLoad.tiles(rank, experimentalRanks = false).single())
+        assertFalse(vm.state.value.experimentalRanks)
         assertNotNull((vm.rankHistories.value[Instrument.Lead] as RankHistoryLoad.Loaded).chart)
         assertNull(vm.ranks.value[Instrument.Drums])
 
@@ -282,7 +279,11 @@ class ProfileViewModelsTest {
 
     // region Score history
 
-    private fun historyViewModel(respond: suspend (String) -> PlayerHistoryPayload, calls: MutableList<String>) = PlayerHistoryViewModel(
+    private fun historyViewModel(
+        respond: suspend (String) -> PlayerHistoryPayload,
+        calls: MutableList<String>,
+        currentSeason: suspend () -> Int? = { null },
+    ) = PlayerHistoryViewModel(
         songId = "s-alpha",
         instrument = Instrument.Lead,
         read = { account, _, _ -> calls += account; respond(account) },
@@ -291,7 +292,25 @@ class ProfileViewModelsTest {
         backoff = ServiceRetryBackoff(),
         zone = ZoneOffset.UTC,
         locale = Locale.US,
+        currentSeason = currentSeason,
     )
+
+    @Test
+    fun historyNamesTheCurrentSeasonOnlyWhenTheCatalogueReportsIt() = runTest(main.dispatcher) {
+        settings.value = AppSettings(selectedPlayer = playerA)
+        val current = historyViewModel({ history(it) }, mutableListOf(), currentSeason = { 40 })
+        advanceUntilIdle()
+        assertEquals(40, current.state.value.currentSeason)
+        val best = current.state.value.rows.first()
+        assertTrue(best.announcement(40).contains("Current season 40"))
+        assertFalse(best.announcement(39).contains("Current season"))
+        assertTrue(best.announcement.contains("Season 40"))
+
+        val failing = historyViewModel({ history(it) }, mutableListOf(), currentSeason = { error("catalogue down") })
+        advanceUntilIdle()
+        assertNull(failing.state.value.currentSeason)
+        assertEquals(HistoryPhase.Loaded, failing.state.value.phase)
+    }
 
     private fun history(account: String) = PlayerHistoryPayload(
         FestivalApi.JSON.decodeFromString(PlayerHistoryResponse.serializer(), ProfileFixtures.history(account)),
@@ -360,27 +379,6 @@ class ProfileViewModelsTest {
         settings.value = AppSettings(selectedPlayer = null)
         advanceUntilIdle()
         assertEquals(HistoryPhase.NoPlayer, vm.state.value.phase)
-    }
-
-    // endregion
-
-    // region Search scope
-
-    @Test
-    fun bandScopeNeverSearches() = runTest(main.dispatcher) {
-        var calls = 0
-        val vm = ProfileSearchViewModel { calls++; listOf(PlayerSearchResult(Fixtures.ACCOUNT_A, "x")) }
-        vm.setScope(ProfileSearchScope.Bands)
-        vm.onQueryChange("band name")
-        advanceUntilIdle()
-        assertEquals(ProfileSearchState.BandsUnavailable, vm.state.value)
-        assertEquals(ProfileSearchScope.Bands, vm.scope.value)
-        assertEquals(0, calls)
-        assertEquals("Find Band", ProfileSearchScope.Bands.placeholder)
-        vm.setScope(ProfileSearchScope.Players)
-        advanceUntilIdle()
-        assertTrue(vm.state.value is ProfileSearchState.Results)
-        assertEquals(1, calls)
     }
 
     // endregion

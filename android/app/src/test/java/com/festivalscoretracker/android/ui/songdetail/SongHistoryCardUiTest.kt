@@ -17,7 +17,9 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -127,6 +129,71 @@ class SongHistoryCardUiTest {
         assertTrue(rule.onAllNodes(hasContentDescription("best score", substring = true)).fetchSemanticsNodes().size == 1)
         rule.onNodeWithTag("fst.song-detail.history.view-all").performClick()
         assertEquals(Instrument.Lead, viewAll)
+    }
+
+    private fun bounds(tag: String) = rule.onNodeWithTag(tag).getBoundsInRoot()
+
+    private fun inCard(tag: String) =
+        rule.onAllNodes(hasTestTag(tag) and hasAnyAncestor(hasTestTag("fst.song-detail.history.card"))).fetchSemanticsNodes().size == 1
+
+    @Test
+    fun selectorChartRowsAndViewAllShareOneCard() {
+        // Issue #588: like iOS, the selector, chart, best scores and View All Scores are one card.
+        show(rows("Solo_Guitar", 8) + rows("Solo_Bass", 2))
+        rule.waitForIdle()
+        listOf(
+            "fst.song-detail.history.instrument.Solo_Guitar",
+            "fst.song-detail.history.chart",
+            "fst.song-detail.history.top",
+            "fst.song-detail.history.top.0",
+            "fst.song-detail.history.top.4",
+            "fst.song-detail.history.view-all",
+        ).forEach { assertTrue("$it inside the card", inCard(it)) }
+        val card = bounds("fst.song-detail.history.card")
+        val graph = bounds("fst.song-detail.history.graph")
+        val first = bounds("fst.song-detail.history.top.0")
+        val last = bounds("fst.song-detail.history.top.4")
+        val cta = bounds("fst.song-detail.history.view-all")
+        // Graph, then the rows, then View All Scores ending the card (`view-all-cta` R1).
+        assertTrue(graph.bottom <= first.top)
+        assertTrue(last.bottom <= cta.top)
+        assertTrue(cta.bottom <= card.bottom && card.bottom - cta.bottom <= 8.dp)
+        // The rows and the button are inset within the card and keep the 48 dp target.
+        assertTrue(first.left > card.left && first.right < card.right)
+        assertTrue(cta.left > card.left && cta.right < card.right && cta.height >= 48.dp)
+        (0 until 5).forEach { assertTrue(bounds("fst.song-detail.history.top.$it").height >= 48.dp) }
+        // The best row is still the one TalkBack hears as best.
+        assertTrue(description("fst.song-detail.history.top.0").endsWith("best score"))
+    }
+
+    /**
+     * `view-all-cta` R4 (#588 review): View All Scores speaks its label first, then the selected
+     * chart's card, once (the visible label leaves the merged semantics), and follows a switch.
+     */
+    @Test
+    fun viewAllScoresSpeaksTheLabelThenTheSelectedCard() {
+        show(rows("Solo_Guitar", 8) + rows("Solo_Bass", 7))
+        rule.waitForIdle()
+        fun cta() = rule.onNodeWithTag("fst.song-detail.history.view-all").fetchSemanticsNode().config
+        assertEquals(listOf("View All Scores, Lead Score History"), cta()[SemanticsProperties.ContentDescription])
+        assertFalse("label not read twice", cta().contains(SemanticsProperties.Text))
+        assertEquals(androidx.compose.ui.semantics.Role.Button, cta()[SemanticsProperties.Role])
+        rule.onNodeWithTag("fst.song-detail.history.instrument.Solo_Bass").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("View All Scores, Bass Score History"), cta()[SemanticsProperties.ContentDescription])
+        rule.onNodeWithTag("fst.song-detail.history.view-all").performClick()
+        assertEquals(Instrument.Bass, viewAll)
+        assertEquals("Pro Drums + Cymbals Score History", scoreHistoryCardName(Instrument.ProCymbals))
+    }
+
+    @Test
+    fun theCardEndsAtTheRowsWithoutViewAll() {
+        show(rows("Solo_Guitar", 3))
+        rule.waitForIdle()
+        assertFalse(exists("fst.song-detail.history.view-all"))
+        assertTrue(inCard("fst.song-detail.history.top.2"))
+        val card = bounds("fst.song-detail.history.card")
+        assertTrue(card.bottom - bounds("fst.song-detail.history.top.2").bottom <= 8.dp)
     }
 
     @Test
@@ -240,7 +307,8 @@ class SongHistoryCardUiTest {
         rule.onNodeWithTag("fst.song-detail.history.instrument.$wireId").fetchSemanticsNode().config.getOrNull(SemanticsProperties.Selected) == true
     }
 
-    private fun cardHeight() = rule.onNodeWithTag("fst.song-detail.history.card").getBoundsInRoot().height
+    /** The graph section (selector, hint, chart, pager): it keeps its size through a swap (issue #588 moved the rows into the card). */
+    private fun graphHeight() = rule.onNodeWithTag("fst.song-detail.history.graph").getBoundsInRoot().height
 
     private fun chartSays(text: String) =
         rule.onNodeWithTag("fst.song-detail.history.chart").assert(hasContentDescription(text, substring = true))
@@ -248,11 +316,87 @@ class SongHistoryCardUiTest {
     /** Lead pages on a phone (8 > 3 bars), Bass and Drums don't. */
     private val mixed get() = rows("Solo_Guitar", 8) + rows("Solo_Bass", 2) + rows("Solo_Drums", 3, goldLast = true)
 
+    /** The pager's Forward one page button is enabled (a Back one page click has landed). */
+    private fun forwardEnabled() =
+        !rule.onNodeWithTag("fst.song-detail.history.forward-page").fetchSemanticsNode().config.contains(SemanticsProperties.Disabled)
+
+    /** The Score History chart as drawn this frame, cropped from a full-window draw. */
+    private fun chartFrame(): Bitmap {
+        val root = rule.activity.window.decorView
+        val full = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
+        rule.runOnUiThread { root.draw(Canvas(full)) }
+        val r = rule.onNodeWithTag("fst.song-detail.history.chart").fetchSemanticsNode().boundsInWindow
+        return Bitmap.createBitmap(full, r.left.toInt(), r.top.toInt(), r.width.toInt(), r.height.toInt())
+    }
+
+    /**
+     * Page the 30-score Lead chart back with the clock paused and capture its chart before,
+     * [midMillis] into the 400 ms slide and settled, checking the graph and chart keep their size.
+     *
+     * @return (before, mid, settled) chart frames.
+     */
+    private fun pageBack(midMillis: Long): Triple<Bitmap, Bitmap, Bitmap> {
+        rule.waitForIdle()
+        val height = graphHeight()
+        val chart = rule.onNodeWithTag("fst.song-detail.history.chart").getBoundsInRoot()
+        rule.mainClock.autoAdvance = false
+        try {
+            val before = chartFrame()
+            rule.onNodeWithContentDescription("Back one page").performClick()
+            // With the clock paused the click lands a few frames later: time the slide from then.
+            rule.mainClock.advanceTimeUntil(timeoutMillis = 2_000) { forwardEnabled() }
+            rule.mainClock.advanceTimeBy(midMillis)
+            val mid = chartFrame()
+            assertEquals("graph keeps its height mid-slide", height, graphHeight())
+            assertEquals("chart keeps its bounds mid-slide", chart, rule.onNodeWithTag("fst.song-detail.history.chart").getBoundsInRoot())
+            rule.mainClock.advanceTimeBy(800)
+            val settled = chartFrame()
+            assertEquals("graph keeps its height once settled", height, graphHeight())
+            assertEquals("chart keeps its bounds once settled", chart, rule.onNodeWithTag("fst.song-detail.history.chart").getBoundsInRoot())
+            rule.onNodeWithContentDescription("Forward one page").assertIsEnabled()
+            return Triple(before, mid, settled)
+        } finally {
+            rule.mainClock.autoAdvance = true
+        }
+    }
+
     @Test
-    fun switchingChartFadesOutSwapsAndFadesInWithoutResizingTheCard() {
+    fun pagingSlidesTheChartWithoutResizingTheGraph() {
+        show(rows("Solo_Guitar", 30, goldLast = true))
+        val (before, mid, settled) = pageBack(midMillis = 200)
+        // Mid-slide (load-transition R12): the plot is between the two windows, matching neither.
+        assertFalse("the new window was not drawn", settled.sameAs(before))
+        assertFalse("the chart snapped: mid-slide already equals the new window", mid.sameAs(settled))
+        assertFalse("the chart did not move 200 ms into the slide", mid.sameAs(before))
+    }
+
+    @Test
+    fun removeAnimationsPagesTheChartAtOnce() {
+        // Accessibility › Remove animations sets the animator duration scale to 0 (R6).
+        android.provider.Settings.Global.putFloat(rule.activity.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 0f)
+        show(rows("Solo_Guitar", 30, goldLast = true))
+        val (before, mid, settled) = pageBack(midMillis = 50)
+        assertFalse("the new window was not drawn", settled.sameAs(before))
+        assertTrue("with animations removed the new window is drawn at once", mid.sameAs(settled))
+    }
+
+    @Test
+    fun appReduceMotionPagesTheChartAtOnce() {
+        rule.setContent {
+            FestivalTheme(appReduceMotion = true) {
+                SongHistoryCard(rows("Solo_Guitar", 30, goldLast = true), visible = Instrument.entries.toSet(), keyboard = false, initialInstrument = null, onViewAll = {})
+            }
+        }
+        val (before, mid, settled) = pageBack(midMillis = 50)
+        assertFalse("the new window was not drawn", settled.sameAs(before))
+        assertTrue("with Reduce Motion the new window is drawn at once", mid.sameAs(settled))
+    }
+
+    @Test
+    fun switchingChartFadesOutSwapsAndFadesInWithoutResizingTheGraph() {
         show(mixed)
         rule.waitForIdle()
-        val before = cardHeight()
+        val before = graphHeight()
         rule.onNodeWithTag("fst.song-detail.history.pager").assertExists()
         rule.mainClock.autoAdvance = false
         rule.onNodeWithTag("fst.song-detail.history.instrument.Solo_Bass").performClick()
@@ -261,15 +405,15 @@ class SongHistoryCardUiTest {
         rule.mainClock.advanceTimeBy(80)
         // Still fading the old chart out, at the same size.
         chartSays("Lead score history")
-        assertEquals(before, cardHeight())
+        assertEquals(before, graphHeight())
         rule.mainClock.advanceTimeBy(200)
         // Swapped and fading in: the pager is gone but its row is still reserved.
         chartSays("Bass score history: 2 scores")
         assertFalse(exists("fst.song-detail.history.pager"))
         assertTrue(exists("fst.song-detail.history.pager-slot"))
-        assertEquals(before, cardHeight())
+        assertEquals(before, graphHeight())
         rule.mainClock.advanceTimeBy(1_000)
-        assertEquals(before, cardHeight())
+        assertEquals(before, graphHeight())
         assertFalse(exists("fst.song-detail.history.top.2"))
         // The reserved slot is silent for TalkBack.
         assertTrue(rule.onAllNodes(hasContentDescription("Back one page")).fetchSemanticsNodes().isEmpty())
@@ -280,7 +424,7 @@ class SongHistoryCardUiTest {
     fun rapidSwitchesCancelEarlierSwapsAndEndOnTheLastChoice() {
         show(mixed)
         rule.waitForIdle()
-        val before = cardHeight()
+        val before = graphHeight()
         rule.mainClock.autoAdvance = false
         rule.onNodeWithTag("fst.song-detail.history.instrument.Solo_Bass").performClick()
         rule.mainClock.advanceTimeBy(60)
@@ -295,7 +439,7 @@ class SongHistoryCardUiTest {
         rule.onNodeWithTag("fst.song-detail.history.instrument.Solo_Drums").performClick()
         rule.mainClock.advanceTimeBy(1_000)
         chartSays("Drums score history: 3 scores")
-        assertEquals(before, cardHeight())
+        assertEquals(before, graphHeight())
         // The best scores end on the last choice too (Drums' three rows, settled).
         rule.mainClock.advanceTimeBy(500)
         assertEquals(GraphListPhase.Idle, listPhase())
@@ -312,14 +456,14 @@ class SongHistoryCardUiTest {
             }
         }
         rule.waitForIdle()
-        val before = cardHeight()
+        val before = graphHeight()
         rule.mainClock.autoAdvance = false
         rule.onNodeWithTag("fst.song-detail.history.instrument.Solo_Bass").performClick()
         // Well inside the 150 ms fade-out: with reduced motion the new chart is already shown.
         untilSelected("Solo_Bass")
         rule.mainClock.advanceTimeBy(50)
         chartSays("Bass score history: 2 scores")
-        assertEquals(before, cardHeight())
+        assertEquals(before, graphHeight())
         rule.mainClock.autoAdvance = true
     }
 

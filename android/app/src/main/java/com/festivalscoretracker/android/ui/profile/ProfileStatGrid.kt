@@ -1,14 +1,8 @@
 package com.festivalscoretracker.android.ui.profile
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -23,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -33,6 +28,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalDensity
@@ -42,6 +38,8 @@ import com.festivalscoretracker.android.core.profile.PlayerTileAction
 import com.festivalscoretracker.android.core.profile.StatGridColumns
 import com.festivalscoretracker.android.core.profile.StatTints
 import com.festivalscoretracker.android.presentation.profile.PlayerStatTile
+import com.festivalscoretracker.android.ui.common.StatTileGrid
+import com.festivalscoretracker.android.ui.common.StatTileText
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
@@ -49,10 +47,10 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 // region Stat grid
 
 /**
- * Stat tiles in an adaptive grid (web `StatBox` items, each its own frosted card): two
- * columns on phones, three or four as the grid widens ([StatGridColumns]). Every tile
- * in a row takes the row's height so values and chevrons line up; the column count
- * comes from the constraints of the same pass, so the first frame is final.
+ * Stat tiles in the shared [StatTileGrid] (web `StatBox` items, each its own frosted card):
+ * two columns on phones, three or four as the grid widens ([StatGridColumns]). A tile whose
+ * value or label would wrap in one slot spans two, and every tile takes the grid's tallest
+ * height so values and chevrons line up (pattern `stat-tile-grid`, #591).
  *
  * @param tiles Tiles in web order (stable ids).
  * @param scope Test-tag scope: `overview` or an instrument's wire ID.
@@ -68,24 +66,15 @@ internal fun StatGrid(
     onAction: (PlayerTileAction) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    BoxWithConstraints(modifier.fillMaxWidth()) {
-        val columns = StatGridColumns.count(maxWidth.value, LocalDensity.current.fontScale)
-        val spacing = StatGridColumns.SPACING_DP.dp
-        Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
-            tiles.chunked(columns).forEach { row ->
-                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(spacing)) {
-                    row.forEach { tile ->
-                        val action = tile.action?.takeIf { !tile.placeholder && canRun(it) }
-                        StatTile(
-                            tile,
-                            onClick = action?.let { { onAction(it) } },
-                            modifier = Modifier.weight(1f).fillMaxHeight().testTag("fst.player.tile.$scope.${tile.id}"),
-                        )
-                    }
-                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
-                }
-            }
-        }
+    val fontScale = LocalDensity.current.fontScale
+    val texts = statTileTexts()
+    StatTileGrid(tiles, columns = { StatGridColumns.count(it, fontScale) }, texts = texts, inset = STAT_TILE_INSET, modifier = modifier) { tile, _, tileModifier ->
+        val action = tile.action?.takeIf { !tile.placeholder && canRun(it) }
+        StatTile(
+            tile,
+            onClick = action?.let { { onAction(it) } },
+            modifier = tileModifier.testTag("fst.player.tile.$scope.${tile.id}"),
+        )
     }
 }
 
@@ -103,10 +92,37 @@ internal fun actionLabel(action: PlayerTileAction): String = when (action) {
 /** `0xRRGGBB` stat tint → colour. */
 private fun tintColor(rgb: Int?): Color = rgb(rgb ?: StatTints.DEFAULT)
 
+/** A tile's horizontal padding (both sides): room for the chevron, kept symmetric. */
+internal val STAT_TILE_INSET = 56.dp
+
+/** The value's style (web `StatBox` `value`: `Font.xl`, bold). */
+@Composable
+private fun statValueStyle(): TextStyle = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+
+/** The label's style (web `StatBox` `label`: `Font.xs`, uppercase, wide tracking). */
+@Composable
+private fun statLabelStyle(): TextStyle = MaterialTheme.typography.labelSmall.copy(letterSpacing = 0.6.sp)
+
+/**
+ * What a [StatTile] draws on one line each, for [StatTileGrid]'s span rule: the value
+ * (unless it is star images) and the uppercase label.
+ *
+ * @return Texts for a tile.
+ */
+@Composable
+internal fun statTileTexts(): (PlayerStatTile) -> List<StatTileText> {
+    val value = statValueStyle()
+    val label = statLabelStyle()
+    return remember(value, label) {
+        { tile -> listOfNotNull(StatTileText(tile.value, value).takeIf { tile.stars == null }, StatTileText(tile.label.uppercase(), label)) }
+    }
+}
+
 /**
  * One tile: its own frosted card with the value over an uppercase label, centred; a
  * clickable tile adds a trailing chevron and web `StatBox` press feedback (ripple).
- * Horizontal padding is symmetric, so the centred text stays centred either way.
+ * Horizontal padding is symmetric ([STAT_TILE_INSET]), so the centred text stays centred
+ * either way. Text wraps rather than truncating when even a two-slot tile is too narrow.
  *
  * @param tile Tile.
  * @param onClick Tap, or null for a flat tile.
@@ -121,7 +137,7 @@ internal fun StatTile(tile: PlayerStatTile, onClick: (() -> Unit)?, modifier: Mo
     val content: @Composable () -> Unit = {
         Box(Modifier.fillMaxWidth().heightIn(min = 72.dp), contentAlignment = Alignment.Center) {
             Column(
-                Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 14.dp),
+                Modifier.fillMaxWidth().padding(horizontal = STAT_TILE_INSET / 2, vertical = 14.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 val stars = tile.stars
@@ -130,19 +146,16 @@ internal fun StatTile(tile: PlayerStatTile, onClick: (() -> Unit)?, modifier: Mo
                 } else {
                     Text(
                         tile.value,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
+                        style = statValueStyle(),
                         color = tintColor(tile.tint),
                         textAlign = TextAlign.Center,
-                        maxLines = 2,
                         // Loading: the same text, invisible, so the tile has its final size.
                         modifier = if (tile.placeholder) Modifier.alpha(0f) else Modifier,
                     )
                 }
                 Text(
                     tile.label.uppercase(),
-                    style = MaterialTheme.typography.labelSmall,
-                    letterSpacing = 0.6.sp,
+                    style = statLabelStyle(),
                     color = BrandTokens.textSecondary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(top = 4.dp),

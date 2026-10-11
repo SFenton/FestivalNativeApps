@@ -129,6 +129,17 @@ Every song-using demo (Songs, `statistics-top-songs`, `rivals-detail`,
   until content arrives"); the swap to live songs animates unless Reduce Motion is on
   (`FirstRunHostedTests.songDemosRenderPlaceholdersWithoutCatalogue`). Ranks and percentiles stay
   static `FirstRunDemoPool` numbers (Top Songs uses the web's `DEMO_PERCENTILES`).
+- Song demos are decorative (HIG VoiceOver: "Exclude purely decorative images that convey no
+  useful or actionable information"): placeholders and catalogue songs alike stay hidden, and
+  the slide reads only "title. description", then dots, Next, Skip. Pinned per song demo in both
+  states, at Large and AX5, by `FirstRunDemoSongsAccessibilityTests` (#401), and on iOS at AX5
+  with `performAccessibilityAudit` by `FirstRunJourneyTests.testSongDemoSlideAccessibleAtLargestText`
+  (in `apple-ci`'s simulator journeys).
+- At accessibility text sizes (`dynamicTypeSize.isAccessibilitySize`) the slide takes the
+  compact-height path: a 120 pt demo and the text in a `ScrollView` (#401: at AX5 the full layout
+  cut the Song List description off after "Tap a song to see" under the dots). HIG Typography:
+  "Keep text truncation to a minimum as font size increases." The combined slide keeps
+  `.isStaticText` so the scroll path still reads as text.
 
 | Slide id | Demo | Real UI used |
 |---|---|---|
@@ -271,6 +282,19 @@ Before #27 iOS showed one static state per demo; now each rotating demo swaps li
 - Hosted tests: `FirstRunDemoRotationUITests` (swap order, ticker policy, cancellation
   completes, web pools/templates; an active bar-select demo advances while an inactive one
   stays still, and system or app Reduce Motion holds an active one still past its interval).
+- Accessibility (#402): `FirstRunDemoRotationAccessibilityTests` hosts all 12 rotating demos
+  active with motion on, samples through a swap and requires the picture to change while nothing
+  becomes reachable (no element, song, placeholder or rival text). System or app Reduce Motion holds
+  every one of them still. The Statistics carousel slide reads the same before and after a swap at
+  Large and AX5: the same name, role, order and frames, and the targets still meet their minimum sizes.
+  On iPhone at AX5, `FirstRunJourneyTests.testSongDemoRotationKeepsSlideAccessibleAtLargestText`
+  (`FST_DEBUG_STILL_BACKGROUND=0`, an `apple-ci` journey) waits past a live swap and runs the AX5
+  checks and `performAccessibilityAudit` again. **Rule:** a swapped-in tile's loading spinner
+  (`ArtworkTile` → `FestivalLoadingView`) stays out of the accessibility children because the
+  demo is `accessibilityHidden`. On macOS, `macAccessibilityTree` still lists the
+  `NSProgressIndicator` behind it, because that walk also descends AppKit subviews, so test what
+  VoiceOver reaches with an `accessibilityChildren` walk (as `ReloadGateAccessibilityTests.reachable`
+  does).
 
 | Slide | Rotation (web source) |
 |---|---|

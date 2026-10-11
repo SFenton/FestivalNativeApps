@@ -18,6 +18,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
@@ -110,6 +111,19 @@ internal class NavigationHarness(private val rule: androidx.compose.ui.test.juni
     }
 
     /**
+     * Wait until the top app bar's title reads [title] (`fst.nav.title`).
+     *
+     * @param title Page title.
+     */
+    fun waitForTitle(title: String) {
+        val matcher = (hasTestTag("fst.nav.title") and hasText(title)) or (hasText(title) and hasAnyAncestor(hasTestTag("fst.nav.title")))
+        rule.waitUntil(10_000) {
+            settle(100)
+            rule.onAllNodes(matcher, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    /**
      * Tab tags in composition order (`fst.nav.tab.<section>`).
      *
      * @return Section names, lowercase, in reading order.
@@ -183,21 +197,43 @@ class AppNavigationStatesUiTest {
     @Test
     fun playerStateShowsPlayerTabsAndAvatar() {
         harness.launch(DebugLaunch(profile = navigationPlayer, stillBackground = true))
-        assertEquals(listOf("songs", "suggestions", "compete", "statistics", "settings"), harness.tabOrder())
+        // Owner (#601): Item Shop takes Statistics' slot; the avatar opens Statistics.
+        assertEquals(listOf("songs", "suggestions", "compete", "shop", "settings"), harness.tabOrder())
         rule.onNodeWithTag("fst.nav.profile").assert(hasContentDescription("Profile: Synthetic Player"))
 
         rule.onNodeWithTag("fst.nav.tab.suggestions").performClick()
         harness.waitForTagPrefix("fst.suggestions.")
         rule.onNodeWithTag("fst.nav.tab.suggestions").assertIsSelected()
-        rule.onNodeWithTag("fst.nav.tab.statistics").performClick()
+        rule.onNodeWithTag("fst.nav.tab.shop").assert(hasText("Item Shop")).performClick()
+        harness.waitForTag("fst.shop.sort.open")
+        rule.onNodeWithTag("fst.nav.tab.shop").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.profile").performClick()
         harness.waitForTag("fst.statistics")
-        rule.onNodeWithTag("fst.nav.tab.statistics").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.back").assertIsDisplayed().performClick()
+        harness.waitForNoTag("fst.statistics")
+        rule.onNodeWithTag("fst.nav.tab.shop").assertIsSelected()
 
         // Compact player drawer: Leaderboards and Rivals push their non-root twins.
         rule.onNodeWithTag("fst.nav.drawer").performClick()
         harness.waitForTag("fst.nav.drawer.deselect")
         harness.waitForTag("fst.nav.drawer.rivals")
         harness.waitForTag("fst.nav.drawer.leaderboards")
+    }
+
+    /** #601: with Hide Item Shop on, nothing fills Item Shop's slot (four destinations, no Statistics). */
+    @Test
+    fun hideItemShopLeavesFourPlayerTabs() {
+        harness.launch(DebugLaunch(profile = navigationPlayer, stillBackground = true))
+        rule.onNodeWithTag("fst.nav.tab.settings").performClick()
+        harness.waitForTag("fst.settings.list")
+        rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag("fst.settings.hide-shop"))
+        rule.onNodeWithTag("fst.settings.hide-shop").performSemanticsAction(SemanticsActions.OnClick)
+        harness.waitForNoTag("fst.nav.tab.shop")
+        assertEquals(listOf("songs", "suggestions", "compete", "settings"), harness.tabOrder())
+        rule.onNodeWithTag("fst.nav.tab.settings").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.drawer").performClick()
+        harness.waitForTag("fst.nav.drawer.deselect")
+        assertTrue(rule.onAllNodesWithTag("fst.nav.drawer.shop").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
@@ -221,11 +257,56 @@ class AppNavigationStatesUiTest {
         rule.onNodeWithTag("fst.nav.tab.songs").assertIsSelected()
     }
 
+    /**
+     * #610: on a phone, the drawer's Rivals and Leaderboards open as children of Compete: the
+     * bar selects Compete, Back returns to Compete's root, and per-tab history keeps place (Songs
+     * comes back as left, Compete comes back on Rivals).
+     */
+    @Test
+    fun drawerRivalsAndLeaderboardsOpenUnderCompeteAndBackKeepsPlace() {
+        harness.launch(DebugLaunch(profile = navigationPlayer, stillBackground = true))
+        rule.onNodeWithTag("fst.nav.drawer").performClick()
+        harness.waitForTag("fst.nav.drawer.rivals")
+        rule.onNodeWithTag("fst.nav.drawer.rivals").performSemanticsAction(SemanticsActions.OnClick)
+        harness.waitForTitle("Rivals")
+        harness.waitForNoTag("fst.songs.row.s-alpha")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.tab.songs").assertIsNotSelected()
+        rule.onNodeWithTag("fst.nav.back").assertIsDisplayed()
+
+        // Switching tabs keeps each tab's place: Songs as left, Compete still on Rivals.
+        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
+        harness.waitForTag("fst.songs.row.s-alpha")
+        rule.onNodeWithTag("fst.nav.tab.songs").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.tab.compete").performClick()
+        harness.waitForTitle("Rivals")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+
+        // Back returns to Compete's root, not to the tab the drawer was opened from.
+        rule.onNodeWithTag("fst.nav.back").performClick()
+        harness.waitForTitle("Compete")
+        harness.waitForNoTag("fst.nav.back")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+
+        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
+        harness.waitForTag("fst.songs.row.s-alpha")
+        rule.onNodeWithTag("fst.nav.drawer").performClick()
+        harness.waitForTag("fst.nav.drawer.leaderboards")
+        rule.onNodeWithTag("fst.nav.drawer.leaderboards").performSemanticsAction(SemanticsActions.OnClick)
+        harness.waitForTag("fst.leaderboards")
+        harness.waitForTitle("Leaderboards")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.back").performClick()
+        harness.waitForTitle("Compete")
+        harness.waitForNoTag("fst.leaderboards")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+    }
+
     @Test
     fun largeTextBarIsIconOnlyWithSpokenNames() {
         RuntimeEnvironment.setFontScale(2f)
         harness.launch(DebugLaunch(profile = navigationPlayer, stillBackground = true))
-        listOf("songs" to "Songs", "suggestions" to "Suggestions", "compete" to "Compete", "statistics" to "Statistics", "settings" to "Settings")
+        listOf("songs" to "Songs", "suggestions" to "Suggestions", "compete" to "Compete", "shop" to "Item Shop", "settings" to "Settings")
             .forEach { (tag, name) ->
                 rule.onNodeWithTag("fst.nav.tab.$tag").assert(hasContentDescription(name)).assert(!hasText(name))
             }
@@ -285,8 +366,7 @@ class MediumAppNavigationStatesUiTest {
         // Regular width: Compete splits into Leaderboards and Rivals.
         assertTrue(rule.onAllNodesWithTag("fst.nav.tab.compete").fetchSemanticsNodes().isEmpty())
         val order = harness.tabOrder()
-        assertTrue(order.containsAll(listOf("songs", "suggestions", "leaderboards", "rivals", "statistics", "settings")))
-        assertEquals("settings", order.last())
+        assertEquals(listOf("songs", "suggestions", "leaderboards", "rivals", "shop", "settings"), order)
 
         rule.onNodeWithTag("fst.nav.tab.leaderboards").performClick()
         harness.waitForTag("fst.leaderboards")
@@ -295,6 +375,19 @@ class MediumAppNavigationStatesUiTest {
         harness.settle()
         harness.waitForTag("fst.leaderboards")
         rule.onNodeWithTag("fst.nav.tab.leaderboards").assertIsSelected()
+    }
+
+    /** #610: regular widths are unchanged; the drawer's Rivals row selects the Rivals tab. */
+    @Test
+    fun railDrawerRivalsSelectsTheRivalsTab() {
+        harness.launch(DebugLaunch(profile = navigationPlayer, stillBackground = true))
+        rule.onNodeWithTag("fst.nav.drawer").performClick()
+        harness.waitForTag("fst.nav.drawer.rivals")
+        rule.onNodeWithTag("fst.nav.drawer.rivals").performSemanticsAction(SemanticsActions.OnClick)
+        harness.waitForTitle("Rivals")
+        rule.onNodeWithTag("fst.nav.tab.rivals").assertIsSelected()
+        assertTrue(rule.onAllNodesWithTag("fst.nav.tab.compete").fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodesWithTag("fst.nav.back").fetchSemanticsNodes().isEmpty())
     }
 }
 
@@ -322,9 +415,12 @@ class ExpandedAppNavigationStatesUiTest {
     }
 
     @Test
-    fun permanentDrawerPlayerStateShowsStatisticsAndDeselect() {
+    fun permanentDrawerPlayerStateShowsItemShopTabStatisticsRowAndDeselect() {
         harness.launch(DebugLaunch(profile = navigationPlayer, stillBackground = true), firstTag = "fst.songs.row.s-gamma")
-        rule.onNodeWithTag("fst.nav.tab.statistics").assertIsDisplayed()
+        // #601: Item Shop is a tab row; the web sidebar's Statistics row stays and pushes the page.
+        rule.onNodeWithTag("fst.nav.tab.shop").assertIsDisplayed()
+        rule.onNodeWithTag("fst.nav.drawer.statistics").assertIsDisplayed()
+        assertTrue(rule.onAllNodesWithTag("fst.nav.tab.statistics").fetchSemanticsNodes().isEmpty())
         rule.onNodeWithTag("fst.nav.tab.rivals").assertIsDisplayed()
         rule.onNodeWithTag("fst.nav.drawer.deselect").assertIsDisplayed()
         // TalkBack reads the whole drawer, footer included, as one unit before the page.
@@ -332,9 +428,11 @@ class ExpandedAppNavigationStatesUiTest {
         listOf("fst.nav.drawer.deselect", "fst.nav.tab.settings").forEach {
             rule.onNodeWithTag(it).assert(hasAnyAncestor(hasTestTag("fst.nav.drawer-sheet")))
         }
-        rule.onNodeWithTag("fst.nav.tab.statistics").performClick()
+        rule.onNodeWithTag("fst.nav.drawer.statistics").performClick()
         harness.waitForTag("fst.statistics")
-        rule.onNodeWithTag("fst.nav.tab.statistics").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.tab.shop").performClick()
+        harness.waitForTag("fst.shop.sort.open")
+        rule.onNodeWithTag("fst.nav.tab.shop").assertIsSelected()
     }
 }
 

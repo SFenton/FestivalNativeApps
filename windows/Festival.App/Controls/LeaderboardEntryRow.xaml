@@ -5,7 +5,7 @@
     xmlns:controls="using:Festival.App.Controls">
     <!--
         The one leaderboard row (operator batch 7.7; web entryRow + LeaderboardEntry / RankingEntry): its own frosted
-        48 epx row with a 12 epx radius, 4 epx apart in a list (no card around the rows). Columns, left to right:
+        48 epx row with a 12 epx radius, 4 epx apart in a list (no card around the rows), except on full boards (below). Columns, left to right:
         rank · name (scrolls when it doesn't fit) · season or songs label · score or rating (+ Bayesian) · accuracy badge · stars · in-card chevron.
         Which columns show and their widths come from one per-section plan (Festival.Core LeaderboardColumnLayout, issue
         #37), measured over every row of the section and its pinned row, so columns line up vertically like the web; a
@@ -14,6 +14,11 @@
         (empty account ID) is not hit-testable or tabbable and its peer is Text with no Invoke (issue #63). The selected player's row is purpleHighlight with a purple border and
         bold rank and name. The surface is a Border behind a transparent Button, so hover/press add a white tint on top
         of the frosted fill instead of replacing it.
+        On a full board (GroupedRows, issue #543, owner-approved variant) the rows touch and each draws its slice of one
+        grouped card: rounded top on the first row, rounded bottom on the last, side strokes between, and the Separator
+        hairline above every row but the first and those beside the selected row, which keeps its full purple outline.
+        Inside a card that draws the surface (GroupedRows.InCard, Song Detail's Score History, issue #588) a row draws no
+        surface or outline of its own, only the hairline; the selected row keeps its purple fill and outline with 4 epx corners.
     -->
     <Grid>
         <!-- Pinned rows float over scrolling rows: an opaque backplate stands in for the web's backdrop blur (no per-frame blur). -->
@@ -21,6 +26,9 @@
                 Background="{ThemeResource FSTFloatingBackplateBrush}" />
         <Border x:Name="Surface" CornerRadius="12" BorderThickness="1" IsHitTestVisible="False"
                 Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}" />
+        <!-- Grouped card hairline between rows (Search rows card's FSTRowSeparatorBrush; GrayText under a contrast theme). -->
+        <Border x:Name="Separator" Height="1" Margin="12,0" VerticalAlignment="Top" IsHitTestVisible="False" Visibility="Collapsed"
+                Background="{ThemeResource FSTRowSeparatorBrush}" AutomationProperties.AccessibilityView="Raw" />
         <controls:LeaderboardRowButton x:Name="RowButton" Click="OnClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                 VerticalAlignment="Stretch" Padding="12,0" MinHeight="48" CornerRadius="12" BorderThickness="0"
                 Background="Transparent" SizeChanged="OnSizeChanged">
@@ -67,7 +75,9 @@
                 <!-- A name that doesn't fit scrolls inside its column (issue #292, reversing batch 7.14's truncation); it
                      ellipsizes, with the full name as the row's tooltip, when motion is off or the window is hidden. -->
                 <controls:MarqueeText x:Name="NameText" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" Grid.RowSpan="3" VerticalAlignment="Center" />
-                <!-- Season (score rows, ≥ 520 epx like the web) or the small "X / Y" songs label (rankings rows), right-aligned in the shared column. -->
+                <!-- The small "X / Y" songs label (rankings rows), right-aligned in the shared meta column. A score row's season
+                     (≥ 520 epx like the web) is the shared season pill (MetadataPills, issue #606), added in code beside this
+                     text and placed in the same cell. -->
                 <TextBlock x:Name="MetaText" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                 <StackPanel x:Name="ValueStack" Grid.Column="3" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right">
                     <TextBlock x:Name="ValueText" AutomationProperties.AccessibilityView="Raw" FontWeight="SemiBold" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" />

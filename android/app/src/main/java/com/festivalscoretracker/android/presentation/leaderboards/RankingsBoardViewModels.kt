@@ -2,8 +2,10 @@ package com.festivalscoretracker.android.presentation.leaderboards
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.core.compete.CompeteScope
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.LeaderboardPaging
+import com.festivalscoretracker.android.core.rivals.RivalCombo
 import com.festivalscoretracker.android.core.bands.BandRankingMetric
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.rankings.PlayerRankingResult
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
@@ -27,17 +30,23 @@ import kotlinx.coroutines.launch
 // region Full rankings
 
 /**
- * `/leaderboards/all` logic: 25-row pages of one instrument's rankings with
+ * `/leaderboards/all` logic: 25-row pages of one instrument's (or one combo's) rankings with
  * instrument and metric switchers (both return to page 1), out-of-range page
  * correction, and the selected player's pinned own row with a jump to their page.
- * A newer request cancels an older one, so a superseded page never lands.
+ * A newer request cancels an older one, so a superseded page never lands. The board
+ * waits for settings so a routed experimental metric is gated before the first read,
+ * and turning Experimental Ranks off returns an experimental board to Total Score
+ * (experimental-ranks R2, R3).
  *
  * @param initialInstrument Routed chart.
- * @param initialMetric Routed metric.
+ * @param initialMetric Routed metric (gated on Settings → Experimental Ranks).
  * @param reads Rankings reads.
- * @param settings App settings (visible instruments, selected player).
+ * @param settings App settings (visible instruments, selected player, Experimental Ranks).
  * @param backoff Shared retry backoff.
  * @param initialPage One-based starting page.
+ * @param initialCombo Routed combo ID (web `?combo=`, #602): a within-group combo shows that
+ *   combo's board with no chart switcher, and its own row is re-read per metric (a combo row
+ *   carries one rank). Anything else falls back to [initialInstrument]'s board.
  */
 class FullRankingsViewModel(
     initialInstrument: Instrument,
@@ -46,28 +55,39 @@ class FullRankingsViewModel(
     settings: Flow<AppSettings?>,
     backoff: ServiceRetryBackoff,
     initialPage: Int = 1,
+    initialCombo: String? = null,
 ) : ViewModel() {
-    private val instrumentFlow = MutableStateFlow(initialInstrument)
+    /** The combo board shown instead of one chart's, or null for an instrument board. */
+    val combo: CompeteScope.Combo? = RivalCombo.rankingComboInstruments(initialCombo)?.let { CompeteScope.Combo(RivalCombo.comboId(it), it) }
+
+    private val instrumentFlow = MutableStateFlow(combo?.instruments?.first() ?: initialInstrument)
     private val metricFlow = MutableStateFlow(initialMetric)
     private val pageFlow = MutableStateFlow(initialPage.coerceAtLeast(1))
     private val selectedFlow = MutableStateFlow<String?>(null)
     private val visibleFlow = MutableStateFlow(Instrument.entries.toList())
+    private val experimentalFlow = MutableStateFlow(false)
+    private var settingsRead = false
     private val boardLoader = RetryingLoader(viewModelScope, "full-rankings", backoff) {
         val instrument = instrumentFlow.value
         val metric = metricFlow.value
         val requested = pageFlow.value
-        val payload = reads.rankings(instrument, metric, requested, RankingPaging.PAGE_SIZE)
+        val read: suspend (Int) -> RankingsPayload = { page ->
+            combo?.let { reads.comboRankings(it.comboId, metric, page, RankingPaging.PAGE_SIZE) }
+                ?: reads.rankings(instrument, metric, page, RankingPaging.PAGE_SIZE)
+        }
+        val payload = read(requested)
         val corrected = LeaderboardPaging.corrected(requested, payload.rankings.pageCount)
         if (corrected != requested) {
             pageFlow.value = corrected
-            reads.rankings(instrument, metric, corrected, RankingPaging.PAGE_SIZE)
+            read(corrected)
         } else {
             payload
         }
     }
     private val spotlightLoader = RetryingLoader(viewModelScope, "full-rankings:spotlight", backoff) {
         val accountId = selectedFlow.value ?: return@RetryingLoader PlayerRankingResult.Unranked
-        reads.playerRanking(instrumentFlow.value, accountId)
+        combo?.let { reads.playerComboRanking(it.comboId, accountId, metricFlow.value) }
+            ?: reads.playerRanking(instrumentFlow.value, accountId)
     }
 
     /** Current chart. */
@@ -90,14 +110,15 @@ class FullRankingsViewModel(
      */
     val displayed: StateFlow<RankingsPayload?> = displayedFlow.asStateFlow()
 
-    private val pageCountFlow = MutableStateFlow(1)
+    private val pageCountFlow = MutableStateFlow<Int?>(null)
 
     /**
-     * The pager's page count: the last loaded board's, kept through a chart or metric
-     * switch until the new board answers (load-transition R4, web `placeholderData`), so
-     * TalkBack's "Page X of Y" never announces a placeholder "of 1" mid-reload (#431).
+     * The pager's page count: null until the first board loads (no pager yet, #575), then the
+     * last loaded board's, kept through a chart or metric switch until the new board answers
+     * (load-transition R4, web `placeholderData`), so TalkBack's "Page X of Y" never announces
+     * a placeholder "of 1" mid-reload (#431).
      */
-    val pageCount: StateFlow<Int> = pageCountFlow.asStateFlow()
+    val pageCount: StateFlow<Int?> = pageCountFlow.asStateFlow()
 
     /** Selected player's own row (meaningful only while a player is selected). */
     val spotlight: StateFlow<LoadState<PlayerRankingResult>> = spotlightLoader.state
@@ -108,8 +129,10 @@ class FullRankingsViewModel(
     /** Settings-visible charts; the switcher adds the current chart if hidden. */
     val visibleInstruments: StateFlow<List<Instrument>> = visibleFlow.asStateFlow()
 
+    /** Settings → Experimental Ranks: Rank By is shown only when on (experimental-ranks R1). */
+    val experimentalRanks: StateFlow<Boolean> = experimentalFlow.asStateFlow()
+
     init {
-        boardLoader.ensureStarted()
         viewModelScope.launch {
             boardLoader.state.collect {
                 (it as? LoadState.Loaded)?.let { loaded ->
@@ -121,6 +144,15 @@ class FullRankingsViewModel(
         viewModelScope.launch {
             settings.filterNotNull().collect { current ->
                 visibleFlow.value = Instrument.entries.filter { it in current.visibleInstruments }
+                experimentalFlow.value = current.experimentalRanks
+                val gated = RankingMetric.coerce(metricFlow.value, current.experimentalRanks)
+                if (!settingsRead) {
+                    settingsRead = true
+                    metricFlow.value = gated
+                    boardLoader.ensureStarted()
+                } else if (gated != metricFlow.value) {
+                    switchMetric(gated)
+                }
                 val selected = current.selectedPlayer?.accountId
                 if (selected != selectedFlow.value) {
                     selectedFlow.value = selected
@@ -136,7 +168,7 @@ class FullRankingsViewModel(
      * @param instrument New chart.
      */
     fun selectInstrument(instrument: Instrument) {
-        if (instrument == instrumentFlow.value) return
+        if (combo != null || instrument == instrumentFlow.value) return
         instrumentFlow.value = instrument
         pageFlow.value = 1
         displayedFlow.value = null
@@ -145,16 +177,23 @@ class FullRankingsViewModel(
     }
 
     /**
-     * Switch metric and return to page 1 (the own row carries every metric's rank).
+     * Switch metric and return to page 1 (an instrument own row carries every metric's rank;
+     * a combo own row is re-read for the new metric).
+     * Metrics Experimental Ranks doesn't offer are ignored.
      *
      * @param metric New metric.
      */
     fun selectMetric(metric: RankingMetric) {
-        if (metric == metricFlow.value) return
+        if (metric == metricFlow.value || metric !in RankingMetric.enabled(experimentalFlow.value)) return
+        switchMetric(metric)
+    }
+
+    private fun switchMetric(metric: RankingMetric) {
         metricFlow.value = metric
         pageFlow.value = 1
         displayedFlow.value = null
         boardLoader.retry()
+        if (combo != null && selectedFlow.value != null) spotlightLoader.retry()
     }
 
     /**
@@ -197,10 +236,12 @@ class FullRankingsViewModel(
 /**
  * `/leaderboards/bands/:bandType` logic: 25-row pages with band-size and band metric
  * switchers (both return to page 1). No selected-band spotlight: Android has no
- * selected-band identity (same gap as iPhone/Windows).
+ * selected-band identity (same gap as iPhone/Windows). Turning Experimental Ranks off
+ * returns an experimental board to Total Score (experimental-ranks R3).
  *
  * @param initialBandType Routed band size.
- * @param rankBy Persisted Leaderboards metric, narrowed once for the starting value.
+ * @param rankBy Persisted Leaderboards metric, narrowed and gated once for the starting value.
+ * @param experimentalRanksSetting Settings → Experimental Ranks.
  * @param reads Rankings reads.
  * @param backoff Shared retry backoff.
  * @param initialPage One-based starting page (restored from the route).
@@ -208,6 +249,7 @@ class FullRankingsViewModel(
 class BandRankingsViewModel(
     initialBandType: BandType,
     rankBy: Flow<RankingMetric>,
+    experimentalRanksSetting: Flow<Boolean>,
     private val reads: RankingsReads,
     backoff: ServiceRetryBackoff,
     initialPage: Int = 1,
@@ -215,6 +257,7 @@ class BandRankingsViewModel(
     private val bandTypeFlow = MutableStateFlow(initialBandType)
     private val metricFlow = MutableStateFlow<BandRankingMetric?>(null)
     private val pageFlow = MutableStateFlow(initialPage.coerceAtLeast(1))
+    private val experimentalFlow = MutableStateFlow(false)
     private val boardLoader = RetryingLoader(viewModelScope, "band-rankings", backoff) {
         val bandType = bandTypeFlow.value
         val metric = metricFlow.value ?: BandRankingMetric.TotalScore
@@ -246,10 +289,13 @@ class BandRankingsViewModel(
     /** The last loaded page for the current size and metric (see [FullRankingsViewModel.displayed]). */
     val displayed: StateFlow<BandRankingsPayload?> = displayedFlow.asStateFlow()
 
-    private val pageCountFlow = MutableStateFlow(1)
+    private val pageCountFlow = MutableStateFlow<Int?>(null)
 
-    /** The pager's page count, kept through a size or metric switch (see [FullRankingsViewModel.pageCount]). */
-    val pageCount: StateFlow<Int> = pageCountFlow.asStateFlow()
+    /** The pager's page count, null until the first board loads, kept through a size or metric switch (see [FullRankingsViewModel.pageCount]). */
+    val pageCount: StateFlow<Int?> = pageCountFlow.asStateFlow()
+
+    /** Settings → Experimental Ranks: Rank By is shown only when on (experimental-ranks R1). */
+    val experimentalRanks: StateFlow<Boolean> = experimentalFlow.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -261,13 +307,18 @@ class BandRankingsViewModel(
             }
         }
         viewModelScope.launch {
-            val initial = rankBy.map { it.bandMetric }.distinctUntilChanged()
-            initial.collect { stored ->
-                if (metricFlow.value == null) {
-                    metricFlow.value = stored
-                    boardLoader.retry()
+            combine(rankBy.map { it.bandMetric }, experimentalRanksSetting) { stored, experimental -> stored to experimental }
+                .distinctUntilChanged()
+                .collect { (stored, experimental) ->
+                    experimentalFlow.value = experimental
+                    val current = metricFlow.value
+                    if (current == null) {
+                        metricFlow.value = BandRankingMetric.coerce(stored, experimental)
+                        boardLoader.retry()
+                    } else if (BandRankingMetric.coerce(current, experimental) != current) {
+                        switchMetric(BandRankingMetric.DEFAULT)
+                    }
                 }
-            }
         }
     }
 
@@ -285,12 +336,16 @@ class BandRankingsViewModel(
     }
 
     /**
-     * Switch metric and return to page 1.
+     * Switch metric and return to page 1. Metrics Experimental Ranks doesn't offer are ignored.
      *
      * @param metric New band metric.
      */
     fun selectMetric(metric: BandRankingMetric) {
-        if (metric == metricFlow.value) return
+        if (metric == metricFlow.value || metric !in BandRankingMetric.enabled(experimentalFlow.value)) return
+        switchMetric(metric)
+    }
+
+    private fun switchMetric(metric: BandRankingMetric) {
         metricFlow.value = metric
         pageFlow.value = 1
         displayedFlow.value = null

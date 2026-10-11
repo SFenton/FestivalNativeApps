@@ -6,4 +6,5 @@
 |---|---|
 | Surface | Same sheet. Folded it matches iPhone; unfolded (regular width) the form opens page-sized (`FestivalSheetSizing.regularPage`, #373) so the photo library can sit beside it. The form and library panes are the canonical `HingeRow` (`.fold`, `fillsHeight`; [hinge-columns](../../patterns/hinge-columns.md) R1, R7): partially folded, the form ends and the library starts at the fold's clearance; flat, they divide the sheet at its midpoint ([designing for iPhone Duo](../../design/apple/duo.md)) |
 | Platform label | `iphone-duo` whenever `DeviceLayout.pose` is not `.standard` (folded, unfolded or partially folded), so a folded Duo is not reported as a plain iPhone |
+| Sent | As iPhone (#565): the sheet (and the inline library pane when unfolded) closes before the alert shows over Settings |
 | Media | Folded: as iPhone. Unfolded: Photo Library opens inline beside the form, as on [iPad](ipados.md) ("more space may expose another level … both side by side", HIG iPhone Duo). Files stays a presented picker. Dropping media onto the form attaches it in every pose |

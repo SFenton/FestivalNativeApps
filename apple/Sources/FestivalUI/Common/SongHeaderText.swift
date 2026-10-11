@@ -139,6 +139,44 @@ struct SongHeaderRow<Details: View>: View {
     }
 }
 
+// MARK: - Board line
+
+/// The board line under a ``SongHeaderRow``'s artist: the instrument's artwork left of
+/// the board's name (Song Leaderboard "Lead · N entries", Player History "Lead · Score
+/// History"), or the name alone for a band size, which has no instrument (pattern
+/// `song-leaderboard-header` R1, issue #542).
+///
+/// The artwork is decorative (the text names the instrument), so it is hidden from
+/// VoiceOver, and it scales with the line's body text so it keeps matching it at every
+/// Dynamic Type size (HIG Icons: "Match icon weight to adjacent text").
+struct SongBoardLine: View {
+    /// The chart whose artwork leads the line; nil for a band size.
+    let instrument: Instrument?
+    let text: String
+    @ScaledMetric(relativeTo: .body) private var iconSide: CGFloat = 20
+
+    /// Create a board line.
+    ///
+    /// - Parameters:
+    ///   - instrument: The chart whose artwork leads the line, or nil for a band size.
+    ///   - text: The board line, e.g. "Lead · 1,234 entries".
+    init(instrument: Instrument?, text: String) {
+        self.instrument = instrument
+        self.text = text
+    }
+    var body: some View {
+        HStack(spacing: 6) {
+            if let instrument {
+                InstrumentIcon(instrument, size: iconSide)
+                    .fixedSize()
+                    .accessibilityHidden(true)
+            }
+            MarqueeText(text)
+                .foregroundStyle(FestivalText.primary)
+        }
+    }
+}
+
 // MARK: - Scrolled-away policy
 
 /// When a board's ``SongHeaderRow`` has scrolled under the navigation bar, read from
@@ -252,6 +290,9 @@ struct SongBarTitleToolbarItem: ToolbarContent {
     /// The caption under the title (the board's instrument or band size); none on
     /// Song Details.
     let caption: String?
+    /// The instrument whose artwork leads the caption; nil for a band size or no
+    /// caption (#542).
+    let captionInstrument: Instrument?
     /// Whether the in-page header has scrolled under the bar.
     let isShown: Bool
     /// Accessibility identifier of the shown title.
@@ -260,7 +301,7 @@ struct SongBarTitleToolbarItem: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: .principal) {
             if isShown {
-                SongBarTitle(song: song, session: session, caption: caption)
+                SongBarTitle(song: song, session: session, caption: caption, captionInstrument: captionInstrument)
                     .transition(.opacity)
                     .accessibilityIdentifier(identifier)
             } else {
@@ -304,7 +345,10 @@ extension View {
 /// The compact song title a song page shows in its navigation bar once the in-page
 /// header has scrolled away: 28 pt art, the title on one marqueeing line and an
 /// optional caption (the Song Leaderboard's instrument), like the web's collapsed
-/// `SongInfoHeader` (pattern `song-header` R4).
+/// `SongInfoHeader` (pattern `song-header` R4). An instrument caption is led by the
+/// instrument's artwork, as on the in-page ``SongBoardLine`` (#542): decorative, so
+/// hidden from VoiceOver, and scaled with the caption's text style, because a
+/// fixed-size icon in the bar title failed the Dynamic Type audit.
 ///
 /// It takes all the width the bar offers its title slot, between the back button and
 /// the bar's actions (no fixed cap), so a long title scrolls only when that space runs
@@ -316,7 +360,26 @@ extension View {
 struct SongBarTitle: View {
     let song: Song
     let session: FestivalSession
-    var caption: String?
+    let caption: String?
+    /// The instrument whose artwork leads the caption; nil for a band size.
+    let captionInstrument: Instrument?
+    /// The in-page line's ratio (20 pt beside 17 pt body) at the 12 pt caption: no
+    /// taller than the caption's line, so the icon never grows the bar title.
+    @ScaledMetric(relativeTo: .caption)     private var captionIconSide: CGFloat = 14
+
+    /// Create a pinned bar title.
+    ///
+    /// - Parameters:
+    ///   - song: The page's song.
+    ///   - session: Shared session (artwork cache).
+    ///   - caption: The line under the title, or nil (Song Details).
+    ///   - captionInstrument: The instrument whose artwork leads the caption, or nil.
+    init(song: Song, session: FestivalSession, caption: String? = nil, captionInstrument: Instrument? = nil) {
+        self.song = song
+        self.session = session
+        self.caption = caption
+        self.captionInstrument = captionInstrument
+    }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -326,10 +389,17 @@ struct SongBarTitle: View {
                 MarqueeText(song.title, font: .headline)
                     .foregroundStyle(FestivalText.primary)
                 if let caption {
-                    Text(caption)
-                        .font(.caption)
-                        .foregroundStyle(FestivalText.primary)
-                        .lineLimit(1)
+                    HStack(spacing: 4) {
+                        if let captionInstrument {
+                            InstrumentIcon(captionInstrument, size: captionIconSide)
+                                .fixedSize()
+                                .accessibilityHidden(true)
+                        }
+                        Text(caption)
+                            .font(.caption)
+                            .foregroundStyle(FestivalText.primary)
+                            .lineLimit(1)
+                    }
                 }
             }
         }

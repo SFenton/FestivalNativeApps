@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.core.profile
 
+import com.festivalscoretracker.android.core.shell.ChartPageMotion
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.ceil
@@ -193,6 +194,14 @@ data class RankHistoryPlot(
      */
     data class Bar(val bar: ChartBar, val color: Int, val selected: Boolean)
 
+    /**
+     * The drawn marks of a (possibly sliding) window.
+     *
+     * @property bars Bars left to right.
+     * @property line Rank points left to right.
+     */
+    data class Marks(val bars: List<Bar>, val line: List<ChartPoint>)
+
     companion object {
         /**
          * Web `getRankHistoryDomain`: ranks ±10% (ceil), best at least 1; `[1, 100]` without ranks.
@@ -234,6 +243,42 @@ data class RankHistoryPlot(
         fun valueAxis(visible: List<PlayerRankHistorySnapshot>, valueScale: Double = 1.0): ChartScale.Axis? {
             val max = (visible.maxOfOrNull { it.totalScore ?: 0L } ?: 0L) / valueScale
             return if (max <= 0) null else ChartScale.nice(0.0, max)
+        }
+
+        /**
+         * The value axis top of a window's bars (what [build] scales them to).
+         *
+         * @param window Window.
+         * @param valueScale Divisor from the stored value to the metric's real units.
+         * @return Axis top in real units, or 0 when every visible value is zero.
+         */
+        fun valueTop(window: RankHistoryWindow, valueScale: Double = 1.0): Double = valueAxis(window.visible, valueScale)?.max ?: 0.0
+
+        /**
+         * Bars and rank line with the window's first band at [position], which is fractional
+         * while the chart slides to a new page (`load-transition` R12). Bars are scaled to
+         * [valueTop] (easing between the two windows' tops); the rank line keeps its axis over
+         * every snapshot. At rest this equals [build]'s bars and line.
+         *
+         * @param window Window being slid to (its band count and selection).
+         * @param totalAccounts Field size for bar colours (latest known).
+         * @param position Fractional start index.
+         * @param valueTop Value axis top in real units.
+         * @param valueScale Divisor from the stored value to the metric's real units.
+         * @return Marks to draw, clipped to the plot.
+         */
+        fun marks(window: RankHistoryWindow, totalAccounts: Int, position: Float, valueTop: Double, valueScale: Double = 1.0): Marks {
+            val rankAxis = rankAxis(window.points.map { it.totalScoreRank })
+            val slots = ChartPageMotion.slots(position, window.visible.size, window.points.size)
+            val bars = slots.map { slot ->
+                val s = window.points[slot.index]
+                val height = ChartPageMotion.height((s.totalScore ?: 0L) / valueScale, valueTop)
+                Bar(ChartBar(slot.x, height), RankHistoryColors.rank(s.totalScoreRank, s.rankedAccountCount ?: totalAccounts), window.selected == slot.index)
+            }
+            val line = slots.map { slot ->
+                ChartPoint(slot.x, rankAxis.fraction(window.points[slot.index].totalScoreRank.toDouble()).toFloat(), window.selected == slot.index)
+            }
+            return Marks(bars, line)
         }
 
         /**

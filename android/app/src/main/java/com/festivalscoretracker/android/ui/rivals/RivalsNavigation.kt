@@ -6,6 +6,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.festivalscoretracker.android.AppContainer
+import com.festivalscoretracker.android.core.layout.SplitListPage
 import com.festivalscoretracker.android.core.nav.AllRivalsRoute
 import com.festivalscoretracker.android.core.nav.RivalDetailRoute
 import com.festivalscoretracker.android.core.nav.RivalryRoute
@@ -13,11 +14,13 @@ import com.festivalscoretracker.android.core.nav.RivalsRoute
 import com.festivalscoretracker.android.core.nav.RivalsTab
 import com.festivalscoretracker.android.core.rivals.RivalCategorization
 import com.festivalscoretracker.android.core.rivals.RivalScopes
+import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
 import com.festivalscoretracker.android.presentation.rivals.AllRivalsViewModel
 import com.festivalscoretracker.android.presentation.rivals.RivalDetailViewModel
 import com.festivalscoretracker.android.presentation.rivals.RivalsHubViewModel
+import com.festivalscoretracker.android.ui.common.OnDemandSplit
 
 // region Destinations
 
@@ -30,31 +33,37 @@ import com.festivalscoretracker.android.presentation.rivals.RivalsHubViewModel
  * @param settings Current settings.
  */
 fun NavGraphBuilder.rivalsDestinations(container: AppContainer, settings: AppSettings) {
-    composable<RivalsTab> { RivalsHub(container, settings, isRoot = true) }
-    composable<RivalsRoute> { RivalsHub(container, settings, isRoot = false) }
+    // Rival Detail opens beside the hub and All Rivals where the window splits (#583).
+    composable<RivalsTab> { OnDemandSplit(SplitListPage.Rivals) { RivalsHub(container, settings, isRoot = true) } }
+    composable<RivalsRoute> { OnDemandSplit(SplitListPage.Rivals) { RivalsHub(container, settings, isRoot = false) } }
     composable<AllRivalsRoute> { entry ->
         val route = entry.toRoute<AllRivalsRoute>()
         val player = settings.selectedPlayer
         if (player == null) {
             RivalsNoPlayerScreen("Rivals")
         } else {
-            val scope = RivalScopes.fromToken(route.scope)
-            val viewModel: AllRivalsViewModel = viewModel(key = "all-rivals:${player.accountId}:${route.scope}:${settings.visibleInstruments}") {
+            val scope = RivalScopes.fromToken(route.scope)?.let { RivalScopes.gated(it, settings.experimentalRanks) }
+            val viewModel: AllRivalsViewModel = viewModel(key = "all-rivals:${player.accountId}:${scope?.routeToken}:${settings.visibleInstruments}") {
                 AllRivalsViewModel(player.accountId, scope, settings.visibleInstruments, container.rivals, container.backoff)
             }
-            AllRivalsScreen(viewModel)
+            OnDemandSplit(SplitListPage.Rivals) { AllRivalsScreen(viewModel) }
         }
     }
     composable<RivalDetailRoute> { entry ->
         val route = entry.toRoute<RivalDetailRoute>()
         val viewModel = detailViewModel(container, settings, route.rivalId, route.name, route.scope, route.allowLiveFallback)
-        if (viewModel == null) RivalsNoPlayerScreen(route.name ?: "Rival") else RivalDetailScreen(viewModel, route, container.api::artworkUrl)
+        if (viewModel == null) {
+            val scope = RivalScopes.fromToken(route.scope)
+            RivalsNoPlayerScreen(route.name ?: RivalText.RIVAL, RivalScopes.detailSubtitle(scope), rivalScopeSubtitleIcon(scope))
+        } else {
+            RivalDetailScreen(viewModel, route, container.api::artworkUrl)
+        }
     }
     composable<RivalryRoute> { entry ->
         val route = entry.toRoute<RivalryRoute>()
         val viewModel = detailViewModel(container, settings, route.rivalId, route.name, route.scope, route.allowLiveFallback)
         if (viewModel == null) {
-            RivalsNoPlayerScreen(RivalCategorization.title(route.mode))
+            RivalsNoPlayerScreen(RivalCategorization.title(route.mode), route.name ?: RivalText.RIVAL)
         } else {
             RivalryScreen(viewModel, route.rivalId, route.mode, container.api::artworkUrl)
         }
@@ -65,8 +74,8 @@ fun NavGraphBuilder.rivalsDestinations(container: AppContainer, settings: AppSet
 private fun RivalsHub(container: AppContainer, settings: AppSettings, isRoot: Boolean) {
     val player = settings.selectedPlayer
     val hub = player?.let {
-        viewModel(key = "rivals-hub:${it.accountId}:${settings.visibleInstruments}") {
-            RivalsHubViewModel(it.accountId, settings.visibleInstruments, container.rivals, container.backoff)
+        viewModel(key = "rivals-hub:${it.accountId}:${settings.visibleInstruments}:${settings.experimentalRanks}") {
+            RivalsHubViewModel(it.accountId, settings.visibleInstruments, container.rivals, container.backoff, settings.experimentalRanks)
         }
     }
     val search = viewModel<ProfileSearchViewModel>(key = "find-rival") { ProfileSearchViewModel { query -> container.api.searchPlayers(query) } }
@@ -83,12 +92,13 @@ private fun detailViewModel(
     allowLiveFallback: Boolean,
 ): RivalDetailViewModel? {
     val player = settings.selectedPlayer ?: return null
-    return viewModel(key = "rival:${player.accountId}:$rivalId:$scopeToken:$allowLiveFallback:${settings.visibleInstruments}") {
+    val scope = RivalScopes.fromToken(scopeToken)?.let { RivalScopes.gated(it, settings.experimentalRanks) }
+    return viewModel(key = "rival:${player.accountId}:$rivalId:${scope?.routeToken ?: scopeToken}:$allowLiveFallback:${settings.visibleInstruments}") {
         RivalDetailViewModel(
             accountId = player.accountId,
             rivalId = rivalId,
             routeName = name,
-            scope = RivalScopes.fromToken(scopeToken),
+            scope = scope,
             allowLiveFallback = allowLiveFallback,
             visible = settings.visibleInstruments,
             repository = container.rivals,

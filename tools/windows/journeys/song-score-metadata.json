@@ -1,5 +1,5 @@
 [
-  {"name": "metadata-states", "tab": "songs", "profile": "fixture-meta:Metadata Player",
+  {"name": "metadata-states", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
    "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "assertname:raw=fst.songs.metadata.score.fixture-song-1|Score 412,345",
@@ -46,7 +46,7 @@
     "scrollinto:id=fst.songs.row.fixture-song-1@10",
     "wait:1"
   ]},
-  {"name": "metadata-inline", "tab": "songs", "profile": "fixture-meta:Metadata Player", "sizes": ["wide"],
+  {"name": "metadata-inline", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player", "sizes": ["wide"],
    "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "resize:1340x900",
@@ -56,7 +56,7 @@
     "assertlevel:raw=fst.songs.metadata.difficulty.fixture-song-2|raw=fst.songs.metadata.score.fixture-song-2",
     "wait:1"
   ]},
-  {"name": "metadata-wrapped", "tab": "songs", "profile": "fixture-meta:Metadata Player",
+  {"name": "metadata-wrapped", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
    "sizes": ["compact", "medium", "snap-left", "snap-right"], "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
@@ -64,7 +64,7 @@
     "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-2|raw=fst.songs.metadata.score.fixture-song-2",
     "wait:1"
   ]},
-  {"name": "metadata-split", "tab": "songs", "profile": "fixture-meta:Metadata Player", "sizes": ["maximized"],
+  {"name": "metadata-split", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player", "sizes": ["maximized"],
    "note": "Split view (page >= 1100 epx, list 560 epx) wraps. Run where maximized reaches it, e.g. --mode scale-100 on a 3840-px display; at 300% (1280 epx) maximized is inline.",
    "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
@@ -72,7 +72,7 @@
     "assertlevel:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.difficulty.fixture-song-1",
     "wait:1"
   ]},
-  {"name": "metadata-score-hidden", "tab": "songs", "profile": "fixture-meta:Metadata Player",
+  {"name": "metadata-score-hidden", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
    "settings": {"showInstrumentIcons": false, "metadataScore": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.percentage.fixture-song-1@40",
     "waitgone:raw=fst.songs.metadata.score.fixture-song-1",
@@ -80,13 +80,13 @@
     "assertname:id=fst.songs.row.fixture-song-1|1 Beat, Synthetic Artist 2 · 2001, Accuracy 99.5%, Top 1%, 5 stars, Current season 9, Song intensity 2 of 7, Expert difficulty, Last played 28 Sep 2026",
     "wait:1"
   ]},
-  {"name": "metadata-score-hidden-wrapped", "tab": "songs", "profile": "fixture-meta:Metadata Player",
+  {"name": "metadata-score-hidden-wrapped", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
    "sizes": ["compact"], "settings": {"showInstrumentIcons": false, "metadataScore": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.percentage.fixture-song-1@40",
     "assertbelow:raw=fst.songs.metadata.percentile.fixture-song-1|raw=fst.songs.metadata.percentage.fixture-song-1",
     "wait:1"
   ]},
-  {"name": "metadata-fc-only", "tab": "songs", "profile": "fixture-meta:Metadata Player",
+  {"name": "metadata-fc-only", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
    "settings": {"showInstrumentIcons": false, "metadataPercentage": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "waitgone:raw=fst.songs.metadata.percentage.fixture-song-1",
@@ -94,13 +94,13 @@
     "assertname:raw=fst.songs.metadata.percentage.fixture-song-3|Full combo",
     "wait:1"
   ]},
-  {"name": "metadata-anonymous", "tab": "songs", "settings": {"showInstrumentIcons": false}, "ready": [
+  {"name": "metadata-anonymous", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:id=fst.songs.row.fixture-song-1@40",
     "waitgone:raw=fst.songs.metadata.score.fixture-song-1",
     "waitgone:raw=fst.songs.metadata.state.fixture-song-1",
     "wait:1"
   ]},
-  {"name": "metadata-loading", "tab": "songs", "profile": "fixture-meta-slow:Metadata Player", "sizes": ["medium"],
+  {"name": "metadata-loading", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta-slow:Metadata Player", "sizes": ["medium"],
    "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:id=fst.songs.row.fixture-song-1@20",
     "assertname:raw=fst.songs.metadata.state.fixture-song-1|Loading scores",
@@ -108,7 +108,7 @@
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@30",
     "waitgone:raw=fst.songs.metadata.state.fixture-song-1"
   ]},
-  {"name": "metadata-syncing", "tab": "songs", "profile": "fixture-syncing:Syncing Player",
+  {"name": "metadata-syncing", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-syncing:Syncing Player",
    "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:id=fst.songs.row.fixture-song-1@30",
     "waitfor:class=Microsoft.UI.Xaml.Controls.InfoBar@10",
@@ -117,7 +117,7 @@
     "waitgone:raw=fst.songs.metadata.score.fixture-song-1",
     "wait:1"
   ]},
-  {"name": "metadata-failed", "tab": "songs", "profile": "fixture-denied:Denied Player",
+  {"name": "metadata-failed", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-denied:Denied Player",
    "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:id=fst.songs.row.fixture-song-1@30",
     "waitfor:class=Microsoft.UI.Xaml.Controls.InfoBar@10",
@@ -125,7 +125,7 @@
     "waitgone:raw=fst.songs.metadata.score.fixture-song-1",
     "wait:1"
   ]},
-  {"name": "metadata-chart-named", "tab": "songs", "profile": "fixture-meta:Metadata Player",
+  {"name": "metadata-chart-named", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
    "settings": {"showInstrumentIcons": false, "visibleInstruments": ["Bass", "Drums"]}, "ready": [
     "waitfor:raw=fst.songs.metadata.chart.fixture-song-1@40",
     "assertname:raw=fst.songs.metadata.score.fixture-song-1|Score 222,222",
@@ -134,14 +134,14 @@
     "assertname:id=fst.songs.row.fixture-song-1|1 Beat, Synthetic Artist 2 · 2001, Bass chart, Score 222,222, Full combo, accuracy 100%, Top 2%, 5 gold stars, Current season 9, Song intensity 4 of 7, Expert difficulty",
     "wait:1"
   ]},
-  {"name": "metadata-filtered-chart", "tab": "songs", "profile": "fixture-meta:Metadata Player",
+  {"name": "metadata-filtered-chart", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
    "settings": {"showInstrumentIcons": true, "songFilter": {"Instrument": "Bass"}}, "ready": [
     "waitfor:raw=fst.songs.metadata.chart.fixture-song-1@40",
     "assertname:raw=fst.songs.metadata.score.fixture-song-1|Score 222,222",
     "assertname:raw=fst.songs.metadata.percentage.fixture-song-1|Full combo, accuracy 100%",
     "wait:1"
   ]},
-  {"name": "metadata-filter-invalid", "tab": "songs", "profile": "fixture-meta:Metadata Player",
+  {"name": "metadata-filter-invalid", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
    "settings": {"showInstrumentIcons": false, "songGeneralFilter": {"excludedDecades": [1985]}}, "ready": [
     "waitfor:id=fst.songs.filter-invalid@30",
     "waitgone:id=fst.songs.row.fixture-song-1",
@@ -151,7 +151,7 @@
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@20",
     "assertname:raw=fst.songs.metadata.score.fixture-song-1|Score 412,345"
   ]},
-  {"name": "metadata-shop", "tab": "songs", "profile": "fixture-meta:Metadata Player",
+  {"name": "metadata-shop", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
    "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "scrollinto:id=fst.songs.row.fixture-pulse@15",
@@ -159,7 +159,7 @@
     "assertname:raw=fst.songs.metadata.percentile.fixture-pulse|Top 15%",
     "wait:1"
   ]},
-  {"name": "metadata-keyboard", "tab": "songs", "profile": "fixture-meta:Metadata Player", "tabs": 0,
+  {"name": "metadata-keyboard", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player", "tabs": 0,
    "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "focus:id=fst.songs.row.fixture-song-1",
@@ -170,7 +170,7 @@
     "key:up", "assertfocus:id=fst.songs.row.fixture-song-2",
     "wait:0.5"
   ]},
-  {"name": "metadata-resize", "tab": "songs", "profile": "fixture-meta:Metadata Player", "sizes": ["wide"], "tabs": 0,
+  {"name": "metadata-resize", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player", "sizes": ["wide"], "tabs": 0,
    "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "resize:1340x900",
@@ -186,7 +186,7 @@
     "resize:1340x900", "wait:1.5",
     "assertlevel:raw=fst.songs.metadata.lastplayed.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1"
   ]},
-  {"name": "metadata-large-text", "tab": "songs", "profile": "fixture-meta:Metadata Player", "sizes": ["wide"],
+  {"name": "metadata-large-text", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player", "sizes": ["wide"],
    "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "resize:1340x900",

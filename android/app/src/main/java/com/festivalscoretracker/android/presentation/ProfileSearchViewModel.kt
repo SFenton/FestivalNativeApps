@@ -18,28 +18,10 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 
-// region Profile search
-
-/**
- * Profile search targets. The Bands target requests nothing: selecting a band as the
- * profile isn't supported yet, and global search is where bands are found (issue #320).
- *
- * @property label Segment label.
- * @property placeholder Search field prompt.
- */
-enum class ProfileSearchScope(val label: String, val placeholder: String) {
-    /** Keyless account search. */
-    Players("Players", "Find Player"),
-
-    /** Blocked; shown with an explanation. */
-    Bands("Bands", "Find Band"),
-}
+// region Player search
 
 /** Find Player results state. */
 sealed interface ProfileSearchState {
-    /** Bands target: search is unavailable and no request is made. */
-    data object BandsUnavailable : ProfileSearchState
-
     /** Fewer than two characters: show the centered "Enter at least 2 characters" hint. */
     data object Hint : ProfileSearchState
 
@@ -62,7 +44,9 @@ sealed interface ProfileSearchState {
 }
 
 /**
- * Debounced keyless account search for the profile sheet.
+ * Debounced players-only keyless account search for Rivals' Find Rival sheet (a rival is always a
+ * player). The Profiles sheet searches players and bands with `GlobalSearchViewModel` instead
+ * (issue #600, pattern search-scopes).
  *
  * @param search Search read (`FestivalApi.searchPlayers`).
  */
@@ -70,23 +54,15 @@ sealed interface ProfileSearchState {
 class ProfileSearchViewModel(private val search: suspend (String) -> List<PlayerSearchResult>) : ViewModel() {
     private val text = MutableStateFlow("")
     private val attempt = MutableStateFlow(0)
-    private val target = MutableStateFlow(ProfileSearchScope.Players)
-
-    /** Players or Bands. */
-    val scope: StateFlow<ProfileSearchScope> = target.asStateFlow()
 
     /** Raw field text. */
     val query: StateFlow<String> = text.asStateFlow()
 
     /** Results for the debounced, trimmed query. */
-    val state: StateFlow<ProfileSearchState> = combine(text.debounce(SEARCH_DEBOUNCE_MS), attempt, target) { raw, _, scope -> raw to scope }
-        .flatMapLatest { (raw, scope) ->
+    val state: StateFlow<ProfileSearchState> = combine(text.debounce(SEARCH_DEBOUNCE_MS), attempt) { raw, _ -> raw }
+        .flatMapLatest { raw ->
             val trimmed = raw.trim()
             flow {
-                if (scope == ProfileSearchScope.Bands) {
-                    emit(ProfileSearchState.BandsUnavailable)
-                    return@flow
-                }
                 if (trimmed.length < ProfileSearchText.MIN_QUERY || !ProfileSearchText.isValidQuery(trimmed)) {
                     emit(ProfileSearchState.Hint)
                     return@flow
@@ -111,15 +87,6 @@ class ProfileSearchViewModel(private val search: suspend (String) -> List<Player
      */
     fun onQueryChange(value: String) {
         text.value = value
-    }
-
-    /**
-     * Choose the search target.
-     *
-     * @param scope Players or Bands.
-     */
-    fun setScope(scope: ProfileSearchScope) {
-        target.value = scope
     }
 
     /** Re-run the current query after a failure or an empty result. */

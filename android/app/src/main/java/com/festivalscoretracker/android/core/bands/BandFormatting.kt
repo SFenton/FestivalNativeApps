@@ -4,6 +4,7 @@ import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.BandRankingsRoute
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
+import com.festivalscoretracker.android.core.rankings.HistoryColumnTexts
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -293,14 +294,30 @@ object BandDetailProjection {
      * @return Up to [RECENT_ROWS] rows.
      */
     fun recentRows(ranked: List<BandRankHistoryEntry>, metric: BandRankingMetric, locale: Locale = Locale.getDefault()): List<BandHistoryRow> =
-        ranked.asReversed().take(RECENT_ROWS).map {
-            BandHistoryRow(
-                it.snapshotDate,
-                BandFormatting.shortDate(it.snapshotDate, locale),
-                BandFormatting.rank(it.rank(metric), locale),
-                BandFormatting.metricValue(it.value(metric), metric, locale),
-            )
-        }
+        ranked.asReversed().take(RECENT_ROWS).map { historyRow(it, metric, locale) }
+
+    /**
+     * The texts the history rows' shared columns are measured from: every ranked snapshot,
+     * not only the listed rows (web `BandRankHistoryChart` "stable column widths derived from
+     * ALL chart history points", `leaderboard-row` R1, issue #594).
+     *
+     * @param ranked Output of [ranked].
+     * @param metric Metric.
+     * @param locale Locale.
+     * @return Every snapshot's date, rank and value text.
+     */
+    fun columnTexts(ranked: List<BandRankHistoryEntry>, metric: BandRankingMetric, locale: Locale = Locale.getDefault()): HistoryColumnTexts {
+        val rows = ranked.map { historyRow(it, metric, locale) }
+        return HistoryColumnTexts(rows.map { it.dateText }, rows.map { it.rankText }, rows.map { it.valueText })
+    }
+
+    private fun historyRow(entry: BandRankHistoryEntry, metric: BandRankingMetric, locale: Locale): BandHistoryRow =
+        BandHistoryRow(
+            entry.snapshotDate,
+            BandFormatting.shortDate(entry.snapshotDate, locale),
+            BandFormatting.rank(entry.rank(metric), locale),
+            BandFormatting.metricValue(entry.value(metric), metric, locale),
+        )
 
     /**
      * Freshness note for a history response (web `band.rankHistory*` strings).

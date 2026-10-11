@@ -130,4 +130,36 @@ class SongHeaderEdgeFadeTest {
         assertEquals(listOf(pinned, incoming), SongHeaderEdgeFade.headersOverEdge(listOf(pinned, incoming), 0, 40f, 0f))
         assertEquals(listOf(header(9, "header:b", 0)), SongHeaderEdgeFade.headersOverEdge(listOf(header(9, "header:b", 0), header(21, "header:c", 40)), 0, 40f, 0f))
     }
+
+    /** Issue #417: rows wholly in the cut leave TalkBack; any row reaching below the cut stays. */
+    @Test
+    fun cutRowsAreTheRowsEndingAtOrAboveTheCut() {
+        val pinned = header(1, "header:a", 0)
+        val gone = row(2, -60)
+        val atCut = row(3, -40)
+        val crossing = row(4, -39)
+        val inRamp = row(5, 45)
+        val items = listOf(pinned, gone, atCut, crossing, inRamp)
+        assertEquals(listOf(gone, atCut), SongHeaderEdgeFade.cutRows(items, 0, 40f))
+        // The viewport start offset shifts every item alike; headers are never cut rows.
+        val shifted = items.map { it.copy(offset = it.offset + 16) }
+        assertEquals(shifted.subList(1, 3), SongHeaderEdgeFade.cutRows(shifted, 16, 40f))
+        assertEquals(emptyList<EdgeFadeItem>(), SongHeaderEdgeFade.cutRows(listOf(header(1, "header:a", -30)), 0, 40f))
+    }
+
+    /** R5 (#462): the pinned header is the one TalkBack reads before the rows beneath it. */
+    @Test
+    fun pinnedHeaderIsTheOneAtTheTopEdge() {
+        // At the top: the first header sits below a notice, so nothing is pinned.
+        assertNull(SongHeaderEdgeFade.pinned(listOf(row(0, 0, 60), header(1, "header:a", 64), row(2, 108)), 0))
+        assertNull(SongHeaderEdgeFade.pinned(emptyList(), 0))
+        // Pinned over scrolled rows (the partly hidden row sits at a negative offset).
+        val pinned = header(1, "header:a", 0)
+        assertEquals(pinned, SongHeaderEdgeFade.pinned(listOf(pinned, row(5, -30), row(6, 54)), 0))
+        // Being pushed away, it stays the pinned one; the incoming header is in flow.
+        val pushed = header(1, "header:a", -12)
+        assertEquals(pushed, SongHeaderEdgeFade.pinned(listOf(pushed, row(9, -40), header(21, "header:c", 28)), 0))
+        // Relative to a viewport start offset.
+        assertEquals(header(9, "header:b", 8), SongHeaderEdgeFade.pinned(listOf(header(9, "header:b", 8), header(21, "header:c", 60)), 8))
+    }
 }

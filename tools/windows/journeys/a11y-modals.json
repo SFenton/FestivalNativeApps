@@ -5,6 +5,7 @@
     "tabs": 4,
     "ready": [
       "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
       "scrollinto:id=fst.settings.reset",
       "focus:id=fst.settings.reset",
       "key:enter",
@@ -40,6 +41,7 @@
     "tabs": 4,
     "ready": [
       "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
       "scrollinto:id=fst.settings.privacy-policy",
       "focus:id=fst.settings.privacy-policy",
       "key:enter",
@@ -76,6 +78,7 @@
     "tabs": 8,
     "ready": [
       "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
       "scrollinto:id=fst.settings.feedback.bug",
       "focus:id=fst.settings.feedback.bug",
       "key:enter",
@@ -112,6 +115,7 @@
     "tabs": 8,
     "ready": [
       "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
       "scrollinto:id=fst.settings.feedback.feature",
       "focus:id=fst.settings.feedback.feature",
       "key:enter",
@@ -148,7 +152,11 @@
     "tabs": 4,
     "ready": [
       "waitfor:id=fst.settings.show-instrument-icons@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
       "scrollinto:id=fst.settings.whats-new",
+      "pin:id=fst.settings.whats-new",
+      "wait:1",
+      "assertpinned:id=fst.settings.whats-new",
       "focus:id=fst.settings.whats-new",
       "key:enter",
       "waitfor:id=fst.whats-new.dialog@10",
@@ -403,6 +411,49 @@
       "key:esc",
       "waitgone:id=fst.profile.confirm@5",
       "assertname:id=fst.shell.profile@5|Profile: Fixture Player 1"
+    ]
+  },
+  {
+    "name": "modal-invalid-score",
+    "route": "/songs",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "fixture": [
+      "instrument_status_fixture.py"
+    ],
+    "settings": {
+      "filterInvalidScores": true
+    },
+    "tabs": 4,
+    "ready": [
+      "waitfor:id=fst.songs.invalid-score.fixture-orbit@30",
+      "focus:id=fst.songs.invalid-score.fixture-orbit",
+      "key:enter",
+      "waitfor:id=fst.songs.invalid-score.alert@10",
+      "assertname:id=PrimaryButton|Settings",
+      "assertname:id=CloseButton|OK",
+      "waitgone:id=SecondaryButton@2",
+      "assertfocus:id=CloseButton@3"
+    ],
+    "after_ready": [
+      "waitfor:name=Filtered Score@5",
+      "waitfor:id=fst.songs.invalid-score.message@5",
+      "assertread:id=CloseButton|OK, button",
+      "assertread:id=PrimaryButton|Settings, button",
+      "assertorder:name=Filtered Score|id=fst.songs.invalid-score.message|id=PrimaryButton|id=CloseButton",
+      "assertsize:id=CloseButton|40x40",
+      "assertat:id=CloseButton|-18.5,0",
+      "assertat:id=CloseButton|18.5,0",
+      "assertat:id=CloseButton|0,-18.5",
+      "assertat:id=CloseButton|0,18.5",
+      "focus:id=PrimaryButton",
+      "key:tab",
+      "assertfocus:id=CloseButton@3",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.songs.invalid-score.alert@5",
+      "assertfocus:id=fst.songs.invalid-score.fixture-orbit@3"
     ]
   }
 ]

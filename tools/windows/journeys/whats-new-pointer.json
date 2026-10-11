@@ -7,7 +7,7 @@
     "steps": [
       "waitfor:id=fst.whats-new.dialog@20",
       "wait:1.5",
-      "click:60,900",
+      "clickat:id=fst.whats-new.dialog|-430,-36",
       "waitgone:id=fst.whats-new.dialog@5",
       "expand:id=fst.songs.sort",
       "waitfor:id=fst.songs.sort.reset@5",
@@ -22,7 +22,7 @@
     "steps": [
       "waitfor:id=fst.first-run.dialog@20",
       "wait:1.5",
-      "click:60,900",
+      "clickat:id=fst.first-run.dialog|-430,-36",
       "waitgone:id=fst.first-run.dialog@5",
       "expand:id=fst.songs.sort",
       "waitfor:id=fst.songs.sort.reset@5",

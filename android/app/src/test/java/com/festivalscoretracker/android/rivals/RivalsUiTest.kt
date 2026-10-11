@@ -36,6 +36,8 @@ import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.ui.common.spinnerShowsDuring
+import com.festivalscoretracker.android.ui.rivals.RIVALS_CARD_SEGMENT_TAG
+import com.festivalscoretracker.android.ui.rivals.RIVALS_CARD_TAG
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import okhttp3.OkHttpClient
@@ -122,6 +124,46 @@ class RivalsUiTest {
         waitForTag("fst.song-detail.intensity")
         // Common detail merged both charts' comparisons (typed scope on the route).
         assertEquals(1, transport.sent("/api/player/${RivalsFixtures.PLAYER}/rivals/Solo_Bass/${ids[1]}").size)
+    }
+
+    /** The bar's subtitle line (`fst.nav.subtitle`), or null when the bar has none. */
+    private fun barSubtitle(): String? = rule.onAllNodesWithTag("fst.nav.subtitle", useUnmergedTree = true).fetchSemanticsNodes()
+        .singleOrNull()?.config?.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Text)?.joinToString()
+
+    /** Whether the bar's title block shows [title]. */
+    private fun barTitleShows(title: String): Boolean =
+        rule.onAllNodes(hasText(title) and hasAnyAncestor(hasTestTag("fst.nav.title-block")), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+
+    /**
+     * Owner (#604): Rival Detail names the rival over "{icon} Lead Rivals" for one chart (over
+     * "Rivals" otherwise); Rivalry names the section over the rival.
+     */
+    @Test
+    fun rivalPageBarsNameTheRivalAndTheSection() {
+        launch(DebugLaunch(route = RivalRoutes.detail(ids[1], "Synthetic Rival", RivalScopes.song(listOf(Instrument.Lead))), profile = player, stillBackground = true))
+        waitForTag("fst.rival-detail.title")
+        assertTrue(barTitleShows("Synthetic Rival"))
+        assertEquals("Lead Rivals", barSubtitle())
+        rule.onNode(hasTestTag("fst.rival-detail.subtitle-icon.Solo_Guitar") and hasAnyAncestor(hasTestTag("fst.nav.subtitle-icon")), useUnmergedTree = true).assertExists()
+        // One merged TalkBack stop: the name, then the list.
+        val block = rule.onNodeWithTag("fst.nav.title-block").fetchSemanticsNode().config
+        assertEquals(listOf("Synthetic Rival", "Lead Rivals"), block.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Text)?.map { it.text })
+
+        rule.onNodeWithTag("fst.rival-detail.see-all.closest_battles").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.rivalry.title")
+        rule.waitUntil(10_000) { settle(100); barSubtitle() == "Synthetic Rival" }
+        assertTrue(barTitleShows("Closest Battles"))
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.subtitle-icon", useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
+    /** A multi-chart (Common) Rival Detail keeps the plain "Rivals" subtitle without an icon (#604). */
+    @Test
+    fun commonRivalDetailBarSaysRivals() {
+        launch(DebugLaunch(route = RivalRoutes.detail(ids[1], "Synthetic Rival", RivalScopes.song(listOf(Instrument.Lead, Instrument.Bass))), profile = player, stillBackground = true))
+        waitForTag("fst.rival-detail.title")
+        assertTrue(barTitleShows("Synthetic Rival"))
+        assertEquals("Rivals", barSubtitle())
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.subtitle-icon", useUnmergedTree = true).fetchSemanticsNodes().size)
     }
 
     @Test
@@ -316,7 +358,7 @@ class RivalsUiTest {
         ).fetchSemanticsNodes().mapNotNull { it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription)?.firstOrNull() }
         assertTrue(labels.isNotEmpty())
         // Spoken gap is unsigned with a singular/plural unit (the pill keeps the signed form).
-        assertTrue(labels.toString(), labels.all { Regex("""(lead|leads) by \d[\d,]* ranks?,|, tied,""").containsMatchIn(it) })
+        assertTrue(labels.toString(), labels.all { Regex("""(lead|leads) by \d[\d,]* ranks?$|, tied$""").containsMatchIn(it) })
         rule.onNodeWithTag("fst.rivalry.sort").performClick()
         waitForTag("fst.rivalry.sort.menu")
         rule.onNodeWithTag("fst.rivalry.sort.category").assertIsSelected()
@@ -330,20 +372,22 @@ class RivalsUiTest {
         rule.onNodeWithTag("fst.rivalry.sort.category").assertIsNotSelected()
     }
 
+    /** Owner, #545: Rivalry lists one row per song, so Quick Links would only repeat the list. */
     @Test
-    fun rivalryQuickLinksListEachSong() {
+    fun rivalryOffersNoQuickLinks() {
         launch(DebugLaunch(route = com.festivalscoretracker.android.core.nav.RivalryRoute(ids[3], "almost_passed"), profile = player, section = FestivalSection.Songs, stillBackground = true))
         waitForTag("fst.rivalry.title")
-        waitForTag("fst.quick-links.open")
-        rule.onNodeWithTag("fst.quick-links.open").performSemanticsAction(SemanticsActions.OnClick)
-        rule.waitUntil(10_000) {
-            settle(100)
-            rule.onAllNodes(
-                androidx.compose.ui.test.SemanticsMatcher("quick link item") {
-                    it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("fst.quick-links.item.") == true
-                },
-            ).fetchSemanticsNodes().size >= 2
-        }
+        waitForTag("fst.rivalry.list")
+        settle(400)
+        val songs = rule.onAllNodes(
+            androidx.compose.ui.test.SemanticsMatcher("rivalry song") {
+                it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("fst.rivals.song.") == true
+            },
+        ).fetchSemanticsNodes()
+        assertTrue("several songs, which used to get one link each", songs.size >= 2)
+        assertEquals(0, rule.onAllNodesWithTag("fst.quick-links.open").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("fst.rivalry.sort").assertIsDisplayed()
+        rule.onNodeWithTag("fst.rival-detail.view-profile").assertIsDisplayed()
     }
 
     @Test
@@ -414,6 +458,46 @@ class RivalsUiTest {
         assertTrue(categories.all { it.boundsInRoot.top >= header.bottom })
     }
 
+    /**
+     * #603: every rival list is one card of rows (iOS `FestivalGlassSection`): a hub card holds its
+     * rows and View All Rivals, each Rival Detail category one card of song rows, and Rivalry's list
+     * touching card segments, one per song.
+     */
+    @Test
+    fun rivalListsAreOneCardEach() {
+        val songTag = androidx.compose.ui.test.SemanticsMatcher("rival song row") {
+            it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("fst.rivals.song.") == true
+        }
+        val rowTag = androidx.compose.ui.test.SemanticsMatcher("rival row") {
+            it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("fst.rivals.row.") == true
+        }
+        launch(DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true))
+        waitForTag("fst.rivals.section.Solo_Guitar")
+        val lead = hasAnyAncestor(hasTestTag("fst.rivals.section.Solo_Guitar"))
+        assertEquals(1, rule.onAllNodes(hasTestTag(RIVALS_CARD_TAG) and lead).fetchSemanticsNodes().size)
+        val inCard = hasAnyAncestor(hasTestTag(RIVALS_CARD_TAG) and lead)
+        val rows = rule.onAllNodes(rowTag and lead).fetchSemanticsNodes().size
+        assertTrue(rows >= 2)
+        assertEquals(rows, rule.onAllNodes(rowTag and inCard).fetchSemanticsNodes().size)
+        assertEquals(1, rule.onAllNodes(hasTestTag("fst.rivals.view-all") and inCard).fetchSemanticsNodes().size)
+
+        rule.onAllNodesWithTag("fst.rivals.row.${ids[1]}")[0].performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.rival-detail.category.closest_battles")
+        val category = hasAnyAncestor(hasTestTag("fst.rival-detail.category.closest_battles"))
+        assertEquals(1, rule.onAllNodes(hasTestTag(RIVALS_CARD_TAG) and category).fetchSemanticsNodes().size)
+        val songs = rule.onAllNodes(songTag and category).fetchSemanticsNodes().size
+        assertTrue(songs >= 1)
+        assertEquals(songs, rule.onAllNodes(songTag and hasAnyAncestor(hasTestTag(RIVALS_CARD_TAG) and category)).fetchSemanticsNodes().size)
+
+        rule.onNodeWithTag("fst.rival-detail.see-all.closest_battles").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.rivalry.title")
+        settle()
+        val listed = rule.onAllNodes(songTag).fetchSemanticsNodes().size
+        val segments = rule.onAllNodesWithTag(RIVALS_CARD_SEGMENT_TAG).fetchSemanticsNodes().map { it.boundsInRoot }.sortedBy { it.top }
+        assertEquals(listed, segments.size)
+        segments.zipWithNext().forEach { (above, below) -> assertEquals(above.bottom, below.top, 0.5f) }
+        assertEquals(listed, rule.onAllNodes(songTag and hasAnyAncestor(hasTestTag(RIVALS_CARD_SEGMENT_TAG))).fetchSemanticsNodes().size)
+    }
     @Test
     fun mixedChartComparisonShowsBothIcons() {
         val mixed = RivalsFixtures.detail(ids[0]).replace("\"userInstrument\":null,\"rivalInstrument\":null", "\"userInstrument\":\"Solo_PeripheralCymbals\",\"rivalInstrument\":\"Solo_PeripheralDrums\"")

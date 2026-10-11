@@ -3,9 +3,9 @@ namespace Festival.Core.Domain;
 #region Large text
 /// <summary>
 /// The one Windows "large text" threshold (Apple's accessibility text sizes): at 150% Windows text size and above,
-/// layouts that squeeze or truncate text at standard sizes give it more lines instead. Used by the shell title bar,
-/// the Settings service-state row (<see cref="ServiceInfoText.StacksStateRow"/>) and in-page song header lines
-/// (pattern <c>song-header</c> R3, issue #315).
+/// layouts that squeeze or truncate text at standard sizes give it more lines instead. Used by the shell title bar and
+/// in-page song header lines (pattern <c>song-header</c> R3, issue #315). Settings value rows measure their fit instead
+/// (<see cref="SettingValueLayout"/>, issue #539).
 /// </summary>
 public static class LargeText
 {

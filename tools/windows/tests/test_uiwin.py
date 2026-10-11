@@ -127,6 +127,17 @@ class StepTests(unittest.TestCase):
         # Issue #280: a combo box's current option keeps its case (Narrator reads "Instrument, combo box, Pro Bass").
         current = u.parse_step("assertstate:id=fst.paths.instrument.compact|value=Pro Bass@5")
         self.assertEqual((current["key"], current["value"], current["timeout"]), ("value", "Pro Bass", 5.0))
+        # Issue #434: What's New category headings are UIA heading level 3 (Narrator's H / 3 navigation).
+        heading = u.parse_step("assertstate:id=fst.whats-new.group.0.0|heading=3@5")
+        self.assertEqual((heading["key"], heading["value"], heading["timeout"]), ("heading", "3", 5.0))
+        # Issue #428: the Item Shop Filters title is heading level 2; 0 asserts "not a heading".
+        heading = u.parse_step("assertstate:id=fst.shop.filter.title|heading=2@5")
+        self.assertEqual((heading["key"], heading["value"], heading["timeout"]), ("heading", "2", 5.0))
+        self.assertEqual(u.parse_step("assertstate:id=x|heading=0")["value"], "0")
+        for bad in ("assertstate:id=x|heading=none", "assertstate:id=x|heading=10", "assertstate:id=x|heading=h2",
+                    "assertstate:id=x|heading="):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
         for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe", "assertstate:id=x|value=",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
                     "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",
@@ -159,6 +170,17 @@ class StepTests(unittest.TestCase):
         for bad in ("foreground:", "foreground:maybe", "foreground:id=x"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
+
+    def test_contrast(self):
+        # Issue #606 review: switch the contrast theme with the app open; only a11y_matrix (which restores it) may.
+        self.assertEqual(u.parse_step("contrast:Desert"), {"verb": "contrast", "arg": "desert"})
+        self.assertEqual(u.parse_step("contrast:off")["arg"], "off")
+        for bad in ("contrast:", "contrast:on", "contrast:High Contrast White"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+        self.assertEqual(len(u.cli_steps(["wait:1", "foreground:on"])), 2)
+        with self.assertRaises(ValueError):
+            u.cli_steps(["wait:1", "contrast:desert"])
 
     def test_listen_and_assertannounced(self):
         # Issue #269: record the app's UIA notifications (what Narrator speaks), then wait for one.
