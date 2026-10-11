@@ -18,12 +18,12 @@
 |---|---|
 | FST_Phone portrait, font 1.0 / 2.0 | Fixed: at 2.0 the "songs behind" pill was clipped (`IntrinsicSize.Min` + `FlowRow` under-reports its height). `RivalRow` now draws its 4 dp tint bar with `drawBehind` (RTL-mirrored), so the row measures to its wrapped pills. |
 | FST_Phone, Common scope | Fixed: live `Solo_PeripheralBass` returned 503 during a post-process freeze, and the whole page showed the service status. It now lists the rivals of the charts that loaded. |
-| FST_Phone, landscape | One column, pills on one line. |
-| FST_Tablet landscape / portrait, font 2.0 | Two columns in row-major order (landscape; one card since #603), one column (portrait); rows grow at 2.0 with nothing clipped. The rail hides labels at 2.0 (shared navigation). |
-| FST_Resizable phone / foldable / tablet / desktop | One, one, two and two columns; rows stay readable at desktop width, so no extra max-width cap. |
-| FST_Book_Fold folded / unfolded / half-open | Folded pills wrap at 2.0; unfolded one column; half-open two columns meeting at the hinge, filled masonry-style by the shared `AdaptiveCardGrid` (TalkBack follows list order). |
+| FST_Phone, landscape | One card of hairline-separated rows, pills on one line. |
+| FST_Tablet landscape / portrait, font 2.0 | One card of hairline-separated rows in both orientations (#603, R6; it was two columns in landscape); rows grow at 2.0 with nothing clipped. The rail hides labels at 2.0 (shared navigation). |
+| FST_Resizable phone / foldable / tablet / desktop | One full-width card of hairline-separated rows at every width (#603, R6); rows stay readable at desktop width, so no extra max-width cap. |
+| FST_Book_Fold folded / unfolded / half-open | Folded pills wrap at 2.0; unfolded one card; half-open keeps the single card in the leading pane (`foldLaneItem`), so no row crosses the hinge (#603; it was two columns meeting at the hinge). TalkBack follows list order. |
 | FST_Passport_Fold folded / unfolded (combo) | Unfolded shows the full combo title. Folded truncates the bar title, and the subtitle keeps the whole chart list. |
-| FST_TriFold folded / partial / unfolded | One column, one column with the rail, two columns with the rank subtitle. |
+| FST_TriFold folded / partial / unfolded | One card at every posture (partial adds the rail; unfolded shows the rank subtitle). |
 | Light theme | The app stays dark: dark-only by design ([../../design/android.md](../../design/android.md)). |
 | Reduced motion (animator scale 0) | Rows appear at once; with animations on, the staggered fade-in and scrolling stay smooth. |
 
