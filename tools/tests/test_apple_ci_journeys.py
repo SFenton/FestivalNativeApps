@@ -128,8 +128,8 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split])
         self.assertEqual(self.workflow.count("uitest --app ipad"), 2)
         # iPhone journeys, two Score History runs, the plain-fixture iPhone run (#615), the iPad journeys and the
-        # iPad keyboard batch (#473).
-        self.assertEqual(self.workflow.count("--fail-on-skip"), 6)
+        # iPad keyboard batches (#473, #442).
+        self.assertEqual(self.workflow.count("--fail-on-skip"), 7)
 
     def test_invalid_score_filter_journey_runs_on_the_plain_fixture(self) -> None:
         # #615: the only device evidence for the Filter sheet's score checks under Filter Invalid Scores. It needs
@@ -146,6 +146,36 @@ class AppleCIJourneysTests(unittest.TestCase):
             "            --timeout 900 --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter",
             self.workflow,
         )
+
+    def test_page_tools_keyboard_journey_runs_in_ci(self) -> None:
+        # #442 (for #89): hardware-keyboard focus on Songs' page tools, its own --a11y invocation.
+        self.assertIn(
+            "--a11y full-keyboard-access --fail-on-skip \\\n"
+            "            --timeout 900 --only PageToolsSearchFieldJourneyTests/testPageToolsAreInTheKeyboardFocusGroupAndOperable",
+            self.workflow,
+        )
+
+    def test_page_tools_journeys_run_on_iphone_duo_and_ipad(self) -> None:
+        # #442 (for #89): tools apart from the Filter Songs field and a one-icon Quick Links, at default size and
+        # AX5, on iPhone, the simulated folded Duo (iPhone only: it skips on iPad) and iPad.
+        iphone, ipad = self.blocks
+        journey = "PageToolsSearchFieldJourneyTests/"
+        shared = [
+            "testSongsToolsSitApartFromTheFilterField",
+            "testSongsToolsSitApartFromTheFilterFieldAtAX5",
+            "testLeaderboardsQuickLinksIsOneIconButton",
+        ]
+        duo = [
+            "testSongsToolsSitApartFromTheFilterFieldDuoFolded",
+            "testSongsToolsSitApartFromTheFilterFieldAtAX5DuoFolded",
+            "testLeaderboardsQuickLinksIsOneIconButtonDuoFolded",
+        ]
+        for method in shared:
+            self.assertIn(journey + method, iphone)
+            self.assertIn(journey + method, ipad)
+        for method in duo:
+            self.assertIn(journey + method, iphone)
+            self.assertNotIn(journey + method, ipad)
 
     def test_section_title_ax5_journey_runs_in_ci(self) -> None:
         # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.

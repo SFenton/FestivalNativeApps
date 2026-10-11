@@ -125,7 +125,9 @@ jobs:
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterField
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldDuoFolded
+            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5DuoFolded
             PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButton
+            PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButtonDuoFolded
             RivalsAccessibilityJourneyTests/testRivalRowsAreReadableAtAX5
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
@@ -205,6 +207,9 @@ jobs:
           # Hardware-keyboard focus on the board (the journey fails when no focus stop exists).
           python3 tools/ios_sim.py uitest --device "$device" --app phone --a11y full-keyboard-access --fail-on-skip \
             --timeout 900 --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter
+          # Hardware-keyboard focus on Songs' page tools and ⌥⌘↓/↑ on Quick Links (#442, for #89).
+          python3 tools/ios_sim.py uitest --device "$device" --app phone --a11y full-keyboard-access --fail-on-skip \
+            --timeout 900 --only PageToolsSearchFieldJourneyTests/testPageToolsAreInTheKeyboardFocusGroupAndOperable
       - name: Upload simulator journey results
         if: failure() && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4

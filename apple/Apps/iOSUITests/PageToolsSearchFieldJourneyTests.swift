@@ -18,14 +18,19 @@ import XCTest
 ///   44 pt region from the bar, proven by the audit), Quick Links one round icon button
 ///   rather than a wide capsule;
 /// - at the largest accessibility text size the same holds (iPhone folds Sort and Filter
-///   into one "Sort and Filter" button, `PageToolsAccessoryFit`);
+///   into one "Sort and Filter" button, `PageToolsAccessoryFit`; the Duo's navigation bar
+///   keeps them separate);
 /// - the system audit (hit region, description, Dynamic Type, clipping) reports nothing
-///   on the tools or the field.
+///   on the tools or the field;
+/// - on iPad with a hardware keyboard, keyboard focus rests in the tools' navigation bar,
+///   the tools sit in its focus group in drawn order before the field, and ⌥⌘↓ / ⌥⌘↑
+///   operate Quick Links.
 ///
 /// Runs against `tools/mock_service.py --large-catalogue` (Songs' Year sort needs several
 /// years for Quick Links), read from `TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL` or the
-/// default port. iPhone and the simulated iPhone Duo window run on the CI iPhone, the
-/// iPad forms on the CI iPad (`apple-ci` journeys).
+/// default port. iPhone and the simulated folded iPhone Duo window (default and AX5) run on
+/// the CI iPhone, the iPad forms on the CI iPad, the keyboard form in its own
+/// `--a11y full-keyboard-access` run (`apple-ci` journeys).
 final class PageToolsSearchFieldJourneyTests: XCTestCase {
     /// One page tool: its identifier and the name VoiceOver reads.
     private struct Tool {
@@ -80,6 +85,20 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
         )
     }
 
+    /// iPhone Duo folded at the largest accessibility text size: the Duo keeps Sort,
+    /// Filter Songs and Quick Links as separate navigation-bar buttons (only the iPhone
+    /// tab-bar accessory folds them), apart from the bottom Filter Songs field.
+    @MainActor
+    func testSongsToolsSitApartFromTheFilterFieldAtAX5DuoFolded() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The Duo window is simulated on an iPhone")
+        continueAfterFailure = false
+        let app = try launchSongs(typeSize: Self.ax5, duoWindow: "folded")
+        defer { app.terminate() }
+        try assertToolsApartFromField(
+            in: app, tools: [Self.sort, Self.filter, Self.quickLinks], name: "songs-ax5-duo-folded"
+        )
+    }
+
     // MARK: - Leaderboards (Quick Links alone)
 
     /// Leaderboards, the page #89 showed with a full-width Quick Links capsule: Quick
@@ -87,15 +106,26 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
     /// largest accessibility text size.
     @MainActor
     func testLeaderboardsQuickLinksIsOneIconButton() throws {
+        try assertLeaderboardsQuickLinks(duoWindow: nil)
+    }
+
+    /// The same on the folded iPhone Duo, where Quick Links is a navigation-bar button
+    /// rather than the tab-bar accessory's.
+    @MainActor
+    func testLeaderboardsQuickLinksIsOneIconButtonDuoFolded() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The Duo window is simulated on an iPhone")
+        try assertLeaderboardsQuickLinks(duoWindow: "folded")
+    }
+
+    /// Leaderboards at the default and AX5 text sizes: Quick Links is the page's only
+    /// tool, one round named icon button.
+    ///
+    /// - Parameter duoWindow: `DebugDuoWindow` to simulate, or nil for the device itself.
+    @MainActor
+    private func assertLeaderboardsQuickLinks(duoWindow: String?) throws {
         continueAfterFailure = false
         for typeSize in [nil, Self.ax5] {
-            let app = FestivalApp.makeApp([
-                "FST_API_BASE_URL": Self.fixtureURL,
-                "FST_UI_TEST_CLEAR_PROFILE": "1",
-                "FST_DEBUG_TAB": "leaderboards",
-            ])
-            if let typeSize { app.launchArguments += ["-UIPreferredContentSizeCategoryName", typeSize] }
-            app.launch()
+            let app = launch(["FST_DEBUG_TAB": "leaderboards"], typeSize: typeSize, duoWindow: duoWindow)
             let open = app.buttons[Self.quickLinks.id]
             guard open.waitForExistence(timeout: FestivalApp.budget(20)) else {
                 app.terminate()
@@ -103,10 +133,67 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
             }
             try assertToolsApartFromField(
                 in: app, tools: [Self.quickLinks], field: false,
-                name: "leaderboards-\(typeSize == nil ? "default" : "ax5")"
+                name: "leaderboards-\(typeSize == nil ? "default" : "ax5")\(duoWindow.map { "-duo-\($0)" } ?? "")"
             )
             app.terminate()
         }
+    }
+
+    // MARK: - Keyboard (iPad)
+
+    /// iPad with a hardware keyboard (`ios_sim.py uitest --a11y full-keyboard-access`):
+    /// UIKit's keyboard focus rests in the navigation bar that holds Sort, Filter Songs
+    /// and Quick Links, the tools sit in that bar's focus group in drawn order with the
+    /// Filter Songs field after them, and the keyboard operates Quick Links through Go ›
+    /// Next / Previous Section (⌥⌘↓ / ⌥⌘↑).
+    ///
+    /// Needs the setting for a focus stop (the board's keyboard journey finds none without
+    /// it, #473). XCUITest's Tab, arrows and Space never move or activate the simulator's
+    /// keyboard focus (#461, #473, re-checked for #442), so Full Keyboard Access traversal
+    /// itself stays an operator check (`.agents/design/apple/ipados.md`).
+    @MainActor
+    func testPageToolsAreInTheKeyboardFocusGroupAndOperable() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .pad, "The hardware-keyboard journey runs on iPad")
+        continueAfterFailure = false
+        let app = try launchSongs(typeSize: nil, duoWindow: nil)
+        defer { app.terminate() }
+        let focused = app.descendants(matching: .any).matching(NSPredicate(format: "hasFocus == true"))
+        let stop = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count > 0"), object: focused)
+        XCTAssertEqual(XCTWaiter.wait(for: [stop], timeout: FestivalApp.budget(10)), .completed,
+                       "No hardware-keyboard focus stop; run with --a11y full-keyboard-access")
+
+        let entries = try accessibilityWalk(app)
+        let tools = [Self.sort, Self.filter, Self.quickLinks]
+        var indices: [Int] = []
+        for tool in tools {
+            let index = try XCTUnwrap(entries.indices.first { entries[$0].node.identifier == tool.id }, "\(tool.id) missing")
+            XCTAssertEqual(entries[index].node.elementType, .button, "\(tool.id) role")
+            XCTAssertTrue(entries[index].node.isEnabled, "\(tool.id) disabled")
+            indices.append(index)
+        }
+        let bars = entries.indices.filter { entries[$0].node.elementType == .navigationBar }
+        let bar = try XCTUnwrap(bars.first { bar in indices.allSatisfy { bar < $0 && $0 < entries[bar].end } },
+                                "Sort, Filter Songs and Quick Links are not in one navigation bar")
+        XCTAssertEqual(indices, indices.sorted(), "the tools' focus order is not their drawn order")
+        let focusedNode = try XCTUnwrap(entries.indices.first { entries[$0].node.hasFocus }, "focus left the hierarchy")
+        XCTAssertTrue(bar < focusedNode && focusedNode < entries[bar].end,
+                      "keyboard focus \(entries[focusedNode].node.identifier) is outside the tools' navigation bar")
+        if let field = entries.indices.first(where: { entries[$0].node.elementType == .searchField }),
+           bar < field, field < entries[bar].end {
+            XCTAssertGreaterThan(field, indices.last ?? field, "the Filter Songs field is focused before the tools")
+        }
+
+        // Keyboard operation: Next Section moves Quick Links on; Previous Section returns.
+        let open = app.buttons[Self.quickLinks.id]
+        let first = try XCTUnwrap(open.value as? String)
+        app.typeKey(XCUIKeyboardKey.downArrow.rawValue, modifierFlags: [.option, .command])
+        let moved = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value != %@", first), object: open)
+        XCTAssertEqual(XCTWaiter.wait(for: [moved], timeout: FestivalApp.budget(10)), .completed,
+                       "⌥⌘↓ left Quick Links on \(first)")
+        app.typeKey(XCUIKeyboardKey.upArrow.rawValue, modifierFlags: [.option, .command])
+        let back = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", first), object: open)
+        XCTAssertEqual(XCTWaiter.wait(for: [back], timeout: FestivalApp.budget(10)), .completed,
+                       "⌥⌘↑ did not return Quick Links to \(first): \((open.value as? String) ?? "")")
     }
 
     // MARK: - Launch
@@ -129,14 +216,39 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
     /// - Throws: A skip when the fixture has a single year (Quick Links stays hidden).
     @MainActor
     private func launchSongs(typeSize: String?, duoWindow: String?) throws -> XCUIApplication {
+        // The argument domain sets the sort for this launch only; nothing persists.
+        let app = launch(
+            [:], arguments: ["-fst.songs.sortMode", "year", "-fst.songs.sortAscending", "YES"],
+            typeSize: typeSize, duoWindow: duoWindow
+        )
+        guard app.buttons[Self.quickLinks.id].waitForExistence(timeout: FestivalApp.budget(20)) else {
+            app.terminate()
+            throw XCTSkip("Songs' Year sort offered no Quick Links; use mock_service.py --large-catalogue.")
+        }
+        return app
+    }
+
+    /// Launch the app against the fixture with no selected player, waiting for a
+    /// simulated Duo window when one is asked for.
+    ///
+    /// - Parameters:
+    ///   - extra: Launch environment on top of the fixture origin and cleared profile.
+    ///   - arguments: Extra launch arguments.
+    ///   - typeSize: A `UIContentSizeCategory` raw value, or nil for the default.
+    ///   - duoWindow: `DebugDuoWindow` to simulate, or nil for the device itself.
+    /// - Returns: The launched app.
+    @MainActor
+    private func launch(
+        _ extra: [String: String], arguments: [String] = [], typeSize: String?, duoWindow: String?
+    ) -> XCUIApplication {
         var environment = ["FST_API_BASE_URL": Self.fixtureURL, "FST_UI_TEST_CLEAR_PROFILE": "1"]
+        environment.merge(extra) { _, new in new }
         if let duoWindow {
             environment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
             environment["FST_DEBUG_DUO_WINDOW"] = duoWindow
         }
         let app = FestivalApp.makeApp(environment)
-        // The argument domain sets the sort for this launch only; nothing persists.
-        app.launchArguments += ["-fst.songs.sortMode", "year", "-fst.songs.sortAscending", "YES"]
+        app.launchArguments += arguments
         if let typeSize { app.launchArguments += ["-UIPreferredContentSizeCategoryName", typeSize] }
         app.launch()
         if let duoWindow {
@@ -146,10 +258,6 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
             )
             XCTAssertEqual(XCTWaiter.wait(for: [reached], timeout: FestivalApp.budget(15)), .completed,
                            "the app never simulated \(duoWindow): \(readout.exists ? readout.label : "no readout")")
-        }
-        guard app.buttons[Self.quickLinks.id].waitForExistence(timeout: FestivalApp.budget(20)) else {
-            app.terminate()
-            throw XCTSkip("Songs' Year sort offered no Quick Links; use mock_service.py --large-catalogue.")
         }
         return app
     }
