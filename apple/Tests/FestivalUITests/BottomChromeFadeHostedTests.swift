@@ -362,6 +362,15 @@ extension BottomChromeBandBoard {
         }
     }
 
+    /// Identifiers of the floating bar's other controls beside the pager (the band-size
+    /// switcher pill); like the pager they sit below the fade.
+    var barControlIdentifiers: [String] {
+        switch self {
+        case .bandRankings: ["fst.band-rankings.band-type-menu"]
+        case .songBand: []
+        }
+    }
+
     /// Text a row at `rank` speaks (its first member's name).
     func rowText(_ rank: Int) -> String {
         switch self {
@@ -481,7 +490,8 @@ func bandBoardFooterFadeKeepsRowsAndPagerAccessible(
         let strays = nodes.filter { node in
             guard let frame = node.frame, frame.intersects(fadeBand), frame.height < size.height / 2,
                   board.rank(of: node.identifier) == nil,
-                  !node.identifier.hasPrefix("\(board.pagerPrefix).page") else { return false }
+                  !node.identifier.hasPrefix("\(board.pagerPrefix).page"),
+                  !board.barControlIdentifiers.contains(node.identifier) else { return false }
             return !rowFrames.contains { $0.insetBy(dx: -1, dy: -1).contains(frame) }
         }
         #expect(strays.isEmpty, "only rows are reachable in the fade band: \(strays.map { "\($0.identifier) \($0.text)" })")
@@ -501,6 +511,15 @@ func bandBoardFooterFadeKeepsRowsAndPagerAccessible(
         let infoFrame = try #require(info.frame)
         #expect(infoFrame.width >= 44 && infoFrame.height >= 44, "page-info target \(infoFrame)")
         #expect(infoFrame.minY >= chromeTop - 0.5, "page-info sits below the fade: \(infoFrame) vs \(chromeTop)")
+        // The band-size pill: one 44 pt control beside the pager, also below the fade (the
+        // opaque card's centred stroke may reach half a point above it).
+        for id in board.barControlIdentifiers {
+            let controls = nodes.filter { $0.identifier == id }
+            #expect(controls.count == 1, "\(id) is one element: \(controls.map(\.text))")
+            let frame = try #require(controls.first?.frame, "\(id) frame")
+            #expect(frame.width >= 44 && frame.height >= 44, "\(id) target \(frame)")
+            #expect(frame.minY >= chromeTop - 0.5, "\(id) sits below the fade: \(frame) vs \(chromeTop)")
+        }
     }
 }
 
