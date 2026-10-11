@@ -38,7 +38,7 @@
             <!-- The rows end at the floating pager through the bottom-chrome ramp (BoardFooterFade, issue #308). The wrapper
                  is the fade source because the load swap animates the ListView's own visual. -->
             <Grid x:Name="BoardFadeSource">
-                <ListView x:Name="Rows" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56" controls:BandScoreFooterPanel.IsSection="True"
+                <ListView x:Name="Rows" controls:FadeIn.Together="True" controls:FadeIn.RowHeight="56" controls:BandScoreFooterPanel.IsSection="True"
                           controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                           ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                           SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRowClick" ContainerContentChanging="OnContainerContentChanging"

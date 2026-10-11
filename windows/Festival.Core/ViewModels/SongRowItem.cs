@@ -41,6 +41,9 @@ public sealed class SongRowItem
     /// <summary>Explicit non-scored text ("No score", "Scores syncing", paused…), or <see langword="null"/>.</summary>
     public string? ScoreState { get; init; }
 
+    /// <summary>Invalid-score indicator (Filter Invalid Scores replaced, dropped or kept a raw score), or <see langword="null"/>.</summary>
+    public InvalidScoreWarning? Warning { get; init; }
+
     /// <summary>Whether the chart name is spoken/shown with metadata (a non-Lead chart).</summary>
     public bool NamesChart => Chart is { } chart && chart != Instrument.Lead && Metadata.Count > 0;
 
@@ -65,6 +68,7 @@ public sealed class SongRowItem
                 parts.Add($"{chart.Label()}, {DifficultyScale.Announcement(raw)}");
             }
             if (ScoreState is { } state) parts.Add(state);
+            if (Warning is { } warning) parts.Add(warning.IsWarning ? "Score over the CHOpt maximum" : "Filtered score");
             return string.Join(", ", parts.Where(p => p.Length > 0));
         }
     }
@@ -76,7 +80,7 @@ public sealed class SongRowItem
         ReferenceEquals(this, other) ||
         (Equals(Song, other.Song) && Highlight == other.Highlight && InShop == other.InShop && Chart == other.Chart &&
          ChartRaw == other.ChartRaw && ScoreState == other.ScoreState && Chips.SequenceEqual(other.Chips) &&
-         Metadata.SequenceEqual(other.Metadata));
+         Metadata.SequenceEqual(other.Metadata) && (Warning is null ? other.Warning is null : Warning.SameAs(other.Warning)));
 }
 
 /// <summary>A grouped list section of row items.</summary>

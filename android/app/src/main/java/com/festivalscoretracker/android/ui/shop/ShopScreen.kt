@@ -126,9 +126,10 @@ import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
  *
  * @param container Process dependencies.
  * @param shellViewModel Shell (effective settings).
+ * @param isRoot The Item Shop tab root (menu button, no Back; issue #601) rather than a pushed page.
  */
 @Composable
-fun ShopRouteScreen(container: AppContainer, shellViewModel: ShellViewModel) {
+fun ShopRouteScreen(container: AppContainer, shellViewModel: ShellViewModel, isRoot: Boolean = false) {
     val api = container.api
     val viewModel: ShopViewModel = viewModel {
         ShopViewModel(
@@ -149,6 +150,7 @@ fun ShopRouteScreen(container: AppContainer, shellViewModel: ShellViewModel) {
         onViewMode = { mode -> scope.launch { container.songsPreferences.setShopViewMode(mode) } },
         artworkUrl = api::artworkUrl,
         onRetry = container.shop::retry,
+        isRoot = isRoot,
     )
 }
 
@@ -166,6 +168,7 @@ fun ShopRouteScreen(container: AppContainer, shellViewModel: ShellViewModel) {
  * @param onViewMode Persist a layout.
  * @param artworkUrl Artwork resolver.
  * @param onRetry Retry the Shop read.
+ * @param isRoot Shown as the Item Shop tab root rather than pushed.
  */
 @Composable
 fun ShopScreen(
@@ -174,6 +177,7 @@ fun ShopScreen(
     onViewMode: (ShopViewMode) -> Unit,
     artworkUrl: (String?) -> String?,
     onRetry: () -> Unit,
+    isRoot: Boolean = false,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showFilter by rememberSaveable { mutableStateOf(false) }
@@ -190,7 +194,7 @@ fun ShopScreen(
         val contentHinge = if (effective == ShopViewMode.Grid) split.value else hinge
         FestivalScreen(
             title = "Item Shop",
-            isRoot = false,
+            isRoot = isRoot,
             actions = {
                 if (!state.hidden) {
                     // Sort before Filter, like Songs; both speak their state, not only their gold tint.

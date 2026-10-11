@@ -41,7 +41,7 @@ from pathlib import Path
 from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[2]
-LINE = re.compile(r"^fade-(?P<kind>arm|play|enter|early|rush|close|hold|reveal|skip) list=(?P<list>\S+)"
+LINE = re.compile(r"^fade-(?P<kind>arm|play|enter|early|rush|close|hold|reveal|skip|ride) list=(?P<list>\S+)"
                   r"(?P<rest>(?: \w+=[^\s=]+)*)\s*$")
 NUMBER = re.compile(r"-?\d+")
 ARM_WINDOW_MS = 1000
@@ -307,6 +307,84 @@ def check_load_then_scroll(events: list[FadeEvent], list_id: str, window_ms: int
     if replayed:
         failures.append(f"{list_id}: old rows faded in again after a reload arm: {replayed}")
     return failures
+
+
+TOGETHER_SLOP_MS = 3
+"""Rounding of a fade's ``at`` and ``delay`` (each to 1 ms): starts this close count as one fade."""
+ROW_INTERVAL_MS = 125
+"""``FadeInTiming.Interval``: a whole card's one fade starts at most one stagger slot after its first row is realized."""
+
+
+def check_together(events: list[FadeEvent], owner: str, targets: tuple[str, ...] | list[str] = ()) -> list[str]:
+    """Issue #614 (owner-approved variant): the rows of one card, and its pinned row, fade in as one fade.
+
+    Judged on the board's latest load entrance (from its last re-arm from 0) up to the first rush, close, hold or
+    reveal: every delayed fade of a row (``fade-play``) and of each pinned row in ``targets`` (``fade-enter``) must
+    start at the same moment (``at`` + ``delay`` within :data:`TOGETHER_SLOP_MS`), and a row realized after that moment
+    joins the card at once (``delay=0``) rather than fading after it. A stagger shows as starts 125 ms apart.
+
+    Args:
+        events: Events of the phase that loaded the board.
+        owner: The board list.
+        targets: Pinned rows that enter with it.
+
+    Returns:
+        Failures.
+    """
+    own = [e for e in events if e.list == owner]
+    end = next((i for i, e in enumerate(own) if e.kind in ("rush", "close", "hold", "reveal")), len(own))
+    armed = [i for i, e in enumerate(own[:end]) if e.kind == "arm" and e.values.get("start") == 0]
+    entrance = own[armed[-1] if armed else 0:end]
+    starts: dict[str, int] = {}
+    joiners: dict[str, int] = {}
+    for event in entrance:
+        at = _at(event)
+        if at is None:
+            continue
+        if event.kind == "play":
+            name = f"index {event.values['index']}"
+        elif event.kind == "enter" and event.values.get("target") in targets:
+            name = str(event.values["target"])
+        else:
+            continue
+        delay = int(event.values.get("delay", 0))
+        (starts if delay > 0 else joiners)[name] = at + delay
+    if not starts and not joiners:
+        return [f"{owner}: no row faded in at load"]
+    if not starts:
+        return []
+    first, last = min(starts.values()), max(starts.values())
+    failures = []
+    if last - first > TOGETHER_SLOP_MS:
+        spread = sorted(starts.items(), key=lambda item: item[1])
+        failures.append(f"{owner}: the card's rows started {last - first} ms apart instead of as one fade "
+                        f"(first {spread[0][0]}, last {spread[-1][0]})")
+    early = [name for name, at in joiners.items() if at < first - TOGETHER_SLOP_MS]
+    if early:
+        failures.append(f"{owner}: rows appeared before the card's fade started: {early}")
+    return failures
+
+
+def check_no_row_stagger(events: list[FadeEvent], list_id: str) -> list[str]:
+    """Issue #614: rows inside a preview card never stagger; they ride the card's fade or fade in as one.
+
+    For lists that share a trace name (one per card, such as Song Details' preview rows), so starts of different
+    cards are not compared: no row may wait more than one stagger slot (a staggered row ``n`` waits ``(n+1)`` × 125
+    ms), and some row must have ridden its card (``fade-ride``) or faded.
+
+    Args:
+        events: Events of the phase.
+        list_id: The rows' trace name.
+
+    Returns:
+        Failures.
+    """
+    own = [e for e in events if e.list == list_id and e.kind in ("play", "ride")]
+    if not own:
+        return [f"{list_id}: no preview row rode its card or faded in"]
+    staggered = [e.values.get("index") for e in own
+                 if e.kind == "play" and int(e.values.get("delay", 0)) > ROW_INTERVAL_MS + TOGETHER_SLOP_MS]
+    return [f"{list_id}: rows staggered inside their card: {staggered}"] if staggered else []
 
 
 def check_none(events: list[FadeEvent]) -> list[str]:

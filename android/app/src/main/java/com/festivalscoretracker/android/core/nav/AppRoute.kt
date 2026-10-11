@@ -35,6 +35,9 @@ sealed interface AppRoute
 /** `/statistics` tab root (player selected). */
 @Serializable data object StatisticsTab : AppRoute
 
+/** `/shop` tab root (profile selected, Hide Item Shop off; Android only, issue #601). */
+@Serializable data object ShopTab : AppRoute
+
 /** `/settings` tab root. */
 @Serializable data object SettingsTab : AppRoute
 
@@ -93,8 +96,11 @@ data class BandRoute(
 /** `/leaderboards` pushed rather than shown as a tab (e.g. from Compete). */
 @Serializable data object LeaderboardsRoute : AppRoute
 
-/** `/leaderboards/all?instrument=&rankBy=` with a one-based page (rewritten in the back-stack entry as the user pages). */
-@Serializable data class FullRankingsRoute(val instrument: String, val rankBy: String = "totalscore", val page: Int = 1) : AppRoute
+/**
+ * `/leaderboards/all?instrument=&rankBy=` with a one-based page (rewritten in the back-stack entry as the user pages).
+ * A within-group hex [combo] ID shows that combo's board instead (web `?combo=`, #602); [instrument] then names its first chart.
+ */
+@Serializable data class FullRankingsRoute(val instrument: String, val rankBy: String = "totalscore", val page: Int = 1, val combo: String? = null) : AppRoute
 
 /** `/leaderboards/bands/:bandType` with a one-based page (rewritten in the back-stack entry as the user pages). */
 @Serializable data class BandRankingsRoute(val bandType: String, val page: Int = 1) : AppRoute
@@ -140,7 +146,7 @@ data class RivalryRoute(
 
 // Misc
 
-/** `/shop`. */
+/** `/shop` pushed (from the drawer while Item Shop is not a tab). */
 @Serializable data object ShopRoute : AppRoute
 
 /** `/settings/licenses`. */

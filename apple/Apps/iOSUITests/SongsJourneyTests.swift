@@ -520,8 +520,9 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertEqual(filter.value as? String, "No filters")
     }
 
-    /// Pause saved score checks honestly, then reset every filter on deselect like the
-    /// web's `resetSongSettingsForDeselect` (#359).
+    /// Keep saved score checks applied and enabled under Filter Invalid Scores (#615),
+    /// pause them honestly while their charts are hidden, then reset every filter on
+    /// deselect like the web's `resetSongSettingsForDeselect` (#359).
     ///
     /// - Throws: Raw-score filtering, hidden-chart leakage, a kept filter or stale identity.
     @MainActor
@@ -529,7 +530,7 @@ final class SongsJourneyTests: XCTestCase {
         continueAfterFailure = false
         XCUIDevice.shared.orientation = .portrait
         let app = SongsUITestSupport.fixtureApp()
-        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launchEnvironment["FST_API_BASE_URL"] = SongsUITestSupport.fixtureURL
         app.launchEnvironment["FST_UI_TEST_RESET_VISUALS"] = "1"
         app.launchArguments += [
             "-fst.settings.hideShop", "NO",
@@ -567,18 +568,50 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.reveal(invalid, in: app, scrollingUp: false)
         SongsUITestSupport.setSwitch(invalid, to: "1")
         SongsUITestSupport.rootControl("Songs", app: app).tap()
+        // Filter Invalid Scores applies the saved checks to effective scores instead of
+        // pausing them (#613, #615); every fixture score is valid, so rows don't change.
         let paused = app.descendants(matching: .any)
             .matching(identifier: "fst.songs.score-filter-paused").firstMatch
-        XCTAssertTrue(paused.waitForExistence(timeout: 10))
-        XCTAssertTrue(paused.label.contains("Filter Invalid Scores"))
-        XCTAssertTrue(pulse.exists && orbit.exists)
+        XCTAssertTrue(pulse.waitForExistence(timeout: 10))
+        XCTAssertFalse(orbit.exists)
+        XCTAssertFalse(paused.exists)
+        XCTAssertTrue((filter.value as? String)?.contains("1 player score check") == true)
         filter.tap()
         XCTAssertEqual(scoreSections.value as? String, "Expanded")
-        XCTAssertFalse(SongsUITestSupport.revealFilterOption(
+        let globalHas = SongsUITestSupport.revealFilterOption(
             app.switches["fst.songs.filter.score.global.hasScores"], in: app
-        ).isEnabled)
+        )
+        XCTAssertTrue(globalHas.isEnabled)
+        XCTAssertEqual(globalHas.label, "Has Scores")
+        let globalOver = SongsUITestSupport.revealFilterOption(
+            app.switches["fst.songs.filter.score.global.overThreshold"], in: app
+        )
+        XCTAssertTrue(globalOver.isEnabled)
+        XCTAssertEqual(globalOver.label, "Over CHOpt Threshold")
+        XCTAssertEqual(globalOver.value as? String, "0")
+        // The re-enabled checks stay full-size switch rows. The sheet's whole-page audit has
+        // open findings in rows this change leaves alone (accessibility.md, Open findings).
+        XCTAssertGreaterThanOrEqual(globalHas.frame.height, 43)
+        XCTAssertGreaterThanOrEqual(globalOver.frame.height, 43)
+        SongsUITestSupport.record(app, name: "songs-score-filter-invalid-score-mode-global")
+        SongsUITestSupport.revealFilterOption(drums, in: app).tap()
+        let savedDrums = SongsUITestSupport.revealFilterOption(hasDrums, in: app)
+        XCTAssertTrue(savedDrums.isEnabled)
+        XCTAssertEqual(savedDrums.value as? String, "1")
+        let overDrums = SongsUITestSupport.revealFilterOption(
+            app.switches["fst.songs.filter.score.chart.Solo_Drums.overThreshold"], in: app
+        )
+        XCTAssertTrue(overDrums.isEnabled)
+        XCTAssertEqual(overDrums.label, "Drums Over CHOpt Threshold")
+        XCTAssertGreaterThanOrEqual(savedDrums.frame.height, 43)
+        XCTAssertGreaterThanOrEqual(overDrums.frame.height, 43)
+        XCTAssertFalse(app.staticTexts.containing(
+            NSPredicate(format: "label CONTAINS %@", "paused while Filter Invalid Scores")
+        ).firstMatch.exists)
+        SongsUITestSupport.record(app, name: "songs-score-filter-invalid-score-mode-enabled")
         app.buttons["fst.songs.filter.done"].tap()
-        SongsUITestSupport.record(app, name: "songs-score-filter-invalid-score-mode-paused")
+        XCTAssertTrue(pulse.waitForExistence(timeout: 10))
+        XCTAssertFalse(orbit.exists)
 
         SongsUITestSupport.rootControl("Settings", app: app).tap()
         SongsUITestSupport.reveal(invalid, in: app, scrollingUp: false)
@@ -617,7 +650,11 @@ final class SongsJourneyTests: XCTestCase {
         XCTAssertFalse(paused.exists, "No score-filter notice without a player (#359)")
         SongsUITestSupport.viewFixturePlayer("fixture-player-1", query: "Fixture Player", in: app)
         SongsUITestSupport.selectViewedPlayer(in: app)
-        XCTAssertEqual(XCTWaiter.wait(for: [reset], timeout: 10), .completed)
+        let stillReset = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "No filters"),
+            object: filter
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [stillReset], timeout: 10), .completed)
         XCTAssertTrue(pulse.waitForExistence(timeout: 10) && orbit.exists)
     }
 
@@ -1281,6 +1318,43 @@ final class SongsJourneyTests: XCTestCase {
         )
         SongsUITestSupport.record(app, name: "songs-before-accessibility-audit")
         try app.performAccessibilityAudit(for: .all)
+    }
+
+    /// A Filter disclosure header speaks the state the person asked for at once (pattern
+    /// `accordion` R4, #561): Collapsed → tap → Expanded with readable, hittable 44 pt
+    /// switches after the fade; tap → Collapsed straight away, then the switches leave.
+    ///
+    /// - Throws: A missing Year accordion.
+    @MainActor
+    func testSongsFilterDisclosureSpeaksRequestedState() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        _ = SongsUITestSupport.openFilterSheet(in: app)
+        let year = app.buttons["fst.songs.filter.year"]
+        XCTAssertTrue(year.waitForExistence(timeout: 10))
+        XCTAssertEqual(year.value as? String, "Collapsed")
+        let decades = app.switches.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.filter.year.")
+        )
+        XCTAssertEqual(decades.count, 0, "Year options showed while collapsed")
+
+        year.tap()
+        XCTAssertEqual(year.value as? String, "Expanded")
+        let first = decades.firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 5), "Opening Year did not reveal its options")
+        XCTAssertTrue(first.isHittable, "The revealed option is not hittable")
+        XCTAssertFalse(first.label.isEmpty, "The revealed option has no label")
+        XCTAssertGreaterThanOrEqual(first.frame.height, 44, "The revealed option's target is too short")
+        SongsUITestSupport.record(app, name: "songs-filter-year-expanded")
+
+        year.tap()
+        XCTAssertEqual(year.value as? String, "Collapsed")
+        XCTAssertTrue(first.waitForNonExistence(timeout: 5), "Closing Year did not remove its options")
+        app.buttons["fst.songs.filter.done"].tap()
     }
 
     /// Exercise real native no-results and service-error presentation.

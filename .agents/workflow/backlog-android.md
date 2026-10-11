@@ -13,7 +13,7 @@
 | Songs: re-record the Songs → Detail → Paths video on the current build; verify "Scores unavailable" for the mock player; band sorts | and-songs2 | |
 | Leaderboards: book half-open overview leaves the right side empty beside Rank History; hinge-branch test (80%); band-combo filter; selected-band spotlight | and-boards2 | |
 | Bands: combo filter, Select Band Profile, Quick Links on band pages | and-bands | |
-| Rivals: Rank By picker, native combo full board, half-open gap ~17 px left of the fold | and-rivals | |
+| Rivals: Rank By picker, half-open gap ~17 px left of the fold | and-rivals | Native combo full board shipped with #602 (Full Rankings combo mode) |
 | Profile: star/percentile tiles need a Songs stars filter; Global Rank opens rankings at page 1; Song Detail `?instrument=` focus; rank-history bar width (40 dp vs web 96 px) | and-profile2 | |
 | Shell: embedded Song Detail pads the status bar itself; Songs filter → `RegisterPageFind`; MainActivity coverage | and-shell-search | Floating-toolbar hide-on-scroll was removed: the toolbar stays on screen on every page (#577) |
 | Splash uses the placeholder launcher icon; web logo needs the asset-licensing gate | and-polish | Operator approval |

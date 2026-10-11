@@ -178,7 +178,7 @@ class MediumShellHitTargetUiTest {
     }
 }
 
-/** Expanded window (list-detail): the floating toolbar over the list pane (#576). */
+/** Expanded window: the floating toolbar over Songs, which fills the window (no list/detail split, #581; #576). */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w1280dp-h800dp-land-xhdpi")
 class ExpandedShellHitTargetUiTest {
@@ -196,9 +196,9 @@ class ExpandedShellHitTargetUiTest {
 }
 
 /**
- * Narrow list pane (phone landscape): the page tools float over the list pane instead of moving
- * behind ⋮ (#576), and every bar and toolbar button keeps a forgiving, separate target. Native
- * graphics, so the title measures real text.
+ * Landscape phone: Songs fills the window in two columns (`wide-columns`, issue #581), and its
+ * page tools float in the shell's toolbar instead of moving behind ⋮ (#576); every bar and toolbar
+ * button keeps a forgiving, separate target. Native graphics, so the title measures real text.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w923dp-h411dp-land-xxhdpi")
