@@ -759,7 +759,7 @@ private struct PinnedHeaderRowMask: ViewModifier {
             }
             .mask { PinnedHeaderFadeMask(cut: cut, depth: depth) }
             // Wholly in the cut: no VoiceOver stop (scroll-edge R7, issue #459).
-            .accessibilityHidden(mask?.hidden ?? false)
+            .accessibilityHidden(while: mask?.hidden ?? false)
             .background {
                 if locatesScrollView && state.legacyScrollTracking {
                     ListScrollViewLocator { state.attachLegacyScrollView($0) }
@@ -895,7 +895,7 @@ private struct PinnedTitleRowMask: ViewModifier {
             }
             .mask { PinnedHeaderFadeMask(cut: cut, depth: depth) }
             // Wholly in the cut: no VoiceOver stop (scroll-edge R7, issue #459).
-            .accessibilityHidden(hidden)
+            .accessibilityHidden(while: hidden)
     }
 }
 
