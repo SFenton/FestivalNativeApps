@@ -224,11 +224,20 @@ struct RivalCommonSection: View {
     let session: FestivalSession
     let instruments: [Instrument]
     @State private var state: RivalsLoadState<(above: [RivalSummary], below: [RivalSummary])> = .loading
+    /// Skips the reload `.task(id:)` starts on every reappearance (#39, #410).
+    @State private var gate = ReappearanceLoadGate<RivalsSectionLoadKey<[Instrument]>>()
 
     private let previewCount = 3
 
+    private var loadKey: RivalsSectionLoadKey<[Instrument]> {
+        RivalsSectionLoadKey(instruments, session: session)
+    }
+
     var body: some View {
-        content.task(id: instruments) { await load() }
+        content.task(id: loadKey) {
+            guard gate.needsLoad(for: loadKey) else { return }
+            await load()
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -298,6 +307,7 @@ struct RivalCommonSection: View {
 
     @MainActor
     private func load() async {
+        let key = loadKey
         state = .loading
         var lists: [RivalsListResponse] = []
         // Sequential rather than a `TaskGroup`, matching `combinedRivalDetail`: at
@@ -320,6 +330,7 @@ struct RivalCommonSection: View {
             return
         }
         state = .loaded(RivalCommonRivals.intersect(lists))
+        gate.markLoaded(key)
     }
 }
 
@@ -331,11 +342,20 @@ struct RivalComboSection: View {
     let session: FestivalSession
     let scope: RivalComboScope
     @State private var state: RivalsLoadState<RivalsListResponse> = .loading
+    /// Skips the reload `.task(id:)` starts on every reappearance (#39, #410).
+    @State private var gate = ReappearanceLoadGate<RivalsSectionLoadKey<String>>()
 
     private let previewCount = 3
 
+    private var loadKey: RivalsSectionLoadKey<String> {
+        RivalsSectionLoadKey(scope.token, session: session)
+    }
+
     var body: some View {
-        content.task(id: scope.token) { await load() }
+        content.task(id: loadKey) {
+            guard gate.needsLoad(for: loadKey) else { return }
+            await load()
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -407,9 +427,11 @@ struct RivalComboSection: View {
 
     @MainActor
     private func load() async {
+        let key = loadKey
         state = .loading
         do {
             state = .loaded(try await session.rivalsComboList(token: scope.token))
+            gate.markLoaded(key)
         } catch is CancellationError {
         } catch {
             state = .failed(ServiceIssue(error))
@@ -431,10 +453,10 @@ struct RivalInstrumentSongSection: View {
     @State private var state: RivalsLoadState<RivalsListResponse> = .loading
     /// Skips the reload `.task(id:)` starts on every reappearance (Back from a pushed
     /// page), which flashed the rows to a spinner and shifted the page (#39).
-    @State private var gate = ReappearanceLoadGate<CompeteSectionLoadKey>()
+    @State private var gate = ReappearanceLoadGate<RivalsSectionLoadKey<Instrument>>()
 
-    private var loadKey: CompeteSectionLoadKey {
-        CompeteSectionLoadKey(instrument: instrument, session: session)
+    private var loadKey: RivalsSectionLoadKey<Instrument> {
+        RivalsSectionLoadKey(instrument, session: session)
     }
 
     var body: some View {
@@ -689,11 +711,20 @@ struct RivalInstrumentLeaderboardSection: View {
     let instrument: Instrument
     let rankBy: RivalRankMetric
     @State private var state: RivalsLoadState<LeaderboardRivalsListResponse> = .loading
+    /// Skips the reload `.task(id:)` starts on every reappearance (#39, #410).
+    @State private var gate = ReappearanceLoadGate<RivalsSectionLoadKey<TaskKey>>()
 
     private let previewCount = 3
 
+    private var loadKey: RivalsSectionLoadKey<TaskKey> {
+        RivalsSectionLoadKey(TaskKey(instrument: instrument, rankBy: rankBy), session: session)
+    }
+
     var body: some View {
-        content.task(id: TaskKey(instrument: instrument, rankBy: rankBy)) { await load() }
+        content.task(id: loadKey) {
+            guard gate.needsLoad(for: loadKey) else { return }
+            await load()
+        }
     }
 
     @ViewBuilder private var content: some View {
@@ -741,7 +772,8 @@ struct RivalInstrumentLeaderboardSection: View {
         }
     }
 
-    private struct TaskKey: Equatable {
+    /// What the section reads: its instrument's board ranked by `rankBy`.
+    struct TaskKey: Hashable, Sendable {
         let instrument: Instrument
         let rankBy: RivalRankMetric
     }
@@ -777,13 +809,40 @@ struct RivalInstrumentLeaderboardSection: View {
 
     @MainActor
     private func load() async {
+        let key = loadKey
         state = .loading
         do {
             state = .loaded(try await session.leaderboardRivals(instrument: instrument, rankBy: rankBy))
+            gate.markLoaded(key)
         } catch is CancellationError {
         } catch {
             state = .failed(ServiceIssue(error))
         }
+    }
+}
+
+// MARK: - Section load key
+
+/// What a Rivals hub section's read depends on: its `scope` (instrument, visible
+/// instruments, combo token or leaderboard metric), the selected account and the
+/// publication. A change to any part reloads the section, while a plain reappearance
+/// (Back from a pushed page) keeps its loaded rows (``ReappearanceLoadGate``, #39, #410).
+/// Compete keys its whole page with ``CompetePageLoadKey`` instead.
+struct RivalsSectionLoadKey<Scope: Hashable & Sendable>: Hashable, Sendable {
+    let scope: Scope
+    let accountId: String?
+    let publicationRevision: Int
+
+    /// Build the key from the section's scope and the session's current state.
+    ///
+    /// - Parameters:
+    ///   - scope: What the section reads.
+    ///   - session: Shared session; its selected account and publication revision.
+    @MainActor
+    init(_ scope: Scope, session: FestivalSession) {
+        self.scope = scope
+        accountId = session.selectedPlayer?.accountId
+        publicationRevision = session.publicationRevision
     }
 }
 

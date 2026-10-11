@@ -142,8 +142,15 @@ class SongsParityTest {
         assertEquals("1 to 2 minutes", duration.headers[1].quickLink.accessibleTitle)
         assertNull(duration.sortChart)
         val title = SongListPipeline.run(SongListInputs(songs), sorter)
-        assertTrue(title.headers.isEmpty())
         assertEquals(4, title.sections.size)
+        // Title titles its #/A–Z sections (issue #582): one header per index section, same first rows.
+        assertEquals(title.sections.map { it.firstIndex }, title.headers.map { it.firstIndex })
+        assertEquals(title.sections.map { it.label }, title.headers.map { it.label })
+        assertTrue(title.headers.all { it.testTag.startsWith("fst.songs.section.title.") })
+        assertEquals(title.headers.size, title.headers.map { it.id }.toSet().size)
+        // …but Quick Links never repeats the section index.
+        assertTrue(SongQuickLinkBuckets.quickLinkHeaders(title.effectiveSort, title.headers).isEmpty())
+        assertEquals(duration.headers, SongQuickLinkBuckets.quickLinkHeaders(duration.effectiveSort, duration.headers))
         val intensity = SongListPipeline.run(SongListInputs(songs, sort = SongSortMode.Intensity, filter = SongFilter(lead)), sorter)
         assertNull(intensity.sortPaused)
         assertTrue(intensity.headers.isEmpty())

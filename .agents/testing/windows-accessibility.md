@@ -282,6 +282,8 @@ Fixed:
 
 Driver note: `RadioMenuFlyoutItem`s expose Toggle, not Invoke. `invoke:` falls back to a click that misses the popup, so drive menu radio items with `toggle:` or the keyboard.
 
+Driver note (issue #439): `assertorder` walks the window's reading order, which leaves out an open `ComboBox`'s options (they sit in the popup). Check option order with `assertbelow:<later>|<earlier>` pairs on `name=<option>&class=ComboBoxItem`, and a missing option with `waitgone:…@1`.
+
 ## Player Bands validation (issue #210, 2026-10)
 
 Evidence: `a11y_matrix.py --scan --tabs 20` for `player-bands` at compact, medium, wide, snap-left, snap-right and maximized. It was then run at compact and wide under Desert, Night sky, light theme, text 200%, display 100% and 150%: 0 Axe errors in all 18 runs. The live public service (SFentonX, temporary wrapper without `--base-url`) also gave 0 Axe errors at the same five sizes, under Desert, at text 200% and at display 150%. Results per configuration are in [player-bands/windows.md](../pages/player-bands/windows.md#validation-issue-210).
@@ -299,7 +301,7 @@ Tooling finding: after a UIA `focus:` step on a `SelectorBarItem`, arrow keys do
 Evidence: `a11y_matrix.py --scan` (new `text-200` mode) for `rivals`, `compete`, `all-rivals`, `rival-detail` and `rivalry` at compact/medium/wide; the four Rivals pages at medium under all four contrast themes, text 200% (C+M), text 225%, no animations and no transparency: 0 Axe errors. Live public service (SFentonX): Night sky and text 200% render correctly, and UIA trees show one stop per row with no unnamed `Image`. Journeys `empty`, `freeze`, `no-player`, `compete` and `populated` pass.
 
 Fixed:
-- Rival rows (hub, All Rivals) and Rival Detail/Rivalry song rows exposed every rank, name, pill and score `Text`, the instrument icons and `SongArt`'s inner `Image` under the named row, so Narrator scan mode read each row twice. Now all parts are Raw. Rivalry rows read the song, artist and year plus both ranks and scores (`RivalSongItem.FullAccessibleName`).
+- Rival rows (hub, All Rivals) and Rival Detail/Rivalry song rows exposed every rank, name, pill and score `Text`, the instrument icons and `SongArt`'s inner `Image` under the named row, so Narrator scan mode read each row twice. Now all parts are Raw. Since #603 every song row (Rival Detail and Rivalry) reads what it shows: song, artist, chart, both ranks and who leads (`RivalSongItem.AccessibleName`).
 - Anonymous leaderboard rivals (live `accountId: ""`) broke three Leaderboard Rivals cards (also fixed by #213; merged). They now read "Unknown User, rank N, …" as non-actionable rows (see [Rivals Windows notes](../pages/rivals/windows.md)).
 
 Same host constraint as #196 (locked console; display scaling fixed at 300%).

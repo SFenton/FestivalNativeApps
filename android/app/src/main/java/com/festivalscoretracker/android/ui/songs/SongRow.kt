@@ -67,9 +67,13 @@ import com.festivalscoretracker.android.core.songs.SongInstrumentStatus
 import com.festivalscoretracker.android.core.songs.SongMetadataPill
 import com.festivalscoretracker.android.core.songs.SongPercentileTier
 import com.festivalscoretracker.android.core.songs.SongRowModel
+import com.festivalscoretracker.android.core.suggestions.PercentileTier
 import com.festivalscoretracker.android.ui.design.DifficultyMeter
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.METADATA_PILL_HEIGHT
+import com.festivalscoretracker.android.ui.design.PercentilePill
+import com.festivalscoretracker.android.ui.design.SeasonPill
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.design.StarRatingStyle
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -601,23 +605,14 @@ fun MetadataPill(pill: SongMetadataPill, songId: String) {
                 modifier = tag,
             )
         }
-        MetadataField.Percentile -> when (pill.percentile) {
-            SongPercentileTier.TopOne -> PillBox(pill.text, BrandTokens.gold, null, SongsTokens.darkGlyph, tag)
-            SongPercentileTier.TopFive -> PillBox(pill.text, Color.Transparent, BrandTokens.gold, BrandTokens.gold, tag)
-            SongPercentileTier.Ordinary -> PillBox(pill.text, BrandTokens.surfaceMuted, null, BrandTokens.textPrimary, tag)
-        }
+        // The shared metadata pills (pattern `metadata-pills`): same look on every page.
+        MetadataField.Percentile -> PercentilePill(pill.text, tag, tier = pill.percentile.pillTier())
         // Stars and the intensity meter sit in a pill-height box so every pill in a row shares one height (7.18).
         // Web `MiniStars`: 20 dp stars in pill-height (24 dp) circles, gold-ringed when gold.
         MetadataField.Stars -> Box(Modifier.heightIn(min = PILL_HEIGHT), contentAlignment = Alignment.Center) {
             StarRating(if (pill.goldStars) 6 else pill.starCount, tag, size = PILL_HEIGHT / 1.2f, style = StarRatingStyle.Mini)
         }
-        MetadataField.Season -> PillBox(
-            pill.text,
-            if (pill.currentSeason) BrandTokens.textPrimary else BrandTokens.surfaceMuted,
-            null,
-            if (pill.currentSeason) SongsTokens.darkGlyph else BrandTokens.textPrimary,
-            tag,
-        )
+        MetadataField.Season -> pill.season?.let { SeasonPill(it, tag, current = pill.currentSeason) }
         MetadataField.Intensity -> pill.intensityRaw?.let { Box(Modifier.heightIn(min = PILL_HEIGHT), contentAlignment = Alignment.Center) { DifficultyMeter(it, modifier = tag) } }
         MetadataField.Difficulty -> {
             val (fill, glyph) = when (pill.gameDifficulty) {
@@ -632,8 +627,15 @@ fun MetadataPill(pill: SongMetadataPill, songId: String) {
     }
 }
 
-/** Height of one metadata pill (label text plus its 2 dp vertical padding). */
-private val PILL_HEIGHT = 24.dp
+/** Height of one metadata pill (label text plus its 2 dp vertical padding), shared with [SeasonPill]. */
+private val PILL_HEIGHT = METADATA_PILL_HEIGHT
+
+/** Songs' percentile emphasis as the shared [PercentilePill] tier. */
+private fun SongPercentileTier.pillTier(): PercentileTier = when (this) {
+    SongPercentileTier.TopOne -> PercentileTier.Top1
+    SongPercentileTier.TopFive -> PercentileTier.Top5
+    SongPercentileTier.Ordinary -> PercentileTier.Default
+}
 
 /** OpenType tabular figures so stacked Songs scores line up digit for digit (spec: "bold, tabular"). */
 private const val TABULAR_FIGURES = "tnum"

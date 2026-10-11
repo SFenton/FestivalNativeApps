@@ -6,6 +6,7 @@ namespace Festival.Core.Tests;
 /// Guards issue #543: the full Windows boards (song board, Full Rankings, Band Rankings and the song band board) draw
 /// the page's entries as one grouped card (touching row slices with hairlines, <c>GroupedRows</c>) instead of a card
 /// per row. The live check is the grouped-boards journey (<c>tools/windows/journeys/a11y-grouped-boards.json</c>).
+/// Issue #588 adds the in-card variant: Song Detail's Score History rows sit inside the history card with View All Scores.
 /// </summary>
 public class GroupedBoardMarkupTests
 {
@@ -79,6 +80,44 @@ public class GroupedBoardMarkupTests
         Assert.Equal("Collapsed", Attr(separator, "Visibility"));
         Assert.Equal("False", Attr(separator, "IsHitTestVisible"));
         Assert.Equal("Raw", Attr(separator, "AutomationProperties.AccessibilityView"));
+    }
+
+    #endregion
+
+    #region In-card rows
+
+    [Fact]
+    public void ScoreHistoryCardHoldsTheSelectorChartRowsAndViewAll()
+    {
+        // Issue #588: one Score History card (like Apple's grouped SongScoreHistorySection), in reading order.
+        var doc = Page("SongDetailPage.xaml");
+        var card = doc.Descendants().Single(e => Attr(e, "Name") == "HistoryCard");
+        Assert.Equal("{StaticResource FSTCardStyle}", Attr(card, "Style"));
+        var order = card.Descendants().Select(e => Attr(e, "Name"))
+            .Where(n => n is "HistorySelector" or "HistoryChart" or "HistoryPagerSlot" or "HistoryRows" or "HistoryViewAll")
+            .ToList();
+        Assert.Equal(["HistorySelector", "HistoryChart", "HistoryPagerSlot", "HistoryRows", "HistoryViewAll"], order);
+
+        var rows = card.Descendants().Single(e => Attr(e, "Name") == "HistoryRows");
+        Assert.Equal("True", Attr(rows, "GroupedRows.IsEnabled"));
+        Assert.Equal("True", Attr(rows, "GroupedRows.InCard"));
+        Assert.Equal("True", Attr(rows, "FadeIn.Stagger"));
+        Assert.Equal("0", Attr(Assert.Single(rows.Descendants(), e => e.Name.LocalName == "StackLayout"), "Spacing"));
+
+        // The swap holds only the graph section, so the list after it resizes to the new chart's rows (load-transition R7).
+        var graph = card.Descendants().Single(e => Attr(e, "Name") == "HistoryGraph");
+        Assert.Contains(graph.Descendants(), e => Attr(e, "Name") == "HistoryPagerSlot");
+        Assert.DoesNotContain(graph.Descendants(), e => Attr(e, "Name") is "HistoryRows" or "HistoryViewAll");
+        var code = File.ReadAllText(Path.Combine(AppRoot, "Pages", "SongDetailPage.xaml.cs"));
+        Assert.Contains("HistoryGraph.MinHeight = Math.Max(HistoryGraph.MinHeight, HistoryGraph.ActualHeight)", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BoardsDoNotUseInCardSlices()
+    {
+        // Full boards draw the grouped card themselves (#543); only rows inside a card's own surface are in-card.
+        foreach (var page in new[] { "LeaderboardsSongPage.xaml", "LeaderboardsFullRankingsPage.xaml", "LeaderboardsBandRankingsPage.xaml" })
+            Assert.DoesNotContain(Page(page).Descendants(), e => Attr(e, "GroupedRows.InCard") is not null);
     }
 
     #endregion

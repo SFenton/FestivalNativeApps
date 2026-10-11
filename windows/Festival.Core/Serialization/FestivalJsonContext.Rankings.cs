@@ -11,5 +11,7 @@ namespace Festival.Core.Data;
 [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = false, UseStringEnumConverter = true)]
 [JsonSerializable(typeof(RankingsResponse))]
 [JsonSerializable(typeof(BandRankingsResponse))]
+[JsonSerializable(typeof(ComboRankingsResponse))]
+[JsonSerializable(typeof(PlayerComboRanking))]
 internal sealed partial class RankingsJsonContext : JsonSerializerContext;
 #endregion

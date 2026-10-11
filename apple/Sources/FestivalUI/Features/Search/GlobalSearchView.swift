@@ -2,11 +2,64 @@ import SwiftUI
 import FestivalCore
 import FestivalDesign
 
+// MARK: - Identifiers
+
+/// Accessibility identifiers of one search surface: `fst.global-search.*` for global
+/// search, `fst.profile.*` for the Profiles sheet (issue #600).
+struct GlobalSearchIdentifiers: Equatable, Sendable {
+    /// Prefix of every identifier, e.g. "fst.global-search".
+    let prefix: String
+    /// Backoff key prefix of the sections' service-status rows.
+    let statusScope: String
+    /// The sheet's own text field (macOS profile sheet and the Mac search sheet).
+    let field: String
+    /// The field's clear button.
+    let clear: String
+    /// Player rows carry one identifier per account (`fst.profile.result.<accountId>`)
+    /// rather than one shared `result.player`.
+    let perAccountPlayerRows: Bool
+
+    /// The identifiers for a surface that searches `targets`.
+    ///
+    /// - Parameter targets: What the surface searches.
+    init(_ targets: GlobalSearchTargets) {
+        switch targets {
+        case .global:
+            prefix = "fst.global-search"
+            statusScope = "global-search"
+            field = "fst.global-search.field"
+            clear = "fst.global-search.clear"
+            perAccountPlayerRows = false
+        case .profiles:
+            prefix = "fst.profile"
+            statusScope = "profile"
+            field = "fst.profile.search"
+            clear = "fst.profile.clear"
+            perAccountPlayerRows = true
+        }
+    }
+
+    /// `prefix.suffix`.
+    ///
+    /// - Parameter suffix: e.g. "scope", "hint", "section.players".
+    /// - Returns: The full identifier.
+    func callAsFunction(_ suffix: String) -> String { "\(prefix).\(suffix)" }
+
+    /// A player result's identifier.
+    ///
+    /// - Parameter accountId: The result's account.
+    /// - Returns: `result.player`, or `result.<accountId>` on the Profiles sheet.
+    func player(_ accountId: String) -> String {
+        self(perAccountPlayerRows ? "result.\(accountId)" : "result.player")
+    }
+}
+
 // MARK: - Results
 
-/// Global search results: a scope bar (All · Songs · Players · Bands) over song rows then
-/// player rows then band cards, mirroring the web `SearchModal`
-/// (`.agents/controls/global-search/spec.md`). In "All" each rendered section has its
+/// Search results: a scope bar (All · Songs · Players · Bands, or All · Players · Bands
+/// on the Profiles sheet, issue #600) over song rows then player rows then band cards,
+/// mirroring the web `SearchModal` (`.agents/controls/global-search/spec.md`, pattern
+/// `search-scopes`). In "All" each rendered section has its
 /// Songs / Players / Bands title (issue #348, section-headers R9); a single scope has
 /// none, because the scope bar already names it (issue #299).
 ///
@@ -44,18 +97,24 @@ struct GlobalSearchResults: View {
     @State private var surfaceSize: CGSize = .zero
     @Environment(\.deviceLayout) private var layout
 
+    /// This surface's accessibility identifiers.
+    private var ids: GlobalSearchIdentifiers { GlobalSearchIdentifiers(model.targets) }
+
     var body: some View {
         VStack(spacing: 10) {
             if showsField {
                 GlobalSearchField(
-                    text: $model.query, prompt: GlobalSearch.prompt(for: model.scope),
+                    text: $model.query,
+                    prompt: GlobalSearch.prompt(for: model.scope, targets: model.targets),
+                    accessibilityLabel: model.targets.fieldLabel,
+                    identifier: ids.field, clearIdentifier: ids.clear,
                     submit: { model.submit() }
                 )
                 .padding(.horizontal, 16)
             }
             // HIG scope bar: a segmented control, broadest scope first.
             Picker("Search Scope", selection: $model.scope) {
-                ForEach(GlobalSearchScope.allCases) { scope in
+                ForEach(model.targets.scopes) { scope in
                     Text(scope.title).tag(scope)
                 }
             }
@@ -64,7 +123,7 @@ struct GlobalSearchResults: View {
             .modifier(GlobalSearchScopeColumn(
                 alignsWithBottomField: hasBottomField, hinge: bottomFieldHinge
             ))
-            .accessibilityIdentifier("fst.global-search.scope")
+            .accessibilityIdentifier(ids("scope"))
             results
         }
         .padding(.top, 8)
@@ -73,7 +132,7 @@ struct GlobalSearchResults: View {
         .onGeometryChange(for: CGSize.self) { $0.size } action: { surfaceSize = $0 }
         // A container element, so the identifier does not replace its children's own.
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("fst.global-search.surface")
+        .accessibilityIdentifier(ids("surface"))
         // Speak the result count once results settle; a newer query or scope cancels a
         // pending announcement, so fast typing speaks only the last count.
         .task(id: model.resultAnnouncement) {
@@ -95,20 +154,23 @@ struct GlobalSearchResults: View {
     @ViewBuilder private var results: some View {
         if !model.hasQuery {
             // Issue #299: the hint names what the scope searches, Bands included.
-            centeredMessage(GlobalSearch.enterQueryHint(for: model.scope))
+            centeredMessage(GlobalSearch.enterQueryHint(for: model.scope, targets: model.targets))
         } else if model.isSearching {
             // Issue #299: one spinner for the whole area, centred between the scope bar
             // and the field, keyboard or tab bar (HIG Progress indicators: "Display
             // progress indicators in a consistent location").
             searchingIndicator
-        } else if isEmpty, let state = GlobalSearch.emptyState(scope: model.scope, query: model.query) {
+        } else if model.isEmpty, let state = GlobalSearch.emptyState(
+            scope: model.scope, query: model.query, targets: model.targets
+        ) {
             // Issue #99: a centred title and subtitle, not an inline row.
-            GlobalSearchEmptyStateView(state: state)
+            GlobalSearchEmptyStateView(state: state, identifier: ids("hint"))
         } else {
+            let sections = model.scope.sections(in: model.targets)
             resultList {
-                if model.scope.sections.contains(.songs) { songRows }
-                if model.scope.sections.contains(.players) { playerRows }
-                if model.scope.sections.contains(.bands) { bandRows }
+                if sections.contains(.songs) { songRows }
+                if sections.contains(.players) { playerRows }
+                if sections.contains(.bands) { bandRows }
             }
         }
     }
@@ -116,7 +178,7 @@ struct GlobalSearchResults: View {
     /// The one search spinner, centred in the results area.
     private var searchingIndicator: some View {
         FestivalLoadingView(accessibilityLabel: "Searching")
-            .accessibilityIdentifier("fst.global-search.loading")
+            .accessibilityIdentifier(ids("loading"))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -141,7 +203,9 @@ struct GlobalSearchResults: View {
         .festivalScrollFadeInScope(resetKey: resultFadeKey)
         .task(id: resultFadeKey) {
             let key = resultFadeKey
-            let slots = GlobalSearch.staggerSlotTotal(scope: model.scope, outcomes: model.outcomes)
+            let slots = GlobalSearch.staggerSlotTotal(
+                scope: model.scope, outcomes: model.outcomes, targets: model.targets
+            )
             await FadeStagger.settle(afterRevealing: slots) { fadeSettledResults = key }
         }
     }
@@ -161,7 +225,9 @@ struct GlobalSearchResults: View {
     /// - Returns: Index to hand `festivalFadeIn(isLoaded:index:)`.
     private func resultFadeIndex(_ section: GlobalSearchScope, offset: Int?) -> Int {
         let outcomes = model.outcomes
-        let start = GlobalSearch.staggerStart(of: section, scope: model.scope, outcomes: outcomes)
+        let start = GlobalSearch.staggerStart(
+            of: section, scope: model.scope, outcomes: outcomes, targets: model.targets
+        )
         let title = GlobalSearch.showsSectionTitle(section, scope: model.scope, outcomes: outcomes) ? 1 : 0
         return FadeStagger.index(
             offset.map { start + title + $0 } ?? Int.max,
@@ -240,13 +306,13 @@ struct GlobalSearchResults: View {
     @ViewBuilder private func sectionTitle(_ section: GlobalSearchScope) -> some View {
         let outcomes = model.outcomes
         if GlobalSearch.showsSectionTitle(section, scope: model.scope, outcomes: outcomes) {
-            let isFirst = model.scope.sections.first {
+            let isFirst = model.scope.sections(in: model.targets).first {
                 GlobalSearch.rendersSection($0, outcomes: outcomes)
             } == section
             FestivalSectionHeader(section.title)
                 .accessibilityElement(children: .combine)
                 .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("fst.global-search.section.\(section.rawValue)")
+                .accessibilityIdentifier(ids("section.\(section.rawValue)"))
                 // Web `section` / `sectionSpaced`: a gap above every title but the first,
                 // the title inset 4pt inside the cards' margin.
                 .listRowInsets(EdgeInsets(
@@ -257,7 +323,9 @@ struct GlobalSearchResults: View {
                 .festivalFadeIn(
                     isLoaded: true,
                     index: FadeStagger.index(
-                        GlobalSearch.staggerStart(of: section, scope: model.scope, outcomes: outcomes),
+                        GlobalSearch.staggerStart(
+                            of: section, scope: model.scope, outcomes: outcomes, targets: model.targets
+                        ),
                         settled: fadeSettledResults == resultFadeKey
                     )
                 )
@@ -274,20 +342,7 @@ struct GlobalSearchResults: View {
             .multilineTextAlignment(.center)
             .padding(.horizontal, 24)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .accessibilityIdentifier("fst.global-search.hint")
-    }
-
-    /// Every section the scope shows finished with nothing to show.
-    private var isEmpty: Bool {
-        let songsEmpty = model.songState == .ready && model.songs.isEmpty
-        let playersEmpty = model.playerState == .ready && model.players.isEmpty
-        let bandsEmpty = model.bandState == .ready && model.bands.isEmpty
-        switch model.scope {
-        case .all: return songsEmpty && playersEmpty && bandsEmpty
-        case .songs: return songsEmpty
-        case .players: return playersEmpty
-        case .bands: return bandsEmpty
-        }
+            .accessibilityIdentifier(ids("hint"))
     }
 
     // MARK: Songs
@@ -329,7 +384,7 @@ struct GlobalSearchResults: View {
                     .buttonStyle(.plain)
                     .accessibilityElement(children: .combine)
                     .accessibilityAddTraits(.isButton)
-                    .accessibilityIdentifier("fst.global-search.result.song")
+                    .accessibilityIdentifier(ids("result.song"))
                 }
             }
             .modifier(ResultSectionChrome())
@@ -373,7 +428,7 @@ struct GlobalSearchResults: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(player.displayName)
-                    .accessibilityIdentifier("fst.global-search.result.player")
+                    .accessibilityIdentifier(ids.player(player.accountId))
                 }
             }
             .modifier(ResultSectionChrome())
@@ -390,11 +445,11 @@ struct GlobalSearchResults: View {
         Section {
             sectionTitle(section)
             ServiceStatusInline(
-                issue, scope: "global-search.\(section.rawValue)", showsRetryButton: false,
+                issue, scope: "\(ids.statusScope).\(section.rawValue)", showsRetryButton: false,
                 fallbackTitle: GlobalSearch.unavailableTitle(for: section)
             ) { model.retry() }
             .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("fst.global-search.\(section.rawValue)-error")
+            .accessibilityIdentifier(ids("\(section.rawValue)-error"))
             .listRowInsets(Self.cardInsets)
             // Takes its slot after its title, like the web's failed section.
             .festivalFadeIn(isLoaded: true, index: resultFadeIndex(section, offset: 0))
@@ -422,7 +477,7 @@ struct GlobalSearchResults: View {
                 cardRows(model.bands, section: .bands) { band in
                     PlayerBandRow(
                         entry: band, open: open,
-                        identifier: "fst.global-search.result.band"
+                        identifier: ids("result.band")
                     )
                 }
             }
