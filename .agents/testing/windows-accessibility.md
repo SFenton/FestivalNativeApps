@@ -518,6 +518,24 @@ Backfills CI tests for the #318 Windows change: the selected player's row stays 
 
 No accessibility defect was found.
 
+## Full Rankings pinned row load gate accessibility tests (issue #524, 2026-10-11)
+
+Backfills CI tests for the #270 Windows change (PR #320): Full Rankings' pinned "your rank" row joined the rows' load gate (`LoadSwapGate`) for Rank By and instrument reloads, but stays beside the spinner on a page-only reload. Before this, only the feature journey `full-rankings-swap.json` (presence checks) covered it. New `journeys/a11y-full-rankings-swap.json` (`rankings_fixture.py --rankings-delay`, Fixture Rank 40 selected, off page 1) is a set of `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
+- `fr-swap-rank-by`: after Rank By → FC Rate, the pinned row and pager leave UIA; Narrator reads "Busy Loading rankings, ProgressRing" in title → Rank By → ring order; Tab from Rank By goes to the title bar's Back (no hidden pinned row or pager stop) and Shift+Tab returns. The new row then reads "Your rank, 40th. Jump to your position. Fixture Rank 40. FC Rate …, button", is focusable, invokable, 40×40 epx and apart from Next, in rows → pinned row → pager order. An instrument switch repeats the hide and return; Tab and Shift+Tab then move row → pinned row → Next and back. Mid-load and settled Axe scans;
+- `fr-swap-page-keeps-pin`: a page-only reload (Enter on Next) keeps the pinned row readable ("… Total Score …, button"), focusable and 40×40 epx beside the ring, in Rank By → ring → pinned row → pager order and clear of the ring; Shift+Tab from Next reaches it mid-load. Page 2 then scrolls to row 40, and the pinned row reads "Open your statistics" in row 40 → pinned row → pager order;
+- `fr-swap-motion-reduced` (in-app Reduce Motion) and `fr-swap-motion-system` (Windows Animation effects off): the row still hides under the ring, then returns with the FC Rate value and holds still (`assertmotion`).
+
+The pages set `tabs: 0` because their ordered traversals replace the walk. `tests/test_ui_ci.py` pins the runs and the key checks.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`full-rankings-swap`, 2 pages) | Pass, Axe 0 |
+| Text 225% (compact, 2 pages) | Pass, Axe 0 |
+| In-app Reduce Motion (medium, 3 pages) | Pass, Axe 0 |
+| Animation effects off (medium, 3 pages) | Pass, Axe 0 |
+
+No accessibility defect was found.
+
 ## Leaderboards card your-rank row accessibility tests (issue #493, 2026-10-11)
 
 Backfills CI tests for the #370 Windows change (PR #403): a Leaderboards card's separate "your rank" row, for a player ranked outside the card's top ten, now opens Full Rankings on the player's page and reveals their row instead of opening the profile. Until now only `selected_reveal_journey.py --only rankings-card` (fade timing) and `LeaderboardsViewModelTests` covered it. New `journeys/a11y-leaderboards-card-jump.json` (`rankings_fixture.py`) is now a set of `windows-ui` runs in `tools/windows/ui_ci.py`. They assert:
