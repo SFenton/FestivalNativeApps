@@ -67,7 +67,30 @@ private suspend fun FestivalApi.comboRankingsPinned(comboId: String, rankBy: Ran
         if (notFound.status == 404) return ComboRankingsResponse(comboId = comboId, rankBy = rankBy.wireId, page = page, pageSize = pageSize) to 0
         throw notFound
     }
-    return decode(ComboRankingsResponse.serializer(), body).also { it.validate(comboId) } to publicationId
+    return decode(ComboRankingsResponse.serializer(), body).also { it.validate(comboId, rankBy.wireId, page, pageSize) } to publicationId
+}
+
+/**
+ * Read and validate one account's combo row: the row and its envelope must echo the
+ * requested account, combo and metric, so a stale or mismatched response never pins
+ * another combo's or metric's rank (#602).
+ *
+ * @return The row and envelope, or null on HTTP 404 (not ranked in this combo).
+ */
+private suspend fun FestivalApi.playerComboRow(accountId: String, comboId: String, rankBy: RankingMetric): Pair<ComboRankingEntry, PlayerComboRankingEnvelope>? {
+    if (!ProfileSearchText.isValidAccountId(accountId)) throw FestivalApiException.InvalidResource()
+    val body = try {
+        readPinned(ServiceEndpoint.Feature(listOf("rankings", "combo", accountId), comboQuery(comboId, rankBy))).first
+    } catch (notFound: FestivalApiException.HttpStatus) {
+        if (notFound.status == 404) return null
+        throw notFound
+    }
+    val entry = decode(ComboRankingEntry.serializer(), body)
+    val envelope = decode(PlayerComboRankingEnvelope.serializer(), body)
+    val valid = entry.accountId.equals(accountId, ignoreCase = true) && entry.rank >= 1 && envelope.totalAccounts >= 0 &&
+        envelope.comboId.equals(comboId, ignoreCase = true) && envelope.rankBy.equals(rankBy.wireId, ignoreCase = true)
+    if (!valid) throw FestivalApiException.InvalidResponse()
+    return entry to envelope
 }
 
 /**
@@ -79,18 +102,8 @@ private suspend fun FestivalApi.comboRankingsPinned(comboId: String, rankBy: Ran
  * @param rankBy Metric.
  * @return The row, or null when unranked.
  */
-suspend fun FestivalApi.playerComboRanking(accountId: String, comboId: String, rankBy: RankingMetric): ComboRankingEntry? {
-    if (!ProfileSearchText.isValidAccountId(accountId)) throw FestivalApiException.InvalidResource()
-    val body = try {
-        readPinned(ServiceEndpoint.Feature(listOf("rankings", "combo", accountId), comboQuery(comboId, rankBy))).first
-    } catch (notFound: FestivalApiException.HttpStatus) {
-        if (notFound.status == 404) return null
-        throw notFound
-    }
-    val entry = decode(ComboRankingEntry.serializer(), body)
-    if (!entry.accountId.equals(accountId, ignoreCase = true) || entry.rank < 1) throw FestivalApiException.InvalidResponse()
-    return entry
-}
+suspend fun FestivalApi.playerComboRanking(accountId: String, comboId: String, rankBy: RankingMetric): ComboRankingEntry? =
+    playerComboRow(accountId, comboId, rankBy)?.first
 
 /**
  * [playerComboRanking] as the Full Rankings own-row result: the row in the shared shape
@@ -102,21 +115,12 @@ suspend fun FestivalApi.playerComboRanking(accountId: String, comboId: String, r
  * @return The row or unranked.
  */
 suspend fun FestivalApi.playerComboRankingResult(accountId: String, comboId: String, rankBy: RankingMetric): PlayerRankingResult {
-    if (!ProfileSearchText.isValidAccountId(accountId)) throw FestivalApiException.InvalidResource()
-    val body = try {
-        readPinned(ServiceEndpoint.Feature(listOf("rankings", "combo", accountId), comboQuery(comboId, rankBy))).first
-    } catch (notFound: FestivalApiException.HttpStatus) {
-        if (notFound.status == 404) return PlayerRankingResult.Unranked
-        throw notFound
-    }
-    val entry = decode(ComboRankingEntry.serializer(), body)
-    val envelope = decode(PlayerComboRankingEnvelope.serializer(), body)
-    if (!entry.accountId.equals(accountId, ignoreCase = true) || entry.rank < 1 || envelope.totalAccounts < 0) throw FestivalApiException.InvalidResponse()
+    val (entry, envelope) = playerComboRow(accountId, comboId, rankBy) ?: return PlayerRankingResult.Unranked
     return PlayerRankingResult.Ranked(PlayerInstrumentRanking(entry.asAccountEntry(rankBy), envelope.comboId, envelope.totalAccounts))
 }
 
 /** Envelope-only fields of `GET /api/rankings/combo/{accountId}` (web `{ comboId, rankBy, totalAccounts }`). */
 @Serializable
-private data class PlayerComboRankingEnvelope(val comboId: String = "", val totalAccounts: Int = 0)
+private data class PlayerComboRankingEnvelope(val comboId: String = "", val rankBy: String = "", val totalAccounts: Int = 0)
 
 // endregion

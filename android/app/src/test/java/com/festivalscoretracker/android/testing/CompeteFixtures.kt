@@ -41,7 +41,7 @@ object CompeteFixtures {
             comboBoard(combo(it.url), rows = if (page == 1) 3 else 0, rankBy = query(it.url, "rankBy") ?: "totalscore", page = page, pageSize = query(it.url, "pageSize")?.toIntOrNull() ?: 10)
         }
         on("/api/rankings/combo/$PLAYER", headers = mapOf("X-FST-Publication-Id" to "7")) {
-            """{"comboId":"${combo(it.url)}","rankBy":"totalscore","rank":2,"accountId":"$PLAYER","displayName":"Synthetic Player","totalScore":999998,"songsPlayed":10,"totalChartedSongs":20,"totalAccounts":30}"""
+            """{"comboId":"${combo(it.url)}","rankBy":"${query(it.url, "rankBy") ?: "totalscore"}","rank":2,"accountId":"$PLAYER","displayName":"Synthetic Player","totalScore":999998,"songsPlayed":10,"totalChartedSongs":20,"totalAccounts":30}"""
         }
         val ids = RivalsFixtures.RIVALS
         on("/api/player/$PLAYER/rivals/Solo_Guitar") { RivalsFixtures.list("Solo_Guitar", listOf(RivalsFixtures.rival(ids[0], "Synthetic Alpha")), listOf(RivalsFixtures.rival(ids[1], "Synthetic Beta"))) }

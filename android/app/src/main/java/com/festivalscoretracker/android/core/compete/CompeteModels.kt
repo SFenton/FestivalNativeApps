@@ -149,13 +149,21 @@ data class ComboRankingsResponse(
     val entries: List<ComboRankingEntry> = emptyList(),
 ) {
     /**
-     * Reject a page for another combo or with impossible ranks.
+     * Reject a page for another combo, metric or page, or with impossible ranks/counts. The
+     * service echoes `rankBy` and `page` verbatim and clamps `pageSize` to 1–200
+     * (`RankingsEndpoints.cs` combo handler), so a requested in-range read must match exactly;
+     * anything else is a stale or mismatched response, never a success-shaped wrong board (#602).
      *
      * @param comboId Requested combo.
+     * @param rankBy Requested metric wire ID.
+     * @param page Requested one-based page.
+     * @param pageSize Requested rows per page.
      * @throws FestivalApiException.InvalidResponse when inconsistent.
      */
-    fun validate(comboId: String) {
-        if (!this.comboId.equals(comboId, ignoreCase = true) || entries.any { it.rank < 1 } || totalAccounts < 0) {
+    fun validate(comboId: String, rankBy: String, page: Int, pageSize: Int) {
+        val matches = this.comboId.equals(comboId, ignoreCase = true) && this.rankBy.equals(rankBy, ignoreCase = true) &&
+            this.page == page && this.pageSize == pageSize
+        if (!matches || entries.size > pageSize || entries.any { it.rank < 1 } || totalAccounts < 0) {
             throw FestivalApiException.InvalidResponse()
         }
     }

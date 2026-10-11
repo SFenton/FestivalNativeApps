@@ -17,6 +17,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.festivalscoretracker.android.core.compete.CompeteScope
 import com.festivalscoretracker.android.core.compete.CompeteScopes
 import com.festivalscoretracker.android.core.compete.CompeteText
 import com.festivalscoretracker.android.core.model.Instrument
@@ -39,9 +40,10 @@ import org.junit.runner.RunWith
  * Vocals") offers the same View All link and View Full Leaderboards button as a single
  * instrument's card (`view-all-cta` R4): the link reads "View All: <combo>" right after the
  * card's heading, the button is one labelled 48 dp `Button` read once after the rows, and
- * both grow with 200% text. The button opens the combo's Full Rankings, whose title names the
- * combo and offers Rank By but no instrument picker; Back returns to the card. ATF runs on
- * every step. Fixtures only; `@DeviceCi` puts it in the `android-device` job.
+ * both grow with 200% text. The link and the button each open the combo's Full Rankings, whose
+ * title names the combo and offers Rank By but no instrument picker; Back returns to the card.
+ * A single chart's (Lead's) View All opens its own board with the picker. ATF runs on every
+ * step. Fixtures only; `@DeviceCi` puts it in the `android-device` job.
  */
 @RunWith(AndroidJUnit4::class)
 @DeviceCi
@@ -53,6 +55,7 @@ class CompeteComboBoardAccessibilityJourneyTest {
     private val transport = CompeteFixtures.transport()
     private val player = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player")
     private val combo = CompeteScopes.resolve(Instrument.entries).first()
+    private val lead = CompeteScopes.resolve(Instrument.entries).first { it is CompeteScope.Single && it.instrument == Instrument.Lead }
     private val card = "fst.compete.leaderboard-card.${combo.key}"
     private val viewFull = hasTestTag(VIEW_FULL).and(hasAnyAncestor(hasTestTag(card)))
     private val spokenViewFull = viewAllSpokenName(CompeteText.VIEW_FULL_LEADERBOARDS, combo.label)
@@ -130,22 +133,56 @@ class CompeteComboBoardAccessibilityJourneyTest {
 
         scale = 1f
         rule.waitForIdle()
+        // The header View All (#602) and View Full Leaderboards each open the combo's board.
+        rule.onNodeWithTag(GRID).performScrollToNode(hasTestTag(SEE_ALL + combo.key))
+        rule.waitForIdle()
+        rule.onNodeWithTag(SEE_ALL + combo.key).performSemanticsAction(SemanticsActions.OnClick)
+        assertFullBoardAndReturn(combo, "see-all")
         scrollToViewFull()
         rule.onNode(viewFull).performSemanticsAction(SemanticsActions.OnClick)
+        assertFullBoardAndReturn(combo, "view-full")
+    }
+
+    /** A single-instrument card's header View All (#602) opens that chart's board, with its instrument picker. */
+    @Test
+    fun instrumentCardViewAllOpensItsFullBoard() {
+        h.enableAccessibilityChecks()
+        h.launch(debug(), transport)
+        val leadCard = "fst.compete.leaderboard-card.${lead.key}"
+        h.waitForTag(leadCard)
+        rule.onNodeWithTag(GRID).performScrollToNode(hasTestTag(SEE_ALL + lead.key))
+        h.waitForTag(SEE_ALL + lead.key)
+        rule.onNodeWithTag(SEE_ALL + lead.key)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf(ViewAllLinkText.spoken(lead.label))))
+            .performSemanticsAction(SemanticsActions.OnClick)
+        assertFullBoardAndReturn(lead, "see-all")
+    }
+
+    /**
+     * After a View All or View Full Leaderboards activation: [scope]'s full board shows its
+     * title and icon row (an instrument picker only for one chart), TalkBack no longer reads
+     * Compete, ATF passes, and Back returns to the card without a loading placeholder.
+     */
+    private fun assertFullBoardAndReturn(scope: CompeteScope, via: String) {
+        val scopeCard = "fst.compete.leaderboard-card.${scope.key}"
         h.waitForTag(FULL_BOARD)
-        h.waitForTag(TITLE_ICON + combo.key)
-        h.awaitAccessibilityTree(present = FULL_BOARD, absent = card)
-        val board = h.readingOrder("combo-full-rankings", fresh = true)
-        assertTrue("The combo board's title does not name the combo: $board", board.any { "${combo.label} Leaderboards" in it })
-        assertTrue("TalkBack still reads Compete behind the combo board: $board", spokenViewFull !in board)
-        assertFalse("A combo board offers an instrument picker", h.exists(INSTRUMENT_MENU))
+        h.waitForTag(TITLE_ICON + scope.key)
+        h.awaitAccessibilityTree(present = FULL_BOARD, absent = scopeCard)
+        val board = h.readingOrder("full-rankings-${scope.key}-$via", fresh = true)
+        assertTrue("The board's title does not name ${scope.label} ($via): $board", board.any { "${scope.label} Leaderboards" in it })
+        assertTrue("TalkBack still reads Compete behind the board ($via): $board", board.none { it.startsWith(CompeteText.VIEW_FULL_LEADERBOARDS) })
+        if (scope is CompeteScope.Combo) {
+            assertFalse("A combo board offers an instrument picker ($via)", h.exists(INSTRUMENT_MENU))
+        } else {
+            assertTrue("${scope.label}'s board lost its instrument picker ($via)", h.exists(INSTRUMENT_MENU))
+        }
         h.assertAccessible()
 
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
         rule.waitForIdle()
-        h.waitForTag(card)
-        h.awaitAccessibilityTree(present = card, absent = FULL_BOARD)
-        assertTrue("Compete showed a loading placeholder on return", !h.exists("$card.loading") && !h.exists(PAGE_LOADING))
+        h.waitForTag(scopeCard)
+        h.awaitAccessibilityTree(present = scopeCard, absent = FULL_BOARD)
+        assertTrue("Compete showed a loading placeholder on return ($via)", !h.exists("$scopeCard.loading") && !h.exists(PAGE_LOADING))
     }
 
     private companion object {

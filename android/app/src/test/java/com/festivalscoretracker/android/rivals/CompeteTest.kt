@@ -183,7 +183,51 @@ class CompeteLogicTest {
             fail("expected InvalidResponse")
         } catch (_: FestivalApiException.InvalidResponse) {
         }
-        assertThrows(FestivalApiException.InvalidResponse::class.java) { ComboRankingsResponse("30").validate("03") }
+        assertThrows(FestivalApiException.InvalidResponse::class.java) { ComboRankingsResponse("30").validate("03", "totalscore", 1, 0) }
+    }
+
+    /**
+     * #602 review: a combo board or own row whose echo names another combo, metric, page or
+     * page size is an invalid response, never a success-shaped wrong board or pinned row.
+     */
+    @Test
+    fun mismatchedComboEchoesAreInvalidResponses() = runTest {
+        val transport = CompeteFixtures.transport()
+        val client = FestivalApi("https://fixture.test", transport)
+        val board = "/api/rankings/combo"
+        val headers = mapOf("X-FST-Publication-Id" to "7")
+        listOf(
+            CompeteFixtures.comboBoard("0f", rankBy = "adjusted", page = 2, pageSize = 25),
+            CompeteFixtures.comboBoard("03", rankBy = "totalscore", page = 2, pageSize = 25),
+            CompeteFixtures.comboBoard("03", rankBy = "adjusted", page = 1, pageSize = 25),
+            CompeteFixtures.comboBoard("03", rankBy = "adjusted", page = 2, pageSize = 10),
+            CompeteFixtures.comboBoard("03", rows = 3, rankBy = "adjusted", page = 2, pageSize = 2),
+        ).forEach { wire ->
+            transport.on(board, headers = headers) { wire }
+            assertInvalidResponse { client.comboRankingsPage("03", RankingMetric.Adjusted, 2, 25) }
+            assertInvalidResponse { client.comboRankings("03", RankingMetric.Adjusted, 2, 25) }
+        }
+        // The exact echo (IDs compared case-insensitively) passes.
+        transport.on(board, headers = headers) { CompeteFixtures.comboBoard("03", rankBy = "Adjusted", page = 2, pageSize = 25) }
+        assertEquals(3, client.comboRankingsPage("03", RankingMetric.Adjusted, 2, 25).rankings.entries.size)
+
+        val own = "/api/rankings/combo/$player"
+        fun ownRow(comboId: String, rankBy: String?) = """{${rankBy?.let { "\"rankBy\":\"$it\"," }.orEmpty()}"comboId":"$comboId","rank":4,"accountId":"$player","songsPlayed":10,"totalChartedSongs":20,"totalAccounts":900}"""
+        listOf(ownRow("0f", "fcrate"), ownRow("03", "totalscore"), ownRow("03", null), ownRow("", "fcrate")).forEach { wire ->
+            transport.on(own, headers = headers) { wire }
+            assertInvalidResponse { client.playerComboRankingResult(player, "03", RankingMetric.FcRate) }
+            assertInvalidResponse { client.playerComboRanking(player, "03", RankingMetric.FcRate) }
+        }
+        transport.on(own, headers = headers) { ownRow("03", "fcrate") }
+        assertEquals(4, (client.playerComboRankingResult(player, "03", RankingMetric.FcRate) as PlayerRankingResult.Ranked).ranking.entry.rank(RankingMetric.FcRate))
+    }
+
+    private suspend fun assertInvalidResponse(call: suspend () -> Unit) {
+        try {
+            call()
+            fail("expected InvalidResponse")
+        } catch (_: FestivalApiException.InvalidResponse) {
+        }
     }
 
     /** #602: the combo board and own row in Full Rankings' shapes (web `FullRankingsPage` `?combo=`). */
@@ -699,19 +743,22 @@ class CompeteUiTest {
         CompeteScopes.resolve(Instrument.entries).forEach { scope ->
             val card = "fst.compete.leaderboard-card.${scope.key}"
             val button = hasTestTag("fst.compete.view-full-leaderboards").and(hasAnyAncestor(hasTestTag(card)))
+            val seeAll = hasTestTag("fst.compete.board.see-all.${scope.key}")
             val boardKey = (scope as? CompeteScope.Single)?.instrument?.wireId ?: scope.key
-            awaitInCard(card, button)
-            rule.onNodeWithTag("fst.compete.grid").performScrollToNode(button)
-            assertNoOverview(scope.key)
-            // The header's View All opens the same board as the button (view-all-cta R4).
-            rule.onNodeWithTag("fst.compete.board.see-all.${scope.key}").assert(hasContentDescription("View All: ${scope.label}"))
-            rule.onNode(button).performSemanticsAction(SemanticsActions.OnClick)
-            waitForTag("fst.full-rankings.title-icon.$boardKey")
-            assertTrue("${scope.key} title", rule.onAllNodesWithText("${scope.label} Leaderboards").fetchSemanticsNodes().isNotEmpty())
-            val pickers = rule.onAllNodesWithTag("fst.full-rankings.instrument-menu").fetchSemanticsNodes().size
-            if (scope is CompeteScope.Combo) assertEquals("${scope.key} offers an instrument picker", 0, pickers)
-            rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
-            waitForTag("fst.compete.grid")
+            // The header's View All opens the same board as the button (view-all-cta R4, #602): activate each.
+            listOf(seeAll, button).forEach { trigger ->
+                awaitInCard(card, button)
+                rule.onNodeWithTag("fst.compete.grid").performScrollToNode(trigger)
+                assertNoOverview(scope.key)
+                if (trigger === seeAll) rule.onNode(seeAll).assert(hasContentDescription("View All: ${scope.label}"))
+                rule.onNode(trigger).performSemanticsAction(SemanticsActions.OnClick)
+                waitForTag("fst.full-rankings.title-icon.$boardKey")
+                assertTrue("${scope.key} title", rule.onAllNodesWithText("${scope.label} Leaderboards").fetchSemanticsNodes().isNotEmpty())
+                val pickers = rule.onAllNodesWithTag("fst.full-rankings.instrument-menu").fetchSemanticsNodes().size
+                if (scope is CompeteScope.Combo) assertEquals("${scope.key} offers an instrument picker", 0, pickers) else assertTrue("${scope.key} lost its instrument picker", pickers > 0)
+                rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+                waitForTag("fst.compete.grid")
+            }
         }
 
         rule.onNodeWithTag("fst.compete.grid").performScrollToNode(hasTestTag("fst.compete.section.rivals"))
