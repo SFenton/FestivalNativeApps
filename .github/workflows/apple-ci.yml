@@ -113,6 +113,9 @@ jobs:
             SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestText
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestTextDuoFolded
+            SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestText
+            SongLeaderboardEndJourneyTests/testLastRowRestsAbovePagerAtLargestText
+            SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestTextDuoFolded
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
@@ -196,6 +199,8 @@ jobs:
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Landscape
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestText
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestTextLandscape
+            SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestText
+            SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestTextLandscape
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
