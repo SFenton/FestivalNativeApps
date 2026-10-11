@@ -40,7 +40,7 @@ import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.presentation.leaderboards.LeaderboardsViewModel
-import com.festivalscoretracker.android.ui.leaderboards.AnchoredRowCard
+import com.festivalscoretracker.android.ui.leaderboards.PinnedSelectedRow
 import com.festivalscoretracker.android.ui.leaderboards.CardGridRow
 import com.festivalscoretracker.android.ui.leaderboards.HingeSplit
 import com.festivalscoretracker.android.ui.leaderboards.LeaderboardsScreen
@@ -280,7 +280,7 @@ class LeaderboardsComponentsUiTest {
                     listState = rememberLazyListState(),
                     idPrefix = "fst.t",
                     controls = { Text("info") },
-                    footer = { AnchoredRowCard { Text("mine") } },
+                    footer = { PinnedSelectedRow { Text("mine") } },
                     pager = { RankingsPager(1, 3, "fst.t", {}) },
                 ) { item { Box(Modifier.fillMaxWidth().height(20.dp).testTag("row")) } }
             }

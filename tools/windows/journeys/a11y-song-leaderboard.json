@@ -11,7 +11,7 @@
       "wait:1"
     ],
     "after_ready": [
-      "assertread:id=fst.song-leaderboard.song|Fixture Pulse, button, Opens Song Details",
+      "assertread:id=fst.song-leaderboard.song|Fixture Pulse, Synthetic Quartet, Lead, 100 Lead entries, button, Opens Song Details",
       "assertstate:id=fst.song-leaderboard.title|heading=1",
       "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, .+, button$",
       "assertread:id=fst.song-leaderboard.page-first|First page, button, unavailable",
@@ -73,7 +73,7 @@
       "key:tab",
       "assertfocus:id=fst.song-leaderboard.page-next@2",
       "assertread:class=Microsoft.UI.Xaml.Controls.ProgressRing|~Loading leaderboard@2",
-      "assertread:id=fst.song-leaderboard.song|Fixture Pulse, button, Opens Song Details",
+      "assertread:id=fst.song-leaderboard.song|Fixture Pulse, Synthetic Quartet, Lead, 100 Lead entries, button, Opens Song Details",
       "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. .+, button$",
       "assertread:id=fst.song-leaderboard.page-next|Next page, button",
       "assertorder:id=fst.song-leaderboard.song|id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-first|id=fst.song-leaderboard.page-info|id=fst.song-leaderboard.page-next|id=fst.song-leaderboard.page-last",

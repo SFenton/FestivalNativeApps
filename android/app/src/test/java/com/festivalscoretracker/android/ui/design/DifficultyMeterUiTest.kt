@@ -266,6 +266,14 @@ class DifficultyMeterUiTest {
         rule.waitUntil(20_000) { settle(100); rule.onAllNodesWithTag(cymbals, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag(cymbals))
         settle()
+        // The floating toolbar stays on screen (#577): scroll the last cell clear of it so its
+        // light icons are not read as label glyphs.
+        val toolbarTop = rule.onNodeWithTag("fst.nav.floating-toolbar").fetchSemanticsNode().boundsInWindow.top
+        val cymbalsBottom = rule.onNodeWithTag(cymbals, useUnmergedTree = true).fetchSemanticsNode().boundsInWindow.bottom
+        if (cymbalsBottom > toolbarTop) {
+            rule.onNodeWithTag("fst.song-detail.list").performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, cymbalsBottom - toolbarTop + 8 * 3f) }
+            settle()
+        }
         val root = rule.activity.window.decorView
         val bitmap = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
         rule.runOnUiThread { root.draw(Canvas(bitmap)) }

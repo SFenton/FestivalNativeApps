@@ -23,13 +23,16 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.AppContainer
+import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.SongLeaderboardRoute
+import com.festivalscoretracker.android.core.rankings.RankingFormatting
 import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.data.HttpRequest
 import com.festivalscoretracker.android.data.HttpResult
@@ -236,17 +239,98 @@ class SongsParityUiTest {
         rule.onNodeWithTag("fst.songs.invalid-score.message").assertExistsWithText("exceeds the CHOpt maximum")
     }
 
+    /**
+     * A transport whose catalogue gives Alpha's Lead chart [leadMax] and serves [profile] for the player.
+     *
+     * @param profile Player profile JSON.
+     * @param leadMax Alpha's Lead CHOpt maximum.
+     * @return Transport.
+     */
+    private fun transportWith(profile: String, leadMax: Int = 90_000) = FakeTransport.standard().apply {
+        val songs = Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null").replace("\"maxScores\":{\"Solo_Guitar\":90000}", "\"maxScores\":{\"Solo_Guitar\":$leadMax}")
+        on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { songs }
+        on("/api/shop", headers = mapOf("X-FST-Publication-Id" to "7")) { SongsFixtures.shopJson.replace("\"b.jpg\"", "null") }
+        on("/api/player/${Fixtures.ACCOUNT_A}", headers = mapOf("X-FST-Publication-Id" to "7")) { profile }
+    }
+
+    private fun invalidScorePrefs() = prefs(
+        booleanPreferencesKey(SettingsRegistry.FILTER_INVALID_SCORES) to true,
+        doublePreferencesKey(SettingsRegistry.LEEWAY) to 1.0,
+    )
+
     @Test
-    fun songDetailShopButtonBreathesByOffer() {
-        launch(DebugLaunch(songQuery = "s-beta", stillBackground = true))
-        waitForTag("fst.song-detail.shop-breathe.New", unmerged = true)
+    fun overThresholdCheckUsesTheUnroundedCeilingAtTheBoundary() {
+        // Pattern invalid-scores R8: the ceiling at +1% of 100,000 is 101,000; the service rounds
+        // 101,040's minLeeway to 1.0 (valid at 1.0), but the web's unrounded check calls it over.
+        val profile = """
+            {"accountId":"${Fixtures.ACCOUNT_A}","displayName":"Synthetic Player","totalScores":2,"scores":[
+              {"si":"s-alpha","ins":"01","sc":101040,"acc":987,"fc":false,"st":5,"sn":15,"dif":3,"rk":42,"te":1000,"lp":"2026-09-01T12:00:00Z","ml":1.0},
+              {"si":"s-beta","ins":"01","sc":5000,"acc":500,"fc":false,"st":2,"sn":9,"dif":1,"rk":900,"te":1000,"lp":"2026-09-20T12:00:00Z"}
+            ]}
+        """.trimIndent()
+        launch(DebugLaunch(profile = player, stillBackground = true), invalidScorePrefs(), transportWith(profile, leadMax = 100_000))
+        waitForTag("fst.songs.row.s-beta")
+        // The rounded minLeeway reports it valid, so the row carries no invalid-score indicator.
+        assertFalse(exists("fst.songs.invalid-score.s-alpha"))
+        click("fst.songs.filter.open")
+        settle()
+        rule.onNodeWithTag("fst.songs.filter.form").performScrollToNode(hasTestTag("fst.songs.filter.score.chart.Solo_Guitar"))
+        click("fst.songs.filter.score.chart.Solo_Guitar")
+        settle()
+        rule.onNodeWithTag("fst.songs.filter.form").performScrollToNode(hasTestTag("fst.songs.filter.score.instrument.Solo_Guitar.OverThreshold"))
+        click("fst.songs.filter.score.instrument.Solo_Guitar.OverThreshold")
+        click("fst.songs.filter.done")
+        waitGone("fst.songs.row.s-beta")
+        waitForTag("fst.songs.row.s-alpha")
+    }
+
+    /** Texts drawn under [ancestor] (unmerged tree). */
+    private fun textsUnder(ancestor: SemanticsMatcher): List<String> =
+        rule.onAllNodes(hasAnyAncestor(ancestor), useUnmergedTree = true).fetchSemanticsNodes()
+            .flatMap { it.config.getOrNull(SemanticsProperties.Text).orEmpty() }.map { it.text }
+
+    /** The selected player's Lead row on Song Detail (appended after the top ten): its score text and all its texts. */
+    private fun songDetailYourRow(): Pair<String, List<String>> {
+        waitForTag("fst.song-detail.list")
+        rule.onNodeWithTag("fst.song-detail.list").performScrollToNode(hasTestTag("fst.song-detail.your-rank.Solo_Guitar"))
+        waitForTag("fst.song-detail.your-rank.Solo_Guitar", unmerged = true)
+        val row = hasTestTag("fst.song-detail.your-rank.Solo_Guitar")
+        return textsUnder(hasTestTag("fst.score") and hasAnyAncestor(row)).joinToString() to textsUnder(row)
     }
 
     @Test
     fun songDetailSpotlightUsesTheNextValidScore() {
-        launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), prefs(booleanPreferencesKey(SettingsRegistry.FILTER_INVALID_SCORES) to true))
+        launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), invalidScorePrefs())
         waitForTag("fst.song-detail.list")
         assertEquals(1, rule.onAllNodesWithTag("fst.song-detail.shop-breathe.LeavingTomorrow", useUnmergedTree = true).fetchSemanticsNodes().size)
+        // Pattern invalid-scores R4: minLeeway 2.0 > 1.0, so the 0.5 validScores variant (80,000, rank 60) replaces 95,198.
+        val (score, texts) = songDetailYourRow()
+        assertEquals(ScoreFormatting.score(80_000), score)
+        assertTrue("$texts", RankingFormatting.rankLabel(60) in texts)
+    }
+
+    @Test
+    fun songDetailSpotlightUsesTheLegacyFallbackWithoutMinLeeway() {
+        // Pattern invalid-scores R4 (web `filterPlayerScores`): with no minLeeway the CHOpt ceiling
+        // (90,900) decides and only the legacy validScore replaces it, never the validScores variant.
+        val profile = """
+            {"accountId":"${Fixtures.ACCOUNT_A}","displayName":"Synthetic Player","totalScores":1,"scores":[
+              {"si":"s-alpha","ins":"01","sc":95198,"acc":987,"fc":true,"st":6,"sn":15,"dif":3,"rk":12,"te":1000,"lp":"2026-09-01T12:00:00Z",
+               "validScore":85000,"validAccuracy":960,"validIsFullCombo":false,"validRank":42,"validStars":5,
+               "vs":[{"sc":80000,"acc":950,"fc":false,"st":5,"ml":0.5,"rt":[{"l":0,"r":60}]}]}
+            ]}
+        """.trimIndent()
+        launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true), invalidScorePrefs(), transportWith(profile))
+        val (score, texts) = songDetailYourRow()
+        assertEquals(ScoreFormatting.score(85_000), score)
+        assertTrue("$texts", RankingFormatting.rankLabel(42) in texts)
+        assertFalse("$texts", RankingFormatting.rankLabel(60) in texts || RankingFormatting.rankLabel(12) in texts)
+    }
+
+    @Test
+    fun songDetailShopButtonBreathesByOffer() {
+        launch(DebugLaunch(songQuery = "s-beta", stillBackground = true))
+        waitForTag("fst.song-detail.shop-breathe.New", unmerged = true)
     }
 
     @Test

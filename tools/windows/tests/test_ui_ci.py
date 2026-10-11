@@ -71,6 +71,29 @@ class UiCiTests(unittest.TestCase):
         names = {page["name"] for page in pages}
         self.assertTrue({"song-band-pin-jump", "song-band-pin-open", "song-band-pin-no-player"} <= names)
 
+    def test_full_rankings_pinned_runs_at_default_largest_text_and_reduced_motion(self):
+        # Issue #466 (#318): Full Rankings' pinned "your rank" row (also on the player's own page) runs in CI at default
+        # and 225% text, and its keyboard jump with in-app Reduce Motion.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-full-rankings.json"}
+        self.assertEqual({"normal", "text-225", "app-reduced"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertEqual("", runs["normal"].only)
+        self.assertEqual("", runs["text-225"].only)
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        self.assertEqual("fr-pinned-jump-keyboard", runs["app-reduced"].only)
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-full-rankings.json").read_text(encoding="utf-8"))}
+        self.assertEqual({"fr-pinned-own-page", "fr-pinned-own-page-keyboard", "fr-pinned-jump-keyboard"}, set(pages))
+        own = pages["fr-pinned-own-page"]
+        self.assertTrue(own["profile"].startswith("fixture-player-2:"))
+        steps = own["after_ready"]
+        self.assertIn("assertsize:id=fst.full-rankings.spotlight-footer|40x40", steps)
+        self.assertTrue(any(step.startswith("assertread:id=fst.full-rankings.spotlight-footer|~^Your rank, 2nd")
+                            for step in steps))
+        self.assertTrue(any(step.startswith("assertorder:id=fst.full-rankings.title|id=fst.rankings.row.fixture-player-2|"
+                                            "id=fst.full-rankings.spotlight-footer|id=fst.full-rankings.page-first")
+                            for step in steps))
+
     def test_first_run_demos_run_at_default_and_largest_text(self):
         """#420 review: the first-run demo journey gates PRs, not just its JSON guard."""
         demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-demos.json"}
@@ -340,6 +363,32 @@ class UiCiTests(unittest.TestCase):
         for choice in ("Easy", "Medium", "Hard", "Expert", "Image", "Text"):
             self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[settled:])
         self.assertIn("assertsize:id=fst.paths.instrument.Solo_Guitar|40x40", wide[settled:])
+
+    def test_paths_instrument_picker_runs_in_ci(self):
+        # Issue #439 (#88): the compact Instrument ComboBox opens, reads each option by name in order without Karaoke,
+        # every option is a 40 epx target, and pointer and keyboard switches announce and keep focus. Checked in
+        # windows-ui at default and 225% text and with Animation effects off, Axe-scanned open and after the switch.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-swap.json"]
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-swap.json").read_text(encoding="utf-8"))
+        page = next(page for page in pages if page["name"] == "paths-instrument-picker")
+        self.assertTrue(page["scan"])
+        modes = {run.mode for run in runs if page in m.mode_pages(pages, run.mode)
+                 and m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({"normal", "text-225", "no-animations"}, modes)
+        steps = page["after_ready"]
+        expand = steps.index("expand:id=fst.paths.instrument.compact")
+        select = steps.index("select:name=Bass&class=ComboBoxItem")
+        for check in ("assertread:id=fst.paths.instrument.compact|Instrument, combo box, expanded",
+                      "assertread:name=Lead&class=ComboBoxItem|Lead, list item, selected",
+                      "assertbelow:name=Tap Vocals&class=ComboBoxItem|name=Drums&class=ComboBoxItem",
+                      "waitgone:name=Karaoke&class=ComboBoxItem@1", "scan:{stem}-open"):
+            self.assertIn(check, steps[expand:select])
+        for choice in ("Lead", "Bass", "Drums", "Tap Vocals"):
+            self.assertIn(f"assertsize:name={choice}&class=ComboBoxItem|40x40", steps[expand:select])
+        for check in ("assertannounced:Loading Bass Expert path@5", "assertstate:id=fst.paths.instrument.compact|value=Bass@5",
+                      "key:alt+down", "assertannounced:Loading Lead Expert path@5",
+                      "assertfocus:id=fst.paths.instrument.compact@3", "assertfocus:id=fst.paths.difficulty.compact@3"):
+            self.assertIn(check, steps[select:])
 
     def test_paths_chart_runs_every_page(self):
         # Issue #438 (#87, #279): the chart's centring, hidden scroll bars, names, order and keyboard panning are checked

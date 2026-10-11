@@ -397,6 +397,9 @@ public sealed record ScoreHistoryListRow(ScoreHistoryPoint Point, bool IsBest) :
     /// <summary>"S13", or empty.</summary>
     public string Season => Point.Entry.Season is { } s ? "S" + s.ToString(CultureInfo.InvariantCulture) : "";
 
+    /// <inheritdoc />
+    public int? SeasonNumber => Point.Entry.Season;
+
     /// <summary>Whether the season pill shows.</summary>
     public bool HasSeason => Season.Length > 0;
 

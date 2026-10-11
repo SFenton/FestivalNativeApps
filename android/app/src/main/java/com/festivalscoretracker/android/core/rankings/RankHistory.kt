@@ -211,6 +211,19 @@ data class RankHistoryChart(
         window.selected?.let(points::getOrNull)?.let { row(it, metric, latest = false, locale = locale) }
 
     /**
+     * The texts the rows' shared columns are measured from: every day of the chart, so the
+     * listed rows and any tapped bar's [detail] line up (web "stable column widths derived
+     * from ALL chart history points", `leaderboard-row` R1, issue #594).
+     *
+     * @param locale Locale.
+     * @return Every point's date, rank and value text.
+     */
+    fun columnTexts(locale: Locale = Locale.getDefault()): HistoryColumnTexts {
+        val rows = points.map { row(it, metric, latest = false, locale = locale) }
+        return HistoryColumnTexts(rows.map { it.date }, rows.map { it.rank }, rows.map { it.value })
+    }
+
+    /**
      * Accessible description of a window ("Sep 21, 2026: #14. …").
      *
      * @param window Visible window.

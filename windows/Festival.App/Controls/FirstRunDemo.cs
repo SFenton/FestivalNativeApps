@@ -166,12 +166,11 @@ public sealed partial class FirstRunDemo : UserControl
         for (var slot = 0; slot < demo.Songs.Count; slot++)
         {
             var row = SongRow(out var setter);
-            var pill = Pill(FirstRunTopSongsDemo.Pill(slot));
-            var label = (TextBlock)pill.Child;
-            AutomationProperties.SetAutomationId(label, $"fst.first-run.demo.{SlideId}.pill.{slot}");
-            AutomationProperties.SetAccessibilityView(label, AccessibilityView.Raw);
+            var text = FirstRunTopSongsDemo.Pill(slot);
+            var label = MetadataPills.Percentile(text, MetadataPillStyle.Tier(SuggestionRowPresentation.TierFor(text)));
+            label.Label(text, $"fst.first-run.demo.{SlideId}.pill.{slot}");
             AutomationProperties.SetItemStatus(label, "initial");
-            ((StackPanel)((Grid)row.Child).Children[2]).Children.Add(pill);
+            ((StackPanel)((Grid)row.Child).Children[2]).Children.Add(label);
             setter(slot);
             AddSlot(row, poolIndex =>
             {
@@ -601,7 +600,7 @@ public sealed partial class FirstRunDemo : UserControl
                     trailing.Children.Clear();
                     var metadata = FirstRunDemos.MetaData[poolIndex % FirstRunDemos.MetaData.Count];
                     var layout = FirstRunDemos.MetadataLayouts[(poolIndex + index) % FirstRunDemos.MetadataLayouts.Count];
-                    foreach (var pill in FirstRunDemos.MetadataPillsFor(metadata, layout)) trailing.Children.Add(Pill(pill));
+                    foreach (var pill in FirstRunDemos.MetadataPillsFor(metadata, layout)) trailing.Children.Add(MetadataDemoPill(pill, metadata));
                 }
             };
             set(i);
@@ -993,6 +992,18 @@ public sealed partial class FirstRunDemo : UserControl
         Padding = new Thickness(8, 2, 8, 2), HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center,
         Child = Text(text, 12, true),
     };
+
+    /// <summary>
+    /// One Songs metadata demo pill: the shared percentile and season pills (web <c>MetadataDemo</c> renders
+    /// <c>PercentilePill</c> and <c>SeasonPill</c>, issue #606), the demo pill for the other fields.
+    /// </summary>
+    /// <param name="text">Pill text from <see cref="FirstRunDemos.MetadataPillsFor"/>.</param>
+    /// <param name="metadata">Row's metadata sample.</param>
+    /// <returns>Pill.</returns>
+    private static FrameworkElement MetadataDemoPill(string text, FirstRunDemoMetadata metadata) =>
+        text == metadata.Percentile ? MetadataPills.Percentile(text, MetadataPillStyle.Tier(SuggestionRowPresentation.TierFor(text)))
+        : text == MetadataPillStyle.SeasonText(metadata.Season) ? MetadataPills.Season(metadata.Season, current: false)
+        : Pill(text);
 
     /// <summary>The red Leaving Tomorrow pill.</summary>
     /// <returns>Pill.</returns>

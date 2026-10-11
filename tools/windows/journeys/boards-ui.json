@@ -13,7 +13,7 @@
       "assertbelow:id=fst.song-leaderboard.instrument|id=fst.song-leaderboard.artist",
       "assertbelow:id=fst.song-leaderboard.total|id=fst.song-leaderboard.instrument",
       "assertstate:id=fst.song-leaderboard.song|type=button",
-      "assertstate:id=fst.song-leaderboard.song|name=Fixture Pulse",
+      "assertstate:id=fst.song-leaderboard.song|name=Fixture Pulse, Synthetic Quartet, Lead, 26 Lead entries",
       "invoke:id=fst.song-leaderboard.song",
       "waitfor:id=fst.song-detail.title@10",
       "waitgone:id=fst.song-leaderboard.title@5"

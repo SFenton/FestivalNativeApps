@@ -165,6 +165,16 @@ class MatrixTests(unittest.TestCase):
         light = {**previous, "light_theme": False}
         self.assertEqual(m.restore_values(light, m.MODES["light-theme"]["system"]), {"light_theme": False})
 
+    def test_live_contrast_switch_is_restored(self):
+        # Issue #606 review: a page that switches the contrast theme mid-drive snapshots and restores it in any mode.
+        steps = ["resize:compact", "waitfor:id=x@5", "contrast:desert", "assertpaint:raw=y|L8,M0!=#162133"]
+        self.assertEqual(m.system_keys({}, steps), ["high_contrast"])
+        self.assertEqual(m.system_keys({"text_scale": 200}, steps), ["text_scale", "high_contrast"])
+        self.assertEqual(m.system_keys({"high_contrast": "dusk"}, steps), ["high_contrast"])
+        self.assertEqual(m.system_keys({"text_scale": 200}, steps[:2]), ["text_scale"])
+        previous = {"high_contrast": "off", "text_scale": 100}
+        self.assertEqual(m.restore_values(previous, m.system_keys({}, steps)), {"high_contrast": "off"})
+
     def test_launch_args_and_live_pages(self):
         page = {"name": "shop", "first_run": "on"}
         fixture = m.launch_args(8765, page, Path("/s.json"))
@@ -299,6 +309,27 @@ class MatrixTests(unittest.TestCase):
             for step in [*page.get("ready", []), *page.get("after_ready", []), *page.get("teardown", [])]:
                 with self.subTest(page=page["name"], step=step):
                     u.parse_step(step.replace("{stem}", "out"))
+
+    def test_search_empty_state_pages(self):
+        """Issue #99 (#449): each scope's empty state is a centred level-2 title then subtitle, with no Retry, and All
+        hides an empty Players section when songs match."""
+        import json
+        pages = {p["name"]: p for p in json.loads((m.PAGES.parent / "a11y-search.json").read_text(encoding="utf-8"))}
+        for name, title in (("search-empty", "No results found"), ("search-empty-players", "No players found"),
+                            ("search-empty-songs", "No songs found")):
+            with self.subTest(page=name):
+                steps = pages[name]["after_ready"]
+                self.assertTrue(any(s.startswith("assertname:id=fst.global-search.empty.title") and s.endswith(f"|{title}")
+                                    for s in steps))
+                self.assertIn("assertstate:id=fst.global-search.empty.title|heading=2", steps)
+                self.assertIn("assertcentred:id=fst.global-search.empty|id=fst.global-search.empty.title"
+                              "|id=fst.global-search.empty.subtitle", steps)
+                self.assertTrue(any(s.startswith("assertorder:") and s.endswith(
+                    "|id=fst.global-search.empty.title|id=fst.global-search.empty.subtitle") for s in steps))
+                self.assertIn("waitgone:id=fst.global-search.retry", steps)
+        hidden = pages["search-all-hides-empty-players"]["after_ready"]
+        self.assertIn("waitgone:id=fst.global-search.section.players@5", hidden)
+        self.assertIn("waitgone:id=fst.global-search.empty.title", hidden)
 
     def test_titlebar_button_pages(self):
         """Issue #253: bell and avatar stay separate, named, reachable buttons at every window size."""
