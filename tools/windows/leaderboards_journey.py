@@ -8,7 +8,8 @@ PrintWindow shot, with no SendInput, so the journeys also pass while the console
 
 Reachable overview states (issue #207): anonymous cards and rows, the selected player highlighted inside the top ten,
 pinned below it (outside), not yet ranked and a failed spotlight read with Retry, an empty board, a scrape-frozen
-board with its countdown and Retry Now, every card failing (closed port), Rank By, Quick Links, View All to Full and
+board with its countdown and Retry Now, every card failing (closed port), Rank By (with Settings' Experimental Ranks on;
+hidden while it is off, issue #541), Quick Links, View All to Full and
 Band Rankings, a row opening the player or band page, and a long name scrolling in its row (issue #292). With
 ``--shots DIR`` it also saves screenshots.
 
@@ -37,6 +38,11 @@ ANONYMOUS = {"FST_DEBUG_ANONYMOUS": "1"}
 PLAYER = {"FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1"}
 LEAD = "fst.leaderboards.card.Solo_Guitar"
 LONG_ROW_NAME = f"Rank #2, {LONG_NAME}. Total Score 88,000,000, 38 / 50 songs"
+#: Per-scenario settings.json contents; the rest start from defaults (Experimental Ranks off, as on the web).
+SETTINGS: dict[str, dict] = {
+    "rank-by": {"experimentalRanks": True},
+    "rank-by-off": {"leaderboardRankBy": "fcrate"},
+}
 
 def quick_link(section: str) -> list[str]:
     """Steps that open Quick Links and jump to one section (UIA Toggle, not the mouse wheel).
@@ -62,7 +68,8 @@ SCENARIOS: dict[str, tuple[dict[str, str], list[str], list[str]]] = {
             "waitfor:id=fst.rankings.row.fixture-rank-3",
             # The View All name starts with its visible label (WCAG 2.5.3), then names the board.
             "waitfor:name=View All Rankings (3), Lead",
-            "waitfor:name=Rank by: Total Score",
+            # Rank By needs Settings' Experimental Ranks (off by default, as on the web; issue #541).
+            "waitgone:id=fst.rankings.rank-by-menu",
             "waitgone:name=Loading leaderboards",
             "waitgone:name=Loading your rank",
             "{shot:leaderboards}",
@@ -161,6 +168,16 @@ SCENARIOS: dict[str, tuple[dict[str, str], list[str], list[str]]] = {
             "toggle:id=fst.rankings.rank-by.totalscore",
             "waitfor:name=Rank by: Total Score@15",
             f"waitfor:id={LEAD}.view-all@15",
+        ],
+    ),
+    "rank-by-off": (
+        # Issue #541: with Settings' Experimental Ranks off (the default) Rank By is hidden, as on the web, and a saved
+        # experimental metric (FC Rate here) falls back to Total Score: the row reads its total score.
+        ANONYMOUS, ["--long-name"],
+        [
+            "waitfor:id=fst.rankings.row.fixture-player-2@30",
+            f"waitfor:name={LONG_ROW_NAME}",
+            "waitgone:id=fst.rankings.rank-by-menu",
         ],
     ),
     "view-all": (
@@ -300,7 +317,7 @@ def run(name: str, shots: Path | None, size: str) -> None:
             raise RuntimeError("fixture service did not start")
         with tempfile.TemporaryDirectory() as folder:
             settings_path = Path(folder) / "settings.json"
-            settings_path.write_text(json.dumps({"version": 1}), encoding="utf-8")
+            settings_path.write_text(json.dumps({"version": 1, **SETTINGS.get(name, {})}), encoding="utf-8")
             uiwin(*launch_args(env, port, settings_path, size))
             try:
                 steps_file = Path(folder) / "steps.txt"

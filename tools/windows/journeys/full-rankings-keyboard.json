@@ -1,6 +1,7 @@
 [
   {
     "name": "kb-fr-pager",
+    "fixture": ["rankings_fixture.py"],
     "route": "/leaderboards/all?instrument=Solo_Guitar",
     "tabs": 0,
     "ready": [
@@ -28,7 +29,9 @@
   },
   {
     "name": "kb-fr-menus-esc",
+    "fixture": ["rankings_fixture.py"],
     "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "settings": {"experimentalRanks": true},
     "tabs": 0,
     "ready": [
       "waitfor:id=fst.full-rankings.list@20"
@@ -48,6 +51,7 @@
   },
   {
     "name": "kb-fr-jump",
+    "fixture": ["rankings_fixture.py"],
     "route": "/leaderboards/all?instrument=Solo_Guitar",
     "profile": "fixture-rank-40:Fixture Rank 40",
     "tabs": 0,
@@ -67,6 +71,7 @@
   },
   {
     "name": "kb-fr-rows",
+    "fixture": ["rankings_fixture.py"],
     "route": "/leaderboards/all?instrument=Solo_Guitar",
     "tabs": 0,
     "ready": [

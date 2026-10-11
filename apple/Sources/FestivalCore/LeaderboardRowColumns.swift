@@ -197,6 +197,23 @@ public struct LeaderboardRowColumns: Sendable, Equatable {
         )
     }
 
+    /// Fit a Score History list (Song Detail's Score History card, the Score History
+    /// page): one score width for every row, like the web's `scoreWidth` (`"Nch"` of
+    /// the longest score in `PlayerHistoryPage.tsx`, `globalScoreWidth` in
+    /// `SongDetailPage.tsx`), so season pills and scores line up and the bold best
+    /// row does not shift (#594).
+    ///
+    /// Only ``scoreLabel`` is shared; the season column follows
+    /// `ScoreRowSeasonPolicy` and the accuracy badge has a fixed width.
+    ///
+    /// - Parameter scores: Every score shown in the list (and its tapped-bar row).
+    /// - Returns: Unconstrained columns carrying the widest score label.
+    public static func scoreHistory(_ scores: [Int]) -> LeaderboardRowColumns {
+        var columns = unconstrained
+        columns.scoreLabel = widest(scores.filter { $0 >= 0 }.map(scoreLabel(_:)))
+        return columns
+    }
+
     // MARK: - Songs column
 
     /// Decide once for the whole section whether the songs played/total column fits

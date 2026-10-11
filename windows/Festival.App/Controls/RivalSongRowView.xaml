@@ -5,94 +5,61 @@
     xmlns:local="using:Festival.App.Controls"
     IsTabStop="False">
     <!--
-        Web RivalSongRow. Compact (Rival Detail cards): one line with art, title, "#you vs #them" and the rank gap.
-        Full (Rivalry): art/title/instrument row, then You | rank and score gaps | Them.
-        Every part is Raw: the hosting button or list item reads the whole row (RivalSongItem.AccessibleName) as one
-        Narrator stop, and Raw on a panel does not hide its children (issue #200).
+        Pattern rival-rows (R1-R5; issue #603: the Apple RivalSongRowContent design on every surface): the leading column
+        is the album art with the chart icon under it, vertically centred (R4); title and artist; the "#rank Name" pills,
+        the leader's green, the trailer's red, both neutral when tied (R3), on one line when they fit and one per line
+        otherwise (R5); then the up/down/equal rank-gap badge and the in-card chevron (batch 7.3). Rival Detail's cards and
+        Rivalry use this one row. Every part is Raw: the hosting button or list item reads the whole row
+        (RivalSongItem.AccessibleName) as one Narrator stop, and Raw on a panel does not hide its children (issue #200).
     -->
-    <Grid RowSpacing="8">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <Grid ColumnSpacing="12" MinHeight="44">
         <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
 
-        <Grid ColumnSpacing="12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <local:SongArt x:Name="Art" Art="{x:Bind Item.AlbumArt, Mode=OneWay}" />
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                <local:MarqueeText AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.Title, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeTitleStyle}" />
-                <local:MarqueeText AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.Subtitle, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeCaptionStyle}"
-                                   Visibility="{x:Bind local:RivalsUi.Not(EffectiveCompact), Mode=OneWay}" />
-                <TextBlock AutomationProperties.AccessibilityView="Raw" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource FSTSecondaryTextBrush}"
-                           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Visibility="{x:Bind EffectiveCompact, Mode=OneWay}">
-                    <Run Text="{x:Bind Item.UserRankText, Mode=OneWay}" FontWeight="{x:Bind local:RivalsUi.Weight(Item.IsWinning), Mode=OneWay}" />
-                    <Run Text="you ·" />
-                    <Run Text="{x:Bind Item.RivalRankText, Mode=OneWay}" FontWeight="{x:Bind local:RivalsUi.Weight(Item.IsLosing), Mode=OneWay}" />
-                    <Run Text="{x:Bind Item.RivalName, Mode=OneWay}" />
-                </TextBlock>
-            </StackPanel>
-            <StackPanel x:Name="Icons" Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
-                <local:InstrumentIcon AutomationProperties.AccessibilityView="Raw" File="{x:Bind Item.UserIconFile, Mode=OneWay}" Width="28" Height="28" />
-                <local:InstrumentIcon AutomationProperties.AccessibilityView="Raw" File="{x:Bind Item.RivalIconFile, Mode=OneWay}" Width="28" Height="28"
+        <StackPanel x:Name="Leading" Spacing="6" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+            <local:SongArt Art="{x:Bind Item.AlbumArt, Mode=OneWay}" />
+            <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Center">
+                <local:InstrumentIcon AutomationProperties.AccessibilityView="Raw" File="{x:Bind Item.UserIconFile, Mode=OneWay}" Width="22" Height="22" />
+                <local:InstrumentIcon AutomationProperties.AccessibilityView="Raw" File="{x:Bind Item.RivalIconFile, Mode=OneWay}" Width="22" Height="22"
                                       Visibility="{x:Bind Item.IsMixedInstrument, Mode=OneWay}" />
             </StackPanel>
-            <Border Grid.Column="3" Style="{StaticResource FSTRivalPillStyle}" MinWidth="52" BorderThickness="0"
-                    Background="{x:Bind local:RivalsUi.OutcomeFill(Item.Outcome), Mode=OneWay}" Visibility="{x:Bind EffectiveCompact, Mode=OneWay}">
-                <TextBlock AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.RankDeltaText, Mode=OneWay}" Style="{StaticResource FSTRivalPillTextStyle}"
-                           HorizontalAlignment="Center" Foreground="{x:Bind local:RivalsUi.OutcomeText(Item.Outcome), Mode=OneWay}" />
-            </Border>
-        </Grid>
+        </StackPanel>
 
-        <Grid Grid.Row="1" ColumnSpacing="12" Visibility="{x:Bind local:RivalsUi.Not(EffectiveCompact), Mode=OneWay}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <StackPanel Spacing="1">
-                <TextBlock AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.PlayerName, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
-                           Foreground="{ThemeResource FSTSecondaryTextBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                <TextBlock AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.UserRankText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}"
-                           Foreground="{x:Bind local:RivalsUi.OutcomeText(Item.Outcome), Mode=OneWay}" />
-                <TextBlock AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.UserScoreText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <StackPanel Spacing="2">
-                    <Border Style="{StaticResource FSTRivalPillStyle}" BorderThickness="0" MinWidth="64"
-                            Background="{x:Bind local:RivalsUi.OutcomeFill(Item.Outcome), Mode=OneWay}">
-                        <TextBlock AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.RankDeltaText, Mode=OneWay}" Style="{StaticResource FSTRivalPillTextStyle}" HorizontalAlignment="Center"
-                                   Foreground="{x:Bind local:RivalsUi.OutcomeText(Item.Outcome), Mode=OneWay}" />
-                    </Border>
-                    <TextBlock AutomationProperties.AccessibilityView="Raw" Text="Rank" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Center"
-                               Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                </StackPanel>
-                <StackPanel Spacing="2">
-                    <Border Style="{StaticResource FSTRivalPillStyle}" BorderThickness="0" MinWidth="64" Background="{ThemeResource FSTRivalTieFillBrush}">
-                        <TextBlock AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.ScoreDiffText, Mode=OneWay}" Style="{StaticResource FSTRivalPillTextStyle}" HorizontalAlignment="Center" />
-                    </Border>
-                    <TextBlock AutomationProperties.AccessibilityView="Raw" Text="Score" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Center"
-                               Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                </StackPanel>
-            </StackPanel>
-            <StackPanel Grid.Column="2" Spacing="1" HorizontalAlignment="Right">
-                <TextBlock AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.RivalName, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Right"
-                           Foreground="{ThemeResource FSTSecondaryTextBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                <TextBlock AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.RivalRankText, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" HorizontalAlignment="Right"
-                           FontWeight="{x:Bind local:RivalsUi.Weight(Item.IsLosing), Mode=OneWay}" />
-                <TextBlock AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.RivalScoreText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Right" />
-            </StackPanel>
-        </Grid>
+        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+            <local:MarqueeText AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.Title, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeTitleStyle}" />
+            <local:MarqueeText AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.Artist, Mode=OneWay}" TextStyle="{StaticResource FSTMarqueeCaptionStyle}"
+                               Visibility="{x:Bind Item.HasArtist, Mode=OneWay}" />
+            <local:WrapPanel AutomationProperties.AccessibilityView="Raw">
+                <Border Style="{StaticResource FSTRivalPillStyle}" Background="{x:Bind local:RivalsUi.OutcomeFill(Item.Outcome), Mode=OneWay}"
+                        BorderBrush="{x:Bind local:RivalsUi.OutcomeStroke(Item.Outcome), Mode=OneWay}">
+                    <TextBlock AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.PlayerPillText, Mode=OneWay}" Style="{StaticResource FSTRivalPillTextStyle}"
+                               TextWrapping="Wrap" Foreground="{x:Bind local:RivalsUi.OutcomeText(Item.Outcome), Mode=OneWay}" />
+                </Border>
+                <Border Style="{StaticResource FSTRivalPillStyle}" Background="{x:Bind local:RivalsUi.OutcomeFill(Item.RivalOutcome), Mode=OneWay}"
+                        BorderBrush="{x:Bind local:RivalsUi.OutcomeStroke(Item.RivalOutcome), Mode=OneWay}">
+                    <TextBlock AutomationProperties.AccessibilityView="Raw" Text="{x:Bind Item.RivalPillText, Mode=OneWay}" Style="{StaticResource FSTRivalPillTextStyle}"
+                               TextWrapping="Wrap" Foreground="{x:Bind local:RivalsUi.OutcomeText(Item.RivalOutcome), Mode=OneWay}" />
+                </Border>
+            </local:WrapPanel>
+        </StackPanel>
+
+        <!-- Rank-gap badge: the glyph carries the direction, the number the gap (the pills' text already says who leads). -->
+        <StackPanel Grid.Column="2" MinWidth="28" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+            <FontIcon Glyph="{x:Bind local:RivalsUi.DeltaGlyph(Item.Outcome), Mode=OneWay}" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center"
+                      Visibility="{x:Bind local:RivalsUi.Not(Item.IsTied), Mode=OneWay}"
+                      Foreground="{x:Bind local:RivalsUi.OutcomeText(Item.Outcome), Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
+            <TextBlock Text="=" Style="{StaticResource FSTRivalPillTextStyle}" HorizontalAlignment="Center" Visibility="{x:Bind Item.IsTied, Mode=OneWay}"
+                       Foreground="{x:Bind local:RivalsUi.OutcomeText(Item.Outcome), Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
+            <TextBlock Text="{x:Bind Item.RankGapText, Mode=OneWay}" Style="{StaticResource FSTRivalPillTextStyle}" HorizontalAlignment="Center"
+                       Foreground="{x:Bind local:RivalsUi.OutcomeText(Item.Outcome), Mode=OneWay}" AutomationProperties.AccessibilityView="Raw" />
+        </StackPanel>
+
         <!-- In-card chevron: the row opens a page (batch 7.3). -->
-        <FontIcon Grid.Column="1" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0"
-                  Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" Grid.RowSpan="2" />
+        <FontIcon Grid.Column="3" Glyph="&#xE76C;" FontSize="12" VerticalAlignment="Center"
+                  Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
     </Grid>
 </UserControl>

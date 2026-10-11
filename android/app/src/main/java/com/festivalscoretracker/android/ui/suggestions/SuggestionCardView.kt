@@ -43,7 +43,6 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.festivalscoretracker.android.ui.design.RowChevron
 import com.festivalscoretracker.android.core.format.ScoreFormatting
-import com.festivalscoretracker.android.core.suggestions.PercentileTier
 import com.festivalscoretracker.android.core.suggestions.SuggestionRowLayout
 import com.festivalscoretracker.android.core.suggestions.SuggestionRowPresentation
 import com.festivalscoretracker.android.presentation.suggestions.SuggestionCard
@@ -51,6 +50,8 @@ import com.festivalscoretracker.android.presentation.suggestions.SuggestionRow
 import com.festivalscoretracker.android.ui.common.FestivalMarqueeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.design.PercentilePill
+import com.festivalscoretracker.android.ui.design.SeasonPill
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
@@ -65,13 +66,13 @@ internal object SuggestionTokens {
     val textSubtle = Color(0xFFB8C0CC)
 
     /** `Colors.borderSubtle` (row dividers, season pill border). */
-    val borderSubtle = Color(0xFF1E2A3A)
+    val borderSubtle = BrandTokens.borderSubtle
 
     /** `Colors.surfaceWhiteSubtle` (default percentile pill). */
-    val surfaceWhiteSubtle = Color(0x1AFFFFFF)
+    val surfaceWhiteSubtle = BrandTokens.surfaceWhiteSubtle
 
     /** `Colors.goldStroke`. */
-    val goldStroke = Color(0xFFCFA500)
+    val goldStroke = BrandTokens.goldStroke
 
     /** Status chip strokes (`statusGreenStroke`, `statusRedStroke`). */
     val greenStroke = Color(0xFF1E7F46)
@@ -245,8 +246,8 @@ private fun RowMetadata(p: SuggestionRowPresentation, keyboard: Boolean) {
                     val tint = p.accuracyExpanded?.let(ScoreFormatting::accuracyTint)?.let { Color(0xFF000000 or it.toLong()) } ?: BrandTokens.surfaceMuted
                     Pill("$text%", fill = tint, minWidth = 52)
                 }
-                SuggestionRowLayout.Season -> p.seasonText?.let { SeasonPill(it) }
-                SuggestionRowLayout.Percentile -> p.percentileText?.let { PercentilePill(it, p.percentileTier) }
+                SuggestionRowLayout.Season -> p.season?.let { SeasonPill(it) }
+                SuggestionRowLayout.Percentile -> p.percentileText?.let { PercentilePill(it, tier = p.percentileTier) }
                 // Web `RightContent`: stars only when the category shows them (`starCount > 0`).
                 SuggestionRowLayout.SingleInstrument -> if (p.goldStars || p.starCount > 0) StarRating(if (p.goldStars) 6 else p.starCount, size = 20.dp)
                 else -> Unit
@@ -299,25 +300,6 @@ private fun Pill(
             .then(if (border != null) Modifier.border(border, SuggestionTokens.pillShape) else Modifier)
             .padding(horizontal = 6.dp, vertical = 2.dp),
     )
-}
-
-/** Web `SeasonPill`: 48 dp wide, 16 sp semibold, subtle surface with a 2 dp border. */
-@Composable
-private fun SeasonPill(text: String) = Pill(
-    text,
-    fill = BrandTokens.surfaceSubtle,
-    textColor = BrandTokens.textSecondary,
-    border = BorderStroke(2.dp, SuggestionTokens.borderSubtle),
-    minWidth = 48,
-    style = TextStyle(fontSize = 16.sp, lineHeight = 20.sp),
-)
-
-/** Web `PercentilePill`: gold outline, italic (web skews it), for Top 1%, gold outline for Top 5%, subtle white otherwise. */
-@Composable
-internal fun PercentilePill(text: String, tier: PercentileTier) = when (tier) {
-    PercentileTier.Top1 -> Pill(text, Color.Transparent, BrandTokens.gold, BorderStroke(2.dp, SuggestionTokens.goldStroke), 72, italicSkew = true)
-    PercentileTier.Top5 -> Pill(text, Color.Transparent, BrandTokens.gold, BorderStroke(2.dp, SuggestionTokens.goldStroke), 72)
-    PercentileTier.Default -> Pill(text, SuggestionTokens.surfaceWhiteSubtle, BrandTokens.textSecondary, minWidth = 72)
 }
 
 // endregion

@@ -1,7 +1,9 @@
 # Leaderboards UI journey (fixture mode). Every waitfor fails the run when its element never appears.
 # Run: start tools/mock_service.py on a free loopback port, then
 #   python tools/windows/uiwin.py launch <exe> --tab leaderboards --extra FST_BASE_URL=http://127.0.0.1:<port>/ --preset wide
+#     --extra FST_SETTINGS_PATH=<settings.json holding {"version": 1, "experimentalRanks": true}>
 #   python tools/windows/uiwin.py drive --steps-file tools/windows/journeys/leaderboards.steps
+# Rank By shows only with Settings' Experimental Ranks on (issue #541), hence the seeded settings file.
 # Overview: cards for instruments and band sizes, rows with their IDs.
 waitfor:id=fst.leaderboards.card.Solo_Guitar@15
 waitfor:id=fst.rankings.row.fixture-player-1@15

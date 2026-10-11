@@ -49,7 +49,8 @@ import kotlinx.coroutines.launch
  * no waits; the spinner shows only while data is loading and content swaps at once.
  *
  * Obtain one with [rememberLoadSwap]; draw [shown] with [staggered] (or [contentModifier]) while
- * [showsContent], and [LoadSwapSpinner] / [loadSwapSpinnerItem] while [showsSpinner]. A pinned
+ * [showsContent] (a card that groups several rows takes [card] and its rows no fade, R11), and
+ * [LoadSwapSpinner] / [loadSwapSpinnerItem] while [showsSpinner]. A pinned
  * row kept composed beside the spinner adds [pinnedStaggered] and [pinnedContentModifier]; pagers
  * and pickers add neither and stay usable.
  *
@@ -124,6 +125,17 @@ class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?, pi
      * @return Modifier.
      */
     fun Modifier.staggered(index: Int): Modifier = then(contentModifier).festivalFadeIn(revealed, fadeInStagger(index))
+
+    /**
+     * Entrance of a card that groups several rows (a board's rows card, a Leaderboards overview
+     * card; load-transition R11, owner #614): the card fades out with the content and fades in
+     * as one unit at its [index], rows and all. Its rows take no fade of their own, so they never
+     * stagger inside it; separate cards on a page still stagger by their own index.
+     *
+     * @param index Zero-based order of the card among the content's children.
+     * @return Modifier.
+     */
+    fun Modifier.card(index: Int = BOARD_CARD_INDEX): Modifier = staggered(index)
 
     /**
      * [staggered] for pinned content (web `PaginatedLeaderboard` `footerAnimKey`): it fades out
@@ -330,6 +342,12 @@ private val HiddenWhileLoading: Modifier = Modifier
             while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
         }
     }
+
+/**
+ * Entrance index of a board's one rows card ([LoadSwap.card]): its rows, the selected one
+ * included, enter with it, so a selected-row reveal waits for this index (load-transition R11).
+ */
+const val BOARD_CARD_INDEX = 0
 
 /** Default test tag of the swap spinner. */
 const val LOAD_SWAP_SPINNER_TAG = "fst.load-swap.spinner"

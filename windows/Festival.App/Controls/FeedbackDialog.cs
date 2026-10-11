@@ -71,10 +71,11 @@ public sealed class FeedbackDialog
             Title = $"Discard this {kind.Noun()}?",
             Message = "Your text and attachments will be lost.",
         };
-        var discard = new Button { Content = "Discard", Style = Resource<Style>("AccentButtonStyle") };
+        // Fluent's 40 epx minimum target, like the dialog's own Submit/Cancel: the default Button is 32 epx tall (issue #433).
+        var discard = new Button { Content = "Discard", Style = Resource<Style>("AccentButtonStyle"), MinHeight = DialogChrome.TargetSize };
         AutomationProperties.SetAutomationId(discard, $"{Root}.discard");
         discard.Click += (_, _) => Discard();
-        keepEditing = new Button { Content = "Keep Editing" };
+        keepEditing = new Button { Content = "Keep Editing", MinHeight = DialogChrome.TargetSize };
         AutomationProperties.SetAutomationId(keepEditing, $"{Root}.keep-editing");
         keepEditing.Click += (_, _) =>
         {
@@ -132,7 +133,7 @@ public sealed class FeedbackDialog
                 Spacing = 8,
                 Children = { new FontIcon { Glyph = "\uE723", FontSize = 16 }, new TextBlock { Text = FeedbackCopy.Attach } },
             },
-            MinHeight = 40,
+            MinHeight = DialogChrome.TargetSize,
         };
         AutomationProperties.SetName(attach, FeedbackCopy.Attach);
         AutomationProperties.SetAutomationId(attach, $"{Root}.attach");

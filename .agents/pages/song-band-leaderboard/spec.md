@@ -34,7 +34,7 @@ Patterns: [song-leaderboard-header](../../patterns/song-leaderboard-header.md) (
 | State | Shows | Header and backdrop |
 |---|---|---|
 | Loading (first load, size change, page change, selected-profile change, Retry) | Rows leave, centered spinner. Natives keep the pager at the last page count, usable, so a newer page tap supersedes the pending one ([load-transition](../../patterns/load-transition.md) R4) | Kept; the board line names the requested size at once and adds its total only after that size answers |
-| Loaded | Rows, then footer and pager when applicable; staggered row entrance | Kept |
+| Loaded | Rows, then footer and pager when applicable; staggered row entrance (native apps: the board card and all its rows fade in as one, #614) | Kept |
 | Empty (`entries` empty) | "No band scores found" / "No {type} scores have been recorded for this song yet." | Kept |
 | Error | Web: full-page "Failed to load band leaderboard" with the parsed API error. **Native correction:** the shared service-status view with Retry, inside the content area below the header | Kept |
 | Invalid band type (web only) | "Band leaderboard not found" | None |
@@ -62,7 +62,7 @@ Web: `song-band-leaderboard-list`, `song-band-leaderboard-entry-{rank}`, `song-b
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
 | Song header + board line | `SongHeaderRow` + `SongLeaderboardBoardLine` | Song Detail's `SongHeader` + `SongBoardSwitcher` | `BandsSongLeaderboardPage` header (known debt: song-leaderboard-header R1) |
-| Bar title after scroll | `SongBarTitleToolbarItem` (`songHeaderScrollAway`) | `FestivalScreen(scrolled, marqueeTitle = true)` | — (window title) |
+| Bar title after scroll | `SongBarTitleToolbarItem` (`songHeaderScrollAway`) | `FestivalScreen(scrolled)` (`FestivalBarTitle`) | — (window title) |
 | Song backdrop | `festivalBackground(.song(albumArt))` | `SongCoverBackdrop` | `IBackdropPage.BackdropArt` |
 | Reload gate | `FestivalReloadGate` | `rememberLoadSwap` / `LoadSwap` | shared load-swap gate |
 | Selected band footer + pager | `SelectedScoreFooterRow` + `RankingsPagerView` | `SelectedScoreFooterRow` in `RankingsBoardLayout` | floating `LeaderboardEntryRow` (`SongBandSpotlightRow`, pinned on every page) directly above `LeaderboardsPager`; "Your Page" jumps (leaderboard-row Known debt) |

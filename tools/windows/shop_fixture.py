@@ -43,9 +43,10 @@ SHOP_MODES = ("demo", "empty", "error", "slow", "shop-single", "long-title")
 SONGS_MODES = ("ok", "error")
 #: Control route a journey calls between phases.
 CONTROL_PATH = "/__shop__/mode"
-#: ``long-title`` offer: wider than the list row's title column at the medium and wide presets.
+#: ``long-title`` offer: wider than the list row's title column at the medium preset, even for a New row, whose
+#: trailing slot has no pill since issue #562 (the shorter title then fit at normal text).
 LONG_SONG_ID = "fixture-pulse"
-LONG_TITLE = "Fixture Pulse and the Extraordinarily Long Item Shop Song Title That Never Fits on One Row of the List"
+LONG_TITLE = "Fixture Pulse and the Extraordinarily Long Item Shop Song Title That Never Fits on One Row of the List Even With No Badge Beside It"
 LONG_ARTIST = "Synthetic Quartet featuring the Extraordinarily Long Guest Ensemble Name"
 LONG_ETAG = '"fst-fixture-shop-long-title-v1"'
 

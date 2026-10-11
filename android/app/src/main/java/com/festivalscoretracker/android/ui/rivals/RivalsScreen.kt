@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -42,7 +42,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.readingGroup
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
+import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.rivals.RivalQuickLinks
+import com.festivalscoretracker.android.core.rivals.RivalRankMetric
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
 import com.festivalscoretracker.android.core.rivals.RivalScope
 import com.festivalscoretracker.android.core.rivals.RivalSettingsScope
@@ -63,6 +65,7 @@ import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.leaderboards.RankByAction
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -87,7 +90,7 @@ import com.festivalscoretracker.android.ui.common.FestivalModalSheet
 fun RivalsScreen(viewModel: RivalsHubViewModel?, isRoot: Boolean, visibleCount: Int, searchViewModel: ProfileSearchViewModel) {
     val shell = LocalShellActions.current
     var findOpen by rememberSaveable { mutableStateOf(false) }
-    val gridState = rememberLazyStaggeredGridState()
+    val gridState = rememberLazyGridState()
     val tab = viewModel?.tab?.collectAsStateWithLifecycle()?.value ?: RivalsHubTab.Song
     val content = viewModel?.let {
         (if (tab == RivalsHubTab.Song) it.songContent else it.leaderboardContent).collectAsStateWithLifecycle().value
@@ -105,6 +108,16 @@ fun RivalsScreen(viewModel: RivalsHubViewModel?, isRoot: Boolean, visibleCount: 
         fadeInWindow = fadeIn,
         actions = {
             if (viewModel != null) {
+                if (tab == RivalsHubTab.Leaderboard) {
+                    // Web RivalsPage: Rank By on the Leaderboard tab only with Experimental Ranks on.
+                    val rankBy by viewModel.rankBy.collectAsStateWithLifecycle()
+                    RankByAction(
+                        selected = RankingMetric.coerce(rankBy.wireId, experimentalRanks = true),
+                        experimentalRanks = viewModel.rankByOptions.size > 1,
+                        onSelect = { metric -> RivalRankMetric.fromWireId(metric.wireId)?.let(viewModel::selectRankBy) },
+                        tagPrefix = "fst.rivals",
+                    )
+                }
                 IconButton(onClick = { findOpen = true }, modifier = Modifier.testTag("fst.rivals.findRival")) {
                     Icon(Icons.Outlined.PersonSearch, contentDescription = RivalText.FIND_RIVAL)
                 }
@@ -179,7 +192,7 @@ private fun HubBody(
     tab: RivalsHubTab,
     content: RivalsHubContent,
     visibleCount: Int,
-    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
     bottomPadding: androidx.compose.ui.unit.Dp,
     navigate: (AppRoute) -> Unit,
 ) {
@@ -205,7 +218,7 @@ private fun HubContent(
     issue: ServiceIssue?,
     pageRevealed: Boolean,
     visibleCount: Int,
-    gridState: androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState,
+    gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
     bottomPadding: androidx.compose.ui.unit.Dp,
     navigate: (AppRoute) -> Unit,
 ) {
@@ -217,7 +230,7 @@ private fun HubContent(
             RivalsMessage(RivalText.LEADERBOARD_EMPTY, null, "fst.rivals.empty")
         }
         else -> AdaptiveCardGrid(
-            contentPadding = PaddingValues(top = 12.dp, bottom = bottomPadding + 24.dp),
+            contentPadding = PaddingValues(top = 12.dp, bottom = bottomPadding),
             state = gridState,
             testTag = "fst.rivals.grid",
         ) {
@@ -276,7 +289,6 @@ fun FindRivalSheet(
         title = RivalText.FIND_RIVAL,
         closeTag = "fst.rivals.find.close",
         onDismissRequest = onDismiss,
-        skipPartiallyExpanded = false,
         modifier = Modifier.testTag("fst.rivals.find.sheet"),
     ) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
@@ -295,7 +307,7 @@ fun FindRivalSheet(
             Box(Modifier.fillMaxWidth().heightIn(min = 160.dp).padding(top = 12.dp)) {
                 when (val current = state) {
                     // Find Rival searches players only; the band-mode state never applies.
-                    ProfileSearchState.Hint, ProfileSearchState.BandsUnavailable -> Text(
+                    ProfileSearchState.Hint -> Text(
                         "Enter at least 2 characters",
                         color = BrandTokens.textSecondary,
                         textAlign = TextAlign.Center,

@@ -80,6 +80,7 @@ struct SongDetailScreen: View {
     private struct ShopDetailTaskKey: Equatable {
         let publicationRevision: Int
         let hidden: Bool
+        let contentShown: Bool
     }
 
     private var charted: [Instrument] {
@@ -94,6 +95,12 @@ struct SongDetailScreen: View {
 
     private var shopOffer: ShopSong? {
         hideShop ? nil : session.shopOffersById[song.songId]
+    }
+
+    /// Item Shop, Paths and Quick Links wait for the first-load gate and appear with the
+    /// content (load-transition R1, issue #585).
+    private var tools: SongDetailPageTools {
+        .resolve(contentShown: ready, hasShopOffer: shopOffer != nil, hasPathCharts: !pathInstruments.isEmpty)
     }
 
     /// Breathing status colour for the Shop action (green / gold / red), or nil.
@@ -167,22 +174,23 @@ struct SongDetailScreen: View {
                     .accessibilityIdentifier("fst.song-detail.loading")
             }
         }
-        .quickLinks(quickLinks, title: "Quick Links", sections: quickLinkSections)
+        .quickLinks(quickLinks, title: "Quick Links", sections: tools.quickLinks ? quickLinkSections : [])
         .detailFadeTestSafe()
         .festivalBackground(.song(song.albumArt), session: session)
         .festivalNavigationTitle(song.title)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: heroTitleHidden)
         .toolbar { detailToolbar }
         .songBarTitleKeepsBarVisible()
-        // iPhone tab-bar accessory (issue #92): Item Shop, then Paths, then Quick Links.
+        // iPhone tab-bar accessory (issue #92): Item Shop, then Paths, then Quick Links,
+        // all once the page has loaded (#585).
         .festivalPageTool(
             token: [shopOffer?.shopUrl.absoluteString ?? "", shopTone.map { "\($0)" } ?? ""],
-            order: PageToolOrder.primary, isEnabled: shopOffer != nil
+            order: PageToolOrder.primary, isEnabled: tools.shop
         ) {
             if let offer = shopOffer { shopAction(offer, fillsSlot: true) }
         }
         .festivalPageTool(
-            token: "paths", order: PageToolOrder.secondary, isEnabled: !pathInstruments.isEmpty
+            token: "paths", order: PageToolOrder.secondary, isEnabled: tools.paths
         ) {
             pathsButton
         }
@@ -191,7 +199,7 @@ struct SongDetailScreen: View {
         #if DEBUG
         // `tools/mac_app.py command song:paths` (the Song menu needs a key window).
         .onReceive(NotificationCenter.default.publisher(for: MacDebugHooks.openPathsName)) { _ in
-            if !pathInstruments.isEmpty { pathsPresented = true }
+            if tools.paths { pathsPresented = true }
         }
         #endif
         #endif
@@ -207,31 +215,44 @@ struct SongDetailScreen: View {
             }
         }
         .task(id: gateKey) { await loadGate() }
+        // The first Shop read belongs to the gate (#585); this covers later changes
+        // (new publication, Hide Item Shop turned off) once the page shows.
         .task(id: ShopDetailTaskKey(
-            publicationRevision: session.publicationRevision, hidden: hideShop
+            publicationRevision: session.publicationRevision, hidden: hideShop, contentShown: ready
         )) {
-            guard !hideShop, session.currentShop == nil,
-                  session.shopError == nil else { return }
-            do {
-                _ = try await session.shop()
-                try Task.checkCancellation()
-                shopRefreshFailure = nil
-            } catch is CancellationError {
-                return
-            } catch let error as URLError where error.code == .cancelled {
-                return
-            } catch {
-                guard !Task.isCancelled else { return }
-                shopRefreshFailure = error.localizedDescription
-            }
+            guard ready else { return }
+            await loadShopIfNeeded()
         }
     }
 
-    /// The toolbar's Paths and Item Shop tools for the Song menu (macOS, iPadOS).
+    /// Read the Item Shop feed unless it is hidden, already known or already failed.
+    /// A failure is the explicit completed-no-offer state (the page shows the Shop
+    /// status error instead of the action).
+    private func loadShopIfNeeded() async {
+        guard !hideShop, session.currentShop == nil,
+              session.shopError == nil else { return }
+        do {
+            _ = try await session.shop()
+            try Task.checkCancellation()
+            shopRefreshFailure = nil
+        } catch is CancellationError {
+            return
+        } catch let error as URLError where error.code == .cancelled {
+            return
+        } catch {
+            guard !Task.isCancelled else { return }
+            shopRefreshFailure = error.localizedDescription
+        }
+    }
+
+    /// The toolbar's Paths and Item Shop tools for the Song menu (macOS, iPadOS): listed
+    /// but disabled until the page has loaded (#585).
     private var macSongCommands: MacSongCommands {
         let presented: Binding<Bool> = $pathsPresented
-        var commands = MacSongCommands(songId: song.songId, paths: nil, shopURL: shopOffer?.shopUrl)
-        if !pathInstruments.isEmpty {
+        var commands = MacSongCommands(
+            songId: song.songId, paths: nil, shopURL: tools.shop ? shopOffer?.shopUrl : nil
+        )
+        if tools.paths {
             commands.paths = { presented.wrappedValue = true }
         }
         return commands
@@ -250,17 +271,17 @@ struct SongDetailScreen: View {
     private var detailToolbar: some ToolbarContent {
         #if os(iOS)
         SongBarTitleToolbarItem(
-            song: song, session: session, caption: nil, isShown: heroTitleHidden,
+            song: song, session: session, caption: nil, captionInstrument: nil, isShown: heroTitleHidden,
             identifier: "fst.song-detail.pinned-title"
         )
         #endif
-        if pageTools == nil, let offer = shopOffer {
+        if pageTools == nil, tools.shop, let offer = shopOffer {
             ToolbarItem(placement: .festivalPageAction) {
                 shopAction(offer)
             }
             .songDetailPagePriority()
         }
-        if pageTools == nil, !pathInstruments.isEmpty {
+        if pageTools == nil, tools.paths {
             ToolbarItem(placement: .festivalPageAction) {
                 pathsButton
             }
@@ -399,10 +420,12 @@ struct SongDetailScreen: View {
 
     // MARK: Load
 
-    /// First appearance: read every visible chart's top ten and the selected player's
-    /// history for this song in parallel, then show the page. Later key changes (new
-    /// publication, leeway, profile) refresh the history quietly; the cards reload
-    /// themselves.
+    /// First appearance: read every visible chart's top ten, the selected player's
+    /// history for this song, the band previews and the Item Shop feed in parallel, then
+    /// show the page. The Shop read is part of the gate so the page tools (Item Shop,
+    /// Paths, Quick Links) are decided before they appear, together (load-transition
+    /// R1, #585). Later key changes (new publication, leeway, profile) refresh the
+    /// history quietly; the cards reload themselves.
     private func loadGate() async {
         let key = gateKey
         guard loadedGate != key else { return }
@@ -415,11 +438,13 @@ struct SongDetailScreen: View {
         }
         async let history: Void = loadHistory()
         async let bands: Void = loadBandsIfNeeded()
+        async let shop: Void = loadShopIfNeeded()
         let previews = await SongDetailPreloader.previews(
             session: session, song: song, instruments: previewInstruments, leeway: key.leeway
         )
         await history
         await bands
+        await shop
         guard !Task.isCancelled else { return }
         previewPreloads = previews
         loadedGate = key

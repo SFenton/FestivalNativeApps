@@ -2,7 +2,7 @@
 
 > **What:** where the date labels sit on history bar charts (one bar per score or snapshot). **Read when:** adding or changing a chart's x axis, or any chart whose bars stand for dates.
 
-Status: **current**, 2026-10-05. Provenance: #314.
+Status: **current**, 2026-10-05. Provenance: #314, #593.
 
 ## Intent
 
@@ -53,9 +53,9 @@ Natives keep the web's anchor point (the bar's centre) and its `preserveStartEnd
 |---|---|---|---|
 | Date per bar, centred | `apple/Sources/FestivalUI/Common/BarChartDateAxis.swift` `barChartDateAxis` (Swift Charts `AxisMarks(preset: .aligned)`; the default numeric preset put the label's leading edge at the tick, and `AxisValueLabel(anchor:)` alone did not move it) `android/app/src/main/java/com/festivalscoretracker/android/core/profile/PlayerCharts.kt` `ChartGeometry.bandLabelLefts` (R1, R5, R6 placement), laid out by `android/app/src/main/java/com/festivalscoretracker/android/ui/common/ChartBandLabels.kt` `ChartBandLabels` | `windows/Festival.App/Controls/RankHistoryGraph.cs` `RankHistoryGraph`, `windows/Festival.App/Controls/SongScoreHistoryChart.xaml.cs` `SongScoreHistoryChart` (slot-wide, centre-aligned date) |
 
-Android consumers: `ChartBandLabels` under the Profile (`ui/profile/RankHistoryCard.kt`) and Leaderboards (`ui/leaderboards/RankHistoryCard.kt`) rank-history plots and under the Song Details `SongHistoryCard` canvas (its plot keeps a fixed height; the date row below grows with the text). Canvas charts never draw their own dates. The Player History line chart's start/end dates are inset to sit under the plot, not the y-axis gutter.
+Android consumers: `ChartBandLabels` under the Profile (`ui/profile/RankHistoryCard.kt`) and Leaderboards (`ui/leaderboards/RankHistoryCard.kt`) rank-history plots and under the Song Details `SongHistoryCard` canvas (its plot keeps a fixed height; the date row below grows with the text). Canvas charts never draw their own dates. While a paged chart slides to a new window (`load-transition` R12, #593), the row lays out the new window's dates and shifts them with `ChartBandLabels(shift = { slide.labelShift })`, clipped to the row, so each date travels with its bar (R2) and settles centred under it. The Player History line chart's start/end dates are inset to sit under the plot, not the y-axis gutter.
 
-Apple consumers: `RankHistoryCharts` (Profile, Statistics, Leaderboards rank-history pane, dual-source Profile) and `SongScoreHistorySection` (Song Details, Player History), on iPhone, iPad, iPhone Duo and Mac. The first-run Song demos plot categorical (string) dates, which Swift Charts already centres.
+Apple consumers: `RankHistoryCharts` (Profile, Statistics, Leaderboards rank-history pane, dual-source Profile, Band Detail's Rank History for the Rank By metric since #555) and `SongScoreHistorySection` (Song Details, Player History), on iPhone, iPad, iPhone Duo and Mac. The first-run Song demos plot categorical (string) dates, which Swift Charts already centres.
 
 ## Known debt
 

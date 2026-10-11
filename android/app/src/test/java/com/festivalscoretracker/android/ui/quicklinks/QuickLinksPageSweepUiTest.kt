@@ -7,6 +7,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -54,7 +55,8 @@ import org.robolectric.annotation.Config
  *
  * The page order is read from the rendered page, not from the Quick Links model: the list is
  * scrolled through and each section's on-page anchor is recorded by its on-screen position. Song
- * Detail also proves that Score History is listed exactly when the page shows its card.
+ * Detail also proves that Score History is listed exactly when the page shows its card. Rivalry
+ * is checked for having no entry point at all (owner, #545).
  */
 @RunWith(AndroidJUnit4::class)
 class QuickLinksPageSweepUiTest {
@@ -109,10 +111,15 @@ class QuickLinksPageSweepUiTest {
     /**
      * Opens Quick Links and reads every item in on-screen order (scrolling the lazy sheet). It is
      * left open: the page is read before this, and each test ends here.
+     *
+     * @param sheet Whether the compact sheet (true) or the wider menu (false) opens.
+     * @param inPane Open the Quick Links of the page in the trailing split pane (#583), whose list
+     *   page beside it keeps its own.
      */
-    private fun menuOrder(sheet: Boolean): List<String> {
+    private fun menuOrder(sheet: Boolean, inPane: Boolean = false): List<String> {
         waitForTag(OPEN)
-        rule.onNodeWithTag(OPEN).performSemanticsAction(SemanticsActions.OnClick)
+        val open = if (inPane) hasTestTag(OPEN) and hasAnyAncestor(hasTestTag(PANE)) else hasTestTag(OPEN)
+        rule.onNode(open).performSemanticsAction(SemanticsActions.OnClick)
         settle()
         val container = if (sheet) SHEET else MENU
         waitForTag(container)
@@ -365,8 +372,11 @@ class QuickLinksPageSweepUiTest {
         waitForTag("fst.rivals.row.${RivalsFixtures.RIVALS[1]}")
         rule.onAllNodesWithTag("fst.rivals.row.${RivalsFixtures.RIVALS[1]}")[0].performSemanticsAction(SemanticsActions.OnClick)
         waitForTag("fst.rival-detail.title")
+        // Wide windows open Rival Detail beside the hub (#583); each pane keeps its own Quick Links.
+        val inPane = !sheet
+        if (inPane) assertTrue("Rival Detail opens in the trailing pane", rule.onAllNodes(hasTestTag("fst.rival-detail.title") and hasAnyAncestor(hasTestTag(PANE)), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         val page = pageOrder("fst.rival-detail.grid") { tag -> tag.removePrefix("fst.rival-detail.category.").takeIf { it != tag }?.let { "rival-category:$it" } }
-        val menu = menuOrder(sheet)
+        val menu = menuOrder(sheet, inPane)
         assertSameOrder(menu, page)
         assertTrue(menu.toString(), menu.size >= 2)
     }
@@ -376,25 +386,34 @@ class QuickLinksPageSweepUiTest {
     @Config(qualifiers = "w411dp-h891dp-xxhdpi")
     fun rivalDetailSheetFollowsThePage() = rivalDetail(sheet = true)
 
-    /** Wide window: categories sit in a multi-column grid; the menu reads it row by row. */
+    /** Wide window: Rival Detail opens in the trailing pane (#583); its menu reads its grid row by row. */
     @Test
     @Config(qualifiers = "w1280dp-h800dp-xhdpi")
     fun rivalDetailMenuFollowsThePage() = rivalDetail(sheet = false)
 
-    /** Rivalry: one link per song (`<songId>:<chart>:<index>`), in the shown order. */
-    @Test
-    @Config(qualifiers = "w1280dp-h800dp-xhdpi")
-    fun rivalryMenuFollowsThePage() {
+    /**
+     * Rivalry has no Quick Links (owner, #545): its one link per song only repeated the list, so
+     * neither the compact floating toolbar nor the wide top app bar offers an entry point.
+     */
+    private fun rivalry() {
         launch(DebugLaunch(route = RivalryRoute(RivalsFixtures.RIVALS[3], "almost_passed"), profile = rivalsPlayer, section = FestivalSection.Songs, stillBackground = true), rivalsTransport())
         waitForTag("fst.rivalry.title")
-        val page = pageOrder("fst.rivalry.list") { tag ->
-            tag.removePrefix("fst.rivals.song.").takeIf { it != tag }?.replace('.', ':')
-        }
-        val menu = menuOrder(sheet = false)
-        assertEquals("every song is listed once: $menu", menu.size, menu.toSet().size)
-        assertEquals("Quick Links list the songs top to bottom", page, menu.map { it.substringBeforeLast(':') })
-        assertTrue(menu.toString(), menu.size >= 2)
+        val page = pageOrder("fst.rivalry.list") { tag -> tag.removePrefix("fst.rivals.song.").takeIf { it != tag } }
+        assertTrue("several songs on the page: $page", page.size >= 2)
+        assertFalse("Rivalry offers no Quick Links", exists(OPEN))
+        assertTrue("Sort stays", exists("fst.rivalry.sort"))
+        assertTrue("View Profile stays", exists("fst.rival-detail.view-profile"))
     }
+
+    /** Phone: no Quick Links in the floating toolbar. */
+    @Test
+    @Config(qualifiers = "w411dp-h891dp-xxhdpi")
+    fun rivalryHasNoQuickLinksOnPhone() = rivalry()
+
+    /** Wide window: no Quick Links in the top app bar. */
+    @Test
+    @Config(qualifiers = "w1280dp-h800dp-xhdpi")
+    fun rivalryHasNoQuickLinksInWideWindow() = rivalry()
 
     // endregion
 
@@ -470,6 +489,7 @@ class QuickLinksPageSweepUiTest {
 
     private companion object {
         const val OPEN = "fst.quick-links.open"
+        const val PANE = "fst.split.trailing"
         const val SHEET = "fst.quick-links.sheet"
         const val MENU = "fst.quick-links.menu"
         const val LIST = "fst.quick-links.list"

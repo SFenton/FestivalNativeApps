@@ -1,5 +1,5 @@
 [
-  {"name": "score-accuracy-chart", "route": "/songs/fixture-pulse/Solo_Guitar", "ready": [
+  {"name": "score-accuracy-chart", "fixture": ["score_accuracy_fixture.py"], "route": "/songs/fixture-pulse/Solo_Guitar", "ready": [
     "waitfor:raw=fst.score.accuracy.fixture-player-1@30",
     "assertname:raw=fst.score.accuracy.fixture-player-1|99.5%",
     "assertname:raw=fst.score.accuracy.fixture-player-2|100%",
@@ -18,7 +18,7 @@
     "scrollinto:id=fst.song-leaderboard.row.fixture-player-1@10",
     "wait:1"
   ]},
-  {"name": "score-accuracy-offscreen", "route": "/songs/fixture-pulse/Solo_Guitar", "ready": [
+  {"name": "score-accuracy-offscreen", "fixture": ["score_accuracy_fixture.py"], "route": "/songs/fixture-pulse/Solo_Guitar", "ready": [
     "waitfor:raw=fst.score.accuracy.fixture-player-1@30",
     "waitgone:raw=fst.score.accuracy.fixture-player-20",
     "scrollinto:raw=fst.score.accuracy.fixture-player-20@15",
@@ -27,7 +27,7 @@
     "assertaligned:raw=fst.score.accuracy.fixture-player-19|raw=fst.score.accuracy.fixture-player-20",
     "wait:1"
   ]},
-  {"name": "score-accuracy-preview", "route": "/songs/fixture-pulse", "ready": [
+  {"name": "score-accuracy-preview", "fixture": ["score_accuracy_fixture.py"], "route": "/songs/fixture-pulse", "ready": [
     "waitfor:id=fst.song-detail.title@30",
     "scrollinto:raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-1@20",
     "assertname:raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-1|99.5%",
@@ -39,7 +39,7 @@
     "assertaligned:raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-2|raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-4",
     "wait:1"
   ]},
-  {"name": "score-accuracy-names-narrow", "route": "/songs/fixture-pulse/Solo_Guitar", "sizes": ["compact"],
+  {"name": "score-accuracy-names-narrow", "fixture": ["score_accuracy_fixture.py"], "route": "/songs/fixture-pulse/Solo_Guitar", "sizes": ["compact"],
    "note": "Row names under 520 epx: no season (issue #262).", "ready": [
     "waitfor:raw=fst.score.accuracy.fixture-player-1@30",
     "waitgone:raw=fst.score.season.fixture-player-3",
@@ -51,7 +51,7 @@
     "scrollinto:raw=fst.score.accuracy.fixture-player-20@15",
     "assertname:id=fst.song-leaderboard.row.fixture-player-20|Rank #20, Fixture Player 20, 98,000 points, 98% accuracy, full combo, 5 stars"
   ]},
-  {"name": "score-accuracy-names-wide", "route": "/songs/fixture-pulse/Solo_Guitar", "sizes": ["snap-left", "snap-right", "medium", "wide", "maximized"],
+  {"name": "score-accuracy-names-wide", "fixture": ["score_accuracy_fixture.py"], "route": "/songs/fixture-pulse/Solo_Guitar", "sizes": ["snap-left", "snap-right", "medium", "wide", "maximized"],
    "note": "Row names from 520 epx read the season shown on screen (issue #262).", "ready": [
     "waitfor:raw=fst.score.accuracy.fixture-player-1@30",
     "waitfor:raw=fst.score.season.fixture-player-3@5",
@@ -63,21 +63,21 @@
     "scrollinto:raw=fst.score.accuracy.fixture-player-20@15",
     "assertname:id=fst.song-leaderboard.row.fixture-player-20|Rank #20, Fixture Player 20, 98,000 points, 98% accuracy, full combo, season 9, 5 stars"
   ]},
-  {"name": "score-accuracy-preview-names", "route": "/songs/fixture-pulse", "sizes": ["compact", "medium", "wide", "maximized"],
+  {"name": "score-accuracy-preview-names", "fixture": ["score_accuracy_fixture.py"], "route": "/songs/fixture-pulse", "sizes": ["compact", "medium", "wide", "maximized"],
    "note": "Preview rows under 520 epx (one narrow column or two cards per row): no season in the name (issue #262).", "ready": [
     "waitfor:id=fst.song-detail.title@30",
     "scrollinto:raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-4@20",
     "waitgone:raw=fst.score.season.preview.Solo_Guitar.fixture-player-4",
     "assertname:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4|Rank 4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable"
   ]},
-  {"name": "score-accuracy-preview-names-single", "route": "/songs/fixture-pulse", "sizes": ["snap-left", "snap-right"],
+  {"name": "score-accuracy-preview-names-single", "fixture": ["score_accuracy_fixture.py"], "route": "/songs/fixture-pulse", "sizes": ["snap-left", "snap-right"],
    "note": "One card column at 640 epx: preview rows reach 520 epx and read the season (issue #262).", "ready": [
     "waitfor:id=fst.song-detail.title@30",
     "scrollinto:raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-4@20",
     "scrollinto:raw=fst.score.season.preview.Solo_Guitar.fixture-player-4@10",
     "assertname:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4|Rank 4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable, season 9"
   ]},
-  {"name": "score-accuracy-keyboard", "route": "/songs/fixture-pulse/Solo_Guitar", "tabs": 0, "ready": [
+  {"name": "score-accuracy-keyboard", "fixture": ["score_accuracy_fixture.py"], "route": "/songs/fixture-pulse/Solo_Guitar", "tabs": 0, "ready": [
     "waitfor:raw=fst.score.accuracy.fixture-player-1@30",
     "focus:id=fst.song-leaderboard.row.fixture-player-1",
     "assertfocus:id=fst.song-leaderboard.row.fixture-player-1",
@@ -89,7 +89,7 @@
     "focus:id=fst.song-leaderboard.row.fixture-player-4",
     "key:down", "key:down", "wait:0.5"
   ]},
-  {"name": "score-accuracy-resize", "route": "/songs/fixture-pulse/Solo_Guitar", "tabs": 0, "ready": [
+  {"name": "score-accuracy-resize", "fixture": ["score_accuracy_fixture.py"], "route": "/songs/fixture-pulse/Solo_Guitar", "tabs": 0, "ready": [
     "waitfor:raw=fst.score.accuracy.fixture-player-1@30",
     "resize:compact", "wait:1.5",
     "assertname:raw=fst.score.accuracy.fixture-player-2|100%",

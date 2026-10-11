@@ -41,6 +41,9 @@ enum class BandRankingMetric(val wireId: String, val label: String) {
     FcRate("fcrate", "FC Rate"),
     TotalScore("totalscore", "Total Score");
 
+    /** Whether Settings → Experimental Ranks must be on to rank bands by this metric (web `BAND_EXPERIMENTAL_METRICS`). */
+    val isExperimental: Boolean get() = this != TotalScore
+
     companion object {
         /** The web Band page's default (Total Score, experimental ranks off). */
         val DEFAULT = TotalScore
@@ -52,6 +55,27 @@ enum class BandRankingMetric(val wireId: String, val label: String) {
          * @return The metric, or null.
          */
         fun fromWireId(wireId: String?): BandRankingMetric? = entries.firstOrNull { it.wireId == wireId }
+
+        /**
+         * Band metrics Rank By offers, in the web's `BAND_RANKING_METRICS` order (Total Score
+         * first): Total Score alone unless Settings → Experimental Ranks is on (experimental-ranks R1).
+         *
+         * @param experimentalRanks `AppSettings.experimentalRanks`.
+         * @return Offered metrics in picker order.
+         */
+        fun enabled(experimentalRanks: Boolean): List<BandRankingMetric> =
+            if (experimentalRanks) listOf(TotalScore, Adjusted, Weighted, FcRate) else listOf(TotalScore)
+
+        /**
+         * Gate a saved, routed or selected band metric (web `coerceBandRankingMetric`):
+         * experimental metrics with the setting off fall back to [DEFAULT] (experimental-ranks R2).
+         *
+         * @param metric Candidate metric.
+         * @param experimentalRanks `AppSettings.experimentalRanks`.
+         * @return The metric to load.
+         */
+        fun coerce(metric: BandRankingMetric?, experimentalRanks: Boolean): BandRankingMetric =
+            if (metric == null || (metric.isExperimental && !experimentalRanks)) DEFAULT else metric
     }
 }
 

@@ -55,7 +55,8 @@ class FirstRunSeenStore(private val blob: BlobStore) {
     }
 
     /**
-     * Forget one page's slides (before a Settings replay, web `resetPage`).
+     * Forget one page's slides (web `resetPage`). Settings replay keeps earlier seen-state on
+     * Android (issue #608), so only maintenance and tests call this.
      *
      * @param slideIds The page's slide IDs.
      */

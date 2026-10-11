@@ -4,8 +4,10 @@ Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 """
 
 import json
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tools.windows import a11y_matrix as m
 from tools.windows import ui_ci as ci
@@ -34,8 +36,9 @@ class UiCiTests(unittest.TestCase):
                 sizes = run.sizes.split(",")
                 for size in sizes:
                     u.preset_op(size)
-                # The runner's 1920x1080 desktop holds compact and medium, not wide (1440x900 plus the taskbar).
-                self.assertNotIn("wide", sizes)
+                # The runner's 1920x1080 desktop (ci_display.ps1) holds compact, medium and wide (1440x900 plus the
+                # taskbar); generated runs add wide only for pages that run at no smaller size.
+                self.assertLessEqual(set(sizes), {"compact", "medium", "wide"})
                 self.assertTrue(m.mode_pages(pages, run.mode), "no page runs in this mode")
                 self.assertTrue(any(m.page_sizes(page, sizes, run.mode) for page in m.mode_pages(pages, run.mode)),
                                 "no page runs at this run's sizes")
@@ -48,6 +51,16 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(all(run.scan for run in landing.values()))
         self.assertIn("compact", landing["text-225"].sizes.split(","))
 
+    def test_header_flyouts_gate_without_popup_allowance(self):
+        """#534: the Rank By, Quick Links, profile and Notifications flyouts scan clean at 100% and 225% text."""
+        popups = {run.mode: run for run in ci.RUNS if run.pages == "a11y.json"}
+        self.assertEqual({"normal", "text-225"}, set(popups))
+        self.assertTrue(all(run.scan and run.only == ci.POPUP_PAGES for run in popups.values()))
+        pages = {page["name"]: page for page in json.loads((ci.JOURNEYS / "a11y.json").read_text(encoding="utf-8"))}
+        for name in ci.POPUP_PAGES.split(","):
+            with self.subTest(page=name):
+                self.assertNotIn("axe_allow", pages[name])
+
     def test_song_band_pinned_runs_at_default_and_largest_text(self):
         # Issue #461 (#306): the full band board's pinned "your band" row runs in CI at default and 225% text.
         runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-song-band-pinned.json"}
@@ -58,6 +71,85 @@ class UiCiTests(unittest.TestCase):
         names = {page["name"] for page in pages}
         self.assertTrue({"song-band-pin-jump", "song-band-pin-open", "song-band-pin-no-player"} <= names)
 
+    def test_full_rankings_pinned_runs_at_default_largest_text_and_reduced_motion(self):
+        # Issue #466 (#318): Full Rankings' pinned "your rank" row (also on the player's own page) runs in CI at default
+        # and 225% text, and its keyboard jump with in-app Reduce Motion.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-full-rankings.json"}
+        self.assertEqual({"normal", "text-225", "app-reduced"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertEqual("", runs["normal"].only)
+        self.assertEqual("", runs["text-225"].only)
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        self.assertEqual("fr-pinned-jump-keyboard", runs["app-reduced"].only)
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-full-rankings.json").read_text(encoding="utf-8"))}
+        self.assertEqual({"fr-pinned-own-page", "fr-pinned-own-page-keyboard", "fr-pinned-jump-keyboard"}, set(pages))
+        own = pages["fr-pinned-own-page"]
+        self.assertTrue(own["profile"].startswith("fixture-player-2:"))
+        steps = own["after_ready"]
+        self.assertIn("assertsize:id=fst.full-rankings.spotlight-footer|40x40", steps)
+        self.assertTrue(any(step.startswith("assertread:id=fst.full-rankings.spotlight-footer|~^Your rank, 2nd")
+                            for step in steps))
+        self.assertTrue(any(step.startswith("assertorder:id=fst.full-rankings.title|id=fst.rankings.row.fixture-player-2|"
+                                            "id=fst.full-rankings.spotlight-footer|id=fst.full-rankings.page-first")
+                            for step in steps))
+
+    def test_leaderboards_card_jump_runs_at_default_largest_text_and_reduced_motion(self):
+        # Issue #493 (#370): a Leaderboards card's "your rank" row runs in CI at default and 225% text, and its keyboard
+        # jump to Full Rankings with in-app Reduce Motion.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-leaderboards-card-jump.json"}
+        self.assertEqual({"normal", "text-225", "app-reduced"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertEqual("", runs["normal"].only)
+        self.assertEqual("", runs["text-225"].only)
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        self.assertEqual("card-jump-row-keyboard", runs["app-reduced"].only)
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-leaderboards-card-jump.json").read_text(encoding="utf-8"))}
+        self.assertEqual({"card-jump-row", "card-jump-row-keyboard", "card-in-place-row"}, set(pages))
+        spotlight = "id=fst.leaderboards.card.Solo_Guitar.spotlight"
+        jump = pages["card-jump-row"]["after_ready"]
+        self.assertIn(f"assertsize:{spotlight}|40x40", jump)
+        self.assertTrue(any(step.startswith(f"assertread:{spotlight}|~^Your rank, 40th\\. Jump to your position")
+                            for step in jump))
+        keyboard = pages["card-jump-row-keyboard"]["after_ready"]
+        self.assertIn("key:enter", keyboard)
+        self.assertIn("waitfor:id=fst.rankings.row.fixture-rank-40@15", keyboard)
+        self.assertEqual(f"assertfocus:{spotlight}@3", keyboard[-2])
+
+    def test_search_all_section_titles_run_at_default_largest_text_and_reduced_motion(self):
+        # Issue #483 (#348): Search's All section titles run in CI at default and 225% text and with in-app Reduce
+        # Motion, while the file's other pages keep their generated runs.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-search.json" and run.only == ci.SEARCH_SECTIONS
+                and run.mode != "app-reduced"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        reduced = [run for run in ci.RUNS if run.pages == "a11y-search.json" and run.mode == "app-reduced"]
+        self.assertEqual(["search-all-sections,search-all-sections-keyboard"], [run.only for run in reduced])
+        self.assertTrue(all(run.scan for run in (*runs.values(), *reduced)))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        generated = {run.mode: set(run.only.split(",")) for run in ci.RUNS if run.name.startswith("a11y-search-")}
+        self.assertEqual({"normal", "text-225"}, set(generated))
+        for pages in generated.values():
+            self.assertIn("search-results-all", pages)
+            self.assertFalse(pages & set(ci.SEARCH_SECTIONS.split(",")))
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-search.json").read_text(encoding="utf-8"))}
+        steps = pages["search-all-sections"]["after_ready"]
+        for section, title in (("songs", "Songs"), ("players", "Players"), ("bands", "Bands")):
+            self.assertIn(f"assertread:id=fst.global-search.section.{section}|{title}, text", steps)
+            self.assertIn(f"assertstate:id=fst.global-search.section.{section}|heading=2", steps)
+            self.assertIn(f"assertstate:id=fst.global-search.section.{section}|focusable=false", steps)
+        self.assertIn("assertorder:id=fst.global-search.scope.all|id=fst.global-search.section.songs"
+                      "|id=fst.global-search.result.song", steps)
+        keyboard = pages["search-all-sections-keyboard"]
+        self.assertEqual(0, keyboard["tabs"])
+        focus = [step for step in keyboard["after_ready"] if step.startswith("assertfocus:")]
+        self.assertEqual(["scope.all", "result.song", "result.player", "result.band", "result.player", "result.song",
+                          "scope.all"], [step.split("fst.global-search.")[1].split("@")[0] for step in focus])
+        for scope in ("songs", "players", "bands"):
+            single = pages[f"search-results-{scope}"]["after_ready"]
+            self.assertTrue(any(step.startswith(f"waitgone:id=fst.global-search.section.{scope}") for step in single))
+
     def test_first_run_demos_run_at_default_and_largest_text(self):
         """#420 review: the first-run demo journey gates PRs, not just its JSON guard."""
         demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-demos.json"}
@@ -66,12 +158,77 @@ class UiCiTests(unittest.TestCase):
         self.assertIn("compact", demos["text-225"].sizes.split(","))
         self.assertEqual({"compact", "medium"}, set(demos["normal"].sizes.split(",")))
 
+    def test_real_control_first_run_demos_run_with_text_and_motion_off(self):
+        """#498: the #380 real-control demos gate PRs at default and 225% text, and hold still with animations off."""
+        demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-real-demos.json"}
+        self.assertEqual({"normal", "text-225", "no-animations", "no-transparency"}, set(demos))
+        self.assertTrue(all(run.scan for run in demos.values()))
+        self.assertFalse(demos["normal"].only or demos["text-225"].only)
+        self.assertEqual("frrd-infinite-scroll-static", demos["no-animations"].only)
+
+    def test_real_control_auto_scroll_hard_edge_runs_in_every_r7_setting(self):
+        """#498 review: the auto-scroll demo's hard edge (fade=off) is asserted with transparency effects off, Less
+        Transparency and More Contrast, and the faded pages skip those modes."""
+        demos = {run.mode: run for run in ci.RUNS if run.pages == "a11y-first-run-real-demos.json"}
+        self.assertEqual("frrd-infinite-scroll-no-transparency", demos["no-transparency"].only)
+        pages = {page["name"]: page for page in ci.run_pages(demos["normal"])}
+        self.assertEqual({"lessTransparency": True}, pages["frrd-infinite-scroll-less-transparency"]["settings"])
+        self.assertEqual({"moreContrast": True}, pages["frrd-infinite-scroll-more-contrast"]["settings"])
+        self.assertNotIn("frrd-infinite-scroll-no-transparency", pages)
+        hard = [*ci.run_pages(demos["no-transparency"]), pages["frrd-infinite-scroll-less-transparency"],
+                pages["frrd-infinite-scroll-more-contrast"]]
+        self.assertEqual(3, len(hard))
+        for page in hard:
+            status = [step for step in page["after_ready"] if step.startswith("assertstatus:")]
+            self.assertTrue(status and all(step.endswith("fade=off$@15") for step in status), page["name"])
+            self.assertIn("waitgone:id=fst.first-run.demo.suggestions-infinite-scroll@1", page["after_ready"])
+        faded = [page["name"] for mode in ("no-transparency", "app-contrast", "hc-desert")
+                 for page in ci.run_pages(ci.Run("x", "a11y-first-run-real-demos.json", mode=mode))
+                 if "suggestions-infinite-scroll" in json.dumps(page) and "fade=off" not in json.dumps(page)]
+        self.assertEqual([], faded)
+
+    def test_a_full_run_covers_its_file_despite_a_partial_run(self):
+        """#498: a reduced-motion ``only`` run must not make the generator re-run the file's pages a second time."""
+        generated = {run.name for run in ci.RUNS}
+        for stem in ("a11y-grouped-boards", "a11y-first-run-real-demos"):
+            self.assertNotIn(f"{stem}-normal", generated)
+            self.assertNotIn(f"{stem}-text-225", generated)
+
     def test_modals_run_at_default_and_largest_text(self):
         modal = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-modals.json"}
         self.assertEqual({("normal", True), ("text-225", True)}, modal)
         large = next(run for run in ci.RUNS if run.pages == "a11y-modals.json" and run.mode == "text-225")
         self.assertIn("compact", large.sizes.split(","))
         self.assertGreaterEqual(large.tabs, 1)
+
+    def test_modal_motion_runs_at_default_largest_text_and_motion_off(self):
+        """#436: the #83 work-behind-dialogs journey gates PRs (normal, compact) and runs at 225% text and motion off.
+
+        Its runs are generated (one bounded run per mode, so no single shard carries the whole journey); the workflow's
+        ``ci_effects.ps1`` turns the hosted runner's Animation effects on before the motion pages launch the app.
+        """
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-modal-motion.json"}
+        self.assertLessEqual({"normal", "text-225", "no-animations"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        names = {mode: set(run.only.split(",")) for mode, run in runs.items()}
+        for mode in ("normal", "text-225"):
+            self.assertNotIn("mm-first-run-backdrop-static", names[mode])
+            self.assertLessEqual({"mm-first-run-backdrop", "mm-whats-new-backdrop", "mm-first-run-shop-pulses",
+                                  "mm-first-run-shop-pulses-reduced"}, names[mode])
+        self.assertIn("mm-first-run-shop-pulses-static", names["no-animations"])
+        self.assertIn("mm-first-run-backdrop-static", {name for run in runs.values() for name in run.only.split(",")})
+        pr = [run for run in ci.tier_runs(list(ci.RUNS), "pr") if run.pages == "a11y-modal-motion.json"]
+        self.assertEqual([("normal", "compact")], [(run.mode, run.sizes) for run in pr])
+        self.assertIn("mm-first-run-shop-pulses", pr[0].only.split(","))
+        workflow = _WORKFLOW.read_text(encoding="utf-8")
+        self.assertLess(workflow.index("ci_effects.ps1"), workflow.index("python tools/windows/ui_ci.py --tier"))
+        pages = json.loads((ci.JOURNEYS / "a11y-modal-motion.json").read_text(encoding="utf-8"))
+        shop = next(page for page in pages if page["name"] == "mm-first-run-shop-pulses")
+        steps = shop["after_ready"]
+        for check in ("assertname:id=fst.first-run.slides|Item Shop", "assertread:id=SecondaryButton|Back, button",
+                      "assertorder:id=fst.first-run.slides|id=PrimaryButton|id=SecondaryButton|id=fst.first-run.close",
+                      "assertsize:id=fst.first-run.close|40x40", "key:enter"):
+            self.assertIn(check, steps)
 
     def test_whats_new_runs_grouped_notes_at_default_and_largest_text(self):
         # Issue #434: #80's grouped tester/store notes are checked in CI, with heading levels, at default and 225% text.
@@ -97,21 +254,32 @@ class UiCiTests(unittest.TestCase):
     def test_settings_pages_wait_for_feedback_rows_before_scrolling(self):
         """#535: the Feedback rows appear above every later Settings section once ``/api/features`` answers, so a target
         scrolled into view before then can be pushed back off screen (``no on-screen element
-        id=fst.settings.whats-new`` at 225% text). A CI page that scrolls to Settings content brings those rows in first
-        (scrolling back to page chrome such as the Quick Links entry is not a Settings target)."""
+        id=fst.settings.whats-new`` at 225% text). A CI page that scrolls (``scrollinto:``) or reveals (``reveal:``)
+        Settings content brings those rows in first
+        (scrolling back to page chrome such as the Quick Links entry is not a Settings target). #539's
+        ``settings-service-info-unavailable`` revealed the Service Info state row and lost it the same way. A page
+        that opens Settings from another tab (Ctrl+comma) is exposed just the same. A page whose fixture reports
+        ``feedback: false`` (``feedback_fixture.py --features off``) never gets the rows, so it has no wait."""
         wait = "scrollinto:id=fst.settings.feedback.feature"
         checked = 0
         for run in ci.RUNS:
             for page in json.loads((ci.JOURNEYS / run.pages).read_text(encoding="utf-8")):
-                if page.get("tab") != "settings" and page.get("route") != "/settings":
-                    continue
                 steps = [*page.get("setup", ()), *page.get("ready", ()), *page.get("after_ready", ())]
-                scrolls = [step for step in steps if step.startswith("scrollinto:id=fst.settings.")]
+                if page.get("tab") != "settings" and page.get("route") != "/settings" and "key:ctrl+comma" not in steps:
+                    continue
+                scrolls = [step for step in steps
+                           if step.startswith(("scrollinto:id=fst.settings.", "reveal:id=fst.settings."))]
                 if not scrolls:
                     continue
+                fixture = list(page.get("fixture", ()))
+                if "--features" in fixture and fixture[fixture.index("--features") + 1:][:1] == ["off"]:
+                    continue  # the Feedback rows never appear, so nothing can push a target off screen
                 checked += 1
+                # Scrolling to a Feedback row first is itself the wait.
+                first = "scrollinto:id=fst.settings.feedback." if scrolls[0].startswith(
+                    "scrollinto:id=fst.settings.feedback.") else wait + "@"
                 with self.subTest(run=run.name, page=page["name"]):
-                    self.assertTrue(scrolls[0].startswith(wait + "@"), scrolls[0])
+                    self.assertTrue(scrolls[0].startswith(first), scrolls[0])
                     self.assertGreaterEqual(u.parse_step(scrolls[0])["timeout"], 20)
         self.assertGreater(checked, 0)
 
@@ -132,12 +300,60 @@ class UiCiTests(unittest.TestCase):
                        "fst.songs.filter.year.clear-all|"):
             self.assertIn(f"assertsize:id={target}40x40", steps)
 
+    def test_experimental_ranks_runs_at_default_and_largest_text(self):
+        """#541: the Experimental Ranks toggle and the Rank By gate it drives gate pull requests at 100% and 225% text."""
+        runs = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-experimental-ranks.json"}
+        self.assertEqual({("normal", True), ("text-225", True)}, runs)
+        pages = {page["name"]: page for page in json.loads(
+            (ci.JOURNEYS / "a11y-experimental-ranks.json").read_text(encoding="utf-8"))}
+        toggle = pages["xr-settings-toggle"]
+        self.assertNotIn("settings", toggle)  # the default: off
+        steps = toggle["after_ready"]
+        self.assertIn("assertstate:id=fst.settings.experimental-ranks|toggle=off", steps)
+        self.assertIn("assertstate:id=fst.settings.experimental-ranks|enabled=true", steps)
+        self.assertEqual("waitgone:id=fst.rankings.rank-by-menu@10", steps[-1])
+        for name in ("xr-leaderboards-off", "xr-full-rankings-off", "xr-band-rankings-off"):
+            with self.subTest(page=name):
+                self.assertFalse(pages[name].get("settings", {}).get("experimentalRanks", False))
+                self.assertTrue(any(s.startswith("waitgone:") and "rank-by-menu" in s
+                                    for s in pages[name]["after_ready"]))
+        self.assertTrue(pages["xr-leaderboards-on"]["settings"]["experimentalRanks"])
+
+    def test_shop_filter_runs_at_default_and_largest_text(self):
+        # Issue #428 (#19): the Item Shop Filters flyout's accessibility pages gate pull requests at default and 225% text.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-shop-filter.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        pages = json.loads((ci.JOURNEYS / "a11y-shop-filter.json").read_text(encoding="utf-8"))
+        self.assertIn("shop-filter-read", {p["name"] for p in m.mode_pages(pages, "normal")})
+        self.assertIn("shop-filter-text", {p["name"] for p in m.mode_pages(pages, "text-225")})
+        steps = [s for page in pages for s in (*page.get("ready", []), *page.get("after_ready", []))]
+        self.assertIn("assertsize:id=fst.shop.filter.reset|0x40", steps)  # Reset's 40 epx height (32 epx before #428)
+
+    def test_shop_filter_keyboard_runs_at_default_and_largest_text(self):
+        """#428 review: the flyout's keyboard journey (Enter, Space, Tab/Shift+Tab, Esc focus return) gates PRs too."""
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-keyboard.json" and "kb-shop-filter" in
+                run.only.split(",")}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = json.loads((ci.JOURNEYS / "a11y-keyboard.json").read_text(encoding="utf-8"))
+        page = next(p for p in pages if p["name"] == "kb-shop-filter")
+        for mode, run in runs.items():
+            with self.subTest(mode=mode):
+                self.assertIn(page, m.mode_pages(pages, mode))
+                self.assertTrue(m.page_sizes(page, run.sizes.split(","), mode))
+        steps = page["after_ready"]
+        for key in ("key:enter", "key:space", "key:tab", "key:shift+tab", "key:esc"):
+            self.assertIn(key, steps)
+        self.assertIn("assertfocus:id=fst.shop.filter@3", steps[steps.index("key:esc"):])  # Esc returns focus
+
     def test_songs_section_push_runs_at_default_and_largest_text(self):
         # Issue #452 (#288): the pushed section title's Narrator names, headings, order and raw copy, in CI at both sizes.
         runs = {(run.mode, run.scan) for run in ci.RUNS if run.pages == "a11y-songs-section-push.json"}
         self.assertEqual({("normal", True), ("text-225", True)}, runs)
         pages = json.loads((ci.JOURNEYS / "a11y-songs-section-push.json").read_text(encoding="utf-8"))
-        self.assertEqual({"push-band", "push-band-reverse", "push-band-keyboard"}, {page["name"] for page in pages})
+        self.assertEqual({"push-band", "push-band-reverse", "push-band-keyboard", "push-band-back"}, {page["name"] for page in pages})
         for page in pages:
             with self.subTest(page=page["name"]):
                 steps = page["after_ready"]
@@ -153,6 +369,24 @@ class UiCiTests(unittest.TestCase):
             steps = page["after_ready"]
             self.assertIn("waitgone:raw=fst.songs.section-header.incoming@3", steps[steps.index(
                 "scrollinset:name=M&class=TextBlock|id=fst.songs.list|120"):])
+
+    def test_songs_section_push_back_returns_mid_push(self):
+        # Issue #560: Back to a list left inside the push band keeps the row and list in place (back-keeps-place R5)
+        # and redraws the push: the copy is drawn again over the transparent in-list title, which is opaque past it.
+        pages = {page["name"]: page for page in json.loads(
+            (ci.JOURNEYS / "a11y-songs-section-push.json").read_text(encoding="utf-8"))}
+        steps = pages["push-band-back"]["after_ready"]
+        back = steps.index("key:alt+left")
+        settle = steps.index("wait:1.5", back)
+        self.assertLess(steps.index("scrollinset:name=M&class=TextBlock|id=fst.songs.list|16"), back)
+        for pin in ("id=fst.songs.list", "id=fst.songs.row.fixture-song-56"):
+            self.assertLess(steps.index(f"pin:{pin}"), back)
+            self.assertEqual(1, steps[back:settle].count(f"assertpinned:{pin}"))
+            self.assertEqual(1, steps[settle:].count(f"assertpinned:{pin}"))
+        self.assertIn("assertfocus:id=fst.songs.row.fixture-song-56@3", steps[settle:])
+        self.assertLess(back, steps.index("assertname:raw=fst.songs.section-header.incoming|M"))
+        self.assertIn("assertpaint:name=M&class=TextBlock|L0,T0,R0,B0=#FFFFFF~40",
+                      steps[steps.index("scrollinset:name=M&class=TextBlock|id=fst.songs.list|120"):])
 
     def test_songs_section_push_keyboard_keeps_focus_on_real_list_items(self):
         # Issue #452 review: a keyboard pick reaches M, then focus moves by arrow keys through the 16 epx push band; it
@@ -191,6 +425,89 @@ class UiCiTests(unittest.TestCase):
         self.assertEqual({page["name"] for page in pages}, covered)
         self.assertIn("load-swap-full-rankings-motion-system", covered)
 
+    def test_paths_swap_runs_every_page(self):
+        # Issue #430 (#70): every Paths swap page (normal, 225% text, Reduce Motion, Animation effects off and the wide
+        # RadioButtons keyboard page) runs in windows-ui, Axe-scanned, at a size the page supports.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-swap.json"]
+        self.assertEqual({"normal", "text-225", "no-animations"}, {run.mode for run in runs})
+        self.assertTrue(all(run.scan and not run.only for run in runs))
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-swap.json").read_text(encoding="utf-8"))
+        covered = {(page["name"], run.mode) for run in runs for page in m.mode_pages(pages, run.mode)
+                   if m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({page["name"] for page in pages}, {name for name, _ in covered})
+        self.assertIn(("paths-swap", "text-225"), covered)
+        self.assertIn(("paths-swap-keyboard-wide", "text-225"), covered)
+        self.assertIn(("paths-swap-motion-system", "no-animations"), covered)
+        swap = next(page for page in pages if page["name"] == "paths-swap")["after_ready"]
+        for check in ("waitgone:id=fst.paths.image@3", "assertannounced:Loading Lead Hard path@5",
+                      "assertread:id=fst.paths.loading|Busy Loading path, ProgressRing",
+                      "assertstate:id=fst.paths.difficulty.compact|enabled=true",
+                      "assertannounced:Lead Hard path image loaded@5", "assertsize:id=fst.paths.zoom-in|40x40",
+                      "assertsize:id=fst.paths.zoom-out|40x40"):
+            self.assertIn(check, swap)
+        # Design review: the wide instrument circles and every Difficulty/Display radio are 40 epx targets, mid-swap
+        # and settled (page-tools-and-nav-chrome R10).
+        wide = next(page for page in pages if page["name"] == "paths-swap-keyboard-wide")["after_ready"]
+        loading = wide.index("waitfor:id=fst.paths.loading@3")
+        settled = wide.index("waitfor:name=Lead Hard CHOpt path@15")
+        for choice in ("Hard", "Expert"):
+            self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[loading:settled])
+        for choice in ("Easy", "Medium", "Hard", "Expert", "Image", "Text"):
+            self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[settled:])
+        self.assertIn("assertsize:id=fst.paths.instrument.Solo_Guitar|40x40", wide[settled:])
+
+    def test_paths_instrument_picker_runs_in_ci(self):
+        # Issue #439 (#88): the compact Instrument ComboBox opens, reads each option by name in order without Karaoke,
+        # every option is a 40 epx target, and pointer and keyboard switches announce and keep focus. Checked in
+        # windows-ui at default and 225% text and with Animation effects off, Axe-scanned open and after the switch.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-swap.json"]
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-swap.json").read_text(encoding="utf-8"))
+        page = next(page for page in pages if page["name"] == "paths-instrument-picker")
+        self.assertTrue(page["scan"])
+        modes = {run.mode for run in runs if page in m.mode_pages(pages, run.mode)
+                 and m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({"normal", "text-225", "no-animations"}, modes)
+        steps = page["after_ready"]
+        expand = steps.index("expand:id=fst.paths.instrument.compact")
+        select = steps.index("select:name=Bass&class=ComboBoxItem")
+        for check in ("assertread:id=fst.paths.instrument.compact|Instrument, combo box, expanded",
+                      "assertread:name=Lead&class=ComboBoxItem|Lead, list item, selected",
+                      "assertbelow:name=Tap Vocals&class=ComboBoxItem|name=Drums&class=ComboBoxItem",
+                      "waitgone:name=Karaoke&class=ComboBoxItem@1", "scan:{stem}-open"):
+            self.assertIn(check, steps[expand:select])
+        for choice in ("Lead", "Bass", "Drums", "Tap Vocals"):
+            self.assertIn(f"assertsize:name={choice}&class=ComboBoxItem|40x40", steps[expand:select])
+        for check in ("assertannounced:Loading Bass Expert path@5", "assertstate:id=fst.paths.instrument.compact|value=Bass@5",
+                      "key:alt+down", "assertannounced:Loading Lead Expert path@5",
+                      "assertfocus:id=fst.paths.instrument.compact@3", "assertfocus:id=fst.paths.difficulty.compact@3"):
+            self.assertIn(check, steps[select:])
+
+    def test_paths_chart_runs_every_page(self):
+        # Issue #438 (#87, #279): the chart's centring, hidden scroll bars, names, order and keyboard panning are checked
+        # in windows-ui at default and 225% text, every page, Axe-scanned.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-chart.json"]
+        self.assertEqual({"normal", "text-225"}, {run.mode for run in runs})
+        self.assertTrue(all(run.scan and not run.only for run in runs))
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-chart.json").read_text(encoding="utf-8"))
+        for mode in ("normal", "text-225"):
+            covered = {page["name"] for run in runs if run.mode == mode for page in m.mode_pages(pages, run.mode)
+                       if m.page_sizes(page, run.sizes.split(","), run.mode)}
+            self.assertEqual({page["name"] for page in pages}, covered)
+        for page in pages:
+            steps = page["after_ready"]
+            for check in ("assertread:id=fst.paths.image-scroller|Path chart, pane",
+                          "assertread:id=fst.paths.image|Lead Expert CHOpt path, image",
+                          "assertnoscrollbar:id=fst.paths.image-scroller",
+                          "assertaligned:id=fst.paths.image|id=fst.paths.image-scroller"):
+                self.assertIn(check, steps)
+        chart = next(page for page in pages if page["name"] == "paths-chart")["after_ready"]
+        zoomed = chart.index("waitfor:name=225%@5")
+        restored = chart.index("waitfor:name=100%@5")
+        for check in ("assertfocus:id=fst.paths.image-scroller@3", "key:end",
+                      "assertstate:id=fst.paths.image-scroller|scroll=100@3", "assertnoscrollbar:id=fst.paths.image-scroller"):
+            self.assertIn(check, chart[zoomed:restored])
+        self.assertIn("assertaligned:id=fst.paths.image|id=fst.paths.image-scroller", chart[restored:])
+
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)
         argv = run.argv(Path("C:/out"), "debug")
@@ -216,23 +533,63 @@ class UiCiTests(unittest.TestCase):
     def test_workflow_builds_and_dispatches(self):
         text = _WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("runs-on: windows-latest", text)
-        self.assertIn("pull_request:", text)
-        for path in ("'windows/**'", "'tools/windows/**'", "'.github/workflows/windows-ui.yml'"):
-            self.assertIn(path, text)
+        # Release train: dispatched by the release machine on releases/YYMM.DD only (not on PRs or master).
+        self.assertIn("workflow_dispatch:", text)
+        self.assertNotIn("pull_request:", text.split("permissions:")[0])
         build, display = text.index("tools/windows/build.ps1"), text.index("tools/windows/ci_display.ps1")
-        dispatch = text.index("python tools/windows/ui_ci.py --out")
+        dispatch = text.index("python tools/windows/ui_ci.py --tier")
+        self.assertIn("--tier full", text)
         self.assertLess(display, dispatch)
         self.assertLess(build, dispatch)
         self.assertNotIn("--live", text)  # fixtures only: no service calls from CI
 
     def test_one_registry_and_dispatcher(self):
-        """#415 review: ``RUNS`` + ``windows-ui.yml`` is the only accessibility-journey gate; no second manifest or job
-        (``native.yml`` lacked the hard-failing ``ci_display.ps1`` and let wide/compact clamp silently)."""
+        """Accessibility pages and feature journeys share the one ``windows-ui`` aggregate check."""
         self.assertFalse((ci.JOURNEYS / "ci-ui.json").exists())
-        self.assertFalse((ci.JOURNEYS.parent / "ci_ui.py").exists())
+        self.assertTrue((ci.JOURNEYS.parent / "ci_ui.py").exists())
         native = (_REPO / ".github" / "workflows" / "native.yml").read_text(encoding="utf-8")
         self.assertNotIn("a11y_matrix", native)
         self.assertNotIn("ui_ci.py", native)
+
+    def test_generated_runs_cover_fixture_a11y_pages(self):
+        """Every fixture-backed a11y page runs in CI (in its first declared mode, or normal and large text) unless it
+        is ``live_only`` or visibly skipped."""
+        skips = json.loads((ci.JOURNEYS.parent / "ci_skip.json").read_text(encoding="utf-8")).get("a11y_pages", {})
+        covered = {(run.pages, page) for run in ci.RUNS
+                   for page in (run.only.split(",") if run.only else
+                                [item["name"] for item in json.loads((ci.JOURNEYS / run.pages).read_text(encoding="utf-8"))])}
+        for source in ci.JOURNEYS.glob("a11y-*.json"):
+            for page in json.loads(source.read_text(encoding="utf-8")):
+                name = page["name"]
+                if "live" not in name.lower() and not page.get("live_only") and name not in skips:
+                    self.assertIn((source.name, name), covered)
+
+    def test_generated_runs_follow_page_sizes(self):
+        """A page limited to medium (the Shop row pages) still runs at 225% text: its run adds the first size the page
+        allows instead of leaving it with an empty compact pass, while pages without ``sizes`` keep compact."""
+        pages = [{"name": "free"}, {"name": "medium-only", "sizes": ["medium", "wide"]},
+                 {"name": "wide-only", "sizes": ["wide"]}]
+        with tempfile.TemporaryDirectory() as tmp:
+            journeys = Path(tmp) / "journeys"
+            journeys.mkdir()
+            (journeys / "a11y-probe.json").write_text(json.dumps(pages), encoding="utf-8")
+            with mock.patch.object(ci, "JOURNEYS", journeys):
+                runs = {run.name: run for run in ci.generated_runs(())}
+        self.assertEqual((runs["a11y-probe-text-225"].sizes, runs["a11y-probe-text-225"].only),
+                         ("compact,medium,wide", "free,medium-only,wide-only"))
+        self.assertEqual((runs["a11y-probe-normal"].sizes, runs["a11y-probe-normal"].only),
+                         ("compact,medium,wide", "free,medium-only,wide-only"))
+        for page in pages:
+            self.assertTrue(m.page_sizes(page, runs["a11y-probe-text-225"].sizes.split(","), "text-225"))
+
+
+    def test_pr_tier_is_normal_mode_at_compact_and_full_is_everything(self):
+        pr = ci.tier_runs(list(ci.RUNS), "pr")
+        self.assertTrue(pr)
+        self.assertTrue(all(run.mode == "normal" and "," not in run.sizes for run in pr))
+        self.assertLessEqual({run.name for run in pr}, {run.name for run in ci.RUNS if run.mode == "normal"})
+        self.assertTrue(all(ci.run_pages(run) for run in pr))
+        self.assertEqual(ci.tier_runs(list(ci.RUNS), "full"), list(ci.RUNS))
 
 
 if __name__ == "__main__":

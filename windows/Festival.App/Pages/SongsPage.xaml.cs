@@ -130,6 +130,7 @@ public sealed partial class SongsPage : Page, IPageBack
         Zoom.ViewChangeStarted += (_, _) => SizeJumpCells();
         edgeFade = new TopEdgeFade(ListFadeSource, ListFadeHost);
         Loaded += (_, _) => AttachEdgeFadeSettings();
+        Loaded += OnReturned;
         Unloaded += (_, _) => DetachEdgeFadeSettings();
     }
 
@@ -146,6 +147,35 @@ public sealed partial class SongsPage : Page, IPageBack
     {
         base.OnNavigatedTo(e);
         await ViewModel.AppearCommand.ExecuteAsync(null);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// A cached page left mid-push keeps its rows (issue #560), so it ends the push here: the in-list title PushLayer was
+    /// drawing over is shown again and the copy hidden; <see cref="OnReturned"/> reads the pinned header again on Back.
+    /// </remarks>
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+        ShowIncoming(null);
+    }
+
+    /// <summary>
+    /// Reads the pinned header again when the cached page is shown again, and once more after its first layout pass:
+    /// the list keeps its place, so no view change would otherwise restore a push that was in flight when it left.
+    /// </summary>
+    /// <param name="sender">Page.</param>
+    /// <param name="e">Unused.</param>
+    private void OnReturned(object sender, RoutedEventArgs e)
+    {
+        if (scroller is null) return;
+        UpdateStickyHeader();
+        void Settled(object? _, object __)
+        {
+            SongList.LayoutUpdated -= Settled;
+            UpdateStickyHeader();
+        }
+        SongList.LayoutUpdated += Settled;
     }
 
     #region List
@@ -636,8 +666,33 @@ public sealed partial class SongsPage : Page, IPageBack
                 trailing.Children.Add(text);
             }
         }
+        // Web InvalidScoreIcon: last in the row's trailing strip, after chips, pills or the score state.
+        if (row.Warning is { } warning)
+        {
+            var indicator = new InvalidScoreIndicator(warning, row.Song.SongId);
+            indicator.Click += OnInvalidScoreClick;
+            trailing.Children.Add(indicator);
+        }
         var wrapped = secondary.Children.Count > 0;
         card.SetWrapped(wrapped);
+    }
+
+    /// <summary>
+    /// The indicator's Filtered Score alert (web <c>InvalidScoreIcon</c> confirm alert): OK dismisses, Settings opens
+    /// Settings (where Filter Invalid Scores and the leeway live).
+    /// </summary>
+    /// <param name="sender">Indicator.</param>
+    /// <param name="e">Unused.</param>
+    private async void OnInvalidScoreClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not InvalidScoreIndicator { Warning: var warning } || XamlRoot is null) return;
+        var message = new TextBlock { Text = warning.Message, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true };
+        AutomationProperties.SetAutomationId(message, InvalidScoreWarning.MessageAutomationId);
+        var dialog = FestivalDialog.Create(XamlRoot, InvalidScoreWarning.Title, message,
+            InvalidScoreWarning.AlertAutomationId,
+            closeText: InvalidScoreWarning.OkCommand,
+            primaryText: InvalidScoreWarning.SettingsCommand);
+        if (await FestivalDialog.ShowAsync(dialog) == ContentDialogResult.Primary) MainWindow.Instance?.ShowSettings();
     }
 
     /// <summary>Loads a row thumbnail unless the container is recycled first.</summary>
@@ -734,9 +789,10 @@ public sealed partial class SongsPage : Page, IPageBack
     private double MetadataRequiredWidth(bool namesChart)
     {
         var settings = App.Session.Settings;
+        var indicator = settings.FilterInvalidScores && App.Session.HasPlayer;
         var key = string.Join('|', settings.MetadataScore, settings.MetadataPercentage, settings.MetadataPercentile, settings.MetadataStars,
             settings.MetadataSeason, settings.MetadataIntensity, settings.MetadataDifficulty, settings.MetadataLastPlayed, namesChart,
-            fadeUiSettings.TextScaleFactor, ContrastTheme.IsOn);
+            indicator, fadeUiSettings.TextScaleFactor, ContrastTheme.IsOn);
         if (key == metadataMeasureKey) return metadataRequired;
         var unbounded = new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity);
         var widths = SongMetadataLayout.WidestSamples(settings).Select(field =>
@@ -745,7 +801,7 @@ public sealed partial class SongsPage : Page, IPageBack
             pill.Measure(unbounded);
             return pill.DesiredSize.Width;
         });
-        metadataRequired = SongMetadataLayout.RequiredWidth(widths, namesChart);
+        metadataRequired = SongMetadataLayout.RequiredWidth(widths, namesChart, indicator);
         metadataMeasureKey = key;
         return metadataRequired;
     }

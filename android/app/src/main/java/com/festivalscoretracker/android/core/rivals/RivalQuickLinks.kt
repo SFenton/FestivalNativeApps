@@ -8,8 +8,9 @@ import com.festivalscoretracker.android.core.quicklinks.QuickLinkSection
 
 /**
  * Quick Links sections for Compete and the Rivals pages (web `CompetePage`,
- * `RivalsPage`/`LeaderboardRivalsTab`, `RivalDetailPage`, `RivalryPage`). Pure: the
- * pages pass what they render and map each section ID back to its grid item.
+ * `RivalsPage`/`LeaderboardRivalsTab`, `RivalDetailPage`). Pure: the pages pass what
+ * they render and map each section ID back to its grid item. Rivalry has none: the web's
+ * one link per song only repeated the list (owner, #545).
  */
 object RivalQuickLinks {
     /** Web Compete group IDs. */
@@ -57,41 +58,36 @@ object RivalQuickLinks {
      */
     fun categoryId(key: String): String = "rival-category:$key"
 
+    /** Icon token for a category key outside the shared list, so every row keeps an icon. */
+    const val FALLBACK_CATEGORY_ICON = "people"
+
     /**
-     * Rival Detail: one section per shown category (web: title as label and landmark, no icon).
+     * Icon token of one Rival Detail category (pattern `quick-links` R9, #605): neck and neck,
+     * closing in, falling behind, a narrow win, a growing lead, a commanding lead. The UI maps
+     * each token to a Material Symbol (`quickLinkIcon`).
+     *
+     * @param key Category key ([RivalCategory.key]).
+     * @return Icon token; [FALLBACK_CATEGORY_ICON] for an unknown key.
+     */
+    fun categoryIcon(key: String): String = when (key) {
+        "closest_battles" -> "compare"
+        "almost_passed" -> "trending-up"
+        "slipping_away" -> "trending-down"
+        "barely_winning" -> "finish-flag"
+        "pulling_forward" -> "fast-forward"
+        "dominating_them" -> "medal"
+        else -> FALLBACK_CATEGORY_ICON
+    }
+
+    /**
+     * Rival Detail: one section per shown category (web: title as label and landmark). Each row
+     * carries its category's decorative icon (#605; the web has none there).
      *
      * @param categories Categories in page order.
      * @return Sections.
      */
     fun rivalDetail(categories: List<RivalCategory>): List<QuickLinkSection> =
-        categories.map { QuickLinkSection(categoryId(it.key), it.title) }
-
-    /**
-     * Web `rivalrySongQuickLinkId`.
-     *
-     * @param song Compared song.
-     * @param index Position in the list.
-     * @return `<songId>:<instrument>:<index>`.
-     */
-    fun songId(song: RivalSongComparison, index: Int): String = "${song.songId}:${song.instrument}:$index"
-
-    /**
-     * Rivalry: one section per song (web: the title, else the song ID; the landmark adds the
-     * chart, "Title (Lead)"; the chart icon).
-     *
-     * @param songs Songs in page order.
-     * @return Sections.
-     */
-    fun rivalry(songs: List<RivalSongComparison>): List<QuickLinkSection> = songs.mapIndexed { index, song ->
-        val label = song.title?.takeIf { it.isNotBlank() } ?: song.songId
-        val chart = song.chart
-        QuickLinkSection(
-            id = songId(song, index),
-            title = label,
-            instrument = chart,
-            spokenTitle = "$label (${chart?.label ?: song.instrument})",
-        )
-    }
+        categories.map { QuickLinkSection(categoryId(it.key), it.title, icon = categoryIcon(it.key)) }
 }
 
 // endregion

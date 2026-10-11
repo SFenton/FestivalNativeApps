@@ -7,7 +7,7 @@ name: version-bump
 # .agents/workflow/release-machine.md ("Versions, notes and What's New").
 on:
   push:
-    branches: [master]
+    branches: ['releases/**']
   workflow_dispatch:
     inputs:
       platform:
@@ -28,7 +28,9 @@ concurrency:
   cancel-in-progress: false
 jobs:
   version-bump:
-    if: github.ref == 'refs/heads/master'
+    # Release train: versions (and the TestFlight/Play internal/Store builds they dispatch) come only from the
+    # weekly releases/YYMM.DD branch: its cut and each cherry-picked fix. Master merges don't build.
+    if: startsWith(github.ref, 'refs/heads/releases/')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -48,7 +50,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          args=(bump --head "$GITHUB_SHA" --push --dispatch)
+          args=(bump --head "$GITHUB_SHA" --push --dispatch --release)
           if [ -n "${PLATFORM:-}" ] && [ "$PLATFORM" != "all" ]; then args+=(--platform "$PLATFORM"); fi
           if [ "${FORCE:-false}" = "true" ]; then args+=(--force); fi
           python3 tools/release/versioning.py "${args[@]}" | tee "$RUNNER_TEMP/bump.json"

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -24,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -32,10 +34,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -60,10 +64,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.navigation.NavBackStackEntry
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.search.PxRect
 import com.festivalscoretracker.android.core.search.SearchPresentation
+import com.festivalscoretracker.android.core.shell.BottomChromeSpacing
+import com.festivalscoretracker.android.core.shell.PxSpan
 import com.festivalscoretracker.android.ui.search.GlobalSearchEntry
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 
@@ -79,11 +87,15 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * @property profileChip The profile chip's action: the selected profile's page (Statistics), or
  *   profile selection when none is selected ([com.festivalscoretracker.android.core.shell.ProfileChipPolicy]).
  * @property selectedPlayer Current selected player.
- * @property bottomPadding Space reserved by the bottom bar / system navigation.
+ * @property bottomPadding Bottom chrome the content does not already clear: the system navigation
+ *   bar beside a rail or drawer (0 above the bottom bar), plus the end safe inset. [FestivalScreen]
+ *   adds the floating toolbar's band while it shows tools and one standard gap
+ *   ([BottomChromeSpacing], `page-tools-and-nav-chrome` R7, issue #578).
  * @property search Global search entry point (`.agents/controls/global-search/android.md`).
  * @property notifications Bell slot between search and the avatar, when notifications exist.
- * @property floatingToolbar Compact windows: the floating toolbar that takes screen actions and
- *   search ([FloatingToolbar]); null when actions belong in the top app bar.
+ * @property floatingToolbar The shell's floating toolbar that takes screen actions at every window
+ *   size ([FloatingToolbar], `page-tools-and-nav-chrome` R4, #576); null only outside the shell
+ *   (previews, isolated tests), where the actions fall back to the top app bar.
  */
 @Immutable
 data class ShellActions(
@@ -113,6 +125,9 @@ data class SearchChrome(
     val report: (PxRect) -> Unit = {},
 )
 
+/** [FestivalScreen]'s default actions: none, so the page expects no floating toolbar (issue #578). */
+val NoPageActions: @Composable RowScope.() -> Unit = {}
+
 /** Shell hooks for the current screen. */
 val LocalShellActions = staticCompositionLocalOf { ShellActions() }
 
@@ -122,17 +137,21 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
 
 /**
  * Standard screen chrome: transparent top app bar over the shared backdrop, the
- * drawer button on tab roots, back on pushed screens, then screen actions (in the floating
- * toolbar on compact windows), global search, the notifications slot and the profile avatar
- * as the rightmost action.
+ * drawer button on tab roots, back on pushed screens, global search, the notifications slot and
+ * the profile avatar as the rightmost action; screen actions float in the shell's toolbar at
+ * every window size (`page-tools-and-nav-chrome` R4, owner-approved #576).
  *
- * @param title Title Case title.
+ * @param title Title Case title, drawn by [FestivalBarTitle]: one line that scrolls when it
+ *   overflows the bar (`page-tools-and-nav-chrome` R21, issue #597; a pinned song title,
+ *   `song-header` R4, issue #315) and truncates under Remove animations.
  * @param isRoot Whether this is a tab root.
  * @param modifier Modifier.
- * @param actions Screen actions, placed before search and the avatar.
- * @param pinActions On compact windows, keep the floating toolbar holding [actions] on screen
- *   while the page scrolls instead of hiding it (Songs, Suggestions: issue #52).
- * @param actionsReadFirst On compact windows, TalkBack and keyboard focus reach the floating toolbar
+ * @param actions Screen actions, placed before search and the avatar. The floating toolbar
+ *   holding them stays on screen while the page scrolls (R7, issues #52, #577).
+ * @param primaryAction The page's primary action as its own pill beside the floating toolbar, in
+ *   the same row (owner-approved `page-tools-and-nav-chrome` R6 variant, #590: only the player page
+ *   and Statistics, for Select/Switch); outside the shell it leads the top-bar page actions.
+ * @param actionsReadFirst TalkBack and keyboard focus reach the floating toolbar
  *   holding [actions] right after the top app bar instead of after the content: an endless feed
  *   (Suggestions) never ends, so a toolbar read last is unreachable by swiping (issue #112); a
  *   ~700-row list (Songs) is effectively the same (issue #160).
@@ -141,14 +160,22 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  * @param titleIcon Decorative icon drawn before the title (Instrument Leaderboards, issue #294),
  *   given the title's line height so it scales with the font size. It must not add its own
  *   accessibility label: the title already names what it shows.
- * @param marqueeTitle The title is a song title pinned once the page's song header scrolls away:
- *   it scrolls through the bar's available width when it overflows ([FestivalMarqueeText], one
- *   line at every text size) instead of tail-truncating (`song-header` R3, issue #315).
+ * @param subtitle The pinned title's second line (a song board's instrument or band size,
+ *   `song-header` R4, issue #580), in Material 3's small-bar subtitle style (Label Medium under
+ *   the Title Large title; TalkBack reads both as one stop). It shows
+ *   only while [title] is non-empty, so a bar left empty under an in-page header stays empty.
+ *   Pass it on every frame of a page (not only once scrolled): the bar then keeps one height,
+ *   grown at large text to fit both lines, and never jumps when the title appears.
+ * @param subtitleIcon Decorative icon leading [subtitle] (the board's instrument), given the
+ *   subtitle's line height so it scales with the text. It must not add its own accessibility
+ *   label: the subtitle names the instrument.
  * @param fadeInWindow The page's fade window ([rememberPageFadeInWindow]), provided to [content]
  *   as [LocalFadeInWindow] and rushed when the content scrolls (load-transition R5, issue #323).
  *   Pass one created in the page body when the body itself scrolls (a selected-row reveal,
  *   Quick Links); by default the screen creates its own.
- * @param content Content given padding that clears the top bar and bottom chrome.
+ * @param content Content given padding that clears the top bar and bottom chrome: its bottom ends
+ *   one standard gap above the chrome actually shown (the floating toolbar while it shows tools,
+ *   else the bottom bar), so pages add no bottom margin of their own (R7, issue #578).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -156,16 +183,19 @@ fun FestivalScreen(
     title: String,
     isRoot: Boolean,
     modifier: Modifier = Modifier,
-    actions: @Composable RowScope.() -> Unit = {},
-    pinActions: Boolean = false,
+    actions: @Composable RowScope.() -> Unit = NoPageActions,
+    primaryAction: FloatingToolbarAction? = null,
     actionsReadFirst: Boolean = false,
     scrolled: Boolean = false,
     titleIcon: (@Composable (size: Dp) -> Unit)? = null,
-    marqueeTitle: Boolean = false,
+    subtitle: String? = null,
+    subtitleIcon: (@Composable (size: Dp) -> Unit)? = null,
     fadeInWindow: FadeInWindow? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val shell = LocalShellActions.current
+    val splitPane = LocalSplitPane.current
+    val entryId = (LocalViewModelStoreOwner.current as? NavBackStackEntry)?.id
     val ownFadeInWindow = rememberPageFadeInWindow()
     val pageFadeIn = fadeInWindow ?: ownFadeInWindow
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -182,12 +212,27 @@ fun FestivalScreen(
     LaunchedEffect(titleTruncated, pageActionsWidth, widthPx) {
         collapsedAtPx = TopBarActionFit.afterTitleLayout(titleTruncated, inlineActions, pageActionsWidth > 0, widthPx, collapsedAtPx)
     }
-    // Compact windows: page actions float over the bottom bar (web bottom dock); global search
-    // stays in the top app bar on every window size (operator 2026-09-28).
+    // Page actions float in the shell's toolbar at every window size (owner, #576), over this
+    // screen's pane; global search stays in the top app bar (operator 2026-09-28).
+    val pane = remember { mutableStateOf<PxSpan?>(null) }
     val toolbarReadsFirst = shell.floatingToolbar != null && actionsReadFirst
-    if (shell.floatingToolbar != null) {
-        FloatingToolbarContent(pinned = pinActions, readFirst = actionsReadFirst) { actions() }
+    // The toolbar row's drawn height (0 while it shows no tools and no primary action) sets where
+    // the content ends (R7, issue #578). Until it is drawn: its last height on this page (back keeps
+    // place), else the pill's height, or none for a page without actions.
+    var lastToolbarHeight by rememberSaveable { mutableStateOf<Float?>(null) }
+    val expectsNoToolbar = actions === NoPageActions && primaryAction == null
+    val expectedToolbarHeight = lastToolbarHeight ?: if (expectsNoToolbar) 0f else BottomChromeSpacing.TOOLBAR_HEIGHT_DP.toFloat()
+    val toolbarHeight = if (shell.floatingToolbar != null) {
+        FloatingToolbarContent(
+            readFirst = actionsReadFirst,
+            pane = pane,
+            initialHeightDp = expectedToolbarHeight,
+            companion = primaryAction,
+        ) { actions() } ?: expectedToolbarHeight
+    } else {
+        0f
     }
+    if (shell.floatingToolbar != null) SideEffect { lastToolbarHeight = toolbarHeight }
     Scaffold(
         modifier = modifier
             .onSizeChanged { widthPx = it.width }
@@ -195,79 +240,103 @@ fun FestivalScreen(
                 val left = it.positionInWindow().x.toInt()
                 leftGapPx = left
                 rightGapPx = it.findRootCoordinates().size.width - left - it.size.width
+                val span = PxSpan(left, left + it.size.width)
+                if (pane.value != span) pane.value = span
             }
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0),
         topBar = {
-            TopAppBar(
-                // A read-first toolbar (traversal index -1) would otherwise precede the bar's
-                // ungrouped items (index 0), so the bar becomes one group read before it.
-                modifier = Modifier
-                    .testTag("fst.nav.top-bar")
-                    .then(if (toolbarReadsFirst) Modifier.semantics { isTraversalGroup = true; traversalIndex = TOP_BAR_TRAVERSAL_INDEX } else Modifier),
-                // Only the cutout / system-bar insets this pane actually reaches (issue #101).
-                windowInsets = PaneInsets(TopAppBarDefaults.windowInsets, leftGapPx, rightGapPx),
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (titleIcon != null) {
-                            // The bar's title style (M3 Title Large, 28 sp line), so the icon follows the font scale.
-                            val iconSize = with(LocalDensity.current) { LocalTextStyle.current.lineHeight.toDp() }
-                            Box(Modifier.padding(end = 12.dp).testTag("fst.nav.title-icon")) { titleIcon(iconSize) }
-                        }
-                        if (marqueeTitle) {
-                            // `song-header` R3: the pinned song title scrolls in the bar's full width.
-                            FestivalMarqueeText(
-                                title,
-                                Modifier.weight(1f, fill = false).testTag("fst.nav.title"),
-                                fontWeight = FontWeight.Bold,
-                                wrapAtLargeText = false,
-                                onOverflowChange = { titleTruncated = it },
-                            )
-                        } else {
-                            Text(
-                                title,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                onTextLayout = { titleTruncated = it.hasVisualOverflow || (it.lineCount > 0 && it.isLineEllipsized(0)) },
-                                modifier = Modifier.weight(1f, fill = false).testTag("fst.nav.title"),
-                            )
+            // A read-first toolbar (traversal index -1) would otherwise precede the bar's
+            // ungrouped items (index 0), so the bar becomes one group read before it.
+            val barModifier = Modifier
+                .testTag("fst.nav.top-bar")
+                .then(if (toolbarReadsFirst) Modifier.semantics { isTraversalGroup = true; traversalIndex = TOP_BAR_TRAVERSAL_INDEX } else Modifier)
+            // Only the cutout / system-bar insets this pane actually reaches (issue #101).
+            val barInsets = PaneInsets(TopAppBarDefaults.windowInsets, leftGapPx, rightGapPx)
+            val titleRow: @Composable () -> Unit = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (titleIcon != null) {
+                        // The bar's title style (M3 Title Large, 28 sp line), so the icon follows the font scale.
+                        val iconSize = with(LocalDensity.current) { LocalTextStyle.current.lineHeight.toDp() }
+                        Box(Modifier.padding(end = 12.dp).testTag("fst.nav.title-icon")) { titleIcon(iconSize) }
+                    }
+                    FestivalBarTitle(title, Modifier.weight(1f, fill = false), onOverflowChange = { titleTruncated = it })
+                }
+            }
+            // `song-header` R4 (issue #580): with a subtitle the pinned title stacks over it as in
+            // Material 3's small top app bar with subtitle (Title Large over Label Medium; that
+            // overload is not public in Material3 1.4), read by TalkBack as one stop.
+            val titleSlot: @Composable () -> Unit = if (subtitle == null) titleRow else {
+                {
+                    // Merged only while it has text: an empty merged node is an unlabelled TalkBack stop.
+                    val block = if (title.isNotEmpty()) Modifier.semantics(mergeDescendants = true) {} else Modifier
+                    Column(block.testTag("fst.nav.title-block")) {
+                        titleRow()
+                        if (title.isNotEmpty()) {
+                            ProvideTextStyle(MaterialTheme.typography.labelMedium) { PinnedTitleSubtitle(subtitle, subtitleIcon) }
                         }
                     }
-                },
-                navigationIcon = {
-                    when {
-                        !isRoot -> IconButton(onClick = shell.back, modifier = Modifier.testTag("fst.nav.back")) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                        }
-                        shell.openDrawer != null -> IconButton(onClick = shell.openDrawer, modifier = Modifier.testTag("fst.nav.drawer")) {
-                            Icon(Icons.Filled.Menu, contentDescription = "Open menu")
-                        }
+                }
+            }
+            val navigationSlot: @Composable () -> Unit = {
+                when {
+                    // The trailing pane's first page closes the pane (Apple SplitPaneChrome, #583).
+                    splitPane != null && splitPane.isRoot(entryId) -> IconButton(onClick = splitPane.close, modifier = Modifier.testTag("fst.split.close")) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close")
                     }
-                },
-                actions = {
-                    val global: @Composable RowScope.() -> Unit = {
+                    !isRoot -> IconButton(onClick = shell.back, modifier = Modifier.testTag("fst.nav.back")) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                    shell.openDrawer != null -> IconButton(onClick = shell.openDrawer, modifier = Modifier.testTag("fst.nav.drawer")) {
+                        Icon(Icons.Filled.Menu, contentDescription = "Open menu")
+                    }
+                }
+            }
+            val actionsSlot: @Composable RowScope.() -> Unit = {
+                val global: @Composable RowScope.() -> Unit = {
+                    // One search entry, bell and avatar per window: the list page's bar holds them
+                    // while a trailing pane is open beside it (#583).
+                    if (splitPane == null) {
                         GlobalSearchEntry(shell.search)
                         shell.notifications?.invoke()
                         // Every page, pushed pages included (operator batch 7.12).
                         ProfileAvatarButton(shell.selectedPlayer, shell.profileChip)
                     }
-                    if (shell.floatingToolbar == null) {
-                        AdaptiveTopBarActions(inlineActions, onPageWidth = { pageActionsWidth = it }, page = actions, global = global)
-                    } else {
-                        global()
+                }
+                // Outside the shell (previews, isolated tests) there is no toolbar to float in.
+                if (shell.floatingToolbar == null) {
+                    val page: @Composable RowScope.() -> Unit = {
+                        primaryAction?.let { FloatingToolbarActionButton(it) }
+                        actions()
                     }
-                },
-                // Transparent in every scroll state (batch 6.20: no translucent slab appears behind
-                // the header on scroll). Content is clipped below the bar, so nothing shows through.
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent,
-                    scrolledContainerColor = Color.Transparent,
-                    titleContentColor = BrandTokens.textPrimary,
-                    navigationIconContentColor = BrandTokens.textPrimary,
-                    actionIconContentColor = BrandTokens.textPrimary,
-                ),
+                    AdaptiveTopBarActions(inlineActions, onPageWidth = { pageActionsWidth = it }, page = page, global = global)
+                } else {
+                    global()
+                }
+            }
+            // Transparent in every scroll state (batch 6.20: no translucent slab appears behind
+            // the header on scroll). Content is clipped below the bar, so nothing shows through.
+            val barColors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent,
+                navigationIconContentColor = BrandTokens.textPrimary,
+                titleContentColor = BrandTokens.textPrimary,
+                actionIconContentColor = BrandTokens.textPrimary,
+            )
+            // Grown only when large text needs room for both lines; one height on the page either way.
+            val typography = MaterialTheme.typography
+            val barHeight = if (subtitle == null) TopAppBarDefaults.TopAppBarExpandedHeight else with(LocalDensity.current) {
+                PinnedTitleBar.height(typography.titleLarge.lineHeight.toDp(), typography.labelMedium.lineHeight.toDp())
+            }
+            TopAppBar(
+                title = titleSlot,
+                modifier = barModifier,
+                navigationIcon = navigationSlot,
+                actions = actionsSlot,
+                expandedHeight = barHeight,
+                windowInsets = barInsets,
+                colors = barColors,
                 scrollBehavior = scrollBehavior,
             )
         },
@@ -294,12 +363,35 @@ fun FestivalScreen(
                         start = inner.calculateStartPadding(direction) + bottom.calculateStartPadding(direction),
                         top = 0.dp,
                         end = inner.calculateEndPadding(direction) + bottom.calculateEndPadding(direction),
-                        bottom = inner.calculateBottomPadding() + bottom.calculateBottomPadding(),
+                        bottom = inner.calculateBottomPadding() + BottomChromeSpacing.contentBottomDp(bottom.calculateBottomPadding().value, toolbarHeight).dp,
                     ),
                 )
             }
         }
     }
+}
+
+/**
+ * The top app bar's page title: one bold line in the bar's Title Large style that scrolls like
+ * the web's `MarqueeText` when it is wider than the bar's free width, stays still when it fits,
+ * and tail-truncates under Remove animations / Reduce Motion. It never wraps, even at large text
+ * (a 64 dp Material 3 small bar holds one title line). Every page title uses it, not only a
+ * pinned song title (`page-tools-and-nav-chrome` R21, issue #597; `song-header` R4, issue #315).
+ *
+ * @param title Title Case title.
+ * @param modifier Modifier (the row's weight decides the free width).
+ * @param onOverflowChange Told whether the title doesn't fit, so page actions of a screen outside
+ *   the shell can move to ⋮ (in the shell they always float, `page-tools-and-nav-chrome` R4, #576).
+ */
+@Composable
+internal fun FestivalBarTitle(title: String, modifier: Modifier = Modifier, onOverflowChange: (Boolean) -> Unit) {
+    FestivalMarqueeText(
+        title,
+        modifier.testTag("fst.nav.title"),
+        fontWeight = FontWeight.Bold,
+        wrapAtLargeText = false,
+        onOverflowChange = onOverflowChange,
+    )
 }
 
 /**
@@ -330,6 +422,48 @@ fun ProfileAvatarButton(player: SelectedPlayer?, onClick: () -> Unit) {
                 Text(player.initials, style = MaterialTheme.typography.labelLarge, color = BrandTokens.textPrimary, fontWeight = FontWeight.Bold)
             }
         }
+    }
+}
+
+// endregion
+
+// region Pinned title subtitle
+
+/** Height of the bar carrying a pinned title and its subtitle (`song-header` R4, issue #580). */
+internal object PinnedTitleBar {
+    /** Material 3 small top app bar container height, with or without a subtitle. */
+    val MIN_HEIGHT = 64.dp
+
+    /** Space kept above and below the two lines once they outgrow [MIN_HEIGHT]. */
+    val VERTICAL_PADDING = 8.dp
+
+    /**
+     * The bar's height for a title line over a subtitle line: Material 3's 64 dp until large
+     * text needs more, then both lines plus [VERTICAL_PADDING] on each side, so neither is clipped.
+     *
+     * @param titleLine Title line height (Title Large) at the current text size.
+     * @param subtitleLine Subtitle line height (Label Medium) at the current text size.
+     * @return The bar's expanded height.
+     */
+    fun height(titleLine: Dp, subtitleLine: Dp): Dp = maxOf(MIN_HEIGHT, titleLine + subtitleLine + VERTICAL_PADDING * 2)
+}
+
+/**
+ * The pinned title's second line: an optional decorative icon, then [text] on one line in the
+ * subtitle style the bar provides (M3 Label Medium). The icon takes that line's height, so it
+ * scales with the text, and adds nothing for TalkBack: the text names what it shows.
+ *
+ * @param text Subtitle (instrument name or band size).
+ * @param icon Decorative leading icon, or null.
+ */
+@Composable
+private fun PinnedTitleSubtitle(text: String, icon: (@Composable (size: Dp) -> Unit)?) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (icon != null) {
+            val iconSize = with(LocalDensity.current) { LocalTextStyle.current.lineHeight.toDp() }
+            Box(Modifier.padding(end = 4.dp).testTag("fst.nav.subtitle-icon")) { icon(iconSize) }
+        }
+        Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("fst.nav.subtitle"))
     }
 }
 

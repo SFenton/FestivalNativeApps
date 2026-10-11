@@ -35,6 +35,36 @@ object BandLayout {
     /** Narrowest side a hinge may leave for a pane or column. */
     const val MIN_SIDE = 200f
 
+    /** Band Detail section: Members. */
+    const val MEMBERS = "members"
+
+    /** Band Detail section: Band Summary. */
+    const val SUMMARY = "summary"
+
+    /** Band Detail section: Band Statistics. */
+    const val STATISTICS = "statistics"
+
+    /** Band Detail section: Band Rank History. */
+    const val RANK_HISTORY = "rank-history"
+
+    /** Band Detail section: Five Best Songs. */
+    const val BEST_SONGS = "best-songs"
+
+    /** Band Detail section: Five Worst Songs. */
+    const val WORST_SONGS = "worst-songs"
+
+    /**
+     * Band Detail's two-pane rows, leading section first (`hinge-columns` R8, #584). Both sides of
+     * a row start on its top edge in one scrolling page, so sections never drift apart as the
+     * page scrolls, and reading row by row keeps the web's section order (Members, Summary,
+     * Statistics, Rank History, Songs).
+     */
+    val DETAIL_ROWS: List<Pair<String, String>> = listOf(
+        MEMBERS to SUMMARY,
+        STATISTICS to RANK_HISTORY,
+        BEST_SONGS to WORST_SONGS,
+    )
+
     /**
      * A vertical fold/hinge in content coordinates.
      *
@@ -218,6 +248,78 @@ object BandLayout {
         if (!largeText) return max(2, (contentWidth / STAT_TILE_MIN).toInt()).coerceAtMost(4)
         return max(1, (contentWidth / (STAT_TILE_MIN * max(1f, fontScale))).toInt()).coerceAtMost(4)
     }
+}
+
+// endregion
+
+// region Band card members
+
+/**
+ * Member lines on band cards (web `PlayerBandCard` `BandMemberRow`): one member per line, the
+ * name leading so every name in a card starts on the same edge, and the member's value and
+ * instrument icons trailing. A card is either inline (name beside icons) or, when any member
+ * can't fit, stacked (each name on its own line, its icons under it), never a mix, so the names
+ * stay aligned row to row (issue #589). All values in dp.
+ */
+object BandMemberFit {
+    /** Widest name a card reserves beside the icons (web `MAX_MEMBER_NAME_INLINE_WIDTH`); longer names scroll or truncate. */
+    const val NAME_MAX = 180f
+
+    /** Gap between a name, its value and its icons (web `BAND_MEMBER_INLINE_GAP`, `Gap.md`). */
+    const val INLINE_GAP = 8f
+
+    /** Gap between instrument icons on a band card. */
+    const val ICON_GAP = 4f
+
+    /** Gap between member lines (web `memberList` `Gap.md`). */
+    const val LINE_GAP = 8f
+
+    /**
+     * What one member needs on an inline line.
+     *
+     * @property nameWidth Laid-out one-line name width.
+     * @property valueWidth Laid-out value width (a member's song score), 0 for none.
+     * @property instruments Charted instrument icons.
+     */
+    data class Member(val nameWidth: Float, val valueWidth: Float = 0f, val instruments: Int = 0)
+
+    /**
+     * Width of a row of icons.
+     *
+     * @param count Icons.
+     * @param iconSize Icon size.
+     * @return Width, 0 for none.
+     */
+    fun iconRowWidth(count: Int, iconSize: Float): Float = if (count <= 0) 0f else count * iconSize + (count - 1) * ICON_GAP
+
+    /**
+     * Width one member needs inline: its name clamped to [BandLayout.MEMBER_NAME_MIN]…[NAME_MAX]
+     * (web `estimateMemberNameInlineWidth`), then its value and icons, each after [INLINE_GAP].
+     *
+     * @param member Member.
+     * @param iconSize Icon size.
+     * @return Width.
+     */
+    fun inlineWidth(member: Member, iconSize: Float): Float {
+        val name = member.nameWidth.coerceIn(BandLayout.MEMBER_NAME_MIN, NAME_MAX)
+        val value = if (member.valueWidth > 0f) INLINE_GAP + member.valueWidth else 0f
+        val icons = iconRowWidth(member.instruments, iconSize).let { if (it > 0f) INLINE_GAP + it else 0f }
+        return name + value + icons
+    }
+
+    /**
+     * Whether the whole card draws its members inline (web `resolveBandCardMemberLayouts`: one
+     * member that doesn't fit stacks every member). Large text always stacks, like Band Detail's
+     * member cards ([BandLayout.memberInline]).
+     *
+     * @param contentWidth Width of the members column.
+     * @param members Every member line in the card.
+     * @param iconSize Icon size.
+     * @param largeText Whether large-text reflow applies.
+     * @return True for name-beside-icons lines.
+     */
+    fun inline(contentWidth: Float, members: List<Member>, iconSize: Float, largeText: Boolean): Boolean =
+        !largeText && members.all { inlineWidth(it, iconSize) <= contentWidth }
 }
 
 // endregion

@@ -126,9 +126,10 @@ import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
  *
  * @param container Process dependencies.
  * @param shellViewModel Shell (effective settings).
+ * @param isRoot The Item Shop tab root (menu button, no Back; issue #601) rather than a pushed page.
  */
 @Composable
-fun ShopRouteScreen(container: AppContainer, shellViewModel: ShellViewModel) {
+fun ShopRouteScreen(container: AppContainer, shellViewModel: ShellViewModel, isRoot: Boolean = false) {
     val api = container.api
     val viewModel: ShopViewModel = viewModel {
         ShopViewModel(
@@ -149,6 +150,7 @@ fun ShopRouteScreen(container: AppContainer, shellViewModel: ShellViewModel) {
         onViewMode = { mode -> scope.launch { container.songsPreferences.setShopViewMode(mode) } },
         artworkUrl = api::artworkUrl,
         onRetry = container.shop::retry,
+        isRoot = isRoot,
     )
 }
 
@@ -166,6 +168,7 @@ fun ShopRouteScreen(container: AppContainer, shellViewModel: ShellViewModel) {
  * @param onViewMode Persist a layout.
  * @param artworkUrl Artwork resolver.
  * @param onRetry Retry the Shop read.
+ * @param isRoot Shown as the Item Shop tab root rather than pushed.
  */
 @Composable
 fun ShopScreen(
@@ -174,6 +177,7 @@ fun ShopScreen(
     onViewMode: (ShopViewMode) -> Unit,
     artworkUrl: (String?) -> String?,
     onRetry: () -> Unit,
+    isRoot: Boolean = false,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showFilter by rememberSaveable { mutableStateOf(false) }
@@ -190,7 +194,7 @@ fun ShopScreen(
         val contentHinge = if (effective == ShopViewMode.Grid) split.value else hinge
         FestivalScreen(
             title = "Item Shop",
-            isRoot = false,
+            isRoot = isRoot,
             actions = {
                 if (!state.hidden) {
                     // Sort before Filter, like Songs; both speak their state, not only their gold tint.
@@ -392,7 +396,7 @@ private fun ShopContent(
         StartPane(hinge) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
                 val side = shopSideMargin(maxWidth.value).dp
-                Column(Modifier.fillMaxSize().padding(start = side, end = side, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)) {
+                Column(Modifier.fillMaxSize().padding(start = side, end = side, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding())) {
                     if (state.detailsUnavailable) DetailsUnavailable(onRetryCatalog)
                     state.sortPaused?.let { Notice(it, "fst.shop.sort-paused") }
                     if (state.filteredEmpty) NoMatchingOffers(Modifier.weight(1f)) else EmptyShop(Modifier.weight(1f))
@@ -417,7 +421,7 @@ private fun ShopContent(
         val sideDp = shopSideMargin(maxWidth.value).dp
         val side = with(density) { sideDp.roundToPx() }
         val pageWidth = constraints.maxWidth
-        val contentPadding = PaddingValues(start = sideDp, end = sideDp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding() + 16.dp)
+        val contentPadding = PaddingValues(start = sideDp, end = sideDp, top = padding.calculateTopPadding(), bottom = padding.calculateBottomPadding())
         // The hinge in the content's leading-edge coordinates (the cells mirror back for RTL).
         val contentHinge = hinge?.let { (start, width) ->
             val left = start.roundToInt()
@@ -624,9 +628,11 @@ internal fun ShopGridCard(item: ShopOfferItem, artUrl: String?, pulse: () -> Flo
 
 /**
  * Item Shop list row: the shared Songs [SongRowCard] (glass surface, art, marquee title
- * and subtitle, red/gold outline pulse) with the New / Leaving Tomorrow badge under
- * the subtitle and the official Shop link (cart + chevron) as its own button. The row
- * opens Song Details when matched, else the official link; TalkBack reads its texts.
+ * and subtitle, red/gold outline pulse) with the Leaving Tomorrow badge under the
+ * subtitle and the official Shop link (cart + chevron) as its own button. New shows
+ * only the gold outline, like the web list (issue #562), and TalkBack hears it as the
+ * row's state ("…, New"). The row opens Song Details when matched, else the official
+ * link; TalkBack reads its texts.
  */
 @Composable
 internal fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Float, onOfficial: () -> Unit, onDetail: () -> Unit, modifier: Modifier = Modifier, titleTag: String? = null) {
@@ -636,11 +642,17 @@ internal fun ShopListRow(item: ShopOfferItem, artUrl: String?, pulse: () -> Floa
         subtitle = offer.subtitle,
         artUrl = artUrl,
         onClick = if (item.detailSongId != null) onDetail else onOfficial,
-        modifier = modifier.testTag("fst.shop.song.${offer.songId}"),
+        modifier = modifier
+            .then(if (item.highlight == ShopHighlight.New) Modifier.semantics { stateDescription = ShopHighlight.New.label } else Modifier)
+            .testTag("fst.shop.song.${offer.songId}"),
         titleTag = titleTag,
         outline = shopOutline(item.highlight),
         pulse = pulse,
-        details = { item.highlight?.let { ShopBadgeLabel(it, offer.songId, Modifier.padding(top = 4.dp)) } },
+        details = {
+            if (item.highlight == ShopHighlight.LeavingTomorrow) {
+                ShopBadgeLabel(ShopHighlight.LeavingTomorrow, offer.songId, Modifier.padding(top = 4.dp))
+            }
+        },
         end = {
             if (item.officialUrl != null) {
                 IconButton(
