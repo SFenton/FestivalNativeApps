@@ -90,6 +90,10 @@ class PayloadTests(unittest.TestCase):
                     page = pages[name]
                     self.assertEqual(page["fixture"], ["song_band_preview_fixture.py", "--bands", "far"])
                     self.assertIn((mode, name), runs)
+                    if mode != "normal":
+                        # #455: the pinned band row wraps its whole name at large text, so the compact window at 225%
+                        # leaves room for one card only; the pair is checked in the medium window.
+                        self.assertEqual(page["sizes"], ["medium"])
                     row = "raw=fst.song-band-leaderboard.row.band-fixture-band_duets-"
                     for part in ("rank", "members"):
                         self.assertIn(f"assertaligned:{row}{low}.{part}|{row}{high}.{part}", page["after_ready"])

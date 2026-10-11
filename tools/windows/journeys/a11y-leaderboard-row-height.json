@@ -1,7 +1,7 @@
 [
   {"name": "row-height-overview-skeleton", "route": "/leaderboards", "fixture": ["leaderboards_fixture.py", "--slow-board", "Solo_PeripheralGuitar"],
    "tabs": 0, "scan": true,
-   "note": "Issues #90, #440: every leaderboard row is one 48+ epx row (web entryRowHeight, LeaderboardRowMetrics.MinHeight), and a loading card's placeholder rows (LeaderboardsSkeleton) are drawn by the same row at the same pitch, so the card keeps its height when rows arrive, at default and 225% text. The placeholders are raw-view only and not tab stops: Narrator reads the card heading, then the next card, never invisible placeholder text. Loaded rows are one Button stop each, read in visual order heading -> rows -> View All.",
+   "note": "Issues #90, #440: every leaderboard row is one 48+ epx row (web entryRowHeight, LeaderboardRowMetrics.MinHeight), and a loading card's placeholder rows (LeaderboardsSkeleton) are drawn by the same row at the same pitch, so the card keeps its height when rows arrive, at default and 225% text. The placeholders are raw-view only and not tab stops: Narrator reads the card heading, then the next card, never invisible placeholder text. Loaded rows are one Button stop each, read in visual order heading -> rows -> View All. The reading-order checks run in the medium window: at 225% text in the compact window the loading card's rows reserve the two-line name budget (leaderboard-row R2, #455) and the card fills the window, so the next card's heading is off screen, where Narrator's order can't be checked.",
    "ready": ["waitfor:id=fst.rankings.row.fixture-player-2@20", "wait:1"],
    "after_ready": ["assertread:id=fst.rankings.row.fixture-player-1|Rank #1, Fixture Player 1. Total Score 178,000,000, 79 / 100 songs, button",
                    "assertsize:id=fst.rankings.row.fixture-player-1|0x48",
@@ -15,6 +15,9 @@
                    "assertspan:raw=fst.leaderboards.card.Solo_PeripheralGuitar.skeleton.0|raw=fst.leaderboards.card.Solo_PeripheralGuitar.skeleton.1|pitch",
                    "waitgone:id=fst.leaderboards.card.Solo_PeripheralGuitar.skeleton.0@1",
                    "waitgone:id=fst.leaderboards.card.Solo_PeripheralGuitar.skeleton.1@1",
+                   "resize:medium",
+                   "scrollinto:id=fst.leaderboards.card.Solo_PeripheralGuitar",
+                   "scrollinset:id=fst.leaderboards.card.Solo_PeripheralGuitar|id=fst.leaderboards|8",
                    "assertorder:id=fst.leaderboards.card.Solo_PeripheralGuitar|id=fst.leaderboards.card.Solo_PeripheralBass",
                    "waitfor:id=fst.leaderboards.card.Solo_PeripheralGuitar.view-all@30",
                    "waitgone:raw=fst.leaderboards.card.Solo_PeripheralGuitar.skeleton.0@5",
