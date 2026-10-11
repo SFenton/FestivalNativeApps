@@ -45,6 +45,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -65,6 +66,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.profile.ChartGeometry
+import com.festivalscoretracker.android.core.rankings.HistoryColumnPlan
 import com.festivalscoretracker.android.core.rankings.RankHistoryChart
 import com.festivalscoretracker.android.core.rankings.RankHistoryRow
 import com.festivalscoretracker.android.core.rankings.RankingMetric
@@ -149,8 +151,13 @@ fun RankHistoryCard(viewModel: LeaderboardsViewModel, instruments: List<Instrume
                                         modifier = Modifier.staggeredIn(swap, 0).padding(vertical = 8.dp).testTag("fst.leaderboards.rank-history.empty"),
                                     )
                                 } else {
-                                    Box(Modifier.staggeredIn(swap, 0)) { HistoryChart(chart) }
-                                    chart.rows.forEachIndexed { index, row -> Box(Modifier.staggeredIn(swap, index + 1)) { HistoryRow(row) } }
+                                    // One rank and value width over every day, so the rows and any tapped bar line up (issue #594).
+                                    val texts = remember(chart) { chart.columnTexts() }
+                                    val columns = rememberHistoryColumns(texts, LocalTextStyle.current, HISTORY_GAP)
+                                    Box(Modifier.staggeredIn(swap, 0)) { HistoryChart(chart, columns) }
+                                    chart.rows.forEachIndexed { index, row ->
+                                        Box(Modifier.staggeredIn(swap, index + 1)) { HistoryRow(row, columns, probeKey = "row.$index") }
+                                    }
                                 }
                             }
                         }
@@ -173,7 +180,7 @@ private fun Modifier.staggeredIn(swap: LoadSwap<*>, index: Int): Modifier = fest
  * @param chart Card data.
  */
 @Composable
-private fun HistoryChart(chart: RankHistoryChart) {
+private fun HistoryChart(chart: RankHistoryChart, columns: HistoryColumnPlan) {
     var offset by rememberSaveable(chart.snapshots) { mutableIntStateOf(0) }
     var selected by rememberSaveable(chart.snapshots) { mutableStateOf<Int?>(null) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -200,7 +207,7 @@ private fun HistoryChart(chart: RankHistoryChart) {
                         color = BrandTokens.accentPurple.copy(alpha = 0.25f),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth().testTag("fst.leaderboards.rank-history.detail").semantics { liveRegion = LiveRegionMode.Polite },
-                    ) { HistoryRow(detail, Modifier) }
+                    ) { HistoryRow(detail, columns, probeKey = "detail.row", Modifier) }
                 }
             }
         }
@@ -315,27 +322,31 @@ private fun LegendSwatch(label: String, swatch: @Composable () -> Unit) {
 }
 
 @Composable
-private fun HistoryRow(row: RankHistoryRow, background: Modifier? = null) {
+private fun HistoryRow(row: RankHistoryRow, columns: HistoryColumnPlan, probeKey: String, background: Modifier? = null) {
     val shape = RoundedCornerShape(10.dp)
-    var modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(shape)
+    var modifier = Modifier.fillMaxWidth().clip(shape)
     modifier = when {
         background != null -> modifier.then(background)
         row.latest -> modifier.background(BrandTokens.accentPurple.copy(alpha = 0.18f)).border(BorderStroke(1.dp, BrandTokens.accentPurple), shape)
         else -> modifier.background(BrandTokens.surfaceSubtle.copy(alpha = 0.5f))
     }
     val weight = if (row.latest) FontWeight.Bold else FontWeight.Normal
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    HistoryColumnsRow(
+        plan = columns,
+        date = HistoryCell(row.date, BrandTokens.textPrimary, weight),
+        rank = HistoryCell(row.rank, BrandTokens.textPrimary, if (row.latest) FontWeight.Bold else FontWeight.SemiBold),
+        value = HistoryCell(row.value, BrandTokens.textPrimary, weight),
+        style = LocalTextStyle.current,
         modifier = modifier
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .testTag("fst.leaderboards.rank-history.$probeKey")
             .clearAndSetSemantics { contentDescription = "${row.date}, rank ${row.rank}, ${row.value}" },
-    ) {
-        Text(row.date, color = BrandTokens.textPrimary, fontWeight = weight, modifier = Modifier.weight(1f))
-        Text(row.rank, color = BrandTokens.textPrimary, fontWeight = if (row.latest) FontWeight.Bold else FontWeight.SemiBold)
-        Text(row.value, color = BrandTokens.textPrimary, fontWeight = weight)
-    }
+        probeKey = "leaderboards.$probeKey",
+    )
 }
+
+/** Gap between a history row's date, rank and value. */
+private val HISTORY_GAP = 12.dp
 
 /** Chart height in dp (the profile chart's plot height). */
 private const val CHART_HEIGHT_DP = 180

@@ -60,6 +60,7 @@ data class SongScoreDetail(
  * @property rowState Per-row text while unavailable ("Scores syncing"…).
  * @property notice List-level notice while unavailable.
  * @property invalid Per-song reasons the shown scores differ from the raw ones (Filter Invalid Scores).
+ * @property overThreshold Whether a chart's shown score passes its Over CHOpt Threshold check (pattern invalid-scores R8).
  */
 data class SongScoreSource(
     val hasPlayer: Boolean,
@@ -67,6 +68,7 @@ data class SongScoreSource(
     val rowState: String? = null,
     val notice: String? = null,
     val invalid: (String) -> Map<Instrument, InvalidScoreReason> = { emptyMap() },
+    val overThreshold: (String, Instrument) -> Boolean = { songId, chart -> invalid(songId)[chart] == InvalidScoreReason.OverThreshold },
 ) {
     /** Whether a matching, available index backs [detail]. */
     val available: Boolean get() = detail != null
@@ -76,7 +78,7 @@ data class SongScoreSource(
         get() = detail?.let { lookup ->
             { songId, chart ->
                 lookup(songId, chart)?.facts?.let { facts ->
-                    if (invalid(songId)[chart] == InvalidScoreReason.OverThreshold) facts.copy(overThreshold = true) else facts
+                    if (overThreshold(songId, chart)) facts.copy(overThreshold = true) else facts
                 }
             }
         }

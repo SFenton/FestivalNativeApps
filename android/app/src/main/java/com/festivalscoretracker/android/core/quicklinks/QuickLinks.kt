@@ -118,7 +118,7 @@ object QuickLinks {
     }
 
     /**
-     * The `scrollOffset` for `LazyListState.scrollToItem` / `LazyStaggeredGridState.scrollToItem` that
+     * The `scrollOffset` for `LazyListState.scrollToItem` / `LazyGridState.scrollToItem` that
      * lands an item's top [landingPx] below the visible viewport top. Lazy offsets are measured from the
      * end of the leading content padding, which content still scrolls through, so the padding is
      * subtracted rather than added on top. Negative values are valid (the list composes earlier items),

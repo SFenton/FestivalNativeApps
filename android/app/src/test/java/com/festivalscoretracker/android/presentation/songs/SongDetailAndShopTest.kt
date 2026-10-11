@@ -567,6 +567,24 @@ class SongDetailAndShopTest {
         assertNull(failed.selectedAccountId)
     }
 
+    @Test
+    fun detailSpotlightUsesTheSongDetailsInvalidScoreRule() {
+        val maxed = song.copy(maxScores = mapOf(Instrument.Lead.wireId to 100_000))
+        val settings = AppSettings(selectedPlayer = player, filterInvalidScores = true, leeway = 1.0)
+        fun spotlight(score: com.festivalscoretracker.android.core.profile.PlayerScore, applied: AppSettings = settings): Int? {
+            val profile = SongsFixtures.profile(score)
+            val state = SelectedProfileState(player, SelectedProfileStatus.Available, profile, scoreIndex = profile.profile.scoreIndex())
+            return songDetailExtras(maxed, applied, LoadState.Loading, state, 7, 7).spotlight[Instrument.Lead]?.score
+        }
+        // ml present: legacy fields never replace it (web `filterPlayerScores`), unlike Songs rows.
+        assertNull(spotlight(SongsFixtures.score("a", Instrument.Lead, 99_000).copy(minLeeway = 2.0, validScore = 90_000, validRank = 4)))
+        // No ml: the CHOpt ceiling decides and the legacy fields replace it, ignoring validScores.
+        val variant = com.festivalscoretracker.android.core.profile.PlayerValidScoreVariant(80_000, minLeeway = 0.5)
+        val legacy = SongsFixtures.score("a", Instrument.Lead, 102_000).copy(validScore = 90_000, validRank = 4, validScores = listOf(variant))
+        assertEquals(90_000, spotlight(legacy))
+        assertEquals(102_000, spotlight(legacy, settings.copy(filterInvalidScores = false)))
+    }
+
     // endregion
 
     // region Leeway previews

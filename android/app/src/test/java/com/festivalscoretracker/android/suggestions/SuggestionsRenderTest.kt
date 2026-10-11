@@ -41,7 +41,6 @@ import com.festivalscoretracker.android.ui.suggestions.SuggestionsFilterSheet
 import com.festivalscoretracker.android.ui.suggestions.SuggestionsScreenContent
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import java.time.Duration
-import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -222,9 +221,9 @@ class SuggestionsRenderTest {
     fun hingeSplitSizesEachSideOfTheFold() {
         val cells = HingeSplitCells(400)
         val sizes = with(cells) { Density(1f).calculateCrossAxisCellSizes(1000, 40) }
-        assertArrayEquals(intArrayOf(400, 560), sizes)
+        assertEquals(listOf(400, 560), sizes)
         val clamped = with(HingeSplitCells(2000)) { Density(1f).calculateCrossAxisCellSizes(1000, 40) }
-        assertArrayEquals(intArrayOf(960, 0), clamped)
+        assertEquals(listOf(960, 0), clamped)
     }
 }
 

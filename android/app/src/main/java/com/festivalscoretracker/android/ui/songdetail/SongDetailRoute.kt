@@ -135,7 +135,7 @@ internal fun songDetailExtras(
     current: Int?,
 ): SongDetailExtras {
     val player = settings.selectedPlayer
-    val invalid = if (settings.filterInvalidScores) InvalidScoreContext(settings.leeway, mapOf(song.songId to song)) else null
+    val invalid = if (settings.filterInvalidScores) InvalidScoreContext(settings.leeway, mapOf(song.songId to song), songDetails = true) else null
     val source = if (player == null) null else profile.songScoreSource(catalogPublication, current, invalid)
     val lookup = source?.detail
     val spotlight = if (lookup == null || player == null) {

@@ -282,24 +282,15 @@ class SettingsUiTest {
         settle()
         rule.onNodeWithTag("fst.first-run.close").performClick()
         waitGone("fst.first-run.dialog")
-        // Only the two displayed slides count as seen (batch 6.7): the next visit shows the other four.
-        rule.onNodeWithTag("fst.nav.tab.settings").performClick()
-        waitForTag("fst.settings.list")
-        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
-        waitForTag("fst.first-run.dialog")
-        assertEquals("Slide 1 of 4", rule.onNodeWithTag("fst.first-run.position").fetchSemanticsNode().config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.StateDescription))
-        repeat(3) {
-            rule.onNodeWithTag("fst.first-run.next").performClick()
-            settle()
+        // Only the two displayed slides count as seen (batch 6.7), but a closed guide never comes
+        // back in the same session (issue #608): the other four wait for the next launch.
+        repeat(2) {
+            rule.onNodeWithTag("fst.nav.tab.settings").performClick()
+            waitForTag("fst.settings.list")
+            rule.onNodeWithTag("fst.nav.tab.songs").performClick()
+            settle(1_000)
+            assertTrue(rule.onAllNodesWithTag("fst.first-run.dialog").fetchSemanticsNodes().isEmpty())
         }
-        rule.onNodeWithTag("fst.first-run.done").performClick()
-        waitGone("fst.first-run.dialog")
-        // Every slide seen now: nothing on the next visit.
-        rule.onNodeWithTag("fst.nav.tab.settings").performClick()
-        waitForTag("fst.settings.list")
-        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
-        settle(1_000)
-        assertTrue(rule.onAllNodesWithTag("fst.first-run.dialog").fetchSemanticsNodes().isEmpty())
         // Replay ignores gates: all nine Songs slides, even the player-gated ones.
         rule.onNodeWithTag("fst.nav.tab.settings").performClick()
         waitForTag("fst.settings.list")
