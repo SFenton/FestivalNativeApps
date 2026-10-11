@@ -212,5 +212,70 @@
       "contrast:off", "wait:2",
       "assertpaint:raw=fst.suggestions.row.s034.Solo_Guitar.rival|L-5,M0!=#FFFAEF~40"
     ]
+  },
+  {
+    "name": "suggestions-load-more",
+    "note": "Issue #260 (#521): the cards Suggestions loads as the list nears its end (a batch of six after the first ten) fade in on arrival with motion on and appear in place under Reduce Motion or with Animation effects off; either way they arrive whole for Narrator: each new card is a list item named by its Level 2 title heading, read after the last card of the first batch, and its rows are 40+ epx Buttons named with song, artist, year and reason.",
+    "route": "/suggestions",
+    "profile": "fixture-suggest:Fixture Player",
+    "fixture": ["suggestions_fixture_server.py"],
+    "env": {"FST_DEBUG_SUGGESTIONS_SEED": "1"},
+    "ready": [
+      "waitfor:id=fst.suggestions.row.s044|Solo_PeripheralGuitar@30",
+      "wait:1.5"
+    ],
+    "after_ready": [
+      "reveal:id=fst.suggestions.category.unplayed_Solo_PeripheralGuitar",
+      "scrollinto:id=fst.suggestions.category.song_rival_gap_rival-below-0@15",
+      "scrollinset:id=fst.suggestions.category.song_rival_gap_rival-below-0|id=fst.suggestions.list|160",
+      "assertstate:name=Close the Gap vs Rival B0&class=TextBlock|heading=2",
+      "assertread:name=Track 16, Artist R · 1989, Pro Lead, 2 ranks behind Rival B0|Track 16, Artist R · 1989, Pro Lead, 2 ranks behind Rival B0, button",
+      "assertstate:name=Track 16, Artist R · 1989, Pro Lead, 2 ranks behind Rival B0|focusable=true",
+      "assertsize:name=Track 16, Artist R · 1989, Pro Lead, 2 ranks behind Rival B0|40x40",
+      "scrollinset:id=fst.suggestions.category.song_rival_pct_push|id=fst.suggestions.list|160",
+      "assertstate:name=Climb Past Rival B4&class=TextBlock|heading=2",
+      "narrate:id=fst.suggestions.list",
+      "assertorder:name=New on Pro Lead|name=Climb Past Rival B4",
+      "scrollinset:id=fst.suggestions.category.song_rival_pct_push|id=fst.suggestions.list|8"
+    ]
+  },
+  {
+    "name": "suggestions-load-more-keyboard",
+    "note": "Issue #260 (#521): the keyboard crosses from the first batch of cards into the ones loaded after it, with motion on or off: Down from the last row of card 10 lands on the first row of card 11 and Up returns; Tab walks one stop per card through the loaded batch into the next one it loads, and Shift+Tab walks back.",
+    "route": "/suggestions",
+    "profile": "fixture-suggest:Fixture Player",
+    "fixture": ["suggestions_fixture_server.py"],
+    "env": {"FST_DEBUG_SUGGESTIONS_SEED": "1"},
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.suggestions.row.s044|Solo_PeripheralGuitar@30",
+      "wait:1.5"
+    ],
+    "after_ready": [
+      "reveal:id=fst.suggestions.row.s055",
+      "focus:id=fst.suggestions.row.s055",
+      "assertfocus:id=fst.suggestions.row.s055@3",
+      "key:down",
+      "assertfocus:id=fst.suggestions.row.s034|Solo_Guitar@3",
+      "key:up",
+      "assertfocus:id=fst.suggestions.row.s055@3",
+      "key:tab",
+      "assertfocus:id=fst.suggestions.row.s034|Solo_Guitar@3",
+      "key:tab",
+      "assertfocus:id=fst.suggestions.row.s017|Solo_PeripheralGuitar@3",
+      "key:tab",
+      "assertfocus:id=fst.suggestions.row.s010|Solo_Vocals@3",
+      "key:tab",
+      "assertfocus:id=fst.suggestions.row.s019|Solo_Guitar@3",
+      "key:tab",
+      "assertfocus:id=fst.suggestions.row.s055|Solo_Guitar@3",
+      "key:tab",
+      "assertfocus:id=fst.suggestions.row.s038|Solo_Drums@3",
+      "key:tab",
+      "assertfocus:id=fst.suggestions.row.s050|Solo_Drums@5",
+      "key:shift+tab",
+      "assertfocus:id=fst.suggestions.row.s038|Solo_Drums@3",
+      "scrollinset:id=fst.suggestions.category.song_rival_gap_rival-below-4|id=fst.suggestions.list|8"
+    ]
   }
 ]

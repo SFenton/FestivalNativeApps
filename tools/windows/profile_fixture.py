@@ -11,6 +11,8 @@ State               Trigger                                    Wire
 ==================  =========================================  =================================================
 debouncing /        account search ``q=Ro…`` (e.g.             ``Rollover Player`` after :data:`SLOW_SECONDS`
 loading             ``Rollover``)
+delayed song rows   account search ``q=Puls…`` (``Pulse``)      no players after :data:`SLOW_SECONDS`; Search's
+                                                               ``Fixture Pulse`` row waits behind the spinner
 publication-changed player read of ``fixture-rollover``        served under the current publication, which then
 / profile-reload                                               advances by one, so the page's next pinned read
                                                                gets ``409 publication_changed`` and the app
@@ -43,6 +45,10 @@ ROLLOVER_NAME = "Rollover Player"
 #: Account searches starting with this prefix (``Ro``, ``Rollover``) are answered after :data:`SLOW_SECONDS`, so
 #: "Searching…" can be asserted both during the 250 ms debounce and during the read.
 SLOW_PREFIX = "ro"
+#: Account searches starting with this prefix (``Pulse``) are answered after :data:`SLOW_SECONDS` too, but the text
+#: matches the catalogue's ``Fixture Pulse``, so Global Search's song rows wait behind its one spinner until the
+#: player read settles and then appear (issue #260's delayed-results fade, #521).
+SLOW_SONG_PREFIX = "puls"
 SLOW_SECONDS = 4.0
 UNPINNED_ENV = "FST_PROFILE_FIXTURE_UNPINNED"
 
@@ -104,7 +110,7 @@ def install() -> None:
         rollover = status == 200 and parsed.path == f"/api/player/{ROLLOVER_ID}"
         if parsed.path == "/api/account/search" and status == 200 and isinstance(payload, dict):
             term = parse_qs(parsed.query).get("q", [""])[0].strip()
-            if term.casefold().startswith(SLOW_PREFIX):
+            if term.casefold().startswith((SLOW_PREFIX, SLOW_SONG_PREFIX)):
                 time.sleep(SLOW_SECONDS)
             payload = {**payload, "results": search_results(term, payload.get("results", []))[:10]}
         elif rollover:

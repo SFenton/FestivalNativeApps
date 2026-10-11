@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 from tools.windows import a11y_matrix as m
+from tools.windows import profile_fixture
 from tools.windows import ui_ci as ci
 from tools.windows import uiwin as u
 
@@ -184,14 +185,15 @@ class UiCiTests(unittest.TestCase):
     def test_suggestions_runs_at_default_and_largest_text(self):
         # Issue #513 (#205): the Suggestions cards, keyboard, filter, states and rival pill contrast run in CI at default
         # and 225% text, with an Axe scan, and pin the regressions #205 and #513 fixed.
-        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-suggestions.json"}
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-suggestions.json" and not run.only}
         self.assertEqual({"normal", "text-225"}, set(runs))
-        self.assertTrue(all(run.scan and not run.only for run in runs.values()))
+        self.assertTrue(all(run.scan for run in runs.values()))
         self.assertIn("compact", runs["text-225"].sizes.split(","))
         pages = {page["name"]: page for page in
                  json.loads((ci.JOURNEYS / "a11y-suggestions.json").read_text(encoding="utf-8"))}
         self.assertEqual({"suggestions-cards", "suggestions-keyboard", "suggestions-filter", "suggestions-syncing",
-                          "suggestions-no-results", "suggestions-rival-pill-contrast"}, set(pages))
+                          "suggestions-no-results", "suggestions-rival-pill-contrast", "suggestions-load-more",
+                          "suggestions-load-more-keyboard"}, set(pages))
         cards = pages["suggestions-cards"]["after_ready"]
         self.assertIn("assertstate:name=Pro Lead Untouched for 2 Seasons&class=TextBlock|heading=2", cards)
         keyboard = pages["suggestions-keyboard"]["after_ready"]
@@ -209,6 +211,41 @@ class UiCiTests(unittest.TestCase):
         self.assertEqual(["medium"], contrast["sizes"])
         self.assertIn("contrast:desert", contrast["after_ready"])
         self.assertEqual("contrast:off", [s for s in contrast["after_ready"] if s.startswith("contrast:")][-1])
+
+    def test_suggestions_load_more_runs_with_motion_on_and_off(self):
+        # Issue #521 (#260): the cards loaded after the first batch fade in; their names, headings, order, targets and
+        # keyboard path run with motion on (default and 225% text, the full runs) and with in-app Reduce Motion and
+        # Animation effects off, before the full runs so generated_runs still sees the file as covered.
+        names = [run.name for run in ci.RUNS]
+        partial = {run.mode: run for run in ci.RUNS if run.pages == "a11y-suggestions.json" and run.only}
+        self.assertEqual({"app-reduced", "no-animations"}, set(partial))
+        for run in partial.values():
+            self.assertEqual(ci.SUGGESTIONS_LOAD_MORE, run.only)
+            self.assertTrue(run.scan)
+            self.assertLess(names.index(run.name), names.index("suggestions"))
+        self.assertFalse([run for run in ci.RUNS if run.name.startswith("a11y-suggestions-")])
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-suggestions.json").read_text(encoding="utf-8"))}
+        self.assertEqual(set(ci.SUGGESTIONS_LOAD_MORE.split(",")), {"suggestions-load-more", "suggestions-load-more-keyboard"})
+        labels = pages["suggestions-load-more"]["after_ready"]
+        row = "name=Track 16, Artist R · 1989, Pro Lead, 2 ranks behind Rival B0"
+        # Card 12 only exists once the second batch (cards 11-16) has loaded.
+        self.assertIn("scrollinto:id=fst.suggestions.category.song_rival_gap_rival-below-0@15", labels)
+        self.assertIn("assertstate:name=Close the Gap vs Rival B0&class=TextBlock|heading=2", labels)
+        self.assertIn(f"assertread:{row}|{row[5:]}, button", labels)
+        self.assertIn(f"assertsize:{row}|40x40", labels)
+        self.assertIn("assertorder:name=New on Pro Lead|name=Climb Past Rival B4", labels)
+        keyboard = pages["suggestions-load-more-keyboard"]
+        self.assertEqual(0, keyboard["tabs"])
+        steps = keyboard["after_ready"]
+        down = steps.index("key:down")
+        self.assertEqual(["assertfocus:id=fst.suggestions.row.s034|Solo_Guitar@3", "key:up",
+                          "assertfocus:id=fst.suggestions.row.s055@3"], steps[down + 1:down + 4])
+        # Tab ends on card 17's row, in the third batch, which only exists once Tab has walked to the end of the second.
+        self.assertIn("assertfocus:id=fst.suggestions.row.s050|Solo_Drums@5", steps)
+        self.assertEqual("key:shift+tab", steps[-3])
+        # The Axe scan follows: pin a card 8 epx below the list top so no card ends on the viewport edge (item 3).
+        self.assertTrue(steps[-1].startswith("scrollinset:") and steps[-1].endswith("|id=fst.suggestions.list|8"))
 
     def test_shop_offers_run_at_default_largest_text_and_reduced_motion(self):
         # Issue #516 (#224): the Item Shop tiles, List/Grid toggle, rings and states run in CI at default and 225% text
@@ -249,7 +286,8 @@ class UiCiTests(unittest.TestCase):
         runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-search.json" and run.only == ci.SEARCH_SECTIONS
                 and run.mode != "app-reduced"}
         self.assertEqual({"normal", "text-225"}, set(runs))
-        reduced = [run for run in ci.RUNS if run.pages == "a11y-search.json" and run.mode == "app-reduced"]
+        reduced = [run for run in ci.RUNS if run.pages == "a11y-search.json" and run.mode == "app-reduced"
+                   and run.only == ci.SEARCH_SECTIONS]
         self.assertEqual(["search-all-sections,search-all-sections-keyboard"], [run.only for run in reduced])
         self.assertTrue(all(run.scan for run in (*runs.values(), *reduced)))
         self.assertIn("compact", runs["text-225"].sizes.split(","))
@@ -275,6 +313,39 @@ class UiCiTests(unittest.TestCase):
         for scope in ("songs", "players", "bands"):
             single = pages[f"search-results-{scope}"]["after_ready"]
             self.assertTrue(any(step.startswith(f"waitgone:id=fst.global-search.section.{scope}") for step in single))
+
+    def test_search_delayed_results_run_at_default_largest_text_and_reduced_motion(self):
+        # Issue #521 (#260): song rows that waited behind the spinner for a slow player search appear (fading in with
+        # motion on) when it clears; their heading, name, order, target and Tab path run at default and 225% text and
+        # with in-app Reduce Motion, and the page is not also a generated run.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-search.json"
+                and run.only == ci.SEARCH_DELAYED_RESULTS}
+        self.assertEqual({"normal", "text-225", "app-reduced"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        for run in ci.RUNS:
+            if run.name.startswith("a11y-search-"):
+                self.assertNotIn(ci.SEARCH_DELAYED_RESULTS, run.only.split(","))
+        page = {page["name"]: page for page in
+                json.loads((ci.JOURNEYS / "a11y-search.json").read_text(encoding="utf-8"))}[ci.SEARCH_DELAYED_RESULTS]
+        self.assertEqual(0, page["tabs"])
+        steps = page["after_ready"]
+        query = next(step.split("|", 1)[1] for step in steps if step.startswith("setvalue:id=fst.global-search.field|"))
+        self.assertTrue(query.casefold().startswith(profile_fixture.SLOW_SONG_PREFIX))
+        spinning = steps.index("waitfor:id=fst.global-search.loading@5")
+        cleared = steps.index("waitgone:id=fst.global-search.loading@15")
+        self.assertIn("waitgone:id=fst.global-search.result.song", steps[spinning:cleared])
+        self.assertIn("assertfocus:name=Search songs, players and bands@3", steps[spinning:cleared])
+        after = steps[cleared:]
+        self.assertIn("assertstate:id=fst.global-search.section.songs|heading=2", after)
+        self.assertIn("assertsize:id=fst.global-search.result.song|40x40", after)
+        self.assertIn("assertorder:id=fst.global-search.scope.all|id=fst.global-search.section.songs"
+                      "|id=fst.global-search.result.song", after)
+        focus = [step for step in after if step.startswith("assertfocus:")]
+        self.assertEqual(["assertfocus:name=Search songs, players and bands@3",
+                          "assertfocus:id=fst.global-search.scope.all@3",
+                          "assertfocus:id=fst.global-search.result.song@3",
+                          "assertfocus:id=fst.global-search.scope.all@3"], focus)
 
     def test_first_run_demos_run_at_default_and_largest_text(self):
         """#420 review: the first-run demo journey gates PRs, not just its JSON guard."""
