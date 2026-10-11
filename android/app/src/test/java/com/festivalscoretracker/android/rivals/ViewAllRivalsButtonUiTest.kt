@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
@@ -60,7 +61,7 @@ class ViewAllRivalsButtonUiTest {
 
     private val entry = RivalEntry(RivalSummary(RivalsFixtures.RIVALS[0], "Synthetic Alpha", 1.0, sharedSongCount = 10, aheadCount = 6, behindCount = 4), RivalDirection.Above)
 
-    /** Renders the hub/Compete "View All Rivals" and Compete's "View Full Leaderboards" in equal-width lanes. */
+    /** Renders the hub/Compete "View All Rivals" card and Compete's "View Full Leaderboards" (inset like its card's) in equal-width lanes. */
     private fun renderPair(fontScale: Float = 1f, width: Int = 379, viewAllLabel: String = RivalText.VIEW_ALL_RIVALS, onViewAll: () -> Unit = {}) {
         rule.setContent {
             val density = LocalDensity.current
@@ -68,8 +69,9 @@ class ViewAllRivalsButtonUiTest {
                 FestivalTheme {
                     Column {
                         Box(Modifier.requiredWidth(width.dp)) { RivalPreviewRows(listOf(entry), onRival = {}, onViewAll = onViewAll, viewAllLabel = viewAllLabel) }
+                        // Both end their card inside it, inset 12 dp (view-all-cta R1, #603).
                         Box(Modifier.requiredWidth(width.dp)) {
-                            ViewFullLeaderboardButton(onClick = {}, label = CompeteText.VIEW_FULL_LEADERBOARDS, testTag = "fst.compete.view-full-leaderboards")
+                            ViewFullLeaderboardButton(onClick = {}, label = CompeteText.VIEW_FULL_LEADERBOARDS, testTag = "fst.compete.view-full-leaderboards", modifier = Modifier.padding(horizontal = 12.dp))
                         }
                     }
                 }

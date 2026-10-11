@@ -302,15 +302,62 @@ class FirstRunTest {
         val first = center.tryBegin(FirstRunPageKey.Songs, AppSettings(), compact = true)!!
         center.complete(first, viewedCount = 2)
         assertEquals(setOf("songs-song-list", "songs-sort"), store.load().keys)
-        // The unseen four come back on the next visit, in order.
-        val next = center.tryBegin(FirstRunPageKey.Songs, AppSettings(), compact = true)!!
+        // The unseen four come back on the next launch (a new process), in order.
+        val relaunched = FirstRunCenter(store, FirstRunMode.Normal) { now }
+        val next = relaunched.tryBegin(FirstRunPageKey.Songs, AppSettings(), compact = true)!!
         assertEquals(first.slides.drop(2).map { it.id }, next.slides.map { it.id })
         // Out-of-range counts clamp: at least the first slide, at most all of them.
-        center.complete(next, viewedCount = 0)
+        relaunched.complete(next, viewedCount = 0)
         assertEquals(3, store.load().size)
-        val last = center.tryBegin(FirstRunPageKey.Songs, AppSettings(), compact = true)!!
-        center.complete(last, viewedCount = 99)
+        val last = FirstRunCenter(store, FirstRunMode.Normal) { now }.let { it.tryBegin(FirstRunPageKey.Songs, AppSettings(), compact = true)!!.also { c -> it.complete(c, viewedCount = 99) } }
+        assertEquals(3, last.slides.size)
         assertEquals(6, store.load().size)
+    }
+
+    /**
+     * Issue #608: a guide closed early never re-presents on a later visit in the same session,
+     * whatever re-runs the check (another route to the page, rotation or window size, a
+     * gate-unrelated settings change). Newly eligible slides still show.
+     */
+    @Test
+    fun aDismissedGuideStaysDismissedForTheSession() = runBlocking {
+        val store = store()
+        val center = FirstRunCenter(store, FirstRunMode.Normal) { now }
+        val anonymous = AppSettings()
+        val first = center.tryBegin(FirstRunPageKey.Songs, anonymous, compact = true)!!
+        center.complete(first, viewedCount = 1)
+        assertNull("revisit", center.tryBegin(FirstRunPageKey.Songs, anonymous, compact = true))
+        assertNull("rotation / wider window", center.tryBegin(FirstRunPageKey.Songs, anonymous, compact = false))
+        assertNull("unrelated settings change", center.tryBegin(FirstRunPageKey.Songs, anonymous.copy(experimentalRanks = true), compact = true))
+        assertTrue(center.pendingSlides(FirstRunPageKey.Songs, anonymous, compact = true).isEmpty())
+        // Other pages are unaffected; a player surfaces only the slides never offered.
+        assertNotNull(center.tryBegin(FirstRunPageKey.Rivals, anonymous, compact = true)?.also { center.complete(it) })
+        val player = anonymous.copy(selectedPlayer = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"))
+        assertEquals(listOf("songs-filter", "songs-icons", "songs-metadata"), center.tryBegin(FirstRunPageKey.Songs, player, true)!!.slides.map { it.id })
+        center.complete(center.active.value!!)
+        assertNull(center.tryBegin(FirstRunPageKey.Songs, player, true))
+        // Only the displayed slide was persisted, so a relaunch offers the rest (operator batch 6.7).
+        assertEquals(first.slides.drop(1).map { it.id }, FirstRunCenter(store, FirstRunMode.Normal) { now }.pendingSlides(FirstRunPageKey.Songs, anonymous, true).map { it.id })
+    }
+
+    /** Issue #608: closing a Settings replay early never forgets slides seen before it. */
+    @Test
+    fun anEarlyClosedReplayKeepsEarlierSeenState() = runBlocking {
+        val store = store()
+        val center = FirstRunCenter(store, FirstRunMode.Normal) { now }
+        val first = center.tryBegin(FirstRunPageKey.Songs, AppSettings(), compact = true)!!
+        center.complete(first)
+        val seenBefore = store.load().keys
+        assertEquals(6, seenBefore.size)
+        val replay = center.beginReplay(FirstRunPageKey.Songs, compact = true)!!
+        assertEquals(9, replay.slides.size)
+        center.complete(replay, viewedCount = 1)
+        assertTrue("earlier seen state survives", store.load().keys.containsAll(seenBefore))
+        val relaunched = FirstRunCenter(store, FirstRunMode.Normal) { now }
+        assertNull("nothing already seen returns after a restart", relaunched.tryBegin(FirstRunPageKey.Songs, AppSettings(), compact = true))
+        // A replay closes the page's guide for the session too, and replays again on demand.
+        assertNull(center.tryBegin(FirstRunPageKey.Songs, AppSettings(selectedPlayer = SelectedPlayer(Fixtures.ACCOUNT_A, "P")), compact = true))
+        assertEquals(9, center.beginReplay(FirstRunPageKey.Songs, compact = false)!!.slides.size)
     }
 
     @Test

@@ -34,6 +34,7 @@ import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.RivalsFixtures
+import com.festivalscoretracker.android.ui.rivals.RIVALS_CARD_SEGMENT_TAG
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import kotlinx.coroutines.CompletableDeferred
@@ -49,8 +50,8 @@ import org.robolectric.annotation.Config
 /**
  * All Rivals (`/rivals/all`) on the phone layout against synthetic fixtures: every
  * reachable state (loading, failure and recovery, empty, unresolved, each scope's
- * header), the row's TalkBack semantics and two columns on an expanded window
- * (issue #108). The font-scale 2.0 row wrap is in [RivalRowUiTest].
+ * header), the row's TalkBack semantics and one card of rows on an expanded window
+ * (issue #108, #603). The font-scale 2.0 row wrap is in [RivalRowUiTest].
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w411dp-h891dp-xxhdpi")
@@ -270,15 +271,27 @@ class AllRivalsUiTest {
 
     // region Layout
 
+    /**
+     * #603: the list is one card (like iOS `AllRivalsScreen`'s one `FestivalGlassSection`), so even
+     * an expanded window stacks the rows in one column of touching card segments, a hairline apart.
+     */
     @Test
     @Config(qualifiers = "w1280dp-h800dp-mdpi")
-    fun expandedWindowUsesTwoColumns() {
+    fun expandedWindowKeepsOneCardOfRows() {
         launch(RivalScopes.song(listOf(Instrument.Lead)))
         waitForTag("fst.rivals.row.${ids[1]}")
+        val segments = rule.onAllNodesWithTag(RIVALS_CARD_SEGMENT_TAG).fetchSemanticsNodes().map { it.boundsInRoot }.sortedBy { it.top }
+        assertTrue("one segment per row", segments.size >= 2)
+        segments.zipWithNext().forEach { (above, below) ->
+            assertEquals("segments touch: no gap between the card's rows", above.bottom, below.top, 0.5f)
+            assertEquals(above.left, below.left, 0.5f)
+            assertEquals(above.width, below.width, 0.5f)
+        }
         val first = rule.onNodeWithTag("fst.rivals.row.${ids[0]}").getBoundsInRoot()
         val second = rule.onNodeWithTag("fst.rivals.row.${ids[1]}").getBoundsInRoot()
-        assertEquals(first.top, second.top)
-        assertTrue(second.left > first.right)
+        assertEquals(first.left, second.left)
+        assertTrue(second.top >= first.bottom)
+        assertTrue("only a hairline between rows", second.top - first.bottom <= 2.dp)
     }
 
     // endregion

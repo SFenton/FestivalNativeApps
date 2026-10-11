@@ -35,6 +35,36 @@ object BandLayout {
     /** Narrowest side a hinge may leave for a pane or column. */
     const val MIN_SIDE = 200f
 
+    /** Band Detail section: Members. */
+    const val MEMBERS = "members"
+
+    /** Band Detail section: Band Summary. */
+    const val SUMMARY = "summary"
+
+    /** Band Detail section: Band Statistics. */
+    const val STATISTICS = "statistics"
+
+    /** Band Detail section: Band Rank History. */
+    const val RANK_HISTORY = "rank-history"
+
+    /** Band Detail section: Five Best Songs. */
+    const val BEST_SONGS = "best-songs"
+
+    /** Band Detail section: Five Worst Songs. */
+    const val WORST_SONGS = "worst-songs"
+
+    /**
+     * Band Detail's two-pane rows, leading section first (`hinge-columns` R8, #584). Both sides of
+     * a row start on its top edge in one scrolling page, so sections never drift apart as the
+     * page scrolls, and reading row by row keeps the web's section order (Members, Summary,
+     * Statistics, Rank History, Songs).
+     */
+    val DETAIL_ROWS: List<Pair<String, String>> = listOf(
+        MEMBERS to SUMMARY,
+        STATISTICS to RANK_HISTORY,
+        BEST_SONGS to WORST_SONGS,
+    )
+
     /**
      * A vertical fold/hinge in content coordinates.
      *

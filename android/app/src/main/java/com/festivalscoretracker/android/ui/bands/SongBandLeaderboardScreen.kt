@@ -1,6 +1,7 @@
 package com.festivalscoretracker.android.ui.bands
 
 import com.festivalscoretracker.android.ui.common.rememberPageFadeInWindow
+import com.festivalscoretracker.android.ui.common.isSplitPaneRoot
 import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.leaderboards.awaitSelectedRowEntrance
 import androidx.compose.foundation.BorderStroke
@@ -208,12 +209,14 @@ fun SongBandLeaderboardScreen(
     // Like the solo board (pattern `song-leaderboard-header` R3, issue #317): the song header and band size
     // scroll with the rows and the top bar takes the song title, over the band size (no icon, issue #580),
     // once they have scrolled away. Across a hinge the header stays in the leading pane, so the bar stays empty.
+    // Beside Song Detail in a split there is no song header and the bar takes the band size (#342, Android #583).
+    val besideList = isSplitPaneRoot()
     val headerGone by remember(listState) { derivedStateOf { !twoPane && listState.firstVisibleItemIndex > 0 } }
     FestivalScreen(
-        title = if (headerGone) song?.title.orEmpty() else "",
+        title = if (!headerGone) "" else if (besideList) type.label else song?.title.orEmpty(),
         isRoot = false,
         scrolled = headerGone,
-        subtitle = type.label,
+        subtitle = if (besideList) null else type.label,
         modifier = Modifier.testTag("fst.song-band-leaderboard.screen"),
         fadeInWindow = fadeIn,
     ) { padding ->
@@ -228,7 +231,7 @@ fun SongBandLeaderboardScreen(
                 controls = {
                     // The solo board's header, with the band size where the instrument goes (web `SongInfoHeader`;
                     // its `onTitleClick` opens Song Detail, issue #315).
-                    song?.let {
+                    song?.takeUnless { besideList }?.let {
                         SongHeader(
                             it,
                             artworkUrl(it.albumArt),

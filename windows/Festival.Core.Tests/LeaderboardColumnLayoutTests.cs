@@ -8,6 +8,19 @@ public class LeaderboardColumnLayoutTests
     private static readonly LeaderboardSection Scores = new(LeaderboardRowKind.Score, RankChars: 4, MetaChars: 3, ValueChars: 9, HasAccuracy: true, HasStars: true);
 
     [Fact]
+    public void WidestRank_IsTheLongestRankText_WhichSizesTheSharedColumn()
+    {
+        // Issue #594 (web computeRankWidth): the longest rank sizes every row's column; tabular digits draw equal lengths equally wide.
+        Assert.Equal("#10", LeaderboardColumnLayout.WidestRank(["#9", "#10", "#11"]));
+        Assert.Equal("#1,234", LeaderboardColumnLayout.WidestRank(["#1", "#2", "#1,234"]));
+        Assert.Equal("", LeaderboardColumnLayout.WidestRank([]));
+        Assert.Equal(28, LeaderboardColumnLayout.RankColumnWidth(-3));
+        Assert.Equal(60, LeaderboardColumnLayout.RankColumnWidth(7)); // ceil(7 × 8.5)
+        // The section fitter uses the same width, scaled with the text size.
+        Assert.Equal(LeaderboardColumnLayout.RankColumnWidth(4) * 2, LeaderboardColumnLayout.Fit(Scores, 360, textScale: 2).RankWidth);
+    }
+
+    [Fact]
     public void NarrowScoreRow_TightensGapsAndHidesSeasonAndStarsButReservesAccuracy()
     {
         var plan = LeaderboardColumnLayout.Fit(Scores, 360);
@@ -31,7 +44,7 @@ public class LeaderboardColumnLayoutTests
         {
             var plan = LeaderboardColumnLayout.Fit(Scores, width, pinSeason: true);
             Assert.True(plan.ShowMeta);
-            Assert.Equal(26, plan.MetaWidth);
+            Assert.Equal(48, plan.MetaWidth); // season pill minimum (issue #606)
         }
         Assert.True(LeaderboardColumnLayout.Fit(Scores, 360, textScale: 2.25, pinSeason: true).ShowMeta);
         var noSeason = Scores with { MetaChars = 0 };
@@ -48,7 +61,7 @@ public class LeaderboardColumnLayoutTests
         Assert.False(plan.Compact);
         Assert.Equal(12, plan.Gap);
         Assert.True(plan.ShowMeta);
-        Assert.Equal(26, plan.MetaWidth); // ceil(3 × 8.5)
+        Assert.Equal(48, plan.MetaWidth); // max(48, ceil(3 × 8.5) + 12): the season pill
         Assert.False(plan.ShowStars);
     }
 
@@ -80,12 +93,12 @@ public class LeaderboardColumnLayoutTests
     [Fact]
     public void LargeText_DropsStarsThenSeasonUntilTheNameFits()
     {
-        // 225% text at 720 epx: everything needs ~831 epx, without stars ~733, without the season too ~674.
+        // 225% text at 720 epx: everything needs ~881 epx, without stars ~783 (the 48 epx season pill, issue #606), without the season too ~674.
         var squeezed = LeaderboardColumnLayout.Fit(Scores, 720, 2.25);
         Assert.Equal((false, false, true), (squeezed.ShowMeta, squeezed.ShowStars, squeezed.ShowAccuracy));
         Assert.Equal(76.5, squeezed.RankWidth);
-        // 780 epx: dropping stars is enough.
-        var partial = LeaderboardColumnLayout.Fit(Scores, 780, 2.25);
+        // 800 epx: dropping stars is enough.
+        var partial = LeaderboardColumnLayout.Fit(Scores, 800, 2.25);
         Assert.Equal((true, false), (partial.ShowMeta, partial.ShowStars));
         // Wide enough for everything at the same text size.
         var roomy = LeaderboardColumnLayout.Fit(Scores, 1000, 2.25);

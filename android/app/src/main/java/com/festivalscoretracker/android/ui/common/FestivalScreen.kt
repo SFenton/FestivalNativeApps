@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -63,6 +64,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import androidx.navigation.NavBackStackEntry
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.search.PxRect
@@ -187,6 +190,8 @@ fun FestivalScreen(
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val shell = LocalShellActions.current
+    val splitPane = LocalSplitPane.current
+    val entryId = (LocalViewModelStoreOwner.current as? NavBackStackEntry)?.id
     val ownFadeInWindow = rememberPageFadeInWindow()
     val pageFadeIn = fadeInWindow ?: ownFadeInWindow
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -266,6 +271,10 @@ fun FestivalScreen(
             }
             val navigationSlot: @Composable () -> Unit = {
                 when {
+                    // The trailing pane's first page closes the pane (Apple SplitPaneChrome, #583).
+                    splitPane != null && splitPane.isRoot(entryId) -> IconButton(onClick = splitPane.close, modifier = Modifier.testTag("fst.split.close")) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close")
+                    }
                     !isRoot -> IconButton(onClick = shell.back, modifier = Modifier.testTag("fst.nav.back")) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
@@ -276,10 +285,14 @@ fun FestivalScreen(
             }
             val actionsSlot: @Composable RowScope.() -> Unit = {
                 val global: @Composable RowScope.() -> Unit = {
-                    GlobalSearchEntry(shell.search)
-                    shell.notifications?.invoke()
-                    // Every page, pushed pages included (operator batch 7.12).
-                    ProfileAvatarButton(shell.selectedPlayer, shell.profileChip)
+                    // One search entry, bell and avatar per window: the list page's bar holds them
+                    // while a trailing pane is open beside it (#583).
+                    if (splitPane == null) {
+                        GlobalSearchEntry(shell.search)
+                        shell.notifications?.invoke()
+                        // Every page, pushed pages included (operator batch 7.12).
+                        ProfileAvatarButton(shell.selectedPlayer, shell.profileChip)
+                    }
                 }
                 // Outside the shell (previews, isolated tests) there is no toolbar to float in.
                 if (shell.floatingToolbar == null) {

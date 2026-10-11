@@ -447,13 +447,30 @@ class BandsUiTest {
 
     @Test
     @Config(qualifiers = "w1280dp-h800dp-mdpi")
-    fun expandedBandDetailSplitsIntoPanes() {
+    fun expandedBandDetailPairsSectionsInRowsUnderAFullWidthHeader() {
         launch(duoRoute)
-        waitForTag("fst.band.pane.leading")
-        assertTrue(exists("fst.band.pane.trailing"))
+        waitForTag("fst.band.row.0.leading")
         waitForTag("fst.band.history-chart")
-        // Both panes show every section: no Quick Links.
-        assertTrue(!exists("fst.quick-links.open"))
+        waitForTag("fst.band.worst-songs")
+        fun box(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        // #584: one scrolling page whose rows keep both sections on one top edge, read in web order.
+        listOf(
+            Triple(0, "fst.band.members-section", "fst.band.summary-section"),
+            Triple(1, "fst.band.statistics-section", "fst.band.history-section"),
+            Triple(2, "fst.band.songs-section", "fst.band.worst-songs-section"),
+        ).forEach { (row, leading, trailing) ->
+            val lead = box("fst.band.row.$row.leading")
+            val trail = box("fst.band.row.$row.trailing")
+            assertEquals("row $row: sides start on one top edge", lead.top, trail.top, 0.5f)
+            assertTrue("row $row: $leading is not in the leading cell", box(leading).left >= lead.left && box(leading).right <= lead.right)
+            assertTrue("row $row: $trailing is not in the trailing cell", box(trailing).left >= trail.left && box(trailing).right <= trail.right)
+        }
+        // The header spans both panes; the rows sit beneath it.
+        val header = box("fst.band.header")
+        val row = box("fst.band.row.0")
+        assertEquals(row.width, header.width, 1f)
+        assertTrue(header.bottom <= row.top + 0.5f)
+        assertTrue(exists("fst.band.content"))
     }
 
     // endregion

@@ -7,8 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
-import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -58,7 +57,9 @@ import com.festivalscoretracker.android.ui.common.fadeInStagger
 import com.festivalscoretracker.android.ui.common.festivalFadeIn
 import com.festivalscoretracker.android.ui.common.foldLaneItem
 import com.festivalscoretracker.android.ui.common.rememberRevealed
+import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
+import com.festivalscoretracker.android.ui.songdetail.RowSeparator
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.quicklinks.QuickLinksAction
 import com.festivalscoretracker.android.ui.quicklinks.rememberQuickLinks
@@ -120,11 +121,14 @@ fun AllRivalsScreen(viewModel: AllRivalsViewModel) {
                     Box(Modifier.padding(padding)) { RivalsMessage(RivalText.NO_RIVALS, null, "fst.all-rivals.empty") }
                     return@FestivalScreen
                 }
+                // One card of rows (#603, iOS `AllRivalsScreen`): full-line lazy segments with no gap,
+                // kept in the leading pane at a separating hinge (`foldLaneItem`).
                 AdaptiveCardGrid(
                     contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding()),
                     minColumn = 360.dp,
-                    maxColumns = 2,
+                    maxColumns = 1,
                     testTag = "fst.all-rivals.list",
+                    verticalItemSpacing = 0.dp,
                 ) {
                     // The top app bar already names the list and carries the chart icon (M3: the
                     // top app bar holds the screen title), so the header only adds the rank line
@@ -136,16 +140,18 @@ fun AllRivalsScreen(viewModel: AllRivalsViewModel) {
                                 subtitle,
                                 color = BrandTokens.textSecondary,
                                 style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.padding(bottom = 4.dp).testTag("fst.all-rivals.subtitle"),
+                                modifier = Modifier.padding(bottom = 16.dp).testTag("fst.all-rivals.subtitle"),
                             )
                         }
                     }
-                    itemsIndexed(content.entries, key = { index, entry -> entry.key(index) }) { index, entry ->
-                        RivalRow(
-                            entry,
-                            onClick = { shell.navigate(RivalRoutes.detail(entry.rival.accountId, entry.rival.displayName, scope)) },
-                            modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1)),
-                        )
+                    val count = content.entries.size
+                    content.entries.forEachIndexed { index, entry ->
+                        foldLaneItem(key = entry.key(index), contentType = "rival") {
+                            // Every segment takes the card's one fade (`load-transition` R11).
+                            RivalCardSegment(index, count, Modifier.festivalFadeIn(revealed, fadeInStagger(1))) {
+                                RivalRow(entry, onClick = { shell.navigate(RivalRoutes.detail(entry.rival.accountId, entry.rival.displayName, scope)) })
+                            }
+                        }
                     }
                 }
             }
@@ -171,7 +177,7 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
     val state by viewModel.state.collectAsStateWithLifecycle()
     val name by viewModel.displayName.collectAsStateWithLifecycle()
     val catalog by viewModel.catalog.collectAsStateWithLifecycle()
-    val gridState = rememberLazyStaggeredGridState()
+    val gridState = rememberLazyGridState()
     val categories = (state as? LoadState.Loaded)?.value?.categories.orEmpty()
     // Web: one per category once loaded; the grid's first item is the "You vs. Rival" header.
     // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
@@ -231,17 +237,23 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
                                     onSeeAll = openRivalry,
                                     seeAllTag = "fst.rival-detail.see-all.${category.key}",
                                 )
-                                category.songs.take(RivalCategorization.PREVIEW_COUNT).forEach { song ->
-                                    val catalogSong: Song? = catalog[song.songId]
-                                    androidx.compose.runtime.key(song.key) {
-                                        RivalSongRow(
-                                            song = song,
-                                            catalogSong = catalogSong,
-                                            artUrl = artworkUrl(catalogSong?.albumArt),
-                                            playerName = player,
-                                            rivalName = content.rivalName ?: name,
-                                            onClick = { shell.navigate(SongDetailRoute(song.songId)) },
-                                        )
+                                // The category's rows share one card under its header (#603, iOS `FestivalGlassSection`).
+                                GlassCard(Modifier.fillMaxWidth().testTag(RIVALS_CARD_TAG)) {
+                                    Column(Modifier.padding(vertical = 4.dp)) {
+                                        category.songs.take(RivalCategorization.PREVIEW_COUNT).forEachIndexed { index, song ->
+                                            val catalogSong: Song? = catalog[song.songId]
+                                            androidx.compose.runtime.key(song.key) {
+                                                if (index > 0) RowSeparator()
+                                                RivalSongRow(
+                                                    song = song,
+                                                    catalogSong = catalogSong,
+                                                    artUrl = artworkUrl(catalogSong?.albumArt),
+                                                    playerName = player,
+                                                    rivalName = content.rivalName ?: name,
+                                                    onClick = { shell.navigate(SongDetailRoute(song.songId)) },
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -282,7 +294,7 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
     val catalog by viewModel.catalog.collectAsStateWithLifecycle()
     val sort by viewModel.sort.collectAsStateWithLifecycle()
     var sortOpen by rememberSaveable { mutableStateOf(false) }
-    val gridState = rememberLazyStaggeredGridState()
+    val gridState = rememberLazyGridState()
     // No Quick Links: one link per song only repeated the list (owner, #545; quick-links variant).
     val fadeIn = rememberPageFadeInWindow()
     FestivalScreen(
@@ -335,14 +347,16 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
                     return@FestivalScreen
                 }
                 val player = shell.selectedPlayer?.displayName
+                // One card of rows (#603, iOS `RivalryScreen`): full-line lazy segments with no gap.
                 AdaptiveCardGrid(
                     contentPadding = PaddingValues(top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding()),
-                    maxColumns = 2,
+                    maxColumns = 1,
                     state = gridState,
                     testTag = "fst.rivalry.list",
+                    verticalItemSpacing = 0.dp,
                 ) {
                     foldLaneItem(key = "header") {
-                        Column(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(bottom = 16.dp)) {
                             Text(
                                 "vs. ${content.rivalName ?: name ?: "…"}",
                                 style = MaterialTheme.typography.titleLarge,
@@ -353,17 +367,21 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
                             Text(category.description, color = BrandTokens.textSecondary)
                         }
                     }
-                    itemsIndexed(category.songs, key = { _, song -> song.key }) { index, song ->
-                        val catalogSong = catalog[song.songId]
-                        Box(Modifier.festivalFadeIn(revealed, fadeInStagger(index + 1))) {
-                            RivalSongRow(
-                                song = song,
-                                catalogSong = catalogSong,
-                                artUrl = artworkUrl(catalogSong?.albumArt),
-                                playerName = player,
-                                rivalName = content.rivalName ?: name,
-                                onClick = { shell.navigate(SongDetailRoute(song.songId)) },
-                            )
+                    val count = category.songs.size
+                    category.songs.forEachIndexed { index, song ->
+                        foldLaneItem(key = song.key, contentType = "song") {
+                            val catalogSong = catalog[song.songId]
+                            // Every segment takes the card's one fade (`load-transition` R11).
+                            RivalCardSegment(index, count, Modifier.festivalFadeIn(revealed, fadeInStagger(1))) {
+                                RivalSongRow(
+                                    song = song,
+                                    catalogSong = catalogSong,
+                                    artUrl = artworkUrl(catalogSong?.albumArt),
+                                    playerName = player,
+                                    rivalName = content.rivalName ?: name,
+                                    onClick = { shell.navigate(SongDetailRoute(song.songId)) },
+                                )
+                            }
                         }
                     }
                 }
