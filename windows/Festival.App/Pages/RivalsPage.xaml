@@ -129,7 +129,7 @@
                                         </Grid>
                                         <controls:ServiceStatusInline Visibility="{x:Bind ShowError, Mode=OneWay}" Margin="8,4" Status="{x:Bind Status}" />
                                         <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
-                                                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="52">
+                                                       controls:FadeIn.Together="True" controls:FadeIn.RowHeight="52">
                                             <ItemsRepeater.Layout>
                                                 <!-- One non-virtualizing column: rows stay realized while the page is cached, so Back
                                                      never re-estimates them and moves the page (#276). -->

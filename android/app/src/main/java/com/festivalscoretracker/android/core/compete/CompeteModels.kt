@@ -2,7 +2,10 @@ package com.festivalscoretracker.android.core.compete
 
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.nav.FullRankingsRoute
 import com.festivalscoretracker.android.core.rankings.AccountRankingEntry
+import com.festivalscoretracker.android.core.rankings.RankingMetric
+import com.festivalscoretracker.android.core.rankings.RankingsResponse
 import com.festivalscoretracker.android.core.rivals.RivalCombo
 import com.festivalscoretracker.android.core.rivals.RivalScope
 import com.festivalscoretracker.android.core.rivals.RivalScopes
@@ -27,6 +30,15 @@ sealed interface CompeteScope {
     /** The rivals list this scope reads and carries into All Rivals / Rival Detail. */
     val rivalScope: RivalScope
 
+    /** Combo ID for a combo board, null for one chart. */
+    val comboId: String? get() = null
+
+    /**
+     * The scope's full board (web `Routes.fullRankings` / `fullComboRankings`, #602): the
+     * card's View All and View Full Leaderboards open it at Total Score, page 1.
+     */
+    val fullRankingsRoute: FullRankingsRoute
+        get() = FullRankingsRoute(instruments.first().wireId, RankingMetric.TotalScore.wireId, combo = comboId)
     /**
      * One chart.
      *
@@ -44,7 +56,7 @@ sealed interface CompeteScope {
      * @property comboId Hex combo ID.
      * @property instruments Constituent charts.
      */
-    data class Combo(val comboId: String, override val instruments: List<Instrument>) : CompeteScope {
+    data class Combo(override val comboId: String, override val instruments: List<Instrument>) : CompeteScope {
         override val key: String get() = comboId
         override val rivalScope: RivalScope get() = RivalScope.Combo(comboId)
     }
@@ -97,18 +109,31 @@ data class ComboRankingEntry(
     val fullComboCount: Int = 0,
 ) {
     /**
-     * The shared account-row shape so Compete reuses the Leaderboards row (Total Score).
+     * The shared account-row shape so Compete previews and the combo Full Rankings board
+     * reuse the Leaderboards row. A combo row carries only the rank for the metric it was
+     * read with, so every rank column holds it; the percentile is the adjusted rating (web
+     * `getRatingForMetric` combo branch), and FC Rate counts full combos over songs played
+     * (web combo `getSongsLabel`/FC value, #602).
      *
+     * @param metric The metric the row was read with.
      * @return Equivalent account entry.
      */
-    fun asAccountEntry(): AccountRankingEntry = AccountRankingEntry(
+    fun asAccountEntry(metric: RankingMetric = RankingMetric.TotalScore): AccountRankingEntry = AccountRankingEntry(
         accountId = accountId,
         displayName = displayName,
         songsPlayed = songsPlayed,
-        totalChartedSongs = totalChartedSongs,
+        totalChartedSongs = if (metric == RankingMetric.FcRate) songsPlayed else totalChartedSongs,
+        rawSkillRating = adjustedRating,
+        adjustedSkillRating = adjustedRating,
+        adjustedSkillRank = rank,
+        weightedRating = weightedRating,
+        weightedRank = rank,
         fcRate = fcRate,
+        fcRateRank = rank,
         totalScore = totalScore,
         totalScoreRank = rank,
+        maxScorePercent = maxScorePercent,
+        maxScorePercentRank = rank,
         fullComboCount = fullComboCount,
     )
 }
@@ -124,16 +149,39 @@ data class ComboRankingsResponse(
     val entries: List<ComboRankingEntry> = emptyList(),
 ) {
     /**
-     * Reject a page for another combo or with impossible ranks.
+     * Reject a page for another combo, metric or page, or with impossible ranks/counts. The
+     * service echoes `rankBy` and `page` verbatim and clamps `pageSize` to 1–200
+     * (`RankingsEndpoints.cs` combo handler), so a requested in-range read must match exactly;
+     * anything else is a stale or mismatched response, never a success-shaped wrong board (#602).
      *
      * @param comboId Requested combo.
+     * @param rankBy Requested metric wire ID.
+     * @param page Requested one-based page.
+     * @param pageSize Requested rows per page.
      * @throws FestivalApiException.InvalidResponse when inconsistent.
      */
-    fun validate(comboId: String) {
-        if (!this.comboId.equals(comboId, ignoreCase = true) || entries.any { it.rank < 1 } || totalAccounts < 0) {
+    fun validate(comboId: String, rankBy: String, page: Int, pageSize: Int) {
+        val matches = this.comboId.equals(comboId, ignoreCase = true) && this.rankBy.equals(rankBy, ignoreCase = true) &&
+            this.page == page && this.pageSize == pageSize
+        if (!matches || entries.size > pageSize || entries.any { it.rank < 1 } || totalAccounts < 0) {
             throw FestivalApiException.InvalidResponse()
         }
     }
+
+    /**
+     * The shared account-rankings page shape, so the combo board reuses Full Rankings.
+     *
+     * @param metric The metric the page was read with.
+     * @return Equivalent page, with [RankingsResponse.instrument] holding the combo ID.
+     */
+    fun asRankingsResponse(metric: RankingMetric): RankingsResponse = RankingsResponse(
+        instrument = comboId,
+        rankBy = rankBy,
+        page = page,
+        pageSize = pageSize,
+        totalAccounts = totalAccounts,
+        entries = entries.map { it.asAccountEntry(metric) },
+    )
 }
 
 // endregion
