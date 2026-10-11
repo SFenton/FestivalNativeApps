@@ -150,6 +150,23 @@ class SuggestionsUiTest {
     }
 
     @Test
+    fun filterSheetHasNoLineUnderItsHeader() {
+        // Issue #607 (modal-shell R14): the form starts right at the shared header's bottom
+        // edge; a divider there put a 1 dp gap (and a gray line) between them.
+        launch()
+        waitForTag("fst.suggestions.list")
+        rule.onNodeWithTag("fst.suggestions.filter-button").performClick()
+        waitForTag("fst.suggestions.filter.form")
+        settle()
+        fun bounds(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode()
+        val title = bounds("fst.suggestions.filter.title").boundsInRoot
+        val close = bounds("fst.suggestions.filter.done").touchBoundsInRoot
+        val form = bounds("fst.suggestions.filter.form").boundsInRoot
+        val headerBottom = maxOf(title.bottom, close.bottom)
+        assertEquals("form top $form vs header bottom (title $title, Close $close)", headerBottom, form.top, 0.5f)
+    }
+
+    @Test
     fun filterSheetAppliesLiveAndResets() {
         launch()
         waitForTag("fst.suggestions.list")
