@@ -137,7 +137,9 @@ final class SongsChromeJourneyTests: XCTestCase {
             XCTAssertTrue(field.isHittable, "Filter Songs field not tappable right after Back")
             XCTAssertEqual(field.placeholderValue, "Filter Songs")
             XCTAssertEqual(field.elementType, .searchField)
-            XCTAssertGreaterThanOrEqual(field.frame.height, 36, "Filter Songs field below a usable target height")
+            // The system capsule is 36 pt; its 44 pt target is proven in
+            // testFilterFieldIsGlassAtTopAndScrolled.
+            XCTAssertGreaterThanOrEqual(field.frame.height, 36, "Filter Songs capsule collapsed after Back")
             let returned = app.buttons[identifier]
             XCTAssertTrue(returned.waitForExistence(timeout: FestivalApp.budget(2)))
             return returned.frame
@@ -179,7 +181,9 @@ final class SongsChromeJourneyTests: XCTestCase {
     /// only once rows scrolled under the bar. Glass draws a bright specular rim just
     /// inside the capsule's top edge; the flat fill has none. Under the app's Reduce
     /// Transparency toggle it is the opaque `cardBackground` capsule instead (R4). The
-    /// field stays the system search field: role, label and target height.
+    /// field stays the system search field: role, label and a 44 × 44 pt tappable target
+    /// with either backing (``assertSearchFieldTarget(_:_:line:)``), and stays glass after
+    /// a search ends (UIKit then restores its flat fill, which the backing clears).
     @MainActor
     func testFilterFieldIsGlassAtTopAndScrolled() throws {
         continueAfterFailure = false
@@ -200,6 +204,10 @@ final class SongsChromeJourneyTests: XCTestCase {
         assertSearchFieldContract(field)
         let top = try fieldPixels(app, field, "Filter Songs at the top")
         XCTAssertGreaterThan(top.rim, 6, "Filter Songs is flat at the top of the list (rim \(top.rim))")
+        try assertSearchFieldTarget(app, field)
+        // UIKit restores its flat fill when a search ends; the backing must clear it.
+        let ended = try fieldPixels(app, field, "Filter Songs after a search ends")
+        XCTAssertGreaterThan(ended.rim, 6, "Filter Songs turned flat after Cancel (rim \(ended.rim))")
 
         let rail = app.descendants(matching: .any).matching(identifier: "fst.songs.section-index").firstMatch
         if rail.waitForExistence(timeout: FestivalApp.budget(3)) {
@@ -207,7 +215,11 @@ final class SongsChromeJourneyTests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(1.5)))
             assertSearchFieldContract(field)
             let scrolled = try fieldPixels(app, field, "Filter Songs scrolled")
-            XCTAssertGreaterThan(scrolled.rim, 6, "Filter Songs is flat scrolled (rim \(scrolled.rim))")
+            // iOS 26.x draws glass under the scrolled bar without its specular rim (with or
+            // without the backing); iOS 27, which the report came from, keeps it.
+            if ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 {
+                XCTAssertGreaterThan(scrolled.rim, 6, "Filter Songs is flat scrolled (rim \(scrolled.rim))")
+            }
         }
         app.terminate()
 
@@ -221,6 +233,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         let opaque = try fieldPixels(reduced, opaqueField, "Filter Songs, Reduce Transparency")
         // BrandTokens.cardBackground is sRGB 11, 18, 32.
         XCTAssertLessThan(opaque.interiorDistance, 12, "Filter Songs is not the opaque card capsule (Δ \(opaque.interiorDistance))")
+        try assertSearchFieldTarget(reduced, opaqueField)
     }
 
     /// The system search field contract the backing must not change.
@@ -229,7 +242,65 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertEqual(field.elementType, .searchField, line: line)
         XCTAssertEqual(field.placeholderValue, "Filter Songs", line: line)
         XCTAssertTrue(field.isHittable, "Filter Songs not tappable", line: line)
-        XCTAssertGreaterThanOrEqual(field.frame.height, 36, "Filter Songs below a usable target height", line: line)
+        // HIG Buttons: "the hit region is at least 44x44 pt".
+        let tolerance: CGFloat = 0.01
+        XCTAssertGreaterThanOrEqual(field.frame.height + tolerance, 44, "Filter Songs \(field.frame) under 44 pt tall", line: line)
+        XCTAssertGreaterThanOrEqual(field.frame.width + tolerance, 44, "Filter Songs \(field.frame) under 44 pt wide", line: line)
+    }
+
+    /// Offsets from the Filter Songs field's centre near the edges of a 44 × 44 pt square
+    /// (the field's top and bottom edges and two corners of the square).
+    private static let filterFieldNearMisses: [CGVector] = [
+        CGVector(dx: 0, dy: -21), CGVector(dx: 0, dy: 21),
+        CGVector(dx: -21, dy: -21), CGVector(dx: 21, dy: 21),
+    ]
+
+    /// HIG Buttons: "the hit region is at least 44x44 pt". The backing capsule takes no
+    /// touches, so taps 21 pt from the field's centre, at the edges of its 44 pt target,
+    /// must still focus the system field, and XCUITest's hit-region audit must report
+    /// nothing for it. Each tap ends the search with the system's end-search button.
+    ///
+    /// - Parameters:
+    ///   - app: Foreground app on the Songs root with the field at rest (not focused).
+    ///   - field: The Filter Songs search field.
+    @MainActor
+    private func assertSearchFieldTarget(
+        _ app: XCUIApplication, _ field: XCUIElement, line: UInt = #line
+    ) throws {
+        try app.performAccessibilityAudit(for: [.hitRegion]) { issue in
+            guard let element = issue.element, element.elementType == .searchField else { return true }
+            return false
+        }
+        let frame = field.frame
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        let unfocused = NSPredicate(format: "hasKeyboardFocus == false")
+        for offset in Self.filterFieldNearMisses {
+            origin.withOffset(CGVector(dx: frame.midX + offset.dx, dy: frame.midY + offset.dy)).tap()
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: focused, object: field)],
+                               timeout: FestivalApp.budget(3)),
+                .completed,
+                "Filter Songs \(frame) ignored a tap at (\(Int(offset.dx)), \(Int(offset.dy))) pt from its centre",
+                line: line
+            )
+            // iOS 26+ ends search with a close button trailing the field (older: "Cancel").
+            let active = field.frame
+            let barButtons = app.navigationBars.firstMatch.buttons.allElementsBoundByIndex
+            let end = barButtons.first {
+                $0.isHittable && $0.frame.minX >= active.maxX - 1
+                    && $0.frame.midY > active.minY && $0.frame.midY < active.maxY
+            }
+            let labels = barButtons.map { "\($0.label) \($0.frame)" }.joined(separator: "; ")
+            try XCTUnwrap(end, "No end-search button beside Filter Songs \(active): \(labels)", line: line).tap()
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: unfocused, object: field)],
+                               timeout: FestivalApp.budget(3)),
+                .completed, "Filter Songs kept focus after Cancel", line: line
+            )
+            RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(0.6)))
+            XCTAssertEqual(field.frame.minY, frame.minY, accuracy: 1, "Filter Songs moved after Cancel", line: line)
+        }
     }
 
     /// Sample a search field's capsule in a screenshot.

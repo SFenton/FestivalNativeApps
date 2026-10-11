@@ -1,9 +1,11 @@
+import CoreGraphics
 import Testing
 @testable import FestivalUI
 
 /// The Filter Songs drawer field's backing (issue #559): Liquid Glass at every scroll
 /// position, the opaque fallback under any Reduce Transparency or Increase Contrast
-/// setting (surface-materials R4) and the classic system field before iOS 26.
+/// setting (surface-materials R4) and the classic system field before iOS 26. The backing
+/// keeps UIKit's restored fill off the capsule, except the #544 transition fill.
 @Suite("Search field backing")
 struct SearchFieldBackingTests {
     @Test("Glass surfaces back the field with glass")
@@ -56,5 +58,24 @@ struct SearchFieldBackingTests {
     func unbackedKeeps544Rule() {
         #expect(!SearchFieldBacking.none.needsTransitionFill(contentUnderBar: false))
         #expect(SearchFieldBacking.none.needsTransitionFill(contentUnderBar: true))
+    }
+
+    @Test("A backed field clears the fill UIKit restores when a search ends")
+    func backedFieldClearsSystemFill() {
+        for backing in [SearchFieldBacking.glass, .opaque] {
+            // tertiarySystemFill is 24% alpha.
+            #expect(backing.clearsSystemFill(fillAlpha: 0.24, holdsTransitionFill: false))
+            #expect(!backing.clearsSystemFill(fillAlpha: 0, holdsTransitionFill: false))
+        }
+    }
+
+    @Test("The #544 transition fill stays while a push or pop draws it")
+    func transitionFillIsKept() {
+        #expect(!SearchFieldBacking.glass.clearsSystemFill(fillAlpha: 0.24, holdsTransitionFill: true))
+    }
+
+    @Test("Without a backing UIKit's fill is left alone")
+    func unbackedKeepsSystemFill() {
+        #expect(!SearchFieldBacking.none.clearsSystemFill(fillAlpha: 0.24, holdsTransitionFill: false))
     }
 }

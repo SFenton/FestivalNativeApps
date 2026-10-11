@@ -169,7 +169,7 @@ private struct SearchDrawerTransitionBridge: UIViewControllerRepresentable {
             else { return }
             activeTransitions += 1
             filledField = field
-            field.backgroundColor = .tertiarySystemFill
+            setTransitionFill(true, on: field)
             coordinator.animate(alongsideTransition: nil) { [weak self] _ in
                 MainActor.assumeIsolated { self?.transitionEnded() }
             }
@@ -180,11 +180,23 @@ private struct SearchDrawerTransitionBridge: UIViewControllerRepresentable {
             activeTransitions = max(0, activeTransitions - 1)
             guard activeTransitions == 0 else { return }
             if let field = filledField {
-                // A backed field keeps its fill cleared so UIKit's top-edge fill can't tint it.
-                field.backgroundColor = currentBacking(of: field) == .none ? nil : .clear
+                setTransitionFill(false, on: field)
             }
             filledField = nil
             installBacking()
+        }
+
+        /// Give the field the transition fill, or remove it (a backed field stays clear).
+        ///
+        /// - Parameters:
+        ///   - filled: True while a covered push or pop runs.
+        ///   - field: The page's drawer search field.
+        private func setTransitionFill(_ filled: Bool, on field: UISearchTextField) {
+            if #available(iOS 26.0, *) {
+                SearchFieldBackingView.setTransitionFill(filled, on: field)
+            } else {
+                field.backgroundColor = filled ? .tertiarySystemFill : nil
+            }
         }
 
         /// The backing a field draws now (none before iOS 26).

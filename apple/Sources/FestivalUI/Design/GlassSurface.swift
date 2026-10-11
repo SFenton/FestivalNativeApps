@@ -266,6 +266,22 @@ enum SearchFieldBacking: Equatable, Sendable {
         case .none: contentUnderBar
         }
     }
+
+    /// Whether a fill UIKit just gave the backed field must be cleared again.
+    ///
+    /// UIKit re-applies its own search-field fill whenever it restyles the field: when a
+    /// search ends (the flat `tertiarySystemFill`) and as the scroll edge changes. Under a
+    /// glass or opaque backing that fill tints the capsule and flattens the glass, so the
+    /// field turned flat after the first Cancel (#559 design review). Only the #544
+    /// transition fill, set on purpose for a push or pop, may stay.
+    ///
+    /// - Parameters:
+    ///   - fillAlpha: The alpha of the field's new fill (0 for none or clear).
+    ///   - holdsTransitionFill: Whether a push or pop is drawing the transition fill.
+    /// - Returns: True when a backed field shows a visible fill it should not have.
+    nonisolated func clearsSystemFill(fillAlpha: CGFloat, holdsTransitionFill: Bool) -> Bool {
+        self != .none && !holdsTransitionFill && fillAlpha > 0
+    }
 }
 
 #if os(iOS)
@@ -278,6 +294,10 @@ enum SearchFieldBacking: Equatable, Sendable {
 final class SearchFieldBackingView: UIView {
     private(set) var backing: SearchFieldBacking = .none
     private var glassView: UIVisualEffectView?
+    /// Whether a push or pop is drawing the #544 transition fill on the field.
+    private(set) var holdsTransitionFill = false
+    /// Watches the field's fill so UIKit's restyling can't flatten the backing.
+    private var fillObservation: NSKeyValueObservation?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -332,6 +352,7 @@ final class SearchFieldBackingView: UIView {
         let existing = field.subviews.lazy.compactMap { $0 as? SearchFieldBackingView }.first
         guard backing != .none else {
             if let existing {
+                existing.fillObservation = nil
                 existing.removeFromSuperview()
                 field.backgroundColor = nil
             }
@@ -343,7 +364,43 @@ final class SearchFieldBackingView: UIView {
         }
         view.frame = field.bounds
         view.render(backing)
-        field.backgroundColor = .clear
+        view.guardFill(of: field)
+        if !view.holdsTransitionFill {
+            field.backgroundColor = .clear
+        }
+    }
+
+    /// Give a field the #544 transition fill for a push or pop, or take it away.
+    ///
+    /// - Parameters:
+    ///   - filled: True while the transition runs.
+    ///   - field: The search bar's text field.
+    static func setTransitionFill(_ filled: Bool, on field: UISearchTextField) {
+        let view = field.subviews.lazy.compactMap { $0 as? SearchFieldBackingView }.first
+        view?.holdsTransitionFill = filled
+        if filled {
+            field.backgroundColor = .tertiarySystemFill
+        } else {
+            // A backed field keeps its fill cleared; an unbacked one gets UIKit's back.
+            field.backgroundColor = view == nil || view?.backing == SearchFieldBacking.none ? nil : .clear
+        }
+    }
+
+    /// Clear any fill UIKit gives the field while it is backed (when a search ends, or
+    /// as the scroll edge changes), except the transition fill.
+    ///
+    /// - Parameter field: The search bar's text field.
+    private func guardFill(of field: UISearchTextField) {
+        guard fillObservation == nil else { return }
+        fillObservation = field.layer.observe(\.backgroundColor, options: [.new]) { [weak self, weak field] layer, _ in
+            let alpha = layer.backgroundColor?.alpha ?? 0
+            MainActor.assumeIsolated {
+                guard let self, let field, field.subviews.first === self,
+                      self.backing.clearsSystemFill(fillAlpha: alpha, holdsTransitionFill: self.holdsTransitionFill)
+                else { return }
+                field.backgroundColor = .clear
+            }
+        }
     }
 
     /// The backing a field draws now.
