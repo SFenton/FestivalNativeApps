@@ -32,6 +32,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.readingGroup
@@ -42,6 +43,7 @@ import com.festivalscoretracker.android.core.nav.SongDetailRoute
 import com.festivalscoretracker.android.core.rivals.RivalCategorization
 import com.festivalscoretracker.android.core.rivals.RivalQuickLinks
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
+import com.festivalscoretracker.android.core.rivals.RivalScope
 import com.festivalscoretracker.android.core.rivals.RivalScopes
 import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.core.rivals.RivalrySort
@@ -71,16 +73,31 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * Rival pages without a selected player (web guard: "Track a player to see their rivals.").
  *
  * @param title Screen title.
+ * @param subtitle The page's bar subtitle (#604), kept so the placeholder names the same page.
+ * @param subtitleIcon Decorative icon leading [subtitle] ([rivalScopeSubtitleIcon]).
  */
 @Composable
-fun RivalsNoPlayerScreen(title: String) {
+fun RivalsNoPlayerScreen(title: String, subtitle: String? = null, subtitleIcon: (@Composable (size: Dp) -> Unit)? = null) {
     val shell = LocalShellActions.current
-    FestivalScreen(title = title, isRoot = false) { padding ->
+    FestivalScreen(title = title, isRoot = false, subtitle = subtitle, subtitleIcon = subtitleIcon) { padding ->
         Box(Modifier.padding(padding)) {
             RivalsMessage(RivalText.NO_PLAYER, null, "fst.rivals.chooseProfile", shell.openProfile, "Select Player")
         }
     }
 }
+
+/**
+ * The single chart's decorative icon leading Rival Detail's "{Instrument} Rivals" bar subtitle
+ * (owner, #604; the song board's "{icon} Lead" line, `song-leaderboard-header`, #580). The
+ * subtitle names the chart, so the icon has no label of its own.
+ *
+ * @param scope Route scope.
+ * @return Icon slot, or null for a scope spanning several charts.
+ */
+fun rivalScopeSubtitleIcon(scope: RivalScope?): (@Composable (size: Dp) -> Unit)? =
+    RivalScopes.singleInstrument(scope)?.let { instrument ->
+        { size -> InstrumentIcon(instrument, size = size, decorative = true, modifier = Modifier.testTag("fst.rival-detail.subtitle-icon.${instrument.wireId}")) }
+    }
 
 // endregion
 
@@ -185,9 +202,13 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
     val quickLinks = rememberQuickLinks(gridState, "Quick Links", RivalQuickLinks.rivalDetail(categories), fadeInWindow = fadeIn) { id ->
         categories.indexOfFirst { RivalQuickLinks.categoryId(it.key) == id }.takeIf { it >= 0 }?.plus(1)
     }
+    // Owner (#604): the rival's name over "Rivals", or over "{icon} {Instrument} Rivals" for a
+    // single chart (the `FestivalScreen` bar subtitle, as on the instrument song board, #580).
     FestivalScreen(
-        title = name ?: "Rival",
+        title = name ?: RivalText.RIVAL,
         isRoot = false,
+        subtitle = RivalScopes.detailSubtitle(viewModel.scope),
+        subtitleIcon = rivalScopeSubtitleIcon(viewModel.scope),
         fadeInWindow = fadeIn,
         actions = {
             QuickLinksAction(quickLinks, windowWidthDp().toInt())
@@ -297,9 +318,11 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
     val gridState = rememberLazyGridState()
     // No Quick Links: one link per song only repeated the list (owner, #545; quick-links variant).
     val fadeIn = rememberPageFadeInWindow()
+    // Owner (#604): the section over the rival's name.
     FestivalScreen(
         title = RivalCategorization.title(mode),
         isRoot = false,
+        subtitle = name ?: RivalText.RIVAL,
         fadeInWindow = fadeIn,
         actions = {
             Box {
