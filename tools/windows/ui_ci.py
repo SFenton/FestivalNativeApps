@@ -10,14 +10,15 @@ This is the one registry of Windows accessibility journeys that gate pull reques
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
-push (issue #452), the Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438) and the Full
+push (issue #452), the Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438), the Paths
+text table (issue #515, also under a contrast theme) and the Full
 Rankings pinned row (issue #466, also with in-app Reduce Motion), the Leaderboards card "your rank" row (issue #493,
 also with in-app Reduce Motion), the Search All section titles (issue #483, also with in-app Reduce Motion), the
 Song Band Leaderboard rows, empty and error states (issue #510), the Suggestions cards, keyboard, filter and states
 (issue #513), the Item Shop offers grid, List/Grid toggle, rings and states (issue #516, also with in-app Reduce
-Motion), the real-control First Run demos (issue #498, also with Animation effects off) and the profile title row
-(issue #446) run at default and 225% text, and that the generated work-behind-dialogs runs (issues #83, #436) gate PRs
-and cover motion off.
+Motion), the real-control First Run demos (issue #498, also with Animation effects off), the profile title row
+(issue #446) and the Score History chart (issue #512, also under Desert contrast) run at default and 225% text, and
+that the generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
 
 Usage::
@@ -307,6 +308,14 @@ RUNS: tuple[Run, ...] = (
     # as in-card rows that touch (0 epx) in score order, ending on a 40+ epx View All Scores named for the chart.
     Run("score-history-card", "a11y-score-history-card.json", tabs=0),
     Run("score-history-card-text-225", "a11y-score-history-card.json", sizes="compact", mode="text-225", tabs=0),
+    # Song Detail's Score History chart (issues #198, #512): Left/Right move focus between bar ToggleButtons and select
+    # them, at 225% text the axis titles keep clear of the measured tick labels and date bands, under Desert the bars
+    # paint the theme's Window/WindowText/Highlight (also after a live switch), and the syncing and failed states expose
+    # a named 40+ epx Retry after the chart's heading.
+    Run("score-history-chart", "a11y-score-history-chart.json", tabs=0),
+    Run("score-history-chart-text-225", "a11y-score-history-chart.json", sizes="compact", mode="text-225", tabs=0),
+    Run("score-history-chart-contrast", "a11y-score-history-chart.json", sizes="compact", mode="hc-desert", tabs=0,
+        only="history-chart-contrast"),
     # Profile Bands groups as one card each (issue #596): rows touch, 40+ epx stops named without the band size, the
     # purple View All Bands (N) inside the card, header -> rows -> View All order, Down between rows and Tab to View All.
     Run("profile-bands", "a11y-profile-bands.json", tabs=0),
@@ -340,6 +349,13 @@ RUNS: tuple[Run, ...] = (
     # Zoom in, then End/Home on the focused chart) and back at 100% with Zoom out unavailable, and after Image <-> Text.
     Run("paths-chart", "a11y-paths-chart.json", sizes="compact,medium,wide", tabs=0),
     Run("paths-chart-text-225", "a11y-paths-chart.json", sizes="compact,wide", mode="text-225", tabs=0),
+    # Paths text table (issues #223, #515): "Path table, pane" (a Tab stop that keeps focus on End/Home) holds one
+    # "Activation n: …, group" per card in selectors -> table -> cards -> Close order, with the column captions and
+    # values Raw (read once), the compact stack and wide grid with values apart; a live Desert switch repaints the frets
+    # and Overdrive bar in system colours and refits the dialog so the display selector is not clipped, and back.
+    Run("paths-text-contrast", "a11y-paths-text.json", sizes="compact", mode="hc-desert", tabs=0, only="paths-text"),
+    Run("paths-text", "a11y-paths-text.json", sizes="compact,medium,wide", tabs=0),
+    Run("paths-text-text-225", "a11y-paths-text.json", sizes="compact,wide", mode="text-225", tabs=0),
 )
 
 
