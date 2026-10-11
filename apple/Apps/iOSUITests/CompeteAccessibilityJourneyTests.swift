@@ -8,10 +8,13 @@ import XCTest
 /// `FestivalReloadGate`, "Loading Compete") has left.
 ///
 /// The app reads the loopback fixture (`tools/mock_service.py`) as `fixture-riv` with Lead and
-/// Bass shown: each board lists Fixture Player 1, Fixture Player 2 and Fixture Rank 3. Each
-/// launch waits for the spinner to leave the tree, checks the reading order (the Leaderboards
-/// heading, each instrument heading, its rows, its "View Full Leaderboard, <instrument>"
-/// button, then the Rivals heading; headings with the header trait), and brings every one of
+/// Bass shown: the Lead + Bass combo board (#602), then the Lead and Bass boards, each listing
+/// Fixture Player 1, Fixture Player 2 and Fixture Rank 3. Each launch waits for the spinner to
+/// leave the tree, checks the reading order (the Leaderboards heading, each board's heading,
+/// its rows, its "View Full Leaderboard, <board>" button, then the Rivals heading; headings
+/// with the header trait), checks that the section's only buttons are those rows and View Full
+/// Leaderboard buttons (no Leaderboards Overview, removed by #36, backfilled by #408), and
+/// brings every one of
 /// those elements wholly into view between the navigation bar and the bottom chrome (tab-bar
 /// accessory and tab bar). At AX5 each one must read back whole from its own capture (no
 /// ellipsis, no clipped word), render glyphs more than 1.35× taller than at the default size
@@ -51,27 +54,47 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
         let drawn: String
         /// Which match of `label` (a row's rank repeats on each board).
         let occurrence: Int
+        /// More text it draws, each read back whole on its own (not ordered after `drawn`).
+        var also: [String] = []
 
         var description: String { "\(label) [\(occurrence)]" }
     }
 
-    /// The fixture's board rows: rank, name, songs and score.
+    /// The fixture's instrument board rows: rank, name, songs and score.
     private static let rows = [
         (rank: 1, name: "Fixture Player 1", songs: "39 / 50", score: "89,000,000"),
         (rank: 2, name: "Fixture Player 2", songs: "38 / 50", score: "88,000,000"),
         (rank: 3, name: "Fixture Rank 3", songs: "37 / 50", score: "87,000,000"),
     ]
 
+    /// The Lead + Bass combo board's rows: rank, name and both instruments' scores summed.
+    /// On a portrait iPhone the combo card drops songs played to keep names whole (#38),
+    /// and text recognition reads its trailing score first, so the score is checked apart.
+    private static let comboRows = [
+        (rank: 1, name: "Fixture Player 1", score: "178,000,000"),
+        (rank: 2, name: "Fixture Player 2", score: "176,000,000"),
+        (rank: 3, name: "Fixture Rank 3", score: "174,000,000"),
+    ]
+
     /// The Leaderboards section in reading order, then the Rivals heading.
     private static let readingOrder: [Item] = {
         var items = [Item(kind: .heading, label: "Leaderboards", drawn: "Leaderboards", occurrence: 0)]
-        for (board, instrument) in ["Lead", "Bass"].enumerated() {
+        for (board, instrument) in ["Lead + Bass", "Lead", "Bass"].enumerated() {
             items.append(Item(kind: .heading, label: instrument, drawn: instrument, occurrence: 0))
-            for row in rows {
-                items.append(Item(
-                    kind: .row, label: "#\(row.rank)",
-                    drawn: "#\(row.rank) \(row.name) \(row.songs) \(row.score)", occurrence: board
-                ))
+            if board == 0 {
+                for row in comboRows {
+                    items.append(Item(
+                        kind: .row, label: "#\(row.rank)", drawn: "#\(row.rank) \(row.name)", occurrence: board,
+                        also: [row.score]
+                    ))
+                }
+            } else {
+                for row in rows {
+                    items.append(Item(
+                        kind: .row, label: "#\(row.rank)",
+                        drawn: "#\(row.rank) \(row.name) \(row.songs) \(row.score)", occurrence: board
+                    ))
+                }
             }
             items.append(Item(
                 kind: .action, label: "View Full Leaderboard, \(instrument)", drawn: "View Full Leaderboard", occurrence: 0
@@ -98,6 +121,10 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
             let reading = RecognizedText.recognize(element, label: item.drawn, frame: frame)
             XCTAssertTrue(RecognizedText.showsWhole(item.drawn, in: reading.text),
                           "\(item) reads back whole at the default size: '\(reading.text ?? "nil")'")
+            for text in item.also {
+                XCTAssertTrue(RecognizedText.showsWhole(text, in: reading.text),
+                              "\(item) draws \(text) whole at the default size: '\(reading.text ?? "nil")'")
+            }
             let height = try XCTUnwrap(reading.lineHeight, "\(item) recognized at the default size")
             XCTAssertGreaterThan(height, 4, "\(item) has a measurable line height")
             baseline.append(height)
@@ -120,6 +147,10 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
             let reading = RecognizedText.recognize(element, label: item.drawn, frame: frame)
             XCTAssertTrue(RecognizedText.showsWhole(item.drawn, in: reading.text),
                           "\(item) reads back whole at AX5: '\(reading.text ?? "nil")'")
+            for text in item.also {
+                XCTAssertTrue(RecognizedText.showsWhole(text, in: reading.text),
+                              "\(item) draws \(text) whole at AX5: '\(reading.text ?? "nil")'")
+            }
             let height = try XCTUnwrap(reading.lineHeight, "\(item) recognized at AX5")
             let ratio = height / baseline[index]
             growth.append(String(format: "%@ %.2f", item.description, ratio))
@@ -183,6 +214,36 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
         for node in read where node.label.hasPrefix("View Full Leaderboard") {
             XCTAssertEqual(node.elementType, .button, "'\(node.label)' is a button at \(size)")
         }
+        assertOnlyBoardButtons(snapshot, size: size)
+    }
+
+    /// Between the Leaderboards and Rivals headings the only buttons are ranking rows and
+    /// each board's View Full Leaderboard: the Leaderboards Overview #36 removed (web
+    /// parity) must not come back, and nothing reads as an overview.
+    ///
+    /// - Parameters:
+    ///   - snapshot: The app's snapshot.
+    ///   - size: Label for failure messages.
+    @MainActor
+    private func assertOnlyBoardButtons(_ snapshot: XCUIElementSnapshot, size: String) {
+        var inSection = false
+        var strays: [String] = []
+        var overview: [String] = []
+        Self.walk(snapshot) { node in
+            if node.label.localizedCaseInsensitiveContains("overview")
+                || node.identifier.localizedCaseInsensitiveContains("overview") {
+                overview.append("\(node.elementType.rawValue) \(node.identifier) '\(node.label)'")
+            }
+            guard [.staticText, .button].contains(node.elementType) else { return }
+            if node.elementType == .staticText, node.label == "Leaderboards" { inSection = true }
+            if node.elementType == .staticText, node.label == "Rivals" { inSection = false }
+            if inSection, node.elementType == .button, !node.label.hasPrefix("#"),
+               !node.label.hasPrefix("View Full Leaderboard, ") {
+                strays.append("\(node.identifier) '\(node.label)'")
+            }
+        }
+        XCTAssertEqual(strays, [], "only rows and View Full Leaderboard act in Leaderboards at \(size)")
+        XCTAssertEqual(overview, [], "no Leaderboards Overview at \(size)")
     }
 
     /// The reading-order key for a label: a row's rank (its label starts "#1, …"), else the label.

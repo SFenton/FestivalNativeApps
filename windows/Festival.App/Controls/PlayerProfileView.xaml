@@ -207,8 +207,9 @@
                                                           RetryAutomationId="fst.player.bands.retry" />
                         </Border>
 
+                        <!-- Each group card fades in as one unit, cards one after another (issue #614): its rows ride it (FadeIn.Together). -->
                         <ItemsRepeater TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled"
-                                       ItemsSource="{x:Bind ViewModel.Bands.Groups, Mode=OneWay}"
+                                       ItemsSource="{x:Bind ViewModel.Bands.Groups, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="420"
                                        Visibility="{x:Bind ViewModel.Bands.ShowGroups, Mode=OneWay, FallbackValue=Collapsed}">
                             <ItemsRepeater.Layout>
                                 <!-- Side by side like the Leaderboards Duos/Trios/Quads cards (issue #596), never virtualizing (#533). -->
@@ -229,7 +230,7 @@
                                             <Border Style="{StaticResource FSTRowsCardStyle}" Visibility="{x:Bind HasCards}">
                                                 <StackPanel>
                                                     <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Cards}" controls:RowSeparators.Enabled="True"
-                                                                   controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="120">
+                                                                   controls:FadeIn.Together="True" controls:FadeIn.RowHeight="120">
                                                         <ItemsRepeater.Layout>
                                                             <controls:LeaderboardsCardGridLayout MinColumnWidth="0" MaxColumns="1" Spacing="0" />
                                                         </ItemsRepeater.Layout>
