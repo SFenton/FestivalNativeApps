@@ -1901,6 +1901,10 @@
             "symbol": "rememberLoadSwap"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadSwap.kt",
+            "symbol": "BOARD_CARD_INDEX"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadGate.kt",
             "symbol": "FestivalLoadGate"
           },

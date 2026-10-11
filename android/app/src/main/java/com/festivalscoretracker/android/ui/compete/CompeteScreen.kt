@@ -238,8 +238,9 @@ private fun EmptyCard(title: String, subtitle: String, modifier: Modifier = Modi
 }
 
 /**
- * One scope's leaderboard card: its header, then rows, the player's row and View Full
- * Leaderboards (or empty copy, or an inline error), each fading in at its place in the page order.
+ * One scope's leaderboard card: its header, then the card of rows and the player's row (one
+ * fade, load-transition R11, owner #614) and View Full Leaderboards (or empty copy, or an inline
+ * error), each fading in at its place in the page order.
  *
  * @param section Scope state.
  * @param selected Selected account, highlighted in the rows.
@@ -270,7 +271,8 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                 if (!value.hasNavigation) {
                     EmptyCard(CompeteText.NO_RANKINGS_TITLE, CompeteText.noRankings(scope.label), Modifier.festivalFadeIn(revealed, fadeInStagger(body)))
                 } else {
-                    GlassCard(Modifier.fillMaxWidth()) {
+                    // The card fades in as one with its rows and the player's row, never row by row (load-transition R11, owner #614).
+                    GlassCard(Modifier.fillMaxWidth().festivalFadeIn(revealed, fadeInStagger(body))) {
                         // Rows fill this column, so its inner width is the row width the songs column must fit in (issue #38).
                         var rowWidth by rememberRankingRowWidth()
                         val density = LocalDensity.current
@@ -278,7 +280,7 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                         CompositionLocalProvider(LocalRankingColumns provides columns) {
                         Column(Modifier.padding(8.dp).onSizeChanged { rowWidth = with(density) { it.width.toDp().value } }) {
                             value.entries.forEachIndexed { index, entry ->
-                                Box(Modifier.festivalFadeIn(revealed, fadeInStagger(body + index))) {
+                                Box {
                                     if (index > 0) RowSeparator(Modifier.align(Alignment.TopCenter))
                                     AccountRankingRow(
                                         entry = entry,
@@ -291,7 +293,7 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                                 }
                             }
                             value.spotlight?.let { own ->
-                                Column(Modifier.festivalFadeIn(revealed, fadeInStagger(body + value.entries.size))) {
+                                Column {
                                     HorizontalDivider(color = BrandTokens.glassBorder, modifier = Modifier.padding(vertical = 4.dp))
                                     // Like Song Detail's appended row (`leaderboard-row` R7, owner variant #370): it opens
                                     // the scope's full board (a combo's included, #602) on the player's page and reveals the row.
@@ -309,10 +311,9 @@ private fun BoardCard(section: CompeteSection, selected: String?, viewModel: Com
                         }
                     }
                     if (fullBoard != null) {
-                        val rows = value.entries.size + (if (value.spotlight != null) 1 else 0)
                         ViewFullLeaderboardButton(
                             onClick = fullBoard,
-                            modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(body + rows)),
+                            modifier = Modifier.festivalFadeIn(revealed, fadeInStagger(body + 1)),
                             label = CompeteText.VIEW_FULL_LEADERBOARDS,
                             testTag = "fst.compete.view-full-leaderboards",
                             cardName = scope.label,

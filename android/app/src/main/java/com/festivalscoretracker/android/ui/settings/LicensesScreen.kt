@@ -196,8 +196,10 @@ private fun LicensesBody(
                         Modifier.staggered(0),
                     )
                 }
+                // The packages are one grouped card drawn as lazy segments: every segment shares the
+                // card's one fade, never row by row (load-transition R11, owner #614).
                 itemsIndexed(current.packages, key = { _, item -> item.id }) { index, item ->
-                    PackageRow(item, index, current.packages.size, selected = if (detailPane) item.id == shown?.id else null, Modifier.staggered(index + 1)) { openId = item.id }
+                    PackageRow(item, index, current.packages.size, selected = if (detailPane) item.id == shown?.id else null, Modifier.staggered(1)) { openId = item.id }
                 }
             }
             if (detailPane) {

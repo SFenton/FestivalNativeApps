@@ -128,9 +128,11 @@ data class CompeteContent(
 }
 
 /**
- * Entrance order of the page's headers and rows (web `CompetePage` `useStagger().next()`: one
- * counter in reading order, so the group header, each scope header and each card's rows fade in
- * one after another). Pass an index to `fadeInStagger`, which caps the delay.
+ * Entrance order of the page's headers and cards (web `CompetePage` `useStagger().next()`: one
+ * counter in reading order, so the group header, each scope header and each card fade in one
+ * after another). A leaderboard card fades in as one with all its rows (load-transition R11,
+ * owner #614); rival rows are cards of their own and keep their stagger. Pass an index to
+ * `fadeInStagger`, which caps the delay.
  *
  * @property leaderboardsHeader Index of the Leaderboards group header.
  * @property boards Index of each leaderboard card's scope header, in [CompeteContent.sections] order;
@@ -155,11 +157,14 @@ data class CompeteStaggerPlan(val leaderboardsHeader: Int, val boards: List<Int>
             return CompeteStaggerPlan(leaderboardsHeader, boards, rivalsHeader, rivals)
         }
 
-        /** Rows, the player's row and View Full Leaderboards; otherwise one empty or error card. */
+        /**
+         * The board card, which fades in as one with its rows and the player's row
+         * (load-transition R11, owner #614), then View Full Leaderboards; otherwise one empty or error card.
+         */
         private fun boardItems(section: CompeteSection): Int {
-            val board = section.board.valueOrNull?.takeIf { it.hasNavigation } ?: return 1
+            section.board.valueOrNull?.takeIf { it.hasNavigation } ?: return 1
             // Every scope ends with View Full Leaderboards, combos included (#602).
-            return board.entries.size + (if (board.spotlight != null) 1 else 0) + 1
+            return 2
         }
 
         /** Rival rows and View All Rivals; otherwise one empty or error card. */

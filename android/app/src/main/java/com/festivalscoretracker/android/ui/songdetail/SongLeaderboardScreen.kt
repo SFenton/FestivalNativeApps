@@ -81,7 +81,7 @@ import com.festivalscoretracker.android.presentation.profile.SelectedProfileStat
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.fadeInStagger
-import com.festivalscoretracker.android.ui.common.festivalFadeIn
+import com.festivalscoretracker.android.ui.common.BOARD_CARD_INDEX
 import com.festivalscoretracker.android.ui.common.loadSwapSpinnerItem
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
@@ -214,9 +214,9 @@ fun SongLeaderboardScreen(
     LaunchedEffect(revealPending, pageShown, loaded) {
         if (!revealPending || !pageShown) return@LaunchedEffect
         if (selectedOnPage) {
-            // Like the web's navToPlayer: scroll once the row's own entrance has finished (issue #323).
-            val index = loaded.entries.indexOfFirst { RankingSpotlight.isSelected(selectedAccountId, it.accountId) }
-            if (awaitSelectedRowEntrance(fadeIn, fadeInStagger(index), reduceMotion)) {
+            // Like the web's navToPlayer: scroll once the row's own entrance has finished (issue #323);
+            // the row enters with the board's card (load-transition R11, #614).
+            if (awaitSelectedRowEntrance(fadeIn, fadeInStagger(BOARD_CARD_INDEX), reduceMotion)) {
                 withFrameNanos { }
                 val bounds = anchor.bounds()
                 if (bounds != null) listState.revealSelectedRow("rows", null, bounds.first, bounds.second, animate = !reduceMotion)
@@ -290,7 +290,8 @@ fun SongLeaderboardScreen(
             if (swap.showsSpinner || loaded == null) {
                 loadSwapSpinnerItem(swap, "Loading leaderboard", "fst.song-leaderboard.loading")
             } else item(key = "rows") {
-                GlassCard(anchor.item.fillMaxWidth().then(swap.contentModifier)) {
+                // The card fades in as one with all its rows, never row by row (load-transition R11, owner #614).
+                GlassCard(anchor.item.fillMaxWidth().then(with(swap) { Modifier.card() })) {
                     // Same 8 dp horizontal inset as AnchoredRowCard, so the pinned row's columns line up (issue #37).
                     LeaderboardSectionMember(columns, "rows", Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
                         when {
@@ -298,8 +299,7 @@ fun SongLeaderboardScreen(
                             else -> {
                                 loaded.entries.forEachIndexed { index, entry ->
                                     val selected = RankingSpotlight.isSelected(selectedAccountId, entry.accountId)
-                                    // The reveal anchor sits outside the fade-in so it measures the settled row.
-                                    Column((if (selected) anchor.row else Modifier).festivalFadeIn(swap.revealed, fadeInStagger(index))) {
+                                    Column(if (selected) anchor.row else Modifier) {
                                         if (index > 0) RowSeparator()
                                         SongLeaderboardRow(
                                             entry = entry,
