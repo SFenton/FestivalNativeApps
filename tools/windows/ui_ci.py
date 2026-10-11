@@ -191,6 +191,8 @@ RUNS: tuple[Run, ...] = (
     # touch (0 epx), each stays one 40+ epx Button stop in visual order, rows -> pinned row -> pager, Up/Down and Tab.
     Run("grouped-boards", "a11y-grouped-boards.json", tabs=0),
     Run("grouped-boards-text-225", "a11y-grouped-boards.json", sizes="compact", mode="text-225", tabs=0),
+    Run("grouped-boards-reduced", "a11y-grouped-boards.json", sizes="medium", mode="app-reduced", tabs=0,
+        only="grouped-song-board-one-card"),
     # Combo boards (issue #602): the OG band combo card is a level-2 heading group before Lead, its View All Rankings is
     # a 40+ epx Button named with the board label, Enter opens combo Full Rankings (no instrument picker, combo title,
     # pinned combo rank) and Back restores focus; rows stay 40+ epx stops with Down between them.

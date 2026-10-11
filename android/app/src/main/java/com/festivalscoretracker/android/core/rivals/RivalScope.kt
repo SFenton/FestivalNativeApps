@@ -106,6 +106,16 @@ object RivalCombo {
     fun isValidToken(token: String): Boolean = instrumentsFor(token) != null
 
     /**
+     * Charts of a combo the service ranks (web `isRankingScopeComboId`): a hex ID of a
+     * within-group combo, so the Pro Drums family token and cross-group masks are rejected.
+     *
+     * @param token Candidate combo ID.
+     * @return Charts in service order, or null when the service has no board for it.
+     */
+    fun rankingComboInstruments(token: String?): List<Instrument>? =
+        token?.takeIf { it != PRO_DRUMS_TOKEN }?.let(::instrumentsFor)?.takeIf { isWithinGroup(mask(it)) }
+
+    /**
      * Display label: web `rivals.proDrumsFamily`, else the joined chart names
      * (`comboScopeLabel`), else `rivals.combo`.
      *
