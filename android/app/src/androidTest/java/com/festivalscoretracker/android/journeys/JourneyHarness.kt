@@ -64,6 +64,7 @@ import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import kotlin.math.abs
 
 // region Preferences
 
@@ -572,6 +573,26 @@ class JourneyHarness(private val rule: JourneyRule) {
     fun requireHingeWhenAsked() {
         if (InstrumentationRegistry.getArguments().getString(REQUIRE_HINGE_ARG) != "true") return
         assertTrue("$REQUIRE_HINGE_ARG=true but the window reports no separating vertical hinge", hinges().isNotEmpty())
+    }
+
+    /**
+     * Assert that a board's pinned selected row floats with no card around its own fill (issue
+     * #579): it starts at the anchored footer's top edge (no card padding or rim above it) and
+     * lines up with the board's rows horizontally (`leaderboard-row` R1, R5).
+     *
+     * @param screen Name for failure messages.
+     * @param pinned Pinned row test tag.
+     * @param bar The anchored footer's test tag (`<prefix>.bottom-bar`).
+     * @param row Test tag of a loaded row in the same column, or null to skip the alignment check
+     *   (the rows sit in the other pane around a hinge).
+     */
+    fun assertPinnedRowFloats(screen: String, pinned: String, bar: String, row: String?) {
+        val pinnedBox = rule.onAllNodesWithTag(pinned, useUnmergedTree = true).fetchSemanticsNodes().single().boundsInWindow
+        val barBox = rule.onAllNodesWithTag(bar, useUnmergedTree = true).fetchSemanticsNodes().single().boundsInWindow
+        assertTrue("$screen: pinned row $pinnedBox sits inside a card below the footer's top ${barBox.top}", pinnedBox.top - barBox.top <= 1f)
+        if (row == null) return
+        val rowBox = rule.onAllNodesWithTag(row, useUnmergedTree = true).fetchSemanticsNodes().first().boundsInWindow
+        assertTrue("$screen: pinned row $pinnedBox not aligned with row $rowBox", abs(pinnedBox.left - rowBox.left) <= 1f && abs(pinnedBox.right - rowBox.right) <= 1f)
     }
 
     /**
