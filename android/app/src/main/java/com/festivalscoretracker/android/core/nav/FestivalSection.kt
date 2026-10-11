@@ -93,6 +93,19 @@ object FestivalTabPolicy {
     }
 
     /**
+     * The tab a section's page belongs to when the section is not a tab itself: Compete owns
+     * Leaderboards and Rivals on compact player windows (web `BottomNav` Compete `activeKeys`,
+     * issue #610).
+     *
+     * @param section Section whose page is opened.
+     * @return Its parent tab, or null when it has none.
+     */
+    fun parent(section: FestivalSection): FestivalSection? = when (section) {
+        FestivalSection.Leaderboards, FestivalSection.Rivals -> FestivalSection.Compete
+        else -> null
+    }
+
+    /**
      * Whether leaving a section discards its nested history (web: Statistics only).
      *
      * @param section Section being left.

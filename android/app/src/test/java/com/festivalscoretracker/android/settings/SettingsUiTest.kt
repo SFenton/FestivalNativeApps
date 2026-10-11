@@ -495,6 +495,18 @@ class ExpandedSettingsUiTest {
         assertFalse(exists("fst.privacy-policy.sheet"))
         val pane = rule.onNodeWithTag("fst.settings.detail-pane").getUnclippedBoundsInRoot()
         assertTrue(rule.onNodeWithTag("fst.privacy-policy.content").getUnclippedBoundsInRoot().left >= pane.left)
+        // Issue #609: the policy reads inside one glass card under the pane header, at the
+        // detail column's readable width, in the same scrolling column as every other detail.
+        rule.onNodeWithTag("fst.settings.detail.privacy-policy").assertExists()
+        val card = rule.onNodeWithTag("fst.privacy-policy.card").getUnclippedBoundsInRoot()
+        val content = rule.onNodeWithTag("fst.privacy-policy.content").getUnclippedBoundsInRoot()
+        assertTrue("content $content inside card $card", content.left >= card.left && content.right <= card.right && content.top >= card.top)
+        assertTrue("card $card inside pane $pane", card.left >= pane.left && card.right <= pane.right)
+        assertTrue("card width ${card.right - card.left}", (card.right - card.left).value <= 840.5f)
+        val title = rule.onAllNodesWithText("Privacy Policy", useUnmergedTree = true).fetchSemanticsNodes()
+            .map { it.boundsInRoot }.first { with(rule.density) { it.left.toDp() } >= pane.left }
+        assertTrue("pane title above the card", with(rule.density) { title.bottom.toDp() } <= card.top)
+        rule.onNodeWithTag("fst.settings.detail.privacy-policy").performScrollToNode(hasTestTag("fst.privacy-policy.section.contact"))
     }
 }
 

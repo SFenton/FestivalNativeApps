@@ -34,6 +34,7 @@ import com.festivalscoretracker.android.core.rivals.RivalrySort
 import com.festivalscoretracker.android.core.rivals.RivalsListResponse
 import com.festivalscoretracker.android.core.rivals.rivalEntries
 import com.festivalscoretracker.android.ui.design.CardSegment
+import com.festivalscoretracker.android.ui.quicklinks.quickLinkIcon
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -166,6 +167,18 @@ class RivalsCoreTest {
         assertNull(RivalScopes.singleInstrument(RivalScope.Combo("03")))
         assertEquals(listOf(Instrument.Lead, Instrument.Bass), RivalScope.Combo("03").instruments)
         assertEquals(emptyList<Instrument>(), RivalScope.Combo("zz").instruments)
+    }
+
+    /** Owner (#604): Rival Detail's subtitle is the single chart's list, else "Rivals". */
+    @Test
+    fun detailSubtitleNamesTheSingleChartListElseRivals() {
+        assertEquals("Lead Rivals", RivalScopes.detailSubtitle(RivalScopes.song(listOf(Instrument.Lead))))
+        assertEquals("Drums Rivals", RivalScopes.detailSubtitle(RivalScope.Leaderboard(Instrument.Drums, RivalRankMetric.FcRate)))
+        assertEquals(RivalText.RIVALS, RivalScopes.detailSubtitle(RivalScopes.song(listOf(Instrument.Lead, Instrument.Bass))))
+        assertEquals(RivalText.RIVALS, RivalScopes.detailSubtitle(RivalScope.Combo("03")))
+        assertEquals(RivalText.RIVALS, RivalScopes.detailSubtitle(RivalScope.Combo("pro_drums")))
+        RivalSettingsScope.entries.forEach { assertEquals(RivalText.RIVALS, RivalScopes.detailSubtitle(RivalScope.FromSettings(it))) }
+        assertEquals("Rivals", RivalScopes.detailSubtitle(null))
     }
 
     // endregion
@@ -449,5 +462,32 @@ class RivalsCoreTest {
         // Rival Detail: web `rival-category:<key>` with the category title.
         val categories = listOf(RivalCategory("almost_passed", "Almost Passed", "d", RivalSentiment.entries.first(), emptyList()))
         assertEquals(listOf("rival-category:almost_passed" to "Almost Passed"), RivalQuickLinks.rivalDetail(categories).map { it.id to it.title })
+    }
+
+    @Test
+    fun rivalDetailCategoriesHaveDistinctIcons() {
+        // #605, pattern quick-links R9: the shared category list, one Material Symbol each.
+        val expected = mapOf(
+            "closest_battles" to "compare",
+            "almost_passed" to "trending-up",
+            "slipping_away" to "trending-down",
+            "barely_winning" to "finish-flag",
+            "pulling_forward" to "fast-forward",
+            "dominating_them" to "medal",
+        )
+        assertEquals(expected.keys.toList(), RivalCategorization.keys)
+        val categories = RivalCategorization.keys.map { RivalCategory(it, RivalCategorization.title(it), "d", RivalCategorization.sentiment(it), emptyList()) }
+        val sections = RivalQuickLinks.rivalDetail(categories)
+        assertEquals(expected.values.toList(), sections.map { it.icon })
+        // Every row has an icon, each a different glyph, none the generic fallback or another Rivals icon.
+        val glyphs = sections.map { quickLinkIcon(it.icon).name }
+        assertEquals(glyphs.toString(), glyphs.size, glyphs.toSet().size)
+        val taken = setOf(quickLinkIcon(null).name, quickLinkIcon("people").name, quickLinkIcon("music").name, quickLinkIcon("trophy").name)
+        assertTrue(glyphs.toString(), glyphs.none { it in taken })
+        // Decorative: rows speak only the category name.
+        assertEquals(categories.map { it.title }, sections.map { it.accessibleTitle })
+        // An unknown key keeps the group uniform with the Rivals people icon.
+        assertEquals(RivalQuickLinks.FALLBACK_CATEGORY_ICON, RivalQuickLinks.categoryIcon("new_category"))
+        assertEquals("people", RivalQuickLinks.FALLBACK_CATEGORY_ICON)
     }
 }

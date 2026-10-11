@@ -2,7 +2,7 @@
 
 > **What:** the song header, bar title and backdrop of a song-scoped leaderboard (one instrument or one band size of one song). **Read when:** adding or changing a song leaderboard, or any page that opens a board for one song.
 
-Status: **current**, 2026-10-07. Provenance: operator batch 7.2, #93, #293, #315, #316, #317, #342, #367, #542.
+Status: **current**, 2026-10-07. Provenance: operator batch 7.2, #93, #293, #315, #316, #317, #342, #367, #542, #583 (Android adopts the #342 variant).
 
 ## Intent
 
@@ -66,7 +66,8 @@ Windows consumers: `Pages/LeaderboardsSongPage` (instrument + icon), `Pages/Band
   - **Ids:** `fst.song-leaderboard.board-title`, `fst.song-band-leaderboard.board-title`, `fst.history.board-title`; the pinned ids are unchanged.
   - **HIG:** Toolbars (should) "Give each window a useful title… you can omit it when content supplies context"; Split views: the trailing pane shows the selected item's detail.
   - **Tests:** `SplitBoardTitleTests`, `songBandLeaderboardBesideSongDetailIsTitledByBandSize`, `playerHistoryScreenBesideSongDetailIsTitledByItsChart`, `macSongBoardBesideSongDetailIsTitledByItsInstrument` (beside and deeper), `macSongBandBoardOpensBesideSongDetailTitledByBandSize`, `OnDemandSplitPolicyTests.songBandBoardsOpenBesideSongDetail`, iPad `IPadShellJourneyTests.testSongDetailOpensLeaderboardInTrailingHalf`, `testSongDetailOpensBandLeaderboardInTrailingHalf`.
-  - **Other platforms:** Android and Windows have not adopted this variant yet; their hinge/split boards keep R1.
+  - **Android (#583):** adopted with the on-demand split ([split-panes](split-panes.md) R7). At the trailing pane's root beside Song Detail (`isSplitPaneRoot()`), `SongLeaderboardScreen` and `SongBandLeaderboardScreen` draw no `SongHeader`; the existing board line (`InstrumentSwitcher` / `SongBoardSwitcher`) leads the pane as its title, and once it scrolls away the top app bar takes the instrument (with its icon) or the band size, not the song. Score History already has no song header. Boards pushed deeper in the pane, full-width boards and every phone board keep R1. Test: `OnDemandSplitLandscapeUiTest.songDetailOpensTheBoardBesideItWithoutTheSongHeader`.
+  - **Windows:** has not adopted this variant; its boards keep R1.
 - **Windows has no bar title (R3).** The WinUI title bar carries the back button and app identity, not a per-page title; the solo header scrolls away under it and the page-change announcement names the board (`<Song>, <Board> leaderboard`). A committed page change scrolls the board back to the top, header in view, as the web page does; a failed page change keeps the header above the failure (load-transition R4, #283).
 - **Windows band board: fixed header.** Agent decision (#317, 2026-10-05; the owner may override): the band board's header stays fixed above the size `SelectorBar` instead of scrolling away with the rows like the solo board. The band rows' load gate hides the `ListView` (and any `ListView.Header`) while a size swap loads, which would blank the header, and the row UIA from #196 relies on that `ListView`. The web also keeps `SongInfoHeader` `collapsed` above the band rows, outside its `LoadGate` (R5).
 - **Windows Player History: fixed header.** Agent decision (#324, 2026-10-06; the owner may override): Player History keeps the header, with its Sort `DropDownButton` beside it (web header actions), fixed above the scrolling score rows, as the band board does, so the sort stays in reach on a long history and a re-sort (which scrolls to the top) never moves the header.

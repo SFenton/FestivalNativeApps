@@ -10,6 +10,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.festivalscoretracker.android.AppContainer
+import com.festivalscoretracker.android.core.layout.SplitListPage
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.nav.BandRankingsRoute
@@ -30,6 +31,7 @@ import com.festivalscoretracker.android.presentation.leaderboards.BandRankingsVi
 import com.festivalscoretracker.android.presentation.leaderboards.FullRankingsViewModel
 import com.festivalscoretracker.android.presentation.leaderboards.LeaderboardsViewModel
 import com.festivalscoretracker.android.presentation.leaderboards.RankingsReads
+import com.festivalscoretracker.android.ui.common.OnDemandSplit
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 
@@ -62,8 +64,9 @@ fun rankingsReads(container: AppContainer): RankingsReads {
  * @param preferences Persisted Rank By.
  */
 fun NavGraphBuilder.leaderboardsGraph(container: AppContainer, shellViewModel: ShellViewModel, preferences: LeaderboardPreferences) {
-    composable<LeaderboardsTab> { Overview(container, shellViewModel, preferences, isRoot = true) }
-    composable<LeaderboardsRoute> { Overview(container, shellViewModel, preferences, isRoot = false) }
+    // Full and Band Rankings open beside the overview where the window splits (#352, #583).
+    composable<LeaderboardsTab> { OnDemandSplit(SplitListPage.Leaderboards) { Overview(container, shellViewModel, preferences, isRoot = true) } }
+    composable<LeaderboardsRoute> { OnDemandSplit(SplitListPage.Leaderboards) { Overview(container, shellViewModel, preferences, isRoot = false) } }
     composable<FullRankingsRoute> { entry ->
         // The entry's saved route arguments are rewritten as the user pages or switches,
         // so a recreated entry (process death) restores the same board and page.

@@ -18,7 +18,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.automirrored.outlined.CompareArrows
 import androidx.compose.material.icons.automirrored.outlined.Toc
+import androidx.compose.material.icons.automirrored.outlined.TrendingDown
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
+import androidx.compose.material.icons.outlined.FastForward
+import androidx.compose.material.icons.outlined.MilitaryTech
+import androidx.compose.material.icons.outlined.SportsScore
 import androidx.compose.material.icons.outlined.Accessibility
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Delete
@@ -458,14 +464,31 @@ fun quickLinkIcon(token: String?): ImageVector = when (token) {
     "people" -> Icons.Outlined.People
     "chart" -> Icons.Outlined.BarChart
     "timer" -> Icons.Outlined.Timer
+    "compare" -> Icons.AutoMirrored.Outlined.CompareArrows
+    "trending-up" -> Icons.AutoMirrored.Outlined.TrendingUp
+    "trending-down" -> Icons.AutoMirrored.Outlined.TrendingDown
+    "finish-flag" -> Icons.Outlined.SportsScore
+    "fast-forward" -> Icons.Outlined.FastForward
+    "medal" -> Icons.Outlined.MilitaryTech
     else -> Icons.AutoMirrored.Outlined.Toc
 }
 
+/**
+ * A chooser row's decorative leading icon: the section's instrument artwork or its Material icon.
+ * The tag carries no label or role, so TalkBack still reads only the row's name; render tests
+ * use it to find the glyph's pixels (pattern `quick-links` R9).
+ *
+ * @param section Section.
+ */
 @Composable
 private fun SectionIcon(section: QuickLinkSection) {
     val instrument = section.instrument
-    if (instrument != null) InstrumentIcon(instrument, size = 24.dp, decorative = true) else Icon(quickLinkIcon(section.icon), contentDescription = null)
+    val tag = Modifier.testTag(QUICK_LINK_ICON_TAG)
+    if (instrument != null) InstrumentIcon(instrument, tag, size = 24.dp, decorative = true) else Icon(quickLinkIcon(section.icon), contentDescription = null, modifier = tag)
 }
+
+/** Test tag of a chooser row's leading icon (inside the row's `fst.quick-links.item.*` node). */
+internal const val QUICK_LINK_ICON_TAG = "fst.quick-links.icon"
 
 /**
  * A menu item's visible label: the title, bold with a "Current" line beneath it for the current
