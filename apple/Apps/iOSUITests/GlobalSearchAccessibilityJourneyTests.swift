@@ -17,7 +17,8 @@ import XCTest
 /// At AX5, with the field active and again with results shown, the title must:
 /// - be the navigation bar's static text named "Search", on screen at the top of the page,
 ///   and read before the scope bar and results (VoiceOver announces the page title first);
-/// - grow (> 1.35× its default-size line height) and render whole, never "Sea…";
+/// - grow (> 1.35× its default-size line height; > 1.05× on the iPhone Duo device type, whose
+///   system bar caps it) and render whole, never "Sea…";
 /// - pass a scoped audit (Dynamic Type, clipped text, description, contrast) together with
 ///   the field and Close, which stay named and reachable (Close ≥ 44 pt).
 ///
@@ -123,14 +124,16 @@ final class GlobalSearchAccessibilityJourneyTests: XCTestCase {
         XCTContext.runActivity(named: "\(state): recognized '\(reading.text ?? "")' \(reading.lineHeight ?? 0) pt") { _ in }
         XCTAssertTrue(RecognizedText.showsWhole("Search", in: reading.text), "\(state): title whole: \(reading.text ?? "nil")")
         let height = try XCTUnwrap(reading.lineHeight, "\(state): title measured")
-        XCTAssertGreaterThan(height, standardHeight * RecognizedText.minimumGrowth,
+        XCTAssertGreaterThan(height, standardHeight * Self.minimumTitleGrowth,
                              "\(state): title grows at AX5: \(height) pt vs \(standardHeight) pt")
 
         // The field (and the phone tab's Close) stay named and reachable beside the title.
         let field = app.searchFields[Self.prompt]
         XCTAssertTrue(field.exists && field.isHittable, "\(state): search field reachable")
         var scoped: Set<String> = [title.label, field.label]
-        if Self.isPhone {
+        // The iPhone Duo device type's vertical bar draws no system Close beside the field: its
+        // sections leave Search (global-search/ios.md). The CI's Duo simulation keeps the phone bar.
+        if Self.isPhone && !Self.isDuo {
             let close = app.buttons.matching(NSPredicate(format: "label == %@", "Close")).firstMatch
             XCTAssertTrue(close.exists && close.isHittable, "\(state): Close reachable")
             XCTAssertGreaterThanOrEqual(close.frame.width, 44 - 1, "\(state): Close width \(close.frame)")
@@ -155,6 +158,19 @@ final class GlobalSearchAccessibilityJourneyTests: XCTestCase {
         }
         XCTAssertEqual(issues, [], "\(state): Search title audit issues at AX5")
     }
+
+    /// Whether this run is on the iPhone Duo device type (not the `DebugDuoWindow` simulation).
+    private static var isDuo: Bool {
+        (ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ?? "").contains("Duo")
+    }
+
+    /// Minimum growth of the title's recognized line height from the default size to AX5.
+    ///
+    /// iPhone and iPad (iOS 26.5 and 27) grow the system large title more than 1.35×. The
+    /// iPhone Duo device type caps it (`system-bar-title-size`, testing/apple/accessibility.md):
+    /// 22.7 → 25.0 pt (1.10×) folded on iOS 27.1. UIKit sizes that title and the page keeps the
+    /// system large title (#375), so the floor only fails a title drawn at a fixed size.
+    private static var minimumTitleGrowth: CGFloat { isDuo ? 1.05 : RecognizedText.minimumGrowth }
 
     // MARK: - Launch and queries
 
