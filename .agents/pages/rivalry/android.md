@@ -4,7 +4,7 @@
 
 - Shares Rival Detail's view model type and cached read (same scope and live-fallback flag on the route), then shows one category (`mode`; unknown keys show the key as title and the empty state, as on the web).
 - Native sort menu (`RivalrySort`: Default, Closest Gap, Your Biggest Leads, Their Biggest Leads, Title); the web has none and the service `sort` stays `closest`.
-- Full head-to-head rows (You | rank and score gap pills | Them), 1–2 columns split at a separating hinge.
+- Song rows follow iOS since #603 ([rival-rows](../../patterns/rival-rows.md) R1, R3, R6): art over the instrument icon, title and artist, "#rank Name" pills (leader green, trailer red) and a ▲/▼ rank-gap badge, no scores. The list is one card of hairline-separated rows (a `RivalCardSegment` per lazy row, one column at every width, leading pane at a separating hinge); before #603 it was a card per row in 1–2 columns.
 - No Quick Links ([quick-links](../../patterns/quick-links.md) R8, owner #545): one link per song only repeated the list. Top-app-bar actions are Sort, then View Profile. The web keeps its mobile per-song links (`rivalrySongQuickLinkId`); do not port them back. Guards: `QuickLinksPageSweepUiTest.rivalryHasNoQuickLinks*`, `RivalsUiTest.rivalryOffersNoQuickLinks`, `PlayerAccessibilityJourneyTest.rivalsHubDetailAndRivalry`.
 - Sort menu items carry `Role.RadioButton` + `selected` inside a `selectableGroup` menu (`fst.rivalry.sort.menu`, popup tags exposed): the leading `RadioButton(onClick = null)` alone adds no semantics. Row labels speak the rank gap from `RivalHeadToHead.leaderPhrase` ("you lead by 1 rank"), not the signed, abbreviated pill text.
 
@@ -25,6 +25,6 @@ Live public service, SFentonX vs. GingerNINZIN_JPN (Lead, Closest Battles, 5 son
 | TalkBack (FST_Phone) | Page: Search, Notifications (10 unread), Profile, "vs. <rival>" heading, description, one stop per row (title, chart, both ranks, who leads by how many ranks, score difference), tabs, then Sort: <choice>, View <rival>'s Profile (no Quick Links stop since #545). Sort menu: "Selected. Default. Radio button. 1 of 5" … | Pass after the fix (before: no selected state). The floating toolbar reads after the tab bar, as on every page (shell order) |
 | Connected ATF journeys | `RivalsDeviceJourneyTest#hubDetailAndRivalry`, `PlayerAccessibilityJourneyTest#rivalsHubDetailAndRivalry` | Pass on FST_Phone and FST_Book_Fold half-open; the journey now also checks Rivalry rows against the hinge and the sort menu's selected state |
 
-Robolectric (`RivalsUiTest`) covers loaded, sort selection, unknown mode, known category without songs, failure + Retry and the absence of Quick Links; `RivalsCoreTest` covers `leaderPhrase`.
+Robolectric (`RivalsUiTest`) covers one card per list (`rivalListsAreOneCardEach`, #603), loaded, sort selection, unknown mode, known category without songs, failure + Retry and the absence of Quick Links; `RivalsCoreTest` covers `leaderPhrase`, `songRowLabel` and the standing pills. Connected ATF: `journeys/RivalsOneCardAccessibilityJourneyTest.detailCategoryAndRivalryReadTheirOneCardAsRows` (#603).
 
 Deliberate deviations kept: native sort menu (the web keeps category order); no Quick Links (web: per-song links on mobile; owner #545); View Profile as an icon action; dark scheme only; one column at large text unless width ÷ fontScale ≥ 840 dp.

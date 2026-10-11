@@ -78,7 +78,7 @@ Loading must communicate a deliberate state change rather than a hard cut: first
 | Apple Full Rankings builds its in-list instrument title and ranked count inside the gate, so they re-reveal on a page change (#316 sweep). Its instrument and metric switches deliberately reload the title with the board (#294). | R4 | Move the title into a retained frame for page changes (`FestivalReloadGate(…retainingFrame:)`), keeping the switch behavior. |
 | Apple `SoloLeaderboardScreen` keeps the pinned footer and pager from the last shown page when a page change fails; R4 and the web hide them on failure (#283 Windows check). | R4 | Cross-platform check from #283's blast radius (Apple session). |
 | Android Full Rankings and Band Rankings keep the last page count through an in-place instrument, Rank By or band-size switch (#431 note below); Android song band and Player Bands size/group switches are unverified against the Windows rule; Windows hides the pager until the new board's count commits (#575 decision below). Apple boards are unverified. | R4 | Android and Apple follow-ups from #575's blast radius, unless the owner chooses the keep-the-count option. |
-| Android boards and shared cards still stagger rows inside one card (#614 verify surface). | R11 | Android #614 session. |
+| Android boards and shared cards still stagger rows inside one card (#614 verify surface). The Rivals cards fade as one since #603: the hub and Compete rivals cards and Rival Detail's categories as one view (`festivalFadeIn` on the card), All Rivals and Rivalry with the same `fadeInStagger(1)` on every `RivalCardSegment`. | R11 | Android #614 session. |
 
 ## Guards (`tools/pattern_guard.py`)
 
