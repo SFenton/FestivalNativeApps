@@ -702,6 +702,10 @@
           {
             "path": "windows/Festival.App/Controls/GroupedRows.cs",
             "symbol": "GroupedRows"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/GroupedRowSlice.cs",
+            "symbol": "GroupedRowSlice"
           }
         ]
       },
@@ -798,7 +802,8 @@
         312,
         319,
         381,
-        461
+        461,
+        588
       ]
     },
     {

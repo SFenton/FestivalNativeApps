@@ -190,6 +190,10 @@ RUNS: tuple[Run, ...] = (
     # touch (0 epx), each stays one 40+ epx Button stop in visual order, rows -> pinned row -> pager, Up/Down and Tab.
     Run("grouped-boards", "a11y-grouped-boards.json", tabs=0),
     Run("grouped-boards-text-225", "a11y-grouped-boards.json", sizes="compact", mode="text-225", tabs=0),
+    # Song Detail Score History as one card (issue #588): selector -> heading -> subtitle -> chart, then the best scores
+    # as in-card rows that touch (0 epx) in score order, ending on a 40+ epx View All Scores named for the chart.
+    Run("score-history-card", "a11y-score-history-card.json", tabs=0),
+    Run("score-history-card-text-225", "a11y-score-history-card.json", sizes="compact", mode="text-225", tabs=0),
     # Profile Bands groups as one card each (issue #596): rows touch, 40+ epx stops named without the band size, the
     # purple View All Bands (N) inside the card, header -> rows -> View All order, Down between rows and Tab to View All.
     Run("profile-bands", "a11y-profile-bands.json", tabs=0),
