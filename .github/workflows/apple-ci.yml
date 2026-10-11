@@ -146,6 +146,26 @@ jobs:
           grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log"
           only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
           python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 1800 "${only[@]}"
+      - name: iPhone unpinned-fixture journeys (serialized, loopback fixture)
+        if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
+        # Journeys whose state needs an unpinned read (no proven publication), so they get their own
+        # `mock_service.py --port 18446 --unpinned` listener: the player profile's pause notice at AX5 (#446, #97).
+        # Reuses the iPhone step's simulator and UI-test build, before the plain-fixture step shuts it down; a skipped
+        # journey fails the step.
+        # testing/apple/xcuitest.md#ci-journeys.
+        env:
+          UNPINNED_JOURNEYS: >-
+            ProfileNoticeTextSizeJourneyTests/testUnverifiedNoticeGrowsAndStaysWholeAtLargestText
+          TEST_RUNNER_FST_PROFILE_NOTICE_FIXTURE_URL: http://127.0.0.1:18446
+        run: |
+          python3 tools/mock_service.py --port 18446 --unpinned > "$RUNNER_TEMP/mock_service_unpinned.log" 2>&1 &
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          device=$(python3 tools/ios_sim.py ci-device)
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service_unpinned.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service_unpinned.log"
+          only=(); for journey in $UNPINNED_JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 900 "${only[@]}"
       - name: Plain-fixture journeys, iPhone and iPad (serialized, plain loopback fixture)
         if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
         # #385, the region #302 changed: on device at AX5 the rows draw score and accuracy whole on one line, the
@@ -222,6 +242,7 @@ jobs:
             apple/DerivedData/lane-driver-ipad/Results
             ${{ runner.temp }}/mock_service.log
             ${{ runner.temp }}/mock_service_history.log
+            ${{ runner.temp }}/mock_service_unpinned.log
             ${{ runner.temp }}/mock_service_ipad.log
           if-no-files-found: ignore
           retention-days: 7

@@ -14,7 +14,8 @@ push (issue #452), the Paths swap (issue #430, also with Animation effects off),
 leaderboard names (issue #455, also with Animation effects off), the Full Rankings pinned row (issue #466, also with
 in-app Reduce Motion), the Leaderboards card "your rank" row (issue #493, also with in-app Reduce Motion), the Search
 All section titles (issue #483, also with in-app Reduce Motion), the Song Band Leaderboard rows, empty and error states
-(issue #510), the real-control First Run demos (issue #498, also with Animation effects off) and the profile title row
+(issue #510), the Suggestions cards, keyboard, filter and states (issue #513), the real-control First Run demos (issue
+#498, also with Animation effects off) and the profile title row
 (issue #446) run at default and 225% text, and that the generated work-behind-dialogs runs (issues #83, #436) gate PRs
 and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
@@ -194,6 +195,13 @@ RUNS: tuple[Run, ...] = (
         only=SEARCH_SECTIONS),
     Run("search-sections", "a11y-search.json", only=SEARCH_SECTIONS),
     Run("search-sections-text-225", "a11y-search.json", sizes="compact", mode="text-225", only=SEARCH_SECTIONS),
+    # Suggestions (issues #205, #513): each card is one Narrator list item named by its Level 2 title heading, its rows
+    # 40+ epx Buttons and one Tab stop per card (Down/Up cross card boundaries, Tab/Shift+Tab between cards, Esc returns
+    # to Filter); the filter's named Instruments/General Expanders read their state and help text, and Tab goes straight
+    # from an expanded header to its first switch; the syncing and filtered-empty titles are Level 2 headings; and the
+    # rival name pill switches to the neutral contrast role live (Desert paint check, medium only, so not at 225%).
+    Run("suggestions", "a11y-suggestions.json"),
+    Run("suggestions-text-225", "a11y-suggestions.json", sizes="compact", mode="text-225"),
     # Back from View All or a rival to cached Leaderboards and Rivals (issues #82, #276, #435): the opener and its card
     # stay put, focus returns to the opener, it reads "<name>, button" after its card and heading, keeps a 40 epx target,
     # and Tab/Shift+Tab continue from it; by keys (Enter, Alt+Left) and pointer (the title-bar Back).
