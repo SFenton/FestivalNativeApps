@@ -193,6 +193,11 @@ RUNS: tuple[Run, ...] = (
     Run("grouped-boards-text-225", "a11y-grouped-boards.json", sizes="compact", mode="text-225", tabs=0),
     Run("grouped-boards-reduced", "a11y-grouped-boards.json", sizes="medium", mode="app-reduced", tabs=0,
         only="grouped-song-board-one-card"),
+    # Combo boards (issue #602): the OG band combo card is a level-2 heading group before Lead, its View All Rankings is
+    # a 40+ epx Button named with the board label, Enter opens combo Full Rankings (no instrument picker, combo title,
+    # pinned combo rank) and Back restores focus; rows stay 40+ epx stops with Down between them.
+    Run("combo-boards", "a11y-combo-boards.json", tabs=0),
+    Run("combo-boards-text-225", "a11y-combo-boards.json", sizes="compact", mode="text-225", tabs=0),
     # Song Detail Score History as one card (issue #588): selector -> heading -> subtitle -> chart, then the best scores
     # as in-card rows that touch (0 epx) in score order, ending on a 40+ epx View All Scores named for the chart.
     Run("score-history-card", "a11y-score-history-card.json", tabs=0),
