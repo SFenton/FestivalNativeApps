@@ -258,47 +258,66 @@ public sealed partial class SongPathsView : UserControl
         CompactSelectors.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    /// <summary>Compact box widths for their longest options (instrument, difficulty, display); measured once per sheet.</summary>
-    private (double Instrument, double Difficulty, double Display)? compactWidths;
+    /// <summary>Compact box widths: labelled for their longest options (instrument, difficulty, display) and icon-only
+    /// (instrument, display); measured once per sheet.</summary>
+    private (double Instrument, double Difficulty, double Display, double IconInstrument, double IconDisplay)? compactWidths;
 
-    /// <summary>Whether difficulty and display sit on a second line under the instrument box.</summary>
-    private bool compactStacked;
+    /// <summary>Current compact arrangement (labelled one line until the first measure).</summary>
+    private PathSelectorArrangement compactArrangement = PathSelectorArrangement.Labelled;
 
     /// <summary>
-    /// Sizes each compact ComboBox to its longest option and reflows difficulty and display under the instrument when the
-    /// three don't fit on one line (issue #280: "Pro Drums + Cymbals" and 200% text were clipped, and the instrument box
-    /// changed width with the selection).
+    /// Sizes each compact ComboBox for its longest option and picks the row's arrangement: labelled on one line, else the
+    /// instrument and display boxes icon-only with difficulty filling the rest (owner-approved, issue #612: "just show
+    /// instrument icon and image/text icon in dropdowns like web"), else difficulty and display reflowed under a labelled
+    /// instrument box (issue #280: "Pro Drums + Cymbals" and 200% text were clipped, and the instrument box changed width
+    /// with the selection).
     /// </summary>
     /// <param name="sender">Compact selector grid.</param>
     /// <param name="e">Size change.</param>
     private void OnCompactSelectorsSizeChanged(object sender, SizeChangedEventArgs e)
     {
         var widths = compactWidths ??= MeasureCompactWidths();
-        CompactDisplayPicker.Width = widths.Display;
         CompactDifficultyPicker.MinWidth = widths.Difficulty;
-        var next = PathSelectorLayout.Stacks(e.NewSize.Width, widths.Instrument, widths.Difficulty, widths.Display, CompactSelectors.ColumnSpacing);
+        var next = PathSelectorLayout.Plan(e.NewSize.Width, widths.Instrument, widths.Difficulty, widths.Display,
+            widths.IconInstrument, widths.IconDisplay, CompactSelectors.ColumnSpacing);
+        var iconOnly = next == PathSelectorArrangement.IconOnly;
+        CompactDisplayPicker.Width = iconOnly ? widths.IconDisplay : widths.Display;
         // Stacked, the instrument box spans the row (its trimmed label is the last resort on the narrowest windows).
-        CompactInstrumentPicker.Width = next ? double.NaN : widths.Instrument;
-        if (next == compactStacked) return;
-        compactStacked = next;
+        CompactInstrumentPicker.Width = next switch
+        {
+            PathSelectorArrangement.Stacked => double.NaN,
+            PathSelectorArrangement.IconOnly => widths.IconInstrument,
+            _ => widths.Instrument,
+        };
+        if (next == compactArrangement) return;
+        compactArrangement = next;
         ApplyCompactArrangement();
     }
 
-    /// <summary>Places the compact boxes on one line, or the instrument above difficulty and display.</summary>
+    /// <summary>Places the compact boxes on one line, or the instrument above difficulty and display, and switches the
+    /// instrument and display faces between icon + name and icon only.</summary>
     private void ApplyCompactArrangement()
     {
-        Grid.SetColumnSpan(CompactInstrumentPicker, compactStacked ? 3 : 1);
-        Grid.SetRow(CompactDifficultyPicker, compactStacked ? 1 : 0);
-        Grid.SetColumn(CompactDifficultyPicker, compactStacked ? 0 : 1);
-        Grid.SetColumnSpan(CompactDifficultyPicker, compactStacked ? 2 : 1);
-        Grid.SetRow(CompactDisplayPicker, compactStacked ? 1 : 0);
+        var stacked = compactArrangement == PathSelectorArrangement.Stacked;
+        Grid.SetColumnSpan(CompactInstrumentPicker, stacked ? 3 : 1);
+        Grid.SetRow(CompactDifficultyPicker, stacked ? 1 : 0);
+        Grid.SetColumn(CompactDifficultyPicker, stacked ? 0 : 1);
+        Grid.SetColumnSpan(CompactDifficultyPicker, stacked ? 2 : 1);
+        Grid.SetRow(CompactDisplayPicker, stacked ? 1 : 0);
         // An empty Auto row still adds RowSpacing, so the gap exists only while stacked.
-        CompactSelectors.RowSpacing = compactStacked ? CompactSelectors.ColumnSpacing : 0;
+        CompactSelectors.RowSpacing = stacked ? CompactSelectors.ColumnSpacing : 0;
+        var iconOnly = compactArrangement == PathSelectorArrangement.IconOnly;
+        foreach (var (box, key) in new[] { (CompactInstrumentPicker, "InstrumentTemplates"), (CompactDisplayPicker, "DisplayTemplates") })
+        {
+            var faces = (ComboBoxFaceTemplateSelector)Resources[key];
+            faces.IconOnly = iconOnly;
+            faces.Refresh(box);
+        }
     }
 
     /// <summary>Measures every option at the current text scale (off-tree text blocks scale like FirstRunCarousel's).</summary>
     /// <returns>Box widths including the ComboBox template's padding and drop-down glyph column.</returns>
-    private (double Instrument, double Difficulty, double Display) MeasureCompactWidths()
+    private (double Instrument, double Difficulty, double Display, double IconInstrument, double IconDisplay) MeasureCompactWidths()
     {
         var padding = CompactDifficultyPicker.Padding;
         double Widest(IEnumerable<string> labels) => labels.Select(TextWidth).DefaultIfEmpty(0).Max();
@@ -306,7 +325,10 @@ public sealed partial class SongPathsView : UserControl
             PathSelectorLayout.BoxWidth(Widest(ViewModel.InstrumentOptions.Select(o => o.Label)) + PathSelectorLayout.InstrumentIconSpace,
                 padding.Left, padding.Right, PathSelectorLayout.InstrumentMinWidth),
             PathSelectorLayout.BoxWidth(Widest(ViewModel.DifficultyLabels), padding.Left, padding.Right, 0),
-            PathSelectorLayout.BoxWidth(Widest(CompactDisplayPicker.Items.OfType<string>()), padding.Left, padding.Right, PathSelectorLayout.DisplayMinWidth));
+            PathSelectorLayout.BoxWidth(Widest(ViewModel.DisplayOptions.Select(o => o.Label)) + PathSelectorLayout.DisplayIconSpace,
+                padding.Left, padding.Right, PathSelectorLayout.DisplayMinWidth),
+            PathSelectorLayout.IconBoxWidth(PathSelectorLayout.InstrumentIconSize, padding.Left, padding.Right),
+            PathSelectorLayout.IconBoxWidth(PathSelectorLayout.DisplayIconSize, padding.Left, padding.Right));
     }
 
     /// <summary>Desired width of an option label in the ComboBox content font.</summary>
