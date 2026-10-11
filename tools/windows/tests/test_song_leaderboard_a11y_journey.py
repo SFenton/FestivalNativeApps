@@ -1,4 +1,5 @@
-"""Song leaderboard footer and paging accessibility pages: ``journeys/a11y-song-leaderboard.json`` (issues #93, #443).
+"""Song leaderboard footer and paging accessibility pages: ``journeys/a11y-song-leaderboard.json`` (issues #93, #443),
+the song board end (#456) and the states #197 changed (``a11y-song-board-states.json``, #511).
 
 Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 """
@@ -199,6 +200,84 @@ class SongBoardEndJourneyTests(unittest.TestCase):
         for page in load(END_JOURNEY):
             for size, mode in (("compact", "normal"), ("medium", "normal"), ("compact", "text-225")):
                 self.assertIn((page, size, mode), runs)
+
+
+STATES_JOURNEY = JOURNEYS / "a11y-song-board-states.json"
+LONG_NAME = "Fixture Player With An Extraordinarily Long Display Name That Never Fits"
+DESERT_WINDOW_TEXT = "#3D3D3D"
+
+
+class SongBoardStatesJourneyTests(unittest.TestCase):
+    """``journeys/a11y-song-board-states.json`` (issue #511): the song board states #197 changed."""
+
+    def test_every_step_parses(self):
+        for page in load(STATES_JOURNEY).values():
+            for step in steps(page):
+                uiwin.parse_step(step)
+
+    def test_pages_and_their_modes(self):
+        """The plate only exists under a contrast theme and the tool tip only while the marquee is stopped."""
+        pages = load(STATES_JOURNEY)
+        self.assertEqual(set(pages), {"song-board-pinned-own-id", "song-board-empty-total",
+                                      "song-board-contrast-plate", "song-board-name-tooltip"})
+        self.assertNotIn("modes", pages["song-board-pinned-own-id"])
+        self.assertNotIn("modes", pages["song-board-empty-total"])
+        self.assertEqual(["hc-desert"], pages["song-board-contrast-plate"]["modes"])
+        self.assertEqual(["app-reduced"], pages["song-board-name-tooltip"]["modes"])
+        self.assertEqual(["leaderboards_fixture.py", "--long-name"], pages["song-board-name-tooltip"]["fixture"])
+        for page in pages.values():
+            self.assertTrue(page["profile"].startswith("fixture-player-1:"), page["name"])
+
+    def test_pinned_row_is_its_own_element(self):
+        drive = steps(load(STATES_JOURNEY)["song-board-pinned-own-id"])
+        row1 = f"{BOARD}.row.fixture-player-1"
+        self.assertIn(f"assertapart:{row1}|{PINNED}", drive)
+        self.assertTrue(any(s.startswith(f"assertread:{row1}|~^Your rank, 1st\\. Fixture Player 1") for s in drive))
+        self.assertTrue(any(s.startswith(f"assertread:{PINNED}|~^Your rank, 1st\\. Open your statistics") for s in drive))
+        self.assertIn(f"assertorder:{BOARD}.song|{row1}|{BOARD}.row.fixture-player-2|{PINNED}", drive)
+
+    def test_empty_board_names_no_total(self):
+        page = load(STATES_JOURNEY)["song-board-empty-total"]
+        self.assertTrue(page["route"].endswith("/Solo_Bass"))
+        drive = steps(page)
+        for step in (f"assertread:{BOARD}.song|Fixture Pulse, Synthetic Quartet, Bass, button, Opens Song Details",
+                     f"waitgone:{BOARD}.total@2", f"assertstate:{BOARD}.title|heading=1",
+                     f"assertsize:{BOARD}.song|40x40", f"assertorder:{BOARD}.song|{BOARD}.empty",
+                     f"waitgone:{BOARD}.page-info@2", f"waitgone:{PINNED}@2"):
+            self.assertIn(step, drive)
+
+    def test_contrast_plate_keeps_row_text_out_of_the_footer(self):
+        drive = steps(load(STATES_JOURNEY)["song-board-contrast-plate"])
+        scroll = drive.index(f"scrollto:{BOARD}.list,50")
+        hard = drive.index(f"assertstatus:{FADE}|hard-edge@5")
+        paints = [i for i, s in enumerate(drive) if s.startswith("assertpaint:") and f"!={DESERT_WINDOW_TEXT}" in s]
+        self.assertLess(scroll, hard)
+        self.assertEqual(3, len(paints))
+        self.assertTrue(all(hard < i for i in paints))
+        self.assertEqual({PAGER[0], PAGER[3], PINNED}, {drive[i].split("|")[0][len("assertpaint:"):] for i in paints})
+
+    def test_trimmed_name_shows_its_tool_tip_on_keyboard_focus(self):
+        drive = steps(load(STATES_JOURNEY)["song-board-name-tooltip"])
+        self.assertEqual([s for s in drive if s.startswith(("invoke:", "click"))], [])
+        sequence = [f"focus:{BOARD}.row.fixture-player-1", "key:down",
+                    f"assertfocus:{BOARD}.row.fixture-player-2@3", "waitfor:class=ToolTip@6",
+                    f"assertread:class=ToolTip|{LONG_NAME}, tool tip", "key:down",
+                    f"assertfocus:{BOARD}.row.fixture-player-3@3", "waitgone:class=ToolTip@5"]
+        start = 0
+        for step in sequence:  # in this order; drive.index raises if a step is missing or out of order
+            start = drive.index(step, start) + 1
+        self.assertEqual(drive[-2:], [f"focus:{BOARD}.song", "waitgone:class=ToolTip@5"])
+
+    def test_windows_ui_runs_each_page_in_its_modes(self):
+        runs = covered(STATES_JOURNEY.name)
+        for page in ("song-board-pinned-own-id", "song-board-empty-total"):
+            for size, mode in (("compact", "normal"), ("medium", "normal"), ("compact", "text-225")):
+                self.assertIn((page, size, mode), runs)
+        for size in ("compact", "medium"):
+            self.assertIn(("song-board-contrast-plate", size, "hc-desert"), runs)
+        self.assertIn(("song-board-name-tooltip", "medium", "app-reduced"), runs)
+        self.assertFalse([run for run in ui_ci.RUNS if run.name.startswith("a11y-song-board-states")],
+                         "the explicit runs cover the file; no generated duplicates")
 
 
 if __name__ == "__main__":

@@ -49,7 +49,7 @@ Tab = distinct stops in a 30-press walk (compact/medium/wide). Core pages (Songs
 | Profile flyout | ✅✅✅ | 2 | ✅ | ✅ | ✅ |
 | Notifications flyout | ✅✅✅ (+live, #229) | 1 (list) | ✅ (#229) | ✅ (#229) | ✅ (#229, C+M) |
 | Quick Links menu | ⚠️✅ (issue 8) | 1 (menu) | ✅ (+profile jumps, `a11y-quick-links-jump.json`, #414) | ✅ | ✅ (pane titles wrap, #230; profile menu 225%, #414) |
-| First-run dialog | ✅✅✅ (+demo placeholder/catalogue states, `a11y-first-run-demos.json`, `windows-ui` CI, #420) | 4 | ✅ (+Settings replay, #420) | ✅ | ✅ (demo clear of title at 225%; body scrolls so the pips stay reachable, #420) |
+| First-run dialog | ✅✅✅ (+demo placeholder/catalogue states, `a11y-first-run-demos.json`, `windows-ui` CI, #420; real-control demos stay out of the control view, `a11y-first-run-real-demos.json`, #498) | 4–5 | ✅ (+Settings replay, #420; Tab skips the inert sort form and chart bars, #498) | ✅ | ✅ (demo clear of title at 225%; body scrolls so the pips stay reachable, #420; auto-scroll held with Reduce Motion and Animation effects off, paused when minimized, hard-edged with transparency effects off, Less Transparency or More Contrast, #498) |
 | What's New dialog (launch, Settings replay) | ✅✅✅ (+max/snap, #235) | 2 (notes, Dismiss) | ✅ (`kb-whats-new-*`, #235) | ✅ (#235) | ✅ (200% C+M, #235) |
 
 ## Fixed in this pass
@@ -84,6 +84,13 @@ Scope: Song Detail's Duos/Trios/Quads previews (issue #64), on `song_band_previe
 
 `journeys/a11y-song-board-end.json` covers the end-of-list spacing #293 changed, with Fixture Player 1 (pinned row), Empty Player (no score) and no player. Down from the first row reaches row 25 with the list at its end. The row then sits 4 epx above the footer's first part (`assertgap`), is clear of it, reads before the pinned row and pager, keeps a 40 epx target, and Tab/Shift+Tab move to the footer and back. The fade reports `end`. All pages passed with 0 Axe errors at compact and medium, at 100% and 225% text. No defect was found. `windows-ui` picks the file up through `ui_ci.generated_runs`; `tests/test_song_leaderboard_a11y_journey.py` pins the steps.
 - Reach a far row with single `key:down` steps, not one `keys:` burst. On a locked console the burst is posted and dropped a press, leaving focus one row short.
+
+## Song board states (issue #511, for #197, 2026-10)
+
+`journeys/a11y-song-board-states.json` covers what #197 changed: the pinned row's own UIA ID, an empty board without "0 entries", the contrast-theme footer plate (`hc-desert`) and the trimmed-name tool tip (`app-reduced`). Each page runs only in the mode that shows its state. All passed with 0 Axe errors; details in [song-leaderboard/windows.md](../pages/song-leaderboard/windows.md#accessibility-tests-issue-443). No defect was found.
+- A row's name only trims (and gets a tool tip) while the marquee is stopped and the text is not large: at 225% text names wrap. Test the tool tip at medium with `app-reduced`.
+- Rows move with Up/Down; Tab leaves the list for the pinned row. Close the tool tip (`focus:` the header, `waitgone:class=ToolTip`) before the Axe scan.
+- A paint probe on a hard-edge footer can't see the contrast plate (the mask already hides rows there). Mutation-test such probes with every layer that hides the content removed.
 
 ## Leaderboard row columns validation (issue #242, 2026-10-04)
 
@@ -525,6 +532,24 @@ Backfills CI tests for the #348 Windows change: in the All scope, Search titles 
 | In-app Reduce Motion (medium, both pages) | Pass, Axe 0; the titles appear with their rows |
 
 No accessibility defect was found. Harness rule: `assertbelow`, `assertapart` and `assertorder` need both elements on screen, so each later title's checks follow the `reveal:` of its first row (at 225% text the Bands title starts below the fold).
+
+## Song Band Leaderboard accessibility tests (issue #510, 2026-10-11)
+
+Backfills CI tests for the #196 Windows change: each band card on a song's Duos/Trios/Quads board is one Narrator stop named in visual order, the empty and failure states name themselves, and the accuracy pill follows contrast themes. Before this, `windows-ui` checked the header (`a11y-song-leaderboard-header.json`), the pin (`a11y-song-band-pinned.json`), the rank rail and a partial row phrase in the load swap, but not the full row phrase, the row's role, its parts staying out of the control view, the empty state or the pill. New `journeys/a11y-song-band-leaderboard.json` (`rivals_fixture.py`, `Band_Duets`; `Band_Trios` empty; `missing-song` failure) is a set of `windows-ui` runs in `tools/windows/ui_ci.py` (`song-band-board`, `-text-225`). They assert:
+- `sbl-rows`: rows 1 and 2 read "Rank 1. Band 1 Member A, Lead, 94,500 points. Band 1 Member B, Bass, 94,000 points. Team score 94,500 points, full combo, 96.5% accuracy, 5 stars, list item" (row 2 without "full combo"); the row is a `ListItem` with Invoke, focusable and at least 40 epx tall; its `.rank`, `.accuracy` and the star row exist in the raw view only, and no member name, instrument, `.members` or star `Image` is in the control view; reading order header → size switcher → row 1; Down/Up move between rows, Enter opens Band Detail and Back returns to the row;
+- `sbl-empty`: "No band scores found, text" is a Level 2 heading, not focusable, after the switcher (Trios selected) and before its message; no list, pager or entry total is left;
+- `sbl-error`: "Failed to load band leaderboard, text" is a Level 2 heading, then "Retry, button" (40×40 epx, Invoke); Tab and Shift+Tab move between the Trios switcher item and Retry;
+- `sbl-accuracy-pill-contrast` (medium, default theme only; it switches Desert on and off in the running app): the pill paints navy `#223047`, then ButtonFace `#FFFAEF` with a ButtonText `#202020` edge under Desert, then navy again (`assertpaint` on the raw `.accuracy` ID).
+
+`tests/test_ui_ci.py` pins the runs and the key checks. `tabs: 0` on every page: the rows' ordered keyboard steps replace the walk.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (`song-band-board`, all 4 pages; the pill page at medium) | Pass, Axe 0 |
+| Text 225% (compact, rows, empty, error) | Pass, Axe 0 |
+| Regression check: `StarRow` fix reverted | `sbl-rows` fails: "element id=fst.star-rating.white-5 is still on screen" |
+
+**Failed, fixed:** every band card (and every Raw `StarRow` host: leaderboard rows, Song Detail band previews, Band Detail gold stars, Songs rows; Suggestions and Songs metadata stars, which aren't Raw, keep their `Image`) exposed its stars as a second control-view `Image "5 stars"` inside the one-stop row, so scan mode read the rating twice. `StarRowPeer.IsControlElementCore` returned `true` regardless of the host's `AccessibilityView="Raw"`; it and `IsContentElementCore` now follow `AutomationProperties.AccessibilityView`. Rule: a custom `AutomationPeer` that overrides `IsControlElementCore`/`IsContentElementCore` must honour the owner's `AccessibilityView`, or Raw in XAML silently stops working. `journeys/star-rating.json` now finds leaderboard stars with `raw=`.
 
 ## Songs Filter without a profile (issue #432, 2026-10-08)
 
