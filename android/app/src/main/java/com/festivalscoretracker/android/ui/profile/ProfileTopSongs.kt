@@ -34,6 +34,7 @@ import com.festivalscoretracker.android.core.profile.PlayerTileAction
 import com.festivalscoretracker.android.core.profile.PlayerTopSongs
 import com.festivalscoretracker.android.presentation.profile.PlayerProfileUiState
 import com.festivalscoretracker.android.ui.design.GlassCard
+import com.festivalscoretracker.android.ui.design.PercentilePill
 import com.festivalscoretracker.android.ui.design.SectionHeader
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.common.oneLineUnlessLarge
@@ -160,15 +161,8 @@ private fun SongRow(row: PlayerSongPlacement, onClick: (() -> Unit)?, modifier: 
                     Text(row.subtitle, style = MaterialTheme.typography.bodySmall, color = BrandTokens.textSecondary, maxLines = oneLineUnlessLarge(), overflow = TextOverflow.Ellipsis)
                 }
             }
-            Surface(color = BrandTokens.surfaceMuted, shape = RoundedCornerShape(50)) {
-                Text(
-                    row.bucket,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = if (row.isTopFive) BrandTokens.gold else BrandTokens.textPrimary,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                )
-            }
+            PercentilePill(row.bucket)
+
             if (onClick != null) RowChevron(Modifier.padding(start = 6.dp))
         }
     }

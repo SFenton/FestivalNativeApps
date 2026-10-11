@@ -28,7 +28,7 @@ The live public service was used with the public player `SFentonX` and no profil
 | Reduced motion / motion | With scale 0, content appears with no stuck animation. A recording with animations on (Quick Links → Rivals → combo View All → back) is smooth. |
 
 Deliberate deviations:
-- The Quick Links floating button overlays content like a FAB and hides when you scroll down.
+- The Quick Links floating button overlays content like a FAB and stays on screen while the page scrolls (issue #577); the grid reserves its height at the end.
 - "1 songs ahead" matches the web copy.
 - The lazy grid keeps its pixel offset after a font-scale change.
 - Combo boards hide the songs column when it doesn't fit (#38).

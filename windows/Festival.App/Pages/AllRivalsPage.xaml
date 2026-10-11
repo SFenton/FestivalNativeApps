@@ -33,23 +33,30 @@
             </StackPanel>
         </Grid>
 
-        <ListView x:Name="RivalList" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="56" Grid.Row="1" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" MaxWidth="960"
+        <ListView x:Name="RivalList" controls:FadeIn.Together="True" controls:FadeIn.RowHeight="56" Grid.Row="1" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" MaxWidth="960"
                   SelectionMode="None" IsItemClickEnabled="True" ItemClick="OnRivalClick" SelectionChanged="OnRivalSelectionChanged" Padding="24,0,24,32"
                   ContainerContentChanging="OnContainerContentChanging"
                   Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"
                   AutomationProperties.Name="Rivals" AutomationProperties.AutomationId="fst.all-rivals.list">
+            <!-- The rivals as one grouped card that fades in as one (GroupedRows.ApplyToContainer from OnContainerContentChanging:
+                 touching row slices with a hairline between; issue #603, like Apple's FestivalGlassSection and the #543
+                 boards; load-transition R11). -->
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
-                    <Setter Property="Padding" Value="12,4" />
-                    <Setter Property="Margin" Value="0,2" />
+                    <Setter Property="Padding" Value="0" />
+                    <Setter Property="Margin" Value="0" />
                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                    <Setter Property="Background" Value="{ThemeResource FSTCardSurfaceBrush}" />
-                    <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
                 </Style>
             </ListView.ItemContainerStyle>
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="vm:RivalRowItem">
-                    <controls:RivalRowView Item="{x:Bind}" />
+                    <!-- The row's slice of the card (corners and outline set per position). -->
+                    <Grid CornerRadius="12" BorderThickness="1" Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}"
+                          AutomationProperties.AccessibilityView="Raw">
+                        <Border x:Name="RowSeparator" Height="1" Margin="12,0" VerticalAlignment="Top" IsHitTestVisible="False"
+                                Visibility="Collapsed" Background="{ThemeResource FSTRowSeparatorBrush}" AutomationProperties.AccessibilityView="Raw" />
+                        <controls:RivalRowView Item="{x:Bind}" Margin="12,4" />
+                    </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>

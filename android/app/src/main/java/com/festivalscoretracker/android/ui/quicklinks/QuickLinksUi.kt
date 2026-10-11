@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.automirrored.outlined.Toc
@@ -103,7 +103,7 @@ internal data class QuickLinkItem(val index: Int, val top: Int, val bottom: Int)
  */
 internal data class QuickLinkLayout(val items: List<QuickLinkItem>, val viewportHeight: Float)
 
-/** The scrolling surface a controller drives: a `LazyColumn` or a staggered grid. */
+/** The scrolling surface a controller drives: a `LazyColumn` or a `LazyVerticalGrid`. */
 internal interface QuickLinkScroller {
     /** Current layout; reads snapshot state, so `snapshotFlow` follows it. */
     fun layout(): QuickLinkLayout
@@ -164,8 +164,8 @@ private class ListScroller(private val state: LazyListState) : QuickLinkScroller
     override val position: Long get() = lazyPosition(state.firstVisibleItemIndex, state.firstVisibleItemScrollOffset)
 }
 
-/** [QuickLinkScroller] over a `LazyVerticalStaggeredGrid` (several items can share a row). */
-private class StaggeredScroller(private val state: LazyStaggeredGridState) : QuickLinkScroller {
+/** [QuickLinkScroller] over a `LazyVerticalGrid` (several items can share a row and its top edge). */
+private class GridScroller(private val state: LazyGridState) : QuickLinkScroller {
     override fun layout(): QuickLinkLayout {
         val info = state.layoutInfo
         val start = info.viewportStartOffset
@@ -187,7 +187,7 @@ private class StaggeredScroller(private val state: LazyStaggeredGridState) : Qui
 }
 
 /**
- * Quick Links state for one page backed by a lazy list or staggered grid whose
+ * Quick Links state for one page backed by a lazy list or grid whose
  * sections are items. Layout is observed only through `snapshotFlow` of the
  * layout info, and [activeId] changes only when the active section changes, so
  * scrolling does not recompose the page.
@@ -416,7 +416,7 @@ fun rememberQuickLinks(
     rememberQuickLinks(remember(listState) { ListScroller(listState) }, title, sections, pinnedHeaders, fadeInWindow, headingInset, indexOf = indexOf)
 
 /**
- * Remember a Quick Links controller for a page laid out as a staggered grid.
+ * Remember a Quick Links controller for a page laid out as a row-major card grid.
  *
  * @param gridState The page's grid state.
  * @param title Quick Links title.
@@ -430,7 +430,7 @@ fun rememberQuickLinks(
  */
 @Composable
 fun rememberQuickLinks(
-    gridState: LazyStaggeredGridState,
+    gridState: LazyGridState,
     title: String,
     sections: List<QuickLinkSection>,
     fadeInWindow: FadeInWindow? = LocalFadeInWindow.current,
@@ -438,7 +438,7 @@ fun rememberQuickLinks(
     offsetOf: (String) -> Int? = { 0 },
     indexOf: (String) -> Int?,
 ): QuickLinksController =
-    rememberQuickLinks(remember(gridState) { StaggeredScroller(gridState) }, title, sections, pinnedHeaders = false, fadeInWindow = fadeInWindow, headingInset = headingInset, offsetOf = offsetOf, indexOf = indexOf)
+    rememberQuickLinks(remember(gridState) { GridScroller(gridState) }, title, sections, pinnedHeaders = false, fadeInWindow = fadeInWindow, headingInset = headingInset, offsetOf = offsetOf, indexOf = indexOf)
 
 /** Sections whose headings sit flush with their items' tops (Settings, Leaderboards). */
 internal val NO_HEADING_INSET: (String) -> Dp = { 0.dp }
