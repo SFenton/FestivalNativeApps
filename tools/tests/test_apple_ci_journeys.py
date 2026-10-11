@@ -5,7 +5,9 @@ The ``JOURNEYS`` blocks (iPhone UI-test bundle, on the iPhone and the iPad) must
 reading-order journeys (``page-tools-and-nav-chrome`` R17, #394), the Songs section-title AX5 journey (#91, #441), the
 Songs section-push AX XXXL journey (#288, #452), the Songs large-title rest journeys on both scroll-reading paths (#560),
 the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape) and the pinned caption-icon journeys (``song-header`` R4, #542); ``HISTORY_JOURNEYS``/``HISTORY_IPAD_JOURNEYS``
-(iPad bundle, on the iPhone and the iPad) must keep the Score History AX5 journeys (#385, the region #302 changed).
+(iPad bundle, on the iPhone and the iPad) must keep the Score History AX5 journeys (#385, the region #302 changed);
+``A11Y_MODE_JOURNEYS`` (iPhone bundle) must keep the Songs section-bar fade journey under Increase Contrast and
+Reduce Transparency (#391, the region #10 changed).
 """
 
 import re
@@ -19,7 +21,12 @@ UITESTS = ROOT / "apple" / "Apps" / "iOSUITests"
 IPAD_UITESTS = ROOT / "apple" / "Apps" / "iPadOSUITests"
 
 #: Folded selector block names in ``apple-ci.yml`` and the UI-test bundle each runs.
-BLOCKS = {"JOURNEYS": UITESTS, "HISTORY_JOURNEYS": IPAD_UITESTS, "HISTORY_IPAD_JOURNEYS": IPAD_UITESTS}
+BLOCKS = {
+    "JOURNEYS": UITESTS,
+    "A11Y_MODE_JOURNEYS": UITESTS,
+    "HISTORY_JOURNEYS": IPAD_UITESTS,
+    "HISTORY_IPAD_JOURNEYS": IPAD_UITESTS,
+}
 
 
 def ci_journey_blocks(text: str, key: str = "JOURNEYS") -> list[list[str]]:
@@ -120,8 +127,18 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertEqual(self.history["HISTORY_JOURNEYS"], [page], "the iPhone run: the page only (the split skips)")
         self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split])
         self.assertEqual(self.workflow.count("uitest --app ipad"), 2)
-        # iPhone journeys, two Score History runs, the iPad journeys and the iPad keyboard batch (#473).
-        self.assertEqual(self.workflow.count("--fail-on-skip"), 5)
+        # iPhone journeys, the iPhone accessibility-mode loop (#391), two Score History runs, the iPad journeys and
+        # the iPad keyboard batch (#473).
+        self.assertEqual(self.workflow.count("--fail-on-skip"), 6)
+
+    def test_section_bar_fade_journey_runs_under_contrast_and_transparency(self) -> None:
+        # #391: the only device evidence that rows under the #10 section-bar fade stay named and pass the audit
+        # with Increase Contrast and Reduce Transparency on (one --a11y mode per run).
+        journey = "SongsChromeJourneyTests/testSectionBarFadeAtLargestTextKeepsRowsNamedAndPassesTheAudit"
+        self.assertIn(journey, self.journeys)
+        self.assertEqual(ci_journey_blocks(self.workflow, "A11Y_MODE_JOURNEYS"), [[journey]])
+        self.assertIn("for mode in increase-contrast reduce-transparency; do", self.workflow)
+        self.assertIn('--fail-on-skip --timeout 900 --a11y "$mode" "${only[@]}"', self.workflow)
 
     def test_board_footer_fade_keyboard_journey_runs_in_ci(self) -> None:
         # #473: the iPad hardware-keyboard form needs its own invocation, because --a11y applies to a whole run.
