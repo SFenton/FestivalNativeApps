@@ -62,6 +62,27 @@ class UiCiTests(unittest.TestCase):
             with self.subTest(page=name):
                 self.assertNotIn("axe_allow", pages[name])
 
+    def test_songs_scroll_runs_at_default_largest_text_and_animations_off(self):
+        # Issue #520 (#247): the pinned Songs title after far UIA jumps, a fling back to the top and keyboard End/Home.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-songs-scroll.json"}
+        self.assertEqual({"normal", "text-225", "no-animations"}, set(runs))
+        self.assertTrue(all(run.scan and not run.only for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-songs-scroll.json").read_text(encoding="utf-8"))}
+        self.assertEqual({"songs-scroll-far-jumps", "songs-scroll-fling-back", "songs-scroll-keyboard"}, set(pages))
+        for page in pages.values():
+            with self.subTest(page=page["name"]):
+                self.assertEqual(["--large-catalogue"], page["fixture"])
+                self.assertFalse(page.get("live_only"))
+                steps = page["after_ready"]
+                self.assertTrue(any(s.startswith("assertstate:id=fst.songs.section-header|name=~") for s in steps)
+                                or "assertname:id=fst.songs.section-header|#" in steps)
+                self.assertIn("assertstate:id=fst.songs.section-header|heading=2", steps)
+        far = pages["songs-scroll-far-jumps"]["after_ready"]
+        self.assertGreaterEqual(sum(s.startswith("scrollto:id=fst.songs.list,") for s in far), 4)
+        self.assertIn("key:end", pages["songs-scroll-keyboard"]["after_ready"])
+
     def test_song_band_pinned_runs_at_default_and_largest_text(self):
         # Issue #461 (#306): the full band board's pinned "your band" row runs in CI at default and 225% text.
         runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-song-band-pinned.json"}
@@ -225,6 +246,39 @@ class UiCiTests(unittest.TestCase):
         self.assertEqual("key:shift+tab", steps[-3])
         # The Axe scan follows: pin a card 8 epx below the list top so no card ends on the viewport edge (item 3).
         self.assertTrue(steps[-1].startswith("scrollinset:") and steps[-1].endswith("|id=fst.suggestions.list|8"))
+
+    def test_shop_offers_run_at_default_largest_text_and_reduced_motion(self):
+        # Issue #516 (#224): the Item Shop tiles, List/Grid toggle, rings and states run in CI at default and 225% text
+        # and with in-app Reduce Motion, with an Axe scan, and pin the regressions #516 fixed.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-shop-offers.json"}
+        self.assertEqual({"normal", "text-225", "app-reduced"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertFalse(runs["normal"].only or runs["text-225"].only)
+        self.assertEqual({"compact", "medium"}, set(runs["text-225"].sizes.split(",")))
+        self.assertEqual("shop-offers-view-toggle", runs["app-reduced"].only)
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-shop-offers.json").read_text(encoding="utf-8"))}
+        read = pages["shop-offers-grid-read"]["after_ready"]
+        # The toggle sat a line below Filter (layout rounding wrapped it) under the tiles.
+        self.assertIn("assertinset:id=fst.shop.view-toggle|id=fst.shop.filter|0", read)
+        self.assertIn("assertat:id=fst.shop.view-toggle|0,-18.5", read)
+        self.assertIn("assertread:id=fst.shop.song.fixture-orbit|"
+                      "Fixture Orbit, Synthetic Quartet · 2026, Leaving Tomorrow, button", read)
+        self.assertEqual(["text-225"], pages["shop-offers-text-wrap"]["modes"])
+        self.assertIn("assertapart:id=fst.shop.view-toggle|id=fst.shop.song.fixture-orbit",
+                      pages["shop-offers-text-wrap"]["after_ready"])
+        self.assertIn("waitgone:id=fst.shop.view-toggle", pages["shop-offers-grid-compact"]["after_ready"])
+        self.assertIn("assertread:id=fst.shop.loading|Busy Loading Item Shop, ProgressRing",
+                      pages["shop-offers-loading"]["after_ready"])
+        toggle = pages["shop-offers-view-toggle"]["after_ready"]
+        self.assertEqual(2, toggle.count("assertfocus:id=fst.shop.view-toggle@3"))
+        # The Leaving pill kept the brand red under a live contrast switch.
+        contrast = pages["shop-offers-contrast-live"]
+        self.assertEqual((["medium"], ["normal"]), (contrast["sizes"], contrast["modes"]))
+        self.assertIn("contrast:desert", contrast["after_ready"])
+        self.assertEqual("contrast:off", [s for s in contrast["after_ready"] if s.startswith("contrast:")][-1])
+        self.assertTrue(any(s.startswith("assertpaint:id=fst.shop.badge.leaving.fixture-orbit|L-4,M0=#903909")
+                            for s in contrast["after_ready"]))
 
     def test_search_all_section_titles_run_at_default_largest_text_and_reduced_motion(self):
         # Issue #483 (#348): Search's All section titles run in CI at default and 225% text and with in-app Reduce
@@ -738,6 +792,35 @@ class UiCiTests(unittest.TestCase):
                       switch[desert:off])
         self.assertTrue([s for s in switch[desert:off] if s.startswith("assertpaint:id=fst.paths.activation.1|")])
         self.assertTrue([s for s in switch[off:] if s.startswith("assertpaint:id=fst.paths.activation.1|")])
+
+    def test_leaderboard_columns_contrast_switch_runs_in_the_normal_pass(self):
+        # Issue #519 (#242): a live contrast switch with a song board open repaints the code-set row, pinned-row,
+        # selected FC badge and disabled pager brushes; the page runs once at medium in the generated normal pass.
+        pages = json.loads((ci.JOURNEYS / "a11y-leaderboard-columns.json").read_text(encoding="utf-8"))
+        page = next(item for item in pages if item["name"] == "cols-song-board-contrast-switch")
+        self.assertTrue(page["scan"])
+        self.assertEqual(["medium"], page["sizes"])
+        run = next(run for run in ci.RUNS if run.name == "a11y-leaderboard-columns-normal")
+        self.assertIn(page, m.mode_pages(pages, run.mode))
+        self.assertTrue(m.page_sizes(page, run.sizes.split(","), run.mode))
+        for mode in ("text-225", "hc-desert"):
+            self.assertNotIn(page, m.mode_pages(pages, mode))
+        steps = page["after_ready"]
+        desert, off = steps.index("contrast:desert"), steps.index("contrast:off")
+        self.assertLess(desert, off)
+        self.assertEqual("contrast:off", [s for s in steps if s.startswith("contrast:")][-1])
+        for target in ("id=fst.song-leaderboard.row.fixture-player-3", "id=fst.song-leaderboard.row.fixture-player-2",
+                       "raw=fst.score.accuracy.fixture-player-2"):
+            for span in (steps[:desert], steps[desert:off], steps[off:]):
+                self.assertTrue([s for s in span if s.startswith(f"assertpaint:{target}|")], target)
+        self.assertTrue([s for s in steps[desert:off] if s.startswith("assertpaint:id=fst.song-leaderboard.page-first|")])
+        self.assertIn("scan:{stem}-desert", steps[desert:off])
+        self.assertTrue([s for s in steps[desert:off] if s.startswith("assertorder:") and s.endswith(
+            "id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-first|id=fst.song-leaderboard.page-next")])
+        # #606 MetadataPills speak the current season as "current season 9"; the column rows must not drift back.
+        text = json.dumps(pages)
+        self.assertNotIn("(, season 9)?", text)
+        self.assertNotIn(", season 9, 5 stars", text)
 
     def test_argv(self):
         run = ci.Run("x", "a11y-modals.json", sizes="compact", mode="text-225", tabs=30)

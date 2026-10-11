@@ -381,5 +381,17 @@ private func cardAccessibilityElements(_ host: NSView) -> [NSObject] {
         )
         #expect(nativeHostedControlPixels(try nativeHostedImage(host)).bright > 0)
     }
+
+    @Test("Leaderboard rows keep the opaque card under Reduce Transparency and Increase Contrast (issues #295, #457)",
+          arguments: [nil, "fst.accessibility.lessTransparency", "fst.accessibility.moreContrast"])
+    func rankingRowFallbacksAreOpaque(key: String?) throws {
+        // nil: system Reduce Transparency (the harness's forced fallback).
+        let host = nativeHostedView(
+            RankingRowProbe().defaultAppStorage(rowCardDefaults(key)),
+            size: CGSize(width: 320, height: 96), forceGlassFallback: key == nil
+        )
+        let centre = try cardCentre(try nativeHostedImage(host))
+        #expect(max(centre.red, centre.green, centre.blue) < 0.2, "\(key ?? "system"): \(centre)")
+    }
 }
 #endif
