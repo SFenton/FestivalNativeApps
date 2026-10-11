@@ -15,6 +15,7 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -382,7 +383,7 @@ class ProfileSelectionPageStatesUiTest {
     fun viewedPlayerOffersSelectWithoutSelecting() {
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_B, "Other"), stillBackground = true))
         journey.waitForTag("fst.player.select")
-        rule.onNodeWithTag("fst.player.select").assert(hasText("Select Profile"))
+        rule.onNodeWithTag("fst.player.select").assert(hasContentDescription("Select Profile"))
         assertEquals(0, rule.onAllNodesWithTag("fst.player.reload").fetchSemanticsNodes().size)
         assertEquals(0, rule.onAllNodesWithTag("fst.nav.tab.shop").fetchSemanticsNodes().size)
         assertTrue(rule.onNodeWithTag("fst.player.select").getUnclippedBoundsInRoot().height >= 48.dp)
@@ -435,7 +436,7 @@ class ProfileSelectionPageStatesUiTest {
     fun switchConfirmCancelKeepsTheSelectedPlayer() {
         journey.launch(DebugLaunch(profile = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"), route = PlayerRoute(Fixtures.ACCOUNT_B, "Other"), stillBackground = true))
         journey.waitForTag("fst.player.select")
-        rule.onNodeWithText("Switch to This Profile").assert(hasText("Switch to This Profile"))
+        rule.onNodeWithTag("fst.player.select").assert(hasContentDescription("Switch to This Profile"))
         journey.tap("fst.player.select")
         journey.waitForTag("fst.player.switch-confirm")
         journey.tap("fst.player.switch-confirm.cancel")

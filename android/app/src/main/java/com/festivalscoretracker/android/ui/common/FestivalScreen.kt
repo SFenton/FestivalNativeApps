@@ -148,6 +148,9 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  * @param modifier Modifier.
  * @param actions Screen actions, placed before search and the avatar. The floating toolbar
  *   holding them stays on screen while the page scrolls (R7, issues #52, #577).
+ * @param primaryAction The page's primary action as its own pill beside the floating toolbar, in
+ *   the same row (owner-approved `page-tools-and-nav-chrome` R6 variant, #590: only the player page
+ *   and Statistics, for Select/Switch); outside the shell it leads the top-bar page actions.
  * @param actionsReadFirst TalkBack and keyboard focus reach the floating toolbar
  *   holding [actions] right after the top app bar instead of after the content: an endless feed
  *   (Suggestions) never ends, so a toolbar read last is unreachable by swiping (issue #112); a
@@ -181,6 +184,7 @@ fun FestivalScreen(
     isRoot: Boolean,
     modifier: Modifier = Modifier,
     actions: @Composable RowScope.() -> Unit = NoPageActions,
+    primaryAction: FloatingToolbarAction? = null,
     actionsReadFirst: Boolean = false,
     scrolled: Boolean = false,
     titleIcon: (@Composable (size: Dp) -> Unit)? = null,
@@ -212,13 +216,19 @@ fun FestivalScreen(
     // screen's pane; global search stays in the top app bar (operator 2026-09-28).
     val pane = remember { mutableStateOf<PxSpan?>(null) }
     val toolbarReadsFirst = shell.floatingToolbar != null && actionsReadFirst
-    // The toolbar's drawn height (0 while it shows no tools) sets where the content ends (R7,
-    // issue #578). Until it is drawn: its last height on this page (back keeps place), else the
-    // pill's height, or none for a page without actions.
+    // The toolbar row's drawn height (0 while it shows no tools and no primary action) sets where
+    // the content ends (R7, issue #578). Until it is drawn: its last height on this page (back keeps
+    // place), else the pill's height, or none for a page without actions.
     var lastToolbarHeight by rememberSaveable { mutableStateOf<Float?>(null) }
-    val expectedToolbarHeight = lastToolbarHeight ?: if (actions === NoPageActions) 0f else BottomChromeSpacing.TOOLBAR_HEIGHT_DP.toFloat()
+    val expectsNoToolbar = actions === NoPageActions && primaryAction == null
+    val expectedToolbarHeight = lastToolbarHeight ?: if (expectsNoToolbar) 0f else BottomChromeSpacing.TOOLBAR_HEIGHT_DP.toFloat()
     val toolbarHeight = if (shell.floatingToolbar != null) {
-        FloatingToolbarContent(readFirst = actionsReadFirst, pane = pane, initialHeightDp = expectedToolbarHeight) { actions() } ?: expectedToolbarHeight
+        FloatingToolbarContent(
+            readFirst = actionsReadFirst,
+            pane = pane,
+            initialHeightDp = expectedToolbarHeight,
+            companion = primaryAction,
+        ) { actions() } ?: expectedToolbarHeight
     } else {
         0f
     }
@@ -296,7 +306,11 @@ fun FestivalScreen(
                 }
                 // Outside the shell (previews, isolated tests) there is no toolbar to float in.
                 if (shell.floatingToolbar == null) {
-                    AdaptiveTopBarActions(inlineActions, onPageWidth = { pageActionsWidth = it }, page = actions, global = global)
+                    val page: @Composable RowScope.() -> Unit = {
+                        primaryAction?.let { FloatingToolbarActionButton(it) }
+                        actions()
+                    }
+                    AdaptiveTopBarActions(inlineActions, onPageWidth = { pageActionsWidth = it }, page = page, global = global)
                 } else {
                     global()
                 }
