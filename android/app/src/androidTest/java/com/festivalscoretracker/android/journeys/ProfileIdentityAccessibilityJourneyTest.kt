@@ -165,8 +165,8 @@ class ProfileIdentityAccessibilityJourneyTest {
 
     /**
      * Statistics (the same body under a "Statistics" title) starts at Overview and never reads
-     * the name as a page item. It offers no identity pill beside Quick Links; Deselect stays one
-     * named 48 dp drawer button (operator batches 7.10, 7.12; #590).
+     * the name as a page item. It offers no identity pill beside Quick Links; Deselect stays in
+     * the drawer (operator batches 7.10, 7.12; #590), covered by `ShellAccessibilityJourneyTest`.
      */
     @Test
     fun statisticsStartsAtOverview() {
@@ -181,14 +181,6 @@ class ProfileIdentityAccessibilityJourneyTest {
         assertIdentityRow(order, title(), emptyList(), "statistics", titleOnce = false)
         assertTrue("Statistics reads the player's name as a page item: $order", order.none { it == PLAYER.displayName })
         assertQuickLinksAlone("statistics-selected")
-        // Deselect: the drawer's button (modal drawer on phones; permanent drawer on wide windows).
-        if (h.exists("fst.nav.drawer")) h.tap("fst.nav.drawer")
-        h.waitForTag(DRAWER_DESELECT)
-        h.awaitAccessibilityTree(DRAWER_DESELECT)
-        rule.onNodeWithTag(DRAWER_DESELECT)
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
-            .assert(hasContentDescription("Deselect profile"))
-        h.assertTouchTarget("statistics-drawer", DRAWER_DESELECT)
         h.assertAccessible()
     }
 
