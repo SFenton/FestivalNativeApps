@@ -176,6 +176,12 @@ RUNS: tuple[Run, ...] = (
     # no-player and reduced-motion states.
     Run("song-band-pinned", "a11y-song-band-pinned.json", tabs=0),
     Run("song-band-pinned-text-225", "a11y-song-band-pinned.json", sizes="compact", mode="text-225", tabs=0),
+    # The shared song leaderboard header on the band and solo boards (issues #317, #465): one 40+ epx button named by
+    # every visible line, title heading 1, header -> size switcher -> rows order, Tab/Shift+Tab/Right and Enter to Song
+    # Details, the total leaving on a slow size switch, and no button for an unresolved song; again at 225% text.
+    Run("song-leaderboard-header", "a11y-song-leaderboard-header.json", tabs=0),
+    Run("song-leaderboard-header-text-225", "a11y-song-leaderboard-header.json", sizes="compact", mode="text-225",
+        tabs=0),
     # Board load swap (issues #71, #431): spinner "Busy Loading …, ProgressRing", stale rows leave UIA, selectors ->
     # spinner -> pager order, enabled 40x40 selectors and pager, focus kept on the pager, mid-load Axe scans; then the
     # same swap at 225% text and with Windows' Animation effects off. Every page is medium-only (pager plus spinner).
