@@ -78,11 +78,12 @@ UIA gotcha: `Border`, `StackPanel`, `ItemsRepeater` and `UserControl` are not in
 - Accessibility pages in `journeys/a11y.json`: `player`, `statistics`, `player-lead` (the Lead section, revealed) and `player-empty` (an empty instrument).
 - Bands groups (#596): `journeys/a11y-profile-bands.json` page `profile-bands-groups` (run in CI by `ui_ci.py` as `profile-bands` and `profile-bands-text-225`). It checks fixture-player-1's grouped rows and View All for names without the size chip, 40 epx targets and 0 epx row gaps; the Narrator order header → rows → View All per group, with no Quads View All; and that Down moves between rows and Tab reaches the View All.
 - Title row (issue #285): `PlayerTitleMarkupTests.cs` checks there is no `PersonPicture`/card, the H1 comes first, the actions sit in the `TitleActions` WrapPanel (select → deselect → Quick Links) and the notice and error follow. `journeys/a11y-profile-title.json` (checked by `tools/windows/tests/test_profile_title_journey.py`) has one page per identity state:
-  - `pt-switch`, `pt-anonymous`, `pt-selected` and `pt-notice` (`profile_fixture.py` rollover): name → action or notice → Overview, the H1 12 epx under the title bar, and no other action.
+  - `pt-switch`, `pt-anonymous`, `pt-selected` and `pt-notice` (`profile_fixture.py` rollover): name → action or notice → Overview, the H1 12 epx under the title bar, and no other action. Since issue #446 each also asserts the name is a non-focusable `text` element at heading level 1 read as "<name>, text", that no control-view `PersonPicture` exists (the title bar's avatars are `AccessibilityView=Raw`), and that Select/Switch or Deselect is an enabled, invokable `button` at least 40 × 40 epx that Narrator reads as "<label>, button" (`test_profile_title_journey.py` requires all of these).
   - `pt-actions-row` (one row at normal text) and `pt-actions-wrap` (Quick Links below Select at 225% compact).
   - `pt-keyboard-*`: Tab order, plus focus returning after the menu and confirmation dialog.
   - `pt-live-*`: SFentonX on the live service.
   - Run the fixture pages with `--only` (the live pages need `--live --only pt-live-anonymous,pt-live-selected`).
+  - CI (issue #446): `tools/windows/ui_ci.py` runs the fixture pages (`PROFILE_TITLE_FIXTURE`) as `profile-title` (compact and medium) and `profile-title-text-225` (compact, 225% text), both with Axe scans, in the `windows-ui` job.
 
 ## Validation (issue #199, 2026-10-03)
 

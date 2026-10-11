@@ -91,8 +91,9 @@ public struct QuickLinksMenu: View {
             // bottom-to-top; keep page order wherever it opens.
             .menuOrder(.fixed)
             .tint(BrandTokens.textPrimary)
-            .accessibilityLabel("Quick Links")
-            .accessibilityValue(controller.activeSection?.title ?? "")
+            .festivalBarItemAccessibility(
+                label: "Quick Links", value: controller.activeSection?.title ?? ""
+            )
             .accessibilityHint("Jumps to a section of this page")
             .accessibilityIdentifier("fst.quick-links.open")
         }
