@@ -172,8 +172,9 @@ struct SongsSectionBarAccessibilityTests {
     // MARK: Composed bar and list
 
     /// The Songs list as `SongsScreen` composes it on iOS 26 and macOS 26: flat List rows
-    /// (each section's in-list title, then its songs) with the section bar overlaid at the
-    /// List's top by the screen's own ``SongsSectionBarOverlay``.
+    /// (each section's in-list title, then its songs), each faded under the bar by the
+    /// screen's own `SectionBarRowFade`, with the section bar overlaid at the List's top
+    /// by the screen's own ``SongsSectionBarOverlay``.
     private struct ComposedList: View {
         let chrome: SongsScrollChrome
         let sections: [SongsSectionBar.Entry]
@@ -186,11 +187,13 @@ struct SongsSectionBarAccessibilityTests {
                         key: entry.key, label: entry.label, spokenLabel: entry.spokenLabel,
                         accessibilityID: "fst.songs.section.\(index)", chrome: chrome
                     )
+                    .modifier(SectionBarRowFade(chrome: chrome, enabled: true, hidesWhenCut: false))
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
                     ForEach((0..<rowsPerSection).map { "\(entry.key)-\($0)" }, id: \.self) { row in
                         Text("Song \(row)")
                             .accessibilityIdentifier("fst.songs.row.\(row)")
+                            .modifier(SectionBarRowFade(chrome: chrome, enabled: true))
                     }
                 }
             }
@@ -340,6 +343,47 @@ struct SongsSectionBarAccessibilityTests {
             state: "landed"
         )
         #expect(macAccessibilityFindings(macAccessibilityTree(host)).isEmpty)
+    }
+
+    /// Scrolled, a song wholly under the bar (its bottom at or above the bar's edge) is
+    /// no VoiceOver stop, while a song partly under it is still read after the bar
+    /// (scroll-edge R7, issue #459; Android `cutRows`, #417). In-list titles keep their
+    /// headings under the bar (``composedLandedTitleReadsTheBarThenItsBlankedTitle()``).
+    @Test func composedSongsWhollyUnderTheBarAreNoStop() async throws {
+        let chrome = SongsScrollChrome()
+        let (host, window, table, settle) = try await hostComposed(chrome)
+        defer { window.orderOut(nil) }
+        let rowsPerSection = 12
+        /// The song a table row shows (each section is its title row, then its songs).
+        func song(atRow index: Int) -> String? {
+            let within = index % (rowsPerSection + 1)
+            guard within > 0, index / (rowsPerSection + 1) < sections.count else { return nil }
+            return "fst.songs.row.\(sections[index / (rowsPerSection + 1)].key)-\(within - 1)"
+        }
+        /// Songs whose cells lie wholly under the bar but still inside the List.
+        func cutSongs() -> [String] {
+            let top = table.visibleRect.minY
+            let visible = table.rows(in: table.visibleRect)
+            return (visible.lowerBound..<visible.upperBound).compactMap { index in
+                let bottom = table.rect(ofRow: index).maxY - top
+                return bottom > 0 && bottom <= chrome.sectionBarBottom ? song(atRow: index) : nil
+            }
+        }
+        try await scroll(chrome, settle: settle) { !cutSongs().isEmpty && chrome.passedHeaders == ["4"] }
+        let cut = cutSongs()
+        let order = readingOrder(host, table: table)
+        macAccessibilityDump(order, name: "songs-section-bar-composed-cut")
+        expectReadingOrder(order, headings: ["4 stars", "5 stars"], state: "cut")
+        let songs = order.filter { $0.identifier.hasPrefix("fst.songs.row.") }
+        #expect(!songs.isEmpty, "no song is read: \(order)")
+        for id in cut {
+            #expect(!songs.contains { $0.identifier == id }, "\(id) is wholly under the bar yet read: \(order)")
+        }
+        // Screen coordinates are y up: the bar's edge lies its height below the host's top.
+        let edge = window.convertToScreen(host.convert(host.bounds, to: nil)).maxY - chrome.sectionBarBottom
+        for node in songs {
+            #expect(node.frame.minY < edge - 0.5, "\(node) ends above the bar's edge \(edge) yet is read")
+        }
     }
 
     // MARK: Text size

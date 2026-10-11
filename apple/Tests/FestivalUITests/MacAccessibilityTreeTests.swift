@@ -24,6 +24,9 @@ struct MacAXNode: CustomStringConvertible {
     let isElement: Bool
     /// `isAccessibilityEnabled`: false for a disabled control VoiceOver reads as dimmed.
     var isEnabled = true
+    /// `accessibilityFrame` in screen coordinates (origin bottom-left, y up): what
+    /// VoiceOver outlines and where its cursor lands.
+    var frame: CGRect = .zero
 
     /// The name VoiceOver speaks first: label, else title, else value.
     var spokenName: String { [label, title, value].first { !$0.isEmpty } ?? "" }
@@ -74,7 +77,8 @@ func macAccessibilityTree(_ root: NSView, navigationOrder: Bool = false) -> [Mac
                 value: string(object, "accessibilityValue"), identifier: string(object, "accessibilityIdentifier"),
                 selected: (read(object, "isAccessibilitySelected") as? Bool) ?? false,
                 help: string(object, "accessibilityHelp"), isElement: isElement,
-                isEnabled: (read(object, "isAccessibilityEnabled") as? Bool) ?? true
+                isEnabled: (read(object, "isAccessibilityEnabled") as? Bool) ?? true,
+                frame: (read(object, "accessibilityFrame") as? NSValue)?.rectValue ?? .zero
             ))
         }
         let ordered = navigationOrder ? read(object, "accessibilityChildrenInNavigationOrder") as? [Any] : nil
