@@ -168,6 +168,18 @@ class RivalsCoreTest {
         assertEquals(emptyList<Instrument>(), RivalScope.Combo("zz").instruments)
     }
 
+    /** Owner (#604): Rival Detail's subtitle is the single chart's list, else "Rivals". */
+    @Test
+    fun detailSubtitleNamesTheSingleChartListElseRivals() {
+        assertEquals("Lead Rivals", RivalScopes.detailSubtitle(RivalScopes.song(listOf(Instrument.Lead))))
+        assertEquals("Drums Rivals", RivalScopes.detailSubtitle(RivalScope.Leaderboard(Instrument.Drums, RivalRankMetric.FcRate)))
+        assertEquals(RivalText.RIVALS, RivalScopes.detailSubtitle(RivalScopes.song(listOf(Instrument.Lead, Instrument.Bass))))
+        assertEquals(RivalText.RIVALS, RivalScopes.detailSubtitle(RivalScope.Combo("03")))
+        assertEquals(RivalText.RIVALS, RivalScopes.detailSubtitle(RivalScope.Combo("pro_drums")))
+        RivalSettingsScope.entries.forEach { assertEquals(RivalText.RIVALS, RivalScopes.detailSubtitle(RivalScope.FromSettings(it))) }
+        assertEquals("Rivals", RivalScopes.detailSubtitle(null))
+    }
+
     // endregion
 
     // region Common rivals
