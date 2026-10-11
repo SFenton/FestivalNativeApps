@@ -68,6 +68,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/renders"
           for v in BANDS COMPETE DUO FILTER FIRST_RUN HISTORY LEADERBOARDS LICENSES PATH PROFILE RIVALS SECTION_INDEX SETTINGS SHELL SHOP SONG_ROW SONGS SORT SUGGESTIONS WHATS_NEW; do echo "FST_${v}_RENDER_OUT=$RUNNER_TEMP/renders" >> "$GITHUB_ENV"; done
       - name: Swift unit tests (macOS host, no simulator)
+        id: unit
         working-directory: apple
         run: swift test --parallel --enable-code-coverage
       - name: Animation-evidence tests, alone
@@ -198,7 +199,9 @@ jobs:
           python3 tools/ios_sim.py uitest --device "$device" --app phone --a11y full-keyboard-access --fail-on-skip \
             --timeout 900 --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter
       - name: Rival Detail accessibility journeys (iPad, iPhone, iPhone Duo simulators)
-        if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
+        # Full CI only (release branches). It also runs after an earlier journey step fails, so a failure there
+        # never hides this step's result (its own mock and devices; the build steps above must pass).
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && steps.unit.outcome == 'success' }}
         # #444: Rival Detail while the service freezes publishing (#95) on each Apple touch form factor: labels,
         # reading order, 44-pt targets, the largest text size and performAccessibilityAudit. Its selected-player
         # fixtures need their own mock (port 18944). The same universal test build runs on one runner simulator

@@ -170,7 +170,13 @@ class AppleCIJourneysTests(unittest.TestCase):
         for device in (f'"{ios_sim.CI_IPAD_DEVICE_TYPE}|"', f'"{ios_sim.CI_DEVICE_TYPE}|"', '"iPhone Duo|folded"'):
             self.assertIn(device, self.workflow)
         step = self.workflow.split("name: Rival Detail accessibility journeys", 1)[1].split("\n      - name:", 1)[0]
-        self.assertIn("if: github.event_name == 'workflow_dispatch'", step, "release-train only, like the other journeys")
+        condition = re.search(r"\n        if: (.+)", step)
+        self.assertIsNotNone(condition, "the step has a condition")
+        for clause in ("github.event_name == 'workflow_dispatch'", "!cancelled()", "steps.unit.outcome == 'success'"):
+            # Release-train only, like the other journeys; an earlier journey step's failure must not skip it,
+            # but a failed build or unit-test step does.
+            self.assertIn(clause, condition.group(1))
+        self.assertIn("\n        id: unit\n", self.workflow.split("name: Swift unit tests", 1)[1].split("\n      - name:", 1)[0])
 
     def test_section_title_ax5_journey_runs_in_ci(self) -> None:
         # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.
