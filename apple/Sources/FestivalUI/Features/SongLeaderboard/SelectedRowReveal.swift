@@ -7,7 +7,7 @@ import SwiftUI
 /// `block: 'center'`), used by the solo and band boards and Full Rankings (issues #307,
 /// #318).
 ///
-/// Like the web, the scroll waits for the row's own entrance to finish (web waits
+/// Like the web, the scroll waits for the row's entrance to finish (web waits
 /// `(playerIndex + 1) × STAGGER_INTERVAL` plus the fade), so it never carries the reader
 /// past rows that are still fading in; if the page is still fading anywhere, the scroll
 /// rushes those fades through the page's ``FestivalFadeInScope``, and rows the scroll
@@ -16,8 +16,10 @@ import SwiftUI
 /// issue #323). Until the scroll starts, rows past the first screen that the list builds
 /// early are held for it (``FestivalFadeInScope/expectAutomaticScroll()``), so the rows it
 /// reaches have not spent their entrance unseen. Pass the page's scope and the row's
-/// stagger index. It also waits, however long that takes, for a reload gate inside the
-/// page's scroll view to finish growing the content to the rows' height
+/// entrance index (on the boards, the card's: ``BoardCardEntrance/index``, since the
+/// card and its rows fade in as one, #614). It also waits, however long that takes, for
+/// a reload gate inside the page's scroll view to finish growing the content to the rows'
+/// height
 /// (``FestivalFadeInScope/contentRevealed()``): `scrollTo` stops at the content's end of
 /// the moment and does not follow it as it grows, so on a starved main actor, where that
 /// 400 ms reveal can run for seconds, the band board's scroll stopped a few rows down
@@ -37,8 +39,8 @@ enum SelectedRowReveal {
     /// How long to wait after the rows are revealed before scrolling.
     ///
     /// - Parameters:
-    ///   - staggerIndex: The row's stagger position, or nil when the page fades as one
-    ///     block.
+    ///   - staggerIndex: The row's entrance position (its card's on a board), or nil
+    ///     when the page fades as one block.
     ///   - animates: Whether fades and the scroll animate (no Reduce Motion, fades on).
     /// - Returns: The layout settle, or the end of the row's entrance when that is later.
     static func wait(staggerIndex: Int?, animates: Bool) -> Duration {
@@ -65,7 +67,8 @@ enum SelectedRowReveal {
     ///   - proxy: The page's scroll proxy.
     ///   - reduceMotion: Whether the system Reduce Motion is on (with the in-app setting,
     ///     the scroll is instant and does not wait for fades).
-    ///   - staggerIndex: The row's stagger position, or nil for a block-fade page.
+    ///   - staggerIndex: The row's entrance position (its card's on a board, #614), or nil
+    ///     for a block-fade page.
     ///   - fadesEnabled: Whether the page's load fades play (off in frozen UI-test runs).
     ///   - scope: The page's fade scope: a reader who already scrolled cancels the reveal,
     ///     rows the scroll realizes fade in with its rush, and the scroll waits for the
@@ -106,4 +109,16 @@ enum SelectedRowReveal {
         }
         return true
     }
+}
+
+// MARK: - Board card entrance
+
+/// The entrance of a board's one group card (Solo and band song boards, Full Rankings):
+/// the card and every row in it fade in as one unit, never row by row (owner, #614).
+/// Each row segment applies ``SwiftUICore/View/festivalCardSegmentFadeIn(cardIndex:)``
+/// with this index, and the selected-row reveal waits for it.
+enum BoardCardEntrance {
+    /// The board card's place in its page's entrance: first, the page's only card (Full
+    /// Rankings' title and count fade at once, before it).
+    static let index = 0
 }

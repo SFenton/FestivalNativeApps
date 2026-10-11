@@ -10,8 +10,8 @@ import XCTest
 /// Score History list rows never speak a season, while the tapped bar's detail row always
 /// does (web `renderDetailCard`). The journey selects a bar, then checks the detail row: it is
 /// static text whose label names the season between the date and the score, it spans the
-/// card at least 44 pt tall, it grows with the text into one column (date, "Season N",
-/// score, accuracy), stays inside the screen and Vision reads every drawn word whole on one
+/// card at least 44 pt tall, it grows with the text and stacks (date, "Season N", then
+/// score and accuracy; #385), stays inside the screen and Vision reads every drawn word whole on one
 /// line (#406: side by side at AX5 they split a letter per line); a scoped audit covers Dynamic Type,
 /// clipped text, hit regions and descriptions on the Score History rows. macOS hosting
 /// cannot scale text, so this journey is the iPhone text-size evidence;

@@ -9,6 +9,7 @@ import com.festivalscoretracker.android.core.model.PlayerSearchResult
 import com.festivalscoretracker.android.core.model.ProfileSearchText
 import com.festivalscoretracker.android.core.model.Publication
 import com.festivalscoretracker.android.core.model.SongsResponse
+import com.festivalscoretracker.android.core.service.ServiceFreezeReason
 import java.io.ByteArrayInputStream
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -168,9 +169,11 @@ private data class Conflict(val status: String? = null)
  * Publication-aware, read-only API client (Apple `FestivalAPI`). Every read goes
  * through [RequestGate]; no privileged key is ever obtained or sent.
  *
- * In-process caches only (online-only): the publication, an ETag/body cache for
- * pinned reads within one publication, and the decoded catalogue. A newer
- * publication clears them and is announced on [publicationChanges].
+ * In-process caches only (online-only): the publication, a byte-bounded body
+ * cache for pinned reads within one publication (ETag revalidation, and the
+ * last published body served through a score-update freeze 503, #554), and the
+ * decoded catalogue. A newer publication clears them and is announced on
+ * [publicationChanges].
  *
  * Callers are usually main-dispatched view models, and OkHttp resumes them on
  * their own dispatcher, so a body of at least [offloadBytes] decodes on
@@ -182,23 +185,26 @@ private data class Conflict(val status: String? = null)
  * @param transport Injected transport.
  * @param decodeDispatcher Off-main dispatcher for JSON decoding and validation.
  * @param offloadBytes Smallest body decoded on [decodeDispatcher].
+ * @param retainedBytes Byte budget of the pinned-read body cache (least recently used evicted first).
  */
 class FestivalApi(
     origin: String,
     transport: HttpTransport,
     private val decodeDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val offloadBytes: Int = OFFLOAD_BYTES,
+    private val retainedBytes: Long = RETAINED_BYTES,
 ) {
     private val base: HttpUrl
     private val gate = RequestGate(transport)
     private val mutex = Mutex()
     private var current: Publication? = null
-    private val etagCache = mutableMapOf<String, CachedBody>()
+    private val bodyCache = LinkedHashMap<String, CachedBody>(16, 0.75f, true)
+    private var bodyCacheBytes = 0L
     private var catalogMemo: CatalogPayload? = null
     private var catalogMemoBody: ByteArray? = null
     private val publicationFlow = MutableStateFlow<Int?>(null)
 
-    private data class CachedBody(val publicationId: Int, val etag: String, val body: ByteArray)
+    private data class CachedBody(val publicationId: Int, val etag: String?, val body: ByteArray)
 
     init {
         val parsed = origin.toHttpUrlOrNull() ?: throw FestivalApiException.InsecureBaseUrl()
@@ -242,7 +248,8 @@ class FestivalApi(
                 throw FestivalApiException.InvalidPublication()
             }
             if (previous?.publicationId != new.publicationId) {
-                etagCache.clear()
+                bodyCache.clear()
+                bodyCacheBytes = 0L
                 catalogMemo = null
                 catalogMemoBody = null
             }
@@ -272,6 +279,13 @@ class FestivalApi(
      * An accepted 202 (only for [ServiceEndpoint.acceptsSyncing]) returns uncached
      * and without publication checks.
      *
+     * Every verified 200 body is kept for the rest of its publication. A score-update
+     * freeze 503 (`X-FST-Public-Read-Freeze-Reason` scrape … publication-commit) for a
+     * URL this client already read in the still-current publication returns that
+     * body instead: the published generation has not changed, so it is still the
+     * last published data (web React Query keeps its data the same way, #554). Other
+     * 503s, other publications and never-read URLs still fail.
+     *
      * @param endpoint Pinned endpoint.
      * @return Body, status and provenance.
      */
@@ -284,7 +298,7 @@ class FestivalApi(
             response = gate.send(pinnedRequest(url, publication))
         }
         if (response.status == 304) {
-            val cached = mutex.withLock { etagCache[url] }
+            val cached = mutex.withLock { bodyCache[url] }
             val responseId = response.header(RequestGate.PUBLICATION_HEADER)?.toIntOrNull()
             if (cached != null && cached.publicationId == publication.publicationId &&
                 (responseId == null || responseId == publication.publicationId)
@@ -293,6 +307,7 @@ class FestivalApi(
             }
             response = gate.send(RequestGate.makeRequest(url, pinHeaders(publication)))
         }
+        if (response.status == 503) retainedThroughFreeze(url, publication, response)?.let { return it }
         val responseId = response.header(RequestGate.PUBLICATION_HEADER)?.toIntOrNull()
         if (RequestGate.mapStatus(response, endpoint.acceptsSyncing) == ServiceStatus.Syncing) {
             return PinnedRead(response.body, 202, responseId, publication.publicationId)
@@ -302,20 +317,46 @@ class FestivalApi(
             publication = publication(force = true)
             if (publication.publicationId != responseId) throw FestivalApiException.InvalidPublication()
         }
-        val etag = response.header("ETag")
-        if (etag != null && responseId == publication.publicationId) {
-            mutex.withLock {
-                if (current?.publicationId == publication.publicationId) {
-                    etagCache[url] = CachedBody(publication.publicationId, etag, response.body)
-                }
-            }
+        if (responseId == publication.publicationId) {
+            retain(url, CachedBody(publication.publicationId, response.header("ETag"), response.body))
         }
         return PinnedRead(response.body, 200, responseId, publication.publicationId)
     }
 
+    /**
+     * The body kept for [url] when [response] is a score-update freeze 503 in the
+     * still-current [publication], else null.
+     */
+    private suspend fun retainedThroughFreeze(url: String, publication: Publication, response: HttpResult): PinnedRead? {
+        val reason = response.header(ServiceFreezeReason.HEADER) ?: return null
+        if (!ServiceFreezeReason.isScoreUpdate(reason)) return null
+        val responseId = response.header(RequestGate.PUBLICATION_HEADER)?.toIntOrNull()
+        if (responseId != null && responseId != publication.publicationId) return null
+        val cached = mutex.withLock {
+            bodyCache[url]?.takeIf { it.publicationId == publication.publicationId && current?.publicationId == publication.publicationId }
+        } ?: return null
+        return PinnedRead(cached.body, 200, cached.publicationId, publication.publicationId)
+    }
+
+    /** Keep [entry] for [url] while its publication is current, evicting least recently used bodies over the budget. */
+    private suspend fun retain(url: String, entry: CachedBody) {
+        mutex.withLock {
+            if (current?.publicationId != entry.publicationId) return
+            bodyCache.remove(url)?.let { bodyCacheBytes -= it.body.size }
+            if (entry.body.size > retainedBytes) return
+            bodyCache[url] = entry
+            bodyCacheBytes += entry.body.size
+            val eldest = bodyCache.entries.iterator()
+            while (bodyCacheBytes > retainedBytes && eldest.hasNext()) {
+                bodyCacheBytes -= eldest.next().value.body.size
+                eldest.remove()
+            }
+        }
+    }
+
     private suspend fun pinnedRequest(url: String, publication: Publication): HttpRequest {
-        val cached = mutex.withLock { etagCache[url] }?.takeIf { it.publicationId == publication.publicationId }
-        val headers = pinHeaders(publication) + (cached?.let { mapOf("If-None-Match" to it.etag) } ?: emptyMap())
+        val cached = mutex.withLock { bodyCache[url] }?.takeIf { it.publicationId == publication.publicationId }
+        val headers = pinHeaders(publication) + (cached?.etag?.let { mapOf("If-None-Match" to it) } ?: emptyMap())
         return RequestGate.makeRequest(url, headers)
     }
 
@@ -496,6 +537,9 @@ class FestivalApi(
     companion object {
         /** Default [offloadBytes]: fixture-sized bodies stay in place, service catalogues/profiles move. */
         const val OFFLOAD_BYTES = 64 * 1024
+
+        /** Default [retainedBytes]: room for a catalogue, a profile and a page's section reads. */
+        const val RETAINED_BYTES = 32L * 1024 * 1024
 
         /** Hosts treated as loopback fixture origins (`10.0.2.2` is the emulator's host alias). */
         val LOOPBACK_HOSTS = setOf("localhost", "127.0.0.1", "::1", "10.0.2.2")

@@ -306,7 +306,7 @@ struct SongSeasonAccessibilityTests {
     /// At the largest accessibility size the pill drops its fixed 44 pt frame and spells
     /// "Season 39" out in full, never truncated; Score History rows (wide page and the
     /// tapped bar's row on a phone) still speak the season as whole-row static text inside
-    /// the page and stack into one column; top-score rows restack, still read the season
+    /// the page and stack; top-score rows restack, still read the season
     /// and stay inside the card.
     @Test func seasonStaysSpokenAndUntruncatedAtAccessibilitySizes() async throws {
         let full = Text("Season 39").font(.body.weight(.semibold)).monospacedDigit()
@@ -331,10 +331,11 @@ struct SongSeasonAccessibilityTests {
             #expect(row.role == "AXStaticText", "\(row)")
             #expect(frame.height >= 44 - 0.5 && frame.maxX <= 600 + 0.5, "\(id) stays a whole row on the page: \(frame)")
         }
-        // Date, season, score and accuracy stack in one column rather than squeezing
-        // each other a letter per line (#406; the iPhone journey reads it back at AX5).
+        // The date, the season, then score and accuracy stack rather than squeezing each
+        // other a letter per line (#385/#406; the iPhone journey reads it back at AX5).
+        // Hosted macOS keeps 13 pt text, so three stacked lines are at least 2× a row.
         let stackedRow = try history.frame(Self.historyRows[1]).height
-        #expect(stackedRow > standardRow * 2, "a season row stacks at AX5: \(stackedRow) vs \(standardRow)")
+        #expect(stackedRow >= standardRow * 2 - 0.5, "a season row stacks at AX5: \(stackedRow) vs \(standardRow)")
         #expect(try history.node(Self.historyRows[1]).spokenName.hasPrefix("Jan 1, 2024, season 39, score 700,000"))
         Self.assertNoAbbreviatedSeason(macAccessibilityTree(history.host))
         history.close()

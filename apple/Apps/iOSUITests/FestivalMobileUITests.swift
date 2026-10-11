@@ -40,13 +40,13 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(action.waitForExistence(timeout: 10))
         XCTAssertTrue(action.isHittable)
         action.tap()
-        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Search players or bands")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText("Fixture Player\n")
         let first = app.buttons["fst.profile.result.fixture-player-1"]
         XCTAssertTrue(first.waitForExistence(timeout: 15))
-        XCTAssertFalse(app.buttons["fst.profile.search-retry"].exists)
+        XCTAssertFalse(app.buttons["Retry"].exists)
         record(app, name: "profile-player-search-results")
         first.tap()
         XCTAssertTrue(app.staticTexts["fst.profile.viewed"].waitForExistence(timeout: 10))
@@ -61,7 +61,7 @@ final class FestivalMobileUITests: XCTestCase {
         record(app, name: "songs-player-one-available-score")
 
         action.tap()
-        let secondSearch = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
+        let secondSearch = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Search players or bands")).firstMatch
         XCTAssertTrue(secondSearch.waitForExistence(timeout: 10))
         secondSearch.tap()
         secondSearch.typeText("Fixture Player\n")
@@ -118,9 +118,74 @@ final class FestivalMobileUITests: XCTestCase {
             .matching(identifier: "fst.songs.profile-status").firstMatch.exists)
     }
 
-    /// Access-denied search, syncing/empty previews and blocked band reads stay distinct.
+    /// Profile search starts on All, and an access-denied search and an empty search stay
+    /// distinct, without Retry (issue #600; All's players-and-bands empty state is
+    /// `ProfileSearchScopeJourneyTests`').
     ///
-    /// - Throws: A fabricated empty success or unsafe band/selected-profile request.
+    /// - Throws: A fabricated empty success.
+    @MainActor
+    func testProfileSearchAccessDeniedAndEmptyStayDistinct() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"]
+            .waitForExistence(timeout: 15))
+        app.buttons["fst.shell.profile"].tap()
+        let scope = app.segmentedControls["fst.profile.scope"]
+        XCTAssertTrue(scope.waitForExistence(timeout: 10))
+        XCTAssertTrue(scope.buttons["All"].isSelected, "Profile search did not start on All")
+        scope.buttons["Players"].tap()
+        let search = app.searchFields.matching(
+            NSPredicate(format: "placeholderValue == %@", "Search players")
+        ).firstMatch
+        XCTAssertTrue(search.waitForExistence(timeout: 10))
+        search.tap()
+        search.typeText("blocked")
+        let denied = app.descendants(matching: .any)
+            .matching(identifier: "fst.profile.players-error").firstMatch
+        XCTAssertTrue(denied.waitForExistence(timeout: 15))
+        // Global search's failure copy (#299): access denied reads as unavailable, never
+        // as an empty result.
+        XCTAssertTrue(
+            denied.label.contains("Players unavailable"),
+            "Search failure read as something else: \(denied.label)"
+        )
+        XCTAssertFalse(app.descendants(matching: .any)
+            .matching(identifier: "fst.profile.hint").firstMatch.exists)
+        XCTAssertFalse(app.buttons["Retry"].exists, "Profile search offered Retry")
+        XCTAssertFalse(app.descendants(matching: .any)
+            .matching(identifier: "fst.profile.bands-unavailable").firstMatch.exists)
+        record(app, name: "profile-player-search-access-denied")
+        app.buttons["fst.profile.close"].tap()
+
+        // Players scope: the shared :8765 listener may predate band search; All's
+        // players-and-bands empty state is ProfileSearchScopeJourneyTests' (issue #600).
+        app.buttons["fst.shell.profile"].tap()
+        let reopenedScope = app.segmentedControls["fst.profile.scope"]
+        XCTAssertTrue(reopenedScope.waitForExistence(timeout: 10))
+        reopenedScope.buttons["Players"].tap()
+        let emptySearch = app.searchFields.matching(
+            NSPredicate(format: "placeholderValue == %@", "Search players")
+        ).firstMatch
+        XCTAssertTrue(emptySearch.waitForExistence(timeout: 10))
+        emptySearch.tap()
+        emptySearch.typeText("missing\n")
+        let empty = app.descendants(matching: .any)
+            .matching(identifier: "fst.profile.hint").firstMatch
+        let shown = expectation(
+            for: NSPredicate(format: "label BEGINSWITH %@", "No Players Found"), evaluatedWith: empty
+        )
+        wait(for: [shown], timeout: 15)
+        XCTAssertFalse(app.buttons["Retry"].exists, "Profile search offered Retry")
+        record(app, name: "profile-player-search-empty-envelope")
+        app.buttons["fst.profile.close"].tap()
+    }
+
+    /// Syncing, empty and access-denied player previews stay distinct.
+    ///
+    /// - Throws: A fabricated empty success or unsafe selected-profile request.
     @MainActor
     func testProfileSearchErrorsSyncingAndBandsStayExplicit() throws {
         continueAfterFailure = false
@@ -130,41 +195,6 @@ final class FestivalMobileUITests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"]
             .waitForExistence(timeout: 15))
-        app.buttons["fst.shell.profile"].tap()
-        let bands = app.buttons["Bands"]
-        XCTAssertTrue(bands.waitForExistence(timeout: 10))
-        bands.tap()
-        let bandStatus = app.staticTexts["fst.profile.bands-unavailable"]
-        XCTAssertTrue(bandStatus.waitForExistence(timeout: 10))
-        XCTAssertTrue(bandStatus.label.contains("Use Search to find a band"))
-        XCTAssertFalse(app.buttons["fst.profile.select"].exists)
-        app.buttons["Players"].tap()
-        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
-        XCTAssertTrue(search.waitForExistence(timeout: 10))
-        search.tap()
-        search.typeText("blocked")
-        let denied = app.descendants(matching: .any)
-            .matching(identifier: "fst.profile.search-error").firstMatch
-        XCTAssertTrue(denied.waitForExistence(timeout: 15))
-        XCTAssertTrue(
-            denied.label.contains("HTTP 403"),
-            "Search failure lost access-denied status: \(denied.label)"
-        )
-        XCTAssertFalse(app.staticTexts["fst.profile.search-empty"].exists)
-        XCTAssertTrue(app.buttons["fst.profile.search-retry"].exists)
-        record(app, name: "profile-player-search-access-denied")
-        app.buttons["fst.profile.close"].tap()
-
-        app.buttons["fst.shell.profile"].tap()
-        let emptySearch = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
-        XCTAssertTrue(emptySearch.waitForExistence(timeout: 10))
-        emptySearch.tap()
-        emptySearch.typeText("missing\n")
-        XCTAssertTrue(app.staticTexts["fst.profile.search-empty"]
-            .waitForExistence(timeout: 15))
-        XCTAssertTrue(app.buttons["fst.profile.search-retry"].exists)
-        record(app, name: "profile-player-search-empty-envelope")
-        app.buttons["fst.profile.close"].tap()
 
         viewFixturePlayer("fixture-syncing", query: "Syncing", in: app)
         XCTAssertTrue(app.staticTexts["fst.profile.syncing"].waitForExistence(timeout: 10))
@@ -217,13 +247,13 @@ final class FestivalMobileUITests: XCTestCase {
             .waitForExistence(timeout: 15))
         rootControl("Settings", app: app).tap()
         try rootProfileAction(in: app).tap()
-        XCTAssertTrue(app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Search players or bands")).firstMatch.waitForExistence(timeout: 10))
         app.buttons["fst.profile.close"].tap()
         XCTAssertTrue(app.switches["Filter Invalid Scores"].waitForExistence(timeout: 10))
 
         rootControl("Leaderboards", app: app).tap()
         try rootProfileAction(in: app).tap()
-        XCTAssertTrue(app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Search players or bands")).firstMatch.waitForExistence(timeout: 10))
         app.buttons["fst.profile.close"].tap()
         XCTAssertTrue(app.staticTexts["Leaderboards overview migration in progress"].exists)
 
@@ -235,7 +265,7 @@ final class FestivalMobileUITests: XCTestCase {
         } else {
             try rootProfileAction(in: app).tap()
         }
-        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Search players or bands")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText("Fixture Player")
@@ -875,7 +905,7 @@ final class FestivalMobileUITests: XCTestCase {
         let action = app.buttons["fst.profile.open"]
         XCTAssertTrue(action.waitForExistence(timeout: 10))
         action.tap()
-        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Search players or bands")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText(query + "\n")

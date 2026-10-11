@@ -11,13 +11,16 @@ namespace Festival.Core.ViewModels;
 /// pinned above the pager, their own page included (web <c>FullRankingsPage</c> <c>hasPlayerFooter = !!playerRanking</c>,
 /// pattern <c>leaderboard-row</c> R7, issue #318). The pinned row is itself the control: while the player's row is on
 /// another page it jumps there (native addition; the web footer only links to the profile), and once it is shown it opens
-/// their profile (<see cref="SelectedRowAction.Footer"/>).
+/// their profile (<see cref="SelectedRowAction.Footer"/>). A <c>?combo=</c> route shows a within-group combo board
+/// instead (web <c>FullRankingsPage</c> combo mode, issue #602): the combo's icons and label, no instrument switcher.
 /// </summary>
 public sealed partial class FullRankingsViewModel : ObservableObject
 {
     private readonly FestivalSession session;
     private readonly OwnRankingReader? reader;
-    private Instrument spotlightInstrument;
+    private readonly ComboRankingReader? comboReader;
+    private readonly RankingBoard? combo;
+    private string? spotlightKey;
     private bool spotlightShown;
     private int version;
     private RankingMetric requestedMetric;
@@ -27,17 +30,21 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     /// <param name="session">Shared session.</param>
     /// <param name="route">Instrument and metric.</param>
     /// <param name="reader">Own-row reader (defaults to the public single-account read).</param>
-    public FullRankingsViewModel(FestivalSession session, AppRoute.FullRankings route, OwnRankingReader? reader = null)
+    /// <param name="comboReader">Combo own-row reader (defaults to the public single-account combo read).</param>
+    public FullRankingsViewModel(FestivalSession session, AppRoute.FullRankings route, OwnRankingReader? reader = null,
+        ComboRankingReader? comboReader = null)
     {
         this.session = session;
         this.reader = reader ?? LeaderboardPreferences.DefaultReader(session);
+        this.comboReader = comboReader ?? LeaderboardPreferences.DefaultComboReader(session);
+        combo = route.Board is { IsCombo: true } board ? board : null;
         instrument = route.Instrument;
         requestedMetric = RankingMetricInfo.Coerce(route.RankBy);
         metric = requestedMetric.Gate(session.Settings.ExperimentalRanks);
         page = Math.Max(1, route.Page);
         Pager = new RankingsPagerViewModel("fst.full-rankings", GoToPageAsync);
         Status = new ServiceStatusViewModel("full-rankings", "Rankings unavailable", LoadAsync, session.Time);
-        spotlight = NewSpotlight(instrument);
+        spotlight = NewSpotlight(Board, metric);
         LoadSwap = new LoadSwap(session.Time);
         LoadSwap.PropertyChanged += (_, _) =>
         {
@@ -77,10 +84,25 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     public List<Instrument> InstrumentOptions =>
         InstrumentInfo.All.Where(i => session.Settings.VisibleInstruments.Contains(i) || i == Instrument).ToList();
 
-    /// <summary>Board.</summary>
+    /// <summary>Board instrument (a combo board's first instrument).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Title), nameof(IconFile), nameof(InstrumentButtonName))]
+    [NotifyPropertyChangedFor(nameof(Title), nameof(IconFile), nameof(InstrumentButtonName), nameof(Board))]
     private Instrument instrument;
+
+    /// <summary>The shown board: the route's combo, else the current instrument.</summary>
+    public RankingBoard Board => combo ?? RankingBoard.Single(Instrument);
+
+    /// <summary>Whether this is a combo board (no instrument switcher; web <c>FullRankingsPage</c> <c>isComboRanking</c>).</summary>
+    public bool IsCombo => combo is not null;
+
+    /// <summary>Whether the instrument switcher shows: instrument boards only.</summary>
+    public bool ShowInstrumentPicker => !IsCombo;
+
+    /// <summary>Whether the title's single instrument icon shows (a combo shows <see cref="IconFiles"/> above the title).</summary>
+    public bool ShowInstrumentIcon => !IsCombo;
+
+    /// <summary>A combo board's icon row (web combo title icons); empty for an instrument board.</summary>
+    public IReadOnlyList<string> IconFiles => combo?.IconFiles ?? [];
 
     /// <summary>Metric.</summary>
     [ObservableProperty]
@@ -112,7 +134,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     private string totalText = "";
 
     /// <summary>Page title.</summary>
-    public string Title => $"{Instrument.Label()} Rankings";
+    public string Title => $"{Board.Label} Rankings";
 
     /// <summary>Instrument icon.</summary>
     public string IconFile => Instrument.IconFile();
@@ -145,15 +167,16 @@ public sealed partial class FullRankingsViewModel : ObservableObject
     /// </summary>
     public bool ShowContent => State is LoadState.Loaded or LoadState.Empty;
 
-    /// <summary>Switches instrument (resets to page 1; the spotlight is rebuilt when the new board commits).</summary>
+    /// <summary>Switches instrument (resets to page 1 and hides the pager until the new board's count commits, #575; the spotlight is rebuilt when the new board commits).</summary>
     /// <param name="value">Instrument.</param>
     /// <returns>Load task.</returns>
     [RelayCommand]
     public Task SelectInstrumentAsync(Instrument value)
     {
-        if (value == Instrument) return Task.CompletedTask;
+        if (IsCombo || value == Instrument) return Task.CompletedTask;
         Instrument = value;
         Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 
@@ -168,6 +191,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         requestedMetric = value;
         Metric = value;
         Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 
@@ -184,6 +208,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         if (allowed == Metric) return null;
         Metric = allowed;
         Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 
@@ -210,7 +235,10 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         IsRefreshing = true;
         try
         {
-            var board = await session.Api.GetRankingsAsync(requestedInstrument, requestedMetric, requestedPage, LeaderboardPaging.PageSize);
+            var requestedBoard = Board;
+            var board = requestedBoard.IsCombo
+                ? (await session.Api.GetComboRankingsAsync(requestedBoard, requestedMetric, requestedPage, LeaderboardPaging.PageSize)).ToBoard()
+                : await session.Api.GetRankingsAsync(requestedInstrument, requestedMetric, requestedPage, LeaderboardPaging.PageSize);
             if (request != version) return;
             var corrected = LeaderboardPaging.Corrected(requestedPage, board.PageCount);
             if (corrected != requestedPage)
@@ -223,7 +251,7 @@ public sealed partial class FullRankingsViewModel : ObservableObject
             {
                 Status.Clear();
                 PinnedGate.Commit(key);
-                if (spotlightInstrument != requestedInstrument) Spotlight = NewSpotlight(requestedInstrument);
+                if (spotlightKey != SpotlightKey(requestedBoard, requestedMetric)) Spotlight = NewSpotlight(requestedBoard, requestedMetric);
                 entries = board.Entries;
                 TotalText = $"{board.TotalAccounts:N0} ranked players";
                 Pager.Update(requestedPage, board.PageCount);
@@ -242,7 +270,8 @@ public sealed partial class FullRankingsViewModel : ObservableObject
             {
                 IsRefreshing = false;
                 PinnedGate.Commit(key);
-                if (spotlightInstrument != requestedInstrument) Spotlight = NewSpotlight(requestedInstrument);
+                var failedBoard = combo ?? RankingBoard.Single(requestedInstrument);
+                if (spotlightKey != SpotlightKey(failedBoard, requestedMetric)) Spotlight = NewSpotlight(failedBoard, requestedMetric);
                 Status.Report(error);
                 State = LoadState.Failed;
             }, AnimateLoadSwaps());
@@ -273,13 +302,25 @@ public sealed partial class FullRankingsViewModel : ObservableObject
         RankingRowViewModel.ShareColumns(Rows, Spotlight.Row);
     }
 
-    /// <summary>Creates the spotlight for a board's instrument with a jump back into this board.</summary>
-    /// <param name="board">Instrument of the board it pins to.</param>
+    /// <summary>
+    /// Spotlight identity: the instrument (its row carries every metric's rank), or the combo and metric (a combo row
+    /// carries the requested metric's rank only, so Rank By re-reads it).
+    /// </summary>
+    /// <param name="board">Board.</param>
+    /// <param name="value">Metric.</param>
+    /// <returns>Key.</returns>
+    private static string SpotlightKey(RankingBoard board, RankingMetric value) =>
+        board.IsCombo ? $"{board.Id}|{value.ServiceId()}" : board.Id;
+
+    /// <summary>Creates the spotlight for a board with a jump back into this board.</summary>
+    /// <param name="board">Board it pins to.</param>
+    /// <param name="value">Metric (combo rows are read per metric).</param>
     /// <returns>Spotlight.</returns>
-    private RankingSpotlightViewModel NewSpotlight(Instrument board)
+    private RankingSpotlightViewModel NewSpotlight(RankingBoard board, RankingMetric value)
     {
-        spotlightInstrument = board;
-        var created = new RankingSpotlightViewModel(board, reader, session.Time, "full-rankings.spotlight." + board.ServiceId(), GoToPageAsync, pinned: true);
+        spotlightKey = SpotlightKey(board, value);
+        var created = new RankingSpotlightViewModel(board, LeaderboardPreferences.BoardReader(board, value, reader, comboReader), session.Time,
+            "full-rankings.spotlight." + board.Id, GoToPageAsync, pinned: true);
         // The pinned row arrives after the page: widen every rank column to fit it (operator batch 7.9).
         created.PropertyChanged += (_, e) =>
         {
@@ -427,6 +468,7 @@ public sealed partial class BandRankingsViewModel : ObservableObject
         if (value == BandType) return Task.CompletedTask;
         BandType = value;
         Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 
@@ -441,6 +483,7 @@ public sealed partial class BandRankingsViewModel : ObservableObject
         requestedMetric = value;
         Metric = value;
         Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 
@@ -457,6 +500,7 @@ public sealed partial class BandRankingsViewModel : ObservableObject
         if (allowed == Metric) return null;
         Metric = allowed;
         Page = 1;
+        Pager.Reset();
         return LoadAsync();
     }
 

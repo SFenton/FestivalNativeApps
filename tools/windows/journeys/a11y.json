@@ -306,7 +306,7 @@
       "medium"
     ],
     "ready": [
-      "waitfor:id=fst.leaderboards.card.Solo_Guitar.spotlight.unranked@20"
+      "waitfor:id=fst.leaderboards.card.0f.spotlight.unranked@20"
     ]
   },
   {

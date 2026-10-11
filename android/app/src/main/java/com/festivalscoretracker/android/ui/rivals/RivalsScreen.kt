@@ -289,7 +289,6 @@ fun FindRivalSheet(
         title = RivalText.FIND_RIVAL,
         closeTag = "fst.rivals.find.close",
         onDismissRequest = onDismiss,
-        skipPartiallyExpanded = false,
         modifier = Modifier.testTag("fst.rivals.find.sheet"),
     ) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 24.dp)) {
@@ -308,7 +307,7 @@ fun FindRivalSheet(
             Box(Modifier.fillMaxWidth().heightIn(min = 160.dp).padding(top = 12.dp)) {
                 when (val current = state) {
                     // Find Rival searches players only; the band-mode state never applies.
-                    ProfileSearchState.Hint, ProfileSearchState.BandsUnavailable -> Text(
+                    ProfileSearchState.Hint -> Text(
                         "Enter at least 2 characters",
                         color = BrandTokens.textSecondary,
                         textAlign = TextAlign.Center,

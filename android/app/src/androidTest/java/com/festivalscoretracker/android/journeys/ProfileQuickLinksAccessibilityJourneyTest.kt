@@ -2,21 +2,21 @@ package com.festivalscoretracker.android.journeys
 
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
@@ -47,8 +47,8 @@ import org.junit.runner.RunWith
  * - the chooser (sheet on compact windows, menu on wider ones) reads its rows in page order
  *   (Global Statistics, the instruments, Top Songs, Bands), each named by its spoken title, the
  *   current row selected with "Current section", every whole row at least 48 dp (`quick-links` R6);
- *   the > 8-section sheet opens partially expanded, and its lower rows come up through the drag
- *   handle's Expand action, the path TalkBack offers;
+ *   the > 8-section sheet opens fully expanded with no half-height stop (no Expand action;
+ *   `modal-shell` R13, #586), and its lower rows scroll into view in the list;
  * - after a jump to Top Songs the entry names Top Songs, and the "Top Songs Per Instrument"
  *   heading stays a heading on the 32 dp landing line, unclipped, after the cards above have
  *   loaded (`section-jump-landing` R2, R6);
@@ -154,11 +154,9 @@ class ProfileQuickLinksAccessibilityJourneyTest {
         assertChooser(config, current = "global")
 
         if (sheet) {
-            // The > 8-section sheet opens partially expanded (M3 default): its lower rows sit below the
-            // screen until the drag handle's Expand action, the path TalkBack offers, raises it.
+            // The > 8-section sheet opens fully expanded (modal-shell R13, #586): no half-height stop to raise.
             rule.onAllNodes(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand), useUnmergedTree = true)
-                .onFirst().performSemanticsAction(SemanticsActions.Expand)
-            rule.waitForIdle()
+                .assertCountEquals(0)
             h.scrollTo(LIST, TOP_SONGS_ITEM)
         } else {
             rule.onNodeWithTag(TOP_SONGS_ITEM).performScrollTo()
@@ -179,7 +177,8 @@ class ProfileQuickLinksAccessibilityJourneyTest {
         val held = headingTop()
         Log.i(JourneyHarness.READING_ORDER_TAG, "profile-quick-links $config | landed $landed | held $held | line ${landingLine()}")
         val tolerance = with(rule.density) { LANDING_TOLERANCE_DP.dp.toPx() }
-        assertTrue("$config: Top Songs landed at $landed px, not on the landing line ${landingLine()} px", abs(landed - landingLine()) <= tolerance)
+        val lineTolerance = with(rule.density) { QuickLinks.COMPLETE_THRESHOLD_DP.dp.toPx() }
+        assertTrue("$config: Top Songs' title landed at $landed px, not on the landing line ${landingLine()} px", abs(landed - landingLine()) <= lineTolerance)
         assertTrue("$config: Top Songs moved from $landed to $held px as the cards above loaded", abs(held - landed) <= tolerance)
         assertEntry(config, current = "Top Songs")
         rule.onNode(hasText(TOP_SONGS_HEADING) and hasAnyAncestor(hasTestTag(TOP_SONGS)), useUnmergedTree = true)
@@ -276,10 +275,14 @@ class ProfileQuickLinksAccessibilityJourneyTest {
     /** The window's width in dp. */
     private fun windowWidthDp(): Int = with(rule.density) { rule.activity.window.decorView.width.toDp().value.toInt() }
 
-    /** Top of the Top Songs section in window pixels. */
-    private fun headingTop(): Float = rule.onNodeWithTag(TOP_SONGS, useUnmergedTree = true).fetchSemanticsNode().boundsInWindow.top
+    /**
+     * Top of the "Top Songs Per Instrument" title in window pixels: inside its section header's own top
+     * padding, which a jump must not leave as dead space under the top bar (#587).
+     */
+    private fun headingTop(): Float = rule.onNode(hasText(TOP_SONGS_HEADING) and hasAnyAncestor(hasTestTag(TOP_SONGS)), useUnmergedTree = true)
+        .fetchSemanticsNode().layoutInfo.coordinates.positionInWindow().y
 
-    /** Where a Quick Links jump lands a section: 32 dp below the top bar. */
+    /** Where a Quick Links jump lands a section's title: 32 dp below the top bar. */
     private fun landingLine(): Float =
         rule.onNodeWithTag(TOP_BAR, useUnmergedTree = true).fetchSemanticsNode().boundsInWindow.bottom +
             with(rule.density) { QuickLinks.LANDING_OFFSET_DP.dp.toPx() }
@@ -311,7 +314,7 @@ class ProfileQuickLinksAccessibilityJourneyTest {
         /** How long after landing the section must still be on its line (cards above load in this time with fixtures). */
         const val HOLD_CHECK_MS = 1_500L
 
-        /** Landing tolerance: twice the controller's 8 dp completion threshold. */
+        /** Hold tolerance: twice the controller's 8 dp completion threshold. */
         const val LANDING_TOLERANCE_DP = 16
     }
 }

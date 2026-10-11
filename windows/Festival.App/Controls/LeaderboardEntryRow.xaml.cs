@@ -16,12 +16,13 @@ namespace Festival.App.Controls;
 /// web <c>RankingEntry</c>) — as the web's frosted <c>entryRow</c>. Set in code rather than x:Bind so one lightweight
 /// control serves every row type inside virtualized repeaters.
 /// </summary>
-public sealed partial class LeaderboardEntryRow : UserControl
+public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
 {
     private static Windows.UI.ViewManagement.AccessibilitySettings? accessibility;
 
     private double width = double.NaN;
     private bool current;
+    private GroupedRowSlice? slice;
     private string? rowAutomationId;
     private Rectangle[]? bars;
     private System.Windows.Input.ICommand? command;
@@ -134,6 +135,28 @@ public sealed partial class LeaderboardEntryRow : UserControl
         {
             if (current == value) return;
             current = value;
+            ApplySurface();
+        }
+    }
+
+    /// <summary>
+    /// The row's slice of its board's single grouped card (<see cref="GroupedRows"/>, issue #543), or
+    /// <see langword="null"/> for a standalone frosted row card (dashboard previews, Player History, the pinned row).
+    /// An in-card slice (issue #588) drops the row's own surface so the enclosing card's shows through.
+    /// A sliced row's focus ring draws inside its bounds, because the next row touches it and would cover a ring outside.
+    /// </summary>
+    public GroupedRowSlice? Slice
+    {
+        set
+        {
+            if (slice == value) return;
+            slice = value;
+            var radius = value is { } s ? GroupedRows.Radius(s) : new CornerRadius(GroupedRowSlice.CornerRadius);
+            Surface.CornerRadius = RowButton.CornerRadius = radius;
+            Surface.BorderThickness = value is { } t ? GroupedRows.Outline(t) : new Thickness(GroupedRowSlice.Stroke);
+            Separator.Visibility = value is { ShowSeparator: true } ? Visibility.Visible : Visibility.Collapsed;
+            if (value is null) RowButton.ClearValue(FocusVisualMarginProperty);
+            else RowButton.FocusVisualMargin = new Thickness(0);
             ApplySurface();
         }
     }
@@ -317,7 +340,10 @@ public sealed partial class LeaderboardEntryRow : UserControl
             PillText.Foreground = badgeOnHighlight ? (Brush)resources["FSTPlayerRowTextBrush"] : ScoreBadge.Text(score.IsFullCombo);
         }
         PillText.HighContrastAdjustment = badgeOnHighlight ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
-        Surface.Background = (Brush)resources[selected ? "FSTPlayerRowBrush" : current ? "FSTCurrentRowBrush" : "FSTCardSurfaceBrush"];
+        // A row inside a card that draws the surface (in-card slice, issue #588) adds no second translucent fill
+        // (surface-materials R6); the selected and current rows keep theirs.
+        Surface.Background = selected ? (Brush)resources["FSTPlayerRowBrush"] : current ? (Brush)resources["FSTCurrentRowBrush"]
+            : slice is { InCard: true } ? null : (Brush)resources["FSTCardSurfaceBrush"];
         Surface.BorderBrush = (Brush)resources[selected ? "FSTPlayerRowStrokeBrush" : "FSTCardStrokeBrush"];
         if (bars is not null)
             foreach (var bar in bars) bar.Fill = (Brush)resources["FSTSurfaceMutedBrush"];

@@ -1283,6 +1283,43 @@ final class SongsJourneyTests: XCTestCase {
         try app.performAccessibilityAudit(for: .all)
     }
 
+    /// A Filter disclosure header speaks the state the person asked for at once (pattern
+    /// `accordion` R4, #561): Collapsed → tap → Expanded with readable, hittable 44 pt
+    /// switches after the fade; tap → Collapsed straight away, then the switches leave.
+    ///
+    /// - Throws: A missing Year accordion.
+    @MainActor
+    func testSongsFilterDisclosureSpeaksRequestedState() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        _ = SongsUITestSupport.openFilterSheet(in: app)
+        let year = app.buttons["fst.songs.filter.year"]
+        XCTAssertTrue(year.waitForExistence(timeout: 10))
+        XCTAssertEqual(year.value as? String, "Collapsed")
+        let decades = app.switches.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.filter.year.")
+        )
+        XCTAssertEqual(decades.count, 0, "Year options showed while collapsed")
+
+        year.tap()
+        XCTAssertEqual(year.value as? String, "Expanded")
+        let first = decades.firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 5), "Opening Year did not reveal its options")
+        XCTAssertTrue(first.isHittable, "The revealed option is not hittable")
+        XCTAssertFalse(first.label.isEmpty, "The revealed option has no label")
+        XCTAssertGreaterThanOrEqual(first.frame.height, 44, "The revealed option's target is too short")
+        SongsUITestSupport.record(app, name: "songs-filter-year-expanded")
+
+        year.tap()
+        XCTAssertEqual(year.value as? String, "Collapsed")
+        XCTAssertTrue(first.waitForNonExistence(timeout: 5), "Closing Year did not remove its options")
+        app.buttons["fst.songs.filter.done"].tap()
+    }
+
     /// Exercise real native no-results and service-error presentation.
     ///
     /// - Throws: A missing fixture-only state or retry action.
@@ -2010,22 +2047,27 @@ final class SongsJourneyTests: XCTestCase {
     private func auditSectionTitlePage(_ app: XCUIApplication) throws {
         let window = app.windows.firstMatch.frame
         let chromeTop = app.tabBars.firstMatch.exists ? app.tabBars.firstMatch.frame.minY : window.maxY
-        let titles = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.shop-section.")
-        ).allElementsBoundByIndex.filter { window.intersects($0.frame) && $0.frame.maxY <= chromeTop }
+        // One snapshot for the titles and rows: a bound-by-index walk of the lazy list fails
+        // when it recycles a row mid-walk (#572).
+        let tree = try FestivalApp.snapshotNodes(in: app) {
+            $0.identifier.hasPrefix("fst.songs.shop-section.") || SongsUITestSupport.isSongsRow($0)
+        }
+        let titles = tree.filter {
+            $0.identifier.hasPrefix("fst.songs.shop-section.") && window.intersects($0.frame)
+                && $0.frame.maxY <= chromeTop
+        }
         XCTAssertTrue(
             titles.contains { $0.identifier == "fst.songs.shop-section.in-shop" },
             "In Shop must be audited above the bottom chrome"
         )
         let pinned = try XCTUnwrap(titles.min { $0.frame.minY < $1.frame.minY }, "No section title on screen")
         let fadeEnd = pinned.frame.maxY + 40
-        let rows = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row.")
-        ).allElementsBoundByIndex.map(\.frame).filter(window.intersects)
+        let rows = tree.filter(SongsUITestSupport.isSongsRow).map(\.frame).filter(window.intersects)
         let rowInFade = rows.contains { $0.minY < fadeEnd || $0.maxY > chromeTop }
         // The audit may not attribute a contrast issue; no title it could mean may read below 4.5:1.
-        for title in titles {
-            try SongsUITestSupport.assertHeaderContrast(title, in: app, leadingTextWidth: 260)
+        for title in Set(titles.map(\.identifier)).sorted() {
+            let element = app.descendants(matching: .any).matching(identifier: title).firstMatch
+            try SongsUITestSupport.assertHeaderContrast(element, in: app, leadingTextWidth: 260)
         }
         try app.performAccessibilityAudit(for: .all) { issue in
             let element = issue.element

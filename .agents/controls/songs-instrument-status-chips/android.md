@@ -43,7 +43,7 @@ Fixture-only states (loading, 202, failure, empty index, inconsistent FC, invali
 | FST_Phone `dark:off` | Unchanged (dark-only app). |
 | FST_Tablet landscape / portrait | Landscape two-pane: 5+4 in the list column, and the selected row keeps every chip distinct after the fix. Portrait: one row. At 2.0 the layout falls back to one pane with one row of chips. The connected journey passes (selected two-pane branch). |
 | FST_Resizable phone / foldable / tablet / desktop | One row on phone. Two-pane 5+4 on foldable, tablet and desktop. The chips stay inside the card in each. |
-| FST_Book_Fold folded / half / unfolded | Folded: one row. Half and unfolded: the list pane sits left of the hinge, 5+4. The connected journey passes half-open (no chip straddles the hinge). |
+| FST_Book_Fold folded / half / unfolded | Folded: one row. Half and unfolded: the list pane sits left of the hinge, 5+4. The connected journey passes half-open (no chip straddles the hinge). Since #581 Songs has no list pane: each two-column cell keeps every chip inside its card (`SongsInstrumentStatusChipsUiTest.twoColumnCellKeepsEveryChipInsideItsCard`). |
 | FST_Passport_Fold folded / half / unfolded | As Book_Fold. |
 | FST_TriFold folded / partial / unfolded | Folded: the narrow cover wraps a balanced 5+4. Partial: one pane, one row. Unfolded: two-pane 5+4, and the selected row is legible. |
 | TalkBack (FST_Phone) | One stop per row: "The Way Life Goes, Lil Uzi Vert … Lead, full combo, Bass, full combo, Drums, full combo, Tap Vocals, full combo, Pro Lead, no score, … Pro Drums, no score, Last played …". Every chart is read in service order, and no chip is a separate stop. |
