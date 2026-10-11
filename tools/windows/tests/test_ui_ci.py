@@ -61,6 +61,27 @@ class UiCiTests(unittest.TestCase):
             with self.subTest(page=name):
                 self.assertNotIn("axe_allow", pages[name])
 
+    def test_songs_scroll_runs_at_default_largest_text_and_animations_off(self):
+        # Issue #520 (#247): the pinned Songs title after far UIA jumps, a fling back to the top and keyboard End/Home.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-songs-scroll.json"}
+        self.assertEqual({"normal", "text-225", "no-animations"}, set(runs))
+        self.assertTrue(all(run.scan and not run.only for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-songs-scroll.json").read_text(encoding="utf-8"))}
+        self.assertEqual({"songs-scroll-far-jumps", "songs-scroll-fling-back", "songs-scroll-keyboard"}, set(pages))
+        for page in pages.values():
+            with self.subTest(page=page["name"]):
+                self.assertEqual(["--large-catalogue"], page["fixture"])
+                self.assertFalse(page.get("live_only"))
+                steps = page["after_ready"]
+                self.assertTrue(any(s.startswith("assertstate:id=fst.songs.section-header|name=~") for s in steps)
+                                or "assertname:id=fst.songs.section-header|#" in steps)
+                self.assertIn("assertstate:id=fst.songs.section-header|heading=2", steps)
+        far = pages["songs-scroll-far-jumps"]["after_ready"]
+        self.assertGreaterEqual(sum(s.startswith("scrollto:id=fst.songs.list,") for s in far), 4)
+        self.assertIn("key:end", pages["songs-scroll-keyboard"]["after_ready"])
+
     def test_song_band_pinned_runs_at_default_and_largest_text(self):
         # Issue #461 (#306): the full band board's pinned "your band" row runs in CI at default and 225% text.
         runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-song-band-pinned.json"}

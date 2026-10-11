@@ -10,7 +10,8 @@ This is the one registry of Windows accessibility journeys that gate pull reques
 that the modal journey (issue #400), the Songs Jump backward-pick pages (issue #415), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
-push (issue #452), the Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438), the Paths
+push (issue #452), the Songs scroll far jumps and keyboard End/Home (issue #520, also with Animation effects off), the
+Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438), the Paths
 text table (issue #515, also under a contrast theme) and the Full
 Rankings pinned row (issue #466, also with in-app Reduce Motion), the Leaderboards card "your rank" row (issue #493,
 also with in-app Reduce Motion), the Search All section titles (issue #483, also with in-app Reduce Motion), the
@@ -147,6 +148,13 @@ RUNS: tuple[Run, ...] = (
     # focus moves row -> group header -> previous row through the band and never lands on the copy.
     Run("songs-section-push", "a11y-songs-section-push.json", tabs=0),
     Run("songs-section-push-text-225", "a11y-songs-section-push.json", sizes="compact", mode="text-225", tabs=0),
+    # Songs scrolling (issues #247, #520): after a UIA Scroll-pattern far jump (Narrator, scroll bar) the pinned title
+    # names the section now in view (a stale "#" fails), a fling back to the top reads "#, text" again, keyboard
+    # End/Home move focus to the last/first row (40 epx) with the title following, and Jump -> title -> list order
+    # holds; also with Windows' Animation effects off, where End/Home are non-animated jumps.
+    Run("songs-scroll", "a11y-songs-scroll.json", tabs=0),
+    Run("songs-scroll-text-225", "a11y-songs-scroll.json", sizes="compact", mode="text-225", tabs=0),
+    Run("songs-scroll-no-animations", "a11y-songs-scroll.json", sizes="compact", mode="no-animations", tabs=0),
     # Song leaderboard footer and paging (issues #93, #443): pinned row and pager names, states and 40x40 targets,
     # header -> rows -> pinned row -> pager order, the fade layer kept out of the control view, the Tab/Shift+Tab order
     # at rest, mid-load and on page 2, and a keyboard page change that keeps the header, pinned row and pager in order

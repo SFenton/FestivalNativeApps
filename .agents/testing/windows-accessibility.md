@@ -604,6 +604,21 @@ The push follows the scroll with no animation of its own, so Reduce Motion has n
 | Compact, medium (3 pages, `--scan`) | Pass, Axe 0 |
 | Text 225% (compact, 3 pages) | Pass, Axe 0 |
 
+## Songs scrolling (issue #520, 2026-10-11)
+
+Accessibility tests for #247's Windows Songs scroll fix (the pinned title re-read after a non-animated jump's last view change). `journeys/a11y-songs-scroll.json` runs on the large fixture catalogue; `tools/windows/ui_ci.py` runs it in `windows-ui` at default text (`songs-scroll`: compact, medium), 225% text (`songs-scroll-text-225`: compact) and Windows Animation effects off (`songs-scroll-no-animations`: compact, where keyboard End/Home are non-animated jumps), all `--scan`; `tests/test_ui_ci.py` keeps the three runs and the key steps. The pages assert:
+- `songs-scroll-far-jumps`: UIA Scroll-pattern jumps (Narrator and scroll-bar moves) to 100, 25, 75 and 50%, each landing in a letter range disjoint from the previous one, so a stale pinned title fails; the title stays a level-2 Text heading, Narrator reads Jump → title → list, and Jump keeps its name and 40×40 epx.
+- `songs-scroll-fling-back`: bottom → top → 3% → top ends at `scroll=0` with the title reading "#, text" before the first row.
+- `songs-scroll-keyboard`: End moves focus to the last row (`fixture-song-105`, 40 epx) with the title in X–Z; Home returns focus to the first row and the title to "#, text".
+
+Ranges, not exact letters, because the letter at a scroll percent depends on window size and text scale (medium: 25% D, 50% K, 75% R, 100% Y). Check: with both re-reads removed (`OnScrollerViewChanged` settle and `RecheckHeaderAfterLayout`), `songs-scroll-far-jumps` fails ("#" pinned after the jump) at compact and medium; with only #247's settle removed it still passes, since #248's after-layout re-read covers the same case. No accessibility defect was found, so no app code changed. The live-only `songs-scroll-a11y.json` (anonymous or SFentonX, no name checks) stays a host check.
+
+| Configuration | Result |
+| --- | --- |
+| Compact, medium (3 pages, `--scan`) | Pass, Axe 0 |
+| Text 225% (compact, 3 pages) | Pass, Axe 0 |
+| Animation effects off (compact, 3 pages) | Pass, Axe 0 |
+
 ## Feedback Form validation (issue #236, 2026-10-05)
 
 Evidence: `a11y_matrix.py --scan --pages journeys/a11y-feedback.json --fixture tools/windows/feedback_fixture.py` (one page per state: `unavailable`, `editing-empty`, `invalid`, `editing-dirty`, `attachments`, `discard-confirm`, `sending`, `filing`, `sent`, `error`) at compact, medium, wide, maximized and both snaps, then Desert, Night sky, light and dark theme, text 200% and display 100%/150%: 0 Axe errors in the dialog. The only findings are 2 on Settings behind the dialog (open issue 7, medium at display 150%). `journeys/feedback.py` (`unavailable`, `validation`, `submit`, `error`) passes at every size preset. The live public service has `feedback:false`, so only `unavailable` is reachable there. Per configuration: [feedback-form/windows.md](../controls/feedback-form/windows.md#validation-issue-236-2026-10-05).
