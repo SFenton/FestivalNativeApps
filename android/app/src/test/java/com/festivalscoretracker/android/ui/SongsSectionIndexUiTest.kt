@@ -151,6 +151,34 @@ class SongsSectionIndexUiTest {
 
     @Test
     @Config(qualifiers = "w411dp-h891dp-xxhdpi")
+    fun titleState_titlesEachSectionAndJumpsPinTheTitleAboveItsFirstRow() {
+        launch()
+        waitForTag("fst.songs.section-index")
+        // Issue #582: Title order titles its #/A–Z sections like every other sort (web getAlphaBucket).
+        assertTrue("# title", exists("fst.songs.section.title.#"))
+        val hash = rule.onNodeWithTag("fst.songs.section.title.#", useUnmergedTree = true).fetchSemanticsNode()
+        assertTrue("title is a heading", hash.config.contains(SemanticsProperties.Heading))
+        assertEquals("Numbers and symbols", hash.config.getOrNull(SemanticsProperties.ContentDescription)?.firstOrNull())
+        // The index already navigates the sections, so Quick Links stay out of the page tools.
+        assertFalse("no Quick Links beside the index", exists("fst.quick-links.open"))
+
+        // Jumping to M lands M's title at its pin line, with M's first row directly beneath it.
+        rule.onNodeWithTag("fst.songs.section-index").performTouchInput {
+            click(Offset(width / 2f, height * 13.5f / labels.size))
+        }
+        settle()
+        assertEquals("M", railState())
+        waitForTag("fst.songs.section.title.m")
+        val title = rule.onNodeWithTag("fst.songs.section.title.m", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val row = rule.onNodeWithTag("fst.songs.row.s-13-1", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val search = rule.onNodeWithTag("fst.songs.search").fetchSemanticsNode().boundsInRoot
+        assertTrue("M title pinned under the search field ($title vs $search)", title.top >= search.bottom - 1f && title.top <= search.bottom + 24 * rule.activity.resources.displayMetrics.density)
+        assertTrue("first M row below the title ($row vs $title)", row.top >= title.bottom - 1f)
+        assertEquals("fst.songs.row.s-13-1", firstVisibleRow())
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h891dp-xxhdpi")
     fun artistState_indexesArtistInitials() {
         launch(prefs(stringPreferencesKey(SettingsRegistry.SONG_SORT) to "Artist"))
         waitForTag("fst.songs.section-index")

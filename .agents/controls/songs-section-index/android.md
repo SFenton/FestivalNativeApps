@@ -6,7 +6,7 @@
 
 - Shown for Title and Artist with ≥2 sections. Year sort hides it (operator decision 2026-09-28, [Songs page spec](../../pages/songs/spec.md#operator-decisions-all-platforms)): decade headers (`fst.songs.section.year.<decade>`) and Quick Links take its place. An active search or a one-section result also hides it.
 - `AnimatedVisibility` fades and slides it in and out. With Reduce Motion (in-app setting or Remove animations) it appears and disappears at once.
-- Tap or drag jumps the list (`scrollToItem`, no network). One `awaitEachGesture` loop handles both press and drag. Separate tap and drag detectors cleared the active section as soon as a drag began, so the highlight flickered (#138). While a finger is down:
+- Tap or drag jumps the list (`scrollToItem`, no network). The jump lands on the section's sticky `#`/A–Z title (#582), so the title sits at its pin line and the first row directly beneath it (`WideColumnLines.itemOfSection`, [section-jump-landing](../../patterns/section-jump-landing.md) R3). One `awaitEachGesture` loop handles both press and drag. Separate tap and drag detectors cleared the active section as soon as a drag began, so the highlight flickered (#138). While a finger is down:
   - The rail shows a circular frosted pill, opaque (`cardBackground`) under Increase contrast or Reduce transparency.
   - The touched label turns `tertiary` (gold); idle labels use `onSurfaceVariant`.
   - A **value indicator** (`fst.songs.section-index.indicator`, 56 dp minimum circle, `headlineSmall` `tertiary` text on `surface`) sits 8 dp left of the rail at the touch height, clamped to the rail. It names the section the touch opens, including sections that sampling leaves undrawn. TalkBack ignores it; the rail's state already says the same.
@@ -25,7 +25,7 @@
 ## Tests
 
 - Robolectric `SongsSectionIndexUiTest` (fixture `SectionIndexFixtures`) covers each state:
-  - `title`: one element, actions, the last section reachable.
+  - `title`: one element, actions, the last section reachable; the `#`/A–Z titles are headings and an index jump pins the title above its first row, with no Quick Links (#582).
   - `artist`.
   - `year`: hidden; decade header and Quick Links.
   - `hidden`: by search.
