@@ -181,6 +181,9 @@ class FullRankingsPinnedRowAccessibilityJourneyTest {
         assertPinnedRow(screen, SelectedRowLabels.JUMP_TO_PLAYER)
         assertPagerTargets(screen)
         assertReadingOrder(screen, "Synthetic Player 1.", "Page 1 of 3")
+        // Only its purple fill floats above the pager, no card around it, in the rows' columns (#579).
+        val split = h.exists("$prefix.supporting-pane")
+        h.assertPinnedRowFloats(screen, footer, "$prefix.bottom-bar", "fst.rankings.row.${RankingsFixtures.accountId(1)}".takeUnless { split })
 
         // Issue #318: on the player's own page the row stays pinned above the pager and opens Statistics.
         h.tap(footer)
@@ -189,6 +192,7 @@ class FullRankingsPinnedRowAccessibilityJourneyTest {
         h.waitForTag(footer)
         h.awaitAccessibilityTree(footer)
         assertPinnedRow("$screen-own-page", SelectedRowLabels.OPEN_STATISTICS)
+        h.assertPinnedRowFloats("$screen-own-page", footer, "$prefix.bottom-bar", "fst.rankings.row.${RankingsFixtures.SELECTED}".takeUnless { split })
         assertPagerTargets("$screen-own-page")
         val order = assertReadingOrder("$screen-own-page", "Synthetic Player ", "Page 2 of 3")
         // When the revealed inline row is on screen too, it is read before its pinned copy.
