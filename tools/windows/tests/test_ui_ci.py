@@ -71,6 +71,20 @@ class UiCiTests(unittest.TestCase):
         names = {page["name"] for page in pages}
         self.assertTrue({"song-band-pin-jump", "song-band-pin-open", "song-band-pin-no-player"} <= names)
 
+    def test_score_history_chart_runs_at_default_largest_text_and_contrast(self):
+        # Issue #512 (#198): the Score History chart's arrows, axis text, contrast bars and Retry states run in CI.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-score-history-chart.json"}
+        self.assertEqual({"normal", "text-225", "hc-desert"}, set(runs))
+        self.assertTrue(all(run.scan for run in runs.values()))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+        self.assertEqual("history-chart-contrast", runs["hc-desert"].only)
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-score-history-chart.json").read_text(encoding="utf-8"))}
+        self.assertTrue({"history-chart-arrows", "history-chart-axis-text", "history-chart-contrast",
+                         "history-chart-contrast-switch", "history-states-syncing", "history-states-failed"}
+                        <= set(pages))
+        self.assertIn("assertsize:id=fst.history.retry|40x40", pages["history-states-syncing"]["after_ready"])
+
     def test_full_rankings_pinned_runs_at_default_largest_text_and_reduced_motion(self):
         # Issue #466 (#318): Full Rankings' pinned "your rank" row (also on the player's own page) runs in CI at default
         # and 225% text, and its keyboard jump with in-app Reduce Motion.
