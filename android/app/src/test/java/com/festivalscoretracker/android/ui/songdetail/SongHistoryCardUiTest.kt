@@ -364,7 +364,7 @@ class SongHistoryCardUiTest {
     fun pagingSlidesTheChartWithoutResizingTheGraph() {
         show(rows("Solo_Guitar", 30, goldLast = true))
         val (before, mid, settled) = pageBack(midMillis = 200)
-        // Mid-slide (load-transition R11): the plot is between the two windows, matching neither.
+        // Mid-slide (load-transition R12): the plot is between the two windows, matching neither.
         assertFalse("the new window was not drawn", settled.sameAs(before))
         assertFalse("the chart snapped: mid-slide already equals the new window", mid.sameAs(settled))
         assertFalse("the chart did not move 200 ms into the slide", mid.sameAs(before))

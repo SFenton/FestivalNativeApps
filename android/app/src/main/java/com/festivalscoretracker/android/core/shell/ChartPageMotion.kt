@@ -23,7 +23,7 @@ data class ChartPage(val start: Int, val bands: Int, val count: Int)
 data class ChartSlot(val index: Int, val x: Float)
 
 /**
- * Pure rules for paging a graph card's chart (`load-transition` R11, issue #593): a pager tap,
+ * Pure rules for paging a graph card's chart (`load-transition` R12, issue #593): a pager tap,
  * drag or swipe slides the window to its new start the way iOS `PlayerProfileCharts`
  * `move(to:)` slides its x domain, over the web `CHART_ANIM_DURATION`. A resize or new data
  * re-fits at once (iOS: "the data-change animation is for paging, not for a measurement"), and

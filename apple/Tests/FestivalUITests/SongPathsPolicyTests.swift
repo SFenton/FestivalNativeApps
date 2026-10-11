@@ -84,6 +84,37 @@ struct SongPathsPolicyTests {
         #expect(PathViewMode.allCases.map(\.label) == ["Image", "Text", "Side by Side"])
     }
 
+    /// Issue #612: in a sheet no wider than the web's mobile breakpoint, the Instrument
+    /// and View menus show their icon alone unless the accessibility-size layout stacks them.
+    @Test func narrowSheetRowsShowIconOnlySelectorsUntilTheyStack() {
+        for layout in [phone, compactIPad] {
+            #expect(!SongPathsPolicy.selectorsShowNames(layout, stacked: false))
+            #expect(SongPathsPolicy.selectorsShowNames(layout, stacked: true))
+        }
+    }
+
+    /// Folded iPhone Duo is icon-only at every size (issue #360), now for View too (#612).
+    @Test func foldedDuoSelectorsAreIconOnlyAtEverySize() {
+        #expect(!SongPathsPolicy.selectorsShowNames(folded, stacked: false))
+        #expect(!SongPathsPolicy.selectorsShowNames(folded, stacked: true))
+    }
+
+    @Test func wideLayoutsKeepNamedSelectors() {
+        // A large iPhone in landscape keeps the sheet but is wider than the web's mobile
+        // breakpoint, where icon + name fit (web desktop row).
+        for layout in [phoneLandscape, unfolded, unfoldedPortrait, book, iPad, macPane] {
+            #expect(SongPathsPolicy.selectorsShowNames(layout, stacked: false))
+            #expect(SongPathsPolicy.selectorsShowNames(layout, stacked: true))
+        }
+    }
+
+    /// Every View option has its own symbol (menus: "icons for all or none").
+    @Test func everyViewModeHasADistinctSymbol() {
+        let symbols = PathViewMode.allCases.map(\.systemImage)
+        #expect(symbols == ["photo", "doc.text", "rectangle.split.2x1"])
+        #expect(Set(symbols).count == symbols.count)
+    }
+
     #if os(macOS)
     @Test func macFullWindowSheetMatchesTheParentContentArea() {
         #expect(MacWindowSizedSheet<EmptyView>.size(window: CGSize(width: 1280, height: 748))

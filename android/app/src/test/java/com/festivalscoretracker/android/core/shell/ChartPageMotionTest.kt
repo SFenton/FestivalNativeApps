@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** `load-transition` R11 (#593): when a paged chart slides, snaps or stays, and what it draws mid-slide. */
+/** `load-transition` R12 (#593): when a paged chart slides, snaps or stays, and what it draws mid-slide. */
 class ChartPageMotionTest {
     private val page = ChartPage(start = 4, bands = 4, count = 12)
 

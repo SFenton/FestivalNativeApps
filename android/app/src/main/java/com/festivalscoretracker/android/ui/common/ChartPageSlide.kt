@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 // region Chart page slide
 
 /**
- * A paged chart's animated window (`load-transition` R11, issue #593). Read [start],
+ * A paged chart's animated window (`load-transition` R12, issue #593). Read [start],
  * [valueTop] and [labelShift] only while drawing or placing, so a slide redraws the chart
  * and re-places its date row without recomposing anything.
  */

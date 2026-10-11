@@ -180,7 +180,7 @@ data class RankHistoryChart(
 
     /**
      * Bars and rank line for a window whose first band is at [position] (fractional mid-slide,
-     * `load-transition` R11).
+     * `load-transition` R12).
      *
      * @param window Window being slid to.
      * @param position Fractional start index.

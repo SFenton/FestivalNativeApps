@@ -35,6 +35,9 @@ sealed interface AppRoute
 /** `/statistics` tab root (player selected). */
 @Serializable data object StatisticsTab : AppRoute
 
+/** `/shop` tab root (profile selected, Hide Item Shop off; Android only, issue #601). */
+@Serializable data object ShopTab : AppRoute
+
 /** `/settings` tab root. */
 @Serializable data object SettingsTab : AppRoute
 
@@ -140,7 +143,7 @@ data class RivalryRoute(
 
 // Misc
 
-/** `/shop`. */
+/** `/shop` pushed (from the drawer while Item Shop is not a tab). */
 @Serializable data object ShopRoute : AppRoute
 
 /** `/settings/licenses`. */

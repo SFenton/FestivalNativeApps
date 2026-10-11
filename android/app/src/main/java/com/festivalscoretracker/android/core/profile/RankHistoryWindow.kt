@@ -256,7 +256,7 @@ data class RankHistoryPlot(
 
         /**
          * Bars and rank line with the window's first band at [position], which is fractional
-         * while the chart slides to a new page (`load-transition` R11). Bars are scaled to
+         * while the chart slides to a new page (`load-transition` R12). Bars are scaled to
          * [valueTop] (easing between the two windows' tops); the rank line keeps its axis over
          * every snapshot. At rest this equals [build]'s bars and line.
          *

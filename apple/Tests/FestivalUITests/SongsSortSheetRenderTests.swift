@@ -220,4 +220,48 @@ private func songFormSurfacePixels(
     // AX5 no longer changes the macOS-hosted render: the sheet has no custom title or
     // footer layout that read Dynamic Type (immediate-apply sheet with a toolbar Done).
 }
+
+/// Settings › Filter Invalid Scores adds the web's Over CHOpt Threshold check to the
+/// Filter sheet's score section (#613); without it the check is absent. (On macOS the
+/// form's identifier replaces its rows', so the toggle is found by its name.)
+@MainActor
+@Test func songsFilterSheetOffersOverThresholdOnlyWhileFilteringInvalidScores() async throws {
+    for invalidMode in [true, false] {
+        let size = CGSize(width: 390, height: 1400)
+        let host = nativeHostedView(
+            SongsFilterSheet(
+                showShop: true, shopAvailable: true,
+                // An active saved check opens the Player Scores sections.
+                appliedPlayerFilter: SongPlayerScoreFilter(hasScores: [.lead, .drums]),
+                visibleInstruments: [.lead, .drums], selectedPlayer: true,
+                scoreAvailable: true,
+                invalidScoreFilteringEnabled: invalidMode,
+                onApply: { _, _, _ in }
+            )
+            .preferredColorScheme(.dark),
+            size: size
+        )
+        let window = nativeHostedWindow(host, size: size)
+        _ = try await nativeHostedSettle(host) {
+            macAccessibilityTree(host).contains { $0.spokenName == "Has FCs" }
+        }
+        let nodes = macAccessibilityTree(host)
+        let dump = nodes.map(\.description).joined(separator: "\n")
+        let names = nodes.filter(\.isElement).map(\.spokenName)
+        let hasFCs = try #require(names.firstIndex(of: "Has FCs"), "\(dump)")
+        let toggle = names.firstIndex(of: "Over CHOpt Threshold")
+        if invalidMode {
+            let index = try #require(toggle, "\(dump)")
+            // Web FilterModal order: after the four score kinds, enabled for a player.
+            #expect(index == hasFCs + 1, "\(dump)")
+            let node = nodes.filter(\.isElement)[index]
+            #expect(node.role == "AXCheckBox", "\(node)")
+            #expect(!dump.contains("paused while Filter Invalid Scores"), "\(dump)")
+        } else {
+            #expect(toggle == nil, "\(dump)")
+        }
+        #expect(names.contains("Has Scores"))
+        withExtendedLifetime(window) {}
+    }
+}
 #endif

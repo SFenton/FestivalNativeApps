@@ -207,7 +207,7 @@ private fun Plot(window: RankHistoryWindow, totalAccounts: Int, onChange: (RankH
 
 /**
  * Draw a rank-history window's bars (selected bar outlined) and rank line, clipped to the
- * plot's width so bars sliding in or out of a page (`load-transition` R11) stop at its edges.
+ * plot's width so bars sliding in or out of a page (`load-transition` R12) stop at its edges.
  * Shared by the Profile and Leaderboards rank-history charts.
  *
  * @param marks Bars and line ([RankHistoryPlot.marks]).

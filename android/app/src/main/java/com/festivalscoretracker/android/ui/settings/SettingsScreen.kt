@@ -547,19 +547,19 @@ private fun FirstRunSection(onShow: (FirstRunPageKey) -> Unit) {
     }
 }
 
+/**
+ * Reset: the web's `resetRow`, a section header and the red Reset All Settings button with no
+ * card around them (#599), like the uncarded Licenses and Privacy Policy rows. It stays in the
+ * list in list/detail too.
+ */
 @Composable
 private fun ResetSection(onReset: () -> Unit) {
-    GlassCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Reset Settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = BrandTokens.textPrimary, modifier = Modifier.semantics { heading() })
-            Hint("Restore all settings to their default values.")
-            Button(
-                onClick = onReset,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = BrandTokens.textPrimary),
-                modifier = Modifier.fillMaxWidth().testTag("fst.settings.reset"),
-            ) { Text("Reset All Settings") }
-        }
-    }
+    Header("Reset Settings", "Restore all settings to their default values.")
+    Button(
+        onClick = onReset,
+        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = BrandTokens.textPrimary),
+        modifier = Modifier.fillMaxWidth().testTag("fst.settings.reset"),
+    ) { Text("Reset All Settings") }
 }
 
 // endregion

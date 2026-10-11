@@ -27,7 +27,7 @@ private val BAND_LABEL_GAP = 8.dp
  * tall as its tallest label, so it grows with the text size and never clips a date. The dates
  * are decorative: TalkBack reads them from the chart's own description.
  *
- * While a paged chart slides ([ChartPageSlide], `load-transition` R11), the row keeps the new
+ * While a paged chart slides ([ChartPageSlide], `load-transition` R12), the row keeps the new
  * window's layout and shifts it by `shift` bands, so each date moves with its bar and settles
  * on it; the row clips dates that slide past its edges.
  *

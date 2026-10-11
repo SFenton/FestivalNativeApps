@@ -14,7 +14,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** `load-transition` R11 (#593): paging a graph card's chart slides its window; reduced motion pages at once. */
+/** `load-transition` R12 (#593): paging a graph card's chart slides its window; reduced motion pages at once. */
 @RunWith(AndroidJUnit4::class)
 class ChartPageSlideUiTest {
     @get:Rule

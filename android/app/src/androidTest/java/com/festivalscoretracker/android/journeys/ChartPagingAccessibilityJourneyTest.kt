@@ -31,7 +31,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Graph card paging (`load-transition` R11, issue #593) on a device, through the Leaderboards
+ * Graph card paging (`load-transition` R12, issue #593) on a device, through the Leaderboards
  * Rank History chart (its fixture history pages on a phone). With system animations on, a pager
  * tap slides the chart: 150 ms later the plot shows neither the old nor the new window, and the
  * card and plot keep their size throughout; under the app's Reduce Motion the new window is

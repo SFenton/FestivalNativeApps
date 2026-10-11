@@ -340,7 +340,7 @@ internal fun HistoryChart(
                     if (page.isEmpty()) return@Canvas
                     val barWidth = minOf(plotWidth / page.size * 0.9f, MAX_BAR.toPx())
                     val radius = CornerRadius(4.dp.toPx())
-                    // The window slides on paging (load-transition R11): draw every point in or entering
+                    // The window slides on paging (load-transition R12): draw every point in or entering
                     // the plot at its slot, clipped sideways to the plot; the score line eases to the new top.
                     val slots = ChartPageMotion.slots(slide.start, page.size, points.size)
                     val scoreTop = slide.valueTop.toDouble()
