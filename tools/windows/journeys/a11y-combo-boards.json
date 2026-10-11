@@ -19,10 +19,12 @@
      "assertfocus:id=fst.leaderboards.card.0f.view-all@3"
    ]},
   {"name": "a11y-combo-full-rankings", "route": "/leaderboards/all?combo=0f", "profile": "fixture-player-2:Fixture Player 2", "scan": true, "tabs": 0,
-   "note": "Issue #602: combo Full Rankings has no instrument picker (web), keeps its rows as 40+ epx Button stops and pins the selected player's combo rank.",
+   "note": "Issue #602: combo Full Rankings has no instrument picker (web), keeps its rows as 40+ epx Button stops and pins the selected player's combo rank. Its title is a visible heading 1 below the decorative (raw-view) icon row and is read before the rows (agent decision, page-tools-and-nav-chrome R18 Windows variant).",
    "ready": ["waitfor:id=fst.rankings.row.fixture-player-2@20", "waitfor:id=fst.full-rankings.spotlight-footer@15", "wait:1"],
    "after_ready": [
      "assertname:id=fst.full-rankings.title@5|Lead + Bass + Drums + Tap Vocals Rankings",
+     "assertstate:id=fst.full-rankings.title|heading=1",
+     "assertorder:id=fst.full-rankings.title|id=fst.rankings.row.fixture-player-1",
      "waitgone:id=fst.full-rankings.instrument-menu@5",
      "assertsize:id=fst.rankings.row.fixture-player-2|0x40",
      "assertname:id=fst.full-rankings.spotlight-footer@5|Your rank, 2nd. Open your statistics. *",

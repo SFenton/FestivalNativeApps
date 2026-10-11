@@ -983,6 +983,10 @@
           {
             "path": "windows/Festival.App/Controls/PopupHosting.cs",
             "symbol": "PopupHosting"
+          },
+          {
+            "path": "windows/Festival.App/Controls/InstrumentIconRow.cs",
+            "symbol": "InstrumentIconRow"
           }
         ]
       },
