@@ -10,13 +10,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuite
@@ -80,7 +78,8 @@ import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentIcon
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
 import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
-import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
+import com.festivalscoretracker.android.ui.common.FloatingToolbarAction
+import com.festivalscoretracker.android.ui.common.FloatingToolbarActionButton
 import com.festivalscoretracker.android.ui.leaderboards.AccountRankingRow
 import com.festivalscoretracker.android.ui.leaderboards.LEADERBOARD_ROW_GAP
 import com.festivalscoretracker.android.ui.leaderboards.LeaderboardSectionMember
@@ -816,16 +815,18 @@ internal fun DemoRankingsCard(id: String, shown: List<FirstRunDemoPlayer>, heade
 
 // region Statistics
 
-/** The player page's Select Player Profile button with the web's pulse ring. */
+/**
+ * The player page's real Select pill ([FloatingToolbarActionButton] beside Quick Links, #590) with
+ * the web's pulse ring.
+ */
 @Composable
 private fun SelectProfileDemo(active: Boolean) {
     val pulse = rememberShopPulse(active)
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Button(
-            onClick = {},
-            colors = festivalFilledButtonColors(),
-            modifier = Modifier.heightIn(min = 48.dp).demoEntrance(0).pulseOutline(BrandTokens.accentPurple, pulse, corner = 24.dp),
-        ) { Text("Select Player Profile") }
+        FloatingToolbarActionButton(
+            FloatingToolbarAction(text = "Select", label = "Select Profile", testTag = "fst.first-run.demo.select", onClick = {}),
+            Modifier.demoEntrance(0).pulseOutline(BrandTokens.accentPurple, pulse, corner = 24.dp),
+        )
     }
 }
 

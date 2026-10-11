@@ -96,6 +96,7 @@ jobs:
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             FirstRunJourneyTests/testSongDemoRotationKeepsSlideAccessibleAtLargestText
             RivalsViewAllAccessibilityJourneyTests/testViewAllRivalsIsReadableAtAX5
+            FirstRunJourneyTests/testGuideTitleIsReadFirstAtLargestText
             SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestText
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestTextDuoFolded
