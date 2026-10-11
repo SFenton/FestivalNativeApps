@@ -37,6 +37,8 @@ Measured: at 720–1007 epx the box (`Width` = 36% of the window, clamped 240–
 
 Crossing the breakpoint (issue #571): the entry point that collapses closes its tooltip (`Controls/CollapsedToolTip`; a "Search songs, players and bands (Ctrl+E)" tooltip opened by the pointer or keyboard otherwise stayed on screen after widening, and its `PopupHost` failed Axe at wide), and if it had keyboard focus the replacement takes focus programmatically, so focus doesn't fall to the profile button and open its tooltip. Rule: [platforms/windows.md](../../platforms/windows.md#gotchas). Tests: `journeys/a11y-search.json` `search-swap-widen` (compact keyboard tooltip open → wide: tooltip gone, focus in the box, Axe 0) and `search-swap-narrow` (box focused → compact: focus on the button, no tooltip, Axe 0), run by `windows-ui` at normal and 225% text.
 
+Typing suspends the hint (issue #571): the Ctrl+E keyboard hint opened after its show delay even when typing had started, covering the suggestion list (Axe 2 at wide 225% text in `windows-ui`). `Controls/TypingToolTip.SuspendWhileTyping` closes and removes the hint from the first typed character or the list opening until focus leaves the box, in the title-bar box and the Search page field. Rule: [platforms/windows.md](../../platforms/windows.md#gotchas). Tests: `search.json` `wide-hint-suspends-while-typing` (hint shown on Ctrl+E, gone while typing, back on the next Ctrl+E), `a11y-search.json` `search-suggestions`, `PopupHostingMarkupTests.AutoSuggestBoxHints_SuspendWhileTyping`.
+
 ## Surfaces
 
 ### Title-bar box (medium and wide)

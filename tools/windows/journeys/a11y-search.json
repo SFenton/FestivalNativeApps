@@ -38,8 +38,9 @@
     "tabs": 0,
     "sizes": ["medium", "wide", "maximized"],
     "ready": ["waitfor:id=fst.songs.row.fixture-pulse@20"],
+    "note": "Issue #571: Ctrl+E focuses the box with keyboard focus, which opens its Ctrl+E hint tooltip after the show delay; once the user types or the suggestion list opens, the hint closes and stays closed so it never covers the suggestions (TypingToolTip). The wait outlasts the show delay.",
     "after_ready": ["key:ctrl+e", "assertfocus:name=Search songs, players and bands@3", "type:fix",
-                    "waitfor:name=Player, Fixture Player 1@10"],
+                    "waitfor:name=Player, Fixture Player 1@10", "wait:1.5", "waitgone:class=ToolTip@3"],
     "teardown": ["key:esc", "key:esc", "key:esc"]
   },
   {

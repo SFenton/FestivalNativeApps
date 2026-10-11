@@ -44,6 +44,7 @@ public sealed partial class MainWindow
         // The width breakpoint swaps these two; a tooltip open on the one it hides would otherwise float on (#571).
         Controls.CollapsedToolTip.CloseWhenCollapsed(GlobalSearchBox);
         Controls.CollapsedToolTip.CloseWhenCollapsed(GlobalSearchButton);
+        Controls.TypingToolTip.SuspendWhileTyping(GlobalSearchBox);
         RootGrid.SizeChanged += (_, e) => ApplySearchWidth(e.NewSize.Width);
         // The window-wide accelerators belong to no visible control; their automatic key tip would float over content.
         RootGrid.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
