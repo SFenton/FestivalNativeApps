@@ -455,26 +455,3 @@ private struct CompeteEntrance: ViewModifier {
         }
     }
 }
-
-// MARK: - Section load key
-
-/// What a Rivals hub per-instrument section's read depends on: a change to any part
-/// reloads it, while a plain reappearance keeps the loaded rows (``ReappearanceLoadGate``).
-/// Compete keys its whole page with ``CompetePageLoadKey`` instead.
-struct CompeteSectionLoadKey: Hashable, Sendable {
-    let instrument: Instrument
-    let accountId: String?
-    let publicationRevision: Int
-
-    /// Build the key from the section's instrument and the session's current state.
-    ///
-    /// - Parameters:
-    ///   - instrument: The section's instrument.
-    ///   - session: Shared session; its selected account and publication revision.
-    @MainActor
-    init(instrument: Instrument, session: FestivalSession) {
-        self.instrument = instrument
-        accountId = session.selectedPlayer?.accountId
-        publicationRevision = session.publicationRevision
-    }
-}
