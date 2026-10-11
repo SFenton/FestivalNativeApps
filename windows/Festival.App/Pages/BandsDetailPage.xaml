@@ -224,7 +224,9 @@
                                         </ItemsRepeater.Layout>
                                         <ItemsRepeater.ItemTemplate>
                                             <DataTemplate x:DataType="vm:BandHistoryRow">
-                                                <!-- MinHeight and a text-scaled date column: rows grow with Windows text size instead of clipping. -->
+                                                <!-- MinHeight and a text-scaled date column: rows grow with Windows text size instead of clipping.
+                                                     Ranks right-align in one column sized by an invisible bold copy of the widest charted rank,
+                                                     with tabular digits (web BandRankHistoryChart rows, computeRankWidth; issue #594). -->
                                                 <Grid ColumnSpacing="12" MinHeight="28" AutomationProperties.Name="{x:Bind Announcement}"
                                                       AutomationProperties.AutomationId="{x:Bind AutomationId}">
                                                     <Grid.ColumnDefinitions>
@@ -234,10 +236,14 @@
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="{x:Bind Date}" VerticalAlignment="Center" Style="{StaticResource FSTSecondaryTextStyle}"
                                                                controls:TextScaleLayout.ScaledMinWidth="72" />
-                                                    <TextBlock Grid.Column="1" Text="{x:Bind Rank}" VerticalAlignment="Center"
-                                                               Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                                    <TextBlock Grid.Column="1" Text="{x:Bind RailRank}" VerticalAlignment="Center" Opacity="0" IsHitTestVisible="False"
+                                                               Style="{StaticResource BodyStrongTextBlockStyle}" FontWeight="Bold" Typography.NumeralAlignment="Tabular"
+                                                               HighContrastAdjustment="None" AutomationProperties.AccessibilityView="Raw" />
+                                                    <TextBlock Grid.Column="1" Text="{x:Bind Rank}" VerticalAlignment="Center" TextAlignment="Right"
+                                                               Style="{StaticResource BodyStrongTextBlockStyle}" Typography.NumeralAlignment="Tabular"
+                                                               AutomationProperties.AutomationId="{x:Bind RankAutomationId}" />
                                                     <TextBlock Grid.Column="2" Text="{x:Bind Value}" VerticalAlignment="Center" HorizontalAlignment="Right"
-                                                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Typography.NumeralAlignment="Tabular" />
                                                 </Grid>
                                             </DataTemplate>
                                         </ItemsRepeater.ItemTemplate>

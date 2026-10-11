@@ -151,7 +151,7 @@ data class CompeteStaggerPlan(val leaderboardsHeader: Int, val boards: List<Int>
             val leaderboardsHeader = next++
             val boards = sections.map { section -> next.also { next += 1 + boardItems(section) } }
             val rivalsHeader = next++
-            val rivals = sections.map { section -> next.also { next += 1 + rivalItems(section) } }
+            val rivals = sections.map { next.also { next += 1 + RIVAL_CARD_ITEMS } }
             return CompeteStaggerPlan(leaderboardsHeader, boards, rivalsHeader, rivals)
         }
 
@@ -162,11 +162,8 @@ data class CompeteStaggerPlan(val leaderboardsHeader: Int, val boards: List<Int>
             return board.entries.size + (if (board.spotlight != null) 1 else 0) + 1
         }
 
-        /** Rival rows and View All Rivals; otherwise one empty or error card. */
-        private fun rivalItems(section: CompeteSection): Int {
-            val rows = section.rivals?.valueOrNull?.takeIf { it.isNotEmpty() } ?: return 1
-            return rows.size + 1
-        }
+        /** A rivals card is one entrance: its rows and View All Rivals fade in with it (`load-transition` R11), as does an empty or error card. */
+        private const val RIVAL_CARD_ITEMS = 1
     }
 }
 

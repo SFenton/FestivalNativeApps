@@ -142,6 +142,27 @@ public static class LeaderboardColumnLayout
     /// <summary>Column gaps in a row: the row grid spaces all seven columns, shown or not.</summary>
     private const int GapCount = 6;
 
+    /// <summary>
+    /// One rank column width at 100% text for the longest rank text of a list (web <c>computeRankWidth</c>), so every
+    /// row's rank, bold or not, takes the same column and the columns after it line up (issue #594).
+    /// </summary>
+    /// <param name="rankChars">Longest rank text length (<c>#1,234</c> is 6).</param>
+    /// <param name="minWidth">Narrowest column.</param>
+    /// <returns>Width in epx at 100% text; scale it with the Windows text size.</returns>
+    public static double RankColumnWidth(int rankChars, double minWidth = MinRankWidth) =>
+        Math.Max(minWidth, Math.Ceiling(Math.Max(0, rankChars) * RankCharWidth));
+
+    /// <summary>
+    /// The widest rank text a list shows (the longest; ranks use tabular digits, so equal lengths draw equally wide).
+    /// Band cards and history rows put an invisible bold copy of it in every row's rank cell, so the rank column is
+    /// measured from real text at any text size and weight, a bold selected rank included, like the web's
+    /// <c>computeRankWidth</c> over every visible rank (issue #594).
+    /// </summary>
+    /// <param name="ranks">Every visible rank text, including a selected or appended row's.</param>
+    /// <returns>The widest rank text, or empty for no ranks.</returns>
+    public static string WidestRank(IEnumerable<string> ranks) =>
+        ranks.Aggregate("", (widest, rank) => rank.Length > widest.Length ? rank : widest);
+
     /// <summary>Fits a section's columns into a row width.</summary>
     /// <param name="section">Section content (every row plus the pinned row).</param>
     /// <param name="rowWidth">Row width in epx, including padding; NaN or 0 before the first layout (no optional columns).</param>
@@ -157,7 +178,7 @@ public static class LeaderboardColumnLayout
         var scale = double.IsFinite(textScale) ? Math.Max(1, textScale) : 1;
         var score = section.Kind == LeaderboardRowKind.Score;
         var gap = known && rowWidth < CompactBreakpoint ? CompactGap : WideGap;
-        var rank = section.RankChars == 0 ? 0 : Math.Max(MinRankWidth, Math.Ceiling(section.RankChars * RankCharWidth)) * scale;
+        var rank = section.RankChars == 0 ? 0 : RankColumnWidth(section.RankChars) * scale;
         var value = Math.Ceiling(section.ValueChars * (score ? ScoreCharWidth : RatingCharWidth)) * scale;
         // A score row's season is the shared season pill (issue #606): its label plus chrome, at least 48 epx.
         var meta = section.MetaChars == 0 ? 0

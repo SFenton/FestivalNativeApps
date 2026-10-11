@@ -254,7 +254,8 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
                 TotalText = board.ShowLeaderboardEntryTotals == true && board.TotalEntries > 0
                     ? $"{BandFormatting.Count(board.TotalEntries)} {type.Label()} {(board.TotalEntries == 1 ? "entry" : "entries")}" : "";
                 Pager.PageCount = pages;
-                Rows = [.. board.Entries.Select(e => new SongBandRow(e, pinned is not null && SongBandPreview.IsSameBand(e, pinned)))];
+                var railRank = SongBandRow.WidestRank(board.Entries);
+                Rows = [.. board.Entries.Select(e => new SongBandRow(e, pinned is not null && SongBandPreview.IsSameBand(e, pinned), railRank))];
                 Spotlight = pinned is null ? null : SongBandSpotlightRow.Pinned(pinned, SelectedRowAction.Footer(pinned.Rank,
                     Rows.Any(r => r.IsSelected) || LeaderboardPaging.PageForRank(pinned.Rank, PageSize) == page, PageSize), board.Entries);
                 State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
@@ -312,15 +313,29 @@ public sealed record SongBandRow
     /// <summary>Creates a row.</summary>
     /// <param name="entry">Wire row.</param>
     /// <param name="isSelected">Whether this is the selected player's band.</param>
-    public SongBandRow(SongBandLeaderboardEntry entry, bool isSelected = false)
+    /// <param name="railRank">The section's widest rank text, which sizes every row's rank rail (issue #594); empty sizes the rail by the row's own rank.</param>
+    public SongBandRow(SongBandLeaderboardEntry entry, bool isSelected = false, string railRank = "")
     {
         Entry = entry;
         IsSelected = isSelected;
+        RailRank = railRank;
         Members = [.. entry.Members.DistinctBy(m => m.AccountId, StringComparer.Ordinal).Select(m => new BandMemberRow(m) { OnPlayerRow = isSelected })];
     }
 
+    /// <summary>
+    /// The widest rank of every row a section draws: one rail sized by it keeps the members of every card in line, a
+    /// selected band's bold or longer rank included (web <c>computeRankWidth</c>; issue #594).
+    /// </summary>
+    /// <param name="entries">The section's wire rows, an appended selected row included.</param>
+    /// <returns>The widest rank text (<see cref="LeaderboardColumnLayout.WidestRank"/>).</returns>
+    public static string WidestRank(IEnumerable<SongBandLeaderboardEntry> entries) =>
+        LeaderboardColumnLayout.WidestRank(entries.Select(e => BandFormatting.Rank(e.Rank)));
+
     /// <summary>Wire row.</summary>
     public SongBandLeaderboardEntry Entry { get; }
+
+    /// <summary>The section's widest rank text; the view draws an invisible bold copy in the rank cell to size the rail.</summary>
+    public string RailRank { get; }
 
     /// <summary>Whether this is the selected player's pinned band (web <c>isSelected</c>: player-row fill in place).</summary>
     public bool IsSelected { get; }
@@ -354,6 +369,12 @@ public sealed record SongBandRow
 
     /// <summary>Automation ID (<c>fst.song-band-leaderboard.row.&lt;key&gt;:&lt;rank&gt;</c>).</summary>
     public string AutomationId => $"fst.song-band-leaderboard.row.{(Entry.BandId.Length > 0 ? Entry.BandId : Entry.TeamKey)}:{Entry.Rank}";
+
+    /// <summary>Raw-view ID of the board row's rank text (<c>&lt;row&gt;.rank</c>), for column-alignment checks.</summary>
+    public string RankAutomationId => AutomationId + ".rank";
+
+    /// <summary>Raw-view ID of the board row's member list (<c>&lt;row&gt;.members</c>), for column-alignment checks.</summary>
+    public string MembersAutomationId => AutomationId + ".members";
 
     /// <summary>Screen-reader summary.</summary>
     public string Announcement => $"Rank {Entry.Rank}, {Names}, {Score} points" +
