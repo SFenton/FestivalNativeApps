@@ -14,6 +14,7 @@ import com.festivalscoretracker.android.core.nav.RivalsRoute
 import com.festivalscoretracker.android.core.nav.RivalsTab
 import com.festivalscoretracker.android.core.rivals.RivalCategorization
 import com.festivalscoretracker.android.core.rivals.RivalScopes
+import com.festivalscoretracker.android.core.rivals.RivalText
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.presentation.ProfileSearchViewModel
 import com.festivalscoretracker.android.presentation.rivals.AllRivalsViewModel
@@ -51,13 +52,18 @@ fun NavGraphBuilder.rivalsDestinations(container: AppContainer, settings: AppSet
     composable<RivalDetailRoute> { entry ->
         val route = entry.toRoute<RivalDetailRoute>()
         val viewModel = detailViewModel(container, settings, route.rivalId, route.name, route.scope, route.allowLiveFallback)
-        if (viewModel == null) RivalsNoPlayerScreen(route.name ?: "Rival") else RivalDetailScreen(viewModel, route, container.api::artworkUrl)
+        if (viewModel == null) {
+            val scope = RivalScopes.fromToken(route.scope)
+            RivalsNoPlayerScreen(route.name ?: RivalText.RIVAL, RivalScopes.detailSubtitle(scope), rivalScopeSubtitleIcon(scope))
+        } else {
+            RivalDetailScreen(viewModel, route, container.api::artworkUrl)
+        }
     }
     composable<RivalryRoute> { entry ->
         val route = entry.toRoute<RivalryRoute>()
         val viewModel = detailViewModel(container, settings, route.rivalId, route.name, route.scope, route.allowLiveFallback)
         if (viewModel == null) {
-            RivalsNoPlayerScreen(RivalCategorization.title(route.mode))
+            RivalsNoPlayerScreen(RivalCategorization.title(route.mode), route.name ?: RivalText.RIVAL)
         } else {
             RivalryScreen(viewModel, route.rivalId, route.mode, container.api::artworkUrl)
         }

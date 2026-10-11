@@ -126,6 +126,46 @@ class RivalsUiTest {
         assertEquals(1, transport.sent("/api/player/${RivalsFixtures.PLAYER}/rivals/Solo_Bass/${ids[1]}").size)
     }
 
+    /** The bar's subtitle line (`fst.nav.subtitle`), or null when the bar has none. */
+    private fun barSubtitle(): String? = rule.onAllNodesWithTag("fst.nav.subtitle", useUnmergedTree = true).fetchSemanticsNodes()
+        .singleOrNull()?.config?.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Text)?.joinToString()
+
+    /** Whether the bar's title block shows [title]. */
+    private fun barTitleShows(title: String): Boolean =
+        rule.onAllNodes(hasText(title) and hasAnyAncestor(hasTestTag("fst.nav.title-block")), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+
+    /**
+     * Owner (#604): Rival Detail names the rival over "{icon} Lead Rivals" for one chart (over
+     * "Rivals" otherwise); Rivalry names the section over the rival.
+     */
+    @Test
+    fun rivalPageBarsNameTheRivalAndTheSection() {
+        launch(DebugLaunch(route = RivalRoutes.detail(ids[1], "Synthetic Rival", RivalScopes.song(listOf(Instrument.Lead))), profile = player, stillBackground = true))
+        waitForTag("fst.rival-detail.title")
+        assertTrue(barTitleShows("Synthetic Rival"))
+        assertEquals("Lead Rivals", barSubtitle())
+        rule.onNode(hasTestTag("fst.rival-detail.subtitle-icon.Solo_Guitar") and hasAnyAncestor(hasTestTag("fst.nav.subtitle-icon")), useUnmergedTree = true).assertExists()
+        // One merged TalkBack stop: the name, then the list.
+        val block = rule.onNodeWithTag("fst.nav.title-block").fetchSemanticsNode().config
+        assertEquals(listOf("Synthetic Rival", "Lead Rivals"), block.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Text)?.map { it.text })
+
+        rule.onNodeWithTag("fst.rival-detail.see-all.closest_battles").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.rivalry.title")
+        rule.waitUntil(10_000) { settle(100); barSubtitle() == "Synthetic Rival" }
+        assertTrue(barTitleShows("Closest Battles"))
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.subtitle-icon", useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
+    /** A multi-chart (Common) Rival Detail keeps the plain "Rivals" subtitle without an icon (#604). */
+    @Test
+    fun commonRivalDetailBarSaysRivals() {
+        launch(DebugLaunch(route = RivalRoutes.detail(ids[1], "Synthetic Rival", RivalScopes.song(listOf(Instrument.Lead, Instrument.Bass))), profile = player, stillBackground = true))
+        waitForTag("fst.rival-detail.title")
+        assertTrue(barTitleShows("Synthetic Rival"))
+        assertEquals("Rivals", barSubtitle())
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.subtitle-icon", useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
     @Test
     fun seeAllOpensTheScopeListAndLeaderboardTab() {
         launch(DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true))
