@@ -1320,6 +1320,43 @@ final class SongsJourneyTests: XCTestCase {
         try app.performAccessibilityAudit(for: .all)
     }
 
+    /// A Filter disclosure header speaks the state the person asked for at once (pattern
+    /// `accordion` R4, #561): Collapsed → tap → Expanded with readable, hittable 44 pt
+    /// switches after the fade; tap → Collapsed straight away, then the switches leave.
+    ///
+    /// - Throws: A missing Year accordion.
+    @MainActor
+    func testSongsFilterDisclosureSpeaksRequestedState() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = SongsUITestSupport.fixtureApp()
+        app.launchEnvironment["FST_API_BASE_URL"] = "http://127.0.0.1:8765"
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        _ = SongsUITestSupport.openFilterSheet(in: app)
+        let year = app.buttons["fst.songs.filter.year"]
+        XCTAssertTrue(year.waitForExistence(timeout: 10))
+        XCTAssertEqual(year.value as? String, "Collapsed")
+        let decades = app.switches.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.filter.year.")
+        )
+        XCTAssertEqual(decades.count, 0, "Year options showed while collapsed")
+
+        year.tap()
+        XCTAssertEqual(year.value as? String, "Expanded")
+        let first = decades.firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 5), "Opening Year did not reveal its options")
+        XCTAssertTrue(first.isHittable, "The revealed option is not hittable")
+        XCTAssertFalse(first.label.isEmpty, "The revealed option has no label")
+        XCTAssertGreaterThanOrEqual(first.frame.height, 44, "The revealed option's target is too short")
+        SongsUITestSupport.record(app, name: "songs-filter-year-expanded")
+
+        year.tap()
+        XCTAssertEqual(year.value as? String, "Collapsed")
+        XCTAssertTrue(first.waitForNonExistence(timeout: 5), "Closing Year did not remove its options")
+        app.buttons["fst.songs.filter.done"].tap()
+    }
+
     /// Exercise real native no-results and service-error presentation.
     ///
     /// - Throws: A missing fixture-only state or retry action.
