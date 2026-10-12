@@ -119,12 +119,22 @@ struct SongBandSplitLinkAccessibilityTests {
                 && nativeHostedAccessibilityFrame(openBoard ? titleID : soloTitleID, in: host) != nil
         }
         // Song Detail builds its sections lazily: bring the band sections, which end
-        // the page, into the leading pane.
-        try await scrollLeadingPaneToEnd(host)
-        _ = try await nativeHostedSettle(host, timeout: .seconds(60)) {
+        // the page, into the leading pane. A cold run can reach the end before the band
+        // previews load and grow the page, so scroll again until both links are built.
+        func linksBuilt() -> Bool {
             nativeHostedAccessibilityFrame(jumpRowID, in: host) != nil
                 && nativeHostedAccessibilityFrame(ctaID(.duets), in: host) != nil
         }
+        for _ in 0..<6 where !linksBuilt() {
+            try await scrollLeadingPaneToEnd(host)
+            let deadline = ContinuousClock.now.advanced(by: .seconds(10))
+            while !linksBuilt(), ContinuousClock.now < deadline {
+                try await Task.sleep(for: .milliseconds(250))
+                host.layoutSubtreeIfNeeded()
+                host.displayIfNeeded()
+            }
+        }
+        _ = try await nativeHostedSettle(host, timeout: .seconds(30)) { linksBuilt() }
         macAccessibilityDump(macAccessibilityTree(host), name: "band-split-links-settled")
         return hosted
     }
