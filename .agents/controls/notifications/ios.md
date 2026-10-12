@@ -66,6 +66,16 @@ Applies to iPhone, iPhone Duo, iPad and Mac (shared `NotificationsSheet`). The s
   - `NotificationsPinnedHeaderRenderTests` (macOS hosted): scrolls the real `NSTableView` and asserts no row ink in the pinned header's row band, for New and for Older after the push. It fails without the row mask.
   - `notificationsRowSeparatorsDoNotDrawUnderThePinnedSectionHeader` (macOS hosted, #322): sweeps the scroll offset in 9 pt steps through New and Older and asserts no separator ink in the pinned header's band, while separators still draw lower down. It fails without the row's own separator. `pinnedHeaderRowSeparatorSpansTheSeparatorGuides` covers the span (iOS, macOS row edge, RTL, unreadable).
   - `PinnedHeaderLegacyScrollRenderTests` (macOS hosted): the same List on both scroll paths has no fade at rest, a 15 pt fade after 15 pt and the full 40 pt after that, with the same pin line and header band. The legacy case fails without the observer.
+  - Accessibility (#469, for #322). `NotificationsPinnedHeaderAccessibilityTests` (macOS hosted, in `apple-ci`) sweeps New, the push and Older in 30 pt steps under the standard fade, Reduce Transparency, Less Transparency and More Contrast:
+    - The list exposes only the "New"/"Older" `AXHeading`s and the rows. Each row is one enabled `AXButton` named by `NotificationRow.accessibilityLabel`, in feed order under its heading and ≥ 44 pt tall.
+    - A row in the fade or cut by the title keeps its whole frame. The row's own separator and guide markers expose nothing.
+    - No separator ink is drawn under the pinned title in any mode.
+
+    `NotificationsAccessibilityJourneyTests` (iPhone, in apple-ci's iPhone journeys) opens the sheet on `fixture-notify-many` (24 unread rows, `tools/mock_service.py`) at the default size and at AX5:
+    - The one "New" heading reads first, then the rows in feed order with their own labels and 44 pt targets. At AX5 the title and rows are ≥ 1.35× taller.
+    - A row dragged into the fade band and then cut by the pinned title keeps its label, frame, descendants and hit target, with nothing else exposed inside it.
+    - The scoped audit (Dynamic Type, clipped text, hit region, descriptions) is clean on the sheet.
+- **Known: the first title's focus frame at rest (#469).** XCUITest and VoiceOver read the title as its whole header cell (402 × 38 pt on iPhone 17 Pro). The lift above is a visual effect, so at rest that frame sits one gap (22 pt) below the drawn title until the header pins. A cell's frame cannot follow a visual effect without moving the layout that the lift exists to keep. The title still reads first, as a heading, and is not actionable. Journeys measure the pinned edge live from the pinned cell, never from the resting frame.
 - **HIG:**
   - Lists and tables: "Choose a table or list style (`ListStyle`) that coordinates with your data and platform."
   - Materials: "Let content scroll and peek through while preserving control and navigation legibility."
