@@ -30,6 +30,13 @@ struct AccessibilityFocusRequest: Equatable, Sendable {
     /// Whether the change is a new "screen" (a pane or panel appeared) or a layout change.
     var screenChanged = true
     let token: Int
+
+    /// Wait before the first attempt to move focus, so the transition that asked for it
+    /// has finished: the drawer's whole open sequence (``DrawerMotion/totalDuration``,
+    /// #362) ends first, and focus lands on the panel's title at its resting place.
+    static let firstAttemptDelay: Duration = .milliseconds(500)
+    /// Wait before each retry while the target is not in the tree yet.
+    static let retryDelay: Duration = .milliseconds(400)
 }
 
 /// Pure choice of the element a request lands on, so the rule is unit-tested without
@@ -159,7 +166,8 @@ private struct AccessibilityFocusAnchor: UIViewRepresentable {
         /// Try now (after the presentation), then twice more while the target is missing.
         func schedule(_ request: AccessibilityFocusRequest, attempt: Int) {
             Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(attempt == 0 ? 500 : 400))
+                try? await Task.sleep(for: attempt == 0
+                    ? AccessibilityFocusRequest.firstAttemptDelay : AccessibilityFocusRequest.retryDelay)
                 guard let self, self.handled == request else { return }
                 guard UIAccessibility.isVoiceOverRunning || UIAccessibility.isSwitchControlRunning
                     || AccessibilityFocusTrace.isEnabled else { return }

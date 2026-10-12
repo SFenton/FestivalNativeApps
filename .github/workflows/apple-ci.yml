@@ -138,6 +138,9 @@ jobs:
             RivalsJourneyTests/testAllRivalsDuoVerticalBarKeepsSystemTitle
             SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
             SongBarCaptionIconJourneyTests/testPlayerHistoryCaptionIconAtLargestText
+            DrawerAccessibilityJourneyTests/testReduceMotionDrawerPassesAccessibilityAudit
+            DrawerAccessibilityJourneyTests/testClosingDrawerHandsThePageBackAtOnce
+            DrawerAccessibilityJourneyTests/testClosingDrawerHandsThePageBackAtOnceDuoFolded
             SuggestionsAccessibilityJourneyTests/testCachedArtRowIsAccessibleAtDefaultSizeAndAX5
             RivalsJourneyTests/testRivalDetailSongCardsAreAccessibleAtAX5
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert

@@ -517,7 +517,9 @@ struct FestivalDrawer: View {
                     .padding(placement.panelPadding)
                     .modifier(stage)
                     .gesture(dismissDrag(width: width))
-                    .accessibilityAddTraits(.isModal)
+                    // Modal only while open: a closing panel that stayed modal kept the page
+                    // out of VoiceOver's reach on iOS until the slide-out ended (#489).
+                    .accessibilityAddTraits(isPresented ? .isModal : [])
                     .accessibilityAction(.escape, onClose)
                 if closesOnEscape {
                     // Hardware Escape (HIG Keyboards): an invisible cancel button.
@@ -692,11 +694,14 @@ struct FestivalDrawer: View {
                 .accessibilityHint("Opens your profile")
                 .accessibilityIdentifier("fst.shell.drawer.view-profile")
                 // The large control size gives a 44 pt target (HIG Buttons: "the hit region
-                // is at least 44x44 pt"); the regular size was 34 pt tall (#396).
+                // is at least 44x44 pt"); the regular size was 34 pt tall (#396). White on the
+                // brand red fill (≈ 5.6:1, the web `btnDanger`, as Settings' Reset) whatever
+                // the glass shows: red text on the bordered tint measured 4.46:1 over artwork (#489).
                 Button("Deselect") { deselectPending = true }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .tint(.red)
+                    .tint(BrandTokens.statusRed)
+                    .foregroundStyle(.white)
                     .accessibilityLabel("Deselect Profile")
                     .accessibilityIdentifier("fst.shell.drawer.deselect-profile")
             }
