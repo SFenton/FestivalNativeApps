@@ -192,9 +192,9 @@ enum HingeColumns {
     ///   - width: Available width.
     ///   - minimum: Narrowest column.
     ///   - spacing: Gap between columns.
-    /// - Returns: At least 1.
+    /// - Returns: At least 1; 1 for a non-finite width (a layout probe's `.infinity`).
     static func fitCount(width: CGFloat, minimum: CGFloat, spacing: CGFloat) -> Int {
-        guard minimum > 0, width > 0 else { return 1 }
+        guard minimum > 0, width > 0, width.isFinite else { return 1 }
         return max(1, Int(((width + spacing) / (minimum + spacing)).rounded(.down)))
     }
 
@@ -439,8 +439,11 @@ struct HingeEagerGridLayout: Layout {
         }
     }
 
+    /// The grid's size for a proposal: the proposed width, or one ``minimum`` column for
+    /// an unspecified or infinite width (a parent's flexibility probe, e.g. `NSHostingView`
+    /// measuring its maximum size), so the reported size stays finite.
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let width = proposal.width ?? minimum
+        let width = proposal.width.flatMap { $0.isFinite ? $0 : nil } ?? minimum
         let heights = rowHeights(subviews, columns: columns(width: width))
         return CGSize(width: width, height: heights.reduce(0, +) + rowSpacing * CGFloat(max(0, heights.count - 1)))
     }

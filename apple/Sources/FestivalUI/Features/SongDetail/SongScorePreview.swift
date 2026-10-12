@@ -98,6 +98,11 @@ struct SongScorePreview: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // One container per card, like the band previews: the card grid otherwise
+        // orders its cells' elements by position, so a row's top-aligned cards (#365)
+        // read heading by heading, then row by row across both cards (#490).
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("fst.song-detail.card.\(instrument.rawValue)")
         .task(id: requestKey) {
             guard usesLiveClient else { return }
             // `.task` re-runs every time the card reappears (e.g. popping back from the
