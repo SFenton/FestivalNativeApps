@@ -59,7 +59,12 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
  * @param profile Selected profile kind.
  * @param player Selected player.
  * @param onSection Select a tab.
- * @param onRoute Push a route.
+ * @param onRoute Push a route on the current tab.
+ * @param onChild Open a route as a child of its parent tab (Rivals and Leaderboards under
+ *   Compete on a phone, #610).
+ * @param page Drawer page pushed on the selected tab ([DrawerPolicy.pageOf]); its row is
+ *   highlighted instead of the tab's (web sidebar `NavLink`). Null on a tab's own pages and in
+ *   the permanent drawer, which shows the selected tab.
  * @param onOpenProfile Open profile selection.
  * @param onDeselect Deselect the player.
  * @param showShop False while Settings' Hide Item Shop is on (web/Apple/Windows drop the entry).
@@ -78,14 +83,17 @@ fun DrawerContent(
     player: SelectedPlayer?,
     onSection: (FestivalSection) -> Unit,
     onRoute: (AppRoute) -> Unit,
+    onChild: (FestivalSection, AppRoute) -> Unit,
     onOpenProfile: () -> Unit,
     onDeselect: () -> Unit,
     showShop: Boolean = true,
     tabTags: Boolean = false,
     permanent: Boolean = false,
+    page: DrawerEntry? = null,
 ) {
     fun open(target: DrawerTarget) = when (target) {
         is DrawerTarget.Section -> onSection(target.section)
+        is DrawerTarget.Child -> onChild(target.parent, target.route)
         is DrawerTarget.Push -> onRoute(target.route)
     }
     // The footer (player row, Deselect, Settings) sits at the bottom when everything fits; on a
@@ -119,7 +127,7 @@ fun DrawerContent(
                 }
             }
             DrawerPolicy.entries(profile, showShop).forEach { entry ->
-                val active = DrawerPolicy.isSelected(entry, selected)
+                val active = DrawerPolicy.isSelected(entry, selected, page)
                 DrawerItem(entry.title, entry.icon(active), selected = active, tag = entry.tag(tabTags && entry.section in visible)) {
                     open(DrawerPolicy.target(entry, visible))
                 }
@@ -157,8 +165,8 @@ fun DrawerContent(
             }
             DrawerItem(
                 FestivalSection.Settings.title,
-                FestivalSection.Settings.icon(selected == FestivalSection.Settings),
-                selected = selected == FestivalSection.Settings,
+                FestivalSection.Settings.icon(page == null && selected == FestivalSection.Settings),
+                selected = page == null && selected == FestivalSection.Settings,
                 tag = if (tabTags) "fst.nav.tab.settings" else "fst.nav.drawer.settings",
             ) { onSection(FestivalSection.Settings) }
         }

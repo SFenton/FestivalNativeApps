@@ -16,6 +16,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.festivalscoretracker.android.core.layout.WideColumns
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.testing.SectionIndexFixtures
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -66,22 +67,32 @@ class SongsWideColumnsAccessibilityJourneyTest {
         if (sw < 600) assertTrue("a phone turns to landscape on request", turned)
     }
 
-    /** Song rows TalkBack visits, in order, once the tree has caught up. */
-    private fun rowStops(screen: String): List<JourneyHarness.ReadingStop> {
+    /**
+     * Song rows TalkBack visits, in order, once the tree has caught up.
+     *
+     * @param screen Reading-order log name.
+     * @param present The row tag that must be in the tree first.
+     */
+    private fun rowStops(screen: String, present: String): List<JourneyHarness.ReadingStop> {
         if (android.os.Build.VERSION.SDK_INT >= 34) InstrumentationRegistry.getInstrumentation().uiAutomation.clearCache()
-        h.awaitAccessibilityTree(present = "$ROW${SECOND}")
+        h.awaitAccessibilityTree(present = "$ROW$present")
         return h.readingStops(screen, fresh = true).filter { it.id?.startsWith(ROW) == true }
     }
 
     /**
      * Rows are read in list order (`s-<section>-<n>`, section then n), each one labelled
      * ≥ 48 dp button.
+     *
+     * @param screen Reading-order log name.
+     * @param requireSecond Whether the second song must be on screen too (not at 200 % in a
+     *   phone's landscape, where the `#` title leaves room for one song).
      */
-    private fun assertRowsReadInListOrder(screen: String) {
-        val stops = rowStops(screen)
+    private fun assertRowsReadInListOrder(screen: String, requireSecond: Boolean = true) {
+        val stops = rowStops(screen, if (requireSecond) SECOND else FIRST)
         val dump = stops.joinToString("\n") { "${it.id} | ${it.label} | ${it.bounds.toShortString()}" }
         val ids = stops.mapNotNull { stop -> stop.id?.removePrefix("${ROW}s-")?.split("-")?.let { (section, n) -> section.toInt() to n.toInt() } }
-        assertTrue("$screen: TalkBack reaches the first two songs\n$dump", (0 to 1) in ids && (0 to 2) in ids)
+        assertTrue("$screen: TalkBack reaches the first song\n$dump", (0 to 1) in ids)
+        if (requireSecond) assertTrue("$screen: TalkBack reaches the first two songs\n$dump", (0 to 2) in ids)
         assertEquals("$screen: rows read in list order\n$dump", ids.sortedWith(compareBy({ it.first }, { it.second })), ids)
         val min = with(rule.density) { 48.dp.toPx() } - 1
         stops.forEach { stop ->
@@ -122,7 +133,13 @@ class SongsWideColumnsAccessibilityJourneyTest {
         if (wide) {
             assertEquals("two columns: the second song sits beside the first", first.top, second.top, 1f)
             assertTrue("start column first ($first | $second)", first.right <= second.left)
-            assertTrue("the next section starts a new line in the leading column", bounds("$ROW$NEXT").top >= first.bottom)
+            // Issue #582: the next section's title starts a new line below, then its rows (when composed) follow it in the leading column.
+            val title = bounds(NEXT_TITLE)
+            assertTrue("the next section's title starts a new line ($first | $title)", title.top >= first.bottom - 1 && title.left < second.left)
+            if (h.exists("$ROW$NEXT")) {
+                val next = bounds("$ROW$NEXT")
+                assertTrue("the next section starts a new line in the leading column ($title | $next)", next.top >= title.bottom - 1 && abs(next.left - first.left) <= 2f)
+            }
         }
         fold?.let { hinge ->
             // `hinge-columns` R1: the clearance is the fold's width, at least the gutter, centred
@@ -141,14 +158,19 @@ class SongsWideColumnsAccessibilityJourneyTest {
 
         scale = 2f
         rule.waitForIdle()
-        h.waitForTag("$ROW$SECOND")
+        h.waitForTag("$ROW$FIRST")
+        rule.waitForIdle()
         val big = bounds("$ROW$FIRST")
-        val below = bounds("$ROW$SECOND")
-        assertTrue("200 %: one column ($big | $below)", below.top >= big.bottom - 1)
-        assertEquals("200 %: one column shares the start edge", big.left, below.left, 2f)
+        if (wide) assertTrue("200 %: the first song spans both columns ($first | $big)", big.width >= first.width * 1.8f)
+        // Issue #582: under the `#` title a phone in landscape may show only the first song at 200 %.
+        if (h.exists("$ROW$SECOND")) {
+            val below = bounds("$ROW$SECOND")
+            assertTrue("200 %: one column ($big | $below)", below.top >= big.bottom - 1)
+            assertEquals("200 %: one column shares the start edge", big.left, below.left, 2f)
+        }
         // No straddle check here: at large text the one column is full width even across a fold
         // (`rememberSingleColumn`, as hinge splits elsewhere); the hinge checks run at 100 %.
-        assertRowsReadInListOrder("songs-wide-200")
+        assertRowsReadInListOrder("songs-wide-200", requireSecond = false)
         h.assertAccessible()
     }
 
@@ -157,6 +179,7 @@ class SongsWideColumnsAccessibilityJourneyTest {
         const val FIRST = "s-0-1"
         const val SECOND = "s-0-2"
         const val NEXT = "s-1-1"
+        const val NEXT_TITLE = "fst.songs.section.title.a"
 
         /** A landscape window this wide holds two 320 dp columns beside the navigation rail. */
         const val WIDE_WINDOW_DP = 800

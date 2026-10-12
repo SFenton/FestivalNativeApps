@@ -27,6 +27,12 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
     private Rectangle[]? bars;
     private System.Windows.Input.ICommand? command;
 
+    /// <summary>
+    /// A score row's season: the shared season pill (pattern <c>metadata-pills</c>, issue #606), in the meta column that
+    /// <see cref="MetaText"/> uses for a rankings row's songs label. It carries the <c>fst.score.season.*</c> ID.
+    /// </summary>
+    private readonly MetadataPill seasonPill = MetadataPills.Create();
+
     /// <summary>Row model: any <see cref="ILeaderboardEntryRow"/>.</summary>
     public static readonly DependencyProperty RowProperty = DependencyProperty.Register(
         nameof(Row), typeof(object), typeof(LeaderboardEntryRow), new PropertyMetadata(null, (d, e) => ((LeaderboardEntryRow)d).OnRowChanged(e.OldValue)));
@@ -36,6 +42,8 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
     {
         InitializeComponent();
         IsTabStop = false;
+        seasonPill.Visibility = Visibility.Collapsed;
+        RowGrid.Children.Insert(RowGrid.Children.IndexOf(MetaText) + 1, seasonPill);
         NameText.IsTextTrimmedChanged += (_, _) => UpdateNameToolTip();
         // The surface, text and badge brushes are set from code, so a contrast-theme switch while a board is open must
         // re-resolve them (issue #242: inline brush assignments do not follow {ThemeResource}).
@@ -200,13 +208,13 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
         switch (row)
         {
             case ILeaderboardScoreRow score:
-                MetaText.Text = score.Season;
-                MetaText.FontSize = 14;
+                MetaText.Text = "";
+                MetaText.ClearValue(AutomationProperties.AutomationIdProperty);
                 ValueText.Text = score.Score;
                 BayesianText.Visibility = Visibility.Collapsed;
                 PillText.Text = score.BadgeText;
                 AutomationProperties.SetAutomationId(PillText, BadgeAutomationId(score));
-                AutomationProperties.SetAutomationId(MetaText, LeaderboardScoreRowIds.Season(BadgeAutomationId(score)));
+                seasonPill.Label(score.Season, LeaderboardScoreRowIds.Season(BadgeAutomationId(score)));
                 Pill.RenderTransform = ScoreBadge.Skew(score.IsFullCombo);
                 PillText.FontStyle = ScoreBadge.Style(score.IsFullCombo);
                 StarsView.Stars = score.StarCount;
@@ -219,10 +227,13 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
                 BayesianText.Visibility = ranking.BayesianText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
                 StarsView.Stars = 0;
                 PillText.ClearValue(AutomationProperties.AutomationIdProperty);
-                MetaText.ClearValue(AutomationProperties.AutomationIdProperty);
+                seasonPill.ClearValue(AutomationProperties.AutomationIdProperty);
                 break;
         }
-        AutomationProperties.SetAutomationId(RowButton, string.IsNullOrEmpty(rowAutomationId) ? row.AutomationId : rowAutomationId);
+        var buttonId = string.IsNullOrEmpty(rowAutomationId) ? row.AutomationId : rowAutomationId;
+        AutomationProperties.SetAutomationId(RowButton, buttonId);
+        // Raw-view test ID (like PillText's badge ID) so journeys can check the name's marquee (issue #455).
+        AutomationProperties.SetAutomationId(NameText, LeaderboardRowIds.Name(buttonId));
         // Rows without a usable identity (production serves some empty account IDs) are shown but not interactive, and
         // UIA reads them as text rather than an invokable button.
         var actionable = row.Route is not null || command?.CanExecute(null) == true;
@@ -257,7 +268,7 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
     {
         if (skeleton is null) RowButton.ClearValue(AutomationProperties.AccessibilityViewProperty);
         else AutomationProperties.SetAccessibilityView(RowButton, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
-        RankText.Opacity = NameText.Opacity = MetaText.Opacity = ValueStack.Opacity = skeleton is null ? 1 : 0;
+        RankText.Opacity = NameText.Opacity = MetaText.Opacity = seasonPill.Opacity = ValueStack.Opacity = skeleton is null ? 1 : 0;
         if (skeleton is { ShowBars: true } && bars is null)
         {
             bars = [Bar(28, HorizontalAlignment.Left), Bar(0, HorizontalAlignment.Left), Bar(48, HorizontalAlignment.Left),
@@ -338,6 +349,9 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
             Pill.Background = ScoreBadge.Fill(score.IsFullCombo, score.AccuracyValue);
             Pill.BorderBrush = badgeOnHighlight ? (Brush)resources["FSTPlayerRowTextBrush"] : ScoreBadge.Stroke(score.IsFullCombo);
             PillText.Foreground = badgeOnHighlight ? (Brush)resources["FSTPlayerRowTextBrush"] : ScoreBadge.Text(score.IsFullCombo);
+            // The season pill keeps its own roles on every row, the selected row too (like Apple ScoreSeasonPill).
+            if (score.Season.Length > 0)
+                MetadataPills.ApplySeason(seasonPill, score.Season, MetadataPillStyle.IsCurrent(score.SeasonNumber, App.Session.Catalog?.CurrentSeason));
         }
         PillText.HighContrastAdjustment = badgeOnHighlight ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
         // A row inside a card that draws the surface (in-card slice, issue #588) adds no second translucent fill
@@ -387,13 +401,19 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
         var section = row.Section ?? LeaderboardColumns.Measure(new[] { row });
         var score = row as ILeaderboardScoreRow;
         var plan = LeaderboardColumnLayout.Fit(section, width, TextScaleLayout.Factor, score?.PinsSeason == true);
+        // Large text: every row of the section (and its skeleton) reserves the same name lines (R2, issue #455).
+        NameText.MinLines = section.NameLines;
         RowGrid.ColumnSpacing = plan.Gap;
         RankColumn.MinWidth = RankText.Text.Length == 0 ? 0 : plan.RankWidth;
         MetaColumn.MinWidth = plan.Stacked ? 0 : plan.MetaWidth;
-        MetaText.Visibility = (plan.ShowMeta || plan.MetaBelowName) && MetaText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var metaShown = plan.ShowMeta || plan.MetaBelowName;
+        MetaText.Visibility = metaShown && MetaText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        seasonPill.Visibility = metaShown && score is { Season.Length: > 0 } ? Visibility.Visible : Visibility.Collapsed;
         // The row is one UIA stop with Raw parts, so a season on screen must be in its name (issue #262).
         AutomationProperties.SetName(RowButton,
-            score is not null && MetaText.Visibility == Visibility.Visible ? score.SeasonShownAnnouncement : row.Announcement);
+            score is not null && seasonPill.Visibility == Visibility.Visible
+                ? MetadataPillStyle.WithCurrentSeason(score.SeasonShownAnnouncement, score.SeasonNumber, App.Session.Catalog?.CurrentSeason)
+                : row.Announcement);
         ValueColumn.MinWidth = plan.Stacked ? 0 : plan.ValueWidth;
         PillColumn.MinWidth = plan.AccuracyWidth;
         if (plan.ShowAccuracy) Pill.Width = plan.AccuracyWidth;
@@ -434,6 +454,8 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
         var left = below || scoreStack;
         MetaText.HorizontalAlignment = left ? HorizontalAlignment.Left : HorizontalAlignment.Right;
         MetaText.TextAlignment = left ? TextAlignment.Left : TextAlignment.Right;
+        Place(seasonPill, Grid.GetRow(MetaText), Grid.GetRowSpan(MetaText), Grid.GetColumn(MetaText), Grid.GetColumnSpan(MetaText), VerticalAlignment.Center);
+        seasonPill.HorizontalAlignment = MetaText.HorizontalAlignment;
 
         if (scoreStack) Place(ValueStack, valueLine, 1, nameColumn, underSpan, VerticalAlignment.Center);
         else if (rankingStack) Place(ValueStack, 1, 1, 3, 1, VerticalAlignment.Top);

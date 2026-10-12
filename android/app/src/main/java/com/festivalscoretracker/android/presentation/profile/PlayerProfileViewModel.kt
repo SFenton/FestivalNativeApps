@@ -318,6 +318,20 @@ sealed interface RankHistoryLoad {
      * @property issue Classified failure.
      */
     data class Failed(val issue: ServiceIssue) : RankHistoryLoad
+
+    companion object {
+        /**
+         * Whether a chart shows its Rank History card (and its Quick Link, #590): a played chart
+         * shows it while loading, loaded with ranked snapshots or failed (inline retry); not once
+         * loaded without snapshots (web: no ranking row, no chart).
+         *
+         * @param section The chart's section.
+         * @param load The chart's rank-history state, or null before it starts.
+         * @return True when the card is (or will be) on the page.
+         */
+        fun showsCard(section: PlayerInstrumentSection, load: RankHistoryLoad?): Boolean =
+            section.hasScores && !(load is Loaded && load.chart == null)
+    }
 }
 
 /**
@@ -356,8 +370,34 @@ data class PlayerProfileUiState(
     fun canRun(action: PlayerTileAction): Boolean =
         isSelected || identity == PlayerIdentityAction.Select || identity == PlayerIdentityAction.Switch || !action.requiresSelection
 
-    /** Select button label. */
-    val selectLabel: String get() = if (identity == PlayerIdentityAction.Switch) "Switch to This Profile" else "Select Profile"
+    /** Identity action's full label (TalkBack, and the top bar outside the shell; iOS `title`). */
+    val identityLabel: String
+        get() = when (identity) {
+            PlayerIdentityAction.Switch -> "Switch to This Profile"
+            PlayerIdentityAction.Deselect -> "Deselect Profile"
+            else -> "Select Profile"
+        }
+
+    /** Identity action's short visible text in the floating toolbar row (iOS `shortTitle`, #590). */
+    val identityShortLabel: String
+        get() = when (identity) {
+            PlayerIdentityAction.Switch -> "Switch"
+            PlayerIdentityAction.Deselect -> "Deselect"
+            else -> "Select"
+        }
+
+    /**
+     * Whether the page offers Select, Switch or Deselect as its own pill beside Quick Links
+     * (owner #590 acceptance: "Select/Switch/Deselect Profile appears in the floating toolbar row").
+     * Paused (unverified or changed) reads offer none; their notice stays in the identity row.
+     */
+    val offersIdentityAction: Boolean
+        get() = phase == ProfilePhase.Loaded && identity in IDENTITY_PILL_ACTIONS
+
+    private companion object {
+        /** The identity actions drawn as the floating-toolbar companion pill (#590). */
+        val IDENTITY_PILL_ACTIONS = setOf(PlayerIdentityAction.Select, PlayerIdentityAction.Switch, PlayerIdentityAction.Deselect)
+    }
 
     /** Why selection is paused, or null. */
     val identityNotice: String?
@@ -374,10 +414,12 @@ data class PlayerProfileUiState(
     val offersReload: Boolean
         get() = !isSelected && (identity == PlayerIdentityAction.Changed || actionError != null)
 
-    /** Whether the page needs its identity row: a Select/Switch button, a paused-selection notice or an action error. */
+    /**
+     * Whether the page needs its identity row: a paused-selection notice or an action error.
+     * Select/Switch/Deselect is not in it: it sits beside Quick Links in the floating toolbar row (#590).
+     */
     val showsIdentityRow: Boolean
-        get() = identity == PlayerIdentityAction.Select || identity == PlayerIdentityAction.Switch ||
-            identityNotice != null || actionError != null
+        get() = identityNotice != null || actionError != null
 }
 
 // endregion

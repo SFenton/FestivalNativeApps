@@ -295,7 +295,9 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
 
     /// <summary>
     /// The selected player's row for this chart from their score index, only when that index belongs to the current
-    /// publication. With invalid-score filtering on, an invalid score falls back to its valid variant (unranked here).
+    /// publication. With invalid-score filtering on, an invalid score is replaced by its best valid variant (web
+    /// <c>LeaderboardPage</c> <c>resolvedPlayerScore</c>, the same <see cref="InvalidScorePolicy"/> as Songs) and, like
+    /// Songs and Android, hidden when no valid score exists at the leeway.
     /// </summary>
     /// <returns>Synthetic entry, or <see langword="null"/>.</returns>
     private LeaderboardEntry? SelectedEntry()
@@ -303,19 +305,15 @@ public sealed partial class SongLeaderboardViewModel : ObservableObject
         if (session.SelectedPlayer is not { } player || !session.IsSelectedProfileCurrent ||
             session.SelectedScoreIndex?.GetValueOrDefault(SongId)?.GetValueOrDefault(Instrument) is not { } score)
             return null;
-        if (session.Settings.FilterInvalidScores && score.IsValidScore == false)
-        {
-            if (score.ValidScore is not { } valid) return null;
-            return new LeaderboardEntry
-            {
-                AccountId = player.AccountId, DisplayName = player.DisplayName, Score = valid,
-                Accuracy = score.ValidAccuracy, IsFullCombo = score.ValidIsFullCombo, Stars = score.Stars, Season = score.Season,
-            };
-        }
+        var raw = SongScoreSource.ToDetail(score);
+        var shown = session.Settings.FilterInvalidScores
+            ? InvalidScorePolicy.Resolve(score, raw, Song, Instrument, session.Settings.Leeway, false).Detail
+            : raw;
+        if (shown is null) return null;
         return new LeaderboardEntry
         {
-            AccountId = player.AccountId, DisplayName = player.DisplayName, Score = score.Score, Rank = score.Rank ?? 0,
-            Accuracy = score.Accuracy, IsFullCombo = score.IsFullCombo, Stars = score.Stars, Season = score.Season,
+            AccountId = player.AccountId, DisplayName = player.DisplayName, Score = shown.Score, Rank = shown.Rank ?? 0,
+            Accuracy = shown.Accuracy, IsFullCombo = shown.IsFullCombo, Stars = shown.Stars, Season = shown.Season,
         };
     }
 
@@ -374,6 +372,9 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
 
     /// <summary>Season text (<c>S15</c>), or empty.</summary>
     public string Season => Entry.Season is { } s ? string.Create(CultureInfo.InvariantCulture, $"S{s}") : "";
+
+    /// <inheritdoc />
+    public int? SeasonNumber => Entry.Season;
 
     /// <summary>Statistics for the selected player, the profile otherwise, or <see langword="null"/> without a usable ID.</summary>
     public AppRoute? Route => IsSelected ? new AppRoute.Statistics() :

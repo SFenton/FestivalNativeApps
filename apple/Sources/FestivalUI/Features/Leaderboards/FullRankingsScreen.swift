@@ -296,7 +296,9 @@ struct FullRankingsScreen: View {
                             }
                         }
                     }
-                    .macKeyboardRows(AccountRankingRow.keyRows(payload.rankings.entries))
+                    // Arrow keys follow the pairs: ↓/↑ a line, ←/→ across it (wide-columns
+                    // R8, the Item Shop list's grid; #484).
+                    .macKeyboardRows(columns: columns, AccountRankingRow.keyRows(payload.rankings.entries))
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
                     .padding(.bottom, Self.rowGap)
@@ -651,8 +653,7 @@ struct FullRankingsScreen: View {
             }
         }
         .accessibilityIdentifier("fst.full-rankings.instrument-menu")
-        .accessibilityLabel("Instrument")
-        .accessibilityValue(instrument.label)
+        .festivalBarItemAccessibility(label: "Instrument", value: instrument.label)
     }
 
     /// The visible charts as a picker, shared by the rail item and the pill.

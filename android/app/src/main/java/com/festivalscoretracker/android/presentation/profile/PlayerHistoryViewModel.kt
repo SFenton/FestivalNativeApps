@@ -85,16 +85,24 @@ data class ScoreHistoryRow(val entry: ScoreHistoryEntry, val isHighScore: Boolea
     val stars: Int get() = (entry.stars ?: 0).coerceIn(0, 6)
 
     /** Screen-reader text. */
-    val announcement: String
-        get() = listOfNotNull(
-            date,
-            "score $score",
-            accuracy?.let { "accuracy $it" },
-            "full combo".takeIf { isFullCombo },
-            entry.stars?.takeIf { it > 0 }?.let { StarRatingSpec.display(it).label },
-            season,
-            "personal best".takeIf { isHighScore },
-        ).joinToString(", ")
+    val announcement: String get() = announcement(null)
+
+    /**
+     * Screen-reader text, naming the season "Current season 9" when it is [currentSeason]
+     * (as the inverted season pill shows).
+     *
+     * @param currentSeason The catalogue's current season, or null when unknown.
+     * @return Announcement.
+     */
+    fun announcement(currentSeason: Int?): String = listOfNotNull(
+        date,
+        "score $score",
+        accuracy?.let { "accuracy $it" },
+        "full combo".takeIf { isFullCombo },
+        entry.stars?.takeIf { it > 0 }?.let { StarRatingSpec.display(it).label },
+        entry.season?.let { if (it == currentSeason) "Current season $it" else "Season $it" },
+        "personal best".takeIf { isHighScore },
+    ).joinToString(", ")
 }
 
 /**
@@ -107,6 +115,7 @@ data class ScoreHistoryRow(val entry: ScoreHistoryEntry, val isHighScore: Boolea
  * @property ascending Sort direction.
  * @property songTitle Resolved song title, or null until the catalogue loads.
  * @property keyboard Whether the song uses the keyboard icon.
+ * @property currentSeason The catalogue's current season (its season pill inverts), or null until known.
  */
 data class PlayerHistoryUiState(
     val phase: HistoryPhase = HistoryPhase.Loading,
@@ -116,6 +125,7 @@ data class PlayerHistoryUiState(
     val ascending: Boolean = false,
     val songTitle: String? = null,
     val keyboard: Boolean = false,
+    val currentSeason: Int? = null,
 )
 
 // endregion
@@ -132,6 +142,7 @@ data class PlayerHistoryUiState(
  * @property instrument Chart.
  * @param read `FestivalApi.playerHistory`.
  * @param findSong Resolve the song from the current catalogue.
+ * @param currentSeason The current catalogue's season (inverts that season's pill), or null.
  * @param settings Effective settings (selected player).
  * @param backoff Shared scrape-freeze backoff.
  * @param zone Display time zone.
@@ -146,6 +157,7 @@ class PlayerHistoryViewModel(
     private val backoff: ServiceRetryBackoff,
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val locale: Locale = Locale.getDefault(),
+    private val currentSeason: suspend () -> Int? = { null },
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(PlayerHistoryUiState())
     private var entries: List<ScoreHistoryEntry> = emptyList()
@@ -173,6 +185,14 @@ class PlayerHistoryViewModel(
                 null
             }
             if (song != null) mutableState.value = mutableState.value.copy(songTitle = song.title, keyboard = song.usesKeyboardIcon)
+            val season = try {
+                currentSeason()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
+            if (season != null) mutableState.value = mutableState.value.copy(currentSeason = season)
         }
     }
 

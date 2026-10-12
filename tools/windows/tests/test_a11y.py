@@ -162,8 +162,22 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(m.MODES["light-theme"]["system"], {"light_theme": True})
         self.assertEqual(m.MODES["text-200"]["system"], {"text_scale": 200})
         self.assertEqual(m.MODES["scale-150"]["system"], {"display_scale": 150})
+        self.assertEqual(m.MODES["scrollbars-always"]["system"], {"always_show_scrollbars": True})
+        bars = {**previous, "always_show_scrollbars": False}
+        self.assertEqual(m.restore_values(bars, m.mode_spec("scrollbars-always+text-225")["system"]),
+                         {"always_show_scrollbars": False, "text_scale": 100})
         light = {**previous, "light_theme": False}
         self.assertEqual(m.restore_values(light, m.MODES["light-theme"]["system"]), {"light_theme": False})
+
+    def test_live_contrast_switch_is_restored(self):
+        # Issue #606 review: a page that switches the contrast theme mid-drive snapshots and restores it in any mode.
+        steps = ["resize:compact", "waitfor:id=x@5", "contrast:desert", "assertpaint:raw=y|L8,M0!=#162133"]
+        self.assertEqual(m.system_keys({}, steps), ["high_contrast"])
+        self.assertEqual(m.system_keys({"text_scale": 200}, steps), ["text_scale", "high_contrast"])
+        self.assertEqual(m.system_keys({"high_contrast": "dusk"}, steps), ["high_contrast"])
+        self.assertEqual(m.system_keys({"text_scale": 200}, steps[:2]), ["text_scale"])
+        previous = {"high_contrast": "off", "text_scale": 100}
+        self.assertEqual(m.restore_values(previous, m.system_keys({}, steps)), {"high_contrast": "off"})
 
     def test_launch_args_and_live_pages(self):
         page = {"name": "shop", "first_run": "on"}
@@ -179,6 +193,29 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual([p["name"] for p in m.live_pages(pages)], ["shop", "real"])
         scrolled = m.launch_args(None, {"name": "s", "args": ["--auto-scroll-span", "500"]}, Path("/s.json"))
         self.assertEqual(scrolled[-2:], ["--auto-scroll-span", "500"])
+        self.assertFalse(any(a.startswith("--perf-log") for a in scrolled))
+        traced = m.launch_args(None, {"name": "s"}, Path("/s.json"), Path("/state/perf.log"))
+        self.assertIn(f"--perf-log={Path('/state/perf.log')}", traced)
+
+    def test_fade_trace_follows_the_mode_motion_switch(self):
+        """#517: Reduce Motion and Animation effects off require motion=0; other modes leave it to the host."""
+        self.assertIsNone(m.mode_motion("normal"))
+        self.assertIsNone(m.mode_motion("text-225"))
+        self.assertFalse(m.mode_motion("app-reduced"))
+        self.assertFalse(m.mode_motion("no-animations"))
+        self.assertFalse(m.mode_motion("hc-desert+no-animations"))
+        page = {"name": "p", "fade_trace": {"JumpButton": ["show", "hide", "show"]}}
+        still = ["fade-show list=JumpButton played=0 motion=0 at=1", "fade-hide list=JumpButton armed=0 motion=0 at=2",
+                 "fade-show list=JumpButton played=0 motion=0 at=3"]
+        moving = [line.replace("=0 motion=0", "=1 motion=1") for line in still]
+        self.assertEqual([], m.fade_trace_problems(page, "app-reduced", still))
+        self.assertEqual([], m.fade_trace_problems(page, "normal", moving))
+        self.assertEqual([], m.fade_trace_problems(page, "normal", still))  # a host with Animation effects off
+        self.assertTrue(m.fade_trace_problems(page, "app-reduced", moving))
+        armed = [still[0], "fade-hide list=JumpButton armed=1 motion=0 at=2", still[2]]
+        self.assertIn("armed=1 with motion=0", "\n".join(m.fade_trace_problems(page, "app-reduced", armed)))
+        self.assertTrue(m.fade_trace_problems(page, "app-reduced", still[:2]))  # never shown again
+        self.assertEqual([], m.fade_trace_problems({"name": "q"}, "app-reduced", []))
 
     def test_mode_pages(self):
         pages = [{"name": "any"}, {"name": "normal-text", "skip_modes": ["text-200"]},
@@ -300,6 +337,27 @@ class MatrixTests(unittest.TestCase):
                 with self.subTest(page=page["name"], step=step):
                     u.parse_step(step.replace("{stem}", "out"))
 
+    def test_search_empty_state_pages(self):
+        """Issue #99 (#449): each scope's empty state is a centred level-2 title then subtitle, with no Retry, and All
+        hides an empty Players section when songs match."""
+        import json
+        pages = {p["name"]: p for p in json.loads((m.PAGES.parent / "a11y-search.json").read_text(encoding="utf-8"))}
+        for name, title in (("search-empty", "No results found"), ("search-empty-players", "No players found"),
+                            ("search-empty-songs", "No songs found")):
+            with self.subTest(page=name):
+                steps = pages[name]["after_ready"]
+                self.assertTrue(any(s.startswith("assertname:id=fst.global-search.empty.title") and s.endswith(f"|{title}")
+                                    for s in steps))
+                self.assertIn("assertstate:id=fst.global-search.empty.title|heading=2", steps)
+                self.assertIn("assertcentred:id=fst.global-search.empty|id=fst.global-search.empty.title"
+                              "|id=fst.global-search.empty.subtitle", steps)
+                self.assertTrue(any(s.startswith("assertorder:") and s.endswith(
+                    "|id=fst.global-search.empty.title|id=fst.global-search.empty.subtitle") for s in steps))
+                self.assertIn("waitgone:id=fst.global-search.retry", steps)
+        hidden = pages["search-all-hides-empty-players"]["after_ready"]
+        self.assertIn("waitgone:id=fst.global-search.section.players@5", hidden)
+        self.assertIn("waitgone:id=fst.global-search.empty.title", hidden)
+
     def test_titlebar_button_pages(self):
         """Issue #253: bell and avatar stay separate, named, reachable buttons at every window size."""
         import json
@@ -327,7 +385,8 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(set(pages), {"cols-song-board", "cols-song-board-narrow", "cols-song-board-season",
                                       "cols-song-board-large-text", "cols-full-rankings", "cols-song-board-focus-clear",
                                       "cols-band-rankings-focus-clear", "cols-song-band-board-focus-clear",
-                                      "cols-full-rankings-focus-clear", "cols-player-bands-focus-clear", "cols-player-bands-focus-clear-grid"})
+                                      "cols-full-rankings-focus-clear", "cols-player-bands-focus-clear", "cols-player-bands-focus-clear-grid",
+                                      "cols-song-board-contrast-switch"})
         for page in pages.values():
             for size in page.get("sizes", []):
                 self.assertIn(size, u.PRESETS, page["name"])

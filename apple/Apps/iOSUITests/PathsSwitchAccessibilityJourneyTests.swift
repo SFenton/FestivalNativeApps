@@ -191,7 +191,10 @@ final class PathsSwitchAccessibilityJourneyTests: XCTestCase {
 
         var issues: [String] = []
         var measured: [String] = []
-        try auditRetryingTimeout(app, run.auditTypes, reset: { issues.removeAll(); measured.removeAll() }) { issue in
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            app, run.auditTypes, name: "paths switch \(run.name) \(form.rawValue)",
+            reset: { issues.removeAll(); measured.removeAll() }
+        ) { issue in
             let node = issue.element
             let line = "\(node?.identifier ?? "nil") '\(node?.label ?? "")' \(String(describing: node?.frame)): "
                 + issue.compactDescription
@@ -345,72 +348,22 @@ final class PathsSwitchAccessibilityJourneyTests: XCTestCase {
 
     // MARK: - App helpers
 
-    /// Filter Songs to `fixture-pulse` (the large catalogue lists it under F), open it, then
-    /// its Paths sheet from the page tools (the tab-bar accessory), dismissing the Karaoke
-    /// notice.
+    /// Open `fixture-pulse`'s Paths sheet (``PathsUITestSupport/openPaths(in:)``).
     @MainActor
     private func openPaths(in app: XCUIApplication) {
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
-        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(20)), "No Songs rows")
-        let field = SongsUITestSupport.songsSearchField(in: app)
-        XCTAssertTrue(field.waitForExistence(timeout: FestivalApp.budget(5)), "No Filter Songs field")
-        let song = app.buttons["fst.songs.row.fixture-pulse"]
-        // The live filter can drop a keystroke while it re-renders, so retype once.
-        for _ in 0..<2 where !song.exists {
-            field.tap()
-            if let typed = field.value as? String, !typed.isEmpty, typed != field.placeholderValue {
-                field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: typed.count))
-            }
-            field.typeText("Pulse")
-            _ = song.waitForExistence(timeout: FestivalApp.budget(5))
-        }
-        XCTAssertTrue(song.exists, "No fixture-pulse row")
-        for _ in 0..<20 where !song.isHittable {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        }
-        song.tap()
-        let open = app.buttons["fst.song-detail.paths"]
-        XCTAssertTrue(open.waitForExistence(timeout: FestivalApp.budget(20)), "No Paths button")
-        open.tap()
-        let warning = app.alerts["Some Instruments Unavailable"]
-        if warning.waitForExistence(timeout: FestivalApp.budget(3)) { warning.buttons["OK"].tap() }
-        XCTAssertTrue(element("fst.paths.display", in: app).waitForExistence(timeout: FestivalApp.budget(10)),
-                      "No Paths sheet")
+        PathsUITestSupport.openPaths(in: app)
     }
 
     /// The first element with an identifier, of any type.
     @MainActor
     private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        PathsUITestSupport.element(identifier, in: app)
     }
 
     /// Open a menu picker and pick an option.
     @MainActor
     private func choose(_ option: String, in menu: XCUIElement, app: XCUIApplication) {
-        XCTAssertTrue(menu.waitForExistence(timeout: FestivalApp.budget(10)))
-        menu.tap()
-        let item = app.buttons.matching(
-            NSPredicate(format: "label == %@ AND identifier != %@", option, menu.identifier)
-        ).firstMatch
-        XCTAssertTrue(item.waitForExistence(timeout: FestivalApp.budget(5)), "Menu option \(option) missing")
-        item.tap()
-        XCTAssertTrue(item.waitForNonExistence(timeout: FestivalApp.budget(5)), "Menu \(option) did not close")
-    }
-
-    /// Audit, retrying once when XCTest's own audit deadline passes on a slow runner
-    /// (precedent `SongsChromeJourneyTests.performAuditRetryingTimeout`).
-    @MainActor
-    private func auditRetryingTimeout(
-        _ app: XCUIApplication, _ types: XCUIAccessibilityAuditType, reset: () -> Void,
-        _ handler: @escaping (XCUIAccessibilityAuditIssue) throws -> Bool
-    ) throws {
-        do {
-            try app.performAccessibilityAudit(for: types, handler)
-        } catch let error as NSError
-            where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56 {
-            reset()
-            try app.performAccessibilityAudit(for: types, handler)
-        }
+        PathsUITestSupport.choose(option, in: menu, app: app)
     }
 
     /// Attach a screenshot.

@@ -85,12 +85,20 @@ public sealed partial class SuggestionsPage : Page
     #endregion
 
     #region Filter
-    /// <summary>Starts a draft from the applied filter.</summary>
+    /// <summary>Starts a draft from the applied filter and fits the flyout to the window.</summary>
     /// <param name="sender">Flyout.</param>
     /// <param name="e">Unused.</param>
     private void OnFilterOpening(object sender, object e)
     {
         ViewModel.FilterDraft.Begin();
+        // Fit the window like the Songs and Item Shop filters: the pinned Reset footer must stay on screen below the button
+        // at every size and text scale (compact 500 × 800 at 225% text pushed it off the window; issue #513).
+        if (XamlRoot is { } root)
+        {
+            var below = root.Size.Height - FilterButton.TransformToVisual(null).TransformPoint(new(0, FilterButton.ActualHeight)).Y;
+            FilterForm.MaxHeight = Math.Clamp(below - 24, 240, 640);
+            FilterForm.Width = Math.Clamp(root.Size.Width - 32, 280, 400);
+        }
         SyncInstrumentPicker();
     }
 

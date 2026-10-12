@@ -84,6 +84,7 @@ final class FeedbackMediaJourneyTests: XCTestCase {
         XCTAssertTrue(attachment(1, in: app).waitForExistence(timeout: 15), "Ticking a photo did not attach it")
         tapCentre(of: photos.element(boundBy: 1))
         XCTAssertTrue(attachment(2, in: app).waitForExistence(timeout: 15), "Ticking a second photo did not attach it")
+        assertStripControlsAccessible(count: 2, in: app)
 
         // Removing the first attachment unticks its photo; the other one moves up.
         let remove = app.buttons["fst.settings.feedback.attachment.1.remove"]
@@ -201,6 +202,38 @@ final class FeedbackMediaJourneyTests: XCTestCase {
     @MainActor
     private func attachment(_ position: Int, in app: XCUIApplication) -> XCUIElement {
         app.buttons["fst.settings.feedback.attachment.\(position)"]
+    }
+
+    /// The attachment strip on iOS/iPadOS (#486, `scroll-indicators` R3: its indicator is
+    /// hidden): each thumbnail is a named button followed by its named remove button, and
+    /// every target is at least 44 pt and wholly inside the strip, which clips (the remove
+    /// targets once started 6 pt above it). The hosted
+    /// `FeedbackAttachmentStripAccessibilityTests` cover order, state and activation.
+    ///
+    /// - Parameters:
+    ///   - count: Attachments shown.
+    ///   - app: The app with the form open.
+    @MainActor
+    private func assertStripControlsAccessible(count: Int, in app: XCUIApplication) {
+        let strip = app.scrollViews["fst.settings.feedback.attachments"]
+        XCTAssertTrue(strip.waitForExistence(timeout: 5), "The attachment strip is not a scroll view")
+        let bounds = strip.frame
+        for position in 1...count {
+            let open = attachment(position, in: app)
+            let remove = app.buttons["fst.settings.feedback.attachment.\(position).remove"]
+            XCTAssertTrue(remove.exists, "Attachment \(position) has no remove button")
+            XCTAssertTrue(open.label.hasPrefix("Photo \(position), "), "Thumbnail label: \(open.label)")
+            XCTAssertTrue(remove.label.hasPrefix("Remove "), "Remove label: \(remove.label)")
+            XCTAssertTrue(remove.isHittable, "Remove \(position) is not hittable")
+            for (name, frame) in [("thumbnail", open.frame), ("remove", remove.frame)] {
+                // One pixel of tolerance: a fixed 44 pt control can land off the pixel grid.
+                XCTAssertGreaterThanOrEqual(min(frame.width, frame.height), 43.5, "\(name) \(position) \(frame)")
+                XCTAssertGreaterThanOrEqual(frame.minY, bounds.minY - 0.5,
+                                            "\(name) \(position) \(frame) is clipped by the strip \(bounds)")
+                XCTAssertLessThanOrEqual(frame.maxY, bounds.maxY + 0.5,
+                                         "\(name) \(position) \(frame) is clipped by the strip \(bounds)")
+            }
+        }
     }
 
     /// Tap the centre of an element XCUITest reports as not hittable.

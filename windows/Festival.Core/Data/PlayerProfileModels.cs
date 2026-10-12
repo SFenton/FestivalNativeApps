@@ -74,6 +74,12 @@ public sealed record PlayerScore
     [JsonPropertyName("validAccuracy")] public double? RawValidAccuracy { get; init; }
     /// <summary>Fallback valid full-combo flag.</summary>
     [JsonPropertyName("validIsFullCombo")] public bool? ValidIsFullCombo { get; init; }
+    /// <summary>Fallback valid rank.</summary>
+    [JsonPropertyName("validRank")] public int? ValidRank { get; init; }
+    /// <summary>Fallback valid stars, 0–6.</summary>
+    [JsonPropertyName("validStars")] public int? ValidStars { get; init; }
+    /// <summary>Chart population counting only valid scores.</summary>
+    [JsonPropertyName("validTotalEntries")] public int? ValidTotalEntries { get; init; }
     /// <summary>Minimum leeway at which the current score is valid.</summary>
     [JsonPropertyName("ml")] public double? MinLeeway { get; init; }
     /// <summary>Historical valid variants.</summary>
@@ -103,7 +109,8 @@ public sealed record PlayerScore
         SongId is { Length: > 0 and <= 200 } && !ProfileText.ContainsUnsafeCharacter(SongId) &&
         PlayerInstrumentCode.TryParse(InstrumentCode, out _) && Score >= 0 &&
         Rank is null or >= 0 && TotalEntries is null or >= 0 && Stars is null or (>= 0 and <= 6) && Season is null or >= 0 &&
-        ValidScore is null or >= 0 && InRange(Accuracy) && InRange(ValidAccuracy) &&
+        ValidScore is null or >= 0 && ValidRank is null or >= 0 && ValidStars is null or (>= 0 and <= 6) &&
+        ValidTotalEntries is null or >= 0 && InRange(Accuracy) && InRange(ValidAccuracy) &&
         (Difficulty is null || (double.IsFinite(Difficulty.Value) && Difficulty >= 0)) &&
         (MinLeeway is null || double.IsFinite(MinLeeway.Value)) &&
         (Percentile is null || (double.IsFinite(Percentile.Value) && Percentile is >= 0 and <= 100)) &&

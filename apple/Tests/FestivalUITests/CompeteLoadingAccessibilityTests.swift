@@ -14,20 +14,23 @@ import Testing
 // Voice Control and Dynamic Type on iPhone, iPad, iPhone Duo and Mac, since `CompeteScreen`
 // is the same SwiftUI on each: while any leaderboard read runs, the page is one named
 // busy indicator, with no section heading, instrument header, card, per-card spinner or
-// unnamed element behind it; once every read settles the spinner leaves the tree and the
+// unnamed element behind it, and it stays while only the rivals reads run (#485 backfill
+// for #354); once every read settles the spinner leaves the tree and the
 // sections read in visual order (Leaderboards heading, each board's heading (the Lead +
 // Bass combo, #602, then each instrument), its rows and its 44 pt View Full Leaderboard
 // button, then the Rivals heading); when every
-// leaderboard fails, the spinner gives way to a heading and a named 44 pt Retry. Reduce
-// Motion (system or in-app) and the largest accessibility text size change none of it.
+// leaderboard fails, the spinner gives way to a heading and a named 44 pt Retry. The
+// entrance stagger with motion on, Reduce Motion (system or in-app) and the largest
+// accessibility text size change none of it.
 // macOS keeps the font size, so the AX5 cases pin the tree only; the iPhone XCUITest
 // `CompeteAccessibilityJourneyTests` proves real AX5 glyph growth, whole text and reach.
 // The generic gate sequence is pinned by `ReloadGateAccessibilityTests`.
 
 // MARK: - Fixture
 
-/// Holds Compete's leaderboard reads until released, or fails them, forwarding every
-/// other read to the loopback fixture (`tools/mock_service.py`).
+/// Holds Compete's leaderboard reads until released, or fails them, and can hold its
+/// rivals reads, forwarding every other read to the loopback fixture
+/// (`tools/mock_service.py`).
 actor HeldCompeteRankingsTransport: HTTPTransport {
     /// What a leaderboard read does.
     enum Mode: Sendable {
@@ -41,10 +44,19 @@ actor HeldCompeteRankingsTransport: HTTPTransport {
 
     private let inner = URLSessionHTTPTransport()
     private var mode: Mode
+    /// Whether a rivals read (`/api/player/{id}/rivals/…`) waits.
+    private var rivalsHeld: Bool
+    /// The leaderboard reads answered so far.
+    private(set) var rankingsAnswered = 0
+    /// The rivals reads waiting now.
+    private(set) var rivalsWaiting = 0
 
-    /// - Parameter mode: What leaderboard reads do until ``set(_:)`` changes it.
-    init(_ mode: Mode) {
+    /// - Parameters:
+    ///   - mode: What leaderboard reads do until ``set(_:)`` changes it.
+    ///   - holdRivals: Whether rivals reads wait until ``holdRivals(_:)`` releases them.
+    init(_ mode: Mode, holdRivals: Bool = false) {
         self.mode = mode
+        rivalsHeld = holdRivals
     }
 
     /// Change what held and later leaderboard reads do.
@@ -52,12 +64,61 @@ actor HeldCompeteRankingsTransport: HTTPTransport {
         self.mode = mode
     }
 
+    /// Hold (or release) held and later rivals reads.
+    ///
+    /// - Parameter held: Whether a rivals read waits.
+    func holdRivals(_ held: Bool) {
+        rivalsHeld = held
+    }
+
     func send(_ request: URLRequest) async throws -> HTTPResult {
-        guard request.url?.path.hasPrefix("/api/rankings/") == true else { return try await inner.send(request) }
+        let path = request.url?.path ?? ""
+        if path.hasPrefix("/api/player/") && path.contains("/rivals/") {
+            rivalsWaiting += 1
+            defer { rivalsWaiting -= 1 }
+            while rivalsHeld { try await Task.sleep(for: .milliseconds(20)) }
+            return try await inner.send(request)
+        }
+        guard path.hasPrefix("/api/rankings/") else { return try await inner.send(request) }
         while mode == .hold { try await Task.sleep(for: .milliseconds(20)) }
+        defer { rankingsAnswered += 1 }
         if mode == .fail { return HTTPResult(status: 503, data: Data(#"{"error":"unavailable"}"#.utf8)) }
         return try await inner.send(request)
     }
+}
+
+/// The elements VoiceOver reaches in `host` through `accessibilityChildren` alone, in its
+/// navigation order, with their frames in the host's top-left points. Unlike
+/// `macAccessibilityTree`, it skips the unexposed `NSProgressIndicator` backing a SwiftUI
+/// `ProgressView`.
+///
+/// - Parameter host: The hosting view, after one layout pass here.
+/// - Returns: Each element and its frame (nil when it has none).
+@MainActor
+func nativeHostedReachableElements(_ host: NSView) -> [(node: MacAXNode, frame: CGRect?)] {
+    host.layoutSubtreeIfNeeded()
+    var found: [(node: MacAXNode, frame: CGRect?)] = []
+    var seen = Set<ObjectIdentifier>()
+    func walk(_ node: Any, depth: Int) {
+        guard depth < 90, let object = node as? NSObject,
+              seen.insert(ObjectIdentifier(object)).inserted else { return }
+        func read(_ key: String) -> String { nativeHostedAccessibilityString(object, key) }
+        let isElement = object.responds(to: NSSelectorFromString("isAccessibilityElement"))
+            && (object.value(forKey: "isAccessibilityElement") as? Bool) == true
+        if isElement {
+            found.append((MacAXNode(
+                depth: depth, role: read("accessibilityRole"), subrole: read("accessibilitySubrole"),
+                label: read("accessibilityLabel"), title: read("accessibilityTitle"),
+                value: read("accessibilityValue"), identifier: read("accessibilityIdentifier"),
+                selected: false, help: "", isElement: true
+            ), nativeHostedAccessibilityFrame(of: object, in: host)))
+        }
+        let children = object.responds(to: NSSelectorFromString("accessibilityChildren"))
+            ? object.value(forKey: "accessibilityChildren") as? [Any] : nil
+        for child in children ?? [] { walk(child, depth: depth + 1) }
+    }
+    walk(host, depth: 0)
+    return found
 }
 
 /// Accessibility of Compete's loading state (#35) and what replaces it.
@@ -93,6 +154,9 @@ struct CompeteLoadingAccessibilityTests {
     enum Motion: String, CaseIterable, CustomTestStringConvertible {
         /// Fades off (the hosted default): every step is instant.
         case instant
+        /// Fades on, motion allowed: the spinner fades out and the sections rise in on
+        /// the page's reading-order stagger (#354).
+        case fades
         /// Fades on, system Reduce Motion.
         case systemReduceMotion
         /// Fades on, the app's own Reduce Motion setting.
@@ -131,29 +195,7 @@ struct CompeteLoadingAccessibilityTests {
 
         /// ``reachable()`` with each element's frame.
         func framedReachable() -> [(node: MacAXNode, frame: CGRect?)] {
-            host.layoutSubtreeIfNeeded()
-            var found: [(node: MacAXNode, frame: CGRect?)] = []
-            var seen = Set<ObjectIdentifier>()
-            func walk(_ node: Any, depth: Int) {
-                guard depth < 90, let object = node as? NSObject,
-                      seen.insert(ObjectIdentifier(object)).inserted else { return }
-                func read(_ key: String) -> String { nativeHostedAccessibilityString(object, key) }
-                let isElement = object.responds(to: NSSelectorFromString("isAccessibilityElement"))
-                    && (object.value(forKey: "isAccessibilityElement") as? Bool) == true
-                if isElement {
-                    found.append((MacAXNode(
-                        depth: depth, role: read("accessibilityRole"), subrole: read("accessibilitySubrole"),
-                        label: read("accessibilityLabel"), title: read("accessibilityTitle"),
-                        value: read("accessibilityValue"), identifier: read("accessibilityIdentifier"),
-                        selected: false, help: "", isElement: true
-                    ), nativeHostedAccessibilityFrame(of: object, in: host)))
-                }
-                let children = object.responds(to: NSSelectorFromString("accessibilityChildren"))
-                    ? object.value(forKey: "accessibilityChildren") as? [Any] : nil
-                for child in children ?? [] { walk(child, depth: depth + 1) }
-            }
-            walk(host, depth: 0)
-            return found
+            nativeHostedReachableElements(host)
         }
     }
 
@@ -166,12 +208,14 @@ struct CompeteLoadingAccessibilityTests {
     ///   - layout: An injected device layout (e.g. the iPhone Duo inner display), or nil
     ///     for the host's own.
     ///   - size: The window's size.
+    ///   - holdRivals: Whether the rivals reads wait until the transport releases them.
     /// - Returns: The host; the first load is still running.
     static func host(
         _ mode: HeldCompeteRankingsTransport.Mode = .hold, typeSize: DynamicTypeSize = .large,
-        motion: Motion = .instant, layout: DeviceLayout? = nil, size: CGSize = CGSize(width: 402, height: 1400)
+        motion: Motion = .instant, layout: DeviceLayout? = nil, size: CGSize = CGSize(width: 402, height: 1400),
+        holdRivals: Bool = false
     ) async throws -> Hosted {
-        let transport = HeldCompeteRankingsTransport(mode)
+        let transport = HeldCompeteRankingsTransport(mode, holdRivals: holdRivals)
         let baseURL = try await RivalsMockService.shared.baseURL()
         let client = try FestivalAPI(baseURL: baseURL, transport: transport)
         let suiteName = "fst.tests.compete-a11y.\(UUID().uuidString)"
@@ -231,6 +275,33 @@ struct CompeteLoadingAccessibilityTests {
         nodes.filter { $0.isElement && $0.role == "AXBusyIndicator" }
     }
 
+    /// How long the page's entrance runs after the spinner leaves: the whole capped
+    /// stagger plus a margin for the spinner's own fade-out.
+    static let entrance: Duration = .milliseconds(
+        Int(FestivalFadeIn.completionDelay(itemCount: FestivalFadeIn.maxStaggeredItems) * 1000) + 600
+    )
+
+    /// Wait until the spinner has left and the loaded page has every section, then
+    /// (with fades on) until its entrance stagger has ended.
+    static func settleLoaded(_ hosted: Hosted, motion: Motion, sourceLocation: SourceLocation = #_sourceLocation) async throws {
+        try await nativeHostedSettle(hosted.host, timeout: .seconds(30), sourceLocation: sourceLocation) {
+            let tree = macAccessibilityTree(hosted.host)
+            return !tree.contains { $0.identifier == Self.spinnerID }
+                && tree.contains { $0.spokenName == "View Full Leaderboard, Bass" }
+                && tree.contains { $0.spokenName == "Bass Rivals" }
+        }
+        if motion != .instant { try await Task.sleep(for: entrance) }
+    }
+
+    /// Expect the loaded page's headings in page order: Leaderboards, each board, then
+    /// Rivals and each board's rivals.
+    static func expectSectionHeadings(_ loaded: [MacAXNode], _ context: String, sourceLocation: SourceLocation = #_sourceLocation) {
+        let boards = boards.map(\.name)
+        #expect(loaded.filter { $0.role == "AXHeading" }.map(\.spokenName)
+            == ["Leaderboards"] + boards + ["Rivals"] + boards.map { "\($0) Rivals" },
+            "\(context): headings in page order:\n\(dump(loaded))", sourceLocation: sourceLocation)
+    }
+
     /// Wait until the page spinner is up, then long enough for the unheld rivals reads
     /// to settle behind it.
     static func settleOnSpinner(_ hosted: Hosted, sourceLocation: SourceLocation = #_sourceLocation) async throws {
@@ -279,7 +350,8 @@ struct CompeteLoadingAccessibilityTests {
     // MARK: First load
 
     /// The first load reads as one named spinner, at the standard and the largest
-    /// accessibility text size and with Reduce Motion from the system or the app. Once
+    /// accessibility text size, with fades and motion on (the #354 stagger) and with
+    /// Reduce Motion from the system or the app. Once
     /// every read settles the spinner leaves the tree, and the page reads in visual
     /// order: the Leaderboards heading; each board's heading (the combo, then each
     /// instrument), its rows top to bottom and its View Full Leaderboard button (a named
@@ -293,21 +365,14 @@ struct CompeteLoadingAccessibilityTests {
         try Self.expectOneNamedSpinner(hosted, "\(context), loading")
 
         await hosted.transport.set(.pass)
-        try await nativeHostedSettle(hosted.host, timeout: .seconds(30)) {
-            let tree = macAccessibilityTree(hosted.host)
-            return !tree.contains { $0.identifier == Self.spinnerID }
-                && tree.contains { $0.spokenName == "View Full Leaderboard, Bass" }
-                && tree.contains { $0.spokenName == "Bass Rivals" }
-        }
+        try await Self.settleLoaded(hosted, motion: motion)
         let reachable = hosted.reachable()
         let framed = Self.content(hosted.framedReachable())
         let loaded = framed.map(\.node)
         #expect(Self.busyIndicators(reachable).isEmpty, "\(context): the spinner leaves:\n\(Self.dump(loaded))")
         #expect(!loaded.contains { $0.spokenName.hasPrefix("Loading") }, "\(context):\n\(Self.dump(loaded))")
         let boards = Self.boards.map(\.name)
-        #expect(loaded.filter { $0.role == "AXHeading" }.map(\.spokenName)
-            == ["Leaderboards"] + boards + ["Rivals"] + boards.map { "\($0) Rivals" },
-            "\(context): headings in page order:\n\(Self.dump(loaded))")
+        Self.expectSectionHeadings(loaded, context)
         for (index, board) in Self.boards.enumerated() {
             let instrument = board.name
             let heading = try #require(loaded.firstIndex { $0.role == "AXHeading" && $0.spokenName == instrument })
@@ -325,6 +390,45 @@ struct CompeteLoadingAccessibilityTests {
                     "\(context): \(instrument)'s rows read top to bottom: \(tops)")
             Self.expectTarget(hosted, "fst.compete.leaderboard-card.\(board.id).view-all", context)
         }
+        #expect(loaded.allSatisfy { !$0.spokenName.isEmpty }, "\(context): nothing unnamed:\n\(Self.dump(loaded))")
+        #expect(macAccessibilityFindings(hosted.tree()).isEmpty, "\(context)")
+    }
+
+    // MARK: Rivals still loading
+
+    /// The page waits for its rivals reads as well as its leaderboards (#354; web
+    /// `leaderboardReady && rivalsReady`): with every leaderboard answered and the rivals
+    /// still running, VoiceOver still meets only the one named spinner, never the
+    /// Leaderboards section with a spinner in each Rivals card. Once the rivals answer,
+    /// the spinner leaves and the page reads its sections in order with no "Loading"
+    /// element, at the standard and the largest accessibility text size.
+    @Test(arguments: [DynamicTypeSize.large, .accessibility5])
+    func pendingRivalsKeepTheOneNamedSpinner(_ typeSize: DynamicTypeSize) async throws {
+        let context = "\(typeSize), rivals pending"
+        let hosted = try await Self.host(.pass, typeSize: typeSize, holdRivals: true)
+        defer { hosted.close() }
+        try await nativeHostedSettle(hosted.host, timeout: .seconds(30)) {
+            macAccessibilityTree(hosted.host).contains { $0.identifier == Self.spinnerID }
+        }
+        let deadline = ContinuousClock.now + .seconds(30)
+        while true {
+            let answered = await hosted.transport.rankingsAnswered
+            let waiting = await hosted.transport.rivalsWaiting
+            if answered >= Self.boards.count && waiting >= Self.boards.count { break }
+            try #require(ContinuousClock.now < deadline, "\(context): every leaderboard answers, every rivals read waits")
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        // Let the answered leaderboards reach the page behind the spinner.
+        try await Task.sleep(for: .milliseconds(500))
+        try Self.expectOneNamedSpinner(hosted, context)
+
+        await hosted.transport.holdRivals(false)
+        try await Self.settleLoaded(hosted, motion: .instant)
+        let reachable = hosted.reachable()
+        let loaded = Self.content(hosted)
+        #expect(Self.busyIndicators(reachable).isEmpty, "\(context): the spinner leaves:\n\(Self.dump(loaded))")
+        #expect(!loaded.contains { $0.spokenName.hasPrefix("Loading") }, "\(context):\n\(Self.dump(loaded))")
+        Self.expectSectionHeadings(loaded, context)
         #expect(loaded.allSatisfy { !$0.spokenName.isEmpty }, "\(context): nothing unnamed:\n\(Self.dump(loaded))")
         #expect(macAccessibilityFindings(hosted.tree()).isEmpty, "\(context)")
     }

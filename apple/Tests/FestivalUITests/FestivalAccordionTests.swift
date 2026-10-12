@@ -304,14 +304,16 @@ private final class AccordionPressCounter {
     var count = 0
 }
 
-/// Click (mouse down and up) at a point of a hosted view.
+/// Click (mouse down and up) at a point of a hosted view; the window must be ordered in
+/// (`orderFrontRegardless()`), as AppKit delivers clicks only to one. Shared with
+/// `PublicationRefreshAccessibilityTests`.
 ///
 /// - Parameters:
 ///   - point: Host top-left points.
 ///   - host: The hosting view.
 ///   - window: Its window.
 @MainActor
-private func nativeHostedClick(_ point: CGPoint, in host: NSView, window: NSWindow) {
+func nativeHostedClick(_ point: CGPoint, in host: NSView, window: NSWindow) {
     let location = host.convert(host.isFlipped ? point : CGPoint(x: point.x, y: host.bounds.height - point.y), to: nil)
     for type in [NSEvent.EventType.leftMouseDown, .leftMouseUp] {
         if let event = NSEvent.mouseEvent(
