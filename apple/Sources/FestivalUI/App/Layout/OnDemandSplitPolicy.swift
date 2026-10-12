@@ -338,7 +338,8 @@ enum OnDemandSplitPolicy {
     ///
     /// - Parameters:
     ///   - geometry: The open split's geometry.
-    ///   - increasedContrast: Whether the system's Increase Contrast setting is on.
+    ///   - increasedContrast: Whether the system's or the app's Increase Contrast
+    ///     setting is on (#480).
     /// - Returns: True to draw the hairline at the band's centre.
     static func drawsDividerLine(_ geometry: Geometry, increasedContrast: Bool) -> Bool {
         increasedContrast && !geometry.isHinge
