@@ -297,9 +297,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         {
             if (!process.HasExited) process.Kill(entireProcessTree: true);
         }
-        catch (InvalidOperationException)
+        catch (Exception error) when (error is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
-            // It exited on its own.
+            // It exited on its own, or can't be ended; the launch error is what the caller needs.
         }
     }
 
