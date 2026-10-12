@@ -154,6 +154,10 @@ jobs:
             RivalsAccessibilityJourneyTests/testRivalRowsAreReadableAtAX5
             MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleAtDefaultSizeAndAX5
             MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleWithReduceTransparencyAtAX5
+            QuickLinksIconAccessibilityJourneyTests/testSheetInstrumentIconMatchesSymbolRow
+            QuickLinksIconAccessibilityJourneyTests/testSheetInstrumentIconMatchesSymbolRowAtAX5
+            QuickLinksIconAccessibilityJourneyTests/testDuoMenuInstrumentIconMatchesSymbolRow
+            QuickLinksIconAccessibilityJourneyTests/testDuoMenuInstrumentIconMatchesSymbolRowAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5DuoFolded
             SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderIsAccessibleAtStandardSize
@@ -246,6 +250,8 @@ jobs:
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
             PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButton
             SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestText
+            QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRow
+            QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRowAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5
         run: |
           python3 tools/ios_sim.py shutdown --device "$(python3 tools/ios_sim.py ci-device)"
