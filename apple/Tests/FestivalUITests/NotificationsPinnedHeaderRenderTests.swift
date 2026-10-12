@@ -116,7 +116,7 @@ func forgetScrollingAccount(_ accountId: String) {
 
 /// The List's own scroll view: the deepest scroll view whose document is a table.
 @MainActor
-private func listScrollView(in view: NSView) -> NSScrollView? {
+func listScrollView(in view: NSView) -> NSScrollView? {
     for subview in view.subviews {
         if let found = listScrollView(in: subview) { return found }
     }

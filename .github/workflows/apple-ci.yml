@@ -146,6 +146,12 @@ jobs:
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchReadsOneSpinnerBeforeTheSelectors
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchUnderReduceMotion
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchAtAX5
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGestures
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesAtAX5
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoFolded
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoUnfolded
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoFoldedAtAX5
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoUnfoldedAtAX5
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterField
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldDuoFolded
@@ -156,12 +162,16 @@ jobs:
             RivalsAccessibilityJourneyTests/testRivalRowsAreReadableAtAX5
             MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleAtDefaultSizeAndAX5
             MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleWithReduceTransparencyAtAX5
+            PagerCardContrastJourneyTests/testPagerCardKeepsContrastOnTheMaterial
+            PagerCardContrastJourneyTests/testPagerCardKeepsContrastOpaqueAndIncreasedContrast
             QuickLinksIconAccessibilityJourneyTests/testSheetInstrumentIconMatchesSymbolRow
             QuickLinksIconAccessibilityJourneyTests/testSheetInstrumentIconMatchesSymbolRowAtAX5
             QuickLinksIconAccessibilityJourneyTests/testDuoMenuInstrumentIconMatchesSymbolRow
             QuickLinksIconAccessibilityJourneyTests/testDuoMenuInstrumentIconMatchesSymbolRowAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5DuoFolded
+            NotificationsAccessibilityJourneyTests/testRowsUnderThePinnedTitleKeepTheirAccessibility
+            NotificationsAccessibilityJourneyTests/testRowsUnderThePinnedTitleKeepTheirAccessibilityAtAX5
             SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderIsAccessibleAtStandardSize
             SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderGrowsAtAX5
         run: |
@@ -248,6 +258,8 @@ jobs:
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGestures
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesAtAX5
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterField
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
             PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButton

@@ -2046,9 +2046,11 @@ private struct ScrollAwayAuditPage {
     }
 }
 
-/// One Songs row's accessibility as XCUITest reads it, for comparing the row clear of
-/// the pinned section bar's fade with the same row under it (issue #553).
-private struct PinnedRowProbe {
+/// One list row's accessibility as XCUITest reads it, for comparing the row clear of
+/// a pinned title's fade with the same row under it: Songs' section bar (issue #553) and
+/// the Notifications sheet's pinned "New" title (`NotificationsAccessibilityJourneyTests`,
+/// #469).
+struct PinnedRowProbe {
     /// The pinned title's full fade depth (`ScrollEdgeFade.topDistance`).
     static let fade: CGFloat = 40
 
@@ -2115,8 +2117,9 @@ private struct PinnedRowProbe {
         let isRowSized = { (element: XCUIElementSnapshot) in
             element.frame.width >= node.frame.width / 2 && element.frame.height >= node.frame.height / 2
         }
+        // Sizes to 0.1 pt: a 130⅔ pt row reads as …63 or …69 from one snapshot to the next.
         containers = overlapping.map { flat[$0] }.filter { isStructural($0) && isRowSized($0) }.map {
-            "\($0.elementType.rawValue) \($0.frame.size)"
+            "\($0.elementType.rawValue) " + String(format: "%.1f × %.1f", $0.frame.width, $0.frame.height)
         }
     }
 }
