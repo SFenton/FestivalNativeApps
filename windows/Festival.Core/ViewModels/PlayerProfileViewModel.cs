@@ -37,6 +37,7 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
     private CancellationTokenSource? load;
     private string? lastSelectedAccount;
     private IReadOnlyList<Instrument> lastVisible;
+    private (bool Filter, double Leeway) lastFilter;
 
     /// <summary>Creates the page model.</summary>
     /// <param name="session">Shared session.</param>
@@ -329,9 +330,72 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
             return;
         }
         var visible = session.Settings.VisibleInstruments;
-        var stats = PlayerStatistics.Overall(profile, visible);
+        var effective = EffectiveScores(profile);
         var catalogSize = session.Catalog?.Songs.Count ?? 0;
-        Overview =
+        Overview = BuildOverview(effective, visible, catalogSize);
+        Instruments = [.. visible.Select(i => new PlayerInstrumentViewModel(session, AccountId, effective, i, catalogSize))];
+        if (Bands?.AccountId != AccountId)
+        {
+            Bands?.Cancel();
+            Bands = new PlayerProfileBandsViewModel(session, AccountId, DisplayName);
+            _ = Bands.LoadAsync();
+        }
+        RefreshLinks();
+    }
+
+    /// <summary>
+    /// Recomputes every score-derived card in place after Filter Invalid Scores, the leeway or the catalogue changed
+    /// (#619): sections keep their identity and their rank and rank-history reads; nothing is re-read.
+    /// </summary>
+    private void Restat()
+    {
+        if (State != LoadState.Loaded || Payload?.Profile is not { } profile) return;
+        var effective = EffectiveScores(profile);
+        var catalogSize = session.Catalog?.Songs.Count ?? 0;
+        Overview = BuildOverview(effective, session.Settings.VisibleInstruments, catalogSize);
+        foreach (var section in Instruments) section.ApplyScores(effective, catalogSize);
+        RefreshLinks();
+    }
+
+    /// <summary>The scores the cards aggregate: raw, or filtered at the leeway for any viewed player (web <c>effectiveScores</c>).</summary>
+    /// <param name="profile">Validated profile.</param>
+    /// <returns>Effective profile.</returns>
+    private PlayerProfileResponse EffectiveScores(PlayerProfileResponse profile)
+    {
+        lastFilter = FilterKey;
+        if (session.Settings.FilterInvalidScores && session.Catalog is null) _ = LoadCatalogForFilterAsync();
+        return PlayerStatistics.Effective(profile, session.Catalog?.Songs, session.Settings.FilterInvalidScores, session.Settings.Leeway);
+    }
+
+    /// <summary>
+    /// Best-effort catalogue read for the CHOpt maxima and population curves the filter needs; its arrival raises
+    /// <see cref="FestivalSession.Catalog"/>, which re-aggregates in place. A failure keeps the catalogue-free result.
+    /// </summary>
+    /// <returns>Read task.</returns>
+    private async Task LoadCatalogForFilterAsync()
+    {
+        try
+        {
+            await session.LoadCatalogAsync();
+        }
+        catch (Exception ex) when (ex is FestivalApiException or OperationCanceledException)
+        {
+            // Songs reports catalogue failures; the profile keeps the maxima-free filter (legacy scores kept).
+        }
+    }
+
+    /// <summary>What the effective scores depend on in Settings: the filter's state and its leeway.</summary>
+    private (bool Filter, double Leeway) FilterKey => (session.Settings.FilterInvalidScores, session.Settings.Leeway);
+
+    /// <summary>Overview tiles (web <c>buildOverallSummaryItems</c>).</summary>
+    /// <param name="profile">Effective profile.</param>
+    /// <param name="visible">Settings-visible charts.</param>
+    /// <param name="catalogSize">Catalogue song count, 0 when unknown.</param>
+    /// <returns>Tiles.</returns>
+    private static List<PlayerStatTile> BuildOverview(PlayerProfileResponse profile, IReadOnlyList<Instrument> visible, int catalogSize)
+    {
+        var stats = PlayerStatistics.Overall(profile, visible);
+        return
         [
             new("songs-played", "Songs Played", stats.SongsPlayed.ToString("N0", CultureInfo.CurrentCulture),
                 catalogSize > 0 && stats.SongsPlayed >= catalogSize ? PlayerStatTint.Green : PlayerStatTint.Default,
@@ -344,14 +408,6 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
             new("best-rank", "Best Rank", stats.BestRankText,
                 link: stats.BestRankSongId is { } song && stats.BestRankInstrument is { } chart ? new PlayerStatLink.SongDetail(song, chart) : null),
         ];
-        Instruments = [.. visible.Select(i => new PlayerInstrumentViewModel(session, AccountId, profile, i, catalogSize))];
-        if (Bands?.AccountId != AccountId)
-        {
-            Bands?.Cancel();
-            Bands = new PlayerProfileBandsViewModel(session, AccountId, DisplayName);
-            _ = Bands.LoadAsync();
-        }
-        RefreshLinks();
     }
 
     /// <summary>Enables or pauses Songs links for the current identity state (plain tiles while selection is paused).</summary>
@@ -433,6 +489,15 @@ public sealed partial class PlayerProfileViewModel : ObservableObject, IDisposab
                     lastVisible = session.Settings.VisibleInstruments;
                     if (State == LoadState.Loaded) Build(Payload?.Profile);
                 }
+                else if (FilterKey != lastFilter)
+                {
+                    // Filter Invalid Scores or its leeway: re-aggregate in place (web PlayerContent effectiveScores).
+                    Restat();
+                }
+                break;
+            case nameof(FestivalSession.Catalog):
+                // CHOpt maxima and population curves feed the filtered stats; the size feeds the green Songs Played.
+                Restat();
                 break;
             case nameof(FestivalSession.SelectedProfileStatus) or nameof(FestivalSession.SelectedProfile):
                 if (IsSelected && load is { IsCancellationRequested: false }) ApplyFromSession();
@@ -597,6 +662,8 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
     private CancellationTokenSource? rankLoad;
     private CancellationTokenSource? historyLoad;
     private bool started;
+    private bool realized;
+    private bool songsLinksEnabled = true;
 
     /// <summary>Creates a section and computes its client-side statistics.</summary>
     /// <param name="session">Shared session.</param>
@@ -609,6 +676,28 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
         this.session = session;
         this.accountId = accountId;
         Instrument = instrument;
+        // Global rank tiles hold their final place from the first frame (placeholders until the read lands) and keep
+        // their identity across ApplyScores, so a filter change never re-reads them.
+        RankTiles =
+        [
+            new("global-rank", "Global Rank", "—", link: new PlayerStatLink.FullRankings(instrument)) { IsPending = true, LinkEnabled = false },
+            new("total-score", "Total Score", "—") { IsPending = true },
+            new("percentile", "Percentile", "—") { IsPending = true },
+        ];
+        foreach (var tile in RankTiles) tile.Scope = instrument.ServiceId();
+        ApplyScores(profile, catalogSize);
+    }
+
+    /// <summary>
+    /// Recomputes the chart's stat cards and percentile rows from a profile's (effective) scores in place (#619: Filter
+    /// Invalid Scores and the leeway re-aggregate without a reload). Starts the rank reads when the chart gains scores
+    /// after it was realized.
+    /// </summary>
+    /// <param name="profile">Effective profile.</param>
+    /// <param name="catalogSize">Catalogue song count (green Songs Played when complete), 0 when unknown.</param>
+    internal void ApplyScores(PlayerProfileResponse profile, int catalogSize)
+    {
+        var instrument = Instrument;
         var stats = PlayerStatistics.ForInstrument(profile, instrument);
         HasScores = stats.SongsPlayed > 0;
         static string N(int n) => n.ToString("N0", CultureInfo.CurrentCulture);
@@ -632,26 +721,22 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
         tiles.Add(new("avg-stars", "Avg Stars", stats.AverageStarsText, goldStars: stats.AverageStarsGold));
         tiles.Add(new("best-rank", "Best Rank", stats.BestRankText,
             link: stats.BestRankSongId is { } song ? new PlayerStatLink.SongDetail(song, instrument) : null));
-        // Global rank tiles hold their final place from the first frame (placeholders until the read lands).
-        RankTiles =
-        [
-            new("global-rank", "Global Rank", "—", link: new PlayerStatLink.FullRankings(instrument)) { IsPending = true, LinkEnabled = false },
-            new("total-score", "Total Score", "—") { IsPending = true },
-            new("percentile", "Percentile", "—") { IsPending = true },
-        ];
+        foreach (var tile in tiles) tile.Scope = instrument.ServiceId();
         if (HasScores) tiles.AddRange(RankTiles);
-        foreach (var tile in tiles.Concat(RankTiles)) tile.Scope = instrument.ServiceId();
         Stats = tiles;
         Percentiles = [.. PlayerStatistics.PercentileBuckets(profile, instrument).Select(b => new PlayerPercentileRow(b, instrument)
         {
             Link = new PlayerStatLink.Songs(new SongsStatPreset(instrument, null, TopPercent: b.TopPercent)),
         })];
+        SetSongsLinksEnabled(songsLinksEnabled);
+        if (realized) _ = EnsureLoadedAsync();
     }
 
     /// <summary>Pauses or resumes Songs links (selection paused on a viewed profile).</summary>
     /// <param name="enabled">Whether Songs presets may be followed.</param>
     internal void SetSongsLinksEnabled(bool enabled)
     {
+        songsLinksEnabled = enabled;
         foreach (var tile in Stats)
             if (tile.Link is { RequiresSelection: true }) tile.LinkEnabled = enabled;
         foreach (var row in Percentiles)
@@ -673,8 +758,10 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
     /// <summary>Stable automation suffix (service ID).</summary>
     public string AutomationKey => Instrument.ServiceId();
 
-    /// <summary>Whether this chart has any scores.</summary>
-    public bool HasScores { get; }
+    /// <summary>Whether this chart has any (effective) scores.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEmpty), nameof(RankLoading), nameof(ShowRankHistoryCard))]
+    private bool hasScores;
 
     /// <summary>Whether to show the empty footnote.</summary>
     public bool IsEmpty => !HasScores;
@@ -683,13 +770,16 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
     public string EmptyText => $"No {Label} scores recorded yet.";
 
     /// <summary>Stat tiles, including the three global-rank tiles when the chart has scores.</summary>
-    public List<PlayerStatTile> Stats { get; }
+    [ObservableProperty]
+    private List<PlayerStatTile> stats = [];
 
     /// <summary>The Global Rank, Total Score and Percentile tiles (updated in place).</summary>
     public List<PlayerStatTile> RankTiles { get; }
 
     /// <summary>Percentile table rows, best band first.</summary>
-    public List<PlayerPercentileRow> Percentiles { get; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPercentiles))]
+    private List<PlayerPercentileRow> percentiles = [];
 
     /// <summary>Whether the percentile card has bars.</summary>
     public bool HasPercentiles => Percentiles.Count > 0;
@@ -746,6 +836,7 @@ public sealed partial class PlayerInstrumentViewModel : ObservableObject
     /// <returns>Load task.</returns>
     public Task EnsureLoadedAsync()
     {
+        realized = true;
         if (started || !HasScores) return Task.CompletedTask;
         started = true;
         return Task.WhenAll(LoadRankAsync(), LoadRankHistoryAsync());

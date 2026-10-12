@@ -3619,7 +3619,7 @@
       "title": "Invalid scores (Filter Invalid Scores)",
       "status": "current",
       "doc": ".agents/patterns/invalid-scores.md",
-      "summary": "With Settings > Filter Invalid Scores on and a player selected, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details uses the web's filterPlayerScores rule.",
+      "summary": "With Settings > Filter Invalid Scores on and a player selected, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details uses the web's filterPlayerScores rule. Player Profile and Statistics aggregate the effective scores (R4) of any viewed player, selected or not, and re-aggregate in place when the setting or leeway changes (R9, #619).",
       "keywords": [
         "filter invalid scores",
         "invalid score",
@@ -3647,6 +3647,10 @@
         {
           "path": "pages/songs/modals/FilterModal.tsx",
           "symbol": "overThreshold"
+        },
+        {
+          "path": "pages/leaderboard/player/components/PlayerContent.tsx",
+          "symbol": "filterPlayerScores"
         }
       ],
       "canonical": {
@@ -3726,6 +3730,14 @@
           {
             "path": "windows/Festival.App/Controls/InvalidScoreIndicator.cs",
             "symbol": "InvalidScoreIndicator"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "FilterPlayerScores"
+          },
+          {
+            "path": "windows/Festival.Core/Data/PlayerProfileModels.cs",
+            "symbol": "Effective"
           }
         ]
       },
@@ -3737,7 +3749,8 @@
         "pages": [
           "songs",
           "song-detail",
-          "settings"
+          "settings",
+          "player-profile"
         ],
         "controls": [
           "songs-filter",
