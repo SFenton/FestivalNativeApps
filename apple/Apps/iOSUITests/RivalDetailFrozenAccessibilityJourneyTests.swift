@@ -129,9 +129,11 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         XCTFail("the rows never settled", file: file, line: line)
     }
 
-    /// Tap the first row at its centre and wait for Song Detail: proof that the row takes a
-    /// tap. XCUI's `isHittable` stays false for this settled, unobscured row on the CI iPad
-    /// runtime (apple-ci run 37896597940), so the journey taps like a user instead.
+    /// Tap the first row in the middle of its part between the bars and wait for Song Detail:
+    /// proof that the row takes a tap. XCUI's `isHittable` stays false for this settled,
+    /// unobscured row on the CI iPad runtime (apple-ci run 37896597940), so the journey taps
+    /// like a user instead. Not at the row's centre: an AX5 row is about 440 pt tall, and
+    /// below #604's page title its centre sits under the iPhone's page-tools accessory.
     ///
     /// - Parameters:
     ///   - app: Rival Detail, its rows shown.
@@ -142,16 +144,19 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     private func firstRowOpensItsSong(
         _ app: XCUIApplication, restingAt top: CGFloat, _ message: String,
         file: StaticString = #filePath, line: UInt = #line
-    ) {
+    ) throws {
         let row = app.buttons[Self.firstRow].firstMatch
         for _ in 0..<8 where row.frame.minY < top - 0.5 { app.swipeDown() }
         XCTAssertEqual(row.frame.minY, top, accuracy: 1, "\(message): back where it rested", file: file, line: line)
-        let window = app.windows.firstMatch.frame
-        XCTAssertTrue(
-            window.contains(CGPoint(x: row.frame.midX, y: row.frame.midY)), "\(message): centre on screen",
+        let band = try screenTexts(app)
+        let frame = row.frame
+        let visible = (max(frame.minY, band.top), min(frame.maxY, band.bottom))
+        XCTAssertGreaterThanOrEqual(
+            visible.1 - visible.0, 44 - 0.5, "\(message): a 44 pt part of the row between the bars \(frame)",
             file: file, line: line
         )
-        row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        let point = CGPoint(x: frame.midX, y: (visible.0 + visible.1) / 2)
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y)).tap()
         let songDetail = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier IN %@", ["fst.song-detail.hero-title", "fst.song-detail.loading"])
         ).firstMatch
@@ -193,7 +198,10 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     }
 
     /// Every static text the tree holds (inside buttons too), once each, and the clear band
-    /// between the bars where page text is drawn without their scroll-edge dimming.
+    /// between the bars where page text is drawn without their scroll-edge dimming. A text
+    /// at most 2 pt across draws no glyph: the bar reports the navigation title at the 1 pt
+    /// placeholder that holds the pinned title's slot until the in-list title scrolls away
+    /// (`InstrumentPageTitleToolbarItem`, #604; `DuoSongTitleJourneyTests.visibleBarTitles`).
     ///
     /// - Parameter app: The app on the audited page.
     /// - Returns: The texts and the band's top and bottom, in window points.
@@ -211,7 +219,8 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
             if isChrome, isStrip {
                 if node.frame.midY < window.midY { top = max(top, node.frame.maxY) } else { bottom = min(bottom, node.frame.minY) }
             }
-            if node.elementType == .staticText, !node.label.isEmpty, seen.insert("\(node.label)|\(node.frame)").inserted {
+            if node.elementType == .staticText, !node.label.isEmpty, node.frame.width > 2, node.frame.height > 2,
+               seen.insert("\(node.label)|\(node.frame)").inserted {
                 texts.append(ScreenText(identifier: node.identifier, label: node.label, frame: node.frame, chrome: inChrome || isChrome))
             }
             node.children.forEach { walk($0, inChrome: inChrome || isChrome) }
@@ -303,7 +312,9 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     ///   extra launch: each one costs minutes on the CI runner);
     /// - "Text clipped" without an element in a default-size audit (`predicted-clipping`):
     ///   returned as pending, and the same launch's AX5 audit, which accepts no unattributed
-    ///   clipping, must pass (#558's marquee rows draw whole at the default size).
+    ///   clipping, must pass (#558's marquee rows draw whole at the default size);
+    /// - Dynamic Type on static text inside the shown pinned bar title (`system-bar-title-size`,
+    ///   #604): UIKit caps bar text and the title offers the Large Content Viewer.
     /// Every accepted issue is attached with its measurement; anything else fails.
     ///
     /// - Parameters:
@@ -322,6 +333,9 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         let image = try XCTUnwrap(app.screenshot().image.cgImage)
         let window = app.windows.firstMatch.frame
         let band = try screenTexts(app)
+        // `system-bar-title-size`: the pinned title (#604) is bar text, which UIKit caps.
+        let pinned = app.descendants(matching: .any).matching(identifier: Self.pinnedTitle).firstMatch
+        let pinnedFrame = pinned.exists ? pinned.frame.intersection(app.navigationBars.firstMatch.frame.insetBy(dx: 0, dy: -1)) : .null
         var evidence: [String] = []
         var open: [String] = []
         var unattributedContrast = 0
@@ -351,6 +365,12 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
                 // element to measure: checked where it points, by the AX5 clipping audit of the
                 // same launch, which accepts no unattributed clipping (Drawer journey precedent).
                 pending.append(Growth(key: "", height: 0, summary: summary, rule: Self.predictedClipping))
+                return true
+            case (.dynamicType, let element?) where element.elementType == .staticText && !pinnedFrame.isNull
+                && pinnedFrame.insetBy(dx: -1, dy: -1).contains(element.frame):
+                // UIKit caps the text a bar hosts; the pinned copy offers the Large Content Viewer
+                // (testing/apple/accessibility.md `system-bar-title-size`, as `RivalsJourneyTests`).
+                evidence.append("system-bar-title-size: \(summary), inside the pinned title \(pinnedFrame)")
                 return true
             case (.textClipped, let element?), (.dynamicType, let element?):
                 var summary = summary
@@ -393,6 +413,9 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         XCTAssertEqual(open, [], "open audit issues", file: file, line: line)
         return pending
     }
+
+    /// Identifier of Rival Detail's pinned bar title (`InstrumentPageTitleToolbarItem`, #604).
+    private static let pinnedTitle = "fst.rival-detail.pinned-title"
 
     /// Rule of an unattributed default-size clipping prediction, resolved by the AX5 audit.
     private static let predictedClipping = "predicted-clipping"
@@ -579,7 +602,7 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
 
         record(app, name: "rival-detail-frozen-a11y-default")
         let pending = try audit(app, for: .all)
-        firstRowOpensItsSong(app, restingAt: regularFrame.minY, "the first row takes a tap")
+        try firstRowOpensItsSong(app, restingAt: regularFrame.minY, "the first row takes a tap")
         app.terminate()
 
         let large = launch(player: "fixture-riv-frozen", contentSize: Self.ax5)
@@ -615,7 +638,7 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
 
         record(app, name: "rival-detail-frozen-a11y-ax5")
         try audit(app, for: [.dynamicType, .textClipped, .hitRegion], baseline: baseline)
-        firstRowOpensItsSong(app, restingAt: restingTop, "the AX5 row takes a tap")
+        try firstRowOpensItsSong(app, restingAt: restingTop, "the AX5 row takes a tap")
     }
 
     // MARK: - No snapshot: auto-retry state
