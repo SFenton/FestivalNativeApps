@@ -88,10 +88,11 @@ struct CompeteYourRankAccessibilityTests {
     ///   - typeSize: Dynamic Type size for the page.
     ///   - motion: Fade and Reduce Motion settings.
     ///   - recorder: Records each route the page pushes.
+    ///   - width: A narrower page than the layout's, when set.
     /// - Returns: The settled host.
     static func host(
         _ layout: Layout = .stacked, typeSize: DynamicTypeSize = .large, motion: Motion = .instant,
-        recorder: RouteRecorder = RouteRecorder()
+        recorder: RouteRecorder = RouteRecorder(), width: CGFloat? = nil
     ) async throws -> Hosted {
         let baseURL = try await RivalsMockService.shared.baseURL()
         let client = try FestivalAPI(baseURL: baseURL, transport: URLSessionHTTPTransport())
@@ -108,7 +109,7 @@ struct CompeteYourRankAccessibilityTests {
                     Text("Destination").onAppear { recorder.routes.append(route) }
                 }
         }
-        let size = layout.size
+        let size = CGSize(width: width ?? layout.size.width, height: layout.size.height)
         let host = nativeHostedView(
             AnyView(
                 Group {
@@ -231,6 +232,33 @@ struct CompeteYourRankAccessibilityTests {
         #expect(frame.maxY <= action.minY + 1, "stays above View Full Leaderboard: \(frame) over \(action)")
         let node = try #require(macAccessibilityTree(hosted.host).first { $0.identifier == id && $0.isElement })
         #expect(node.spokenName == Self.jumpLabel, "\(node)")
+    }
+
+    /// When a stacked row's songs and score no longer fit on one line (the iPhone at AX5,
+    /// forced here with a narrow page since macOS keeps its font size), every row in the
+    /// card, the viewer's included, still fills the card's width: the whole band is the
+    /// target and the viewer's purple band spans the card (leaderboard-row R9), rather than
+    /// each row shrinking to its own text (#493: 331 vs 357 pt on an iPhone).
+    @Test func stackedRowsFillTheCardWhenTheirValuesWrap() async throws {
+        let hosted = try await Self.host(typeSize: .accessibility5, width: 150)
+        defer { hosted.close() }
+        // The first card (Lead + Bass), where each top row's identifier first appears.
+        let board = "03"
+        let spotlight = try #require(nativeHostedAccessibilityFrame(Self.spotlightID(board), in: hosted.host))
+        let action = try #require(nativeHostedAccessibilityFrame(Self.viewAllID(board), in: hosted.host))
+        let rows = Self.topRows.compactMap { account in
+            nativeHostedAccessibilityElement(in: hosted.host) {
+                nativeHostedAccessibilityString($0, "accessibilityIdentifier") == Self.rowPrefix + account
+            }.flatMap { nativeHostedAccessibilityFrame(of: $0, in: hosted.host) }
+        }
+        #expect(rows.count == Self.topRows.count, "the card's top rows: \(rows)")
+        for row in rows {
+            #expect(row.maxY <= spotlight.minY + 1, "\(row) is above your rank \(spotlight)")
+            #expect(abs(row.minX - spotlight.minX) <= 1 && abs(row.width - spotlight.width) <= 1,
+                    "every row spans the card: \(row) vs your rank \(spotlight)")
+        }
+        #expect(spotlight.width >= action.width - 1, "your rank spans at least View Full Leaderboard: \(spotlight) vs \(action)")
+        #expect(spotlight.height >= Page.minimumTarget - 0.5, "\(spotlight)")
     }
 
     // MARK: - Motion
