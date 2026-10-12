@@ -258,6 +258,8 @@ jobs:
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestTextLandscape
             SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestText
             SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestTextLandscape
+            WideBoardColumnsJourneyTests/testFullRankingsTwoColumnsAreAccessibleAtLargestText
+            WideBoardColumnsJourneyTests/testBandRankingsTwoColumnsAreAccessibleAtLargestText
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm

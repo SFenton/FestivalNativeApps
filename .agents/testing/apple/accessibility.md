@@ -124,6 +124,13 @@ The #342 region: a song board opened beside Song Detail is titled by its chart (
 | `testPathsCloseAndZoomWithoutGestures`, `…AtAX5` | iPhone sheet; iPad full-window cover (#368, no system swipe) |
 | `…DuoFolded`, `…DuoUnfolded`, `…DuoFoldedAtAX5`, `…DuoUnfoldedAtAX5` | iPhone list only: `DebugDuoWindow` folded (sheet) and unfolded-portrait (cover), at Large and AX5 |
 
+### Two-column full leaderboards (#353, backfilled by #484)
+
+#353 pairs the rows of Full Rankings, Band Rankings, Song Leaderboard and Song Band Leaderboard in two row-major columns when the board fills a wide landscape window ([wide-columns](../../patterns/wide-columns.md) R8). Two suites cover it:
+
+- **Hosted, every board (`WideBoardColumnsAccessibilityTests`).** On a wide Mac page, at Large and AX5: two columns are in effect; each row is one button with a spoken name (the Song Leaderboard row is a `.contain` container whose first child is the button), at least 44 × 44 pt, wholly on the page and clear of its neighbour; ranks read consecutively in rank order, which is the drawn order (each line left to right, then down); the pinned row and the pager read after every row, left to right. The same board as a split's sub-page (one column) reads the same identifiers, roles and names in the same order (R2). On Full Rankings and Band Rankings, the Mac's arrow keys follow the grid: ↓ ↓ → ← ↑ → highlight ranks 1, 3, 4, 3, 1, 2 (the `.isSelected` trait) and Return opens rank 2; in one column ↓ ↓ reaches rank 2. Host keyboard boards like `MacKeyboardNavigationTests`' probe, in a titled window that is never ordered in: an ordered-in window that is not key keeps SwiftUI focus off the page, so the keys never arrive.
+- **iPad landscape at AX5 (`WideBoardColumnsJourneyTests`, `apple-ci` iPad list).** Lead Full Rankings (three fixture accounts) and Duets Band Rankings (two teams) by route, full width: the rows still pair at AX5; each row is a named, hittable button on screen, at least 44 pt wide and two AX5 body lines tall; the ranks read in order before the pager; `performAccessibilityAudit` (Dynamic Type, clipped text, descriptions, hit regions) passes for the board. iPhone skips (portrait only, one column). The `DebugDuoWindow` simulation keeps the iPhone's page width, so it never pairs rows. The unfolded Duo shares the iPad code path and the hosted structure; run the journey on the real Duo locally with `uitest --device duo` in unfolded landscape.
+
 ### iPad audit waivers
 
 `apple/Apps/iPadOSUITests/IPadAuditWaivers.swift`. (b) = verified auditor false positive, (c) = system control we do not own. Every (b) entry is proved per issue in the same run; a waived issue stays in the JSON with its waiver id.
