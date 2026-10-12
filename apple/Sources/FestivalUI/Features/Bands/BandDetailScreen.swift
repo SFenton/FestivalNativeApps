@@ -583,7 +583,8 @@ struct BandMemberCard: View {
             .contentShape(Rectangle())
         }
         .festivalRowButtonStyle()
-        .accessibilityElement(children: .ignore)
+        // `.combine` keeps the link's press for VoiceOver on the Mac (#467).
+        .accessibilityElement(children: .combine)
         .accessibilityLabel(Self.spokenLabel(member))
         .accessibilityHint("Opens player profile")
         .accessibilityAddTraits(.isButton)
@@ -624,7 +625,8 @@ struct BandSongRow: View {
                 card
             }
         }
-        .accessibilityElement(children: .ignore)
+        // `.combine` keeps the link's press for VoiceOver on the Mac (#467).
+        .accessibilityElement(children: .combine)
         .accessibilityLabel(Self.spokenLabel(entry, song: song))
         .accessibilityIdentifier("fst.band.song-row.\(entry.songId)")
     }
