@@ -225,6 +225,27 @@ public class PlayerModelTests
     }
 
     [Fact]
+    public void Stats_EffectiveFiltersAnyProfileAtTheLeewayOnlyWhenOn()
+    {
+        var profile = FestivalApiClient.Decode(System.Text.Encoding.UTF8.GetBytes(PlayerWire.Profile(PlayerWire.Other, "N",
+            PlayerWire.Score("a", score: 900, rk: 50, te: 100, extra: ",\"ml\":0"),
+            PlayerWire.Score("b", score: 2000, rk: 1, te: 100, extra: ",\"ml\":2,\"vs\":[{\"sc\":950,\"ml\":0,\"rt\":[{\"l\":0,\"r\":20}]}]"),
+            PlayerWire.Score("c", score: 3000, rk: 2, te: 100, extra: ",\"ml\":5"))), PlayerJsonContext.Default.PlayerProfileResponse);
+        Song[] songs = [.. "abc".Select(id => new Song { SongId = id.ToString(), Title = "T", Artist = "A", MaxScores = new Dictionary<string, int> { ["Solo_Guitar"] = 1000 } })];
+
+        Assert.Same(profile, PlayerStatistics.Effective(profile, songs, false, 1));
+        var filtered = PlayerStatistics.Effective(profile, songs, true, 1);
+        Assert.Equal((2, 2), (filtered.Scores.Count, filtered.TotalScores));
+        Assert.Equal("#20", PlayerStatistics.ForInstrument(filtered, Instrument.Lead).BestRankText);
+        Assert.Equal("#1", PlayerStatistics.ForInstrument(profile, Instrument.Lead).BestRankText);
+        Assert.Equal([20, 50], PlayerStatistics.PercentileBuckets(filtered, Instrument.Lead).Select(b => b.TopPercent));
+        Assert.Equal([1, 2, 50], PlayerStatistics.PercentileBuckets(profile, Instrument.Lead).Select(b => b.TopPercent));
+        Assert.Equal(3, PlayerStatistics.Effective(profile, songs, true, 5).Scores.Count);
+        // Before the catalogue loads, minLeeway still decides; scores without it are not judgeable and stay.
+        Assert.Equal(2, PlayerStatistics.Effective(profile, null, true, 1).Scores.Count);
+    }
+
+    [Fact]
     public void Stats_PercentileBucketsMatchWebThresholds()
     {
         var profile = FestivalApiClient.Decode(System.Text.Encoding.UTF8.GetBytes(PlayerWire.Profile(PlayerWire.Id, "N",
