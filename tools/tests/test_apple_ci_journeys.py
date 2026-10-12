@@ -346,6 +346,13 @@ class AppleCIJourneysTests(unittest.TestCase):
             self.assertIn(journey + method, iphone)
             self.assertNotIn(journey + method, ipad)
 
+    def test_song_detail_band_columns_ax5_journey_runs_on_ipad_only(self) -> None:
+        # #491 (for #366): Duos and Trios pair only in a wide landscape window; the iPhone skips (portrait).
+        iphone, ipad = self.blocks
+        journey = "SongDetailBandColumnsJourneyTests/testBandPreviewColumnsAreAccessibleAtLargestText"
+        self.assertIn(journey, ipad)
+        self.assertNotIn(journey, iphone)
+
     def test_section_title_ax5_journey_runs_in_ci(self) -> None:
         # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.
         self.assertIn("SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5", self.journeys)

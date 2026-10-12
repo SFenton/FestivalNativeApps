@@ -266,6 +266,7 @@ jobs:
             SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestTextLandscape
             WideBoardColumnsJourneyTests/testFullRankingsTwoColumnsAreAccessibleAtLargestText
             WideBoardColumnsJourneyTests/testBandRankingsTwoColumnsAreAccessibleAtLargestText
+            SongDetailBandColumnsJourneyTests/testBandPreviewColumnsAreAccessibleAtLargestText
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
