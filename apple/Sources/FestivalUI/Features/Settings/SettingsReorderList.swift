@@ -123,6 +123,9 @@ struct SettingsReorderList<Item: Hashable>: View {
         .offset(y: offset(for: item, at: index))
         .scaleEffect(isDragging ? 1.02 : 1)
         .accessibilityElement(children: .ignore)
+        // Static text, like `SettingsValueRow`: without a trait the Mac tree reports an
+        // unknown role and drops the "n of N" position (#494).
+        .accessibilityAddTraits(.isStaticText)
         .accessibilityLabel(label(item))
         .accessibilityValue("\(index + 1) of \(items.count)")
         .accessibilityHint("Drag the handle to reorder, or use the Move actions.")
