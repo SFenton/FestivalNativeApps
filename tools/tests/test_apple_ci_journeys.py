@@ -283,7 +283,9 @@ class AppleCIJourneysTests(unittest.TestCase):
         board = "SongBoardSplitAccessibilityJourneyTests/testSongBoardSplitTitleAtAX5"
         # #492: Song Detail's Duos link beside its band board (#367) at AX5; iPad only, like the #478 journey.
         band = "SongBandBoardSplitAccessibilityJourneyTests/testSongBandBoardSplitLinkAtAX5"
-        self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split, board, band])
+        # #490: Song Detail's first instrument-card row (#365) needs two card columns, so it rides the iPad run only.
+        cards = "SongDetailCardRowAccessibilityJourneyTests/testInstrumentCardRowAtAX5"
+        self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split, board, band, cards])
         self.assertEqual(self.workflow.count("uitest --app ipad"), 2)
         # iPhone journeys, the unpinned profile-notice run (#446), two Score History runs, the plain-fixture iPhone run
         # (#615), the iPad journeys, the iPad keyboard batches (#473, #442), the Songs Filter legs (#432) and the
@@ -347,6 +349,13 @@ class AppleCIJourneysTests(unittest.TestCase):
         for method in duo:
             self.assertIn(journey + method, iphone)
             self.assertNotIn(journey + method, ipad)
+
+    def test_song_detail_band_columns_ax5_journey_runs_on_ipad_only(self) -> None:
+        # #491 (for #366): Duos and Trios pair only in a wide landscape window; the iPhone skips (portrait).
+        iphone, ipad = self.blocks
+        journey = "SongDetailBandColumnsJourneyTests/testBandPreviewColumnsAreAccessibleAtLargestText"
+        self.assertIn(journey, ipad)
+        self.assertNotIn(journey, iphone)
 
     def test_section_title_ax5_journey_runs_in_ci(self) -> None:
         # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.

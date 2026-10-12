@@ -177,6 +177,7 @@ jobs:
             NotificationsAccessibilityJourneyTests/testRowsUnderThePinnedTitleKeepTheirAccessibilityAtAX5
             SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderIsAccessibleAtStandardSize
             SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderGrowsAtAX5
+            SettingsVisualOrderAccessibilityJourneyTests/testSongRowVisualOrderIsReadableAtAX5
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
           mock=$!
@@ -217,8 +218,9 @@ jobs:
         # screen, on the same iPhone before it shuts down (#615: the Filter sheet's score checks under Filter Invalid
         # Scores, their labels, enabled state and touch height; #487: Songs' reset tools after a deselect, the #359
         # region, at the default and the largest text size). HISTORY_IPAD_JOURNEYS also holds the song board's
-        # split-pane title at AX5 (#478, the #342 region) and Song Detail's Duos link selected beside its board (#492,
-        # the #367 region); iPad only, so not in HISTORY_JOURNEYS.
+        # split-pane title at AX5 (#478, the #342 region), Song Detail's Duos link selected beside its board (#492, the
+        # #367 region) and Song Detail's first instrument-card row at AX5 (#490, the #365 region: one top edge, each
+        # card read whole); iPad only, so not in HISTORY_JOURNEYS.
         # testing/apple/xcuitest.md#ci-journeys.
         env:
           PLAIN_JOURNEYS: >-
@@ -232,6 +234,7 @@ jobs:
             ScoreHistoryAccessibilityJourneyTests/testScoreHistorySplitPaneAtAX5
             SongBoardSplitAccessibilityJourneyTests/testSongBoardSplitTitleAtAX5
             SongBandBoardSplitAccessibilityJourneyTests/testSongBandBoardSplitLinkAtAX5
+            SongDetailCardRowAccessibilityJourneyTests/testInstrumentCardRowAtAX5
         run: |
           log="$RUNNER_TEMP/mock_service_history.log"
           python3 tools/mock_service.py --port 0 > "$log" 2>&1 &
@@ -268,6 +271,7 @@ jobs:
             SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestTextLandscape
             WideBoardColumnsJourneyTests/testFullRankingsTwoColumnsAreAccessibleAtLargestText
             WideBoardColumnsJourneyTests/testBandRankingsTwoColumnsAreAccessibleAtLargestText
+            SongDetailBandColumnsJourneyTests/testBandPreviewColumnsAreAccessibleAtLargestText
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
@@ -379,6 +383,7 @@ jobs:
               SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
               SongsBottomFilterFieldJourneyTests/testBottomFilterFieldIsAccessibleDuoFolded
               SongsBottomFilterFieldJourneyTests/testBottomFilterFieldGrowsAtAX5DuoFolded
+              TopEdgeScrimDuoJourneyTests/testScrimUnderTheVerticalBarKeepsTheTopAccessibleAtAX5
     steps:
       - uses: actions/checkout@v4
         with:
