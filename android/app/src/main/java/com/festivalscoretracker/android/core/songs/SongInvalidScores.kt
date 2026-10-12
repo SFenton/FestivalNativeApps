@@ -140,6 +140,43 @@ object InvalidScorePolicy {
         return legacy(score, raw)
     }
 
+    /**
+     * Web `filterPlayerScores` over a whole profile (pattern R4, the Player Profile and
+     * Statistics rule): each score as is when valid, its replacement with the filtered
+     * rank and population, or nothing.
+     *
+     * @param scores Raw wire scores.
+     * @param songs Catalogue rows by ID (CHOpt maxima and population tiers).
+     * @param leeway Leeway percent.
+     * @return Effective scores in profile order; unchanged rows are the same instances.
+     */
+    fun filterPlayerScores(scores: List<PlayerScore>, songs: Map<String, Song>, leeway: Double): List<PlayerScore> =
+        scores.mapNotNull { score -> score.instrument?.let { filtered(score, songs[score.songId], it, leeway) } }
+
+    /**
+     * One wire score under [resolveFiltered].
+     *
+     * @param score Raw wire score.
+     * @param song Catalogue row.
+     * @param chart Chart.
+     * @param leeway Leeway percent.
+     * @return [score] itself when valid, a copy carrying the replacement, or null when none exists.
+     */
+    fun filtered(score: PlayerScore, song: Song?, chart: Instrument, leeway: Double): PlayerScore? {
+        val raw = SongScoreDetail(score.score.toLong(), score.accuracy, score.isFullCombo, score.stars, rank = score.rank, totalEntries = score.totalEntries)
+        val resolution = resolveFiltered(score, raw, song, chart, leeway)
+        val detail = resolution.detail ?: return null
+        if (resolution.reason == null) return score
+        return score.copy(
+            score = detail.score.toInt(),
+            rawAccuracy = detail.accuracy?.div(1_000),
+            isFullCombo = detail.isFullCombo,
+            stars = detail.stars,
+            rank = detail.rank,
+            totalEntries = detail.totalEntries,
+        )
+    }
+
     private fun variant(score: PlayerScore, raw: SongScoreDetail, song: Song?, chart: Instrument, leeway: Double): InvalidScoreResolution {
         val fallback = score.validScores.orEmpty().firstOrNull { it.minLeeway <= leeway }
             ?: return InvalidScoreResolution(null, InvalidScoreReason.NoFallback)
