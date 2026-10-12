@@ -22,7 +22,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import com.festivalscoretracker.android.core.shell.LoadSwapPhase
 import com.festivalscoretracker.android.core.shell.LoadSwapPolicy
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
@@ -276,11 +279,27 @@ private object NeverCommitted
  * @param label Accessible description.
  * @param modifier Modifier (defaults to filling the content area).
  * @param tag Test tag.
+ * @param announce Make the spinner a polite live region, so TalkBack speaks [label] when it
+ *   appears without moving focus (the publication refresh, load-transition R9).
  */
 @Composable
-fun LoadSwapSpinner(swap: LoadSwap<*>, label: String = "Loading", modifier: Modifier = Modifier.fillMaxSize(), tag: String = LOAD_SWAP_SPINNER_TAG) {
-    Box(modifier.then(swap.spinnerModifier).testTag(tag), contentAlignment = Alignment.Center) { FestivalLoading(label) }
+fun LoadSwapSpinner(
+    swap: LoadSwap<*>,
+    label: String = "Loading",
+    modifier: Modifier = Modifier.fillMaxSize(),
+    tag: String = LOAD_SWAP_SPINNER_TAG,
+    announce: Boolean = false,
+) {
+    // The progress indicator is its own merged node, so the live region sits on it with the label.
+    val live = if (announce) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier
+    Box(modifier.then(swap.spinnerModifier).testTag(tag), contentAlignment = Alignment.Center) { FestivalLoading(label, live) }
 }
+
+/** Spoken label of the in-place publication refresh spinner (load-transition R9, Apple `PublicationRefreshBoundary`). */
+const val PUBLICATION_REFRESH_LABEL = "Loading new scores"
+
+/** Test tag of the in-place publication refresh spinner (Apple `fst.publication.refreshing`). */
+const val PUBLICATION_REFRESH_TAG = "fst.publication.refreshing"
 
 /**
  * [LoadSwapSpinner] as a lazy-list item centred in most of the list's viewport, for pages whose

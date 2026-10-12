@@ -68,6 +68,7 @@ fun SongDetailRouteScreen(container: AppContainer, shellViewModel: ShellViewMode
             leeway = { currentSettings.leeway.takeIf { currentSettings.filterInvalidScores } },
             loadHistory = { account, id -> api.songScoreHistory(account, id) },
             loadBandBoard = { id, type, top, account -> api.songBandLeaderboard(id, type, 1, top, account) },
+            publications = api.publicationChanges,
         )
     }
     LaunchedEffect(settings.hideShop) { if (!settings.hideShop) container.shop.ensureStarted() }

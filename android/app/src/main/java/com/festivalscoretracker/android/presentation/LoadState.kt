@@ -72,32 +72,50 @@ class RetryingLoader<T>(
 
     /** Load now, showing the loading state (used by Retry / Retry Now). */
     fun retry() {
-        start(refresh = false)
+        start(keepContent = false, reread = false, keepOnFailure = false)
     }
 
     /** Reload while keeping current content visible (pull to refresh). */
     fun refresh() {
-        start(refresh = true)
+        start(keepContent = true, reread = true, keepOnFailure = false)
     }
 
-    private fun start(refresh: Boolean) {
+    /**
+     * Reload in the background for a newer publication ([PublicationCatchUp], issue #616): like
+     * [refresh], but the read is a plain load (`refresh = false`: the publication was already
+     * observed, so it is not re-read) and a failure keeps the current content (no error page, no
+     * countdown), so the page shows its own paused state instead of losing its rows.
+     *
+     * @return The load, finished once the value is replaced or kept.
+     */
+    fun catchUp(): Job = start(keepContent = true, reread = false, keepOnFailure = true)
+
+    private fun start(keepContent: Boolean, reread: Boolean, keepOnFailure: Boolean): Job {
         job?.cancel()
-        job = scope.launch { run(refresh) }
+        // Mark the refresh at once, so observers never see the old value as settled in between.
+        val previous = mutableState.value
+        if (keepContent && previous is LoadState.Loaded) mutableState.value = previous.copy(refreshing = true)
+        return scope.launch { run(keepContent, reread, keepOnFailure) }.also { job = it }
     }
 
-    private suspend fun run(refresh: Boolean) {
-        var isRefresh = refresh
+    private suspend fun run(keepContent: Boolean, reread: Boolean, keepOnFailure: Boolean) {
+        var isRefresh = keepContent
+        var isReread = reread
         while (true) {
             val previous = mutableState.value
             mutableState.value = if (isRefresh && previous is LoadState.Loaded) previous.copy(refreshing = true) else LoadState.Loading
             try {
-                val value = loader(isRefresh)
+                val value = loader(isReread)
                 backoff.reset(key)
                 mutableState.value = LoadState.Loaded(value)
                 return
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
+                if (keepOnFailure && previous is LoadState.Loaded) {
+                    mutableState.value = previous.copy(refreshing = false)
+                    return
+                }
                 val issue = ServiceIssue.from(error)
                 if (!issue.retriesAutomatically) {
                     mutableState.value = LoadState.Failed(issue)
@@ -110,6 +128,7 @@ class RetryingLoader<T>(
                     remaining--
                 }
                 isRefresh = false
+                isReread = false
             }
         }
     }

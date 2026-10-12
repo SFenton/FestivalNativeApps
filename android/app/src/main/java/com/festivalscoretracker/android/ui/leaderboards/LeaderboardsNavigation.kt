@@ -123,7 +123,7 @@ fun SyncRouteArguments(handle: SavedStateHandle, vararg values: Pair<String, Any
 @Composable
 private fun Overview(container: AppContainer, shellViewModel: ShellViewModel, preferences: LeaderboardPreferences, isRoot: Boolean) {
     val viewModel: LeaderboardsViewModel = viewModel {
-        LeaderboardsViewModel(rankingsReads(container), shellViewModel.settings, preferences.rankBy, preferences::setRankBy, container.backoff)
+        LeaderboardsViewModel(rankingsReads(container), shellViewModel.settings, preferences.rankBy, preferences::setRankBy, container.backoff, container.api.publicationChanges)
     }
     LeaderboardsScreen(viewModel, isRoot)
 }
