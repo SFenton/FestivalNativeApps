@@ -349,6 +349,7 @@ jobs:
               SongsFilterAccessibilityJourneyTests/testNoProfileGeneralFiltersPassAccessibilityAudit
               SongsFilterAccessibilityJourneyTests/testDynamicTypeAuditWithShopHidden
               SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
+              TopEdgeScrimDuoJourneyTests/testScrimUnderTheVerticalBarKeepsTheTopAccessibleAtAX5
     steps:
       - uses: actions/checkout@v4
         with:
