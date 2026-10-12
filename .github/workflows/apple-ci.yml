@@ -379,6 +379,7 @@ jobs:
               SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
               SongsBottomFilterFieldJourneyTests/testBottomFilterFieldIsAccessibleDuoFolded
               SongsBottomFilterFieldJourneyTests/testBottomFilterFieldGrowsAtAX5DuoFolded
+              TopEdgeScrimDuoJourneyTests/testScrimUnderTheVerticalBarKeepsTheTopAccessibleAtAX5
     steps:
       - uses: actions/checkout@v4
         with:
