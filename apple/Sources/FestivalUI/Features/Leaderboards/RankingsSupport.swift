@@ -851,6 +851,8 @@ struct RankingsPagerView: View {
             arrow("chevron.forward", "Next page", id: "page-next", enabled: page < totalPages) { onChange(page + 1) }
             arrow("chevron.forward.2", "Last page", id: "page-last", enabled: page < totalPages) { onChange(totalPages) }
         }
+        // One top edge for every control: read left to right at AX5 (issue #462).
+        .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 16)
         .pagerScreenPlacement()
         .padding(.top, topPadding)
@@ -881,11 +883,32 @@ struct RankingsPagerView: View {
                 .frame(width: 44, height: 44)
                 .festivalCardCapsule()
                 .contentShape(Circle())
+                .pagerRowHeight()
         }
         .buttonStyle(HighContrastPagerStyle())
         .disabled(!enabled)
         .accessibilityLabel(label)
         .accessibilityIdentifier("\(idPrefix).\(id)")
+    }
+}
+
+// MARK: - Pager reading order
+
+extension View {
+    /// Stretch a pager control to its row's height, centred, so every control shares
+    /// one top edge.
+    ///
+    /// SwiftUI orders a container's elements by frame, top edge first, and the XCUITest
+    /// hierarchy ignores `accessibilitySortPriority`. At the largest accessibility text
+    /// sizes the `page / total` badge grows taller than the fixed 44 pt arrows, so its
+    /// top sat above theirs and VoiceOver read "Page" before First and Previous (issue
+    /// #462). Equal heights keep the order First, Previous, Page, Next, Last. The row
+    /// must be `fixedSize(horizontal: false, vertical: true)` so it stays as tall as its
+    /// tallest control.
+    ///
+    /// - Returns: The control, as tall as its row.
+    func pagerRowHeight() -> some View {
+        frame(maxHeight: .infinity).contentShape(Rectangle())
     }
 }
 
@@ -1022,15 +1045,15 @@ struct RankingsFloatingBar<SwitcherMenu: View>: View {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 8) {
                         pagerView
-                        menu(true)
+                        placedMenu(showsTitle: true)
                     }
                     HStack(spacing: 8) {
                         pagerView
-                        menu(false)
+                        placedMenu(showsTitle: false)
                     }
                     VStack(spacing: 8) {
                         pagerView
-                        menu(true)
+                        placedMenu(showsTitle: true)
                     }
                 }
             }
@@ -1045,6 +1068,22 @@ struct RankingsFloatingBar<SwitcherMenu: View>: View {
         if let pager {
             RankingsGlassPager(state: pager, idPrefix: idPrefix, onChange: onChange)
         }
+    }
+
+    /// The switcher menu, rebuilt whenever the pager beside it appears or changes.
+    ///
+    /// Until the first page loads the menu is the bar's only child, and on iPad the iOS
+    /// platform menu's element then kept the whole bar's frame after the pager arrived: a
+    /// 560 × 124 pt "Band size" target over the pager at AX5 (345 pt at the default size),
+    /// so VoiceOver's focus ring and touch exploration found the menu where the page
+    /// badge is (issue #462). A new identity per pager label lays the element out afresh;
+    /// a placeholder in the pager's slot, `fixedSize`, `compositingGroup`, a constant `id`
+    /// or a `.contain` wrapper did not.
+    ///
+    /// - Parameter showsTitle: Whether the pill shows the board's name.
+    /// - Returns: The caller's menu with an identity tied to the pager's label.
+    private func placedMenu(showsTitle: Bool) -> some View {
+        menu(showsTitle).id(pager?.label)
     }
 }
 
@@ -1094,6 +1133,8 @@ struct RankingsGlassPager: View {
             button(.next)
             button(.last)
         }
+        // One top edge for every control: read left to right at AX5 (issue #462).
+        .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 4)
         .festivalCardCapsule()
         .accessibilityElement(children: .contain)
@@ -1119,6 +1160,7 @@ struct RankingsGlassPager: View {
                 .foregroundStyle(enabled ? FestivalText.primary : FestivalText.disabled)
                 .frame(width: buttonSize, height: buttonSize)
                 .contentShape(Circle())
+                .pagerRowHeight()
         }
         .buttonStyle(HighContrastPagerStyle())
         .disabled(!enabled)

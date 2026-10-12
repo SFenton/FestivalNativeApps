@@ -97,6 +97,26 @@ final class PageToolsRegistry {
         pageScopes.removeAll { $0 == scope }
     }
 
+    /// A page's visibility changed: it appeared or disappeared, or its tab was selected
+    /// or left.
+    ///
+    /// Only a page on screen in the selected tab can be the front page. SwiftUI can call
+    /// `onAppear` on an unselected tab's root when the tab set changes (a deselect drops
+    /// the profile tabs, issue #487); counting that as an appearance put Settings' Quick
+    /// Links in place of Songs' Sort and Filter until the user left the page.
+    ///
+    /// - Parameters:
+    ///   - scope: The page's scope.
+    ///   - onScreen: Between the page's `onAppear` and `onDisappear`.
+    ///   - inSelectedTab: The page's tab is the selected one.
+    func pageVisibilityChanged(_ scope: UUID, onScreen: Bool, inSelectedTab: Bool) {
+        if onScreen && inSelectedTab {
+            pageAppeared(scope)
+        } else {
+            pageDisappeared(scope)
+        }
+    }
+
     /// The front page's tools in accessory order; empty when no page is on screen.
     var frontItems: [Entry] {
         guard let front = pageScopes.last else { return [] }
@@ -526,22 +546,38 @@ extension View {
     /// show only while it is the front page. `FestivalTabStack` applies it to every tab
     /// root and pushed page.
     ///
+    /// - Parameter inSelectedTab: The page's tab is the selected one; a page in another
+    ///   tab never becomes the front page (``PageToolsRegistry/pageVisibilityChanged(_:onScreen:inSelectedTab:)``).
     /// - Returns: The page, scoped.
-    func pageToolsScope() -> some View {
-        modifier(PageToolsScopeModifier())
+    func pageToolsScope(inSelectedTab: Bool) -> some View {
+        modifier(PageToolsScopeModifier(inSelectedTab: inSelectedTab))
     }
 }
 
-/// Implementation of ``SwiftUICore/View/pageToolsScope()``.
+/// Implementation of ``SwiftUICore/View/pageToolsScope(inSelectedTab:)``.
 struct PageToolsScopeModifier: ViewModifier {
+    let inSelectedTab: Bool
     @Environment(\.pageToolsRegistry) private var registry
     @State private var scope = UUID()
+    @State private var onScreen = false
 
     func body(content: Content) -> some View {
         content
             .environment(\.pageToolsScope, scope)
-            .onAppear { registry?.pageAppeared(scope) }
-            .onDisappear { registry?.pageDisappeared(scope) }
+            .onAppear {
+                onScreen = true
+                sync()
+            }
+            .onDisappear {
+                onScreen = false
+                sync()
+            }
+            .onChange(of: inSelectedTab) { _, _ in sync() }
+    }
+
+    /// Report the page's visibility to the registry.
+    private func sync() {
+        registry?.pageVisibilityChanged(scope, onScreen: onScreen, inSelectedTab: inSelectedTab)
     }
 }
 

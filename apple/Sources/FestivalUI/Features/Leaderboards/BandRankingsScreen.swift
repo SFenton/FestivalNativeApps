@@ -119,7 +119,11 @@ struct BandRankingsScreen: View {
                             }
                         }
                     }
-                    .macKeyboardRows(BandRankingRow.keyRows(payload.rankings.entries, bandType: bandType))
+                    // Arrow keys follow the pairs: ↓/↑ a line, ←/→ across it (wide-columns
+                    // R8, the Item Shop list's grid; #484).
+                    .macKeyboardRows(
+                        columns: columns, BandRankingRow.keyRows(payload.rankings.entries, bandType: bandType)
+                    )
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     // Each loaded page fades in once (web load-in), not per row on scroll.

@@ -568,6 +568,8 @@ struct GlobalSearchField: View {
     /// Return/Search was pressed (re-runs a failed or empty search, issue #299).
     var submit: () -> Void = {}
     @FocusState private var focused: Bool
+    /// The clear button's minimum square hit target: the HIG's 44×44 pt default control size.
+    static let clearTarget: CGFloat = 44
 
     var body: some View {
         HStack(spacing: 8) {
@@ -590,16 +592,31 @@ struct GlobalSearchField: View {
                 Button {
                     text = ""
                 } label: {
+                    // At least a 44 pt target around the glyph, growing with it at large
+                    // text (HIG Accessibility, issue #474); the field's trailing padding
+                    // narrows so the glyph stays centred in the capsule's end.
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(FestivalText.deemphasized)
+                        .frame(minWidth: Self.clearTarget, minHeight: Self.clearTarget)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Clear Search")
                 .accessibilityIdentifier(clearIdentifier)
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.leading, 12)
+        .padding(.trailing, text.isEmpty ? 12 : 4)
         .frame(minHeight: minHeight)
+        #if os(iOS)
+        // The whole capsule focuses the field, not just its text line (issue #474).
+        .background {
+            Color.clear
+                .contentShape(Capsule())
+                .onTapGesture { focused = true }
+                .accessibilityHidden(true)
+        }
+        #endif
         .modifier(GlobalSearchFieldSurface(surface: surface))
         .onAppear {
             guard focusesOnAppear else { return }

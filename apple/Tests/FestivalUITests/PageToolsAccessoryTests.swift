@@ -126,6 +126,40 @@ struct PageToolsRegistryTests {
         #expect(registry.frontItems.map(\.id) == [tool])
     }
 
+    @Test("A page in an unselected tab never takes the front (#487)")
+    func unselectedTabNeverTakesFront() {
+        let registry = PageToolsRegistry()
+        let songs = UUID()
+        let settings = UUID()
+        registry.pageVisibilityChanged(songs, onScreen: true, inSelectedTab: true)
+        let sort = entry(registry, songs, PageToolOrder.primary)
+        let quickLinks = entry(registry, settings, PageToolOrder.quickLinks)
+        // A deselect drops the profile tabs; SwiftUI calls Settings' root `onAppear`.
+        registry.pageVisibilityChanged(settings, onScreen: true, inSelectedTab: false)
+        #expect(registry.frontItems.map(\.id) == [sort])
+        // Choosing Settings brings its tools forward; leaving it restores Songs'.
+        registry.pageVisibilityChanged(songs, onScreen: true, inSelectedTab: false)
+        registry.pageVisibilityChanged(settings, onScreen: true, inSelectedTab: true)
+        #expect(registry.frontItems.map(\.id) == [quickLinks])
+        registry.pageVisibilityChanged(settings, onScreen: true, inSelectedTab: false)
+        registry.pageVisibilityChanged(songs, onScreen: true, inSelectedTab: true)
+        #expect(registry.frontItems.map(\.id) == [sort])
+    }
+
+    @Test("A page off screen in the selected tab is not the front")
+    func offScreenInSelectedTab() {
+        let registry = PageToolsRegistry()
+        let songs = UUID()
+        let detail = UUID()
+        registry.pageVisibilityChanged(songs, onScreen: true, inSelectedTab: true)
+        let sort = entry(registry, songs, PageToolOrder.primary)
+        registry.pageVisibilityChanged(detail, onScreen: true, inSelectedTab: true)
+        let paths = entry(registry, detail, PageToolOrder.secondary)
+        #expect(registry.frontItems.map(\.id) == [paths])
+        registry.pageVisibilityChanged(detail, onScreen: false, inSelectedTab: true)
+        #expect(registry.frontItems.map(\.id) == [sort])
+    }
+
     @Test("Replacing a tool keeps its slot; removing it drops it")
     func upsertAndRemove() {
         let registry = PageToolsRegistry()
