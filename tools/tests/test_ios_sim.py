@@ -416,7 +416,7 @@ class DuoPoseTests(unittest.TestCase):
         from unittest import mock
 
         with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}):
-            self.assertEqual(ios_sim.pose_screenshot_policy(), (30.0, 1))
+            self.assertEqual(ios_sim.pose_screenshot_policy(), (120.0, 1))
         with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
             self.assertEqual(ios_sim.pose_screenshot_policy(), (180.0, 3))
 

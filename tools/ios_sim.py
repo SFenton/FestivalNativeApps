@@ -506,12 +506,14 @@ def pose_screenshot_policy() -> tuple[float, int]:
     """How long one Duo panel screenshot may take, and how many tries it gets.
 
     A GitHub Actions runner is a slow VM: its first ``simctl io screenshot`` after boot
-    took over 30 s (#432), which read as an ``unknown`` pose and stopped the run.
+    took over 30 s (#432), which read as an ``unknown`` pose and stopped the run. A busy
+    shared Mac is slow too: a freshly booted Duo's first screenshot timed out at 30 s on
+    every try there (#444), so a Mac waits 120 s for its one try.
 
     Returns:
-        ``(timeout seconds, attempts)``: ``(30, 1)`` on a Mac, ``(180, 3)`` on a CI runner.
+        ``(timeout seconds, attempts)``: ``(120, 1)`` on a Mac, ``(180, 3)`` on a CI runner.
     """
-    return (180.0, 3) if os.environ.get("GITHUB_ACTIONS") == "true" else (30.0, 1)
+    return (180.0, 3) if os.environ.get("GITHUB_ACTIONS") == "true" else (120.0, 1)
 
 
 def screenshot_panel(udid: str, display: str, path: Path, attempts: int | None = None,
