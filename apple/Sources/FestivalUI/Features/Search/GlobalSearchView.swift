@@ -590,7 +590,6 @@ struct GlobalSearchField: View {
                 .textInputAutocapitalization(.never)
                 #endif
                 .foregroundStyle(FestivalText.primary)
-                .frame(minHeight: minHeight)
                 .accessibilityLabel(accessibilityLabel)
                 .accessibilityAddTraits(surface == .floating ? .isSearchField : [])
                 .accessibilityIdentifier(identifier)
@@ -611,6 +610,17 @@ struct GlobalSearchField: View {
         }
         .padding(.horizontal, 12)
         .frame(minHeight: minHeight)
+        // The text line is ~22 pt; a tap anywhere else on the capsule (above or below the
+        // text, or on the magnifier) focuses the field, so its touch target is the whole
+        // 44–48 pt capsule (HIG Buttons, issue #475). A hidden layer behind the content,
+        // so the field's and Clear Search's own frames and taps are unchanged.
+        .background {
+            Capsule()
+                .fill(.clear)
+                .contentShape(Capsule())
+                .onTapGesture { focused = true }
+                .accessibilityHidden(true)
+        }
         .modifier(GlobalSearchFieldSurface(surface: surface))
         .onAppear {
             guard focusesOnAppear else { return }
