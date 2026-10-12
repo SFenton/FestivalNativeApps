@@ -16,7 +16,14 @@ import XCTest
 /// drawer must be gone from `app.snapshot()` (what VoiceOver reads); `debugDescription`
 /// still prints SwiftUI views hidden with `accessibilityHidden`, so it is no evidence.
 ///
-/// Needs `tools/mock_service.py --port 18790`, like `QuickLinksAccessibilityJourneyTests`.
+/// #362 made the drawer fade its scrim in, then slide the panel (a fade with Reduce Motion),
+/// and run the sequence back on close while the page underneath is already readable and
+/// touchable. The Reduce Motion and closing journeys (#489) pin that on the simulator; the
+/// hosted `DrawerMotionAccessibilityTests` pin it on every iPhone, Duo and iPad shell.
+///
+/// Needs `tools/mock_service.py --port 18790`, like `QuickLinksAccessibilityJourneyTests`;
+/// the #489 journeys run in `apple-ci` against the large-catalogue fixture
+/// (`SongsUITestSupport.fixtureURL`, port 8765).
 final class DrawerAccessibilityJourneyTests: XCTestCase {
     // MARK: - Helpers
 
@@ -40,17 +47,27 @@ final class DrawerAccessibilityJourneyTests: XCTestCase {
 
     /// Fixture Songs with a selected player, at an optional Dynamic Type size.
     ///
-    /// - Parameter contentSize: A `UIContentSizeCategory` raw value, or nil for the default.
+    /// - Parameters:
+    ///   - contentSize: A `UIContentSizeCategory` raw value, or nil for the default.
+    ///   - fixture: The fixture service's origin.
+    ///   - reduceMotion: The in-app Reduce Motion setting, or nil to leave it alone.
+    ///   - environment: Extra launch environment (slow motion, a simulated Duo window).
     /// - Returns: The launched app.
     @MainActor
-    private func launch(contentSize: String? = nil) -> XCUIApplication {
+    private func launch(
+        contentSize: String? = nil, fixture: String = "http://127.0.0.1:18790", reduceMotion: Bool? = nil,
+        environment: [String: String] = [:]
+    ) -> XCUIApplication {
         let app = FestivalApp.makeApp([
             "FST_UI_TEST_CLEAR_PROFILE": "1",
-            "FST_API_BASE_URL": "http://127.0.0.1:18790",
+            "FST_API_BASE_URL": fixture,
             "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
-        ])
+        ].merging(environment) { _, extra in extra })
         if let contentSize {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", contentSize]
+        }
+        if let reduceMotion {
+            app.launchArguments += ["-fst.accessibility.reduceMotion", reduceMotion ? "YES" : "NO"]
         }
         app.launch()
         return app
@@ -176,9 +193,10 @@ final class DrawerAccessibilityJourneyTests: XCTestCase {
     ///
     /// A contrast issue is accepted only for a named element inside the drawer panel whose
     /// text this run measures at ≥ 4.5:1 in the app's own screenshot (the audit misjudges
-    /// white rows on the dark glass; the iPad lane's `contrast-rendered` rule), or for page
-    /// text behind the modal drawer that this run finds absent from `app.snapshot()`, what
-    /// VoiceOver reaches (the iPad lane's `behind-modal-drawer` rule). Unattributed
+    /// white rows on the dark glass; the iPad lane's `contrast-rendered` rule). A contrast or
+    /// Dynamic Type issue on page text behind the modal drawer is accepted when this run finds
+    /// it absent from `app.snapshot()`, what VoiceOver reaches (the iPad lane's
+    /// `behind-modal-drawer` rule; the page's own journeys audit its text sizes). Unattributed
     /// "may be clipped at larger sizes" predictions are returned for the caller to disprove
     /// at the largest size.
     ///
@@ -225,9 +243,10 @@ final class DrawerAccessibilityJourneyTests: XCTestCase {
                 return true
             }
             let summary = "\(issue.compactDescription): \(element?.identifier ?? "") '\(element?.label ?? "")' \(element?.frame ?? .zero)"
-            // Absence only counts in a snapshot deep enough to hold the drawer's own rows.
-            if issue.auditType == .contrast, reachesDrawer, let element, window.contains(element.frame),
-               !reachable.contains("\(element.label)|\(element.frame)") {
+            // Absence only counts in a snapshot deep enough to hold the drawer's own rows. The
+            // page's own journeys audit its Dynamic Type (the Songs rail letters, #388).
+            if [.contrast, .dynamicType].contains(issue.auditType), reachesDrawer, let element,
+               window.contains(element.frame), !reachable.contains("\(element.label)|\(element.frame)") {
                 return true
             }
             if issue.auditType == .contrast, let element, !element.label.isEmpty,
@@ -334,5 +353,135 @@ final class DrawerAccessibilityJourneyTests: XCTestCase {
         XCTAssertGreaterThan(largeHeight, 60, "Rows grow with text: \(regularHeight) → \(largeHeight)")
         let clipped = try audit(app, for: [.dynamicType, .textClipped, .hitRegion], panel: large.panel)
         XCTAssertEqual(clipped, 0, "Text predicted to clip at the largest size")
+    }
+
+    /// Reduce Motion (the in-app setting): the panel fades in place instead of sliding
+    /// (HIG Accessibility: "Replace motion transitions with fades where appropriate"), and
+    /// the drawer it leaves reads, scales and audits as the sliding one does (#489).
+    @MainActor
+    func testReduceMotionDrawerPassesAccessibilityAudit() throws {
+        continueAfterFailure = false
+        let app = launch(fixture: SongsUITestSupport.fixtureURL, reduceMotion: true)
+        let panel = assertDrawer(app).panel
+        SongsUITestSupport.record(app, name: "drawer-a11y-reduce-motion")
+        let predictions = try audit(app, for: .all, panel: panel)
+        guard predictions > 0 else { return }
+        app.terminate()
+        let large = launch(
+            contentSize: UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+            fixture: SongsUITestSupport.fixtureURL, reduceMotion: true
+        )
+        let clipped = try audit(large, for: .textClipped, panel: assertDrawer(large).panel)
+        XCTAssertEqual(clipped, 0, "\(predictions) predicted clippings still clip at the largest size")
+    }
+
+    /// Closing hands the page back at once: while the panel is still sliding out, VoiceOver
+    /// reads the page and not the drawer, and the menu button takes a tap that reopens the
+    /// drawer whole (#489, for #362).
+    @MainActor
+    func testClosingDrawerHandsThePageBackAtOnce() throws {
+        try assertClosingHandsThePageBack(duoWindow: nil)
+    }
+
+    /// The same in the folded iPhone Duo window, whose menu button can sit in the toolbar
+    /// overflow.
+    @MainActor
+    func testClosingDrawerHandsThePageBackAtOnceDuoFolded() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The Duo window is simulated on an iPhone")
+        try assertClosingHandsThePageBack(duoWindow: "folded")
+    }
+
+    /// The drawer's slow-motion factor in the closing journeys: its 0.4 s sequence takes 16 s,
+    /// so every check after Close lands mid-sequence even on a slow runner.
+    private static let closingSlowMotion = 40.0
+
+    /// `DrawerMotion.totalDuration`, in seconds at normal speed.
+    private static let drawerSequence = 0.4
+
+    /// Open the drawer, close it, and check the page is back while the close still runs;
+    /// then reopen it mid-close.
+    ///
+    /// - Parameter duoWindow: `DebugDuoWindow` to simulate, or nil for the device itself.
+    @MainActor
+    private func assertClosingHandsThePageBack(duoWindow: String?) throws {
+        continueAfterFailure = false
+        var environment = ["FST_DEBUG_DRAWER_SLOWMO": String(Self.closingSlowMotion)]
+        if let duoWindow {
+            environment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
+            environment["FST_DEBUG_DUO_WINDOW"] = duoWindow
+        }
+        let app = launch(fixture: SongsUITestSupport.fixtureURL, reduceMotion: false, environment: environment)
+        if let duoWindow {
+            let readout = app.staticTexts["fst.shell.debug.duo-window"]
+            let reached = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "label BEGINSWITH %@", "\(duoWindow) "), object: readout
+            )
+            XCTAssertEqual(XCTWaiter().wait(for: [reached], timeout: FestivalApp.budget(10)), .completed,
+                           "The app never simulated \(duoWindow)")
+        }
+        let sequence = Self.drawerSequence * Self.closingSlowMotion
+        XCTAssertTrue(app.descendants(matching: .any)["fst.songs.list"].waitForExistence(timeout: FestivalApp.budget(25)),
+                      "Songs never loaded")
+        ShellUITestSupport.tapToolbarItem("fst.shell.drawer.open", overflowLabels: ["Menu", "Open Navigation"], in: app)
+        let close = app.buttons["fst.shell.drawer.close"]
+        XCTAssertTrue(close.waitForExistence(timeout: FestivalApp.budget(10)), "The drawer did not open")
+        // Wait out the slow open: the close button rests on screen once its frame stops moving
+        // (`isHittable` fails outright while the panel is still off screen).
+        var previous = CGRect.null
+        let deadline = Date().addingTimeInterval(sequence + FestivalApp.budget(10))
+        while Date() < deadline {
+            Thread.sleep(forTimeInterval: 1)
+            let frame = close.frame
+            if frame == previous, frame.minX > 0 { break }
+            previous = frame
+        }
+        XCTAssertGreaterThan(close.frame.minX, 0, "The drawer never settled open")
+        XCTAssertTrue(close.isHittable, "The open drawer's close button takes taps")
+        XCTAssertTrue(readable(app).drawer, "The open drawer reads its rows")
+
+        close.tap()
+        let closing = Date()
+        // From the first frame of the close: the drawer leaves what VoiceOver reads and the
+        // page under it returns, menu button first in the toolbar.
+        var reading = readable(app)
+        while reading.drawer || !reading.page, Date().timeIntervalSince(closing) < FestivalApp.budget(4) {
+            Thread.sleep(forTimeInterval: 0.25)
+            reading = readable(app)
+        }
+        let handedBack = Date().timeIntervalSince(closing)
+        XCTAssertFalse(reading.drawer, "VoiceOver still reads the closing drawer: \(reading.ids.filter { $0.hasPrefix("fst.shell.drawer.") && $0 != "fst.shell.drawer.open" })")
+        XCTAssertTrue(reading.page, "The page under the closing drawer is not readable: \(Set(reading.ids).sorted().filter { !$0.isEmpty }.prefix(40))")
+        XCTAssertLessThan(handedBack, sequence / 2, "The page came back only after \(handedBack) s of a \(sequence) s close")
+        SongsUITestSupport.record(app, name: "drawer-closing-page-readable")
+
+        // The menu button takes a tap mid-close and reopens the drawer whole.
+        ShellUITestSupport.tapToolbarItem("fst.shell.drawer.open", overflowLabels: ["Menu", "Open Navigation"], in: app)
+        let reopened = Date().timeIntervalSince(closing)
+        XCTAssertLessThan(reopened, sequence, "The reopen tap came after the close had finished (\(reopened) s)")
+        XCTAssertTrue(app.buttons["fst.shell.drawer.settings"].waitForExistence(timeout: FestivalApp.budget(5)),
+                      "The drawer did not reopen mid-close")
+        reading = readable(app)
+        XCTAssertTrue(reading.drawer, "The reopened drawer reads its rows")
+        if reading.drawer {
+            XCTAssertFalse(reading.page, "The page behind the reopened drawer left what VoiceOver reads")
+        }
+        for (id, label) in Self.controls {
+            XCTAssertEqual(app.buttons["fst.shell.drawer.\(id)"].label, label, "\(id) name after reopening")
+        }
+    }
+
+    /// What VoiceOver can reach (`app.snapshot()`): the drawer's rows, the Songs page.
+    ///
+    /// - Parameter app: The running app.
+    /// - Returns: Whether the drawer's rows and the page's list are reachable, and every identifier.
+    @MainActor
+    private func readable(_ app: XCUIApplication) -> (drawer: Bool, page: Bool, ids: [String]) {
+        var ids: [String] = []
+        func collect(_ node: XCUIElementSnapshot) {
+            ids.append(node.identifier)
+            node.children.forEach(collect)
+        }
+        if let snapshot = try? app.snapshot() { collect(snapshot) }
+        return (ids.contains("fst.shell.drawer.songs"), ids.contains { $0.hasPrefix("fst.songs.") }, ids)
     }
 }

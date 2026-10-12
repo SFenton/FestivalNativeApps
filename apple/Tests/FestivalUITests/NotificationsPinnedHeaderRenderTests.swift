@@ -12,7 +12,7 @@ import FestivalDesign
 /// Keyless fixture transport for one scrolling Notifications feed: publication, the
 /// catalogue song its rows name and the account's notifications. Rejects the privileged
 /// key, selected-profile headers, writes and any other route.
-private actor ScrollingNotificationsTransport: HTTPTransport {
+actor ScrollingNotificationsTransport: HTTPTransport {
     private let generation = 7
     let accountId: String
     let notificationsBody: Data
@@ -116,9 +116,9 @@ func forgetScrollingAccount(_ accountId: String) {
 
 /// The List's own scroll view: the deepest scroll view whose document is a table.
 @MainActor
-func notificationsListScrollView(in view: NSView) -> NSScrollView? {
+func listScrollView(in view: NSView) -> NSScrollView? {
     for subview in view.subviews {
-        if let found = notificationsListScrollView(in: subview) { return found }
+        if let found = listScrollView(in: subview) { return found }
     }
     if let scroll = view as? NSScrollView, scroll.documentView is NSTableView { return scroll }
     return nil
@@ -145,7 +145,7 @@ func notificationsRowsDoNotDrawUnderThePinnedSectionHeader(offset: Double, pinne
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     _ = try await nativeHostedSettle(host, untilText: ["New"])
-    let scroll = try #require(notificationsListScrollView(in: host))
+    let scroll = try #require(listScrollView(in: host))
 
     let clip = scroll.contentView
     clip.scroll(to: NSPoint(x: 0, y: CGFloat(offset) - scroll.contentInsets.top))
@@ -188,7 +188,7 @@ func notificationsRowsDoNotDrawUnderThePinnedSectionHeader(offset: Double, pinne
     let window = nativeHostedWindow(host, size: size)
     defer { window.orderOut(nil) }
     _ = try await nativeHostedSettle(host, untilText: ["New"])
-    let scroll = try #require(notificationsListScrollView(in: host))
+    let scroll = try #require(listScrollView(in: host))
     let table = try #require(scroll.documentView as? NSTableView)
     let headerRow = table.rect(ofRow: 0).height
     #expect(headerRow > 20)

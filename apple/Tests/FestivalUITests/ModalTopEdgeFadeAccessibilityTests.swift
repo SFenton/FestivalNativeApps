@@ -225,7 +225,7 @@ func notificationsRowsStayReadableUnderTheSheetHeader() async throws {
 
     let rest = readableNodes(host, navigationOrder: true)
     check(rest, "at rest")
-    let scrollView = try #require(notificationsListScrollView(in: host))
+    let scrollView = try #require(listScrollView(in: host))
     let clip = scrollView.contentView
     clip.scroll(to: NSPoint(x: 0, y: 400 - scrollView.contentInsets.top))
     scrollView.reflectScrolledClipView(clip)

@@ -22,11 +22,41 @@ extension AccentText {
 
 extension View {
     /// A bordered prominent button on the readable accent fill (``AccentText/prominentFill``).
-    /// Under Increase Contrast the app's root tint (primary text) is kept.
+    /// Under Increase Contrast (system or the app's More Contrast) it takes the app's
+    /// increased-contrast tint, primary white, with a dark label (``FestivalProminentButtonColors``).
     ///
     /// - Returns: The styled button.
     func festivalProminentButton() -> some View {
         modifier(FestivalProminentButton())
+    }
+}
+
+/// Fill and label of ``SwiftUI/View/festivalProminentButton()``.
+///
+/// `.borderedProminent` keeps a white label whatever its tint, so the white increased-contrast
+/// tint alone painted a blank white capsule (issue #477: "Choose Profile" unreadable under
+/// Increase Contrast). Each fill is paired with its label; HIG Color: "Supply … an
+/// increased-contrast option for each" custom colour.
+struct FestivalProminentButtonColors: Equatable {
+    /// The button's tint (its fill).
+    let fill: Color
+    /// The label's colour on that fill.
+    let label: Color
+
+    /// The colours for the current contrast setting.
+    ///
+    /// - Parameter increasedContrast: System Increase Contrast or the app's More Contrast.
+    init(increasedContrast: Bool) {
+        if increasedContrast {
+            // The root tint under Increase Contrast, with the page's dark background as label
+            // (about 18:1).
+            fill = BrandTokens.textPrimary
+            label = BrandTokens.appBackground
+        } else {
+            // White on the readable accent blue (about 5.2:1).
+            fill = AccentText.prominentFill
+            label = BrandTokens.textPrimary
+        }
     }
 }
 
@@ -36,10 +66,9 @@ private struct FestivalProminentButton: ViewModifier {
     @AppStorage("fst.accessibility.moreContrast") private var moreContrast = false
 
     func body(content: Content) -> some View {
-        if contrast == .increased || moreContrast {
-            content.buttonStyle(.borderedProminent)
-        } else {
-            content.buttonStyle(.borderedProminent).tint(AccentText.prominentFill)
-        }
+        let colors = FestivalProminentButtonColors(increasedContrast: contrast == .increased || moreContrast)
+        content.buttonStyle(.borderedProminent)
+            .tint(colors.fill)
+            .foregroundStyle(colors.label)
     }
 }

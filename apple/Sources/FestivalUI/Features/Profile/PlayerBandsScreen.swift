@@ -203,7 +203,9 @@ struct PlayerBandRow: View {
             }
         }
         .festivalRowButtonStyle()
-        .accessibilityElement(children: .ignore)
+        // `.combine`, not `.ignore`: an ignoring element replaces the link, so on the Mac
+        // it offered no AXPress and VoiceOver's VO-Space opened nothing (#467).
+        .accessibilityElement(children: .combine)
         .accessibilityLabel(PlayerBandRow.spokenLabel(entry))
         .accessibilityHint("Opens band")
         .accessibilityAddTraits(.isButton)
