@@ -1013,14 +1013,21 @@ public sealed partial class FirstRunDemo
     #endregion
 
     #region Rivals
-    /// <summary>A Rivals list row (the page's rival row button and view).</summary>
+    /// <summary>
+    /// A Rivals list row: the page's rival row button and view, with the page row's UIA name and ID
+    /// (<c>RivalsPage.xaml</c>). <see cref="Inert"/> prefixes the ID and keeps the row a raw-view test hook, so UI tests
+    /// can check the demo reads like the real row (ahead/behind, no shared count; issues #267, #522) while Narrator
+    /// still skips it (issue #421).
+    /// </summary>
     /// <param name="item">Row.</param>
     /// <returns>Button.</returns>
-    private static LeaderboardRowButton RivalRow(RivalRowItem item) => new()
+    private static LeaderboardRowButton RivalRow(RivalRowItem item)
     {
-        Style = S("FSTRivalRowButtonStyle"),
-        Content = new RivalRowView { Item = item },
-    };
+        var button = new LeaderboardRowButton { Style = S("FSTRivalRowButtonStyle"), Content = new RivalRowView { Item = item } };
+        AutomationProperties.SetName(button, item.AccessibleName);
+        AutomationProperties.SetAutomationId(button, item.AutomationId);
+        return button;
+    }
 
     /// <summary>
     /// Rivals section (web <c>RivalsOverviewDemo</c>, <c>CompeteRivalsDemo</c>): the page's instrument header with View

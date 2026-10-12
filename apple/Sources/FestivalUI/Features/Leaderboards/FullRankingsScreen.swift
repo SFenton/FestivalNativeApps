@@ -305,7 +305,9 @@ struct FullRankingsScreen: View {
                             spotlightFooter(entries: payload.rankings.entries, horizontalPadding: 0)
                         }
                     }
-                    .macKeyboardRows(AccountRankingRow.keyRows(payload.rankings.entries))
+                    // Arrow keys follow the pairs: ↓/↑ a line, ←/→ across it (wide-columns
+                    // R8, the Item Shop list's grid; #484).
+                    .macKeyboardRows(columns: columns, AccountRankingRow.keyRows(payload.rankings.entries))
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
                     .padding(.bottom, Self.rowGap)

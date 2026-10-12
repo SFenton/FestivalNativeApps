@@ -89,6 +89,54 @@ func macAccessibilityTree(_ root: NSView, navigationOrder: Bool = false) -> [Mac
     return nodes
 }
 
+/// A hosted page's elements in VoiceOver's reading order around one AppKit-backed List.
+struct MacListReadingOrder {
+    /// Elements read before the List (an overlay such as the Songs section bar), in
+    /// navigation order.
+    let before: [MacAXNode]
+    /// The List's on-screen rows' elements, by row index.
+    let rows: [MacAXNode]
+    /// Elements read after the List, in navigation order.
+    let after: [MacAXNode]
+
+    /// Everything VoiceOver reads, in order.
+    var all: [MacAXNode] { before + rows + after }
+}
+
+/// Read a hosted page in VoiceOver's reading order: the navigation-order tree outside the
+/// List, with the List's on-screen rows in row-index order in its place. AppKit reorders
+/// recycled row views, so their subview order is not the reading order; an outline reads
+/// its rows in index order. Only elements are kept, without hosting-view groups.
+///
+/// - Parameters:
+///   - host: The hosted page.
+///   - table: The List's table (or outline) view.
+/// - Returns: The elements before, inside and after the List.
+@MainActor
+func macListReadingOrder(_ host: NSView, table: NSTableView) -> MacListReadingOrder {
+    func exposed(_ nodes: some Sequence<MacAXNode>) -> [MacAXNode] {
+        nodes.filter { $0.isElement && $0.subrole != "AXHostingView" }
+    }
+    let tree = macAccessibilityTree(host, navigationOrder: true)
+    // The List's scroll area is the one whose first child is the table or outline.
+    let start = tree.indices.first { index in
+        tree[index].role == "AXScrollArea" && tree.indices.contains(index + 1)
+            && ["AXOutline", "AXTable"].contains(tree[index + 1].role)
+            && tree[index + 1].depth == tree[index].depth + 1
+    } ?? tree.endIndex
+    var end = start
+    if start < tree.endIndex {
+        end = tree[(start + 1)...].firstIndex { $0.depth <= tree[start].depth } ?? tree.endIndex
+    }
+    let visible = table.rows(in: table.visibleRect)
+    let rows = (visible.lowerBound..<visible.upperBound).flatMap { index in
+        table.rowView(atRow: index, makeIfNecessary: false).map {
+            exposed(macAccessibilityTree($0, navigationOrder: true))
+        } ?? []
+    }
+    return MacListReadingOrder(before: exposed(tree[..<start]), rows: rows, after: exposed(tree[end...]))
+}
+
 /// Write a tree dump next to other private captures when `FST_MAC_AX_OUT` names a directory.
 func macAccessibilityDump(_ nodes: [MacAXNode], name: String) {
     guard let dir = ProcessInfo.processInfo.environment["FST_MAC_AX_OUT"] else { return }

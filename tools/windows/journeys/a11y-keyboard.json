@@ -432,10 +432,10 @@
     "route": "/leaderboards",
     "tabs": 0,
     "ready": [
-      "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@20"
+      "waitfor:id=fst.leaderboards.card.0f.view-all@20"
     ],
     "after_ready": [
-      "focus:id=fst.leaderboards.card.Solo_Guitar.view-all",
+      "scrollinto:id=fst.leaderboards.card.Solo_Guitar.view-all@10", "focus:id=fst.leaderboards.card.Solo_Guitar.view-all",
       "key:tab",
       "assertfocus:id=fst.rankings.row.fixture-player-1@3",
       "key:down",
@@ -531,7 +531,7 @@
       "medium"
     ],
     "ready": [
-      "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@20"
+      "waitfor:id=fst.leaderboards.card.0f.view-all@20"
     ],
     "after_ready": [
       "focus:id=fst.quick-links.open",

@@ -75,6 +75,9 @@ private let grid = HorizontalSpan(minX: 16, maxX: 851)
     #expect(HingeColumns.fitCount(width: 100, minimum: 160, spacing: 12) == 1)
     #expect(HingeColumns.fitCount(width: 0, minimum: 160, spacing: 12) == 1)
     #expect(HingeColumns.fitCount(width: 500, minimum: 0, spacing: 12) == 1)
+    // A layout probe's infinite (or NaN) width is one column, not an Int conversion trap (#491).
+    #expect(HingeColumns.fitCount(width: .infinity, minimum: 360, spacing: 12) == 1)
+    #expect(HingeColumns.fitCount(width: .nan, minimum: 360, spacing: 12) == 1)
 }
 
 @Test func perSideFollowsTheFlatColumns() {
