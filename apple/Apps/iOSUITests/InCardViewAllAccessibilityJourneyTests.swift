@@ -37,27 +37,28 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
         let name: String
         /// Launch environment (route, profile, song).
         let env: [String: String]
+        /// A Songs row to tap first, for a page only a pushed row reaches.
+        var openRow: String?
         /// An element that exists once the page has loaded.
         let ready: String
         /// The button's identifier, or a prefix when `idSuffix` is set.
         let id: String
         /// The identifier's suffix when `id` is a prefix.
         var idSuffix: String?
-        /// Quick Links entry that jumps to the card, if any.
-        var quickLink: String?
         /// The accessible name: the visible label, then the card.
         let nameFormat: String
         /// Words of the visible label that must render whole.
         let words: [String]
-        /// An element the full list shows.
-        let destination: String
+        /// Elements the full list shows, any one of which proves it opened (a song board is
+        /// titled by the song header on iPhone and by its chart beside Song Detail).
+        let destination: [String]
     }
 
     private static let leaderboards = Card(
-        name: "leaderboards", env: ["FST_DEBUG_ROUTE": "leaderboards"], ready: "Leaderboards",
+        name: "leaderboards", env: ["FST_DEBUG_ROUTE": "leaderboards"], openRow: nil, ready: "Leaderboards",
         id: "fst.leaderboards.card.", idSuffix: ".view-all",
         nameFormat: #"^View all rankings \([0-9,]+\), .+$"#, words: ["view", "all", "rankings"],
-        destination: "fst.full-rankings.title"
+        destination: ["fst.full-rankings.title"]
     )
     private static let rivalDetail = Card(
         name: "rival-detail",
@@ -65,27 +66,30 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
             "FST_DEBUG_PROFILE": "fixture-riv:Fixture Riv",
             "FST_DEBUG_ROUTE": "rivalDetail:f1c749eb07c32578cfa3e59ec38c03a8:song:Solo_Guitar",
         ],
-        ready: "fst.rival-detail.title",
+        openRow: nil, ready: "fst.rival-detail.title",
         id: "fst.rival-detail.category.closest_battles.view-all",
         nameFormat: #"^View All, Closest Battles$"#, words: ["view", "all"],
-        destination: "fst.rivalry.title"
+        destination: ["fst.rivalry.title"]
     )
+    /// Song Detail through its Songs row, like `SongDetailJourneyTests`: `FST_DEBUG_SONG`'s
+    /// screenshot push is not on the tab's navigation path, so a page pushed from it
+    /// bounced straight back to Song Detail.
     private static let songDetail: [String: String] = [
         "FST_UI_TEST_RESET_SONG_CARDS": "1",
         "FST_DEBUG_PROFILE": "fixture-history-multi:Multi History",
-        "FST_DEBUG_SONG": "fixture-pulse",
     ]
+    private static let songRow = "fst.songs.row.fixture-pulse"
     private static let songPreview = Card(
-        name: "song-preview", env: songDetail, ready: "fst.quick-links.open",
-        id: "fst.song-detail.leaderboard.Solo_Guitar", quickLink: "instrument-Solo_Guitar",
+        name: "song-preview", env: songDetail, openRow: songRow, ready: "fst.song-detail.intensity",
+        id: "fst.song-detail.leaderboard.Solo_Guitar",
         nameFormat: #"^View Full Leaderboard, Lead$"#, words: ["view", "full", "leaderboard"],
-        destination: "fst.song-leaderboard.board-title"
+        destination: ["fst.song-leaderboard.header", "fst.song-leaderboard.board-title"]
     )
     private static let scoreHistory = Card(
-        name: "score-history", env: songDetail, ready: "fst.quick-links.open",
-        id: "fst.song-detail.history.view-all", quickLink: "score-history",
+        name: "score-history", env: songDetail, openRow: songRow, ready: "fst.song-detail.intensity",
+        id: "fst.song-detail.history.view-all",
         nameFormat: #"^View All Scores, .+ Score History$"#, words: ["view", "all", "scores"],
-        destination: "fst.history.row.0"
+        destination: ["fst.history"]
     )
 
     // MARK: - Journeys
@@ -180,13 +184,48 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
         // Operable: it opens the card's full list.
         let reopened = app.buttons[identifier]
         XCTAssertTrue(reopened.waitForExistence(timeout: FestivalApp.budget(10)))
-        if !reopened.isHittable { _ = try reveal(card, in: app, jump: false) }
+        if !reopened.isHittable { _ = try reveal(card, in: app) }
         reopened.tap()
-        let destination = app.descendants(matching: .any).matching(identifier: card.destination).firstMatch
+        let destination = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier IN %@", card.destination)).firstMatch
         XCTAssertTrue(destination.waitForExistence(timeout: FestivalApp.budget(20)), "\(card.name): opens its full list")
     }
 
     // MARK: - Launch and reveal
+
+    /// Filter Songs to `Pulse` and open the row, as `PathsUITestSupport.openPaths` does:
+    /// the large catalogue lists `fixture-pulse` under F, below the first screen.
+    ///
+    /// - Parameters:
+    ///   - identifier: The Songs row to open.
+    ///   - app: The launched app on Songs.
+    ///   - card: The card under test, naming the skip screenshot.
+    /// - Throws: A skip when Songs never loads (no fixture service).
+    @MainActor
+    private func open(_ identifier: String, in app: XCUIApplication, card: Card) throws {
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
+        guard rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(60)) else {
+            record(app, name: "\(card.name)-no-songs")
+            throw XCTSkip("\(card.name): Songs never loaded; run tools/mock_service.py --large-catalogue on \(Self.origin).")
+        }
+        let field = SongsUITestSupport.songsSearchField(in: app)
+        XCTAssertTrue(field.waitForExistence(timeout: FestivalApp.budget(5)), "No Filter Songs field")
+        let song = app.buttons[identifier]
+        // The live filter can drop a keystroke while it re-renders, so retype once.
+        for _ in 0..<2 where !song.exists {
+            field.tap()
+            if let typed = field.value as? String, !typed.isEmpty, typed != field.placeholderValue {
+                field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: typed.count))
+            }
+            field.typeText("Pulse")
+            _ = song.waitForExistence(timeout: FestivalApp.budget(5))
+        }
+        XCTAssertTrue(song.exists, "\(card.name): no \(identifier) row")
+        for _ in 0..<20 where !song.isHittable {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        song.tap()
+    }
 
     /// Open the card's page at a text size.
     ///
@@ -205,8 +244,12 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", size]
         }
         app.launch()
+        if let openRow = card.openRow {
+            try open(openRow, in: app, card: card)
+        }
         let ready = app.descendants(matching: .any).matching(identifier: card.ready).firstMatch
-        guard ready.waitForExistence(timeout: FestivalApp.budget(30)) else {
+        guard ready.waitForExistence(timeout: FestivalApp.budget(60)) else {
+            record(app, name: "\(card.name)-not-ready")
             throw XCTSkip("\(card.name) never loaded; run tools/mock_service.py --large-catalogue on \(Self.origin).")
         }
         return app
@@ -221,27 +264,16 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
         )).firstMatch
     }
 
-    /// Jump to the card through Quick Links when it has one (Song Detail: never long runs
-    /// of drags, which can trip its known render loop), then drag the button into the
-    /// middle of the screen, clear of the scroll-edge fades and the bottom chrome, from the
-    /// trailing margin (a drag on Score History's chart selects a bar).
+    /// Drag the button into the middle of the screen, clear of the scroll-edge fades and
+    /// the bottom chrome, from the trailing margin (a drag on Score History's chart
+    /// selects a bar).
     ///
     /// - Parameters:
     ///   - card: The button under test.
     ///   - app: The app on the card's page.
-    ///   - jump: Use the card's Quick Links entry first.
     /// - Returns: The button, on screen.
     @MainActor
-    private func reveal(_ card: Card, in app: XCUIApplication, jump: Bool = true) throws -> XCUIElement {
-        if jump, let link = card.quickLink {
-            let open = app.buttons["fst.quick-links.open"]
-            XCTAssertTrue(open.waitForExistence(timeout: FestivalApp.budget(15)), "\(card.name): Quick Links")
-            open.tap()
-            let item = app.buttons["fst.quick-links.item.\(link)"]
-            XCTAssertTrue(item.waitForExistence(timeout: FestivalApp.budget(10)), "\(card.name): Quick Links has \(link)")
-            item.tap()
-            sleep(UInt32(FestivalApp.budget(1)))
-        }
+    private func reveal(_ card: Card, in app: XCUIApplication) throws -> XCUIElement {
         let button = button(card, in: app)
         XCTAssertTrue(button.waitForExistence(timeout: FestivalApp.budget(20)), "\(card.name): the page shows its button")
         let window = app.windows.firstMatch.frame
@@ -280,9 +312,9 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
             .compactMap { $0.topCandidates(1).first?.string }
     }
 
-    /// Keep a capture of the element with the test result.
+    /// Keep a capture of the element (or the whole app) with the test result.
     @MainActor
-    private func record(_ element: XCUIElement, name: String) {
+    private func record(_ element: XCUIScreenshotProviding, name: String) {
         let attachment = XCTAttachment(screenshot: element.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
