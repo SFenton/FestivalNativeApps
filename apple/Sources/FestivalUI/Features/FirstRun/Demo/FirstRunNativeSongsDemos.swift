@@ -128,6 +128,10 @@ private struct FirstRunInertPreview: ViewModifier {
         content
             .environment(\.festivalModalPreview, true)
             .allowsHitTesting(false)
+            // On macOS a menu-style `Picker`'s title label escapes `accessibilityHidden`
+            // alone (the Paths demo read "Instrument", "Difficulty", "View"; #498), so the
+            // preview first collapses to one element without children.
+            .accessibilityElement(children: .ignore)
             .accessibilityHidden(true)
     }
 }
