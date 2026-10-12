@@ -151,6 +151,8 @@ jobs:
             RivalsAccessibilityJourneyTests/testRivalRowsAreReadableAtAX5
             MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleAtDefaultSizeAndAX5
             MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleWithReduceTransparencyAtAX5
+            PagerCardContrastJourneyTests/testPagerCardKeepsContrastOnTheMaterial
+            PagerCardContrastJourneyTests/testPagerCardKeepsContrastOpaqueAndIncreasedContrast
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5DuoFolded
         run: |
