@@ -119,6 +119,7 @@ jobs:
             SongLeaderboardEndJourneyTests/testLastRowRestsAbovePagerAtLargestText
             SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestTextDuoFolded
             SongLeaderboardPagingJourneyTests/testPagingKeepsHeaderReadableAtLargestText
+            FullRankingsFooterJourneyTests/testFooterOnThePlayersPageIsAccessibleAtLargestText
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
