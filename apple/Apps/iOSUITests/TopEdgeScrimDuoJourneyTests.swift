@@ -16,7 +16,8 @@ import XCTest
 ///   covers (each is hittable, so a touch at its centre reaches it), the tools in the bar
 ///   below its status area;
 /// - `performAccessibilityAudit` (all types) reports nothing on an element in the band or
-///   on the bar's page tools.
+///   on the bar's page tools; its contrast estimate on band text counts only when the text's
+///   rendered contrast, measured after the audit, is below 4.5:1.
 ///
 /// The hosted `TopEdgeScrimAccessibilityTests` prove the gradient is decoration (same tree
 /// with and without it), keeps controls beside and in a bar hittable and pressable, and
@@ -129,8 +130,12 @@ final class TopEdgeScrimDuoJourneyTests: XCTestCase {
 
     /// Audit everything and fail on any issue with an element in the gradient's band or
     /// in `owned` (the bar's page tools). A contrast estimate on the title text is accepted
-    /// only because its rendered contrast was measured at ≥ 4.5:1 first; other issues
-    /// belong to other journeys and are listed as an activity.
+    /// only because its rendered contrast was measured at ≥ 4.5:1 first; one on other band
+    /// text (the first row's title) only when that text renders at ≥ 4.5:1 in a screenshot
+    /// taken once the audit's text-size cycling has settled (the audit flagged white-on-card
+    /// row text once on a loaded host, then not on the retry; the `SongsChromeJourneyTests`
+    /// `auditScrollAway` precedent). Other issues belong to other journeys and are listed
+    /// as an activity.
     ///
     /// - Parameters:
     ///   - app: The running app.
@@ -141,6 +146,7 @@ final class TopEdgeScrimDuoJourneyTests: XCTestCase {
     private func auditBand(_ app: XCUIApplication, window: CGRect, owned: Set<String>, title: CGRect) throws {
         var rejected: [String] = []
         var elsewhere: [String] = []
+        var bandText: [(frame: CGRect, description: String)] = []
         let handler: (XCUIAccessibilityAuditIssue) throws -> Bool = { issue in
             let description = "\(issue.compactDescription) [" + (issue.element.map {
                 "\($0.elementType.rawValue) '\($0.identifier)' '\($0.label)' \($0.frame)"
@@ -156,15 +162,49 @@ final class TopEdgeScrimDuoJourneyTests: XCTestCase {
                 elsewhere.append(description)
             } else if issue.auditType == .contrast, element.elementType == .staticText, frame == title {
                 elsewhere.append("title measured ≥ 4.5:1: \(description)")
+            } else if issue.auditType == .contrast, element.elementType == .staticText, !frame.isEmpty {
+                bandText.append((frame, description))
             } else {
                 rejected.append(description)
             }
             return true
         }
         try SongsUITestSupport.performAuditRetryingTimeout(
-            app, .all, name: "duo-top-band", reset: { rejected = []; elsewhere = [] }, handler
+            app, .all, name: "duo-top-band", reset: { rejected = []; elsewhere = []; bandText = [] }, handler
         )
+        for text in bandText {
+            RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(1)))
+            let measured = try renderedContrast(of: text.frame, in: app, window: window)
+            if measured.ratio >= 4.5, measured.brightPixels >= 20 {
+                elsewhere.append("renders \(measured.ratio):1: \(text.description)")
+            } else {
+                rejected.append("\(text.description) renders \(measured)")
+            }
+        }
         XCTContext.runActivity(named: "Outside the gradient's band: \(elsewhere)") { _ in }
         XCTAssertTrue(rejected.isEmpty, "audit issues in the gradient's band: \(rejected)")
+    }
+
+    /// The rendered contrast of one text frame in a fresh screenshot.
+    ///
+    /// - Parameters:
+    ///   - frame: The text's frame in screen points.
+    ///   - app: The running app.
+    ///   - window: The app window's frame.
+    /// - Returns: Contrast ratio, median surface, bright glyphs and their count.
+    /// - Throws: A missing screenshot or an empty crop.
+    @MainActor
+    private func renderedContrast(
+        of frame: CGRect, in app: XCUIApplication, window: CGRect
+    ) throws -> (ratio: Double, background: Double, text: Double, brightPixels: Int) {
+        let image = try XCTUnwrap(app.screenshot().image.cgImage)
+        let scaleX = Double(image.width) / window.width
+        let scaleY = Double(image.height) / window.height
+        let visible = frame.intersection(window)
+        let crop = try XCTUnwrap(image.cropping(to: CGRect(
+            x: (visible.minX - window.minX) * scaleX, y: (visible.minY - window.minY) * scaleY,
+            width: visible.width * scaleX, height: visible.height * scaleY
+        ).integral))
+        return try SongsUITestSupport.measuredTextContrast(in: SongsUITestSupport.bitmapPixels(crop))
     }
 }
