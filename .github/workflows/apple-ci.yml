@@ -108,6 +108,8 @@ jobs:
             SongsChromeJourneyTests/testFilterFieldIsGlassAtTopAndScrolled
             SongsChromeJourneyTests/testProgrammaticScrollNeverRestsPartWayThroughTheLargeTitle
             SongsChromeJourneyTests/testProgrammaticScrollNeverRestsPartWayOnTheLegacyScrollPath
+            SongsChromeJourneyTests/testSlowDragsNearTheTopKeepTheTopOfSongsAccessible
+            SongsChromeJourneyTests/testSlowDragsNearTheTopKeepTheTopOfSongsAccessibleAtAX5
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             FirstRunJourneyTests/testSongDemoRotationKeepsSlideAccessibleAtLargestText
             RivalsViewAllAccessibilityJourneyTests/testViewAllRivalsIsReadableAtAX5
@@ -144,6 +146,12 @@ jobs:
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchReadsOneSpinnerBeforeTheSelectors
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchUnderReduceMotion
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchAtAX5
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGestures
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesAtAX5
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoFolded
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoUnfolded
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoFoldedAtAX5
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoUnfoldedAtAX5
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterField
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldDuoFolded
@@ -250,6 +258,8 @@ jobs:
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGestures
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesAtAX5
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterField
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
             PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButton
