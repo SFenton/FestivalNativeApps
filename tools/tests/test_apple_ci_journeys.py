@@ -269,7 +269,9 @@ class AppleCIJourneysTests(unittest.TestCase):
         page = "ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5"
         split = "ScoreHistoryAccessibilityJourneyTests/testScoreHistorySplitPaneAtAX5"
         self.assertEqual(self.history["HISTORY_JOURNEYS"], [page], "the iPhone run: the page only (the split skips)")
-        self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split])
+        # #478: the song board's split-pane title (#342) at AX5 rides the iPad run; it skips on the iPhone.
+        board = "SongBoardSplitAccessibilityJourneyTests/testSongBoardSplitTitleAtAX5"
+        self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split, board])
         self.assertEqual(self.workflow.count("uitest --app ipad"), 2)
         # iPhone journeys, the unpinned profile-notice run (#446), two Score History runs, the plain-fixture iPhone run
         # (#615), the iPad journeys, the iPad keyboard batches (#473, #442) and the Songs Filter legs (#432).
