@@ -63,16 +63,6 @@ private func isAccessibilityEnabled(_ element: NSObject) -> Bool {
     return (element.value(forKey: "isAccessibilityEnabled") as? Bool) ?? true
 }
 
-/// The deepest scroll view under `view` whose document is a table (a SwiftUI List).
-@MainActor
-private func listScrollView(in view: NSView) -> NSScrollView? {
-    for subview in view.subviews {
-        if let found = listScrollView(in: subview) { return found }
-    }
-    if let scroll = view as? NSScrollView, scroll.documentView is NSTableView { return scroll }
-    return nil
-}
-
 /// The deepest scroll view under `view` whose content runs past its height (a board).
 @MainActor
 private func longScrollView(in view: NSView) -> NSScrollView? {
