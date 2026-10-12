@@ -236,21 +236,11 @@ struct SongsSectionBarAccessibilityTests {
         #expect(reached(), "the scroll state was never reached")
     }
 
-    /// The composed screen's elements in VoiceOver's reading order: what sits outside the
-    /// List in tree order (SwiftUI places the overlaid bar first), then the List's rows by
-    /// row index. AppKit reorders recycled row views, so their subview order is not the
-    /// reading order; an outline reads its rows in index order.
+    /// The composed screen's elements in VoiceOver's reading order (SwiftUI places the
+    /// overlaid bar before the List), with the List's rows by row index
+    /// (``macListReadingOrder(_:table:)``).
     private func readingOrder(_ host: NSView, table: NSTableView) -> [MacAXNode] {
-        let tree = macAccessibilityTree(host, navigationOrder: true)
-        let listStart = tree.firstIndex { $0.role == "AXScrollArea" } ?? tree.endIndex
-        let outside = exposed(Array(tree[..<listStart]))
-        let visible = table.rows(in: table.visibleRect)
-        let rows = (visible.lowerBound..<visible.upperBound).flatMap { index in
-            table.rowView(atRow: index, makeIfNecessary: false).map {
-                exposed(macAccessibilityTree($0, navigationOrder: true))
-            } ?? []
-        }
-        return outside + rows
+        macListReadingOrder(host, table: table).all
     }
 
     /// The section key a song row or in-list title belongs to (`nil` for the bar).

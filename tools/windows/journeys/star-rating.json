@@ -1,6 +1,7 @@
 [
   {
     "name": "stars-leaderboard-medium",
+    "note": "Issue #606: where the season pill shows (medium and wider), a row of the catalogue's current season (fixture: 9) reads \"current season 9\"; compact hides the pill and the season clause (#571).",
     "fixture": ["star_rating_fixture.py"],
     "route": "/songs/fixture-pulse/Solo_Guitar",
     "preset": "medium",
@@ -41,6 +42,7 @@
   },
   {
     "name": "stars-leaderboard-wide",
+    "note": "Issue #606: where the season pill shows (medium and wider), a row of the catalogue's current season (fixture: 9) reads \"current season 9\"; compact hides the pill and the season clause (#571).",
     "fixture": ["star_rating_fixture.py"],
     "route": "/songs/fixture-pulse/Solo_Guitar",
     "preset": "wide",

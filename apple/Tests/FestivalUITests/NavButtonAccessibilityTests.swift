@@ -204,6 +204,54 @@ private func navA11yControls(_ nodes: [MacAXNode]) -> [MacAXNode] {
         #expect(abs(bell.maxX - (348 - PageToolsAccessoryFit.padding / 2)) <= 0.5, "\(bell)")
     }
 
+    /// Issue #442 (for #89): on a page whose only tool is Quick Links (Leaderboards, Song
+    /// Details' sections, the profile), it is one round icon-only button, never the
+    /// full-width text capsule #89 reported. It reads as one "Quick Links" button with its
+    /// current section and hint, alone or before the bell, in a fixed 44 × 44 pt slot on
+    /// the leading edge however wide the accessory is, at the default and largest
+    /// accessibility text sizes (HIG Buttons: "the hit region is at least 44x44 pt").
+    @Test(arguments: [
+        (false, DynamicTypeSize.large), (true, .large), (false, .accessibility5), (true, .accessibility5),
+    ])
+    func quickLinksAloneIsOneIconSlot(_ player: Bool, _ typeSize: DynamicTypeSize) async throws {
+        let controller = QuickLinksController()
+        controller.configure(title: "Quick Links", explicit: navA11ySections)
+        let registry = PageToolsRegistry()
+        let scope = UUID()
+        registry.pageAppeared(scope)
+        registry.upsert(id: UUID(), scope: scope, order: PageToolOrder.quickLinks, content: AnyView(
+            QuickLinksMenu(controller: controller)
+        ))
+        let width: CGFloat = 348
+        let (host, window) = hostNavA11yBar(registry, player: player, width: width, typeSize: typeSize)
+        defer { window.orderOut(nil) }
+        let ids = ["fst.quick-links.open"] + (player ? ["fst.shell.notifications"] : [])
+        try await nativeHostedSettle(host, until: {
+            ids.allSatisfy { nativeHostedAccessibilityElement($0, in: host) != nil }
+        })
+        let nodes = macAccessibilityTree(host)
+        macAccessibilityDump(nodes, name: "nav-buttons-quick-links-alone-\(player)-\(typeSize)")
+        let elements = navA11yControls(nodes)
+        #expect(elements.map(\.identifier) == ids, "reads Quick Links, then only the bell: \(elements)")
+        #expect(elements.allSatisfy { $0.role == "AXButton" }, "\(elements)")
+        let quickLinks = try #require(elements.first)
+        #expect(quickLinks.spokenName == "Quick Links")
+        #expect(quickLinks.value == "2024")
+        #expect(quickLinks.help == "Jumps to a section of this page")
+        #expect(!nodes.contains { $0.role == "AXStaticText" && $0.spokenName == "Quick Links" },
+                "the title is the button's name, not drawn text: \(nodes)")
+        #expect(macAccessibilityFindings(nodes).isEmpty, "\(macAccessibilityFindings(nodes))")
+
+        let frame = try #require(nativeHostedAccessibilityFrame("fst.quick-links.open", in: host))
+        #expect(abs(frame.width - PageToolsAccessoryFit.slot) <= 0.5, "one icon slot, not the bar's width: \(frame)")
+        #expect(frame.height >= PageToolsAccessoryFit.slot - 0.5, "\(frame)")
+        #expect(abs(frame.minX - PageToolsAccessoryFit.padding / 2) <= 0.5, "on the leading edge: \(frame)")
+        if player {
+            let bell = try #require(nativeHostedAccessibilityFrame("fst.shell.notifications", in: host))
+            #expect(frame.maxX <= bell.minX, "Quick Links \(frame) overlaps the bell \(bell)")
+        }
+    }
+
     /// The fixed-height accessory never lays out accessibility text sizes (they would clip
     /// in its fixed 44 pt slots); those sizes use the Large Content Viewer instead, and
     /// Songs folds Sort and Filter there so the slots still fit.

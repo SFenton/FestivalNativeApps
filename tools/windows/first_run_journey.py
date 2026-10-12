@@ -173,6 +173,10 @@ def _slide_content(title: str | None = None) -> list[str]:
     The live demo is decorative: its song titles, artists, art and stats (which rotate every 5 s) must stay out of
     the control view, so Narrator reads the slide's title and description and nothing that changes under it.
 
+    Both text blocks carry their ``x:Name`` as the UIA AutomationId (``SlideTitle``, ``SlideDescription``): the carousel
+    finds them by name for the web title/description entrance (#422, restored by #498, which broke the earlier empty-id
+    pins, #571).
+
     Args:
         title: Slide title (the level-2 heading), or ``None`` for any title.
 
@@ -180,7 +184,8 @@ def _slide_content(title: str | None = None) -> list[str]:
         A heading pattern and a description pattern.
     """
     heading = re.escape(title) if title is not None else '[^"]+'
-    return [rf'^Text "{heading}" id= class=TextBlock .*heading=2', r'^Text "[^"]+" id= class=TextBlock rect=\S+']
+    return [rf'^Text "{heading}" id=SlideTitle class=TextBlock .*heading=2',
+            r'^Text "[^"]+" id=SlideDescription class=TextBlock rect=\S+']
 
 
 def _demo(slide_id: str, status: str, seconds: float = 0) -> str:

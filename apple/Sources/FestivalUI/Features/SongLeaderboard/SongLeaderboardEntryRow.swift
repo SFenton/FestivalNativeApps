@@ -51,12 +51,25 @@ struct SongLeaderboardEntryRow: View {
         entry.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User"
     }
 
+    /// The rank as spoken: "Your rank, 3rd" on the player's own row, so it is not told
+    /// apart only by its purple fill and bold text (issue #457, the "Your rank" wording
+    /// of rankings rows and pinned footers); otherwise the drawn "#3".
+    ///
+    /// - Parameters:
+    ///   - rank: The row's 1-based rank.
+    ///   - isPlayer: The selected player's own row.
+    /// - Returns: The rank's accessibility label.
+    nonisolated static func spokenRank(_ rank: Int, isPlayer: Bool) -> String {
+        isPlayer ? "Your rank, \(RankingFormatting.ordinal(rank))" : "#\(rank.formatted())"
+    }
+
     private var rank: some View {
         Text("#\(entry.rank.formatted())")
             .font(.body)
             .fontWeight(isPlayer ? .bold : .regular)
             .monospacedDigit()
             .foregroundStyle(FestivalText.primary)
+            .accessibilityLabel(Self.spokenRank(entry.rank, isPlayer: isPlayer))
     }
 
     /// One row line: rank, name, then the value columns; stacked at accessibility sizes.

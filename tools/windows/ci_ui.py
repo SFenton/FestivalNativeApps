@@ -158,6 +158,8 @@ def task_command(task: Task, out: Path, retries: int) -> list[str]:
     assert task.command
     script, *args = task.command
     command = [sys.executable, str(WINDOWS_TOOLS / script), *args]
+    if script == "accordion_journey.py":
+        command.extend(["--retries", str(retries)])
     if script not in ("accordion_journey.py", "fade_journey.py"):
         command.extend(["--shots", str(out / "screenshots")])
     return command

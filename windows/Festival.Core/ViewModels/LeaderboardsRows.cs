@@ -151,6 +151,9 @@ public sealed class BandRankingRowViewModel : ILeaderboardRankingRow
     /// <summary>Member roster.</summary>
     public string Name => Entry.MembersLabel;
 
+    /// <summary>One large-text name line per member (<see cref="LeaderboardRowMetrics.BandNameLines"/>, issue #455).</summary>
+    public int LargeTextNameLines => LeaderboardRowMetrics.BandNameLines(BandType.MemberCount());
+
     /// <summary>"X / Y" (songs, or full combos under FC Rate).</summary>
     public string SongsText => Entry.SongsLabel(Metric);
 

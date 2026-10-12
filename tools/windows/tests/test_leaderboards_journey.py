@@ -153,6 +153,18 @@ class LongNameTests(unittest.TestCase):
         mock_service.FixtureHandler._json(object(), 200, page)
         self.assertEqual(written[0]["entries"][1]["displayName"], f.LONG_NAME)
 
+    def test_max_name_renames_song_boards_and_rankings(self):
+        """``--max-name`` (issue #455) uses the same rank-2 rename as ``--long-name`` on both kinds of board."""
+        page = {"songId": "fixture-pulse", "instrument": "Solo_Guitar",
+                "entries": [{"accountId": "fixture-player-2", "displayName": "Fixture Player 2", "rank": 2}]}
+        self.assertEqual(f.long_song_board_names(page, f.MAX_NAME)["entries"][0]["displayName"], f.MAX_NAME)
+        written = []
+        mock_service.FixtureHandler._json = lambda handler, status, payload, **kw: written.append(payload)
+        f.install_long_name(f.MAX_NAME)
+        mock_service.FixtureHandler._json(object(), 200, page)
+        self.assertEqual(written[0]["entries"][0]["displayName"], f.MAX_NAME)
+        self.assertEqual(mock_service._ranking_entry(2, "fixture-player-2", "x")["displayName"], f.MAX_NAME)
+
     def test_only_rank_two_gets_the_long_name(self):
         f.install_long_name()
         self.assertEqual(mock_service._ranking_entry(2, "fixture-player-2", "Fixture Player 2")["displayName"], f.LONG_NAME)

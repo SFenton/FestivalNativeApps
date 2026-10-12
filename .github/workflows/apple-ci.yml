@@ -111,6 +111,8 @@ jobs:
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             FirstRunJourneyTests/testSongDemoRotationKeepsSlideAccessibleAtLargestText
             RivalsViewAllAccessibilityJourneyTests/testViewAllRivalsIsReadableAtAX5
+            ProfileBandsAccessibilityJourneyTests/testProfileBandsSectionIsReadableAtAX5
+            ProfileBandsAccessibilityJourneyTests/testFailedBandsRetryIsANamed44PointTarget
             FirstRunJourneyTests/testGuideTitleIsReadFirstAtLargestText
             SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestText
@@ -118,6 +120,8 @@ jobs:
             SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestText
             SongLeaderboardEndJourneyTests/testLastRowRestsAbovePagerAtLargestText
             SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestTextDuoFolded
+            SongLeaderboardPagingJourneyTests/testPagingKeepsHeaderReadableAtLargestText
+            FullRankingsFooterJourneyTests/testFooterOnThePlayersPageIsAccessibleAtLargestText
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
@@ -140,10 +144,26 @@ jobs:
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchReadsOneSpinnerBeforeTheSelectors
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchUnderReduceMotion
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchAtAX5
+            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterField
+            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
+            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldDuoFolded
+            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5DuoFolded
+            PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButton
+            PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButtonDuoFolded
             SongSeasonAccessibilityJourneyTests/testTappedScoreSeasonIsReadableAtLargestText
             RivalsAccessibilityJourneyTests/testRivalRowsAreReadableAtAX5
             NotificationsAccessibilityJourneyTests/testPinnedTitleAndRowsAtLargestText
             NotificationsAccessibilityJourneyTests/testPinnedTitleAndRowsAtLargestTextDuoFolded
+            MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleAtDefaultSizeAndAX5
+            MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleWithReduceTransparencyAtAX5
+            QuickLinksIconAccessibilityJourneyTests/testSheetInstrumentIconMatchesSymbolRow
+            QuickLinksIconAccessibilityJourneyTests/testSheetInstrumentIconMatchesSymbolRowAtAX5
+            QuickLinksIconAccessibilityJourneyTests/testDuoMenuInstrumentIconMatchesSymbolRow
+            QuickLinksIconAccessibilityJourneyTests/testDuoMenuInstrumentIconMatchesSymbolRowAtAX5
+            GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5
+            GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5DuoFolded
+            SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderIsAccessibleAtStandardSize
+            SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderGrowsAtAX5
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
           mock=$!
@@ -228,8 +248,14 @@ jobs:
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
+            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterField
+            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
+            PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButton
             SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestText
             NotificationsAccessibilityJourneyTests/testPinnedTitleAndRowsAtLargestText
+            QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRow
+            QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRowAtAX5
+            GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5
         run: |
           python3 tools/ios_sim.py shutdown --device "$(python3 tools/ios_sim.py ci-device)"
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service_ipad.log" 2>&1 &
@@ -243,6 +269,9 @@ jobs:
           # Hardware-keyboard focus on the board (the journey fails when no focus stop exists).
           python3 tools/ios_sim.py uitest --device "$device" --app phone --a11y full-keyboard-access --fail-on-skip \
             --timeout 900 --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter
+          # Hardware-keyboard focus on Songs' page tools and ⌥⌘↓/↑ on Quick Links (#442, for #89).
+          python3 tools/ios_sim.py uitest --device "$device" --app phone --a11y full-keyboard-access --fail-on-skip \
+            --timeout 900 --only PageToolsSearchFieldJourneyTests/testPageToolsAreInTheKeyboardFocusGroupAndOperable
       - name: Upload simulator journey results
         if: failure() && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
