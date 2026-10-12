@@ -31,6 +31,11 @@ public sealed partial class QuickLinksPane : UserControl
         set => SetValue(ModelProperty, value);
     }
 
+    /// <summary>Focuses the current section's item (the list's focus stop) programmatically, as the responsive swap does
+    /// when the pane replaces a focused Quick Links button (#571).</summary>
+    /// <returns><see langword="true"/> when the list took focus.</returns>
+    public bool FocusCurrent() => List.Focus(FocusState.Programmatic);
+
     /// <summary>Shared instrument bitmap for a section, or none.</summary>
     /// <param name="file">Icon file name (empty for glyph sections).</param>
     /// <returns>Bitmap or <see langword="null"/>.</returns>

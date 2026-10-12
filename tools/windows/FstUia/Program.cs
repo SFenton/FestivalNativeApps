@@ -394,10 +394,46 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 default:
                     throw new ArgumentException($"unknown resize kind {kind}");
             }
+            ParkPointer(target, work);
             Native.MoveVisible(hwnd, target);
         }
+        ParkPointer(Native.VisibleBounds(hwnd), monitor.Work);
         Thread.Sleep(600);
         return Describe(window);
+    }
+
+    /// <summary>
+    /// Moves the cursor off a window's bounds to a corner of the work area. The cursor is state shared by every run on
+    /// the host: a <c>tapat</c>/<c>click</c>/<c>hover</c> in an earlier page or run leaves it wherever it pressed, and when
+    /// a resize slides an element under that resting cursor Windows sends a synthetic mouse move, so WinUI opens the
+    /// element's hover tooltip in a page that never pointed at it (issue #571: the title-bar search box's tooltip over
+    /// <c>qlj-profile-pane</c> at wide 225% text after an earlier run's title-bar presses; its windowed <c>PopupHost</c>
+    /// failed the Axe scan). Parking on every resize keeps hover to the pages that ask for it with a pointer step. A
+    /// cursor already outside the window stays put; a window covering the whole work area (maximized) has no corner to
+    /// park on, so the cursor stays put there too.
+    /// </summary>
+    /// <param name="window">Window bounds to keep the cursor off (physical pixels).</param>
+    /// <param name="work">Monitor work area (physical pixels).</param>
+    private static void ParkPointer(Rectangle window, Rectangle work)
+    {
+        if (!Native.GetCursorPos(out var cursor) || !window.Contains(cursor.X, cursor.Y)) return;
+        // Bottom-right first: a later maximize keeps the cursor here, over the content's corner rather than a caption
+        // button or the navigation toggle, which have tooltips.
+        Point[] corners =
+        [
+            new(work.Right - 2, work.Bottom - 2),
+            new(work.Left + 1, work.Bottom - 2),
+            new(work.Right - 2, work.Top + 1),
+            new(work.Left + 1, work.Top + 1),
+        ];
+        foreach (var corner in corners)
+        {
+            if (window.Contains(corner)) continue;
+            // Real input when possible, so WinUI sees the pointer leave and cancels a pending hover tooltip.
+            if (PostedInput.IsSessionLocked()) Mouse.MoveTo(corner);
+            else Native.MouseAt(corner);
+            return;
+        }
     }
 
     #endregion
@@ -667,7 +703,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 Click(window, step, MouseButton.Right);
                 break;
             case "hover":
-                Mouse.MoveTo(ScreenPoint(window, step));
+                Hover(ScreenPoint(window, step));
                 break;
             case "invoke":
                 var target = Find(window, step);
@@ -774,7 +810,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 AssertAligned(window, step);
                 break;
             case "assertnoscrollbar":
-                AssertNoScrollBar(window, step);
+            case "assertscrollbar":
+                AssertScrollBars(window, step, verb == "assertscrollbar");
                 break;
             case "assertbelow":
             case "assertlevel":
@@ -962,6 +999,24 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         target.Patterns.Value.Pattern.SetValue(text);
     }
 
+    /// <summary>
+    /// Moves the pointer onto a point. On an unlocked console the move is real <c>SendInput</c> input
+    /// (<see cref="Native.MouseAt"/>), approached from 2 px away, so WinUI raises <c>PointerEntered</c>/<c>PointerMoved</c>
+    /// and shows pointer-over visuals and hover tooltips (issue #571); FlaUI's <c>SetCursorPos</c> move never did (#531).
+    /// A locked console takes no real input, so it falls back to moving the cursor only.
+    /// </summary>
+    /// <param name="point">Physical screen point.</param>
+    private static void Hover(Point point)
+    {
+        if (PostedInput.IsSessionLocked())
+        {
+            Mouse.MoveTo(point);
+            return;
+        }
+        Native.MouseAt(new Point(point.X - 2, point.Y - 2));
+        Thread.Sleep(40);
+        Native.MouseAt(point);
+    }
     /// <summary>Screen point of a step's selector: window-relative coordinates or the element's clickable point.</summary>
     private Point ScreenPoint(Window window, JsonObject step)
     {
@@ -1195,8 +1250,20 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     {
         var (condition, label) = Condition(step);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
-        while (InView(IsRaw(step), () => window.FindAllDescendants(condition)).Any(e => !e.Properties.IsOffscreen.ValueOrDefault))
+        var retried = false;
+        while (true)
         {
+            try
+            {
+                if (!InView(IsRaw(step), () => window.FindAllDescendants(condition)).Any(e => !e.Properties.IsOffscreen.ValueOrDefault)) return;
+            }
+            // Same transient-error retry as Find (#552, #574).
+            catch (Exception error) when (IsTransientUia(error) && (!retried || DateTime.UtcNow <= until))
+            {
+                retried = true;
+                Thread.Sleep(200);
+                continue;
+            }
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"element {label} is still on screen");
             Thread.Sleep(200);
         }
@@ -1216,16 +1283,27 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var (condition, label) = Condition(step);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
         var sweepDown = true;
+        var retried = false;
         while (true)
         {
-            var found = InView(IsRaw(step), () => window.FindFirstDescendant(condition));
-            if (found is not null)
+            try
             {
-                if (!found.Properties.IsOffscreen.ValueOrDefault) return;
-                if (found.Patterns.ScrollItem.IsSupported) found.Patterns.ScrollItem.Pattern.ScrollIntoView();
-                else sweepDown = PageTowards(found, sweepDown);
+                var found = InView(IsRaw(step), () => window.FindFirstDescendant(condition));
+                if (found is not null)
+                {
+                    if (!found.Properties.IsOffscreen.ValueOrDefault) return;
+                    if (found.Patterns.ScrollItem.IsSupported) found.Patterns.ScrollItem.Pattern.ScrollIntoView();
+                    else sweepDown = PageTowards(found, sweepDown);
+                }
+                else PageDown(window);
             }
-            else PageDown(window);
+            // Same transient-error retry as Find (#552): a page restored after Back timed out one UIA call here (#574).
+            catch (Exception error) when (IsTransientUia(error) && (!retried || DateTime.UtcNow <= until))
+            {
+                retried = true;
+                Thread.Sleep(200);
+                continue;
+            }
             if (DateTime.UtcNow > until) throw new InvalidOperationException($"could not scroll {label} on screen");
             Thread.Sleep(200);
         }
@@ -1446,20 +1524,24 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <c>ScrollBarVisibility.Auto</c> and overflowing content those parts are in the UIA tree (off screen while idle or
     /// after input-free UIA scrolling, drawn as soon as mouse, pen or touch input scrolls); with <c>Hidden</c> they are
     /// collapsed out of it. So any <c>ScrollBar</c> inside the scroller fails, which also holds on a locked console where
-    /// no pointer input can bring an Auto indicator up.
+    /// no pointer input can bring an Auto indicator up. <c>assertscrollbar</c> is the inverse: it fails unless the
+    /// scroller holds a <c>ScrollBar</c> part, e.g. a chart that honours Windows' "Always show scrollbars" (issue #525).
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with the scroller's selector.</param>
-    /// <exception cref="InvalidOperationException">The scroller contains a scroll bar.</exception>
-    private void AssertNoScrollBar(Window window, JsonObject step)
+    /// <param name="expected">Whether the scroller must hold a scroll bar (<c>assertscrollbar</c>) or none.</param>
+    /// <exception cref="InvalidOperationException">The scroller does (or, when expected, doesn't) contain a scroll bar.</exception>
+    private void AssertScrollBars(Window window, JsonObject step, bool expected)
     {
         var scroller = Find(window, step);
         var bars = scroller.FindAllDescendants(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.ScrollBar))
             .Select(bar => $"{bar.Properties.AutomationId.ValueOrDefault} {bar.BoundingRectangle}"
                            + (bar.Properties.IsOffscreen.ValueOrDefault ? " (idle)" : " (shown)"))
             .ToArray();
-        if (bars.Length > 0)
+        if (!expected && bars.Length > 0)
             throw new InvalidOperationException($"scroll bar in {(string)step["arg"]!}: {string.Join("; ", bars)}");
+        if (expected && bars.Length == 0)
+            throw new InvalidOperationException($"no scroll bar in {(string)step["arg"]!}");
     }
 
     /// <summary>
@@ -2011,14 +2093,19 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
         var name = (string)step["name"]!;
         // A mid-swap check must land within the app's fade (~400 ms): reread the marked elements instead of searching
-        // the tree twice, and search again only when they no longer exist or are off screen.
+        // the tree twice, and search again only when they no longer exist, are off screen or read an empty rectangle
+        // (a swapped-out element can still answer with a zero rectangle, whose top 0 is no position: #571).
         double? cached = null;
         if (check && spanElements.TryGetValue(name, out var marks))
         {
             try
             {
                 if (!marks.Top.Properties.IsOffscreen.ValueOrDefault && !marks.Other.Properties.IsOffscreen.ValueOrDefault)
-                    cached = marks.Other.BoundingRectangle.Top - marks.Top.BoundingRectangle.Top;
+                {
+                    var topRect = marks.Top.BoundingRectangle;
+                    var otherRect = marks.Other.BoundingRectangle;
+                    if (!topRect.IsEmpty && !otherRect.IsEmpty) cached = otherRect.Top - topRect.Top;
+                }
             }
             catch (Exception error) when (error is FlaUI.Core.Exceptions.ElementNotAvailableException or COMException)
             {
@@ -2052,7 +2139,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// the scroller's top edge, within 1 epx: a fixed list position for scans, whatever the window size or scale. UIA
     /// clips a partly scrolled-out element's rectangle to the viewport, so a target whose top reads as the viewport's top
     /// is first scrolled half a viewport back; the remaining offset is then converted to a scroll percent from the
-    /// pattern's view size (re-measured each pass, as a virtualized list's extent estimate changes).
+    /// pattern's view size (re-measured each pass, as a virtualized list's extent estimate changes). With <c>end</c>,
+    /// a target near the list's bottom that cannot rise to the inset is accepted at the scroller's end (100%) when its
+    /// top is on screen: the end is equally fixed, and its inset depends on the host's text metrics (issue #571).
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with <c>selector</c> (the target), <c>other</c> (its vertical scroller) and <c>epx</c> (&gt; 0).</param>
@@ -2084,6 +2173,13 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             // A clipped (or unlaid) top gives no real offset: step back half a viewport so the top comes into view.
             var deltaPx = target.IsEmpty || target.Top <= viewport.Top ? -viewport.Height / 2 : target.Top - viewport.Top - expected * scale;
             var next = Math.Clamp(percent + deltaPx / scrollable * 100, 0, 100);
+            if (Math.Abs(next - percent) < 1e-6 && step["end"] is not null && percent >= 100 - 1e-6
+                && !target.IsEmpty && target.Top > viewport.Top && inset > expected)
+            {
+                response["insets"] ??= new JsonArray();
+                response["insets"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["epx"] = Math.Round(inset, 1), ["end"] = true });
+                return;
+            }
             if (Math.Abs(next - percent) < 1e-6)
                 throw new InvalidOperationException($"scrollinset cannot reach a {expected:0.#} epx inset (now {inset:0.#} epx, scroll {percent:0.##}%) ({(string)step["arg"]!})");
             scroll.SetScrollPercent(-1, next);
@@ -2152,6 +2248,17 @@ internal static class Native
     [DllImport("user32.dll")] public static extern bool IsZoomed(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern uint GetDpiForWindow(IntPtr hwnd);
+    [DllImport("user32.dll", EntryPoint = "GetCursorPos")] private static extern bool GetCursorPosition(out POINT point);
+
+    /// <summary>The cursor's physical screen position.</summary>
+    /// <param name="point">Cursor position, or the origin when it can't be read (e.g. no interactive desktop).</param>
+    /// <returns><see langword="true"/> when the position was read.</returns>
+    public static bool GetCursorPos(out System.Drawing.Point point)
+    {
+        var read = GetCursorPosition(out var raw);
+        point = read ? new System.Drawing.Point(raw.X, raw.Y) : default;
+        return read;
+    }
 
     /// <summary>
     /// Which Windows App SDK non-client input window takes a screen point. With a custom title bar the window's caption
