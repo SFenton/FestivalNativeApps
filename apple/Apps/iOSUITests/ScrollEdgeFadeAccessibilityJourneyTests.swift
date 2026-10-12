@@ -114,6 +114,9 @@ final class ScrollEdgeFadeAccessibilityJourneyTests: XCTestCase {
 
         /// Whether row identifiers end in their rank (Player Bands' end in a band ID).
         var identifiersCarryRank: Bool { self != .playerBands }
+
+        /// The board switcher pill beside the floating pager, if the board has one.
+        var switcherMenuID: String? { self == .bandRankings ? "fst.band-rankings.band-type-menu" : nil }
     }
 
     /// Pager controls in reading order, with their spoken names (case-insensitive: the
@@ -262,6 +265,18 @@ final class ScrollEdgeFadeAccessibilityJourneyTests: XCTestCase {
             for control in pager {
                 XCTAssertGreaterThanOrEqual(control.frame.height, Self.minimumTarget, "\(context): \(control.id) height \(control.frame)")
             }
+        }
+
+        // The switcher pill's element covers only the pill: it once kept the frame it had
+        // before the pager arrived, spanning the whole bar over the pager (#462, iPad AX5).
+        if let menuID = board.switcherMenuID {
+            let menu = app.descendants(matching: .any).matching(identifier: menuID).firstMatch
+            XCTAssertTrue(menu.waitForExistence(timeout: FestivalApp.budget(10)), "\(context): switcher menu shown")
+            for control in pager {
+                XCTAssertFalse(menu.frame.intersects(control.frame),
+                               "\(context): switcher menu \(menu.frame) leaves \(control.id) \(control.frame) uncovered")
+            }
+            XCTAssertGreaterThanOrEqual(menu.frame.height, Self.minimumTarget, "\(context): switcher menu height \(menu.frame)")
         }
 
         // Reading order: rows in rank order, all before the pager.

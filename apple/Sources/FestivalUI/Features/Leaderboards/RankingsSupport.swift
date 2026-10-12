@@ -1045,15 +1045,15 @@ struct RankingsFloatingBar<SwitcherMenu: View>: View {
                 ViewThatFits(in: .horizontal) {
                     HStack(spacing: 8) {
                         pagerView
-                        menu(true)
+                        placedMenu(showsTitle: true)
                     }
                     HStack(spacing: 8) {
                         pagerView
-                        menu(false)
+                        placedMenu(showsTitle: false)
                     }
                     VStack(spacing: 8) {
                         pagerView
-                        menu(true)
+                        placedMenu(showsTitle: true)
                     }
                 }
             }
@@ -1068,6 +1068,22 @@ struct RankingsFloatingBar<SwitcherMenu: View>: View {
         if let pager {
             RankingsGlassPager(state: pager, idPrefix: idPrefix, onChange: onChange)
         }
+    }
+
+    /// The switcher menu, rebuilt whenever the pager beside it appears or changes.
+    ///
+    /// Until the first page loads the menu is the bar's only child, and on iPad the iOS
+    /// platform menu's element then kept the whole bar's frame after the pager arrived: a
+    /// 560 × 124 pt "Band size" target over the pager at AX5 (345 pt at the default size),
+    /// so VoiceOver's focus ring and touch exploration found the menu where the page
+    /// badge is (issue #462). A new identity per pager label lays the element out afresh;
+    /// a placeholder in the pager's slot, `fixedSize`, `compositingGroup`, a constant `id`
+    /// or a `.contain` wrapper did not.
+    ///
+    /// - Parameter showsTitle: Whether the pill shows the board's name.
+    /// - Returns: The caller's menu with an identity tied to the pager's label.
+    private func placedMenu(showsTitle: Bool) -> some View {
+        menu(showsTitle).id(pager?.label)
     }
 }
 
