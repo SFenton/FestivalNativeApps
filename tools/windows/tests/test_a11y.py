@@ -162,6 +162,10 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(m.MODES["light-theme"]["system"], {"light_theme": True})
         self.assertEqual(m.MODES["text-200"]["system"], {"text_scale": 200})
         self.assertEqual(m.MODES["scale-150"]["system"], {"display_scale": 150})
+        self.assertEqual(m.MODES["scrollbars-always"]["system"], {"always_show_scrollbars": True})
+        bars = {**previous, "always_show_scrollbars": False}
+        self.assertEqual(m.restore_values(bars, m.mode_spec("scrollbars-always+text-225")["system"]),
+                         {"always_show_scrollbars": False, "text_scale": 100})
         light = {**previous, "light_theme": False}
         self.assertEqual(m.restore_values(light, m.MODES["light-theme"]["system"]), {"light_theme": False})
 
@@ -381,7 +385,8 @@ class MatrixTests(unittest.TestCase):
         self.assertEqual(set(pages), {"cols-song-board", "cols-song-board-narrow", "cols-song-board-season",
                                       "cols-song-board-large-text", "cols-full-rankings", "cols-song-board-focus-clear",
                                       "cols-band-rankings-focus-clear", "cols-song-band-board-focus-clear",
-                                      "cols-full-rankings-focus-clear", "cols-player-bands-focus-clear", "cols-player-bands-focus-clear-grid"})
+                                      "cols-full-rankings-focus-clear", "cols-player-bands-focus-clear", "cols-player-bands-focus-clear-grid",
+                                      "cols-song-board-contrast-switch"})
         for page in pages.values():
             for size in page.get("sizes", []):
                 self.assertIn(size, u.PRESETS, page["name"])

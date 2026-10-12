@@ -90,13 +90,16 @@ struct BoardCardEntranceAccessibilityTests {
     }
 
     /// Host a Song Leaderboard page of 25 rows (no selected-row reveal scroll).
+    ///
+    /// - Parameter spotlightRank: The rank of the selected player's own row on the page
+    ///   (`fixture-spotlight-player`), or nil to leave it off the page.
     static func hostSoloBoard(
-        typeSize: DynamicTypeSize, motion: Motion, storage: UserDefaults
+        typeSize: DynamicTypeSize, motion: Motion, storage: UserDefaults, spotlightRank: Int? = nil
     ) async throws -> (NSHostingView<NativeHostedRoot<AnyView>>, NSWindow) {
         nativeHostedEnableAccessibility()
         let session = try await spotlightSelectedSession()
         let song = try spotlightFixtureSong()
-        let payload = try spotlightFixtureLeaderboard(spotlightRank: nil)
+        let payload = try spotlightFixtureLeaderboard(spotlightRank: spotlightRank)
         let size = CGSize(width: 402, height: 900)
         let host = nativeHostedView(
             AnyView(

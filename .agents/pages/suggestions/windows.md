@@ -106,6 +106,10 @@ Rules the tests found (all fixed):
 
 Test hooks: the rival pill's label carries `fst.suggestions.row.<row id with . for |>.rival` (Narrator is unchanged; the card row is read whole).
 
+## Accessibility tests (issue #521, 2026-10-12): backfill for #260
+
+Two more pages in `a11y-suggestions.json` cover the cards loaded after the first ten (#260 fades them in): `suggestions-load-more` (batch-2 card title heading, read after batch 1's last card, full-name 40 epx rows) and `suggestions-load-more-keyboard` (Down/Up across the batch boundary, Tab through batch 2 into batch 3, Shift+Tab back). They run in the full `suggestions` and `suggestions-text-225` runs, and in `suggestions-load-more-reduced-motion` and `-no-animations` (medium), where the cards appear in place. No defect was found. Rule: end a scrolled Suggestions page on `scrollinset:<card>|id=fst.suggestions.list|8` before its Axe scan, or a card can sit exactly on the viewport's bottom edge. Details: [windows-accessibility](../../testing/windows-accessibility.md#delayed-and-loaded-later-content-accessibility-tests-issue-521-for-260-2026-10-12).
+
 ## IDs
 
 `fst.suggestions.{filter-button,list,loading,syncing,choose-profile,error,no-results,start-new-mix}` (the state IDs are on the state titles; `error` is not exposed, see Validation), `fst.suggestions.category.<key>[.<mix>]`, `fst.suggestions.row.<songId|songId|Solo_X>`, `fst.suggestions.row.<songId.songId.Solo_X>.{rival,season,percentile}` (pill labels), `fst.suggestions.filter.{form,title,instruments,general,instrument-specific,instrument-picker.{<Solo_X>,compact,previous,next},instrument.<Solo_X>,type.<type>,type.<Solo_X>.<type>,reset}`.

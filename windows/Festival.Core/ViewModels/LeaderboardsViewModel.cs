@@ -447,7 +447,8 @@ public sealed partial class BandRankingCardViewModel : ObservableObject
         this.session = session;
         BandType = bandType;
         Metric = metric;
-        SkeletonRows = LeaderboardRowMetrics.SkeletonRows(metric.ToRankingMetric(), AutomationId);
+        SkeletonRows = LeaderboardRowMetrics.SkeletonRows(metric.ToRankingMetric(), AutomationId,
+            LeaderboardRowMetrics.BandNameLines(bandType.MemberCount()));
         Status = new ServiceStatusViewModel($"leaderboards.{bandType.ServiceId()}", $"{bandType.Label()} unavailable",
             () => LoadAsync(), session.Time);
     }

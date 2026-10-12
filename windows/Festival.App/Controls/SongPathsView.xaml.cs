@@ -50,6 +50,9 @@ public sealed partial class SongPathsView : UserControl
         InstrumentPicker.Hidden = new HashSet<Instrument> { Instrument.Karaoke };
         InstrumentPicker.Instruments = viewModel.Instruments;
         SyncInstrument();
+        // The width swap collapses one selector set; its tooltips (the Instrument Selector circles') must close with it.
+        CollapsedToolTip.CloseWhenCollapsed(Selectors);
+        CollapsedToolTip.CloseWhenCollapsed(CompactSelectors);
         BuildHeader();
         viewModel.PropertyChanged += OnViewModelChanged;
         viewModel.AnimateSwaps = () => Motion.Allowed;
@@ -130,17 +133,22 @@ public sealed partial class SongPathsView : UserControl
         // Near full-window at compact sizes (the chart fills the sheet); never wider than the window. The content gets
         // the width explicitly: a dialog sizes to its content, and the layout picks its selectors from that width. The
         // content box is the dialog less its padding and border; a view wider than it is clipped on the right (#269).
-        var dialogWidth = Math.Max(320, Math.Min(1200, xamlRoot.Size.Width - 24));
-        var view = new SongPathsView(paths) { Width = dialogWidth - DialogChromeWidth() };
+        // Both follow the window while the dialog is open, so a resize crosses the selector breakpoint (#571).
+        var bounds = DialogBoundsFor(xamlRoot.Size);
+        var view = new SongPathsView(paths) { Width = bounds.MaxWidth - DialogChromeWidth() };
         var dialog = FestivalDialog.Create(xamlRoot, title, view, "fst.paths");
         dialog.FullSizeDesired = true;
-        dialog.Resources["ContentDialogMaxWidth"] = dialogWidth;
-        dialog.Resources["ContentDialogMinWidth"] = Math.Min(548, dialogWidth);
-        dialog.Resources["ContentDialogMaxHeight"] = Math.Max(400, xamlRoot.Size.Height - 48);
+        bounds.ApplyTo(dialog);
+        DialogChrome.FollowWindow(dialog, window =>
+        {
+            bounds = DialogBoundsFor(window);
+            view.Width = bounds.MaxWidth - DialogChromeWidth(dialog.BorderThickness);
+            return bounds;
+        });
         // A live contrast-theme switch re-resolves the dialog border (1 epx, 2 epx under a contrast theme); refit the
         // content so its right edge (the display selector's border) is not clipped (issue #515).
         var refit = dialog.RegisterPropertyChangedCallback(
-            Control.BorderThicknessProperty, (_, _) => view.Width = dialogWidth - DialogChromeWidth(dialog.BorderThickness));
+            Control.BorderThicknessProperty, (_, _) => view.Width = bounds.MaxWidth - DialogChromeWidth(dialog.BorderThickness));
         view.Attach();
         try
         {
@@ -153,6 +161,16 @@ public sealed partial class SongPathsView : UserControl
             view.Detach();
             paths.Close();
         }
+    }
+
+    /// <summary>The Paths dialog's bounds for a window size: <c>max(320, min(1200, window − 24))</c> wide (at least 548
+    /// where it fits) and at most the window less 48 tall (never under 400).</summary>
+    /// <param name="window">Window (XamlRoot) size in epx.</param>
+    /// <returns>Surface bounds.</returns>
+    private static DialogBounds DialogBoundsFor(Windows.Foundation.Size window)
+    {
+        var width = Math.Max(320, Math.Min(1200, window.Width - 24));
+        return new DialogBounds(width, Math.Min(548, width), Math.Max(400, window.Height - 48));
     }
 
     /// <summary>The ContentDialog's horizontal chrome: its theme padding plus border, both sides (24 + 1 each by default).</summary>
@@ -261,9 +279,43 @@ public sealed partial class SongPathsView : UserControl
     private void OnRootSizeChanged(object sender, SizeChangedEventArgs e)
     {
         var compact = e.NewSize.Width < CompactWidth;
+        // Focus on a picker follows the swap to its counterpart (programmatically, so it opens no keyboard tooltip)
+        // instead of falling to the chart (#571).
+        var replacement = compact ? WideToCompact() : CompactToWide();
         Selectors.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         CompactSelectors.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
+        if (replacement is not null) CollapsedToolTip.HandFocusWith(this, replacement);
     }
+
+    /// <summary>The compact picker that replaces the focused wide one, if focus is in the wide selectors.</summary>
+    /// <returns>Focuses the replacement, or <see langword="null"/>.</returns>
+    private Func<bool>? WideToCompact()
+    {
+        if (CollapsedToolTip.HasFocusWithin(InstrumentPicker)) return () => Programmatic(CompactInstrumentPicker);
+        if (CollapsedToolTip.HasFocusWithin(DifficultyPicker)) return () => Programmatic(CompactDifficultyPicker);
+        if (CollapsedToolTip.HasFocusWithin(DisplayPicker)) return () => Programmatic(CompactDisplayPicker);
+        return null;
+    }
+
+    /// <summary>The wide picker that replaces the focused compact one, if focus is in the compact selectors.</summary>
+    /// <returns>Focuses the replacement, or <see langword="null"/>.</returns>
+    private Func<bool>? CompactToWide()
+    {
+        if (CollapsedToolTip.HasFocusWithin(CompactInstrumentPicker)) return InstrumentPicker.FocusCurrent;
+        if (CollapsedToolTip.HasFocusWithin(CompactDifficultyPicker)) return () => Programmatic(SelectedOption(DifficultyPicker));
+        if (CollapsedToolTip.HasFocusWithin(CompactDisplayPicker)) return () => Programmatic(SelectedOption(DisplayPicker));
+        return null;
+    }
+
+    /// <summary>Focuses a replacement picker programmatically.</summary>
+    /// <param name="target">Picker, or <see langword="null"/> before it is realized.</param>
+    /// <returns>Whether it took focus.</returns>
+    private static bool Programmatic(Control? target) => target?.Focus(FocusState.Programmatic) == true;
+
+    /// <summary>The checked option of a wide picker (its focus stop), once realized.</summary>
+    /// <param name="picker">Difficulty or display picker.</param>
+    /// <returns>Radio button, or <see langword="null"/> before layout.</returns>
+    private static Control? SelectedOption(RadioButtons picker) => picker.ContainerFromIndex(Math.Max(picker.SelectedIndex, 0)) as Control;
 
     /// <summary>Compact box widths: labelled for their longest options (instrument, difficulty, display) and icon-only
     /// (instrument, display); measured once per sheet.</summary>

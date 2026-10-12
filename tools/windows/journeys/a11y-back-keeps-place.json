@@ -4,7 +4,7 @@
     "route": "/leaderboards",
     "tabs": 0,
     "ready": [
-      "waitfor:id=fst.leaderboards.card.Solo_Guitar@20"
+      "scrollinto:id=fst.leaderboards.card.Solo_Guitar@20"
     ],
     "after_ready": [
       "scrollinto:id=fst.leaderboards.card.Solo_Drums.view-all@25",
@@ -48,7 +48,7 @@
     "route": "/leaderboards",
     "tabs": 0,
     "ready": [
-      "waitfor:id=fst.leaderboards.card.Solo_Guitar@20"
+      "scrollinto:id=fst.leaderboards.card.Solo_Guitar@20"
     ],
     "after_ready": [
       "scrollinto:id=fst.leaderboards.band-card.Band_Duets.view-all@25",

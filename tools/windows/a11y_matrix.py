@@ -14,7 +14,7 @@ previous values are always restored before it is released.
 Modes: ``normal``; ``hc-aquatic``, ``hc-desert``, ``hc-dusk``, ``hc-night-sky`` (contrast themes);
 ``light-theme``, ``dark-theme`` (default app mode); ``scale-100``, ``scale-150`` (primary display scale);
 ``text-150``, ``text-200``, ``text-225`` (text size);
-``no-animations`` (Animation effects off); ``no-transparency``;
+``no-animations`` (Animation effects off); ``no-transparency``; ``scrollbars-always`` (Always show scrollbars);
 ``app-reduced`` (in-app Reduce Motion + Disable Animated Artwork + Save Data); ``app-contrast`` (in-app
 More Contrast + Less Transparency). Join modes with ``+`` to combine them (``hc-desert+scale-150``: a contrast
 theme on a page area wide enough for the Quick Links pane on a high-scale host).
@@ -94,6 +94,7 @@ MODES: dict[str, dict] = {
     "text-225": {"system": {"text_scale": 225}},
     "no-animations": {"system": {"animations": False}},
     "no-transparency": {"system": {"transparency": False}},
+    "scrollbars-always": {"system": {"always_show_scrollbars": True}},
     "app-reduced": {"app": {"reduceMotion": True, "disableAnimatedArtwork": True, "saveData": True}},
     "app-contrast": {"app": {"moreContrast": True, "lessTransparency": True}},
 }
