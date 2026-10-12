@@ -122,6 +122,10 @@ jobs:
             SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestText
             SongLeaderboardEndJourneyTests/testLastRowRestsAbovePagerAtLargestText
             SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestTextDuoFolded
+            DuoBoardPagerAccessibilityJourneyTests/testBandRankingsPagerIsAccessibleOnTheDuoFoldedBoardAtAX5
+            DuoBoardPagerAccessibilityJourneyTests/testBandRankingsPagerIsAccessibleOnTheDuoUnfoldedBoardAtAX5
+            DuoBoardPagerAccessibilityJourneyTests/testSongBoardPagerIsAccessibleOnTheDuoFoldedBoardAtAX5
+            DuoBoardPagerAccessibilityJourneyTests/testSongBoardPagerIsAccessibleOnTheDuoUnfoldedBoardAtAX5
             SongLeaderboardPagingJourneyTests/testPagingKeepsHeaderReadableAtLargestText
             FullRankingsFooterJourneyTests/testFooterOnThePlayersPageIsAccessibleAtLargestText
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
@@ -134,6 +138,7 @@ jobs:
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             CompeteAccessibilityJourneyTests/testCompeteIsReadableAtAX5
             CompeteAccessibilityJourneyTests/testBackFromFullLeaderboardKeepsCompeteReadableAtAX5
+            CompeteAccessibilityJourneyTests/testYourRankRowIsAccessibleAtAX5
             RivalsJourneyTests/testAllRivalsTitleLeadsTheListAndPinsAfterScroll
             RivalsJourneyTests/testAllRivalsDuoVerticalBarKeepsSystemTitle
             SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
@@ -174,10 +179,15 @@ jobs:
             QuickLinksIconAccessibilityJourneyTests/testDuoMenuInstrumentIconMatchesSymbolRowAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5DuoFolded
+            DuoPageTitleAccessibilityJourneyTests/testRootTitlesAreAccessibleAtAX5DuoFolded
+            DuoPageTitleAccessibilityJourneyTests/testNoProfileStatisticsTitleIsAccessibleAtAX5DuoFolded
+            DuoPageTitleAccessibilityJourneyTests/testNoProfileStatisticsIsAccessibleAtAX5WithMoreContrastDuoFolded
+            DuoPageTitleAccessibilityJourneyTests/testNoProfileStatisticsTitleIsAccessibleAtAX5
             NotificationsAccessibilityJourneyTests/testRowsUnderThePinnedTitleKeepTheirAccessibility
             NotificationsAccessibilityJourneyTests/testRowsUnderThePinnedTitleKeepTheirAccessibilityAtAX5
             SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderIsAccessibleAtStandardSize
             SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderGrowsAtAX5
+            SettingsVisualOrderAccessibilityJourneyTests/testSongRowVisualOrderIsReadableAtAX5
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
           mock=$!
@@ -218,7 +228,9 @@ jobs:
         # screen, on the same iPhone before it shuts down (#615: the Filter sheet's score checks under Filter Invalid
         # Scores, their labels, enabled state and touch height; #487: Songs' reset tools after a deselect, the #359
         # region, at the default and the largest text size). HISTORY_IPAD_JOURNEYS also holds the song board's
-        # split-pane title at AX5 (#478, the #342 region; iPad only, so not in HISTORY_JOURNEYS).
+        # split-pane title at AX5 (#478, the #342 region), Song Detail's Duos link selected beside its board (#492, the
+        # #367 region) and Song Detail's first instrument-card row at AX5 (#490, the #365 region: one top edge, each
+        # card read whole); iPad only, so not in HISTORY_JOURNEYS.
         # testing/apple/xcuitest.md#ci-journeys.
         env:
           PLAIN_JOURNEYS: >-
@@ -231,6 +243,8 @@ jobs:
             ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5
             ScoreHistoryAccessibilityJourneyTests/testScoreHistorySplitPaneAtAX5
             SongBoardSplitAccessibilityJourneyTests/testSongBoardSplitTitleAtAX5
+            SongBandBoardSplitAccessibilityJourneyTests/testSongBandBoardSplitLinkAtAX5
+            SongDetailCardRowAccessibilityJourneyTests/testInstrumentCardRowAtAX5
         run: |
           log="$RUNNER_TEMP/mock_service_history.log"
           python3 tools/mock_service.py --port 0 > "$log" 2>&1 &
@@ -380,6 +394,7 @@ jobs:
               SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
               SongsBottomFilterFieldJourneyTests/testBottomFilterFieldIsAccessibleDuoFolded
               SongsBottomFilterFieldJourneyTests/testBottomFilterFieldGrowsAtAX5DuoFolded
+              TopEdgeScrimDuoJourneyTests/testScrimUnderTheVerticalBarKeepsTheTopAccessibleAtAX5
     steps:
       - uses: actions/checkout@v4
         with:

@@ -539,7 +539,8 @@ private fun FirstRunSection(onShow: (FirstRunPageKey) -> Unit) {
                 Button(
                     onClick = { onShow(page) },
                     colors = festivalFilledButtonColors(),
-                    modifier = Modifier.testTag("fst.settings.first-run.${page.key}").semantics { contentDescription = "Show ${page.label} guide" },
+                    // 48 dp tall like every Festival button, so its composed target meets the minimum (#617).
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("fst.settings.first-run.${page.key}").semantics { contentDescription = "Show ${page.label} guide" },
                     // The description replaces the visible "Show" (read once).
                 ) { Text("Show", Modifier.clearAndSetSemantics {}) }
             }
@@ -558,7 +559,7 @@ private fun ResetSection(onReset: () -> Unit) {
     Button(
         onClick = onReset,
         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = BrandTokens.textPrimary),
-        modifier = Modifier.fillMaxWidth().testTag("fst.settings.reset"),
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("fst.settings.reset"),
     ) { Text("Reset All Settings") }
 }
 
