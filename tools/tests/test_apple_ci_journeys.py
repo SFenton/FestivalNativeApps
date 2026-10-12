@@ -7,7 +7,7 @@ Songs section-push AX XXXL journey (#288, #452), the Songs large-title rest jour
 the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape) and the pinned caption-icon journeys (``song-header`` R4, #542); ``HISTORY_JOURNEYS``/``HISTORY_IPAD_JOURNEYS``
 (iPad bundle, on the iPhone and the iPad) must keep the Score History AX5 journeys (#385, the region #302 changed);
 ``PLAIN_JOURNEYS`` (iPhone bundle, on the iPhone in the plain-fixture step) must keep the Filter Invalid Scores score-check
-journey (#615); ``UNPINNED_JOURNEYS`` (iPhone bundle, on its own unpinned listener) must keep the player
+journey (#615) and the Songs deselect-reset accessibility journeys (#487, the region #359 changed); ``UNPINNED_JOURNEYS`` (iPhone bundle, on its own unpinned listener) must keep the player
 profile's pause-notice AX5 journey (#446, the region #97 changed). The Songs Filter journeys (#432) must run on
 the iPhone, the iPad and the folded iPhone Duo on release-branch dispatches, gated by the required ``apple-ci`` job.
 The scroll-edge fade journeys (#462: the sheet header and every R9 board on the iPhone and the iPad, the Duo windows
@@ -291,9 +291,21 @@ class AppleCIJourneysTests(unittest.TestCase):
         # #615: the only device evidence for the Filter sheet's score checks under Filter Invalid Scores. It needs
         # `fixture-pulse` and `fixture-orbit` on screen, which the large catalogue pushes below the fold.
         journey = "SongsJourneyTests/testPlayerScoreFilterSettingsPauseAndDeselectScope"
-        self.assertEqual(ci_journeys(self.workflow, "PLAIN_JOURNEYS"), [journey])
+        self.assertEqual(ci_journeys(self.workflow, "PLAIN_JOURNEYS")[0], journey)
         self.assertNotIn(journey, self.journeys)
         self.assertIn('uitest --app phone --device "$iphone"', self.workflow)
+
+    def test_deselect_reset_journeys_run_on_the_plain_fixture(self) -> None:
+        # #487: device evidence for Songs' reset tools after a deselect (#359), default and AX5. They read the
+        # first rows' order, so they need `fixture-pulse` and `fixture-orbit` on screen like #615's journey.
+        expected = [
+            "SongsDeselectAccessibilityJourneyTests/testDeselectResetsSongsToolsForVoiceOver",
+            "SongsDeselectAccessibilityJourneyTests/testDeselectResetIsReachableAtLargestText",
+        ]
+        plain = ci_journeys(self.workflow, "PLAIN_JOURNEYS")
+        for journey in expected:
+            self.assertIn(journey, plain)
+            self.assertNotIn(journey, self.journeys)
 
     def test_board_footer_fade_keyboard_journey_runs_in_ci(self) -> None:
         # #473: the iPad hardware-keyboard form needs its own invocation, because --a11y applies to a whole run.
