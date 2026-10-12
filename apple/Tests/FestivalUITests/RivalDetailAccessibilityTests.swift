@@ -269,7 +269,8 @@ struct RivalDetailAccessibilityTests {
 
     // MARK: - Reading order and target size
 
-    /// Each category reads heading → its rows → its View All, cards top to bottom, and
+    /// The page title (#604) reads first; then each category reads heading → its rows →
+    /// its View All, cards top to bottom, and
     /// every row and View All is at least a 44 pt target inside the page.
     @Test func frozenRivalDetailReadsInVisualOrderWithFullSizeTargets() async throws {
         let hosted = try await Self.hostLoaded()
@@ -277,8 +278,16 @@ struct RivalDetailAccessibilityTests {
         let host = hosted.host
         let elements = macAccessibilityTree(host).filter(\.isElement)
         let dump = elements.map(\.description).joined(separator: "\n")
-        let headingIndices = elements.indices.filter { elements[$0].role == "AXHeading" && elements[$0].spokenName != Self.rival.name }
+        // #604's page title (the rival's name over "Rivals") is the first heading, read
+        // before every card; the remaining headings are the cards' titles.
+        let titleIndex = try #require(
+            elements.firstIndex { $0.identifier == "fst.rival-detail.title" }, "the page title\n\(dump)"
+        )
+        #expect(elements[titleIndex].role == "AXHeading", "\(elements[titleIndex])")
+        #expect(elements[titleIndex].spokenName.hasPrefix(Self.rival.name), "\(elements[titleIndex])")
+        let headingIndices = elements.indices.filter { elements[$0].role == "AXHeading" && $0 != titleIndex }
         let viewAllIndices = elements.indices.filter { Self.viewAlls([elements[$0]]).count == 1 }
+        #expect(headingIndices.allSatisfy { $0 > titleIndex }, "the title reads before the cards\n\(dump)")
         #expect(headingIndices.count == viewAllIndices.count && !headingIndices.isEmpty, "\(dump)")
         for (card, (heading, viewAll)) in zip(headingIndices, viewAllIndices).enumerated() {
             #expect(heading < viewAll, "card \(card): heading before its View All")

@@ -23,10 +23,6 @@ public sealed partial class SuggestionSongRow : Button
 
     private const double ArtSize = 44;
     private const double NarrowWidth = 440;
-    private static readonly SolidColorBrush Gold = new(Color.FromArgb(0xFF, 0xFF, 0xD7, 0x00));
-    private static readonly SolidColorBrush GoldStroke = new(Color.FromArgb(0xFF, 0xCF, 0xA5, 0x00));
-    private static readonly SolidColorBrush GoldBackground = new(Color.FromArgb(0xFF, 0x33, 0x29, 0x15));
-    private static readonly SolidColorBrush SubtleFill = new(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF));
     private static readonly SolidColorBrush RivalFill = new(Color.FromArgb(0x33, 0x42, 0x85, 0xF4));
     private static readonly SolidColorBrush RivalText = new(Color.FromArgb(0xFF, 0x6E, 0xA8, 0xFF));
 
@@ -35,8 +31,12 @@ public sealed partial class SuggestionSongRow : Button
     private readonly MarqueeText title = new();
     private readonly MarqueeText subtitle = new();
     private readonly StackPanel metadata = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Border artFrame;
+    private readonly FontIcon chevron;
     private CancellationTokenSource? artLoad;
     private bool narrow;
+    private bool listening;
+    private bool? paintedContrast;
 
     /// <summary>Creates the row.</summary>
     public SuggestionSongRow()
@@ -47,8 +47,6 @@ public sealed partial class SuggestionSongRow : Button
         CornerRadius = new CornerRadius(0);
         Background = new SolidColorBrush(Colors.Transparent);
         BorderThickness = new Thickness(0, 1, 0, 0);
-        BorderBrush = (Brush)Application.Current.Resources["FSTCardStrokeBrush"];
-        subtitle.TextStyle = SubtitleStyle;
 
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(ArtSize) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -56,10 +54,9 @@ public sealed partial class SuggestionSongRow : Button
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var artFrame = new Border
+        artFrame = new Border
         {
-            Width = ArtSize, Height = ArtSize, CornerRadius = new CornerRadius(6), Child = art,
-            Background = (Brush)Application.Current.Resources["FSTSurfaceMutedBrush"], VerticalAlignment = VerticalAlignment.Center,
+            Width = ArtSize, Height = ArtSize, CornerRadius = new CornerRadius(6), Child = art, VerticalAlignment = VerticalAlignment.Center,
         };
         AutomationProperties.SetAccessibilityView(art, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
         var text = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center, Children = { title, subtitle } };
@@ -68,10 +65,9 @@ public sealed partial class SuggestionSongRow : Button
         root.Children.Add(text);
         root.Children.Add(metadata);
         // In-card chevron: the row opens Song Detail (batch 7.3).
-        var chevron = new FontIcon
+        chevron = new FontIcon
         {
             Glyph = "\uE76C", FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0),
-            Foreground = (Brush)Application.Current.Resources["FSTSecondaryTextBrush"],
         };
         AutomationProperties.SetAccessibilityView(chevron, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
         Grid.SetColumn(chevron, 3);
@@ -80,10 +76,22 @@ public sealed partial class SuggestionSongRow : Button
         Content = root;
 
         title.TextStyle = TitleStyle;
+        PaintChrome();
         Click += (_, _) => { if (Item is { } item) MainWindow.Instance?.Navigate(item.Route); };
-        Loaded += (_, _) => LoadArt();
+        Loaded += (_, _) =>
+        {
+            Listen(true);
+            // A contrast-theme switch while the row was off screen (a recycled or cached row) left stale brushes.
+            if (paintedContrast != Services.ContrastTheme.IsOn) ApplyColors();
+            LoadArt();
+        };
         // WinUI can raise a stale Unloaded after the re-parented row's next Loaded; only cancel when really gone.
-        Unloaded += (_, _) => { if (!IsLoaded) CancelArt(); };
+        Unloaded += (_, _) =>
+        {
+            if (IsLoaded) return;
+            Listen(false);
+            CancelArt();
+        };
         SizeChanged += (_, e) => ApplyWidth(e.NewSize.Width);
     }
 
@@ -108,20 +116,63 @@ public sealed partial class SuggestionSongRow : Button
 
     private static Style? titleStyle;
 
-    /// <summary>12 epx secondary style for the subtitle marquee copies.</summary>
+    /// <summary>
+    /// 12 epx secondary style for the subtitle marquee copies, rebuilt when the contrast theme changes (its brush is resolved
+    /// once, so a style cached across a switch would keep the old theme's colour).
+    /// </summary>
     private static Style SubtitleStyle
     {
         get
         {
-            if (subtitleStyle is not null) return subtitleStyle;
+            var contrast = Services.ContrastTheme.IsOn;
+            if (subtitleStyle is not null && subtitleStyleContrast == contrast) return subtitleStyle;
             subtitleStyle = new Style(typeof(TextBlock));
             subtitleStyle.Setters.Add(new Setter(TextBlock.FontSizeProperty, 12.0));
-            subtitleStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty, Application.Current.Resources["FSTSecondaryTextBrush"]));
+            subtitleStyle.Setters.Add(new Setter(TextBlock.ForegroundProperty, Role("FSTSecondaryTextBrush")));
+            subtitleStyleContrast = contrast;
             return subtitleStyle;
         }
     }
 
     private static Style? subtitleStyle;
+    private static bool subtitleStyleContrast;
+
+    #region Contrast theme
+    /// <summary>Resolves the row's own code-set brushes (separator, art placeholder, chevron, subtitle) for the current theme.</summary>
+    private void PaintChrome()
+    {
+        BorderBrush = Role("FSTCardStrokeBrush");
+        artFrame.Background = Role("FSTSurfaceMutedBrush");
+        chevron.Foreground = Role("FSTSecondaryTextBrush");
+        subtitle.TextStyle = SubtitleStyle;
+        paintedContrast = Services.ContrastTheme.IsOn;
+    }
+
+    /// <summary>
+    /// Re-resolves every brush the row set in code after a contrast-theme switch: its chrome and the metadata (the rival pill's
+    /// brand or neutral role, the accuracy pill, delta text and instrument chips; issue #513). Art is not reloaded.
+    /// </summary>
+    private void ApplyColors()
+    {
+        PaintChrome();
+        if (Item is { } item) BuildMetadata(item);
+    }
+
+    /// <summary>Subscribes to or unsubscribes from <see cref="Services.ContrastTheme.Changed"/> once.</summary>
+    /// <param name="on">Whether to listen.</param>
+    private void Listen(bool on)
+    {
+        if (on == listening) return;
+        listening = on;
+        if (on) Services.ContrastTheme.Changed += OnColorsChanged;
+        else Services.ContrastTheme.Changed -= OnColorsChanged;
+    }
+
+    /// <summary>Re-applies the row's brushes on the UI thread after a system colour change (raised off the UI thread).</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(ApplyColors);
+    #endregion
 
     #region Build
     /// <summary>Rebuilds text and metadata for the current item.</summary>
@@ -137,12 +188,24 @@ public sealed partial class SuggestionSongRow : Button
         AutomationProperties.SetName(this, p.AccessibleName);
         BorderThickness = new Thickness(0, item.IsFirst ? 0 : 1, 0, 0);
         AutomationProperties.SetAutomationId(this, item.AutomationId);
+        BuildMetadata(item);
+        if (IsLoaded) LoadArt();
+    }
+
+    /// <summary>Builds the layout-specific metadata for the current theme.</summary>
+    /// <param name="item">Row.</param>
+    private void BuildMetadata(SuggestionRowItem item)
+    {
+        metadata.Children.Clear();
+        var p = item.Presentation;
         switch (p.Layout)
         {
             case SuggestionRowLayout.Rival:
                 // Contrast theme: the rival name is a plain pill (ButtonFace / ButtonText with an outline), not brand blue.
                 if (p.RivalName is { } rival)
-                    metadata.Children.Add(Services.ContrastTheme.IsOn ? NeutralPill(rival) : Pill(rival, RivalFill, null, RivalText));
+                    metadata.Children.Add(Services.ContrastTheme.IsOn
+                        ? NeutralPill(rival, PillId(item, "rival"))
+                        : Pill(rival, RivalFill, null, RivalText, PillId(item, "rival")));
                 // Rivals' win/lose text roles: the web's #C62828 measured 3.0:1 on the card (issue #259); contrast themes use WindowText.
                 if (p.RivalDeltaText is { } delta)
                     metadata.Children.Add(new TextBlock
@@ -157,18 +220,18 @@ public sealed partial class SuggestionSongRow : Button
                     ? NeutralPill(p.AccuracyText!)
                     : Pill(p.AccuracyText!, new SolidColorBrush(Color.FromArgb(0x40, r, g, b)), null, null));
                 break;
+            // The shared season and percentile pills (pattern metadata-pills, issue #606): the same size as Songs rows and
+            // leaderboards, and the current season is the inverted pill. The row's name already speaks the value.
             case SuggestionRowLayout.Season when p.SeasonText is { } season:
-                metadata.Children.Add(Pill(season, (Brush)Application.Current.Resources["FSTSurfaceMutedBrush"], null, null));
+                var current = MetadataPillStyle.IsCurrent(p.SeasonNumber, App.Session.Catalog?.CurrentSeason);
+                var seasonPill = MetadataPills.Season(season, current);
+                seasonPill.Label(p.SeasonNumber is { } n ? MetadataPillStyle.SeasonAnnouncement(n, current) : season, PillId(item, "season"));
+                metadata.Children.Add(seasonPill);
                 break;
             case SuggestionRowLayout.Percentile when p.PercentileText is { } percentile:
-                metadata.Children.Add(p.PercentileTier switch
-                {
-                    PercentileTier.Top1 when Services.ContrastTheme.IsOn => Pill(percentile, Role("FSTTopOneFillBrush"), null, Role("FSTTopOneTextBrush"), italic: true),
-                    PercentileTier.Top1 => Pill(percentile, GoldBackground, GoldStroke, Gold, italic: true),
-                    PercentileTier.Top5 => Pill(percentile, null, Role("FSTEmphasisStrokeBrush"), Role("FSTEmphasisBrush")),
-                    _ when Services.ContrastTheme.IsOn => NeutralPill(percentile),
-                    _ => Pill(percentile, SubtleFill, null, null),
-                });
+                var percentilePill = MetadataPills.Percentile(percentile, MetadataPillStyle.Tier(p.PercentileTier));
+                percentilePill.Label(percentile, PillId(item, "percentile"));
+                metadata.Children.Add(percentilePill);
                 break;
             case SuggestionRowLayout.SingleInstrument when p.StarCount > 0:
                 metadata.Children.Add(new StarRow { Stars = p.GoldStars ? StarRating.GoldValue : p.StarCount, StarSize = 20 });
@@ -194,7 +257,6 @@ public sealed partial class SuggestionSongRow : Button
             metadata.Children.Add(new InstrumentIcon { File = instrument.IconFile(item.UsesKeyboardIcon), Label = instrument.Label(), Width = 28, Height = 28 });
         metadata.Visibility = metadata.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ApplyWidth(ActualWidth);
-        if (IsLoaded) LoadArt();
     }
 
     /// <summary>Contrast role brush (<see cref="Services.ContrastTheme"/>).</summary>
@@ -202,24 +264,37 @@ public sealed partial class SuggestionSongRow : Button
     /// <returns>Brush.</returns>
     private static Brush Role(string key) => Services.ContrastTheme.Brush(key);
 
+    /// <summary>
+    /// Raw-view test ID of a row's shared pill, <c>fst.suggestions.row.&lt;song&gt;.&lt;instrument&gt;.&lt;kind&gt;</c>: the row
+    /// ID with its <c>|</c> made a dot, so a UI step (which splits on <c>|</c>) can select it.
+    /// </summary>
+    /// <param name="item">Row.</param>
+    /// <param name="kind"><c>season</c> or <c>percentile</c>.</param>
+    /// <returns>Automation ID.</returns>
+    private static string PillId(SuggestionRowItem item, string kind) => $"{item.AutomationId.Replace('|', '.')}.{kind}";
+
     /// <summary>A plain pill in the contrast-theme role (ButtonFace fill, ButtonText text and outline; design/windows.md).</summary>
     /// <param name="text">Text.</param>
+    /// <param name="automationId">Optional test ID for the pill's label.</param>
     /// <returns>Pill.</returns>
-    private static Border NeutralPill(string text) =>
-        Pill(text, Role("FSTNeutralPillFillBrush"), Role("FSTNeutralPillStrokeBrush"), Role("FSTNeutralPillTextBrush"));
+    private static Border NeutralPill(string text, string? automationId = null) =>
+        Pill(text, Role("FSTNeutralPillFillBrush"), Role("FSTNeutralPillStrokeBrush"), Role("FSTNeutralPillTextBrush"), automationId);
 
     /// <summary>A rounded metadata pill.</summary>
     /// <param name="text">Text.</param>
     /// <param name="fill">Fill, or none.</param>
     /// <param name="stroke">Outline, or none.</param>
     /// <param name="foreground">Text brush, or the default.</param>
-    /// <param name="italic">Italic text.</param>
+    /// <param name="automationId">
+    /// Optional test ID for the label (a <see cref="Border"/> has no UIA peer), e.g.
+    /// <c>fst.suggestions.row.s034.Solo_Guitar.rival</c> for the contrast paint check (issue #513). Narrator is unchanged.
+    /// </param>
     /// <returns>Pill.</returns>
-    private static Border Pill(string text, Brush? fill, Brush? stroke, Brush? foreground, bool italic = false)
+    private static Border Pill(string text, Brush? fill, Brush? stroke, Brush? foreground, string? automationId = null)
     {
         var label = new TextBlock { Text = text, FontWeight = FontWeights.SemiBold, FontSize = 14, HorizontalAlignment = HorizontalAlignment.Center };
         if (foreground is not null) label.Foreground = foreground;
-        if (italic) label.FontStyle = Windows.UI.Text.FontStyle.Italic;
+        if (automationId is not null) AutomationProperties.SetAutomationId(label, automationId);
         return new Border
         {
             Child = label, Background = fill, BorderBrush = stroke, BorderThickness = new Thickness(stroke is null ? 0 : 2),

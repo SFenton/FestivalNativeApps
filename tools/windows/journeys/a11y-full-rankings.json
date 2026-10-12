@@ -1,0 +1,100 @@
+[
+  {
+    "name": "fr-pinned-own-page",
+    "note": "Issue #318 (#466): the selected player's row is on the shown page and still pinned above the pager. Narrator reads the pinned row's rank, its Open your statistics action, the player and Button; the pager reads First/Previous unavailable on page 1; every footer control is a 40x40 target kept apart from its neighbour; order is title -> the player's in-list row -> pinned row -> pager; the fade layer stays out of the control view and rows fade 40 epx above the footer.",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "profile": "fixture-player-2:Fixture Player 2",
+    "fixture": ["rankings_fixture.py"],
+    "ready": [
+      "waitfor:id=fst.rankings.row.fixture-player-2@20",
+      "waitfor:id=fst.full-rankings.spotlight-footer@10",
+      "waitfor:id=fst.full-rankings.page-info@10",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertstate:id=fst.full-rankings.title|heading=1",
+      "assertread:id=fst.full-rankings.spotlight-footer|~^Your rank, 2nd\\. Open your statistics\\. Fixture Player 2\\. Total Score .+, button$",
+      "assertread:id=fst.full-rankings.page-first|First page, button, unavailable",
+      "assertread:id=fst.full-rankings.page-previous|Previous page, button, unavailable",
+      "assertread:id=fst.full-rankings.page-info|Page 1 of 48, text",
+      "assertread:id=fst.full-rankings.page-next|Next page, button",
+      "assertread:id=fst.full-rankings.page-last|Last page, button",
+      "assertsize:id=fst.full-rankings.spotlight-footer|40x40",
+      "assertsize:id=fst.full-rankings.page-first|40x40",
+      "assertsize:id=fst.full-rankings.page-previous|40x40",
+      "assertsize:id=fst.full-rankings.page-next|40x40",
+      "assertsize:id=fst.full-rankings.page-last|40x40",
+      "assertapart:id=fst.full-rankings.spotlight-footer|id=fst.full-rankings.page-next",
+      "assertorder:id=fst.full-rankings.title|id=fst.rankings.row.fixture-player-2|id=fst.full-rankings.spotlight-footer|id=fst.full-rankings.page-first|id=fst.full-rankings.page-previous|id=fst.full-rankings.page-info|id=fst.full-rankings.page-next|id=fst.full-rankings.page-last",
+      "waitgone:id=fst.full-rankings.footer-fade@2",
+      "assertstatus:id=fst.full-rankings.footer-fade|fading:40@5"
+    ]
+  },
+  {
+    "name": "fr-pinned-own-page-keyboard",
+    "note": "Issue #318 (#466): with the player's row on page 1, Tab walks rows -> pinned row -> enabled pager buttons and Shift+Tab walks back; Enter on the pinned row opens the player's statistics.",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "profile": "fixture-player-2:Fixture Player 2",
+    "fixture": ["rankings_fixture.py"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.rankings.row.fixture-player-2@20",
+      "waitfor:id=fst.full-rankings.spotlight-footer@10",
+      "waitfor:id=fst.full-rankings.page-info@10",
+      "wait:1"
+    ],
+    "after_ready": [
+      "focus:id=fst.rankings.row.fixture-player-1",
+      "assertfocus:id=fst.rankings.row.fixture-player-1@3",
+      "key:tab",
+      "assertfocus:id=fst.full-rankings.spotlight-footer@3",
+      "key:tab",
+      "assertfocus:id=fst.full-rankings.page-next@3",
+      "key:tab",
+      "assertfocus:id=fst.full-rankings.page-last@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.full-rankings.page-next@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.full-rankings.spotlight-footer@3",
+      "key:enter",
+      "waitfor:id=fst.player@10",
+      "wait:1"
+    ]
+  },
+  {
+    "name": "fr-pinned-jump-keyboard",
+    "note": "Issue #318 (#466): off the player's page the pinned row reads Jump to your position; Enter by keyboard jumps to page 2, keeps focus on the pinned row, which now reads Open your statistics while the player's row is in the list above it; First and Previous join the pager and the order stays rows -> pinned row -> pager.",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "profile": "fixture-rank-40:Fixture Rank 40",
+    "fixture": ["rankings_fixture.py"],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.rankings.row.fixture-player-1@20",
+      "waitfor:id=fst.full-rankings.spotlight-footer@10",
+      "waitfor:id=fst.full-rankings.page-info@10",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertread:id=fst.full-rankings.spotlight-footer|~^Your rank, 40th\\. Jump to your position\\. Fixture Rank 40\\. Total Score .+, button$",
+      "assertsize:id=fst.full-rankings.spotlight-footer|40x40",
+      "assertorder:id=fst.rankings.row.fixture-player-1|id=fst.full-rankings.spotlight-footer|id=fst.full-rankings.page-first|id=fst.full-rankings.page-next",
+      "focus:id=fst.full-rankings.spotlight-footer",
+      "assertfocus:id=fst.full-rankings.spotlight-footer@3",
+      "key:enter",
+      "waitfor:id=fst.rankings.row.fixture-rank-40@10",
+      "assertread:id=fst.full-rankings.spotlight-footer|~^Your rank, 40th\\. Open your statistics\\. Fixture Rank 40\\. Total Score .+, button$@10",
+      "assertfocus:id=fst.full-rankings.spotlight-footer@3",
+      "assertread:id=fst.full-rankings.page-info|Page 2 of 48, text@5",
+      "assertread:id=fst.full-rankings.page-first|First page, button",
+      "assertread:id=fst.full-rankings.page-previous|Previous page, button",
+      "assertorder:id=fst.rankings.row.fixture-rank-40|id=fst.full-rankings.spotlight-footer|id=fst.full-rankings.page-first|id=fst.full-rankings.page-previous|id=fst.full-rankings.page-info|id=fst.full-rankings.page-next|id=fst.full-rankings.page-last",
+      "assertsize:id=fst.full-rankings.page-first|40x40",
+      "assertsize:id=fst.full-rankings.page-previous|40x40",
+      "key:tab",
+      "assertfocus:id=fst.full-rankings.page-first@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.full-rankings.spotlight-footer@3",
+      "wait:1"
+    ]
+  }
+]

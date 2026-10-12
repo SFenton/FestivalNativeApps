@@ -1,5 +1,5 @@
 // System accessibility settings for the device lab's accessibility matrix: contrast themes,
-// client-area animations ("Animation effects"), transparency effects and text scaling.
+// client-area animations ("Animation effects"), transparency effects, "Always show scrollbars" and text scaling.
 // uiwin.py applies them only while it holds the desktop lock and always restores the previous
 // values before releasing it, because they change the operator's real desktop.
 
@@ -28,7 +28,8 @@ internal sealed partial class Driver
     /// <summary>
     /// <c>sysset</c>: applies any of <c>high_contrast</c> (<c>off</c>, <c>aquatic</c>, <c>desert</c>, <c>dusk</c>,
     /// <c>night-sky</c> or a raw scheme name), <c>animations</c> (bool), <c>transparency</c> (bool),
-    /// <c>light_theme</c> (bool, the default app mode), <c>display_scale</c> (percent, primary display) and
+    /// <c>light_theme</c> (bool, the default app mode), <c>display_scale</c> (percent, primary display),
+    /// <c>always_show_scrollbars</c> (bool, Accessibility › Visual effects › Always show scrollbars) and
     /// <c>text_scale</c> (100–225) and returns the values before and after, so the caller can restore them.
     /// </summary>
     /// <param name="request">Request with a <c>set</c> object.</param>
@@ -43,6 +44,7 @@ internal sealed partial class Driver
         if (set["text_scale"] is JsonNode scale) SetTextScale((int)scale!);
         if (set["light_theme"] is JsonNode light) SetLightTheme((bool)light!);
         if (set["display_scale"] is JsonNode displayScale) DisplayScale.Set((int)displayScale!);
+        if (set["always_show_scrollbars"] is JsonNode bars) SetAlwaysShowScrollBars((bool)bars!);
         return new JsonObject { ["previous"] = previous, ["current"] = ReadSettings() };
     }
 
@@ -58,6 +60,7 @@ internal sealed partial class Driver
         SystemParametersInfo(SpiGetClientAreaAnimation, 0, ref animations, 0);
         using var personalize = Registry.CurrentUser.OpenSubKey(PersonalizeKey);
         using var accessibility = Registry.CurrentUser.OpenSubKey(AccessibilityKey);
+        using var scrollBars = Registry.CurrentUser.OpenSubKey(ScrollBarsKey);
         return new JsonObject
         {
             ["high_contrast"] = (hc.Flags & HcfHighContrastOn) != 0 ? named ?? scheme : "off",
@@ -66,6 +69,7 @@ internal sealed partial class Driver
             ["text_scale"] = accessibility?.GetValue("TextScaleFactor") as int? ?? 100,
             ["light_theme"] = (personalize?.GetValue("AppsUseLightTheme") as int? ?? 1) != 0,
             ["display_scale"] = DisplayScale.Get(),
+            ["always_show_scrollbars"] = (scrollBars?.GetValue("DynamicScrollbars") as int? ?? 1) == 0,
             ["window_color"] = $"#{GetSysColor(ColorWindow) & 0xFF:X2}{(GetSysColor(ColorWindow) >> 8) & 0xFF:X2}{(GetSysColor(ColorWindow) >> 16) & 0xFF:X2}",
         };
     }
@@ -116,6 +120,18 @@ internal sealed partial class Driver
         Thread.Sleep(1000);
     }
 
+    /// <summary>
+    /// Settings → Accessibility → Visual effects → "Always show scrollbars": <c>DynamicScrollbars</c> 0 (always) or 1
+    /// (auto-hide, the default). WinUI's <c>UISettings.AutoHideScrollBars</c> reads it in apps launched afterwards.
+    /// </summary>
+    /// <param name="always">Always show scroll bars when true; auto-hide them when false.</param>
+    private static void SetAlwaysShowScrollBars(bool always)
+    {
+        using (var key = Registry.CurrentUser.CreateSubKey(ScrollBarsKey))
+            key.SetValue("DynamicScrollbars", always ? 0 : 1, RegistryValueKind.DWord);
+        Broadcast(ScrollBarsKey);
+    }
+
     private static void SetTextScale(int percent)
     {
         if (percent is < 100 or > 225) throw new ArgumentOutOfRangeException(nameof(percent), "text_scale must be 100–225");
@@ -142,6 +158,7 @@ internal sealed partial class Driver
 
     private const string PersonalizeKey = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
     private const string AccessibilityKey = @"Software\Microsoft\Accessibility";
+    private const string ScrollBarsKey = @"Control Panel\Accessibility";
     private const uint SpiGetHighContrast = 0x0042, SpiSetHighContrast = 0x0043;
     private const uint SpiGetClientAreaAnimation = 0x1042, SpiSetClientAreaAnimation = 0x1043;
     private const uint SpifUpdateIniFile = 0x1, SpifSendChange = 0x2, HcfHighContrastOn = 0x1;

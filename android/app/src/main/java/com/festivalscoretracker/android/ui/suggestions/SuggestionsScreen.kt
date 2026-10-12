@@ -11,10 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
-import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
-import androidx.compose.foundation.lazy.staggeredgrid.itemsIndexed
-import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material3.FilledTonalButton
@@ -225,21 +225,22 @@ private fun Message(title: String, subtitle: String, padding: PaddingValues, tag
  * @property firstPx Width of the column before the hinge.
  */
 @Immutable
-internal data class HingeSplitCells(val firstPx: Int) : StaggeredGridCells {
-    override fun Density.calculateCrossAxisCellSizes(availableSize: Int, spacing: Int): IntArray {
+internal data class HingeSplitCells(val firstPx: Int) : GridCells {
+    override fun Density.calculateCrossAxisCellSizes(availableSize: Int, spacing: Int): List<Int> {
         val usable = availableSize - spacing
         val first = firstPx.coerceIn(0, usable)
-        return intArrayOf(first, usable - first)
+        return listOf(first, usable - first)
     }
 }
 
 /**
  * Card columns for the current window: split at a separating vertical hinge,
- * otherwise as many ≥ [MIN_COLUMN] columns as fit.
+ * otherwise as many ≥ [MIN_COLUMN] columns as fit. Cards fill each row start to end and
+ * share its top edge (`hinge-columns` R8, #584).
  *
  * @property leadingPane Leading pane width while split at the hinge (full-line items stay in it), or null.
  */
-private data class GridColumns(val cells: StaggeredGridCells, val gap: Dp, val narrow: Boolean, val leadingPane: Dp? = null)
+private data class GridColumns(val cells: GridCells, val gap: Dp, val narrow: Boolean, val leadingPane: Dp? = null)
 
 @Composable
 private fun SuggestionsGrid(
@@ -249,7 +250,7 @@ private fun SuggestionsGrid(
     artworkUrl: (String?) -> String?,
     onSong: (String) -> Unit,
 ) {
-    val gridState = rememberLazyStaggeredGridState()
+    val gridState = rememberLazyGridState()
     val density = LocalDensity.current
     val direction = LocalLayoutDirection.current
     val hinge = shellPosture().hingeList.firstOrNull { it.isSeparating && it.isVertical }
@@ -295,17 +296,17 @@ private fun SuggestionsGrid(
                 GridColumns(HingeSplitCells(first.roundToPx()), gap, first < NARROW, panes.leadingPane(direction == LayoutDirection.Rtl)?.toDp())
             } else {
                 val count = maxOf(1, ((available + side) / (MIN_COLUMN + side)).toInt())
-                GridColumns(StaggeredGridCells.Fixed(count), side, (available - side * (count - 1)) / count < NARROW)
+                GridColumns(GridCells.Fixed(count), side, (available - side * (count - 1)) / count < NARROW)
             }
         }
         // Full-line items (foldLaneItem) stay in the leading pane while split at the hinge.
         ProvideFoldLane(columns.leadingPane) {
-            LazyVerticalStaggeredGrid(
+            LazyVerticalGrid(
                 columns = columns.cells,
                 state = gridState,
-                contentPadding = PaddingValues(start = start, end = end, top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding() + 24.dp),
+                contentPadding = PaddingValues(start = start, end = end, top = padding.calculateTopPadding() + 8.dp, bottom = padding.calculateBottomPadding()),
                 horizontalArrangement = Arrangement.spacedBy(columns.gap),
-                verticalItemSpacing = 24.dp,
+                verticalArrangement = Arrangement.spacedBy(24.dp),
                 modifier = Modifier.fillMaxSize().testTag("fst.suggestions.list"),
             ) {
                 itemsIndexed(state.cards, key = { _, card -> card.id }, contentType = { _, _ -> "card" }) { index, card ->

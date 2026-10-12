@@ -144,5 +144,22 @@ public static class GroupedRows
         Apply(row, SliceFor(index, source.Count, source.GetAt(index), index > 0 ? source.GetAt(index - 1) : null,
             GetInCard(repeater)));
     }
+
+    /// <summary>
+    /// Slices a realized <see cref="ListView"/> row from the page's <c>ContainerContentChanging</c> handler (issue #603,
+    /// Rivals' lists): the template root draws the slice, and the container's hover, press and selection fill and its
+    /// focus ring follow the slice's corners and stay inside the row, which touches its neighbours.
+    /// </summary>
+    /// <param name="list">List.</param>
+    /// <param name="args">Realized row.</param>
+    public static void ApplyToContainer(ListViewBase list, ContainerContentChangingEventArgs args)
+    {
+        var index = args.ItemIndex;
+        var items = list.Items;
+        var slice = SliceFor(index, items.Count, args.Item, index > 0 && index - 1 < items.Count ? items[index - 1] : null);
+        if (args.ItemContainer.ContentTemplateRoot is UIElement root) Apply(root, slice);
+        args.ItemContainer.CornerRadius = Radius(slice);
+        args.ItemContainer.FocusVisualMargin = new Thickness(0);
+    }
 }
 #endregion

@@ -17,7 +17,10 @@ public enum RivalSongOutcome
     Losing,
 }
 
-/// <summary>One shared song, head to head (web <c>RivalSongRow</c>, standalone layout).</summary>
+/// <summary>
+/// One shared song, head to head (pattern <c>rival-rows</c>, the Apple <c>RivalSongRowContent</c> design on every surface,
+/// issue #603): art, title, artist, "#rank Name" pills for both sides and a rank-gap badge.
+/// </summary>
 public sealed record RivalSongItem
 {
     /// <summary>Builds a row, enriching it from the catalogue when the song is known.</summary>
@@ -31,8 +34,7 @@ public sealed record RivalSongItem
         PlayerName = playerName;
         RivalName = rivalName;
         Title = song.Title ?? catalogSong?.Title ?? song.SongId;
-        var artist = song.Artist ?? catalogSong?.Artist;
-        Subtitle = catalogSong?.Year is { } year && artist is not null ? $"{artist} · {year}" : artist ?? "";
+        Artist = song.Artist ?? catalogSong?.Artist ?? "";
         AlbumArt = catalogSong?.AlbumArt;
         var keyboard = catalogSong?.UsesKeyboardIcon == true;
         InstrumentInfo.TryParse(song.UserInstrument ?? song.Instrument, out var user);
@@ -51,8 +53,11 @@ public sealed record RivalSongItem
     /// <summary>Song title (service title, else catalogue, else ID).</summary>
     public string Title { get; }
 
-    /// <summary><c>Artist · Year</c>.</summary>
-    public string Subtitle { get; }
+    /// <summary>Artist (service, else catalogue), or empty when unknown.</summary>
+    public string Artist { get; }
+
+    /// <summary>Whether the artist line shows.</summary>
+    public bool HasArtist => Artist.Length > 0;
 
     /// <summary>Catalogue art reference, if known.</summary>
     public string? AlbumArt { get; }
@@ -89,8 +94,19 @@ public sealed record RivalSongItem
     /// <summary>Whether the player leads.</summary>
     public bool IsWinning => Outcome == RivalSongOutcome.Winning;
 
+    /// <summary>Whether the two ranks are equal.</summary>
+    public bool IsTied => Outcome == RivalSongOutcome.Tie;
+
     /// <summary>Whether the rival leads.</summary>
     public bool IsLosing => Outcome == RivalSongOutcome.Losing;
+
+    /// <summary>Who leads, from the rival's side (the mirror of <see cref="Outcome"/>): tints the rival's pill.</summary>
+    public RivalSongOutcome RivalOutcome => Outcome switch
+    {
+        RivalSongOutcome.Winning => RivalSongOutcome.Losing,
+        RivalSongOutcome.Losing => RivalSongOutcome.Winning,
+        _ => RivalSongOutcome.Tie,
+    };
 
     /// <summary><c>#rank</c> for the player.</summary>
     public string UserRankText => string.Create(CultureInfo.CurrentCulture, $"#{Comparison.UserRank:N0}");
@@ -98,46 +114,35 @@ public sealed record RivalSongItem
     /// <summary><c>#rank</c> for the rival.</summary>
     public string RivalRankText => string.Create(CultureInfo.CurrentCulture, $"#{Comparison.RivalRank:N0}");
 
-    /// <summary>Player's score, or empty.</summary>
-    public string UserScoreText => Comparison.UserScore?.ToString("N0", CultureInfo.CurrentCulture) ?? "";
+    /// <summary>The player's standing pill, <c>#rank Name</c> (rival-rows R3).</summary>
+    public string PlayerPillText => $"{UserRankText} {PlayerName}";
 
-    /// <summary>Rival's score, or empty.</summary>
-    public string RivalScoreText => Comparison.RivalScore?.ToString("N0", CultureInfo.CurrentCulture) ?? "";
+    /// <summary>The rival's standing pill, <c>#rank Name</c> (rival-rows R3).</summary>
+    public string RivalPillText => $"{RivalRankText} {RivalName}";
 
     /// <summary>Signed rank gap.</summary>
     public string RankDeltaText => RivalHeadToHead.FormatRankDelta(Comparison.RankDelta);
 
-    /// <summary>Signed score gap.</summary>
-    public string ScoreDiffText => RivalHeadToHead.FormatScoreDiff(Comparison);
-
-    /// <summary>Screen-reader name.</summary>
-    public string AccessibleName =>
-        $"{Title}, {InstrumentLabel}, you rank {Comparison.UserRank:N0}, {RivalName} ranks {Comparison.RivalRank:N0}, " +
-        (Outcome switch { RivalSongOutcome.Winning => "you lead", RivalSongOutcome.Losing => "they lead", _ => "tied" });
+    /// <summary>Unsigned rank gap under the badge's ▲/▼/= glyph (the web's compact <c>K</c>/<c>M</c> form).</summary>
+    public string RankGapText => RivalHeadToHead.FormatRankDelta(Math.Abs((long)Comparison.RankDelta)).TrimStart('+');
 
     /// <summary>
-    /// Screen-reader name of the full (Rivalry) row, which also shows artist, year and both scores. The row's parts are
-    /// hidden from UI Automation, so this one stop reads everything it shows.
+    /// The row's one screen-reader stop (rival-rows R5): song, artist, chart, both ranks and who leads. The row's parts are
+    /// hidden from UI Automation, so this reads everything it shows.
     /// </summary>
-    public string FullAccessibleName
+    public string AccessibleName
     {
         get
         {
-            var subtitle = Subtitle.Length == 0 ? "" : $", {Subtitle.Replace(" · ", ", ", StringComparison.Ordinal)}";
-            var outcome = Outcome switch { RivalSongOutcome.Winning => "you lead", RivalSongOutcome.Losing => "they lead", _ => "tied" };
+            var artist = HasArtist ? $", {Artist}" : "";
+            var leader = Outcome switch { RivalSongOutcome.Winning => "you lead", RivalSongOutcome.Losing => $"{RivalName} leads", _ => "tied" };
             return string.Create(CultureInfo.CurrentCulture,
-                $"{Title}{subtitle}, {InstrumentLabel}, you rank {Comparison.UserRank:N0}{Points(UserScoreText)}, " +
-                $"{RivalName} ranks {Comparison.RivalRank:N0}{Points(RivalScoreText)}, {outcome}");
+                $"{Title}{artist}, {InstrumentLabel}, you rank {Comparison.UserRank:N0}, {RivalName} ranks {Comparison.RivalRank:N0}, {leader}");
         }
     }
 
     /// <summary>UIA automation ID.</summary>
     public string AutomationId => $"fst.rivalry.song.{Comparison.SongId}.{Comparison.Instrument}";
-
-    /// <summary>Spoken score suffix.</summary>
-    /// <param name="score">Formatted score, or empty when unknown.</param>
-    /// <returns><c>, with N points</c>, or empty.</returns>
-    private static string Points(string score) => score.Length == 0 ? "" : $" with {score} points";
 }
 #endregion
 
@@ -320,12 +325,7 @@ public sealed partial class AllRivalsViewModel : RivalPageViewModel
     public string Title => (Scope ?? RouteScope).ListTitle;
 
     /// <summary>Instrument icon for single-chart scopes.</summary>
-    public string IconFile => Scope switch
-    {
-        RivalScope.Song { IsCommon: false } s => s.Instruments[0].IconFile(),
-        RivalScope.Leaderboard l => l.Instrument.IconFile(),
-        _ => "",
-    };
+    public string IconFile => Scope?.SingleInstrument?.IconFile() ?? "";
 
     /// <summary>Whether an icon is shown.</summary>
     public bool HasIcon => IconFile.Length > 0;
@@ -476,11 +476,20 @@ public sealed partial class RivalDetailViewModel : RivalPageViewModel
     /// </summary>
     public List<QuickLinkSection> QuickLinkSections => [.. Categories.Select(c => c.QuickLinkSection)];
 
-    /// <summary>Heading.</summary>
+    /// <summary>Heading: the rival's name (#604).</summary>
     public string Title => RivalName ?? "Rival";
 
-    /// <summary>Which scope the comparison covers.</summary>
-    public string ScopeLabel => RivalDetailText.ScopeLabel(Session.ResolveRivalScope(Route.Scope), Session.Settings.VisibleInstruments);
+    /// <summary>
+    /// Subtitle under the rival's name (#604): <c>{Instrument} Rivals</c> when the page was opened from a single-instrument
+    /// list, otherwise <c>Rivals</c>.
+    /// </summary>
+    public string Subtitle => RivalDetailText.Subtitle(Session.ResolveRivalScope(Route.Scope), Session.Settings.VisibleInstruments);
+
+    /// <summary>Decorative instrument icon leading <see cref="Subtitle"/>, or empty when the scope spans several charts.</summary>
+    public string SubtitleIconFile => RivalDetailText.SubtitleIconFile(Session.ResolveRivalScope(Route.Scope), Session.Settings.VisibleInstruments);
+
+    /// <summary>Whether <see cref="SubtitleIconFile"/> is shown.</summary>
+    public bool HasSubtitleIcon => SubtitleIconFile.Length > 0;
 
     /// <summary>Profile action label (web <c>common.viewNameProfile</c>).</summary>
     public string ViewProfileLabel => RivalName is { } name ? $"View {name}'s Profile" : "View Profile";
@@ -494,7 +503,9 @@ public sealed partial class RivalDetailViewModel : RivalPageViewModel
     /// <inheritdoc />
     protected override async Task<RivalPageState> LoadContentAsync(CancellationToken cancellationToken)
     {
-        OnPropertyChanged(nameof(ScopeLabel));
+        OnPropertyChanged(nameof(Subtitle));
+        OnPropertyChanged(nameof(SubtitleIconFile));
+        OnPropertyChanged(nameof(HasSubtitleIcon));
         var detailRead = Session.GetRivalDetailAsync(Route.Scope, Route.RivalId, Route.AllowLiveFallback, cancellationToken);
         var lookup = await CatalogLookupAsync();
         var detail = await detailRead;
@@ -508,21 +519,22 @@ public sealed partial class RivalDetailViewModel : RivalPageViewModel
     }
 }
 
-/// <summary>Scope descriptions for rival pages.</summary>
+/// <summary>Header text for rival pages (#604).</summary>
 public static class RivalDetailText
 {
-    /// <summary>Describes the charts a comparison covers.</summary>
+    /// <summary>Rival Detail's subtitle: the single chart's list title, else plain "Rivals" (as on Android and Apple).</summary>
     /// <param name="scope">Route scope (<see langword="null"/> = every visible chart).</param>
     /// <param name="visible">Settings-visible charts.</param>
-    /// <returns>Text such as <c>Lead · Leaderboard (Total Score)</c>.</returns>
-    public static string ScopeLabel(RivalScope? scope, IReadOnlyList<Instrument> visible) => scope?.Resolve(visible) switch
-    {
-        RivalScope.Leaderboard l => $"{l.Instrument.Label()} · Leaderboard ({l.RankBy.Label()})",
-        RivalScope.Combo c => $"{RivalCombo.Label(c.Token)}: {string.Join(", ", c.Instruments.Select(i => i.Label()))}",
-        RivalScope.Song s when s.IsCommon && s.Instruments.SequenceEqual(visible) => "Common Rivals · All Visible Instruments",
-        RivalScope.Song s => string.Join(", ", s.Instruments.Select(i => i.Label())),
-        _ => "All Visible Instruments",
-    };
+    /// <returns><c>Lead Rivals</c> for song or leaderboard rivals of one chart, otherwise <c>Rivals</c>.</returns>
+    public static string Subtitle(RivalScope? scope, IReadOnlyList<Instrument> visible) =>
+        scope?.Resolve(visible) is { SingleInstrument: not null } single ? single.ListTitle : "Rivals";
+
+    /// <summary>The decorative icon leading <see cref="Subtitle"/> (page-tools-and-nav-chrome R18).</summary>
+    /// <param name="scope">Route scope (<see langword="null"/> = every visible chart).</param>
+    /// <param name="visible">Settings-visible charts.</param>
+    /// <returns>The chart's icon file, or empty when the scope spans several charts.</returns>
+    public static string SubtitleIconFile(RivalScope? scope, IReadOnlyList<Instrument> visible) =>
+        scope?.Resolve(visible)?.SingleInstrument?.IconFile() ?? "";
 }
 #endregion
 
@@ -553,9 +565,9 @@ public sealed partial class RivalryViewModel : RivalPageViewModel
     [NotifyPropertyChangedFor(nameof(Subtitle), nameof(ViewProfileLabel))]
     private string? rivalName;
 
-    /// <summary>Category description.</summary>
+    /// <summary>Category description, on its own line below the rival's name.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Subtitle))]
+    [NotifyPropertyChangedFor(nameof(HasDescription))]
     private string description = "";
 
     /// <summary>Sorted rows.</summary>
@@ -567,9 +579,11 @@ public sealed partial class RivalryViewModel : RivalPageViewModel
     [NotifyPropertyChangedFor(nameof(SortIndex))]
     private RivalrySort sort = RivalrySort.Category;
 
-    /// <summary><c>vs. {name}</c> plus the category description.</summary>
-    public string Subtitle => string.Join(" · ", new[] { RivalName is { } n ? $"vs. {n}" : null, Description.Length > 0 ? Description : null }
-        .Where(p => p is not null));
+    /// <summary>Subtitle under the section title: the rival's name (#604), or "Rival" until known, like Rival Detail's title.</summary>
+    public string Subtitle => RivalName ?? "Rival";
+
+    /// <summary>Whether the category description line shows.</summary>
+    public bool HasDescription => Description.Length > 0;
 
     /// <summary>Profile action label.</summary>
     public string ViewProfileLabel => RivalName is { } name ? $"View {name}'s Profile" : "View Profile";

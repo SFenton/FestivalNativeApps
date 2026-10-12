@@ -1,5 +1,6 @@
 package com.festivalscoretracker.android.core.profile
 
+import com.festivalscoretracker.android.core.rankings.HistoryColumnTexts
 import java.time.Duration
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -234,7 +235,31 @@ data class RankHistoryChartModel(
     val snapshots: List<PlayerRankHistorySnapshot> = emptyList(),
     val totalAccounts: Int = 0,
 ) {
+    /**
+     * The texts the snapshot rows' shared columns are measured from: every snapshot, so the
+     * five listed rows and any tapped bar's detail line up (web "stable column widths derived
+     * from ALL chart history points", `leaderboard-row` R1, issue #594).
+     *
+     * @param locale Locale.
+     * @return Every snapshot's date, rank and Total Score text.
+     */
+    fun columnTexts(locale: Locale = Locale.getDefault()): HistoryColumnTexts = HistoryColumnTexts(
+        dates = snapshots.map { RankHistoryPlot.displayDate(it, locale) },
+        ranks = snapshots.map { ProfileFormatting.rank(it.totalScoreRank, locale) },
+        values = snapshots.map { snapshotValue(it, locale) },
+    )
+
     companion object {
+        /**
+         * A snapshot row's Total Score text.
+         *
+         * @param snapshot Snapshot.
+         * @param locale Locale.
+         * @return Grouped Total Score, or "—" without one.
+         */
+        fun snapshotValue(snapshot: PlayerRankHistorySnapshot, locale: Locale = Locale.getDefault()): String =
+            snapshot.totalScore?.let { ProfileFormatting.count(it, locale) } ?: "—"
+
         /**
          * First-to-latest movement summary for screen readers (lower rank is better).
          *

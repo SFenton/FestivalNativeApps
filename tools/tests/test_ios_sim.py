@@ -37,6 +37,7 @@ from tools.ios_sim import (
     existing_ci_device,
     output_paths,
     pick_ci_runtime,
+    should_retry_batch,
     skip_problem,
     parse_steps,
     resolve_device,
@@ -237,6 +238,21 @@ class FailOnSkipTests(unittest.TestCase):
         self.assertIsNotNone(skip_problem(None))
 
 
+class RetryBatchTests(unittest.TestCase):
+    """`uitest --retries` reruns only a batch whose test failed, at most N more times."""
+
+    def test_a_test_failure_retries_while_attempts_remain(self):
+        self.assertTrue(should_retry_batch(65, 0, 1))
+        self.assertFalse(should_retry_batch(65, 1, 1))
+
+    def test_no_retries_by_default(self):
+        self.assertFalse(should_retry_batch(65, 0, 0))
+
+    def test_success_timeout_and_setup_errors_never_retry(self):
+        for code in (0, 124, 70, 1, ios_sim.EXIT_POSE_MISMATCH):
+            self.assertFalse(should_retry_batch(code, 0, 3), code)
+
+
 class SourceHashTests(unittest.TestCase):
     """The driver rebuild cache must react to real edits and nothing else."""
 
@@ -365,7 +381,7 @@ class DuoPoseTests(unittest.TestCase):
             with mock.patch.object(ios_sim, "_run", side_effect=fake_run) as run, \
                     mock.patch.object(ios_sim.time, "sleep") as sleep, \
                     mock.patch("sys.stderr"):
-                self.assertTrue(ios_sim.screenshot_panel("UDID", "primary", path))
+                self.assertTrue(ios_sim.screenshot_panel("UDID", "primary", path, attempts=3, timeout=120))
             self.assertEqual(run.call_count, 3)
             self.assertEqual(sleep.call_count, 2)
 
@@ -373,7 +389,7 @@ class DuoPoseTests(unittest.TestCase):
             path.unlink()
             with mock.patch.object(ios_sim, "_run", side_effect=lambda *_, **__: outcomes.pop(0)), \
                     mock.patch.object(ios_sim.time, "sleep"), mock.patch("sys.stderr"):
-                self.assertFalse(ios_sim.screenshot_panel("UDID", "primary", path))
+                self.assertFalse(ios_sim.screenshot_panel("UDID", "primary", path, attempts=3, timeout=120))
 
     def test_require_pose_redetects_an_unknown_pose_after_boot(self):
         """A just-booted Duo may light neither panel yet; unknown is re-checked, a definite pose is not."""
@@ -394,6 +410,41 @@ class DuoPoseTests(unittest.TestCase):
                 mock.patch.object(ios_sim.time, "sleep"), mock.patch("sys.stderr"):
             self.assertIn("unknown, not folded", ios_sim.require_pose("UDID", "folded"))
         self.assertEqual(detect.call_count, 4)
+
+    def test_pose_screenshots_get_longer_and_retried_on_ci(self):
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}):
+            self.assertEqual(ios_sim.pose_screenshot_policy(), (30.0, 1))
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+            self.assertEqual(ios_sim.pose_screenshot_policy(), (180.0, 3))
+
+    def test_detect_pose_retries_a_slow_first_screenshot(self):
+        # #432: a runner's first screenshot after boot timed out, and the folded Duo read as unknown.
+        import os
+        import subprocess
+        from unittest import mock
+
+        calls = []
+
+        def fake_run(argv, **kwargs):
+            calls.append(argv)
+            if len(calls) == 1:
+                raise subprocess.TimeoutExpired(argv, kwargs["timeout"])
+            lit = "--display=primary" in argv
+            Path(argv[-1]).write_bytes(_bmp([(200, 200, 200)] if lit else [(0, 0, 0)]))
+            return subprocess.CompletedProcess(argv, 0)
+
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}), \
+                mock.patch.object(ios_sim, "_run", side_effect=fake_run), \
+                mock.patch.object(ios_sim.time, "sleep"), mock.patch("sys.stderr"):
+            self.assertEqual(ios_sim.detect_pose("UDID"), "folded")
+        self.assertEqual(len(calls), 3)
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}), \
+                mock.patch.object(ios_sim, "_run", side_effect=subprocess.TimeoutExpired("x", 30)), \
+                mock.patch("sys.stderr"):
+            self.assertEqual(ios_sim.detect_pose("UDID"), "unknown")
 
 
 def _control(title=None, role="AXButton", kind="control", **extra):

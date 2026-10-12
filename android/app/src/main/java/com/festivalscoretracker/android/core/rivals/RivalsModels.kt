@@ -322,6 +322,12 @@ object RivalText {
     const val FIND_RIVAL = "Find Rival"
     const val VIEW_ALL_RIVALS = "View All Rivals"
 
+    /** Rival Detail's bar subtitle for a scope that is not one chart (owner, #604). */
+    const val RIVALS = "Rivals"
+
+    /** Stand-in for a rival whose name is not known yet. */
+    const val RIVAL = "Rival"
+
     /**
      * `rivals.instrumentRivalsShort`.
      *

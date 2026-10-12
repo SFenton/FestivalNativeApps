@@ -73,9 +73,14 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="RankText" Grid.RowSpan="3" AutomationProperties.AccessibilityView="Raw" VerticalAlignment="Center" HorizontalAlignment="Left" TextWrapping="NoWrap" />
                 <!-- A name that doesn't fit scrolls inside its column (issue #292, reversing batch 7.14's truncation); it
-                     ellipsizes, with the full name as the row's tooltip, when motion is off or the window is hidden. -->
-                <controls:MarqueeText x:Name="NameText" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" Grid.RowSpan="3" VerticalAlignment="Center" />
-                <!-- Season (score rows, ≥ 520 epx like the web) or the small "X / Y" songs label (rankings rows), right-aligned in the shared column. -->
+                     ellipsizes, with the full name as the row's tooltip, when motion is off or the window is hidden. At
+                     150%+ Windows text it wraps onto more lines instead (leaderboard-row R3, issue #455), reserving the
+                     section's name budget (MinLines from LeaderboardSection.NameLines, R2) so every row and its skeleton
+                     keep one height. -->
+                <controls:MarqueeText x:Name="NameText" WrapsAtLargeText="True" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" Grid.RowSpan="3" VerticalAlignment="Center" />
+                <!-- The small "X / Y" songs label (rankings rows), right-aligned in the shared meta column. A score row's season
+                     (≥ 520 epx like the web) is the shared season pill (MetadataPills, issue #606), added in code beside this
+                     text and placed in the same cell. -->
                 <TextBlock x:Name="MetaText" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
                 <StackPanel x:Name="ValueStack" Grid.Column="3" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right">
                     <TextBlock x:Name="ValueText" AutomationProperties.AccessibilityView="Raw" FontWeight="SemiBold" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" />

@@ -119,10 +119,12 @@ public sealed partial class SongBandPreviewViewModel : ObservableObject
     /// <param name="showTotals">Whether the service allows entry totals.</param>
     public void Apply(SongBandPreview preview, bool showTotals)
     {
+        // One rank rail for the section, the appended selected band's rank included (#594).
+        var railRank = SongBandRow.WidestRank(preview.FooterEntry is { } last ? preview.Entries.Append(last) : preview.Entries);
         List<SongBandPreviewRow> rows =
-            [.. preview.Entries.Select((e, i) => new SongBandPreviewRow(new SongBandRow(e), TypeId, i, preview.IsSelected(e), false) { SongId = SongId })];
+            [.. preview.Entries.Select((e, i) => new SongBandPreviewRow(new SongBandRow(e, railRank: railRank), TypeId, i, preview.IsSelected(e), false) { SongId = SongId })];
         if (preview.FooterEntry is { } footer)
-            rows.Add(new SongBandPreviewRow(new SongBandRow(footer), TypeId, rows.Count, true, true) { SongId = SongId });
+            rows.Add(new SongBandPreviewRow(new SongBandRow(footer, railRank: railRank), TypeId, rows.Count, true, true) { SongId = SongId });
         Subtitle = rows.Count == 0 ? NoScoresText : showTotals && preview.TotalEntries > 0
             ? string.Create(System.Globalization.CultureInfo.CurrentCulture, $"{preview.TotalEntries:N0} {(preview.TotalEntries == 1 ? "band" : "bands")}")
             : "";
@@ -181,6 +183,15 @@ public sealed record SongBandPreviewRow(SongBandRow Band, string TypeId, int Ind
 
     /// <summary><c>#1</c>.</summary>
     public string Rank => Band.Rank;
+
+    /// <summary>The section's widest rank text, which sizes the rank rail (issue #594).</summary>
+    public string RailRank => Band.RailRank;
+
+    /// <summary>Raw-view ID of the rank text (<c>&lt;row&gt;.rank</c>), for column-alignment checks.</summary>
+    public string RankAutomationId => AutomationId + ".rank";
+
+    /// <summary>Raw-view ID of the member list (<c>&lt;row&gt;.members</c>), for column-alignment checks.</summary>
+    public string MembersAutomationId => AutomationId + ".members";
 
     /// <summary>Grouped team score.</summary>
     public string Score => Band.Score;

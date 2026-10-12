@@ -774,7 +774,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 AssertAligned(window, step);
                 break;
             case "assertnoscrollbar":
-                AssertNoScrollBar(window, step);
+            case "assertscrollbar":
+                AssertScrollBars(window, step, verb == "assertscrollbar");
                 break;
             case "assertbelow":
             case "assertlevel":
@@ -860,6 +861,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 break;
             case "assertannouncedcount":
                 AssertAnnouncedCount(step);
+                break;
+            case "contrast":
+                // A live contrast-theme switch with the app open; a11y_matrix restores the previous theme.
+                SetHighContrast(arg);
                 break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
@@ -970,8 +975,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>
     /// Waits until an element matching the selector reports the expected UIA <c>ItemStatus</c>. Off-screen and raw-view
     /// elements count (e.g. the decorative backdrop's state while the window is minimized). Unless the expected status is
-    /// <c>not-visible</c>, <c>=background</c> or a held Shop pulse (<c>pulse=held</c>), the window is brought to the front
-    /// first (and every 2 s), since the backdrop pauses when covered.
+    /// <c>not-visible</c>, <c>=background</c>, a held Shop pulse (<c>pulse=held</c>) or a paused First Run auto-scroll
+    /// (<c>scroll=paused</c>), the window is brought to the front first (and every 2 s), since the backdrop pauses when
+    /// covered.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, the expected <c>status</c> and an optional timeout (default 5 s).</param>
@@ -990,11 +996,11 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         };
         rawView.Add(automation.PropertyLibrary.Element.ItemStatus);
         // The backdrop is occlusion-aware: asserting a visible state needs the window in front of other lanes' windows
-        // (a not-visible assertion, including a first-run demo's rotation=not-visible or a held Shop pulse, must not
-        // restore a minimized window, and a rotation=background one must not reactivate a window that foreground:off
-        // deactivated).
+        // (a not-visible assertion, including a first-run demo's rotation=not-visible, a held Shop pulse or a paused
+        // auto-scroll, must not restore a minimized window, and a rotation=background one must not reactivate a window
+        // that foreground:off deactivated).
         var front = !expected.Contains("not-visible", StringComparison.Ordinal) && !expected.Contains("=background", StringComparison.Ordinal)
-            && !expected.Contains("pulse=held", StringComparison.Ordinal);
+            && !expected.Contains("pulse=held", StringComparison.Ordinal) && !expected.Contains("scroll=paused", StringComparison.Ordinal);
         var nextFront = DateTime.MinValue;
         while (true)
         {
@@ -1122,7 +1128,8 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// Waits until the selected element's toggle state (<c>on</c>/<c>off</c>/<c>indeterminate</c>), enabled flag
     /// (<c>true</c>/<c>false</c>), SelectionItem <c>IsSelected</c> (<c>true</c>/<c>false</c>), rounded vertical scroll
     /// percent (<c>scroll</c>), control type, Invoke support, keyboard focusability, value, UIA heading level
-    /// (<c>heading</c>: <c>1</c>–<c>9</c>, <c>0</c> for none) or name equals the step's value.
+    /// (<c>heading</c>: <c>1</c>–<c>9</c>, <c>0</c> for none), HelpText (<c>help</c>) or name equals the step's value (or
+    /// matches it as a regex when the value starts with <c>~</c>). A <c>raw=</c> selector searches the raw view.
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with a selector, <c>key</c>, <c>value</c> and an optional timeout (default 5 s).</param>
@@ -1136,7 +1143,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         while (true)
         {
             string? seen = null;
-            if (window.FindFirstDescendant(condition) is { } element)
+            if (InView(IsRaw(step), () => window.FindFirstDescendant(condition)) is { } element)
             {
                 seen = key switch
                 {
@@ -1169,10 +1176,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                         : element.Patterns.Selection.PatternOrDefault?.Selection.ValueOrDefault is { Length: > 0 } picked
                             ? picked[0].Properties.Name.ValueOrDefault
                             : null,
+                    // A raw-view peer's HelpText, e.g. a First Run demo's control census (controls=A+B+C).
+                    "help" => element.Properties.HelpText.ValueOrDefault ?? "",
                     _ => element.Properties.Name.ValueOrDefault,
                 };
             }
-            if (seen == expected) return;
+            if (StatusMatches(seen, expected)) return;
             if (DateTime.UtcNow > until)
                 throw new InvalidOperationException($"element {label} {key} is {(seen is null ? "missing" : $"\"{seen}\"")}, expected \"{expected}\"");
             Thread.Sleep(200);
@@ -1438,20 +1447,24 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <c>ScrollBarVisibility.Auto</c> and overflowing content those parts are in the UIA tree (off screen while idle or
     /// after input-free UIA scrolling, drawn as soon as mouse, pen or touch input scrolls); with <c>Hidden</c> they are
     /// collapsed out of it. So any <c>ScrollBar</c> inside the scroller fails, which also holds on a locked console where
-    /// no pointer input can bring an Auto indicator up.
+    /// no pointer input can bring an Auto indicator up. <c>assertscrollbar</c> is the inverse: it fails unless the
+    /// scroller holds a <c>ScrollBar</c> part, e.g. a chart that honours Windows' "Always show scrollbars" (issue #525).
     /// </summary>
     /// <param name="window">App window.</param>
     /// <param name="step">Step with the scroller's selector.</param>
-    /// <exception cref="InvalidOperationException">The scroller contains a scroll bar.</exception>
-    private void AssertNoScrollBar(Window window, JsonObject step)
+    /// <param name="expected">Whether the scroller must hold a scroll bar (<c>assertscrollbar</c>) or none.</param>
+    /// <exception cref="InvalidOperationException">The scroller does (or, when expected, doesn't) contain a scroll bar.</exception>
+    private void AssertScrollBars(Window window, JsonObject step, bool expected)
     {
         var scroller = Find(window, step);
         var bars = scroller.FindAllDescendants(cf => cf.ByControlType(FlaUI.Core.Definitions.ControlType.ScrollBar))
             .Select(bar => $"{bar.Properties.AutomationId.ValueOrDefault} {bar.BoundingRectangle}"
                            + (bar.Properties.IsOffscreen.ValueOrDefault ? " (idle)" : " (shown)"))
             .ToArray();
-        if (bars.Length > 0)
+        if (!expected && bars.Length > 0)
             throw new InvalidOperationException($"scroll bar in {(string)step["arg"]!}: {string.Join("; ", bars)}");
+        if (expected && bars.Length == 0)
+            throw new InvalidOperationException($"no scroll bar in {(string)step["arg"]!}");
     }
 
     /// <summary>

@@ -128,11 +128,42 @@ class JourneyHelperTests(unittest.TestCase):
 
 
 class LongNameTests(unittest.TestCase):
-    """``--long-name`` renames only the rank-2 entry (issue #292)."""
+    """``--long-name`` renames only the rank-2 entry (issues #292, #197)."""
 
     def setUp(self):
         self.original = mock_service._ranking_entry
         self.addCleanup(setattr, mock_service, "_ranking_entry", self.original)
+        self.addCleanup(setattr, mock_service.FixtureHandler, "_json", mock_service.FixtureHandler._json)
+
+    def test_song_board_renames_only_rank_two(self):
+        """The song board's rank-2 row gets the long name (its trimmed-name tooltip, issue #197); other bodies don't."""
+        page = {"songId": "fixture-pulse", "instrument": "Solo_Guitar", "entries": [
+            {"accountId": "fixture-player-1", "displayName": "Fixture Player 1", "rank": 1},
+            {"accountId": "fixture-player-2", "displayName": "Fixture Player 2", "rank": 2, "score": 99800}]}
+        renamed = f.long_song_board_names(page)
+        self.assertEqual([e["displayName"] for e in renamed["entries"]], ["Fixture Player 1", f.LONG_NAME])
+        self.assertEqual({**renamed["entries"][1], "displayName": "x"}, {**page["entries"][1], "displayName": "x"})
+        self.assertEqual(page["entries"][1]["displayName"], "Fixture Player 2")
+        band = {"songId": "fixture-pulse", "bandType": "Band_Duets", "entries": [{"rank": 2, "displayName": "x"}]}
+        self.assertIs(f.long_song_board_names(band), band)
+        self.assertIsNone(f.long_song_board_names(None))
+        written = []
+        mock_service.FixtureHandler._json = lambda handler, status, payload, **kw: written.append(payload)
+        f.install_long_name()
+        mock_service.FixtureHandler._json(object(), 200, page)
+        self.assertEqual(written[0]["entries"][1]["displayName"], f.LONG_NAME)
+
+    def test_max_name_renames_song_boards_and_rankings(self):
+        """``--max-name`` (issue #455) uses the same rank-2 rename as ``--long-name`` on both kinds of board."""
+        page = {"songId": "fixture-pulse", "instrument": "Solo_Guitar",
+                "entries": [{"accountId": "fixture-player-2", "displayName": "Fixture Player 2", "rank": 2}]}
+        self.assertEqual(f.long_song_board_names(page, f.MAX_NAME)["entries"][0]["displayName"], f.MAX_NAME)
+        written = []
+        mock_service.FixtureHandler._json = lambda handler, status, payload, **kw: written.append(payload)
+        f.install_long_name(f.MAX_NAME)
+        mock_service.FixtureHandler._json(object(), 200, page)
+        self.assertEqual(written[0]["entries"][0]["displayName"], f.MAX_NAME)
+        self.assertEqual(mock_service._ranking_entry(2, "fixture-player-2", "x")["displayName"], f.MAX_NAME)
 
     def test_only_rank_two_gets_the_long_name(self):
         f.install_long_name()

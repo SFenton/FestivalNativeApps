@@ -7,6 +7,7 @@ import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -63,6 +64,7 @@ import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import kotlin.math.abs
 
 // region Preferences
 
@@ -101,22 +103,24 @@ class JourneyHarness(private val rule: JourneyRule) {
      *   after a switch (sheets and dialogs are separate windows) render at it too. The
      *   activity's original scale comes back when the activity is destroyed at the end of the
      *   test, so a journey that ends at 200% does not leak it into the next test's activity.
+     * @param wrap Wraps the app's composition, e.g. to provide a test-only composition local.
      */
     fun launch(
         debug: DebugLaunch,
         transport: FakeTransport,
         preferences: DataStore<Preferences> = MemoryPreferences(),
         fontScale: (() -> Float)? = null,
+        wrap: @Composable (@Composable () -> Unit) -> Unit = { it() },
     ) {
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = preferences)
         rule.setContent {
             key(generation) {
                 if (fontScale == null) {
-                    FestivalApp(container, debug)
+                    wrap { FestivalApp(container, debug) }
                 } else {
                     val scale = fontScale()
                     SideEffect { applyWindowFontScale(scale) }
-                    DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(scale)) { FestivalApp(container, debug) }
+                    DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(scale)) { wrap { FestivalApp(container, debug) } }
                 }
             }
         }
@@ -569,6 +573,26 @@ class JourneyHarness(private val rule: JourneyRule) {
     fun requireHingeWhenAsked() {
         if (InstrumentationRegistry.getArguments().getString(REQUIRE_HINGE_ARG) != "true") return
         assertTrue("$REQUIRE_HINGE_ARG=true but the window reports no separating vertical hinge", hinges().isNotEmpty())
+    }
+
+    /**
+     * Assert that a board's pinned selected row floats with no card around its own fill (issue
+     * #579): it starts at the anchored footer's top edge (no card padding or rim above it) and
+     * lines up with the board's rows horizontally (`leaderboard-row` R1, R5).
+     *
+     * @param screen Name for failure messages.
+     * @param pinned Pinned row test tag.
+     * @param bar The anchored footer's test tag (`<prefix>.bottom-bar`).
+     * @param row Test tag of a loaded row in the same column, or null to skip the alignment check
+     *   (the rows sit in the other pane around a hinge).
+     */
+    fun assertPinnedRowFloats(screen: String, pinned: String, bar: String, row: String?) {
+        val pinnedBox = rule.onAllNodesWithTag(pinned, useUnmergedTree = true).fetchSemanticsNodes().single().boundsInWindow
+        val barBox = rule.onAllNodesWithTag(bar, useUnmergedTree = true).fetchSemanticsNodes().single().boundsInWindow
+        assertTrue("$screen: pinned row $pinnedBox sits inside a card below the footer's top ${barBox.top}", pinnedBox.top - barBox.top <= 1f)
+        if (row == null) return
+        val rowBox = rule.onAllNodesWithTag(row, useUnmergedTree = true).fetchSemanticsNodes().first().boundsInWindow
+        assertTrue("$screen: pinned row $pinnedBox not aligned with row $rowBox", abs(pinnedBox.left - rowBox.left) <= 1f && abs(pinnedBox.right - rowBox.right) <= 1f)
     }
 
     /**

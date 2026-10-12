@@ -191,7 +191,10 @@ final class PathsSwitchAccessibilityJourneyTests: XCTestCase {
 
         var issues: [String] = []
         var measured: [String] = []
-        try auditRetryingTimeout(app, run.auditTypes, reset: { issues.removeAll(); measured.removeAll() }) { issue in
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            app, run.auditTypes, name: "paths switch \(run.name) \(form.rawValue)",
+            reset: { issues.removeAll(); measured.removeAll() }
+        ) { issue in
             let node = issue.element
             let line = "\(node?.identifier ?? "nil") '\(node?.label ?? "")' \(String(describing: node?.frame)): "
                 + issue.compactDescription
@@ -395,22 +398,6 @@ final class PathsSwitchAccessibilityJourneyTests: XCTestCase {
         XCTAssertTrue(item.waitForExistence(timeout: FestivalApp.budget(5)), "Menu option \(option) missing")
         item.tap()
         XCTAssertTrue(item.waitForNonExistence(timeout: FestivalApp.budget(5)), "Menu \(option) did not close")
-    }
-
-    /// Audit, retrying once when XCTest's own audit deadline passes on a slow runner
-    /// (precedent `SongsChromeJourneyTests.performAuditRetryingTimeout`).
-    @MainActor
-    private func auditRetryingTimeout(
-        _ app: XCUIApplication, _ types: XCUIAccessibilityAuditType, reset: () -> Void,
-        _ handler: @escaping (XCUIAccessibilityAuditIssue) throws -> Bool
-    ) throws {
-        do {
-            try app.performAccessibilityAudit(for: types, handler)
-        } catch let error as NSError
-            where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56 {
-            reset()
-            try app.performAccessibilityAudit(for: types, handler)
-        }
     }
 
     /// Attach a screenshot.

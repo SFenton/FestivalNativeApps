@@ -5,11 +5,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import com.festivalscoretracker.android.AppContainer
+import com.festivalscoretracker.android.core.layout.SplitListPage
 import com.festivalscoretracker.android.core.nav.CompeteRoute
 import com.festivalscoretracker.android.core.nav.CompeteTab
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.presentation.compete.CompeteReads
 import com.festivalscoretracker.android.presentation.compete.CompeteViewModel
+import com.festivalscoretracker.android.ui.common.OnDemandSplit
 
 // region Destinations
 
@@ -21,8 +23,9 @@ import com.festivalscoretracker.android.presentation.compete.CompeteViewModel
  * @param settings Current settings.
  */
 fun NavGraphBuilder.competeDestinations(container: AppContainer, settings: AppSettings) {
-    composable<CompeteTab> { Compete(container, settings, isRoot = true) }
-    composable<CompeteRoute> { Compete(container, settings, isRoot = false) }
+    // Only Rival Detail opens beside Compete where the window splits (#369, #583).
+    composable<CompeteTab> { OnDemandSplit(SplitListPage.Compete) { Compete(container, settings, isRoot = true) } }
+    composable<CompeteRoute> { OnDemandSplit(SplitListPage.Compete) { Compete(container, settings, isRoot = false) } }
 }
 
 @Composable
