@@ -163,6 +163,7 @@ jobs:
             PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButtonDuoFolded
             SongSeasonAccessibilityJourneyTests/testTappedScoreSeasonIsReadableAtLargestText
             RivalsAccessibilityJourneyTests/testRivalRowsAreReadableAtAX5
+            GroupedCardAccessibilityJourneyTests/testLeaderboardsGroupedCardIsReadableAtAX5
             MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleAtDefaultSizeAndAX5
             MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleWithReduceTransparencyAtAX5
             PagerCardContrastJourneyTests/testPagerCardKeepsContrastOnTheMaterial
@@ -279,6 +280,7 @@ jobs:
             QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRow
             QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRowAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5
+            GroupedCardAccessibilityJourneyTests/testLeaderboardsGroupedCardIsReadableAtAX5
         run: |
           python3 tools/ios_sim.py shutdown --device "$(python3 tools/ios_sim.py ci-device)"
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service_ipad.log" 2>&1 &
