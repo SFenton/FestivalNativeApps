@@ -2,7 +2,7 @@ name: apple-ci
 # Apple unit tests, compile check and the simulator journeys (JOURNEYS, the Score History journeys and the Songs
 # Filter legs below) on GitHub-hosted Xcode 27 runners (no mesh machine runs CI or release work). The required check
 # is the `apple-ci` job at the end: it passes only when the build job and, on release dispatches, every Songs Filter
-# journey leg pass, so keep its name `apple-ci`.
+# journey leg and the scroll-edge journeys pass, so keep its name `apple-ci`.
 # Path-filtered: Android-, Windows- and docs-only changes don't spend the scarce macOS runners (the release machine
 # requires apple-ci only for apple/ and contracts/ changes).
 # Release train: pull requests and master run the build and unit tests; the iPhone/iPad simulator journeys run only
@@ -108,6 +108,8 @@ jobs:
             SongsChromeJourneyTests/testFilterFieldIsGlassAtTopAndScrolled
             SongsChromeJourneyTests/testProgrammaticScrollNeverRestsPartWayThroughTheLargeTitle
             SongsChromeJourneyTests/testProgrammaticScrollNeverRestsPartWayOnTheLegacyScrollPath
+            SongsChromeJourneyTests/testSlowDragsNearTheTopKeepTheTopOfSongsAccessible
+            SongsChromeJourneyTests/testSlowDragsNearTheTopKeepTheTopOfSongsAccessibleAtAX5
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             FirstRunJourneyTests/testSongDemoRotationKeepsSlideAccessibleAtLargestText
             RivalsViewAllAccessibilityJourneyTests/testViewAllRivalsIsReadableAtAX5
@@ -144,6 +146,12 @@ jobs:
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchReadsOneSpinnerBeforeTheSelectors
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchUnderReduceMotion
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchAtAX5
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGestures
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesAtAX5
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoFolded
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoUnfolded
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoFoldedAtAX5
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoUnfoldedAtAX5
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterField
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldDuoFolded
@@ -154,12 +162,16 @@ jobs:
             RivalsAccessibilityJourneyTests/testRivalRowsAreReadableAtAX5
             MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleAtDefaultSizeAndAX5
             MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleWithReduceTransparencyAtAX5
+            PagerCardContrastJourneyTests/testPagerCardKeepsContrastOnTheMaterial
+            PagerCardContrastJourneyTests/testPagerCardKeepsContrastOpaqueAndIncreasedContrast
             QuickLinksIconAccessibilityJourneyTests/testSheetInstrumentIconMatchesSymbolRow
             QuickLinksIconAccessibilityJourneyTests/testSheetInstrumentIconMatchesSymbolRowAtAX5
             QuickLinksIconAccessibilityJourneyTests/testDuoMenuInstrumentIconMatchesSymbolRow
             QuickLinksIconAccessibilityJourneyTests/testDuoMenuInstrumentIconMatchesSymbolRowAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5DuoFolded
+            NotificationsAccessibilityJourneyTests/testRowsUnderThePinnedTitleKeepTheirAccessibility
+            NotificationsAccessibilityJourneyTests/testRowsUnderThePinnedTitleKeepTheirAccessibilityAtAX5
             SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderIsAccessibleAtStandardSize
             SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderGrowsAtAX5
         run: |
@@ -200,7 +212,9 @@ jobs:
         # catalogue) on an OS-assigned port. Runs before the iPad step so the iPad boots once. A skipped journey fails the step.
         # PLAIN_JOURNEYS: iPhone UI-test bundle (`--app phone`) journeys that need `fixture-pulse` and `fixture-orbit` on
         # screen, on the same iPhone before it shuts down (#615: the Filter sheet's score checks under Filter Invalid
-        # Scores, their labels, enabled state and touch height). testing/apple/xcuitest.md#ci-journeys.
+        # Scores, their labels, enabled state and touch height). HISTORY_IPAD_JOURNEYS also holds the song board's
+        # split-pane title at AX5 (#478, the #342 region; iPad only, so not in HISTORY_JOURNEYS).
+        # testing/apple/xcuitest.md#ci-journeys.
         env:
           PLAIN_JOURNEYS: >-
             SongsJourneyTests/testPlayerScoreFilterSettingsPauseAndDeselectScope
@@ -209,6 +223,7 @@ jobs:
           HISTORY_IPAD_JOURNEYS: >-
             ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5
             ScoreHistoryAccessibilityJourneyTests/testScoreHistorySplitPaneAtAX5
+            SongBoardSplitAccessibilityJourneyTests/testSongBoardSplitTitleAtAX5
         run: |
           log="$RUNNER_TEMP/mock_service_history.log"
           python3 tools/mock_service.py --port 0 > "$log" 2>&1 &
@@ -243,9 +258,13 @@ jobs:
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestTextLandscape
             SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestText
             SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestTextLandscape
+            WideBoardColumnsJourneyTests/testFullRankingsTwoColumnsAreAccessibleAtLargestText
+            WideBoardColumnsJourneyTests/testBandRankingsTwoColumnsAreAccessibleAtLargestText
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGestures
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesAtAX5
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterField
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
             PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButton
@@ -315,7 +334,8 @@ jobs:
   songs-filter-journeys:
     # The Songs Filter sheet without a profile (#432, for #77) on each Apple touch form factor: the
     # accessibility journey (performAccessibilityAudit, 44 pt targets, AX5) on the iPhone, the iPad and the
-    # folded iPhone Duo, and the iPad hardware-keyboard journey. The plain loopback fixture (8765), one
+    # folded iPhone Duo, and the iPad hardware-keyboard journey; on the folded Duo also the bottom Filter
+    # Songs field (#474, for #333). The plain loopback fixture (8765), one
     # throwaway simulator per leg, run in parallel with the build job. Release train: only on release-branch
     # dispatches, like the build job's journeys: testing/apple/xcuitest.md#ci-journeys.
     name: apple-ci Songs Filter journeys (${{ matrix.leg }})
@@ -349,6 +369,8 @@ jobs:
               SongsFilterAccessibilityJourneyTests/testNoProfileGeneralFiltersPassAccessibilityAudit
               SongsFilterAccessibilityJourneyTests/testDynamicTypeAuditWithShopHidden
               SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
+              SongsBottomFilterFieldJourneyTests/testBottomFilterFieldIsAccessibleDuoFolded
+              SongsBottomFilterFieldJourneyTests/testBottomFilterFieldGrowsAtAX5DuoFolded
               TopEdgeScrimDuoJourneyTests/testScrimUnderTheVerticalBarKeepsTheTopAccessibleAtAX5
     steps:
       - uses: actions/checkout@v4
@@ -401,12 +423,86 @@ jobs:
             ${{ runner.temp }}/mock_service.log
           if-no-files-found: ignore
           retention-days: 7
+  scroll-edge-journeys:
+    # Scroll-edge fades (#462, backfilling #308): the Notifications sheet header and every R9 board (Song
+    # Leaderboard, Full Rankings, Band Rankings, band song leaderboard, Player Bands) at AX5 with the hard edge,
+    # and the simulated iPhone Duo windows, on the iPhone and then the iPad. These read multi-page boards from
+    # their own `--large-rankings` fixture on port 8766 and launch about 15 times, so they run beside the build
+    # job rather than in it. Release train: only on release-branch dispatches: testing/apple/xcuitest.md#ci-journeys.
+    name: apple-ci scroll-edge journeys
+    if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
+    runs-on: xcode-27
+    # Build plus nine iPhone and six iPad journeys, one per batch, on a runner 2-4x slower than a Mac.
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+      - name: Toolchain
+        run: |
+          test -L /Applications/Xcode.app
+          sudo ln -sfn /Applications/Xcode_27.1.app /Applications/Xcode.app
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Generate the Xcode project
+        working-directory: apple
+        run: xcodegen generate -q
+      - name: Scroll-edge journeys, iPhone then iPad (serialized, large-rankings loopback fixture)
+        # One selector per batch; a skipped journey fails the step. A batch whose test failed runs once more
+        # (`--retries 1`, as the Songs Filter legs): a real failure fails both attempts. The Duo-window journeys
+        # skip on an iPad, so they run on the iPhone only. The iPad reuses the iPhone's UI-test build
+        # (`--app phone`) after the iPhone shuts down; its first batch pays the cold first launch (#544).
+        env:
+          SCROLL_EDGE_JOURNEYS: >-
+            ScrollEdgeFadeAccessibilityJourneyTests/testNotificationsSheetHeaderAndPinnedTitlesAreAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testNotificationsSheetAtLargestTextWithHardEdge
+            ScrollEdgeFadeAccessibilityJourneyTests/testSongLeaderboardFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testFullRankingsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testBandRankingsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testSongBandLeaderboardFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testPlayerBandsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testBoardFadesInDuoWindows
+            ScrollEdgeFadeAccessibilityJourneyTests/testNotificationsSheetInDuoWindows
+          SCROLL_EDGE_IPAD_JOURNEYS: >-
+            ScrollEdgeFadeAccessibilityJourneyTests/testNotificationsSheetAtLargestTextWithHardEdge
+            ScrollEdgeFadeAccessibilityJourneyTests/testSongLeaderboardFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testFullRankingsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testBandRankingsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testSongBandLeaderboardFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testPlayerBandsFadeKeepsRowsAndPagerAccessible
+        run: |
+          python3 tools/mock_service.py --large-rankings --port 8766 > "$RUNNER_TEMP/mock_service_rankings.log" 2>&1 &
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service_rankings.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service_rankings.log"
+          iphone=$(python3 tools/ios_sim.py ci-device)
+          only=(); for journey in $SCROLL_EDGE_JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$iphone" --app phone --fail-on-skip \
+            --batch-size 1 --timeout 1500 --retries 1 "${only[@]}"
+          python3 tools/ios_sim.py shutdown --device "$iphone"
+          ipad=$(python3 tools/ios_sim.py ci-device --type "iPad Pro 11-inch (M5)")
+          only=(); for journey in $SCROLL_EDGE_IPAD_JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$ipad" --app phone --fail-on-skip \
+            --batch-size 1 --timeout 1500 --retries 1 "${only[@]}"
+      - name: Upload journey results
+        # Also when the job times out (cancelled), so a slow or hung batch can be diagnosed.
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-ci-scroll-edge
+          path: |
+            apple/DerivedData/lane-driver/Results
+            ${{ runner.temp }}/mock_service_rankings.log
+          if-no-files-found: ignore
+          retention-days: 7
   apple-ci:
     # The required check (the release machine merges once `apple-ci` is green on the head SHA): green only
     # when the build job succeeded and the journey legs succeeded on a release dispatch, or were skipped on a
     # pull request or master push (release train). A re-run of failed jobs re-runs this one too.
     name: apple-ci
-    needs: [build, songs-filter-journeys]
+    needs: [build, songs-filter-journeys, scroll-edge-journeys]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -416,7 +512,10 @@ jobs:
           EVENT: ${{ github.event_name }}
           BUILD: ${{ needs.build.result }}
           JOURNEYS: ${{ needs.songs-filter-journeys.result }}
+          SCROLL_EDGE: ${{ needs.scroll-edge-journeys.result }}
         run: |
-          echo "event: $EVENT, build: $BUILD, songs-filter-journeys: $JOURNEYS"
+          echo "event: $EVENT, build: $BUILD, songs-filter-journeys: $JOURNEYS, scroll-edge-journeys: $SCROLL_EDGE"
           [ "$BUILD" = success ] || exit 1
-          case "$JOURNEYS/$EVENT" in success/workflow_dispatch | skipped/pull_request | skipped/push) ;; *) exit 1 ;; esac
+          for result in "$JOURNEYS" "$SCROLL_EDGE"; do
+            case "$result/$EVENT" in success/workflow_dispatch | skipped/pull_request | skipped/push) ;; *) exit 1 ;; esac
+          done

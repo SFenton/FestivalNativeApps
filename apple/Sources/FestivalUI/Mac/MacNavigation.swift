@@ -332,6 +332,17 @@ final class MacNavigationModel {
 
 // MARK: - Sheet size
 
+/// Mac sheet sizing shared by `macSheetFrame`.
+enum MacSheetMetrics {
+    /// The default shortest sheet content height, in points (issue #462). A sheet opens at
+    /// its ideal height, but when the screen is shorter than that (a small display, or a
+    /// "Larger Text" display scaling) AppKit shrinks the sheet window to the screen. A
+    /// minimum equal to the ideal height then overflowed the window on both edges and
+    /// pushed the sheet's title and its Close button outside it; this floor lets the
+    /// sheet's content shrink instead (a few 44 pt rows still fit).
+    static let shortestHeight: CGFloat = 400
+}
+
 extension View {
     /// A reasonable default size for a sheet on the Mac (HIG Sheets › macOS: "Present a
     /// sheet in a reasonable default size") with grouped forms (the Mac's default
@@ -339,9 +350,11 @@ extension View {
     ///
     /// - Parameters:
     ///   - width: Ideal width in points (and the minimum unless `minWidth` is given).
-    ///   - height: Ideal height in points (and the minimum unless `minHeight` is given).
+    ///   - height: Ideal height in points. The sheet opens at this height when the screen
+    ///     fits it and shrinks down to `minHeight` on a shorter screen.
     ///   - minWidth: Narrowest the sheet resizes to, or nil for `width`.
-    ///   - minHeight: Shortest the sheet resizes to, or nil for `height`.
+    ///   - minHeight: Shortest the sheet shrinks to, or nil for `height` capped at
+    ///     `MacSheetMetrics.shortestHeight`.
     /// - Returns: The sheet content.
     func macSheetFrame(
         width: CGFloat = 560, height: CGFloat = 640, minWidth: CGFloat? = nil, minHeight: CGFloat? = nil
@@ -349,7 +362,7 @@ extension View {
         #if os(macOS)
         frame(
             minWidth: minWidth ?? width, idealWidth: width,
-            minHeight: minHeight ?? height, idealHeight: height
+            minHeight: minHeight ?? min(height, MacSheetMetrics.shortestHeight), idealHeight: height
         )
             .formStyle(.grouped)
         #else

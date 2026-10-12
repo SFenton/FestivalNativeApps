@@ -129,6 +129,9 @@ SONG_BAND_LEADERBOARDS_ALL = re.compile(r"^/api/leaderboard/(fixture-[a-z0-9-]+)
 PLAYER = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)$")
 PLAYER_HISTORY = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/history$")
 PLAYER_NOTIFICATIONS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/notifications$")
+# The account whose notification feed scrolls under the sheet's pinned title (#469).
+NOTIFY_MANY_ACCOUNT = "fixture-notify-many"
+NOTIFY_MANY_COUNT = 24
 PLAYER_BANDS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/bands$")
 RANKINGS = re.compile(r"^/api/rankings/([A-Za-z_]+)$")
 PLAYER_RANK_HISTORY = re.compile(r"^/api/rankings/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
@@ -1357,6 +1360,27 @@ class FixtureHandler(BaseHTTPRequestHandler):
                             "detectedAt": "2024-01-04T00:00:00Z",
                             "expiresAt": "2024-02-04T00:00:00Z",
                         },
+                    ][:limit],
+                })
+            elif account_id == NOTIFY_MANY_ACCOUNT:
+                # A feed long enough to scroll under the sheet's pinned "New" title
+                # (#469, the accessibility journey for #322's row separators).
+                instruments = ["Solo_Guitar", "Solo_Bass", "Solo_Drums", "Solo_Vocals"]
+                self._json(200, {
+                    "generatedAt": "2024-01-05T00:00:00Z", "expiresAfterHours": 72,
+                    "sourceRunId": 1, "sourceCompletedAt": "2024-01-05T00:00:00Z",
+                    "notificationsGenerated": True, "items": [
+                        {
+                            "eventId": index + 1,
+                            "notificationGuid": f"{NOTIFY_MANY_ACCOUNT}-{index}",
+                            "accountId": account_id,
+                            "eventKind": "player_song_rank_improved",
+                            "songId": "fixture-pulse", "instrument": instruments[index % 4],
+                            "oldRank": 500 + index, "newRank": index + 1,
+                            "detectedAt": f"2024-01-05T{23 - index % 24:02d}:00:00Z",
+                            "expiresAt": "2024-02-05T00:00:00Z",
+                        }
+                        for index in range(NOTIFY_MANY_COUNT)
                     ][:limit],
                 })
             else:
