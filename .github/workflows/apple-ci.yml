@@ -144,6 +144,10 @@ jobs:
             RivalsAccessibilityJourneyTests/testRivalRowsAreReadableAtAX5
             MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleAtDefaultSizeAndAX5
             MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleWithReduceTransparencyAtAX5
+            QuickLinksIconAccessibilityJourneyTests/testSheetInstrumentIconMatchesSymbolRow
+            QuickLinksIconAccessibilityJourneyTests/testSheetInstrumentIconMatchesSymbolRowAtAX5
+            QuickLinksIconAccessibilityJourneyTests/testDuoMenuInstrumentIconMatchesSymbolRow
+            QuickLinksIconAccessibilityJourneyTests/testDuoMenuInstrumentIconMatchesSymbolRowAtAX5
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
           mock=$!
@@ -229,6 +233,8 @@ jobs:
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
             SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestText
+            QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRow
+            QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRowAtAX5
         run: |
           python3 tools/ios_sim.py shutdown --device "$(python3 tools/ios_sim.py ci-device)"
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service_ipad.log" 2>&1 &
