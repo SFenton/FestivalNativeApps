@@ -213,7 +213,8 @@ jobs:
         # PLAIN_JOURNEYS: iPhone UI-test bundle (`--app phone`) journeys that need `fixture-pulse` and `fixture-orbit` on
         # screen, on the same iPhone before it shuts down (#615: the Filter sheet's score checks under Filter Invalid
         # Scores, their labels, enabled state and touch height). HISTORY_IPAD_JOURNEYS also holds the song board's
-        # split-pane title at AX5 (#478, the #342 region; iPad only, so not in HISTORY_JOURNEYS).
+        # split-pane title at AX5 (#478, the #342 region) and Song Detail's Duos link selected beside its board (#492,
+        # the #367 region); iPad only, so not in HISTORY_JOURNEYS.
         # testing/apple/xcuitest.md#ci-journeys.
         env:
           PLAIN_JOURNEYS: >-
@@ -224,6 +225,7 @@ jobs:
             ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5
             ScoreHistoryAccessibilityJourneyTests/testScoreHistorySplitPaneAtAX5
             SongBoardSplitAccessibilityJourneyTests/testSongBoardSplitTitleAtAX5
+            SongBandBoardSplitAccessibilityJourneyTests/testSongBandBoardSplitLinkAtAX5
         run: |
           log="$RUNNER_TEMP/mock_service_history.log"
           python3 tools/mock_service.py --port 0 > "$log" 2>&1 &
