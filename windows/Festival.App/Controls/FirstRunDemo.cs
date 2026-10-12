@@ -143,14 +143,24 @@ public sealed partial class FirstRunDemo : UserControl
             Math.Min(root.DesiredSize.Height * fitScale, availableSize.Height));
     }
 
-    /// <summary>Arranges the (possibly re-laid-out) demo in unscaled space, then applies the fit scale.</summary>
+    /// <summary>
+    /// Arranges the (possibly re-laid-out) demo in unscaled space, then applies the fit scale. A shrunk demo gets a
+    /// slot exactly its own height, centred by <see cref="FirstRunDemoFit.Top"/> in scaled units: the render scale
+    /// doesn't move the slot, so centring in the unscaled slot pushed a re-wrapped demo (Rivals) into the slide title
+    /// (issue #522).
+    /// </summary>
     /// <param name="finalSize">Frame size.</param>
     /// <returns><paramref name="finalSize"/>.</returns>
     protected override Windows.Foundation.Size ArrangeOverride(Windows.Foundation.Size finalSize)
     {
         fit.ScaleX = fit.ScaleY = fitScale;
         root.RenderTransform = fitScale < 1 ? fit : null;
-        root.Arrange(new Windows.Foundation.Rect(0, 0, finalSize.Width / fitScale, finalSize.Height / fitScale));
+        if (fitScale < 1)
+        {
+            var height = root.DesiredSize.Height;
+            root.Arrange(new Windows.Foundation.Rect(0, FirstRunDemoFit.Top(height, fitScale, finalSize.Height), finalSize.Width / fitScale, height));
+        }
+        else root.Arrange(new Windows.Foundation.Rect(0, 0, finalSize.Width, finalSize.Height));
         return finalSize;
     }
     #endregion

@@ -139,10 +139,7 @@ public sealed partial class LeaderboardsFullRankingsPage : Page, IRouteHost
         var rows = ViewModel.Rows;
         SelectedRowReveal.Start(RowsRepeater, index, () =>
         {
-            if (!ReferenceEquals(ViewModel.Rows, rows) || RowsRepeater.GetOrCreateElement(index) is not LeaderboardEntryRow row) return;
-            // A freshly realized row has no arranged position yet; bringing it into view before layout is a no-op.
-            row.UpdateLayout();
-            row.StartBringIntoView(new Microsoft.UI.Xaml.BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
+            if (ReferenceEquals(ViewModel.Rows, rows)) SelectedRowReveal.CentreRow(RowsRepeater, index);
         });
     }
 

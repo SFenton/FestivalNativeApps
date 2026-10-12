@@ -41,6 +41,10 @@ public sealed partial class MainWindow
         GlobalSearchBox.QuerySubmitted += OnGlobalSearchSubmitted;
         GlobalSearchBox.PreviewKeyDown += OnGlobalSearchKeyDown;
         GlobalSearchButton.Click += (_, _) => OpenSearchPage();
+        // The width breakpoint swaps these two; a tooltip open on the one it hides would otherwise float on (#571).
+        Controls.CollapsedToolTip.CloseWhenCollapsed(GlobalSearchBox);
+        Controls.CollapsedToolTip.CloseWhenCollapsed(GlobalSearchButton);
+        Controls.TypingToolTip.SuspendWhileTyping(GlobalSearchBox);
         RootGrid.SizeChanged += (_, e) => ApplySearchWidth(e.NewSize.Width);
         // The window-wide accelerators belong to no visible control; their automatic key tip would float over content.
         RootGrid.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
@@ -54,9 +58,15 @@ public sealed partial class MainWindow
     private void ApplySearchWidth(double width)
     {
         var compact = width < CompactSearchWidth;
+        // Keyboard focus follows the swap to the replacement entry point instead of falling to the next control, and
+        // programmatically: the user resized, so the newcomer opens no keyboard tooltip of its own (#571).
+        Control leaving = compact ? GlobalSearchBox : GlobalSearchButton;
+        Control entering = compact ? GlobalSearchButton : GlobalSearchBox;
+        var handOff = entering.Visibility == Visibility.Collapsed && Controls.CollapsedToolTip.HasFocusWithin(leaving);
         // The host is the box's passthrough rect (issue #536); collapsed with it so no empty strip stays clickable.
         GlobalSearchBoxHost.Visibility = GlobalSearchBox.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         GlobalSearchButton.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
+        if (handOff) Controls.CollapsedToolTip.HandFocus(entering, () => entering);
         // Responsive box: ~36% of the window, 240 (medium) or 320 (wide) to 580 epx as in the WinUI Gallery.
         var min = width >= WideSearchWidth ? 320 : 240;
         GlobalSearchBox.MinWidth = min;

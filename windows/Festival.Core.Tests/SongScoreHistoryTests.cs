@@ -84,6 +84,16 @@ public class SongScoreHistoryDomainTests
     public void NiceMax_RoundsUpToFourSteps(long max, long expected) => Assert.Equal(expected, ScoreHistoryChartScale.NiceMax(max));
 
     [Theory]
+    [InlineData(130.5, 1, 131)]          // CI 100%: a half-pixel bar edge lands on one pixel
+    [InlineData(130.4, 1, 130)]
+    [InlineData(13.35, 3, 13 + 1 / 3.0)] // 300%: thirds of an epx are whole pixels
+    [InlineData(10.2, 1.25, 10.4)]       // 125%: 12.75 px -> 13 px
+    [InlineData(7.5, 0, 8)]              // no scale yet counts as 100%
+    [InlineData(7.5, double.NaN, 8)]
+    public void SnapToPixel_RoundsToWholeDevicePixels(double value, double scale, double expected) =>
+        Assert.Equal(expected, ScoreHistoryChartScale.SnapToPixel(value, scale), 9);
+
+    [Theory]
     [InlineData(26, 19, 64)]       // 100% text: the original 64 epx gutter
     [InlineData(0, 0, 64)]
     [InlineData(-5, -5, 64)]
@@ -477,6 +487,28 @@ public class SongScoreHistoryViewModelTests
         Assert.False(noAccuracy.HasAccuracy);
         Assert.Equal(0, noAccuracy.AccuracyValue);
         Assert.False(vm.Rows.Single(r => r.Point.Score == 300).HasSeason);
+    }
+
+    [Fact]
+    public async Task Bars_ASelectionOnlyRestylesTheDrawnPage()
+    {
+        // Issue #512: the chart restyles its bars in place for a selection, so keyboard focus stays on the drawn bar.
+        var (_, session, _, _) = Setup();
+        var vm = new SongScoreHistoryViewModel(session, "s1", Instrument.Lead);
+        await vm.LoadAsync(Song(), [Instrument.Lead]);
+        vm.SetPlotWidth(2 * 96 + 8 + 50); // two bars
+        var drawn = vm.Bars;
+        vm.ToggleBar(drawn[0].Index);
+        Assert.True(ScoreHistoryBar.OnlySelectionChanged(drawn, vm.Bars));
+        Assert.True(vm.Bars[0].IsSelected);
+        var selected = vm.Bars;
+        vm.ToggleBar(selected[0].Index); // clearing it is a selection change too
+        Assert.True(ScoreHistoryBar.OnlySelectionChanged(selected, vm.Bars));
+        var page = vm.Bars;
+        vm.BackEntry(); // another page: the bars are rebuilt
+        Assert.False(ScoreHistoryBar.OnlySelectionChanged(page, vm.Bars));
+        Assert.False(ScoreHistoryBar.OnlySelectionChanged([], vm.Bars)); // nothing drawn yet
+        Assert.False(ScoreHistoryBar.OnlySelectionChanged(vm.Bars, [.. vm.Bars.Take(1)]));
     }
 
     [Fact]

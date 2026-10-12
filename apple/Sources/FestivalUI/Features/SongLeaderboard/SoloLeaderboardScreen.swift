@@ -190,14 +190,14 @@ struct SoloLeaderboardScreen: View {
                                             .festivalCardSegmentFadeIn(cardIndex: BoardCardEntrance.index)
                                     }
                                 }
-                                // The card's top inset is content padding: a lone top
-                                // List row inset also left a gap under the first row
-                                // on macOS.
+                                // The card's top and bottom insets are content padding:
+                                // a lone top List row inset also left a gap under the
+                                // first row on macOS, and macOS dropped a last-row
+                                // bottom inset, resting the last row 4 pt rather than
+                                // one row gap above the footer or pager (#293, #456).
                                 .padding(.top, row.start == 0 ? Self.rowInset : 0)
-                                .listRowInsets(EdgeInsets(
-                                    top: 0, leading: 16,
-                                    bottom: row.start + columns >= entries.count ? Self.rowInset : 0, trailing: 16
-                                ))
+                                .padding(.bottom, row.start + columns >= entries.count ? Self.rowInset : 0)
+                                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
                             }

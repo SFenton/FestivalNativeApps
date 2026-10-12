@@ -91,12 +91,12 @@
                 <StackPanel x:Name="CompactRow" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Visibility="Collapsed"
                             XYFocusKeyboardNavigation="Enabled">
                     <Button x:Name="PreviousButton" Style="{StaticResource FSTInstrumentArrowButtonStyle}" Click="OnPrevious"
-                            AutomationProperties.Name="Previous instrument" ToolTipService.ToolTip="Previous instrument">
+                            AutomationProperties.Name="Previous instrument">
                         <FontIcon Glyph="&#xE76B;" FontSize="14" />
                     </Button>
                     <Border x:Name="CompactHost" />
                     <Button x:Name="NextButton" Style="{StaticResource FSTInstrumentArrowButtonStyle}" Click="OnNext"
-                            AutomationProperties.Name="Next instrument" ToolTipService.ToolTip="Next instrument">
+                            AutomationProperties.Name="Next instrument">
                         <FontIcon Glyph="&#xE76C;" FontSize="14" />
                     </Button>
                 </StackPanel>
