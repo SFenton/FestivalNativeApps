@@ -78,7 +78,18 @@ Re-check single pages with `TEST_RUNNER_FST_AUDIT_PAGES=song-detail,player` (pag
 | `testFlyoutFooterReachableAtAX5` (portrait, landscape) | At AX5 the footer (profile, Deselect Profile, Settings) scrolls with the rows and each item comes wholly on screen and hittable |
 | `testSplitReadingOrderSelectionAndFocus` (landscape) | Full Rankings, Rivals, Leaderboards, Song Detail (Lead board), Settings (Licenses): starts full width; the opened row reads before `fst.split.trailing` and only the opened item's rows are selected (Leaderboards lists the same player on every card, Full Rankings in the selected-profile footer too); the trailing pane starts at the midpoint; focus moves to the pane's top heading and that heading is in the pane; Close returns to full width, clears the selection and focus returns to the row (`row: player:…`). JSON `split-structure.json` |
 
+| `testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5` (landscape; #480, for #344) | Rivals at AX5 with the app's Increase Contrast on (the band then draws its hairline): Rival Detail opens beside the list, nothing is a splitter and the band (if XCUITest lists it) is an unlabelled `.other` node, the opened row reads before the trailing pane, Close is named and at least the HIG minimum 28 pt (a system bar button: XCUITest reports its 36 pt glass on iPadOS 26.5; UIKit's hit expansion is audited by `IPadAccessibilityAuditTests`), and closing removes the pane. XCUITest lists views hidden with `accessibilityHidden`, so the hosted test below proves the band is no element. CI: the plain-fixture step's `HISTORY_IPAD_JOURNEYS` (iPad). Add `uitest --a11y increase-contrast` locally for the system setting. `testSplitReadingOrderSelectionAndFocus` makes the same band check on every split page |
+
 Heading traits are read from the snapshot's `traits` (readable on iPadOS 26.5).
+
+**The split band (#344, backfilled by #480).** The hosted `SplitBandAccessibilityTests` (`apple/Tests/FestivalUITests`, every PR) render the shared `OnDemandSplitLayout`, so they cover iPad, iPhone Duo and the Mac content area. At a midpoint and on a hinge, under standard contrast, system Increase Contrast and the app's Increase Contrast, they check:
+
+- The hairline's pixels: it shows at a midpoint under either Increase Contrast and never on a hinge ([split-panes](../../patterns/split-panes.md) R1–R2).
+- The band is never an accessibility element or an `AXSplitter`.
+- The panes read leading heading → button → trailing heading → button, with headings and nothing unnamed.
+- No button overlaps the band, at Large and AX5.
+
+The app's toggle used to leave the band clear.
 
 ### Score History at AX5
 
