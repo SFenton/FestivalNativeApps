@@ -44,6 +44,13 @@ public sealed partial class InstrumentSelector : UserControl
     public InstrumentSelector()
     {
         InitializeComponent();
+        // The responsive swap (and a consumer collapsing the whole selector, e.g. the compact Paths sheet) must not leave a
+        // circle's or arrow's tooltip floating where it was (#571).
+        CollapsedToolTip.Set(PreviousButton, "Previous instrument");
+        CollapsedToolTip.Set(NextButton, "Next instrument");
+        CollapsedToolTip.CloseWhenCollapsed(Row);
+        CollapsedToolTip.CloseWhenCollapsed(CompactRow);
+        CollapsedToolTip.CloseWhenCollapsed(this);
         SizeChanged += (_, e) => UpdateCompact(e.NewSize.Width);
         // Discs are code-built, so a contrast-theme switch must re-resolve their fill (inline brushes do not follow
         // {ThemeResource}).
@@ -176,6 +183,7 @@ public sealed partial class InstrumentSelector : UserControl
     /// <summary>Recreates the row buttons for the current instruments.</summary>
     private void Rebuild()
     {
+        CollapsedToolTip.CloseWithin(Row);
         Row.Children.Clear();
         buttons.Clear();
         foreach (var instrument in state.Available)
@@ -223,7 +231,7 @@ public sealed partial class InstrumentSelector : UserControl
         if (instrument is { } named)
         {
             AutomationProperties.SetName(button, named.Label());
-            ToolTipService.SetToolTip(button, named.Label());
+            CollapsedToolTip.Set(button, named.Label());
         }
         return (button, disc, icon);
     }
@@ -246,7 +254,7 @@ public sealed partial class InstrumentSelector : UserControl
             compactIcon.File = key.IconFile(keyboardLead);
             compactIcon.Label = key.Label();
             AutomationProperties.SetName(compactButton, key.Label());
-            ToolTipService.SetToolTip(compactButton, key.Label());
+            CollapsedToolTip.Set(compactButton, key.Label());
             compactButton.IsChecked = selected == key;
             compactButton.IsEnabled = !state.IsDisabled(key);
             Dim(compactButton, state.IsDisabled(key), state.IsCompactMuted());
@@ -316,14 +324,20 @@ public sealed partial class InstrumentSelector : UserControl
         isCompact = compact;
         Row.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         CompactRow.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
-        // Collapsing the focused circle would drop keyboard focus to the window; hand it to the counterpart instead.
-        if (focusState != FocusState.Unfocused)
-        {
-            Control? target = compact ? compactButton
-                : state.FocusTarget() is { } instrument && buttons.TryGetValue(instrument, out var entry) ? entry.Button : null;
-            target?.Focus(focusState);
-        }
+        // Collapsing the focused circle would drop keyboard focus to the window; hand it to the counterpart instead,
+        // programmatically: the user resized, so the counterpart opens no keyboard tooltip (#571).
+        if (focusState != FocusState.Unfocused) CollapsedToolTip.HandFocus(this, CurrentButton);
     }
+
+    /// <summary>Moves focus to the visible circle for the current selection (the compact centre when compact), as a
+    /// consumer's responsive swap does when it replaces another control with this selector (#571).</summary>
+    /// <returns><see langword="true"/> when a circle took focus.</returns>
+    public bool FocusCurrent() => CurrentButton()?.Focus(FocusState.Programmatic) == true;
+
+    /// <summary>The circle that represents the selector in its current mode.</summary>
+    /// <returns>Compact centre, the selected (or first enabled) circle, or <see langword="null"/>.</returns>
+    private Control? CurrentButton() => isCompact ? compactButton
+        : state.FocusTarget() is { } instrument && buttons.TryGetValue(instrument, out var entry) ? entry.Button : null;
 
     /// <summary>The selector button that currently has focus, if any.</summary>
     /// <returns>Focused row, compact or arrow button, or <see langword="null"/>.</returns>

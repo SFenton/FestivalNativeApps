@@ -44,6 +44,29 @@
     ]
   },
   {
+    "name": "wide-hint-suspends-while-typing",
+    "route": "/songs",
+    "preset": "wide",
+    "steps": [
+      "waitfor:id=fst.songs.list@20",
+      "key:ctrl+e",
+      "wait:1.5",
+      "waitfor:class=ToolTip@3",
+      "type:fix",
+      "waitfor:name=Player, Fixture Player 1@10",
+      "wait:1.5",
+      "waitgone:class=ToolTip@3",
+      "key:escape",
+      "key:escape",
+      "key:escape",
+      "wait:0.5",
+      "key:ctrl+e",
+      "wait:1.5",
+      "waitfor:class=ToolTip@3",
+      "key:escape"
+    ]
+  },
+  {
     "name": "medium-detail-player-select-statistics",
     "route": "/songs/fixture-pulse",
     "preset": "medium",

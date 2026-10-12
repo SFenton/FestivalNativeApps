@@ -20,6 +20,7 @@ public sealed partial class SearchPage : Page, IPageFind
     public SearchPage()
     {
         InitializeComponent();
+        Controls.TypingToolTip.SuspendWhileTyping(PageField);
         Loaded += (_, _) => PageField.Focus(FocusState.Programmatic);
     }
 

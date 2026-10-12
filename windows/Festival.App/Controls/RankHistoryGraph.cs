@@ -272,19 +272,25 @@ public sealed partial class RankHistoryGraph : Grid
         // Bars (web barCategoryGap 10%, fill opacity 0.8), coloured by placement.
         var slot = width / page.Points.Count;
         var barWidth = Math.Max(4, slot * 0.8);
+        var scale = XamlRoot?.RasterizationScale ?? 1;
         for (var i = 0; i < page.Points.Count; i++)
         {
             var bar = page.Bars[i];
             var height = Math.Max(1, bar.Height * (PlotHeight - 2 * inset));
+            // Edges on device pixels (Canvas offsets aren't layout-rounded), so the contrast outline stays one crisp pixel.
+            var left = ScoreHistoryChartScale.SnapToPixel(X(bar.X) - barWidth / 2, scale);
+            var right = ScoreHistoryChartScale.SnapToPixel(X(bar.X) + barWidth / 2, scale);
+            var top = ScoreHistoryChartScale.SnapToPixel(PlotHeight - inset - height, scale);
+            var bottom = ScoreHistoryChartScale.SnapToPixel(PlotHeight - inset, scale);
             var rect = new Rectangle
             {
-                Width = barWidth, Height = height, RadiusX = 4, RadiusY = 4,
+                Width = right - left, Height = Math.Max(bottom - top, 1 / scale), RadiusX = 4, RadiusY = 4,
                 Fill = new SolidColorBrush(Color(page.Points[i].BarArgb)) { Opacity = contrast ? 1 : 0.8 },
                 Stroke = contrast ? outline : null,
                 StrokeThickness = contrast ? 1 : 0,
             };
-            Canvas.SetLeft(rect, X(bar.X) - barWidth / 2);
-            Canvas.SetTop(rect, PlotHeight - inset - height);
+            Canvas.SetLeft(rect, left);
+            Canvas.SetTop(rect, top);
             shapes.Children.Add(rect);
             var date = new TextBlock { Text = page.Points[i].AxisLabel, FontSize = DateFontSize, Foreground = text, Width = slot, TextAlignment = TextAlignment.Center };
             AutomationProperties.SetAccessibilityView(date, AccessibilityView.Raw);

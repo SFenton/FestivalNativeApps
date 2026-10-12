@@ -2611,6 +2611,10 @@
           {
             "path": "windows/Festival.App/Controls/QuickLinksMenuButton.cs",
             "symbol": "QuickLinksMenuButton"
+          },
+          {
+            "path": "windows/Festival.App/Controls/CollapsedToolTip.cs",
+            "symbol": "CollapsedToolTip"
           }
         ]
       },
