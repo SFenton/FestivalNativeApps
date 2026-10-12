@@ -305,6 +305,24 @@ class SettingsUiTest {
         waitGone("fst.first-run.dialog")
     }
 
+    /**
+     * #617: every First Run Guides "Show" button and Reset lay out at least 48 dp each way, so
+     * the shell's floating toolbar passing over one never leaves a target under 48 dp.
+     */
+    @Test
+    fun firstRunShowButtonsAndResetAreFullTouchTargets() {
+        launch(DebugLaunch(section = FestivalSection.Settings, stillBackground = true))
+        waitForTag("fst.settings.list")
+        val tags = com.festivalscoretracker.android.core.firstrun.FirstRunPageKey.entries.map { "fst.settings.first-run.${it.key}" } + "fst.settings.reset"
+        tags.forEach { tag ->
+            rule.onNodeWithTag("fst.settings.list").performScrollToNode(hasTestTag(tag))
+            settle()
+            val node = rule.onNodeWithTag(tag).fetchSemanticsNode()
+            val density = node.layoutInfo.density.density
+            assertTrue("$tag is ${node.size.width / density} × ${node.size.height / density} dp", node.size.width >= 48 * density - 1 && node.size.height >= 48 * density - 1)
+        }
+    }
+
     @Test
     fun everyCatalogSlideHasALiveDemo() {
         val all = com.festivalscoretracker.android.core.firstrun.FirstRunPageKey.entries.flatMap { FirstRunCatalog.slides(it) }.map { it.id }.toSet()
