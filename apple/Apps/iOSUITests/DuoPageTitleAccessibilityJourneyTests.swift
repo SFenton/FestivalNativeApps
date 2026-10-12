@@ -17,7 +17,9 @@ import XCTest
 ///   state and its Choose Profile button);
 /// - grow (> 1.35× its default-size line height; > 1.05× on the iPhone Duo device type, whose
 ///   system bar caps it, `system-bar-title-size`) and render whole, never "S…";
-/// - pass a scoped audit (Dynamic Type, clipped text, description, contrast).
+/// - render ≥ 4.5:1 on the page and pass a scoped audit (Dynamic Type, clipped text,
+///   description, contrast). iOS 27's audit flags the white system title's contrast on some
+///   pages; that issue passes only on the measured rendered contrast (the #388 rule).
 ///
 /// Statistics' Choose Profile, the no-profile state's only action, stays named, reachable, at
 /// least 44 pt tall and drawn with its whole label at AX5, also under More Contrast (the
@@ -165,6 +167,12 @@ final class DuoPageTitleAccessibilityJourneyTests: XCTestCase {
         XCTAssertGreaterThan(height, standardHeight * Self.minimumTitleGrowth,
                              "\(state): title grows at AX5: \(height) pt vs \(standardHeight) pt")
 
+        // Contrast: the title's glyphs render ≥ 4.5:1 on the page behind it.
+        let rendered = try Self.renderedContrast(of: frame, in: app, window: window)
+        XCTAssertGreaterThanOrEqual(rendered.brightPixels, 20, "\(state): title has no rendered text")
+        XCTAssertGreaterThanOrEqual(rendered.ratio, 4.5, "\(state): title lacks rendered contrast "
+                                        + "(background \(rendered.background), text \(rendered.text))")
+
         // Statistics' only action stays named, reachable and a full-size target.
         var scoped: Set<String> = [root.title]
         if root.tab == "statistics" {
@@ -182,14 +190,48 @@ final class DuoPageTitleAccessibilityJourneyTests: XCTestCase {
 
         // Audit the title (and Choose Profile) only: page content has its own journeys.
         var issues: [String] = []
+        var titleContrastFlagged = false
         let audit: XCUIAccessibilityAuditType = [.dynamicType, .textClipped, .sufficientElementDescription, .contrast]
         try SongsUITestSupport.performAuditRetryingTimeout(app, audit, name: "duo-title-\(root.tab)",
-                                                           reset: { issues.removeAll() }) { issue in
+                                                           reset: { issues.removeAll(); titleContrastFlagged = false }) { issue in
             guard let element = issue.element, scoped.contains(element.label) else { return true }
+            // iOS 27 flags the white system large title on the dark page (Leaderboards,
+            // Statistics); it passes because it renders ≥ 4.5:1, measured above (#388 rule).
+            if issue.auditType == .contrast, element.elementType == .staticText, element.label == root.title {
+                titleContrastFlagged = true
+                return true
+            }
             issues.append("\(element.elementType.rawValue) '\(element.label)': \(issue.compactDescription)")
             return true
         }
         XCTAssertEqual(issues, [], "\(state): title audit issues at AX5")
+        if titleContrastFlagged {
+            XCTContext.runActivity(named: "\(state): audit contrast on the title accepted; rendered "
+                + "\(String(format: "%.1f", rendered.ratio)):1 with \(rendered.brightPixels) text pixels") { _ in }
+        }
+    }
+
+    /// The title's rendered contrast: its glyphs against the median surface of its frame.
+    ///
+    /// - Parameters:
+    ///   - frame: The title's frame.
+    ///   - app: The app on the page.
+    ///   - window: The app window's frame.
+    /// - Returns: `SongsUITestSupport.measuredTextContrast` of the title's crop.
+    /// - Throws: A missing screenshot or an off-screen title.
+    @MainActor
+    private static func renderedContrast(
+        of frame: CGRect, in app: XCUIApplication, window: CGRect
+    ) throws -> (ratio: Double, background: Double, text: Double, brightPixels: Int) {
+        let image = try XCTUnwrap(app.screenshot().image.cgImage)
+        let scaleX = Double(image.width) / window.width
+        let scaleY = Double(image.height) / window.height
+        let rect = CGRect(
+            x: (frame.minX - window.minX) * scaleX, y: (frame.minY - window.minY) * scaleY,
+            width: frame.width * scaleX, height: frame.height * scaleY
+        ).integral.intersection(CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        let crop = try XCTUnwrap(image.cropping(to: rect), "title \(frame) is off screen")
+        return try SongsUITestSupport.measuredTextContrast(in: SongsUITestSupport.bitmapPixels(crop))
     }
 
     /// Whether this run is on the iPhone Duo device type (not the `DebugDuoWindow` simulation).
