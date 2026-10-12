@@ -269,11 +269,17 @@ class AppleCIJourneysTests(unittest.TestCase):
         page = "ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5"
         split = "ScoreHistoryAccessibilityJourneyTests/testScoreHistorySplitPaneAtAX5"
         self.assertEqual(self.history["HISTORY_JOURNEYS"], [page], "the iPhone run: the page only (the split skips)")
-        self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split])
+        self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"][:2], [page, split])
         self.assertEqual(self.workflow.count("uitest --app ipad"), 2)
         # iPhone journeys, the unpinned profile-notice run (#446), two Score History runs, the plain-fixture iPhone run
         # (#615), the iPad journeys, the iPad keyboard batches (#473, #442) and the Songs Filter legs (#432).
         self.assertEqual(self.workflow.count("--fail-on-skip"), 9)
+
+    def test_split_band_journey_runs_on_the_ipad(self) -> None:
+        # #480: the only device evidence for the split band #344 changed (landscape iPad split, so not the iPhone).
+        journey = "IPadShellAccessibilityTests/testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5"
+        self.assertIn(journey, self.history["HISTORY_IPAD_JOURNEYS"])
+        self.assertNotIn(journey, self.history["HISTORY_JOURNEYS"])
 
     def test_invalid_score_filter_journey_runs_on_the_plain_fixture(self) -> None:
         # #615: the only device evidence for the Filter sheet's score checks under Filter Invalid Scores. It needs
