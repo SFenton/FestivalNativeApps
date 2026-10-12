@@ -81,14 +81,25 @@ final class NotificationsAccessibilityJourneyTests: XCTestCase {
     // MARK: - Tests
 
     /// Default text size: heading and rows read in order with their names and targets,
-    /// and a row in the fade or cut by the title keeps its accessibility.
+    /// and a row in the fade or cut by the title keeps its accessibility. When the audit
+    /// reports the "New" title's Dynamic Type as partially unsupported, the title must
+    /// measure at least 1.35x taller in an AX5 launch (the `dynamic-type-grows` evidence).
     @MainActor
     func testRowsUnderThePinnedTitleKeepTheirAccessibility() throws {
         continueAfterFailure = false
         let app = launch(largeText: false)
         openSheet(app)
-        _ = try assertReadingOrder(app, size: "default")
-        try assertRowUnderTheTitle(app, size: "default")
+        let small = try assertReadingOrder(app, size: "default")
+        guard try assertRowUnderTheTitle(app, size: "default") else { return }
+        app.terminate()
+
+        let large = launch(largeText: true)
+        openSheet(large)
+        let grown = try assertReadingOrder(large, size: "AX5")
+        XCTAssertGreaterThanOrEqual(
+            grown.heading.height, small.heading.height * 1.35,
+            "Audit flagged 'New' and it did not scale: \(small.heading.height) → \(grown.heading.height) pt"
+        )
     }
 
     /// Largest accessibility text size: the title and rows grow with Dynamic Type, still
@@ -112,7 +123,8 @@ final class NotificationsAccessibilityJourneyTests: XCTestCase {
             large.row.height, small.row.height * 1.35,
             "Rows did not scale: \(small.row.height) → \(large.row.height) pt"
         )
-        try assertRowUnderTheTitle(app, size: "AX5")
+        // The growth above is the evidence for a partially-unsupported finding on 'New'.
+        _ = try assertRowUnderTheTitle(app, size: "AX5")
     }
 
     // MARK: - Reading order
@@ -195,8 +207,11 @@ final class NotificationsAccessibilityJourneyTests: XCTestCase {
     /// - Parameters:
     ///   - app: The app with the sheet open at its top.
     ///   - size: Label for failure messages.
+    /// - Returns: Whether the audit reported the "New" title's Dynamic Type as partially
+    ///   unsupported, which the caller must disprove with measured growth.
     @MainActor
-    private func assertRowUnderTheTitle(_ app: XCUIApplication, size: String) throws {
+    @discardableResult
+    private func assertRowUnderTheTitle(_ app: XCUIApplication, size: String) throws -> Bool {
         let title = app.staticTexts["New"].firstMatch
         let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", Self.rowPrefix))
         // XCUITest reads the title as its whole header cell, whose bottom is the pinned
@@ -272,7 +287,7 @@ final class NotificationsAccessibilityJourneyTests: XCTestCase {
             XCTAssertEqual(headings.map(\.label), ["New"], "\(size) \(state): one pinned 'New' heading")
             XCTAssertLessThan(titleFrame.minY, masked.frame.minY, "\(size) \(state): row starts above the title")
         }
-        try audit(app, size: size)
+        return try audit(app, size: size)
     }
 
     // MARK: - Audit
@@ -282,23 +297,38 @@ final class NotificationsAccessibilityJourneyTests: XCTestCase {
     /// dimmed by design (scroll-edge R2), and the clear rows' contrast is the Notifications
     /// render tests' concern.
     ///
+    /// The one exception is "Dynamic Type font sizes are partially unsupported" on the
+    /// "New" title (`.subheadline`, a scaling text style): iOS reported it intermittently
+    /// (#469 retry, 2026-10-12; it passed clean before), so it is returned for the caller
+    /// to disprove with ≥ 1.35x AX5 growth, the `dynamic-type-grows` evidence
+    /// (`SongsFilterAccessibilityJourneyTests.testDynamicTypeAuditWithShopHidden`).
+    ///
     /// - Parameters:
     ///   - app: The app with a row cut by the pinned title.
     ///   - size: Label for failure messages.
+    /// - Returns: Whether the title was reported as partially unsupported.
     @MainActor
-    private func audit(_ app: XCUIApplication, size: String) throws {
+    private func audit(_ app: XCUIApplication, size: String) throws -> Bool {
         var issues: [String] = []
+        var titlePartial = false
         try SongsUITestSupport.performAuditRetryingTimeout(
             app, [.dynamicType, .textClipped, .hitRegion, .sufficientElementDescription],
-            name: "notifications-\(size)", reset: { issues = [] }
+            name: "notifications-\(size)", reset: { issues = []; titlePartial = false }
         ) { issue in
             let id = issue.element?.identifier ?? ""
             let label = issue.element?.label ?? ""
             guard id.hasPrefix(Self.rowPrefix) || label == "New" || label.contains(" · ") else { return true }
+            if issue.auditType == .dynamicType, label == "New",
+               issue.compactDescription.contains("partially unsupported") {
+                titlePartial = true
+                XCTContext.runActivity(named: "To prove by AX5 growth: '\(label)' \(issue.compactDescription)") { _ in }
+                return true
+            }
             issues.append("\(id) '\(label)': \(issue.compactDescription)")
             return true
         }
         XCTAssertEqual(issues, [], "Notifications audit issues at \(size)")
+        return titlePartial
     }
 
     // MARK: - Settling
