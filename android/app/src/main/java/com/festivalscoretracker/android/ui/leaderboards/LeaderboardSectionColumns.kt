@@ -1,16 +1,26 @@
 package com.festivalscoretracker.android.ui.leaderboards
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -18,15 +28,21 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.model.LeaderboardEntry
+import com.festivalscoretracker.android.core.rankings.HistoryColumnPlan
+import com.festivalscoretracker.android.core.rankings.HistoryColumnTexts
+import com.festivalscoretracker.android.core.rankings.HistoryRowLayout
 import com.festivalscoretracker.android.core.rankings.LeaderboardColumnLayout
 import com.festivalscoretracker.android.core.rankings.LeaderboardColumnPlan
 import com.festivalscoretracker.android.core.rankings.LeaderboardRowKind
 import com.festivalscoretracker.android.core.rankings.LeaderboardSection
 import com.festivalscoretracker.android.core.rankings.ScoreSectionTexts
+import com.festivalscoretracker.android.ui.design.METADATA_PILL_PADDING_H
+import com.festivalscoretracker.android.ui.design.SEASON_PILL_MIN_WIDTH
 
 // region Section columns
 
@@ -97,7 +113,8 @@ fun rememberScoreColumns(entries: List<LeaderboardEntry>, minRankWidth: Dp = 0.d
         LeaderboardSection(
             kind = LeaderboardRowKind.Score,
             rankWidth = maxOf(widest(texts.ranks, typography.labelLarge), minRankWidth.value),
-            metaWidth = widest(texts.seasons, typography.labelLarge),
+            // The season column holds the shared [SeasonPill]: its label plus padding, never below the pill's minimum.
+            metaWidth = widest(texts.seasons, typography.labelLarge).let { if (it == 0f) 0f else maxOf(it + 2 * METADATA_PILL_PADDING_H.value, SEASON_PILL_MIN_WIDTH.value) },
             valueWidth = widest(texts.scores, typography.bodyMedium),
             hasAccuracy = texts.hasAccuracy,
             hasStars = texts.hasStars,
@@ -127,6 +144,129 @@ fun LeaderboardSectionMember(columns: LeaderboardSectionColumns, key: String, mo
 
 /** Room added to measured text so a column equal to its widest text never wraps on rounding. */
 internal val TEXT_SLACK = 2.dp
+
+// endregion
+
+// region History columns
+
+/** OpenType tabular figures (web `fontVariantNumeric: tabular-nums`), so equal-length numbers line up digit by digit. */
+private const val TABULAR_FIGURES = "tnum"
+
+/**
+ * One text of a rank-history row.
+ *
+ * @property text Label.
+ * @property color Colour.
+ * @property weight Weight (the newest row is bold, web `i === 0`).
+ */
+@Immutable
+data class HistoryCell(val text: String, val color: Color, val weight: FontWeight)
+
+/**
+ * Measures a rank-history list's shared columns once (`leaderboard-row` R1, issue #594; web
+ * `computeRankWidth` and the value `ch` width over every chart point): the widest date, rank
+ * and value of [texts] in bold with tabular figures, at the current font scale.
+ *
+ * @param texts Every chart day's labels, not only the listed rows.
+ * @param style Text style the rows draw with.
+ * @param gap Space between columns.
+ * @return Column plan for [HistoryColumnsRow].
+ */
+@Composable
+fun rememberHistoryColumns(texts: HistoryColumnTexts, style: TextStyle, gap: Dp): HistoryColumnPlan {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    return remember(texts, style, gap, density) {
+        val bold = style.copy(fontWeight = FontWeight.Bold, fontFeatureSettings = TABULAR_FIGURES)
+        fun widest(list: List<String>): Float = with(density) {
+            val px = list.distinct().maxOfOrNull { measurer.measure(it, bold, maxLines = 1, softWrap = false).size.width } ?: return@with 0f
+            (px.toDp() + TEXT_SLACK).value
+        }
+        HistoryColumnPlan(widest(texts.dates), widest(texts.ranks), widest(texts.values), gap.value)
+    }
+}
+
+/**
+ * One rank-history row's date, rank and value on the list's shared columns
+ * ([rememberHistoryColumns]): the date takes the rest of the row, the rank and value are
+ * right-aligned at fixed widths with tabular figures, so every row (bold newest included) and
+ * the tapped bar's detail line up. When large text leaves no room for the widest date beside
+ * the columns, the date moves above them and the row grows (`leaderboard-row` R2); when even the
+ * two columns don't fit on one line, each takes its own line at its same measured width,
+ * right-aligned, so the columns still line up and never clip. Every row is at least
+ * [LEADERBOARD_ROW_MIN_HEIGHT] (48 dp, web `Layout.entryRowHeight`) tall, padding included.
+ * Semantics belong to the caller's row (one TalkBack stop).
+ *
+ * @param plan Shared columns.
+ * @param date Date.
+ * @param rank Rank.
+ * @param value Value.
+ * @param style Text style ([rememberHistoryColumns] was measured with it).
+ * @param modifier Modifier (padding, background, semantics); drawn inside the 48 dp minimum.
+ * @param probeKey Key the row, rank and value report to [LocalColumnProbe] (`history.row|rank|value.<key>`).
+ */
+@Composable
+fun HistoryColumnsRow(
+    plan: HistoryColumnPlan,
+    date: HistoryCell,
+    rank: HistoryCell,
+    value: HistoryCell,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    probeKey: String? = null,
+) {
+    val probe = LocalColumnProbe.current
+    val tabular = style.copy(fontFeatureSettings = TABULAR_FIGURES)
+    val gap = plan.gap.dp
+    val rankKey = probeKey?.let { "history.rank.$it" }
+    val valueKey = probeKey?.let { "history.value.$it" }
+    val outer = (if (probeKey == null) Modifier else Modifier.columnProbe(probe, "history.row.$probeKey"))
+        .heightIn(min = LEADERBOARD_ROW_MIN_HEIGHT)
+    BoxWithConstraints(outer.then(modifier), contentAlignment = Alignment.CenterStart) {
+        val row = maxWidth.value
+        when (plan.layoutFor(row)) {
+            HistoryRowLayout.Line -> Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(gap)) {
+                HistoryDate(date, style, Modifier.weight(1f))
+                HistoryColumn(rank, tabular, plan.rankWidth, wrap = false, probe, rankKey)
+                HistoryColumn(value, tabular, plan.valueWidth, wrap = false, probe, valueKey)
+            }
+            HistoryRowLayout.DateAbove -> Column(Modifier.fillMaxWidth()) {
+                HistoryDate(date, style, Modifier)
+                Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    HistoryColumn(rank, tabular, plan.rankWidth, wrap = false, probe, rankKey)
+                    HistoryColumn(value, tabular, plan.valueWidth, wrap = false, probe, valueKey)
+                }
+            }
+            HistoryRowLayout.Lines -> Column(Modifier.fillMaxWidth()) {
+                HistoryDate(date, style, Modifier)
+                HistoryColumn(rank, tabular, plan.columnWidth(plan.rankWidth, row), wrap = plan.rankWidth > row, probe, rankKey, Modifier.align(Alignment.End))
+                HistoryColumn(value, tabular, plan.columnWidth(plan.valueWidth, row), wrap = plan.valueWidth > row, probe, valueKey, Modifier.align(Alignment.End))
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryDate(cell: HistoryCell, style: TextStyle, modifier: Modifier) =
+    Text(cell.text, style = style, color = cell.color, fontWeight = cell.weight, modifier = modifier)
+
+/**
+ * A right-aligned rank or value column at its measured width.
+ *
+ * @param width Width in dp.
+ * @param wrap Whether the text may wrap (only when the column is capped at a narrower row).
+ */
+@Composable
+private fun HistoryColumn(cell: HistoryCell, style: TextStyle, width: Float, wrap: Boolean, probe: ColumnProbe?, key: String?, modifier: Modifier = Modifier) = Text(
+    cell.text,
+    style = style,
+    color = cell.color,
+    fontWeight = cell.weight,
+    textAlign = TextAlign.End,
+    maxLines = if (wrap) Int.MAX_VALUE else 1,
+    softWrap = wrap,
+    modifier = modifier.width(width.dp).then(if (key == null) Modifier else Modifier.columnProbe(probe, key)),
+)
 
 // endregion
 

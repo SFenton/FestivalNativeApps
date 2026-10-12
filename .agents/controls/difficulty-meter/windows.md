@@ -23,9 +23,20 @@
 | State | Reached by | Evidence |
 |---|---|---|
 | `one`…`seven` | Song Details / Songs with raw 0…6 | `tools/windows/journeys/difficulty-meter.json` (UIA names `{Instrument}, Difficulty N of 7` for 1–7; 99 sentinel draws no meter) + Core `DifficultyMeterState_LevelStates` |
-| `invalid` | Not reachable from the UI: `SongDifficulty.ChartedValue` drops absent, negative, non-finite and 99 levels, and JSON can't carry NaN | Core `DifficultyMeterState_InvalidShowsTextNotBars`, `DifficultyMeterState_RecycledMeterReturnsToMeterId` |
+| `invalid` | Not reachable from a page: `SongDifficulty.ChartedValue` drops absent, negative, non-finite and 99 levels, and JSON can't carry NaN. The control lab (`--control-lab difficulty-meter` / `FST_DEBUG_CONTROL_LAB=difficulty-meter`) shows one meter that starts unavailable and a button `fst.control-lab.difficulty-meter.swap` ("Show level 4" / "Show unavailable") that re-binds the same instance, like a recycled Songs row | Core `DifficultyMeterState_InvalidShowsTextNotBars`, `DifficultyMeterState_RecycledMeterReturnsToMeterId`; UIA `meter-lab-unavailable`, `meter-lab-contrast` |
 
 Run: `python tools/windows/ui_journey.py tools/windows/journeys/difficulty-meter.json --large-catalogue` (`fixture-song-6` gives seven bars).
+
+CI accessibility page (issue #514): `tools/windows/journeys/a11y-difficulty-meter.json`, which `ui_ci.py` generates runs for in the `windows-ui` job (normal, text-225, hc-desert). Run it locally with `python tools/windows/a11y_matrix.py --pages tools/windows/journeys/a11y-difficulty-meter.json --sizes compact,medium --mode <normal|text-225|hc-desert> --scan --tabs 0`.
+
+| Page | Covers |
+|---|---|
+| `meter-detail-read` | Song Details Intensity: heading level 2; each cell reads "{Instrument}, Difficulty N of 7, group" > "Difficulty N of 7, image"; not focusable; reading order heading > Lead > Bass and Drums > Tap Vocals; normal fills (#FFFFFF filled, #666666 unfilled); Axe at rest. At text 225% the grid is one column, so each cell is scrolled into view before it's read. |
+| `meter-row-read` | Songs row with a Lead filter: the row's name includes "Song intensity N of 7" and the pill meter paints normal fills |
+| `meter-detail-contrast`, `meter-row-contrast` | Desert: filled bars WindowText; unfilled bars are hollow (card background inside, not a GrayText fill) |
+| `meter-contrast-switch` | Desert switched on and off with the app open: the bars recolour both ways without navigating |
+| `meter-lab-unavailable` | Control lab, normal and text 225%: the unavailable meter reads "Difficulty unavailable, text" (class `DifficultyMeter`, Text role, `fst.songs.difficulty-unavailable`), isn't focusable, exposes no `TextBlock` child, sits heading > meter > button and is at least 100×14 epx. Swapping to level 4 restores the Image role, "Difficulty 4 of 7" and `fst.songs.difficulty-meter` with normal fills; swapping back restores the text. One tab stop (the button) |
+| `meter-lab-contrast` | Control lab under Desert: the unavailable text and the swapped level-4 meter (filled WindowText, hollow unfilled bars) |
 
 ## Validation (issue #216, 2026-10-03)
 

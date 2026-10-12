@@ -20,6 +20,9 @@ public interface IGroupedRow
 /// <c>StackLayout Spacing="0"</c>) slices each realized row; a ListView page calls <see cref="Apply"/> from
 /// <c>ContainerContentChanging</c>. Rows opt in by implementing <see cref="IGroupedRow"/>, or with a template root
 /// <see cref="Grid"/> (its corners and outline) and an element named <c>RowSeparator</c> (the hairline).
+/// Rows inside a card that already draws the surface (Song Detail's Score History, issue #588) add
+/// <c>controls:GroupedRows.InCard="True"</c>: they draw no surface or outline of their own, only the hairlines and the
+/// selected row's purple fill.
 /// </summary>
 public static class GroupedRows
 {
@@ -37,6 +40,23 @@ public static class GroupedRows
     /// <param name="value">Whether the repeater's rows form one card.</param>
     public static void SetIsEnabled(DependencyObject element, bool value) => element.SetValue(IsEnabledProperty, value);
 
+    /// <summary>
+    /// Attached switch for rows inside a card that already draws the surface and outline (issue #588, Song Detail's Score
+    /// History card): each row keeps only its hairline and, when selected, its purple fill (<see cref="GroupedRowSlice.InCard"/>).
+    /// </summary>
+    public static readonly DependencyProperty InCardProperty = DependencyProperty.RegisterAttached(
+        "InCard", typeof(bool), typeof(GroupedRows), new PropertyMetadata(false));
+
+    /// <summary>Reads the in-card switch.</summary>
+    /// <param name="element">Repeater.</param>
+    /// <returns>Whether the repeater's rows sit inside a card.</returns>
+    public static bool GetInCard(DependencyObject element) => (bool)element.GetValue(InCardProperty);
+
+    /// <summary>Sets the in-card switch.</summary>
+    /// <param name="element">Repeater.</param>
+    /// <param name="value">Whether the repeater's rows sit inside a card.</param>
+    public static void SetInCard(DependencyObject element, bool value) => element.SetValue(InCardProperty, value);
+
     /// <summary>Whether a row model is the selected player's (or band's) row.</summary>
     /// <param name="item">Row model.</param>
     /// <returns>Whether the row gets the selected outline.</returns>
@@ -53,20 +73,21 @@ public static class GroupedRows
     public static CornerRadius Radius(GroupedRowSlice slice) =>
         new(slice.TopRadius, slice.TopRadius, slice.BottomRadius, slice.BottomRadius);
 
-    /// <summary>Outline for a slice: both sides always, the top and bottom only on the card's edges or the selected row.</summary>
+    /// <summary>Outline for a slice: both sides on a board (only the selected row's in a card), the top and bottom only on the card's edges or the selected row.</summary>
     /// <param name="slice">Slice.</param>
     /// <returns>Border thickness.</returns>
     public static Thickness Outline(GroupedRowSlice slice) =>
-        new(GroupedRowSlice.Stroke, slice.TopStroke, GroupedRowSlice.Stroke, slice.BottomStroke);
+        new(slice.SideStroke, slice.TopStroke, slice.SideStroke, slice.BottomStroke);
 
     /// <summary>Works out a row's slice from its list.</summary>
     /// <param name="index">Row index.</param>
     /// <param name="count">Rows in the list.</param>
     /// <param name="item">Row model.</param>
     /// <param name="previous">Model of the row above, if any.</param>
+    /// <param name="inCard">Whether the rows sit inside a card that owns the surface and outline.</param>
     /// <returns>The slice.</returns>
-    public static GroupedRowSlice SliceFor(int index, int count, object? item, object? previous) =>
-        GroupedRowSlice.For(index, count, IsSelected(item), index > 0 && IsSelected(previous));
+    public static GroupedRowSlice SliceFor(int index, int count, object? item, object? previous, bool inCard = false) =>
+        GroupedRowSlice.For(index, count, IsSelected(item), index > 0 && IsSelected(previous), inCard);
 
     /// <summary>Draws one row's slice.</summary>
     /// <param name="row">Row element: an <see cref="IGroupedRow"/>, or a template root <see cref="Grid"/>.</param>
@@ -120,7 +141,25 @@ public static class GroupedRows
     {
         var source = repeater.ItemsSourceView;
         if (source is null || index < 0 || index >= source.Count) return;
-        Apply(row, SliceFor(index, source.Count, source.GetAt(index), index > 0 ? source.GetAt(index - 1) : null));
+        Apply(row, SliceFor(index, source.Count, source.GetAt(index), index > 0 ? source.GetAt(index - 1) : null,
+            GetInCard(repeater)));
+    }
+
+    /// <summary>
+    /// Slices a realized <see cref="ListView"/> row from the page's <c>ContainerContentChanging</c> handler (issue #603,
+    /// Rivals' lists): the template root draws the slice, and the container's hover, press and selection fill and its
+    /// focus ring follow the slice's corners and stay inside the row, which touches its neighbours.
+    /// </summary>
+    /// <param name="list">List.</param>
+    /// <param name="args">Realized row.</param>
+    public static void ApplyToContainer(ListViewBase list, ContainerContentChangingEventArgs args)
+    {
+        var index = args.ItemIndex;
+        var items = list.Items;
+        var slice = SliceFor(index, items.Count, args.Item, index > 0 && index - 1 < items.Count ? items[index - 1] : null);
+        if (args.ItemContainer.ContentTemplateRoot is UIElement root) Apply(root, slice);
+        args.ItemContainer.CornerRadius = Radius(slice);
+        args.ItemContainer.FocusVisualMargin = new Thickness(0);
     }
 }
 #endregion

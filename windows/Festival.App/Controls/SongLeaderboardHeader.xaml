@@ -8,11 +8,12 @@
          the shared song title (heading 1) and artist column (SongHeaderText: one-line marquees that wrap at large text,
          song-header R1-R3), then the board line (instrument icon + name, or the band size) and the optional entry total
          (issue #317). The whole block is one flat button that opens Song Detail, like the web's pressable title area
-         (onTitleClick; song-header R1). -->
+         (onTitleClick; song-header R1). Narrator reads the named button as one item, so code-behind names it by every
+         visible line (SongLeaderboardHeaderText, issue #465). -->
     <Grid x:Name="Host">
         <Button x:Name="SongButton" Click="OnSongClick" Padding="0" BorderThickness="0" CornerRadius="8" Background="Transparent"
                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center"
-                AutomationProperties.Name="{x:Bind Title, Mode=OneWay}" AutomationProperties.HelpText="Opens Song Details"
+                AutomationProperties.HelpText="Opens Song Details"
                 AutomationProperties.AutomationId="{x:Bind SongAutomationId, Mode=OneWay}">
             <Grid x:Name="Root" ColumnSpacing="16">
                 <Grid.ColumnDefinitions>

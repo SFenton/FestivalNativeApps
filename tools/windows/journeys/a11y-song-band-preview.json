@@ -1,5 +1,22 @@
 [
   {
+    "name": "bp-rank-column",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "fixture": ["song_band_preview_fixture.py", "--bands", "far"],
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "scrollinto:id=fst.song-detail.band-row.Band_Duets.9@20",
+      "scrollinto:id=fst.song-detail.band-selected.Band_Duets@10",
+      "assertname:raw=fst.song-detail.band-selected.Band_Duets.rank|#1,234",
+      "assertaligned:raw=fst.song-detail.band-row.Band_Duets.9.rank|raw=fst.song-detail.band-selected.Band_Duets.rank",
+      "assertaligned:raw=fst.song-detail.band-row.Band_Duets.9.members|raw=fst.song-detail.band-selected.Band_Duets.members",
+      "assertaligned:raw=fst.song-detail.band-row.Band_Duets.8.members|raw=fst.song-detail.band-selected.Band_Duets.members",
+      "assertorder:id=fst.song-detail.band-row.Band_Duets.9|id=fst.song-detail.band-selected.Band_Duets",
+      "shot:{stem}-duos.png"
+    ]
+  },
+  {
     "name": "bp-demo-anonymous",
     "route": "/songs/fixture-pulse",
     "fixture": ["song_band_preview_fixture.py", "--bands", "demo"],

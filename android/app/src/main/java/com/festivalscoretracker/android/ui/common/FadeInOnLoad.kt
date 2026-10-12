@@ -4,7 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.staggeredgrid.LazyStaggeredGridState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -487,7 +487,7 @@ fun rememberFadeInWindow(state: LazyListState, reset: Any? = null): FadeInWindow
  * @return Window.
  */
 @Composable
-fun rememberFadeInWindow(state: LazyStaggeredGridState, reset: Any? = null): FadeInWindow =
+fun rememberFadeInWindow(state: LazyGridState, reset: Any? = null): FadeInWindow =
     rememberFadeInWindow(state, reset) { Triple(state.firstVisibleItemIndex, state.firstVisibleItemScrollOffset, state.isScrollInProgress) }
 
 @Composable

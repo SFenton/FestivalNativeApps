@@ -148,6 +148,11 @@ struct AppRouteDestination: View {
                 session: session, instrument: instrument, rankBy: rankBy,
                 page: page, focusSelected: focusSelected
             )
+        case let .fullComboRankings(combo, rankBy, page, focusSelected):
+            FullRankingsScreen(
+                session: session, combo: combo, rankBy: rankBy,
+                page: page, focusSelected: focusSelected
+            )
         case let .bandRankings(bandType, rankBy, page):
             BandRankingsScreen(session: session, bandType: bandType, rankBy: rankBy, page: page)
         case .rivals:
@@ -240,8 +245,8 @@ struct FestivalTabStack<Root: View>: View {
         NavigationStack(path: $path) {
             root
                 // Each page's tools show in the iPhone tab-bar accessory only while it
-                // is the front page (issue #92).
-                .pageToolsScope()
+                // is the front page of the selected tab (issues #92, #487).
+                .pageToolsScope(inSelectedTab: isVisible)
                 .modifier(TopEdgeScrim())
                 .menuBarColumn(isTop: isVisible && path.isEmpty, isList: isListPane)
                 .splitPaneContext(paneContext)
@@ -253,7 +258,7 @@ struct FestivalTabStack<Root: View>: View {
                 )
                 // The bell and profile on every pushed page (issue #92).
                 .pageTrailingItems()
-                .pageToolsScope()
+                .pageToolsScope(inSelectedTab: isVisible)
                 .modifier(TopEdgeScrim())
                 .menuBarColumn(isTop: isVisible && path.last == route, isList: isListPane)
                 .splitPaneContext(paneContext)

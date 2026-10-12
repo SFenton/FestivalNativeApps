@@ -561,6 +561,7 @@ enum WideBoardPlacement: String, CaseIterable, CustomTestStringConvertible {
 /// (rank 1 beside rank 2, rank 3 under rank 1), while a tall page and a split's
 /// sub-page stay one column; the pinned footer and the pager still span the board
 /// beneath the rows (pattern `wide-columns` R1/R2, leaderboard-row R5/R7, issue #353).
+/// A column's rows abut as segments of one group card (leaderboard-row R10, #543).
 @MainActor
 @Test(.serialized, arguments: WideBoardPlacement.allCases)
 func fullRankingsUsesTwoColumnsOnlyFullWidthInWideLandscape(placement: WideBoardPlacement) async throws {
@@ -597,10 +598,10 @@ func fullRankingsUsesTwoColumnsOnlyFullWidthInWideLandscape(placement: WideBoard
         #expect(abs(rows[0].minY - rows[1].minY) < 1, "\(placement): rank 2 is not beside rank 1")
         #expect(rows[1].minX >= rows[0].maxX + WideColumns.spacing - 1, "\(placement): no gutter")
         #expect(abs(rows[0].width - rows[1].width) < 1, "\(placement): uneven columns")
-        #expect(abs(rows[2].minX - rows[0].minX) < 1 && rows[2].minY > rows[0].maxY,
+        #expect(abs(rows[2].minX - rows[0].minX) < 1 && rows[2].minY >= rows[0].maxY - 0.5,
                 "\(placement): rank 3 does not start the next row")
     } else {
-        #expect(rows[1].minY > rows[0].maxY, "\(placement): rank 2 is not under rank 1")
+        #expect(rows[1].minY >= rows[0].maxY - 0.5, "\(placement): rank 2 is not under rank 1")
         #expect(abs(rows[1].minX - rows[0].minX) < 1)
     }
     let footer = try #require(nativeHostedAccessibilityFrame("fst.full-rankings.spotlight-footer", in: host))

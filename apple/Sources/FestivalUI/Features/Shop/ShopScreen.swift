@@ -479,11 +479,12 @@ struct ShopScreen: View {
             Label("Sort", systemImage: "arrow.up.arrow.down")
         }
         .catalogueSortPopover(isPresented: $sortPresented) { sortSheet }
-        .accessibilityLabel("Sort Item Shop")
         #if os(macOS)
         .help("Sort Item Shop")
         #endif
-        .accessibilityValue(appliedSort.accessibilityValue(paused: sortPaused))
+        .festivalBarItemAccessibility(
+            label: "Sort Item Shop", value: appliedSort.accessibilityValue(paused: sortPaused)
+        )
         .accessibilityIdentifier("fst.shop.sort")
         .tint(appliedSort.isDefault ? BrandTokens.accentBlue : BrandTokens.gold)
     }
@@ -517,11 +518,12 @@ struct ShopScreen: View {
         } label: {
             Label("Filter", systemImage: "line.3.horizontal.decrease")
         }
-        .accessibilityLabel("Filter Item Shop")
         #if os(macOS)
         .help("Filter Item Shop")
         #endif
-        .accessibilityValue(Self.filterAccessibilityValue(appliedFilter))
+        .festivalBarItemAccessibility(
+            label: "Filter Item Shop", value: Self.filterAccessibilityValue(appliedFilter)
+        )
         .accessibilityIdentifier("fst.shop.filter")
         .tint(appliedFilter.isActive ? BrandTokens.gold : BrandTokens.accentBlue)
     }

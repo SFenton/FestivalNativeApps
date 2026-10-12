@@ -14,7 +14,14 @@ import FestivalDesign
 /// text at every Dynamic Type size (HIG Icons: "Match icon weight to adjacent text").
 /// The artwork's visible disc fills about 84% of its square, so a square slightly
 /// taller than the font's point size reads as the same height as the capitals. A band
-/// board has no instrument, so its title is the band size alone.
+/// board has no instrument, so its title is the band size alone. A combo board (issue
+/// #602) draws its instruments' artwork in a row above the heading, as the web
+/// `FullRankingsPage` does, and its pinned bar title is the text alone.
+///
+/// The Rival pages (issue #604) title the page with the rival or the section and put
+/// the list it belongs to in the subtitle ("Lead Rivals", led by that chart's icon), so
+/// the subtitle can carry its own decorative icon, and their pinned bar copy keeps the
+/// subtitle as a caption under the title, like a song page's bar title (#542).
 struct InstrumentPageTitle: View {
     /// Where the title is drawn.
     enum Style {
@@ -24,39 +31,69 @@ struct InstrumentPageTitle: View {
         case pinned
     }
 
-    /// The chart whose artwork leads the title; nil draws the title alone.
-    let instrument: Instrument?
+    /// The charts whose artwork leads the title: none draws the title alone, one leads
+    /// it, several (a combo) sit in a row above the header.
+    let instruments: [Instrument]
     let title: String
-    /// A secondary line under a header title (a board's entry total); ignored when pinned.
+    /// A secondary line under the title (a board's entry total, a Rival page's list or
+    /// rival). The pinned copy shows it as a caption only when the toolbar item passes it.
     var subtitle: String?
+    /// The chart whose artwork leads the subtitle (a single-chart Rival Detail, #604).
+    var subtitleInstrument: Instrument?
     let style: Style
     /// Accessibility identifier of the combined title element.
     let identifier: String
     @ScaledMetric(relativeTo: .largeTitle) private var headerIconSide: CGFloat = 36
     @ScaledMetric(relativeTo: .headline) private var pinnedIconSide: CGFloat = 24
+    /// The song board line's ratio (20 pt beside 17 pt body, `SongBoardLine`) at the
+    /// 15 pt subheadline.
+    @ScaledMetric(relativeTo: .subheadline) private var headerSubtitleIconSide: CGFloat = 18
+    /// The song bar caption's icon (`SongBarTitle`): no taller than the caption's line.
+    @ScaledMetric(relativeTo: .caption) private var pinnedSubtitleIconSide: CGFloat = 14
 
     /// Create a page title.
     ///
     /// - Parameters:
     ///   - instrument: The chart whose artwork leads the title, or nil (band sizes).
     ///   - title: The page's name, e.g. "Lead Rankings" or "Lead".
-    ///   - subtitle: A secondary line under the header title, or nil.
+    ///   - subtitle: A secondary line under the title, or nil.
+    ///   - subtitleInstrument: The chart whose artwork leads the subtitle, or nil.
     ///   - style: The in-page heading or the bar's compact title.
     ///   - identifier: Accessibility identifier of the title.
     init(
-        instrument: Instrument?, title: String, subtitle: String? = nil, style: Style,
-        identifier: String
+        instrument: Instrument?, title: String, subtitle: String? = nil,
+        subtitleInstrument: Instrument? = nil, style: Style, identifier: String
     ) {
-        self.instrument = instrument
+        self.init(
+            instruments: instrument.map { [$0] } ?? [], title: title, subtitle: subtitle,
+            subtitleInstrument: subtitleInstrument, style: style, identifier: identifier
+        )
+    }
+
+    /// Create a page title for a board of one or more charts.
+    ///
+    /// - Parameters:
+    ///   - instruments: The board's charts; several draw a combo's icon row.
+    ///   - title: The page's name, e.g. "Lead + Bass Rankings".
+    ///   - subtitle: A secondary line under the title, or nil.
+    ///   - subtitleInstrument: The chart whose artwork leads the subtitle, or nil.
+    ///   - style: The in-page heading or the bar's compact title.
+    ///   - identifier: Accessibility identifier of the title.
+    init(
+        instruments: [Instrument], title: String, subtitle: String? = nil,
+        subtitleInstrument: Instrument? = nil, style: Style, identifier: String
+    ) {
+        self.instruments = instruments
         self.title = title
         self.subtitle = subtitle
+        self.subtitleInstrument = subtitleInstrument
         self.style = style
         self.identifier = identifier
     }
 
     var body: some View {
         HStack(spacing: style == .header ? 10 : 6) {
-            if let instrument {
+            if instruments.count == 1, let instrument = instruments.first {
                 InstrumentIcon(instrument, size: style == .header ? headerIconSide : pinnedIconSide)
                     .fixedSize()
                     .accessibilityHidden(true)
@@ -64,28 +101,81 @@ struct InstrumentPageTitle: View {
             switch style {
             case .header:
                 VStack(alignment: .leading, spacing: 2) {
+                    if instruments.count > 1 {
+                        InstrumentIconRow(instruments: instruments, side: headerIconSide, spacing: 8)
+                            .padding(.bottom, 4)
+                    }
                     Text(title)
                         .font(.largeTitle.bold())
                         .foregroundStyle(FestivalText.primary)
                         .fixedSize(horizontal: false, vertical: true)
                     if let subtitle {
-                        Text(subtitle)
-                            .font(.subheadline)
-                            .foregroundStyle(FestivalText.primary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        HStack(spacing: 6) {
+                            subtitleIcon(side: headerSubtitleIconSide)
+                            Text(subtitle)
+                                .font(.subheadline)
+                                .foregroundStyle(FestivalText.primary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             case .pinned:
-                MarqueeText(title)
-                    .font(.headline)
-                    .foregroundStyle(FestivalText.primary)
-                    .lineLimit(1)
+                VStack(alignment: instruments.count == 1 ? .leading : .center, spacing: 0) {
+                    MarqueeText(title)
+                        .font(.headline)
+                        .foregroundStyle(FestivalText.primary)
+                        .lineLimit(1)
+                    if let subtitle {
+                        HStack(spacing: 4) {
+                            subtitleIcon(side: pinnedSubtitleIconSide)
+                            Text(subtitle)
+                                .font(.caption)
+                                .foregroundStyle(FestivalText.primary)
+                                .lineLimit(1)
+                        }
+                    }
+                }
             }
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
         .accessibilityIdentifier(identifier)
+    }
+
+    /// The subtitle's decorative chart icon, when it has one: hidden from VoiceOver,
+    /// because the subtitle's text names the instrument.
+    @ViewBuilder
+    private func subtitleIcon(side: CGFloat) -> some View {
+        if let subtitleInstrument {
+            InstrumentIcon(subtitleInstrument, size: side)
+                .fixedSize()
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+// MARK: - Combo icon row
+
+/// A combo's instrument artwork in a row (web `CompeteScopeHeader` / `FullRankingsPage`
+/// combo title: the icons above the "Lead + Bass" label). Decorative: the label beside
+/// it names the instruments, so it is hidden from VoiceOver.
+struct InstrumentIconRow: View {
+    let instruments: [Instrument]
+    /// Side of each icon's square.
+    let side: CGFloat
+    /// Gap between icons: web `Gap.sm` (4 pt) in Compete's card header, `Gap.md` (8 pt)
+    /// in the Full Rankings title.
+    var spacing: CGFloat = 4
+
+    var body: some View {
+        HStack(spacing: spacing) {
+            ForEach(instruments, id: \.self) { instrument in
+                InstrumentIcon(instrument, size: side)
+                    .fixedSize()
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -104,6 +194,10 @@ struct InstrumentPageTitle: View {
 struct InstrumentPageTitleToolbarItem: ToolbarContent {
     let instrument: Instrument?
     let title: String
+    /// A caption under the pinned title (a Rival page's subtitle, #604), or nil.
+    var subtitle: String? = nil
+    /// The chart whose artwork leads the caption, or nil.
+    var subtitleInstrument: Instrument? = nil
     /// Whether the in-page heading has scrolled under the bar.
     let isShown: Bool
     /// Accessibility identifier of the shown title.
@@ -123,10 +217,16 @@ struct InstrumentPageTitleToolbarItem: ToolbarContent {
     var body: some ToolbarContent {
         ToolbarItem(placement: .principal) {
             if isShown {
-                InstrumentPageTitle(instrument: instrument, title: title, style: .pinned, identifier: identifier)
+                InstrumentPageTitle(
+                    instrument: instrument, title: title, subtitle: subtitle,
+                    subtitleInstrument: subtitleInstrument, style: .pinned, identifier: identifier
+                )
                     .frame(maxWidth: 260)
-                    // A bar title stays on one line at every text size.
+                    // A bar title stays on one line at every text size; UIKit caps the
+                    // size of what a bar hosts, so it offers the Large Content Viewer, as
+                    // system bar titles and `SongBarTitle` do (`system-bar-title-size`).
                     .environment(\.marqueeWrapsAtAccessibilitySizes, false)
+                    .accessibilityShowsLargeContentViewer()
                     .transition(.opacity)
             } else {
                 Color.clear

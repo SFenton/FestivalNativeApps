@@ -7,5 +7,5 @@
 - Full `.all` audit still fails with unnamed "Potentially inaccessible text" despite rendered-contrast checks on header, Close and summary — open, not waived.
 - Settings-hidden Bass is absent from the Paths menu on iPad as on iPhone; the Paths journey also exercises Hide Sidebar (see [score-accuracy/ipados.md](../score-accuracy/ipados.md)).
 - Native iPad warning coverage is not yet recorded.
-- Instrument, Difficulty and View are the same native pop-up menus as on iPhone (issue #88; [ios.md](ios.md)); at regular width the instrument label has room for its name beside the icon.
-- Swipe down dismisses the compact-width page sheet as on iPhone (issue #96, [ios.md](ios.md)); the regular-width cover uses the same pull-down gesture through `PullDownToDismiss` (#368).
+- Instrument, Difficulty and View are the same native pop-up menus as on iPhone (issue #88; [ios.md](ios.md)); at regular width (sidebar shell) the Instrument and View labels have room for their names beside the icon; a compact-width iPad window shows them icon-only like iPhone portrait (#612, `SongPathsPolicy.selectorsShowNames`). View items carry their SF Symbols.
+- Swipe down dismisses the compact-width page sheet as on iPhone (issue #96, [ios.md](ios.md)); the regular-width cover uses the same pull-down gesture through `PullDownToDismiss` (#368). Close and the zoom buttons stand in for both gestures; `PathsDismissAccessibilityJourneyTests` (#445) checks them on the iPad cover at Large and AX5 ([ios.md](ios.md)).

@@ -28,6 +28,7 @@ public sealed partial class ControlLabWindow : Window
         sections.Children.Add(motion);
         if (lab == "instrument-selector") AddInstrumentSelectorSections(sections);
         else if (lab == "service-status") AddServiceStatusSections(sections);
+        else if (lab == "difficulty-meter") AddDifficultyMeterSection(sections);
         var root = new ScrollViewer
         {
             Content = sections,
@@ -196,6 +197,35 @@ public sealed partial class ControlLabWindow : Window
         var group = new AccessibleGroup { Content = section };
         AutomationProperties.SetName(group, title);
         sections.Children.Add(group);
+    }
+
+    /// <summary>
+    /// Adds one Difficulty Meter that starts in the <c>invalid</c> state no live page reaches (spec
+    /// <c>.agents/controls/difficulty-meter</c>) and a button (<c>fst.control-lab.difficulty-meter.swap</c>) that sets the
+    /// same instance to level 4 and back, the way a recycled Songs row re-binds its meter.
+    /// </summary>
+    /// <param name="sections">Lab stack.</param>
+    private static void AddDifficultyMeterSection(StackPanel sections)
+    {
+        const string root = "fst.control-lab.difficulty-meter";
+        const double level = 3;
+        var heading = new TextBlock { Text = "Difficulty meter", Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"] };
+        AutomationProperties.SetHeadingLevel(heading, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level2);
+        var meter = new DifficultyMeter { Raw = double.NaN, HorizontalAlignment = HorizontalAlignment.Left };
+        var swap = new Button { Content = SwapText(meter.Raw) };
+        AutomationProperties.SetAutomationId(swap, root + ".swap");
+        swap.Click += (_, _) =>
+        {
+            meter.Raw = double.IsNaN(meter.Raw) ? level : double.NaN;
+            swap.Content = SwapText(meter.Raw);
+        };
+        var section = new StackPanel { Spacing = 8 };
+        section.Children.Add(heading);
+        section.Children.Add(meter);
+        section.Children.Add(swap);
+        sections.Children.Add(section);
+
+        static string SwapText(double raw) => double.IsNaN(raw) ? "Show level 4" : "Show unavailable";
     }
 
     /// <summary>Reload readout text.</summary>

@@ -24,6 +24,14 @@ public sealed partial class ArtworkBackground : Grid
 {
     #region Fields
     private const float Bleed = 24;
+    /// <summary>Decodes of one cover's bytes before it counts as failed (see <see cref="DecodeTimeout"/>).</summary>
+    private const int DecodeAttempts = 2;
+    /// <summary>
+    /// How long a decode may go without <c>LoadCompleted</c> before it is restarted. A decode started during launch
+    /// sometimes never completes (about one launch in ten in <c>windows-ui</c>, issue #571), which left a still backdrop
+    /// with no cover for the session; a healthy one takes about 0.1 s.
+    /// </summary>
+    private static readonly TimeSpan DecodeTimeout = TimeSpan.FromSeconds(3);
     private static readonly string[] AnimatedProperties = ["Opacity", "Scale", "Offset"];
     private readonly DispatcherQueueTimer timer;
     private Compositor? compositor;
@@ -413,7 +421,10 @@ public sealed partial class ArtworkBackground : Grid
         hasFrontImage = false;
     }
 
-    /// <summary>Loads a cover through the shared byte cache and decodes it at window size.</summary>
+    /// <summary>
+    /// Loads a cover through the shared byte cache and decodes it at window size, restarting a decode that stalls
+    /// (<see cref="DecodeTimeout"/>).
+    /// </summary>
     /// <param name="raw">Art reference.</param>
     /// <param name="token">Cancellation.</param>
     /// <returns>Brush, or <see langword="null"/> on failure (logged and skipped).</returns>
@@ -424,19 +435,32 @@ public sealed partial class ArtworkBackground : Grid
         {
             var bytes = await App.Session.Artwork.GetAsync(url, token);
             if (token.IsCancellationRequested) return null;
-            using var stream = new InMemoryRandomAccessStream();
-            await stream.WriteAsync(bytes.AsBuffer());
-            stream.Seek(0);
             var scale = XamlRoot?.RasterizationScale ?? 1.0;
             var edge = Math.Clamp(Math.Max(ActualWidth, ActualHeight) * scale, 256, 1024);
-            var surface = LoadedImageSurface.StartLoadFromStream(stream, new Size(edge, edge));
-            var completion = new TaskCompletionSource<bool>();
-            surface.LoadCompleted += (_, args) => completion.TrySetResult(args.Status == LoadedImageSourceLoadStatus.Success);
-            if (!await completion.Task || token.IsCancellationRequested)
+            LoadedImageSurface? surface = null;
+            for (var decode = 0; decode < DecodeAttempts; decode++)
             {
-                surface.Dispose();
-                return null;
+                using var stream = new InMemoryRandomAccessStream();
+                await stream.WriteAsync(bytes.AsBuffer());
+                stream.Seek(0);
+                var started = LoadedImageSurface.StartLoadFromStream(stream, new Size(edge, edge));
+                var completion = new TaskCompletionSource<bool>();
+                started.LoadCompleted += (_, args) => completion.TrySetResult(args.Status == LoadedImageSourceLoadStatus.Success);
+                var finished = await Task.WhenAny(completion.Task, Task.Delay(DecodeTimeout, token));
+                if (token.IsCancellationRequested || (finished == completion.Task && !completion.Task.Result))
+                {
+                    started.Dispose();
+                    return null;
+                }
+                if (finished == completion.Task)
+                {
+                    surface = started;
+                    break;
+                }
+                Services.PerfLog.Event("backdrop-decode-stalled");
+                started.Dispose();
             }
+            if (surface is null) return null;
             var brush = compositor!.CreateSurfaceBrush(surface);
             brush.Stretch = CompositionStretch.UniformToFill;
             brush.HorizontalAlignmentRatio = 0.5f;

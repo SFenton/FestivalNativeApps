@@ -160,6 +160,24 @@ class JourneyTests(unittest.TestCase):
                               "Expander moves are no longer named by the Expander's AutomationId")):
             self.assertRegex(code, re.compile(pattern), why)
 
+    def test_retries_relaunch_only_a_failed_scenario(self):
+        attempts = []
+        original = journey.run
+        try:
+            journey.run = lambda name, exe: attempts.append(name) or (["stall"] if len(attempts) == 1 else [])
+            self.assertEqual(journey.run_with_retries("settings-leeway", Path("app.exe"), 2), [])
+            self.assertEqual(len(attempts), 2)
+            attempts.clear()
+            journey.run = lambda name, exe: attempts.append(name) or ["regression"]
+            self.assertEqual(journey.run_with_retries("settings-leeway", Path("app.exe"), 2), ["regression"])
+            self.assertEqual(len(attempts), 3)
+            attempts.clear()
+            journey.run = lambda name, exe: attempts.append(name) or []
+            self.assertEqual(journey.run_with_retries("settings-leeway", Path("app.exe"), 2), [])
+            self.assertEqual(len(attempts), 1)
+        finally:
+            journey.run = original
+
 
 if __name__ == "__main__":
     unittest.main()

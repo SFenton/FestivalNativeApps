@@ -29,6 +29,9 @@ public class RoutingTests
         // A Leaderboards card's "your rank" row opens the player's page and reveals their row (leaderboard-row R7, #370).
         { new AppRoute.FullRankings(Instrument.Drums, "adjusted", 1, RevealSelected: true), "/leaderboards/all?instrument=Solo_Drums&rankBy=adjusted&page=1&navToPlayer=true", AppSection.Leaderboards },
         { new AppRoute.FullRankings(Instrument.Lead, "totalscore", 5, RevealSelected: true), "/leaderboards/all?instrument=Solo_Guitar&rankBy=totalscore&page=5&navToPlayer=true", AppSection.Leaderboards },
+        // A combo board (web Routes.fullComboRankings, #602) replaces instrument= with combo=.
+        { new AppRoute.FullRankings(Instrument.Lead, "totalscore", Combo: "0f"), "/leaderboards/all?combo=0f&rankBy=totalscore", AppSection.Leaderboards },
+        { new AppRoute.FullRankings(Instrument.ProLead, "fcrate", 4, RevealSelected: true, Combo: "30"), "/leaderboards/all?combo=30&rankBy=fcrate&page=4&navToPlayer=true", AppSection.Leaderboards },
         { new AppRoute.BandRankings("Band_Trios"), "/leaderboards/bands/Band_Trios", AppSection.Leaderboards },
         { new AppRoute.Rivals(), "/rivals", AppSection.Rivals },
         { new AppRoute.AllRivals(new RivalScope.FromSettings(RivalSettingsScope.Common)), "/rivals/all?category=common", AppSection.Rivals },
@@ -304,6 +307,7 @@ public class LaunchAndBackgroundTests
         Assert.Equal("instrument-selector", LaunchOptions.Parse(["--control-lab", "Instrument-Selector"], Env()).ControlLab);
         Assert.Equal("instrument-selector", LaunchOptions.Parse([], Env(("FST_DEBUG_CONTROL_LAB", "instrument-selector"))).ControlLab);
         Assert.Equal("service-status", LaunchOptions.Parse(["--control-lab=Service-Status"], Env()).ControlLab);
+        Assert.Equal("difficulty-meter", LaunchOptions.Parse(["--control-lab", "difficulty-meter"], Env()).ControlLab);
         Assert.Null(LaunchOptions.Parse([], Env()).ControlLab);
         var unknown = LaunchOptions.Parse(["--control-lab=nope"], Env());
         Assert.Null(unknown.ControlLab);

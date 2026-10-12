@@ -7,8 +7,9 @@ import FestivalDesign
 /// The player profile's inline "{name}'s Bands" section (issue #312), porting the web
 /// client's `buildPlayerBandsItems`
 /// (`FortniteFestivalWeb/src/pages/player/components/PlayerBandsSection.tsx`): a section
-/// title with View All, then Duos, Trios and Quads, each with up to six band cards, a
-/// "No Bands Yet" card when empty and "View All Bands (N)" when the group has more.
+/// title with View All, then Duos, Trios and Quads, each one card of up to six band rows
+/// ending with the purple "View All Bands (N)" when the group has more (owner #596), or a
+/// "No Bands Yet" card when empty.
 ///
 /// The section loads on its own (``FestivalSession/playerBandsPreview(accountId:)``,
 /// three keyless player-bands reads), so the rest of the profile never waits for it:
@@ -79,11 +80,11 @@ struct PlayerBandsPreviewSection: View {
                         retryRevision += 1
                     }
                 }
+                // `.contain` first, or the identifier replaces Retry's own (#463).
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("fst.player.bands.error")
             case let .loaded(preview):
-                ForEach(preview.groups) { group in
-                    groupSection(group)
-                }
+                groups(preview)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -121,13 +122,32 @@ struct PlayerBandsPreviewSection: View {
 
     // MARK: - Groups
 
-    /// The group's "View All Bands (N)" label. Band rows are separate tiles, not one
-    /// group card, so the button stays below them (view-all-cta R1, #382).
+    /// The group's "View All Bands (N)" label.
     ///
     /// - Parameter group: The previewed band group.
     /// - Returns: The visible label with the group's total.
-    private func viewAllTitle(_ group: PlayerBandsPreview.Group) -> String {
+    static func viewAllTitle(_ group: PlayerBandsPreview.Group) -> String {
         "View All Bands (\(group.totalCount.formatted()))"
+    }
+
+    /// Duos, Trios and Quads: stacked, or in the profile's two instrument-tile columns
+    /// on a regular-width window (`.agents/design/apple/duo.md`, hinge-columns R8).
+    @ViewBuilder
+    private func groups(_ preview: PlayerBandsPreview) -> some View {
+        if layout.widthClass == .regular {
+            HingeGrid(
+                columns: [GridItem(.flexible(), spacing: 20), GridItem(.flexible(), spacing: 20)],
+                alignment: .leading, spacing: 20
+            ) {
+                ForEach(preview.groups) { group in
+                    groupSection(group)
+                }
+            }
+        } else {
+            ForEach(preview.groups) { group in
+                groupSection(group)
+            }
+        }
     }
 
     @ViewBuilder
@@ -143,46 +163,37 @@ struct PlayerBandsPreviewSection: View {
             if group.entries.isEmpty {
                 emptyCard(group.group)
             } else {
-                VStack(alignment: .leading, spacing: 6) {
-                    cards(group.entries)
+                // Owner #596: one card of band rows with hairlines, ending with the
+                // purple View All inside it, like Song Detail's band previews and the
+                // Rivals cards (surface-materials R8, view-all-cta R1). The rows read
+                // `festivalGroupedRow` and drop their own card; the group header already
+                // names the size, so the rows carry no Duos/Trios/Quads chip.
+                FestivalGlassSection(rows: .flush(separatorInset: 12)) {
+                    ForEach(group.entries) { entry in
+                        PlayerBandRow(entry: entry)
+                    }
+                } action: {
                     if group.hasMore {
-                        NavigationLink(
-                            value: AppRoute.playerBands(
+                        PurpleActionLink(
+                            title: Self.viewAllTitle(group),
+                            route: .playerBands(
                                 accountId: accountId, displayName: routeDisplayName ?? displayName,
                                 group: group.group
-                            )
-                        ) {
-                            PurpleActionLabel(title: viewAllTitle(group))
-                        }
-                        .festivalRowButtonStyle()
-                        // Label first, then the group (view-all-cta R4).
-                        .accessibilityLabel(PurpleActionName.spoken(viewAllTitle(group), card: group.group.label))
-                        .accessibilityIdentifier("fst.player.bands.view-all.\(group.group.rawValue)")
+                            ),
+                            identifier: "fst.player.bands.view-all.\(group.group.rawValue)",
+                            card: group.group.label
+                        )
                     }
                 }
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("fst.player.bands.card.\(group.group.rawValue)")
                 .festivalFadeInOnAppear()
             }
         }
-    }
-
-    /// Band cards: one column, or two on a regular-width window like the instrument
-    /// tiles above them (`.agents/design/apple/duo.md`).
-    @ViewBuilder
-    private func cards(_ entries: [PlayerBandEntry]) -> some View {
-        if layout.widthClass == .regular {
-            HingeGrid(
-                columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible())],
-                alignment: .leading, spacing: 6
-            ) {
-                ForEach(entries) { entry in
-                    PlayerBandRow(entry: entry)
-                }
-            }
-        } else {
-            ForEach(entries) { entry in
-                PlayerBandRow(entry: entry)
-            }
-        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        // In two columns, VoiceOver reads a whole group (heading, rows, View All)
+        // before the group beside it.
+        .accessibilityElement(children: .contain)
     }
 
     /// Web `InstrumentEmptyState` (`player.noBandsTitle`/`player.noBandsSubtitle`):

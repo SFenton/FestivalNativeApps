@@ -1,0 +1,19 @@
+[
+  {
+    "name": "band-history-rank-column",
+    "route": "/bands/fixture-band-1?bandType=Band_Duets&teamKey=fixture-team-1",
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.band.title@20",
+      "scrollinto:id=fst.band.history-row.2024-01-01@15",
+      "scrollinto:id=fst.band.history-row.2024-01-03@5"
+    ],
+    "after_ready": [
+      "assertname:raw=fst.band.history-row.2024-01-03.rank|#3",
+      "assertname:raw=fst.band.history-row.2024-01-01.rank|#1",
+      "assertaligned:raw=fst.band.history-row.2024-01-03.rank|raw=fst.band.history-row.2024-01-01.rank",
+      "assertaligned:raw=fst.band.history-row.2024-01-02.rank|raw=fst.band.history-row.2024-01-01.rank",
+      "assertorder:id=fst.band.history-chart|id=fst.band.history-row.2024-01-03|id=fst.band.history-row.2024-01-02|id=fst.band.history-row.2024-01-01"
+    ]
+  }
+]

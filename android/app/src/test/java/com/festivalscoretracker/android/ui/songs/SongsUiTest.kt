@@ -290,9 +290,9 @@ class SongsUiTest {
     }
 
     @Test
-    fun songDetailToolbarHidesBehindTheBottomBarEdge() {
-        // Issue #102: hidden on scroll, the floating toolbar slid under the 96%-opaque bottom bar
-        // and ghosted through it; the content-area clip now cuts it off at the bar's top edge.
+    fun songDetailToolbarStaysAboveTheBottomBarWhileScrolled() {
+        // Issue #577: the floating toolbar (Quick Links, View Paths) used to slide away as the
+        // page scrolled; every page now keeps it on screen, above the bottom bar (issue #102).
         launch(DebugLaunch(profile = player, songQuery = "s-alpha", stillBackground = true))
         waitForTag("fst.song-detail.list")
         waitForTag("fst.song-detail.paths.open")
@@ -303,12 +303,12 @@ class SongsUiTest {
             rule.onNodeWithTag("fst.song-detail.list").performTouchInput { swipeUp() }
             settle()
         }
-        val hidden = rule.onNodeWithTag("fst.nav.floating-toolbar").fetchSemanticsNode().boundsInRoot
-        assertTrue("hidden toolbar still visible: $hidden", hidden.height < 1f)
-        // Scrolling back brings it back above the bar.
+        val scrolled = rule.onNodeWithTag("fst.nav.floating-toolbar").fetchSemanticsNode().boundsInRoot
+        assertEquals("toolbar moved while scrolled: $scrolled vs $shown", shown, scrolled)
+        rule.onNodeWithTag("fst.quick-links.open").assertIsDisplayed()
         rule.onNodeWithTag("fst.song-detail.list").performTouchInput { swipeDown() }
         settle()
-        assertTrue(rule.onNodeWithTag("fst.nav.floating-toolbar").fetchSemanticsNode().boundsInRoot.height > 0f)
+        assertEquals(shown, rule.onNodeWithTag("fst.nav.floating-toolbar").fetchSemanticsNode().boundsInRoot)
     }
 
     @Test

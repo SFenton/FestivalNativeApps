@@ -23,6 +23,7 @@ public sealed partial class ShopPulseRing : Grid
     private SongRowShopPulse? pulse;
     private bool attached;
     private bool live = true;
+    private bool listening;
 
     /// <summary>Creates a hidden ring.</summary>
     public ShopPulseRing()
@@ -31,8 +32,16 @@ public sealed partial class ShopPulseRing : Grid
         Children.Add(ring);
         Visibility = Visibility.Collapsed;
         AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
-        Loaded += (_, _) => Attach();
-        Unloaded += (_, _) => Detach();
+        Loaded += (_, _) =>
+        {
+            Attach();
+            Listen(true);
+        };
+        Unloaded += (_, _) =>
+        {
+            Detach();
+            Listen(false);
+        };
     }
 
     /// <summary>Shows a pulse, or hides the ring for <see langword="null"/> (row recycling calls this every time).</summary>
@@ -47,12 +56,34 @@ public sealed partial class ShopPulseRing : Grid
             Visibility = Visibility.Collapsed;
             return;
         }
-        // Contrast themes: the system Highlight instead of the brand gold/red (the row's UIA name carries the Shop state).
-        ring.BorderBrush = Services.ContrastTheme.IsOn ? Services.ContrastTheme.Brush("FSTShopNewBrush")
-            : new SolidColorBrush(Color.FromArgb(0xFF, (byte)(value.Argb >> 16), (byte)(value.Argb >> 8), (byte)value.Argb));
+        Paint();
         Visibility = Visibility.Visible;
         if (IsLoaded) Attach();
     }
+
+    /// <summary>Colours the ring for the current pulse and contrast state.</summary>
+    private void Paint()
+    {
+        if (pulse is not { } value) return;
+        // Contrast themes: the system Highlight instead of the brand gold/red (the row's UIA name carries the Shop state).
+        ring.BorderBrush = Services.ContrastTheme.IsOn ? Services.ContrastTheme.Brush("FSTShopNewBrush")
+            : new SolidColorBrush(Color.FromArgb(0xFF, (byte)(value.Argb >> 16), (byte)(value.Argb >> 8), (byte)value.Argb));
+    }
+
+    /// <summary>Subscribes to or unsubscribes from <see cref="Services.ContrastTheme.Changed"/> once.</summary>
+    /// <param name="on">Whether to listen.</param>
+    private void Listen(bool on)
+    {
+        if (on == listening) return;
+        listening = on;
+        if (on) Services.ContrastTheme.Changed += OnColorsChanged;
+        else Services.ContrastTheme.Changed -= OnColorsChanged;
+    }
+
+    /// <summary>Repaints on the UI thread after a contrast-theme switch (raised off the UI thread; issue #516).</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnColorsChanged(object? sender, EventArgs e) => DispatcherQueue?.TryEnqueue(Paint);
 
     /// <summary>
     /// Whether the ring may follow the shared clock (default <see langword="true"/>). First-run demos clear it on slides

@@ -4,6 +4,7 @@ using Festival.App.Services;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -49,6 +50,9 @@ public sealed partial class SongPathsView : UserControl
         InstrumentPicker.Hidden = new HashSet<Instrument> { Instrument.Karaoke };
         InstrumentPicker.Instruments = viewModel.Instruments;
         SyncInstrument();
+        // The width swap collapses one selector set; its tooltips (the Instrument Selector circles') must close with it.
+        CollapsedToolTip.CloseWhenCollapsed(Selectors);
+        CollapsedToolTip.CloseWhenCollapsed(CompactSelectors);
         BuildHeader();
         viewModel.PropertyChanged += OnViewModelChanged;
         viewModel.AnimateSwaps = () => Motion.Allowed;
@@ -129,13 +133,22 @@ public sealed partial class SongPathsView : UserControl
         // Near full-window at compact sizes (the chart fills the sheet); never wider than the window. The content gets
         // the width explicitly: a dialog sizes to its content, and the layout picks its selectors from that width. The
         // content box is the dialog less its padding and border; a view wider than it is clipped on the right (#269).
-        var dialogWidth = Math.Max(320, Math.Min(1200, xamlRoot.Size.Width - 24));
-        var view = new SongPathsView(paths) { Width = dialogWidth - DialogChromeWidth() };
+        // Both follow the window while the dialog is open, so a resize crosses the selector breakpoint (#571).
+        var bounds = DialogBoundsFor(xamlRoot.Size);
+        var view = new SongPathsView(paths) { Width = bounds.MaxWidth - DialogChromeWidth() };
         var dialog = FestivalDialog.Create(xamlRoot, title, view, "fst.paths");
         dialog.FullSizeDesired = true;
-        dialog.Resources["ContentDialogMaxWidth"] = dialogWidth;
-        dialog.Resources["ContentDialogMinWidth"] = Math.Min(548, dialogWidth);
-        dialog.Resources["ContentDialogMaxHeight"] = Math.Max(400, xamlRoot.Size.Height - 48);
+        bounds.ApplyTo(dialog);
+        DialogChrome.FollowWindow(dialog, window =>
+        {
+            bounds = DialogBoundsFor(window);
+            view.Width = bounds.MaxWidth - DialogChromeWidth(dialog.BorderThickness);
+            return bounds;
+        });
+        // A live contrast-theme switch re-resolves the dialog border (1 epx, 2 epx under a contrast theme); refit the
+        // content so its right edge (the display selector's border) is not clipped (issue #515).
+        var refit = dialog.RegisterPropertyChangedCallback(
+            Control.BorderThicknessProperty, (_, _) => view.Width = bounds.MaxWidth - DialogChromeWidth(dialog.BorderThickness));
         view.Attach();
         try
         {
@@ -144,20 +157,32 @@ public sealed partial class SongPathsView : UserControl
         }
         finally
         {
+            dialog.UnregisterPropertyChangedCallback(Control.BorderThicknessProperty, refit);
             view.Detach();
             paths.Close();
         }
     }
 
+    /// <summary>The Paths dialog's bounds for a window size: <c>max(320, min(1200, window − 24))</c> wide (at least 548
+    /// where it fits) and at most the window less 48 tall (never under 400).</summary>
+    /// <param name="window">Window (XamlRoot) size in epx.</param>
+    /// <returns>Surface bounds.</returns>
+    private static DialogBounds DialogBoundsFor(Windows.Foundation.Size window)
+    {
+        var width = Math.Max(320, Math.Min(1200, window.Width - 24));
+        return new DialogBounds(width, Math.Min(548, width), Math.Max(400, window.Height - 48));
+    }
+
     /// <summary>The ContentDialog's horizontal chrome: its theme padding plus border, both sides (24 + 1 each by default).</summary>
+    /// <param name="border">The dialog's resolved border, once styled; the theme resource before that.</param>
     /// <returns>The width, in epx, the dialog takes from its content box.</returns>
-    private static double DialogChromeWidth()
+    private static double DialogChromeWidth(Thickness? border = null)
     {
         static Thickness Lookup(string key, double fallback) =>
             Application.Current.Resources.TryGetValue(key, out var value) && value is Thickness thickness ? thickness : new Thickness(fallback);
         var padding = Lookup("ContentDialogPadding", 24);
-        var border = Lookup("ContentDialogBorderWidth", 1);
-        return padding.Left + padding.Right + border.Left + border.Right;
+        var edge = border ?? Lookup("ContentDialogBorderWidth", 1);
+        return padding.Left + padding.Right + edge.Left + edge.Right;
     }
     #endregion
 
@@ -254,51 +279,104 @@ public sealed partial class SongPathsView : UserControl
     private void OnRootSizeChanged(object sender, SizeChangedEventArgs e)
     {
         var compact = e.NewSize.Width < CompactWidth;
+        // Focus on a picker follows the swap to its counterpart (programmatically, so it opens no keyboard tooltip)
+        // instead of falling to the chart (#571).
+        var replacement = compact ? WideToCompact() : CompactToWide();
         Selectors.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         CompactSelectors.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
+        if (replacement is not null) CollapsedToolTip.HandFocusWith(this, replacement);
     }
 
-    /// <summary>Compact box widths for their longest options (instrument, difficulty, display); measured once per sheet.</summary>
-    private (double Instrument, double Difficulty, double Display)? compactWidths;
+    /// <summary>The compact picker that replaces the focused wide one, if focus is in the wide selectors.</summary>
+    /// <returns>Focuses the replacement, or <see langword="null"/>.</returns>
+    private Func<bool>? WideToCompact()
+    {
+        if (CollapsedToolTip.HasFocusWithin(InstrumentPicker)) return () => Programmatic(CompactInstrumentPicker);
+        if (CollapsedToolTip.HasFocusWithin(DifficultyPicker)) return () => Programmatic(CompactDifficultyPicker);
+        if (CollapsedToolTip.HasFocusWithin(DisplayPicker)) return () => Programmatic(CompactDisplayPicker);
+        return null;
+    }
 
-    /// <summary>Whether difficulty and display sit on a second line under the instrument box.</summary>
-    private bool compactStacked;
+    /// <summary>The wide picker that replaces the focused compact one, if focus is in the compact selectors.</summary>
+    /// <returns>Focuses the replacement, or <see langword="null"/>.</returns>
+    private Func<bool>? CompactToWide()
+    {
+        if (CollapsedToolTip.HasFocusWithin(CompactInstrumentPicker)) return InstrumentPicker.FocusCurrent;
+        if (CollapsedToolTip.HasFocusWithin(CompactDifficultyPicker)) return () => Programmatic(SelectedOption(DifficultyPicker));
+        if (CollapsedToolTip.HasFocusWithin(CompactDisplayPicker)) return () => Programmatic(SelectedOption(DisplayPicker));
+        return null;
+    }
+
+    /// <summary>Focuses a replacement picker programmatically.</summary>
+    /// <param name="target">Picker, or <see langword="null"/> before it is realized.</param>
+    /// <returns>Whether it took focus.</returns>
+    private static bool Programmatic(Control? target) => target?.Focus(FocusState.Programmatic) == true;
+
+    /// <summary>The checked option of a wide picker (its focus stop), once realized.</summary>
+    /// <param name="picker">Difficulty or display picker.</param>
+    /// <returns>Radio button, or <see langword="null"/> before layout.</returns>
+    private static Control? SelectedOption(RadioButtons picker) => picker.ContainerFromIndex(Math.Max(picker.SelectedIndex, 0)) as Control;
+
+    /// <summary>Compact box widths: labelled for their longest options (instrument, difficulty, display) and icon-only
+    /// (instrument, display); measured once per sheet.</summary>
+    private (double Instrument, double Difficulty, double Display, double IconInstrument, double IconDisplay)? compactWidths;
+
+    /// <summary>Current compact arrangement (labelled one line until the first measure).</summary>
+    private PathSelectorArrangement compactArrangement = PathSelectorArrangement.Labelled;
 
     /// <summary>
-    /// Sizes each compact ComboBox to its longest option and reflows difficulty and display under the instrument when the
-    /// three don't fit on one line (issue #280: "Pro Drums + Cymbals" and 200% text were clipped, and the instrument box
-    /// changed width with the selection).
+    /// Sizes each compact ComboBox for its longest option and picks the row's arrangement: labelled on one line, else the
+    /// instrument and display boxes icon-only with difficulty filling the rest (owner-approved, issue #612: "just show
+    /// instrument icon and image/text icon in dropdowns like web"), else difficulty and display reflowed under a labelled
+    /// instrument box (issue #280: "Pro Drums + Cymbals" and 200% text were clipped, and the instrument box changed width
+    /// with the selection).
     /// </summary>
     /// <param name="sender">Compact selector grid.</param>
     /// <param name="e">Size change.</param>
     private void OnCompactSelectorsSizeChanged(object sender, SizeChangedEventArgs e)
     {
         var widths = compactWidths ??= MeasureCompactWidths();
-        CompactDisplayPicker.Width = widths.Display;
         CompactDifficultyPicker.MinWidth = widths.Difficulty;
-        var next = PathSelectorLayout.Stacks(e.NewSize.Width, widths.Instrument, widths.Difficulty, widths.Display, CompactSelectors.ColumnSpacing);
+        var next = PathSelectorLayout.Plan(e.NewSize.Width, widths.Instrument, widths.Difficulty, widths.Display,
+            widths.IconInstrument, widths.IconDisplay, CompactSelectors.ColumnSpacing);
+        var iconOnly = next == PathSelectorArrangement.IconOnly;
+        CompactDisplayPicker.Width = iconOnly ? widths.IconDisplay : widths.Display;
         // Stacked, the instrument box spans the row (its trimmed label is the last resort on the narrowest windows).
-        CompactInstrumentPicker.Width = next ? double.NaN : widths.Instrument;
-        if (next == compactStacked) return;
-        compactStacked = next;
+        CompactInstrumentPicker.Width = next switch
+        {
+            PathSelectorArrangement.Stacked => double.NaN,
+            PathSelectorArrangement.IconOnly => widths.IconInstrument,
+            _ => widths.Instrument,
+        };
+        if (next == compactArrangement) return;
+        compactArrangement = next;
         ApplyCompactArrangement();
     }
 
-    /// <summary>Places the compact boxes on one line, or the instrument above difficulty and display.</summary>
+    /// <summary>Places the compact boxes on one line, or the instrument above difficulty and display, and switches the
+    /// instrument and display faces between icon + name and icon only.</summary>
     private void ApplyCompactArrangement()
     {
-        Grid.SetColumnSpan(CompactInstrumentPicker, compactStacked ? 3 : 1);
-        Grid.SetRow(CompactDifficultyPicker, compactStacked ? 1 : 0);
-        Grid.SetColumn(CompactDifficultyPicker, compactStacked ? 0 : 1);
-        Grid.SetColumnSpan(CompactDifficultyPicker, compactStacked ? 2 : 1);
-        Grid.SetRow(CompactDisplayPicker, compactStacked ? 1 : 0);
+        var stacked = compactArrangement == PathSelectorArrangement.Stacked;
+        Grid.SetColumnSpan(CompactInstrumentPicker, stacked ? 3 : 1);
+        Grid.SetRow(CompactDifficultyPicker, stacked ? 1 : 0);
+        Grid.SetColumn(CompactDifficultyPicker, stacked ? 0 : 1);
+        Grid.SetColumnSpan(CompactDifficultyPicker, stacked ? 2 : 1);
+        Grid.SetRow(CompactDisplayPicker, stacked ? 1 : 0);
         // An empty Auto row still adds RowSpacing, so the gap exists only while stacked.
-        CompactSelectors.RowSpacing = compactStacked ? CompactSelectors.ColumnSpacing : 0;
+        CompactSelectors.RowSpacing = stacked ? CompactSelectors.ColumnSpacing : 0;
+        var iconOnly = compactArrangement == PathSelectorArrangement.IconOnly;
+        foreach (var (box, key) in new[] { (CompactInstrumentPicker, "InstrumentTemplates"), (CompactDisplayPicker, "DisplayTemplates") })
+        {
+            var faces = (ComboBoxFaceTemplateSelector)Resources[key];
+            faces.IconOnly = iconOnly;
+            faces.Refresh(box);
+        }
     }
 
     /// <summary>Measures every option at the current text scale (off-tree text blocks scale like FirstRunCarousel's).</summary>
     /// <returns>Box widths including the ComboBox template's padding and drop-down glyph column.</returns>
-    private (double Instrument, double Difficulty, double Display) MeasureCompactWidths()
+    private (double Instrument, double Difficulty, double Display, double IconInstrument, double IconDisplay) MeasureCompactWidths()
     {
         var padding = CompactDifficultyPicker.Padding;
         double Widest(IEnumerable<string> labels) => labels.Select(TextWidth).DefaultIfEmpty(0).Max();
@@ -306,7 +384,10 @@ public sealed partial class SongPathsView : UserControl
             PathSelectorLayout.BoxWidth(Widest(ViewModel.InstrumentOptions.Select(o => o.Label)) + PathSelectorLayout.InstrumentIconSpace,
                 padding.Left, padding.Right, PathSelectorLayout.InstrumentMinWidth),
             PathSelectorLayout.BoxWidth(Widest(ViewModel.DifficultyLabels), padding.Left, padding.Right, 0),
-            PathSelectorLayout.BoxWidth(Widest(CompactDisplayPicker.Items.OfType<string>()), padding.Left, padding.Right, PathSelectorLayout.DisplayMinWidth));
+            PathSelectorLayout.BoxWidth(Widest(ViewModel.DisplayOptions.Select(o => o.Label)) + PathSelectorLayout.DisplayIconSpace,
+                padding.Left, padding.Right, PathSelectorLayout.DisplayMinWidth),
+            PathSelectorLayout.IconBoxWidth(PathSelectorLayout.InstrumentIconSize, padding.Left, padding.Right),
+            PathSelectorLayout.IconBoxWidth(PathSelectorLayout.DisplayIconSize, padding.Left, padding.Right));
     }
 
     /// <summary>Desired width of an option label in the ComboBox content font.</summary>
@@ -370,7 +451,7 @@ public sealed partial class SongPathsView : UserControl
     /// <summary>Uppercase muted column caption (web <c>paths.col*</c> header cells and mobile labels).</summary>
     /// <param name="key">Column.</param>
     /// <returns>Caption.</returns>
-    private static TextBlock Caption(PathColumnKey key) => new()
+    private static TextBlock Caption(PathColumnKey key) => RawLeaf(new TextBlock
     {
         Text = key switch
         {
@@ -382,7 +463,28 @@ public sealed partial class SongPathsView : UserControl
         FontWeight = FontWeights.SemiBold,
         CharacterSpacing = 50,
         Foreground = ContrastTheme.Brush("FSTPathCaptionBrush"),
-    };
+    });
+
+    /// <summary>
+    /// Hides a table caption or value from Narrator's control view; the card's name (<see cref="PathActivationRow.AccessibleName"/>)
+    /// already speaks it, so each card stays one Narrator item. Raw is set on each leaf: a panel has no automation peer, so
+    /// <c>AccessibilityView="Raw"</c> on it (the header row) leaves its text blocks exposed (issue #515).
+    /// </summary>
+    /// <param name="element">Caption or value.</param>
+    /// <param name="automationId">Raw-view ID for layout tests, e.g. <c>fst.paths.activation.1.time</c>.</param>
+    /// <returns>The element.</returns>
+    private static T RawLeaf<T>(T element, string? automationId = null) where T : FrameworkElement
+    {
+        AutomationProperties.SetAccessibilityView(element, AccessibilityView.Raw);
+        if (automationId is not null) AutomationProperties.SetAutomationId(element, automationId);
+        return element;
+    }
+
+    /// <summary>Raw-view ID of one value in an activation card.</summary>
+    /// <param name="row">Activation.</param>
+    /// <param name="part">Value: <c>beat</c>, <c>time</c>, <c>od</c>, <c>score</c> or <c>open</c>.</param>
+    /// <returns>AutomationId.</returns>
+    private static string ValueId(PathActivationRow row, string part) => $"fst.paths.activation.{row.Number}.{part}";
 
     /// <summary>Builds the column header row in the saved order (hidden while cards stack).</summary>
     private void BuildHeader()
@@ -508,12 +610,12 @@ public sealed partial class SongPathsView : UserControl
                     });
                 }
                 if (row.HasFret("open"))
-                    frets.Children.Add(new TextBlock { Text = "Open", FontSize = 11, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) });
+                    frets.Children.Add(RawLeaf(new TextBlock { Text = "Open", FontSize = 11, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 0, 0, 0) }, ValueId(row, "open")));
                 return frets;
             case PathColumnKey.Beat:
-                return Text(row.BeatText);
+                return Text(row.BeatText, ValueId(row, "beat"));
             case PathColumnKey.Time:
-                return Text(row.TimeText);
+                return Text(row.TimeText, ValueId(row, "time"));
             case PathColumnKey.Od when row.OdFill is { } fill:
                 var bar = new Grid { ColumnSpacing = 8 };
                 bar.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = PathTableLayout.OdBarMinWidth });
@@ -523,25 +625,26 @@ public sealed partial class SongPathsView : UserControl
                 track.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100 - fill, GridUnitType.Star) });
                 track.Children.Add(new Border { Background = ContrastTheme.Brush("FSTPathOdFillBrush"), CornerRadius = new CornerRadius(4) });
                 bar.Children.Add(track);
-                var label = Text(row.OdText);
+                var label = Text(row.OdText, ValueId(row, "od"));
                 label.TextAlignment = TextAlignment.Right;
                 Grid.SetColumn(label, 1);
                 bar.Children.Add(label);
                 return bar;
             case PathColumnKey.Od:
-                return Text(row.OdText, missing: true);
+                return Text(row.OdText, ValueId(row, "od"), missing: true);
             default:
-                return Text(row.ScoreText, missing: row.ScoreBeforeActivation is null);
+                return Text(row.ScoreText, ValueId(row, "score"), missing: row.ScoreBeforeActivation is null);
         }
     }
 
-    /// <summary>Semibold 14 epx value text (muted for an unknown value).</summary>
+    /// <summary>Semibold 14 epx value text (muted for an unknown value), raw view only (<see cref="RawLeaf{T}"/>).</summary>
     /// <param name="text">Text.</param>
+    /// <param name="automationId">Raw-view ID (<see cref="ValueId"/>).</param>
     /// <param name="missing">Whether it is the em-dash placeholder.</param>
     /// <returns>Text block.</returns>
-    private static TextBlock Text(string text, bool missing = false)
+    private static TextBlock Text(string text, string automationId, bool missing = false)
     {
-        var block = new TextBlock { Text = text, FontSize = 14, FontWeight = FontWeights.SemiBold };
+        var block = RawLeaf(new TextBlock { Text = text, FontSize = 14, FontWeight = FontWeights.SemiBold }, automationId);
         if (missing) block.Foreground = ContrastTheme.Brush("FSTPathCaptionBrush");
         return block;
     }

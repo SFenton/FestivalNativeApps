@@ -123,6 +123,8 @@ struct SongScoreHistorySection: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(Self.anchor)
+            // One score column for the list and the tapped bar's row (#594).
+            .leaderboardSectionColumns(.scoreHistory(rows.map(\.newScore)))
             .onAppear {
                 if displayed == nil { displayed = shown }
             }
@@ -469,6 +471,8 @@ struct ScoreHistoryListRow: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.festivalGroupedRow) private var grouped
+    /// The list's shared score width (`LeaderboardRowColumns.scoreHistory`, #594).
+    @Environment(\.leaderboardRowColumns) private var columns
 
     var body: some View {
         // Accessibility sizes stack the date (and season) over the score and accuracy
@@ -524,7 +528,13 @@ struct ScoreHistoryListRow: View {
                 Color.clear.festivalCard(cornerRadius: 12)
             }
         }
+        // Read-only text whose focus frame is the whole row: a grouped row draws no
+        // background, so the element had no role and a frame shrunk to its text (#406).
+        // The plain content shape sets that frame; `.contentShape(.accessibility, …)`
+        // kept Song Detail from idling while it scrolled on iPhone.
+        .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isStaticText)
         .accessibilityLabel(
             "\(dateText)"
                 + (season.map { ", " + ScoreSeasonPill.spokenLabel(season: $0, current: $0 == currentSeason).lowercased() } ?? "")
@@ -550,22 +560,28 @@ struct ScoreHistoryListRow: View {
     }
 
     /// The score, kept whole on one line (leaderboard-row R8): at accessibility sizes it
-    /// scales down rather than break between digits.
+    /// scales down rather than break between digits. On one line it sits in the list's
+    /// shared column (web `ScorePill` `scoreWidth`), so a shorter score keeps the season
+    /// pill and score lined up with the other rows (#594); stacked rows keep their
+    /// natural width.
     ///
     /// - Parameter stacked: Accessibility-size layout.
     /// - Returns: The score text.
     private func scoreLabel(stacked: Bool) -> some View {
-        Text(entry.newScore.formatted())
-            .font(.body.weight(.semibold).monospacedDigit())
-            .foregroundStyle(FestivalText.primary)
-            .lineLimit(1)
-            .minimumScaleFactor(stacked ? 0.5 : 1)
+        LeaderboardColumnSlot(template: stacked ? nil : columns?.scoreLabel, alignment: .trailing) {
+            Text(entry.newScore.formatted())
+                .font(.body.weight(.semibold).monospacedDigit())
+                .foregroundStyle(FestivalText.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(stacked ? 0.5 : 1)
+        }
     }
 
     /// The shared accuracy badge (gold skewed outline for a full combo).
     ///
     /// - Parameter stacked: Accessibility-size layout: the badge grows around its text.
-    /// - Returns: The badge, or nothing for an entry without accuracy.
+    /// - Returns: The badge; without accuracy, an empty slot of the badge's width on one
+    ///   line and nothing when stacked.
     @ViewBuilder
     private func accuracyBadge(stacked: Bool) -> some View {
         if let accuracy = entry.accuracy {
@@ -585,6 +601,12 @@ struct ScoreHistoryListRow: View {
                 .overlay {
                     if fullCombo { GoldSkewBadgeShape(skewed: true).stroke(BrandTokens.gold, lineWidth: 2) }
                 }
+        } else if !stacked {
+            // Keep the badge's column so the score lines up with rows that have one
+            // (web `colAcc` is a fixed width, #594).
+            Color.clear
+                .frame(width: 76, height: 24)
+                .accessibilityHidden(true)
         }
     }
 }

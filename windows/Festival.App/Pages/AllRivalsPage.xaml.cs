@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using Festival.App.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -137,6 +138,8 @@ public sealed partial class AllRivalsPage : Page
         // Anonymous production rows (issues #200, #213) stay readable list items but open nothing.
         args.ItemContainer.IsHitTestVisible = row.HasProfile;
         args.ItemContainer.IsTabStop = row.HasProfile;
+        // The rivals' one grouped card (issue #603); the split view's selection fill follows the slice's corners.
+        GroupedRows.ApplyToContainer(sender, args);
     }
 
     /// <summary>Opens the rival.</summary>

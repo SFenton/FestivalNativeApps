@@ -63,6 +63,8 @@ public class SongMetadataLayoutTests
         Assert.Equal(baseline, SongMetadataLayout.RequiredWidth([], false));
         Assert.Equal(baseline + 100 + 6 + 50, SongMetadataLayout.RequiredWidth([100, 50], false));
         Assert.Equal(baseline + 100 + 6 + 50 + 6 + SongMetadataLayout.ChartIconSize, SongMetadataLayout.RequiredWidth([100, 50], true));
+        Assert.Equal(baseline + 100 + 6 + 50 + 6 + SongMetadataLayout.ChartIconSize + 6 + SongMetadataLayout.IndicatorSize,
+            SongMetadataLayout.RequiredWidth([100, 50], true, indicator: true));
         // Unmeasured or bogus widths are ignored rather than poisoning the threshold.
         Assert.Equal(baseline + 100, SongMetadataLayout.RequiredWidth([100, 0, double.NaN, double.PositiveInfinity, -4], false));
     }

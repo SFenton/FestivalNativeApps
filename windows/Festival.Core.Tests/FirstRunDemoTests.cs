@@ -40,6 +40,21 @@ public class FirstRunDemoTests
     public void Fit_ShrinksOnlyADemoTallerThanItsFrame(double natural, double available, double expected) =>
         Assert.Equal(expected, FirstRunDemoFit.Scale(natural, available), 6);
 
+    [Theory]
+    [InlineData(420, 0.5, 210, 0)]
+    [InlineData(300, 0.5, 210, 30)]
+    [InlineData(405, 0.365, 210, 31.0875)]
+    [InlineData(500, 0.5, 210, 0)]
+    [InlineData(double.NaN, 0.5, 210, 0)]
+    [InlineData(300, 0.5, double.PositiveInfinity, 0)]
+    public void FitTop_CentresTheShrunkPictureInsideTheFrame(double fitted, double scale, double frame, double expected)
+    {
+        var top = FirstRunDemoFit.Top(fitted, scale, frame);
+        Assert.Equal(expected, top, 4);
+        if (double.IsFinite(frame) && double.IsFinite(fitted) && fitted * scale <= frame)
+            Assert.True(top + fitted * scale <= frame + 1e-9, "the shrunk picture stays inside the frame");
+    }
+
     [Fact]
     public void DataStatus_ReportsCatalogueOnlyForRealSongs()
     {

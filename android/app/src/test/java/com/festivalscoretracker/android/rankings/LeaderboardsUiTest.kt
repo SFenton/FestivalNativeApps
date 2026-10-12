@@ -408,6 +408,8 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     fun overviewRowsNameTheirTalkBackActions() {
         launch("leaderboards", selected)
         val other = "fst.rankings.row.${RankingsFixtures.accountId(1)}"
+        // Rank History comes first; its 48 dp rows (leaderboard-row R2) can push the cards below the composed viewport.
+        rule.waitUntil(10_000) { settle(100); runCatching { scrollTo("fst.leaderboards", other) }.isSuccess }
         waitForTag(other)
         // TalkBack says "Double-tap to open profile" rather than a bare "open" (issue #114).
         assertEquals("Open profile", clickLabel(other))
@@ -1143,14 +1145,19 @@ class LeaderboardsExpandedUiTest : LeaderboardsHarness() {
     }
 
     @Test
-    fun expandedBoardsKeepThePagerAnchoredAndPickersInTheTopBar() {
+    fun expandedBoardsKeepThePagerAnchoredAndPickersInTheFloatingToolbar() {
         launch("fullRankings:Solo_Drums")
         waitForDescription("Page 1 of 3")
         assertTrue(exists("fst.full-rankings.bottom-bar"))
         assertFalse(exists("fst.full-rankings.supporting-pane"))
+        // Issue #576: page tools float at every window size; the top app bar keeps only global actions.
+        val inToolbar = rule.onAllNodes(
+            hasTestTag("fst.full-rankings.instrument-menu") and hasAnyAncestor(hasTestTag("fst.nav.floating-toolbar")),
+        ).fetchSemanticsNodes()
+        assertTrue("the instrument picker is in the floating toolbar", inToolbar.isNotEmpty())
         val bar = node("fst.nav.top-bar").fetchSemanticsNode().boundsInRoot
         val picker = node("fst.full-rankings.instrument-menu").fetchSemanticsNode().boundsInRoot
-        assertTrue(picker.top >= bar.top && picker.bottom <= bar.bottom)
+        assertTrue("the picker $picker is below the top bar $bar", picker.top >= bar.bottom)
     }
 
     @Test

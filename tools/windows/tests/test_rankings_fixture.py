@@ -60,6 +60,29 @@ class RankingsFixtureTests(unittest.TestCase):
                      "/api/player/fixture-player-1", "/api/player//bands", "/api/rankings/Solo_Guitar", "/api/songs"):
             self.assertFalse(f.is_band_board_read(path), path)
 
+    def test_rank_delay_applies_to_own_rank_reads_only(self):
+        """#527: only the selected player's own-rank read waits, so the boards load and the spotlight stays loading."""
+        self.assertTrue(f.is_own_rank_read("/api/rankings/Solo_Guitar/fixture-rank-40"))
+        for path in ("/api/rankings/Solo_Guitar", "/api/rankings/Solo_Guitar/fixture-rank-40/history",
+                     "/api/rankings/bands/Band_Duets", "/api/rankings/combo/fixture-rank-40",
+                     "/api/rankings/Solo_Guitar/", "/api/rankings//fixture-rank-40", "/api/songs"):
+            self.assertFalse(f.is_own_rank_read(path), path)
+        self.assertEqual(f.take_delay(["--port", "0", "--rank-delay", "20"], "--rank-delay"), (20.0, ["--port", "0"]))
+
+    def test_rank_delay_instrument_limits_the_delay_to_one_card(self):
+        """#527: the overview reveals its first cards after their spotlights, so only a later card's read waits."""
+        self.assertTrue(f.is_own_rank_read("/api/rankings/Solo_Vocals/fixture-rank-40", "Solo_Vocals"))
+        self.assertFalse(f.is_own_rank_read("/api/rankings/Solo_Guitar/fixture-rank-40", "Solo_Vocals"))
+        self.assertFalse(f.is_own_rank_read("/api/rankings/Solo_Vocals", "Solo_Vocals"))
+        argv = ["--port", "0", "--rank-delay-instrument", "Solo_Vocals", "--rank-delay", "25"]
+        instrument, rest = f.take_option(argv, "--rank-delay-instrument")
+        self.assertEqual((instrument, rest), ("Solo_Vocals", ["--port", "0", "--rank-delay", "25"]))
+        self.assertEqual(f.take_option(["--rank-delay-instrument=Solo_Bass"], "--rank-delay-instrument"),
+                         ("Solo_Bass", []))
+        self.assertEqual(f.take_option(["--port", "0"], "--rank-delay-instrument"), (None, ["--port", "0"]))
+        with self.assertRaises(SystemExit):
+            f.take_option(["--rank-delay-instrument"], "--rank-delay-instrument")
+
     def test_take_bands_delay_leaves_the_rankings_delay(self):
         argv = ["--port", "0", "--rankings-delay", "3", "--bands-delay=2"]
         delay, rest = f.take_rankings_delay(argv)

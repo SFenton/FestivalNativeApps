@@ -335,6 +335,8 @@ class SuggestionCoreTest {
         assertEquals("S3", make("stale_Solo_Guitar_1", SuggestionSongItem(s, Instrument.Lead)).seasonText)
         assertEquals("S7", make("stale_global_1", SuggestionSongItem(s)).seasonText)
         assertNull(make("stale_Solo_Drums_1", SuggestionSongItem(s, Instrument.Drums)).seasonText)
+        assertEquals(3, make("stale_Solo_Guitar_1", SuggestionSongItem(s, Instrument.Lead)).season)
+        assertNull(make("stale_Solo_Drums_1", SuggestionSongItem(s, Instrument.Drums)).season)
 
         val pct = make("pct_push", SuggestionSongItem(s, Instrument.Bass, percentileDisplay = "Top 2%"))
         assertEquals(PercentileTier.Top5, pct.percentileTier)

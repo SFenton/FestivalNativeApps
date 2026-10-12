@@ -98,6 +98,11 @@ struct SongScorePreview: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // One container per card, like the band previews: the card grid otherwise
+        // orders its cells' elements by position, so a row's top-aligned cards (#365)
+        // read heading by heading, then row by row across both cards (#490).
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("fst.song-detail.card.\(instrument.rawValue)")
         .task(id: requestKey) {
             guard usesLiveClient else { return }
             // `.task` re-runs every time the card reappears (e.g. popping back from the
@@ -200,9 +205,14 @@ struct SongScorePreview: View {
             )
         }
         let displayed = Array(payload.leaderboard.entries.prefix(10))
-        let spotlight = filterInvalidScores ? nil : SongPreviewSpotlightPolicy.footerEntry(
+        // Web `filterPlayerScores`: with Filter Invalid Scores on, the selected player's
+        // row shows their best valid score at the leeway, or nothing.
+        let raw = session.selectedPlayerScores[song.songId]?[instrument]
+        let spotlight = SongPreviewSpotlightPolicy.footerEntry(
             selected: session.selectedPlayer,
-            score: session.selectedPlayerScores[song.songId]?[instrument],
+            score: requestKey.leeway.map { leeway in
+                raw.flatMap { InvalidScorePolicy.filtered($0, song: song, leeway: leeway) }
+            } ?? raw,
             displayed: displayed
         )
         if displayed.isEmpty && spotlight == nil {

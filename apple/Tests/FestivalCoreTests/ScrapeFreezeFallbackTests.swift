@@ -154,6 +154,18 @@ func bandBestWorstSongsSurviveAScrapeFreezeAfterTheyLoaded(reason: String) async
     ).allowsSnapshotCache)
 }
 
+@Test func publicRankingBoardRowsAreKeptThroughAFreeze() {
+    #expect(PublicEndpoint.playerInstrumentRanking(
+        instrument: "Solo_Guitar", accountId: "fixture-player-1"
+    ).allowsSnapshotCache)
+    #expect(PublicEndpoint.playerRankHistory(
+        instrument: "Solo_Guitar", accountId: "fixture-player-1", days: 30
+    ).allowsSnapshotCache)
+    #expect(PublicEndpoint.playerComboRanking(
+        comboId: "03", accountId: "fixture-player-1", rankBy: "totalscore"
+    ).allowsSnapshotCache)
+}
+
 @Test func playerProfileRankingCardsSurviveAScrapeFreezeAfterTheyLoaded() async throws {
     let historyWire = """
     {"instrument":"Solo_Guitar","accountId":"fixture-player-1","history":[

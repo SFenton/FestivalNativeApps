@@ -8,15 +8,15 @@ No web equivalent exists to source line numbers from: the web app has no section
 
 - Only for sort modes with a meaningful, stable section key: **Title** and **Artist** (first letter) and **Year** (exact year). Duration, Item Shop and any score/band-based sort have no section key and show no index.
   - Superseded for **Year** by the 2026-09-28 operator decision in [the Songs page spec](../../pages/songs/spec.md#operator-decisions-all-platforms): Year sort uses decade headers and Quick Links and shows **no** index.
-- Only once the current, already filtered and sorted row list produces **more than one** section; a single-section result (e.g. a narrow search match) hides it.
+- Only once the current, already filtered, sorted and grouped row list produces **more than one** section; a single-section result (e.g. a narrow search match) hides it.
 - Must animate in and out as the active sort mode or the result set changes, never appear/disappear abruptly.
 
 ## Sectioning rules
 
-- Sections are computed from the **already sorted** row list; the control never re-sorts or re-filters.
-- A section is a maximal **run of consecutive** rows sharing the same key (first letter, or exact year); it is not a merge of every row that shares a key anywhere in the list. Runs of the same key that are not adjacent in the sorted list must stay separate sections, never merge into one displayed group — merging by key alone would silently pull a later, unrelated run out of its sorted position.
+- Sections are computed from the Songs list **after** its web-aligned first-seen bucket grouping ([section-headers](../../patterns/section-headers.md) R13; web `songQuickLinks.ts` `buildSongQuickLinkSections`, which groups the sorted rows by bucket in order of first appearance). The index consumes that supplied row order and its buckets; it never re-sorts, re-filters or regroups them itself.
+- Title/Artist therefore have exactly **one** `#`/A–Z section per supplied bucket, matching the list's section titles 1:1, so a jump to a label always lands on that label's title. Where a platform collator interleaves non-letter titles among letter-led ones, the page's grouping (not the index) gathers them into the single `#` bucket at its first-seen position. A platform whose sort already keeps every key contiguous (Apple's raw-string sort, `SongSectionIndex` chunking consecutive keys) yields the same sections.
 - Missing year sorts and sections as its own explicit bucket, not folded into an adjacent year.
-- Title/Artist labeling follows the native Contacts convention: the label is the diacritic-folded first character (after trimming leading whitespace) only when that character is a letter A–Z; every other leading character — punctuation, a digit, a symbol, a non-Latin script — shares one non-letter marker. It never skips past a non-letter prefix to reach "a real letter" deeper in the string: since the underlying sort already places every non-letter-leading title before any letter-led one, that gives one contiguous leading section rather than scattering those titles under unrelated, out-of-order labels.
+- Title/Artist labeling follows the native Contacts convention: the label is the diacritic-folded first character (after trimming leading whitespace) only when that character is a letter A–Z; every other leading character — punctuation, a digit, a symbol, a non-Latin script — shares one non-letter marker. It never skips past a non-letter prefix to reach "a real letter" deeper in the string: every non-letter-leading title stays in the one `#` section (contiguous in a raw-string sort, gathered by the first-seen grouping where a collator interleaves them), rather than scattering under unrelated, out-of-order labels.
 
 ## Fit
 

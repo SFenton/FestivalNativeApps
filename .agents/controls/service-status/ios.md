@@ -7,7 +7,7 @@
 | Type | Use |
 |---|---|
 | `ServiceStatusView(issue, title:, scope:, retry:)` | Full-page failed state. `title` is the screen's own heading, used unless the issue has a global one |
-| `ServiceStatusInline(issue, scope:, retry:)` | One section/card of a multi-section page; `scope` must be unique per section (backoff key) |
+| `ServiceStatusInline(issue, scope:, retry:)` | One section/card of a multi-section page; `scope` must be unique per section (backoff key) ; one `.contain` container (`fst.service-status.inline`) whose message, countdown and Retry (`fst.service-status.retry`, a 44×44 pt target on iOS/iPadOS) keep their own identifiers ([empty-error-states](../../patterns/empty-error-states.md) R10, #463). A wrapper that adds its own identifier applies `.accessibilityElement(children: .contain)` first |
 | `.serviceStatusOverlay(issue, title:, retry:)` | Opaque cover over existing content while `issue != nil` |
 | `ServiceUnavailableView(title:message:retry:)` | Legacy plain-message form; renders through `ServiceStatusView(.other)`. Use only for non-service failures (local sort/filter) |
 

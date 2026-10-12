@@ -71,6 +71,7 @@ data class SuggestionInstrumentChip(val instrument: Instrument, val hasScore: Bo
  * @property accuracyText Accuracy pill text (e.g. "97").
  * @property accuracyExpanded Expanded accuracy for the pill tint.
  * @property seasonText Season pill ("S6").
+ * @property season Season number behind [seasonText], drawn with the shared `SeasonPill`.
  * @property percentileText "Top N%".
  * @property percentileTier Pill tier.
  * @property rivalName Rival name badge text, truncated to 12 characters; null on single-rival
@@ -91,6 +92,7 @@ data class SuggestionRowPresentation(
     val accuracyText: String? = null,
     val accuracyExpanded: Double? = null,
     val seasonText: String? = null,
+    val season: Int? = null,
     val percentileText: String? = null,
     val percentileTier: PercentileTier = PercentileTier.Default,
     val rivalName: String? = null,
@@ -245,7 +247,7 @@ data class SuggestionRowPresentation(
                         songScores?.values?.maxOfOrNull { it.season ?: 0 } ?: 0
                     }
                     if (season > 0) {
-                        result = result.copy(seasonText = "S$season")
+                        result = result.copy(seasonText = "S$season", season = season)
                         details += "last played season $season"
                     }
                 }

@@ -8,7 +8,8 @@ import FestivalDesign
 /// tab shown once a player is selected (see `FestivalRootView`).
 ///
 /// Ports the web's `CompetePage`: a Leaderboards section (live Top-5 preview per
-/// Settings-visible instrument, reusing Lane L's `AccountRankingRow`/`RankLoadState`
+/// ranking scope: each family's within-group combo such as "Lead + Bass", then each
+/// Settings-visible instrument, web `resolveSupportedRankingScopes`, #602; reusing Lane L's `AccountRankingRow`/`RankLoadState`
 /// from `Features/Leaderboards/RankingsSupport.swift`) and a Rivals section
 /// (reusing `RivalInstrumentSongCard`). Like the web, the whole page loads behind one
 /// spinner, then its headers and cards fade in on one stagger (``CompeteHubModel``,
@@ -80,13 +81,13 @@ struct CompeteScreen: View {
         DualSourceLayout {
             if DualSourcePolicy.isActive(layout) {
                 CompeteLeaderboardsCarousel(
-                    session: session, instruments: visible.instruments, model: model, retry: retryFailedReads
+                    session: session, scopes: loadKey.scopes, model: model, retry: retryFailedReads
                 )
             } else {
                 stackedHub
             }
         } secondary: {
-            CompeteRivalsCarousel(instruments: visible.instruments, model: model, retry: retryFailedReads)
+            CompeteRivalsCarousel(scopes: loadKey.scopes, model: model, retry: retryFailedReads)
         }
         // The Duo panes' one first-load window, rushed by a swipe in either carousel
         // (load-transition R5). The stacked hub installs its own inside its scroll view.
@@ -133,18 +134,18 @@ struct CompeteScreen: View {
 
     // MARK: Entrance order
 
-    /// Stagger position of the Leaderboards header; its cards follow in instrument order.
+    /// Stagger position of the Leaderboards header; its cards follow in scope order.
     private static let leaderboardsHeaderIndex = 0
 
     /// Stagger position of the Rivals header (web `useStagger().next()` reading order:
     /// the Leaderboards header, each leaderboard card, then the Rivals header and cards).
-    private var rivalsHeaderIndex: Int { visible.instruments.count + 1 }
+    private var rivalsHeaderIndex: Int { loadKey.scopes.count + 1 }
 
     // MARK: Leaderboards
 
     /// Like the web's `CompetePage`, there is no Leaderboards overview link here (#36):
-    /// each instrument's preview links to its own full leaderboard, and the overview
-    /// stays in the drawer.
+    /// each scope's preview, combos included (#602), links to its own full leaderboard,
+    /// and the overview stays in the drawer.
     private var leaderboardsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             FestivalSectionHeader("Leaderboards")
@@ -155,10 +156,10 @@ struct CompeteScreen: View {
                     .padding(.horizontal, 16)
                     .festivalFadeIn(isLoaded: true, index: Self.leaderboardsHeaderIndex + 1)
             } else {
-                ForEach(Array(visible.instruments.enumerated()), id: \.element) { offset, instrument in
+                ForEach(Array(loadKey.scopes.enumerated()), id: \.element) { offset, scope in
                     CompeteInstrumentLeaderboardSection(
-                        session: session, instrument: instrument, state: model.boards[instrument] ?? .loading,
-                        spotlight: model.spotlights[instrument],
+                        session: session, scope: scope, state: model.boards[scope] ?? .loading,
+                        spotlight: model.spotlights[scope],
                         entranceIndex: Self.leaderboardsHeaderIndex + 1 + offset, retry: retryFailedReads
                     )
                 }
@@ -179,11 +180,11 @@ struct CompeteScreen: View {
                     .padding(.horizontal, 16)
                     .festivalFadeIn(isLoaded: true, index: rivalsHeaderIndex + 1)
             } else {
-                ForEach(Array(visible.instruments.enumerated()), id: \.element) { offset, instrument in
+                ForEach(Array(loadKey.scopes.enumerated()), id: \.element) { offset, scope in
                     RivalInstrumentSongCard(
-                        instrument: instrument, state: model.rivals[instrument] ?? .loading,
+                        scope: scope, state: model.rivals[scope] ?? .loading,
                         registersQuickLink: false,
-                        emptyMessage: "No rivals found for \(instrument.label) yet.",
+                        emptyMessage: "No rivals found for \(scope.label) yet.",
                         entranceIndex: rivalsHeaderIndex + 1 + offset, retry: retryFailedReads
                     )
                 }
@@ -193,9 +194,9 @@ struct CompeteScreen: View {
     }
 }
 
-// MARK: - Per-instrument leaderboard preview
+// MARK: - Per-scope leaderboard preview
 
-/// One instrument's Top-5 ranking preview, reusing Lane L's `RankLoadState`/
+/// One instrument's or within-group combo's (#602) Top-5 ranking preview, reusing Lane L's `RankLoadState`/
 /// `AccountRankingRow` (`Features/Leaderboards/RankingsSupport.swift`) so Compete's
 /// rows match `LeaderboardsScreen`'s own overview cards. The page reads it
 /// (``CompeteHubModel``) and only builds it once every read settled, so it never shows a
@@ -206,7 +207,8 @@ struct CompeteScreen: View {
 /// (``CompetePreviewSpotlight``, leaderboard-row R7 owner variant, #370).
 struct CompeteInstrumentLeaderboardSection: View {
     let session: FestivalSession
-    let instrument: Instrument
+    /// The card's board: one instrument, or a within-group combo.
+    let scope: RankingScope
     let state: RankLoadState<RankingsPayload>
     /// The selected player's own row, shown apart from the top five; nil when they are
     /// among them, unranked or unknown.
@@ -216,17 +218,68 @@ struct CompeteInstrumentLeaderboardSection: View {
     /// Reads the preview again after a failure.
     let retry: () -> Void
 
+    /// Create a preview card for one instrument's or a combo's board.
+    ///
+    /// - Parameters:
+    ///   - session: Shared app session.
+    ///   - scope: The instrument or within-group combo.
+    ///   - state: The preview read.
+    ///   - spotlight: The selected player's own row shown apart, if any.
+    ///   - entranceIndex: The card's place in the page's first-load stagger.
+    ///   - retry: Reads the preview again after a failure.
+    init(
+        session: FestivalSession, scope: RankingScope, state: RankLoadState<RankingsPayload>,
+        spotlight: AccountRankingEntry? = nil, entranceIndex: Int? = nil, retry: @escaping () -> Void
+    ) {
+        self.session = session
+        self.scope = scope
+        self.state = state
+        self.spotlight = spotlight
+        self.entranceIndex = entranceIndex
+        self.retry = retry
+    }
+
+    /// Create a preview card for one instrument's board.
+    ///
+    /// - Parameters:
+    ///   - session: Shared app session.
+    ///   - instrument: The card's instrument.
+    ///   - state: The preview read.
+    ///   - spotlight: The selected player's own row shown apart, if any.
+    ///   - entranceIndex: The card's place in the page's first-load stagger.
+    ///   - retry: Reads the preview again after a failure.
+    init(
+        session: FestivalSession, instrument: Instrument, state: RankLoadState<RankingsPayload>,
+        spotlight: AccountRankingEntry? = nil, entranceIndex: Int? = nil, retry: @escaping () -> Void
+    ) {
+        self.init(
+            session: session, scope: .instrument(instrument), state: state,
+            spotlight: spotlight, entranceIndex: entranceIndex, retry: retry
+        )
+    }
+
     var body: some View {
-        // Instrument header above the card, never inside it (operator rule).
+        // Instrument (or combo) header above the card, never inside it (operator rule).
         VStack(alignment: .leading, spacing: 8) {
-            InstrumentSectionHeader(instrument)
+            InstrumentSectionHeader(scope: scope)
             card
         }
         .padding(.horizontal, 16)
         .modifier(CompeteEntrance(index: entranceIndex))
         // `.contain` keeps the rows' and the View Full Leaderboard CTA's identifiers reachable.
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue)")
+        .accessibilityIdentifier("fst.compete.leaderboard-card.\(scope.id)")
+    }
+
+    /// The full board View Full Leaderboard opens: the instrument's, or the combo's
+    /// (web `navigateToLeaderboards(scope)`).
+    var fullBoardRoute: AppRoute {
+        switch scope {
+        case let .instrument(instrument):
+            .fullRankings(instrument: instrument, rankBy: CompetePreviewSpotlight.metric.rawValue)
+        case let .combo(combo):
+            .fullComboRankings(combo: combo, rankBy: CompetePreviewSpotlight.metric.rawValue)
+        }
     }
 
     /// The one leaderboard design (operator batch 7.4): the top five and the player's own
@@ -240,12 +293,12 @@ struct CompeteInstrumentLeaderboardSection: View {
                 // Not reached: the page gate shows one spinner until every read settles.
                 EmptyView()
             case let .failed(issue):
-                ServiceStatusInline(issue, scope: "compete.\(instrument.rawValue)", retry: retry)
+                ServiceStatusInline(issue, scope: "compete.\(scope.id)", retry: retry)
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .festivalCard(cornerRadius: 12)
             case let .loaded(payload) where payload.rankings.entries.isEmpty:
-                FestivalFootnote("No ranked \(instrument.label) players yet.")
+                FestivalFootnote("No ranked \(scope.label) players yet.")
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .festivalCard(cornerRadius: 12)
@@ -262,14 +315,12 @@ struct CompeteInstrumentLeaderboardSection: View {
                     }
                 } action: {
                     // Ends the card inside it, after the player's own row (#382).
-                    NavigationLink(
-                        value: AppRoute.fullRankings(instrument: instrument, rankBy: "totalscore")
-                    ) {
+                    NavigationLink(value: fullBoardRoute) {
                         PurpleActionLabel(title: "View Full Leaderboard")
                     }
                     .festivalRowButtonStyle()
-                    .accessibilityLabel(PurpleActionName.spoken("View Full Leaderboard", card: instrument.label))
-                    .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue).view-all")
+                    .accessibilityLabel(PurpleActionName.spoken("View Full Leaderboard", card: scope.label))
+                    .accessibilityIdentifier("fst.compete.leaderboard-card.\(scope.id).view-all")
                 }
                 // One rank, songs and score width for the card and the player's own row
                 // (issue #37, web `computeRankWidth` with `playerEntry`); on a narrow
@@ -304,11 +355,11 @@ struct CompeteInstrumentLeaderboardSection: View {
     /// The selected player's own row under the top five: the same highlighted row, as a
     /// link to their position on the full board (``CompetePreviewSpotlight``, #370).
     ///
-    /// - Parameter entry: The player's row on this instrument's board.
+    /// - Parameter entry: The player's row on this scope's board.
     private func spotlightRow(_ entry: AccountRankingEntry) -> some View {
         let rank = entry.rank(for: .totalscore)
         // Plain, as the ranking rows: `ListDetailLink` draws the Mac hover, ring and Return.
-        return ListDetailLink(value: CompetePreviewSpotlight.route(for: entry, instrument: instrument)) {
+        return ListDetailLink(value: CompetePreviewSpotlight.route(for: entry, scope: scope)) {
             AccountRankingRow(
                 entry: entry, metric: .totalscore, isSelected: true, cardSurface: true, opensProfile: false
             )
@@ -316,7 +367,7 @@ struct CompeteInstrumentLeaderboardSection: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(CompetePreviewSpotlight.action(for: entry).footerLabel(for: .player, rank: rank))
-        .accessibilityIdentifier("fst.compete.leaderboard-card.\(instrument.rawValue).spotlight")
+        .accessibilityIdentifier("fst.compete.leaderboard-card.\(scope.id).spotlight")
     }
 }
 
@@ -351,10 +402,23 @@ enum CompetePreviewSpotlight {
     /// - Returns: Full Rankings on the player's page with their row revealed, or
     ///   Statistics without a usable rank.
     static func route(for entry: AccountRankingEntry, instrument: Instrument) -> AppRoute {
-        switch action(for: entry) {
-        case let .jump(page):
+        route(for: entry, scope: .instrument(instrument))
+    }
+
+    /// The route the row opens on an instrument's or a combo's preview (#602).
+    ///
+    /// - Parameters:
+    ///   - entry: The player's row, shown apart from the top five.
+    ///   - scope: The preview's instrument or combo.
+    /// - Returns: The full board (the combo's for a combo) on the player's page with their
+    ///   row revealed, or Statistics without a usable rank.
+    static func route(for entry: AccountRankingEntry, scope: RankingScope) -> AppRoute {
+        switch (action(for: entry), scope) {
+        case let (.jump(page), .instrument(instrument)):
             .fullRankings(instrument: instrument, rankBy: metric.rawValue, page: page, focusSelected: true)
-        case .openProfile:
+        case let (.jump(page), .combo(combo)):
+            .fullComboRankings(combo: combo, rankBy: metric.rawValue, page: page, focusSelected: true)
+        case (.openProfile, _):
             .statistics
         }
     }
@@ -389,28 +453,5 @@ private struct CompeteEntrance: ViewModifier {
         } else {
             content
         }
-    }
-}
-
-// MARK: - Section load key
-
-/// What a Rivals hub per-instrument section's read depends on: a change to any part
-/// reloads it, while a plain reappearance keeps the loaded rows (``ReappearanceLoadGate``).
-/// Compete keys its whole page with ``CompetePageLoadKey`` instead.
-struct CompeteSectionLoadKey: Hashable, Sendable {
-    let instrument: Instrument
-    let accountId: String?
-    let publicationRevision: Int
-
-    /// Build the key from the section's instrument and the session's current state.
-    ///
-    /// - Parameters:
-    ///   - instrument: The section's instrument.
-    ///   - session: Shared session; its selected account and publication revision.
-    @MainActor
-    init(instrument: Instrument, session: FestivalSession) {
-        self.instrument = instrument
-        accountId = session.selectedPlayer?.accountId
-        publicationRevision = session.publicationRevision
     }
 }

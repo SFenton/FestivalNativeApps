@@ -118,7 +118,7 @@ enum SongsUITestSupport {
         let action = app.buttons["fst.shell.profile"]
         XCTAssertTrue(action.waitForExistence(timeout: 10))
         action.tap()
-        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Find Player")).firstMatch
+        let search = app.searchFields.matching(NSPredicate(format: "placeholderValue == %@", "Search players or bands")).firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()
         search.typeText(query + "\n")
@@ -226,8 +226,10 @@ enum SongsUITestSupport {
 
     /// Refresh the Songs toolbar after a drawer deselection.
     ///
-    /// Deselecting from the drawer can leave the Songs toolbar stale until the page
-    /// reappears, so visit another tab and return.
+    /// Deselecting from the drawer used to leave the Songs toolbar stale until the
+    /// page reappeared (an unselected tab root took the page-tools front; fixed in
+    /// #487 by `pageToolsScope(inSelectedTab:)`). Older journeys still visit another
+    /// tab and return; `SongsDeselectAccessibilityJourneyTests` deliberately does not.
     ///
     /// - Parameter app: Foreground app on the Songs root.
     @MainActor
@@ -623,6 +625,61 @@ enum SongsUITestSupport {
         guard issue.auditType == .contrast, let element = issue.element else { return false }
         return element.elementType == .searchField
             || issue.compactDescription.contains("UISearchBarTextField")
+    }
+
+    /// Whether an accessibility-audit issue is the system search field's own clear button
+    /// hit region (issue #600).
+    ///
+    /// A `.searchable` field with text shows UIKit's `_UITextFieldClearButton`, which the
+    /// audit reports as smaller than 44 pt. It is system chrome the app cannot size, so
+    /// only that issue is accepted alongside `isSystemSearchPlaceholderContrast(_:)`.
+    ///
+    /// - Parameter issue: Issue reported by `performAccessibilityAudit`.
+    /// - Returns: True to ignore the issue.
+    @MainActor
+    static func isSystemSearchIssue(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
+        if isSystemSearchPlaceholderContrast(issue) { return true }
+        return issue.auditType == .hitRegion
+            && (issue.detailedDescription + issue.compactDescription).contains("_UITextFieldClearButton")
+    }
+
+    /// Run an accessibility audit, once more when it does not complete in time: the CI
+    /// runner's virtual machine (or a loaded shared Mac) sometimes exceeds XCTest's audit
+    /// deadline, reported either as `com.apple.xcode.xctest.accessibilityAudit` -56 (#388, the
+    /// Songs scroll-away list) or as an `XCTFuture` 1000 "Timed out while running accessibility
+    /// audit" (#429, the first-run guide over Songs at AX5).
+    ///
+    /// - Parameters:
+    ///   - app: The app to audit.
+    ///   - types: The audit types.
+    ///   - name: Names the retry activity.
+    ///   - reset: Clears what the handler collected before the retry.
+    ///   - handler: The issue handler.
+    /// - Throws: The second timeout or any other audit error.
+    @MainActor
+    static func performAuditRetryingTimeout(
+        _ app: XCUIApplication,
+        _ types: XCUIAccessibilityAuditType,
+        name: String,
+        reset: () -> Void,
+        _ handler: @escaping (XCUIAccessibilityAuditIssue) throws -> Bool
+    ) throws {
+        do {
+            try app.performAccessibilityAudit(for: types, handler)
+        } catch let error as NSError where isAuditTimeout(error) {
+            XCTContext.runActivity(named: "Audit \(name) did not complete in time; retrying once") { _ in }
+            reset()
+            try app.performAccessibilityAudit(for: types, handler)
+        }
+    }
+
+    /// True for the errors XCTest reports when an audit misses its deadline.
+    ///
+    /// - Parameter error: The error `performAccessibilityAudit` threw.
+    /// - Returns: True for a deadline, false for any real audit failure.
+    static func isAuditTimeout(_ error: NSError) -> Bool {
+        (error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56)
+            || (error.domain == "com.apple.dt.XCTest.XCTFuture" && error.code == 1000)
     }
 
     /// The Songs list's pinned `.searchable` field, ready to type into.

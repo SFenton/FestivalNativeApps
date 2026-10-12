@@ -13,11 +13,14 @@ import FestivalCore
 /// search. On a partially folded iPhone Duo it centres beside the fold, never on it.
 struct GlobalSearchEmptyStateView: View {
     let state: GlobalSearch.EmptyState
+    /// UI-test identifier (`fst.global-search.hint`, or `fst.profile.hint` on the Profiles
+    /// sheet).
+    var identifier = "fst.global-search.hint"
 
     var body: some View {
         FestivalEmptyState(
             state.title, systemImage: "magnifyingglass", subtitle: state.subtitle,
-            reading: .combined, accessibilityIdentifier: "fst.global-search.hint"
+            reading: .combined, accessibilityIdentifier: identifier
         )
     }
 }

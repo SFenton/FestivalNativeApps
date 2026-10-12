@@ -20,6 +20,12 @@ public enum PublicEndpoint: Sendable {
     /// Daily Total Score/skill rank snapshots for one account on one instrument
     /// (`PlayerRankHistory.swift`); a pure `SELECT`, unlike player-stats.
     case playerRankHistory(instrument: String, accountId: String, days: Int)
+    /// One page of a within-group combo board
+    /// (`GET /api/rankings/combo?combo=&rankBy=&page=&pageSize=`; `ComboRankings.swift`).
+    case comboRankings(comboId: String, rankBy: String, page: Int, pageSize: Int)
+    /// One account's own row on a combo board
+    /// (`GET /api/rankings/combo/{accountId}?combo=&rankBy=`).
+    case playerComboRanking(comboId: String, accountId: String, rankBy: String)
     case bandRankings(bandType: String, rankBy: String, page: Int, pageSize: Int)
     case playerBands(accountId: String, group: String, page: Int, pageSize: Int)
     case playerBandsByType(accountId: String, bandType: String, combo: String?)
@@ -127,6 +133,28 @@ public enum PublicEndpoint: Sendable {
             }
             segments = ["api", "rankings", instrument, accountId, "history"]
             query = [URLQueryItem(name: "days", value: String(days))]
+        case let .comboRankings(comboId, rankBy, page, pageSize):
+            guard Self.isValidCombo(comboId), !rankBy.isEmpty, !rankBy.contains("/"),
+                  page > 0, (1...200).contains(pageSize) else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "rankings", "combo"]
+            query = [
+                URLQueryItem(name: "combo", value: comboId),
+                URLQueryItem(name: "rankBy", value: rankBy),
+                URLQueryItem(name: "page", value: String(page)),
+                URLQueryItem(name: "pageSize", value: String(pageSize)),
+            ]
+        case let .playerComboRanking(comboId, accountId, rankBy):
+            guard Self.isValidCombo(comboId), !rankBy.isEmpty, !rankBy.contains("/"),
+                  ProfileSearchText.isValidAccountId(accountId) else {
+                throw FestivalAPIError.invalidResource
+            }
+            segments = ["api", "rankings", "combo", accountId]
+            query = [
+                URLQueryItem(name: "combo", value: comboId),
+                URLQueryItem(name: "rankBy", value: rankBy),
+            ]
         case let .bandRankings(bandType, rankBy, page, pageSize):
             guard !bandType.isEmpty, !bandType.contains("/"),
                   !rankBy.isEmpty, !rankBy.contains("/"),
@@ -263,9 +291,10 @@ public enum PublicEndpoint: Sendable {
     /// - Returns: False for account profiles, including HTTP 202 syncing envelopes,
     ///   for a player's own bands list (also account-scoped) and for band previews
     ///   or band leaderboard pages that carry a selected player's `accountId`. True
-    ///   for one account's public rankings-board row and its rank history: they are
-    ///   public leaderboard data for any viewed player, never selected-profile state,
-    ///   and must survive a scrape freeze like other board reads (issue #554).
+    ///   for one account's public rankings-board row (instrument or combo board) and
+    ///   its rank history: they are public leaderboard data for any viewed player,
+    ///   never selected-profile state, and must survive a scrape freeze like other
+    ///   board reads (issue #554).
     var allowsSnapshotCache: Bool {
         switch self {
         case .player, .playerHistory, .playerNotifications, .playerBands, .playerBandsByType:
