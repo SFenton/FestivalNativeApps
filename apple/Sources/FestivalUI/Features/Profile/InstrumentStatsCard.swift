@@ -102,6 +102,8 @@ struct InstrumentStatsCard: View {
                         .font(.caption.weight(.semibold))
                 }
                 .padding(.horizontal, 4)
+                // `.contain` first, or the identifier replaces the text's and Retry's (#463).
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("fst.player.global-rank.\(instrument.rawValue).error")
             }
         }

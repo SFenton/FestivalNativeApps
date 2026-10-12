@@ -365,8 +365,11 @@ class StepTests(unittest.TestCase):
         self.assertEqual(step["selector"], {"kind": "id", "value": "fst.suggestions.category.x"})
         self.assertEqual(step["other"], {"kind": "id", "value": "fst.suggestions.list"})
         self.assertEqual(step["epx"], 8.0)
+        self.assertNotIn("end", step)
+        end = u.parse_step("scrollinset:id=a|id=b|4|end")
+        self.assertEqual((end["other"], end["epx"], end["end"]), ({"kind": "id", "value": "b"}, 4.0, True))
         for bad in ("scrollinset:id=a|id=b", "scrollinset:id=a|id=b|-8", "scrollinset:id=a|1,2|8",
-                    "scrollinset:id=a|id=b|0"):
+                    "scrollinset:id=a|id=b|0", "scrollinset:id=a|id=b|end", "assertinset:id=a|id=b|4|end"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
@@ -631,6 +634,17 @@ class OcclusionRobustnessTests(unittest.TestCase):
             self.assertIn(f'"{verb}"', verbs)
         self.assertIn("RestoreIsolated();", source.split("finally", 1)[1][:200])
         self.assertIn('"front" => Front(', source)
+
+    def test_driver_resize_parks_pointer_off_window(self):
+        # #571: a cursor left by an earlier run's press slid under the title-bar search box on a resize and opened its
+        # hover tooltip (a windowed PopupHost Axe fails). Every resize must park the cursor before and after the move.
+        source = (u.DRIVER_DIR / "Program.cs").read_text(encoding="utf-8")
+        resize = source.split("private JsonNode Resize(", 1)[1].split("private static void ParkPointer(", 1)[0]
+        self.assertIn("ParkPointer(target, work);\n            Native.MoveVisible(hwnd, target);", resize)
+        self.assertIn("ParkPointer(Native.VisibleBounds(hwnd), monitor.Work);\n        Thread.Sleep(600);", resize)
+        park = source.split("private static void ParkPointer(", 1)[1].split("\n    }\n", 1)[0]
+        self.assertIn("window.Contains(corner)", park)
+        self.assertIn("Native.MouseAt(corner)", park)
 
     def test_held_motion_statuses_are_read_without_restoring_the_window(self):
         # #498: a minimized First Run demo's paused auto-scroll (like a held Shop pulse) must be read while still

@@ -417,8 +417,13 @@ RUNS: tuple[Run, ...] = (
     # the selectors and Close, the selectors stay enabled and show the new value, "Loading …" then "… loaded" are
     # announced; Image <-> Text; keyboard switches (ComboBox, wide RadioButtons) keep focus on the selector; 40 epx zoom,
     # selectors and Close; mid-swap Axe scans; at 225% text, with in-app Reduce Motion and with Animation effects off.
+    # paths-selectors-swap-* (#571) resize the window across the 900 epx selector swap with the dialog open: the dialog
+    # follows the window, a focused circle's keyboard tooltip and a hovered circle's pointer tooltip close with the
+    # collapsed set, and focus moves to the counterpart (circle <-> instrument box) both ways, with Axe scans.
     # The compact Instrument ComboBox (issues #88, #439) opens to "Lead, list item, selected", Bass, Drums, Tap Vocals
     # (no Karaoke), each a 40 epx option, and switches by pointer and Alt+Down/Up/Enter with focus kept, Axe-scanned open.
+    # Sized for its longest option (issues #280, #526), it and its siblings keep their place and width on one line when
+    # the selection changes to the longest name (Tap Vocals) and back.
     # The compact Display ComboBox at the row's right edge keeps its whole keyboard focus ring (issues #269, #523): the
     # dialog content is the dialog less its padding and border, so the ring's right, top and bottom match its left side.
     Run("paths-swap", "a11y-paths-swap.json", sizes="compact,medium,wide"),
@@ -530,6 +535,28 @@ def run_pages(run: Run) -> list[dict]:
     return a11y_matrix.mode_pages(pages, run.mode)
 
 
+def run_weight(run: Run) -> int:
+    """A run's shard weight: the page × size combinations it executes (at least 1).
+
+    A run without ``only`` executes every page of its file, so it weighs its file's page count, not 1 (#571: the
+    seventh shard ran past the 55-minute job limit when whole-file runs counted as one page each).
+    """
+    sizes = run.sizes.split(",")
+    return max(1, sum(len(a11y_matrix.page_sizes(page, sizes, run.mode)) for page in run_pages(run)))
+
+
+def shard_runs(runs: list[Run], shard: int, shards: int) -> list[Run]:
+    """The runs of one 1-based shard: heaviest first onto the lightest shard, so the shards are disjoint and balanced."""
+    weighed = sorted(((run_weight(run), run) for run in runs), key=lambda item: (-item[0], item[1].name))
+    buckets: list[list[Run]] = [[] for _ in range(shards)]
+    weights = [0] * shards
+    for weight, run in weighed:
+        index = min(range(shards), key=lambda candidate: (weights[candidate], candidate))
+        buckets[index].append(run)
+        weights[index] += weight
+    return buckets[shard - 1]
+
+
 def select(runs: tuple[Run, ...], only: str | None) -> list[Run]:
     """Runs named by ``--only`` (all when empty).
 
@@ -580,13 +607,7 @@ def main(argv: list[str] | None = None) -> int:
     runs = tier_runs(runs, args.tier)
     if not 1 <= args.shard <= args.shards:
         parser.error("--shard must be within --shards")
-    buckets = [[] for _ in range(args.shards)]
-    weights = [0] * args.shards
-    for run in sorted(runs, key=lambda item: (-len(item.only.split(",")) * len(item.sizes.split(",")), item.name)):
-        index = min(range(args.shards), key=lambda candidate: (weights[candidate], candidate))
-        buckets[index].append(run)
-        weights[index] += len(run.only.split(",")) * len(run.sizes.split(","))
-    runs = buckets[args.shard - 1]
+    runs = shard_runs(runs, args.shard, args.shards)
     if args.list:
         for run in runs:
             only = f" only={run.only}" if run.only else ""

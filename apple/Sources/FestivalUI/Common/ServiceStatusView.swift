@@ -287,12 +287,12 @@ struct ServiceStatusInline: View {
                 Spacer(minLength: 8)
             }
             if showsRetryButton {
-                Button(remaining == nil ? "Retry" : "Retry Now", action: retry)
-                    .font(.footnote.weight(.semibold))
-                    .frame(minHeight: 44)
-                    .accessibilityIdentifier("fst.service-status.retry")
+                retryButton
             }
         }
+        // A container first: an identifier on the bare stack replaces Retry's
+        // `fst.service-status.retry` and the message's own (#463).
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.service-status.inline")
         .task(id: issue) {
             await ServiceRetryScheduler.countdown(
@@ -300,6 +300,29 @@ struct ServiceStatusInline: View {
                 update: { remaining = $0 }, retry: retry
             )
         }
+    }
+
+    /// Retry, a 44×44 pt target on iOS/iPadOS (HIG Accessibility: "Strive for the
+    /// platform's recommended minimum control size").
+    private var retryButton: some View {
+        let title = remaining == nil ? "Retry" : "Retry Now"
+        #if os(macOS)
+        // The system push button keeps its own size (HIG macOS default 28×28 pt).
+        return Button(title, action: retry)
+            .font(.footnote.weight(.semibold))
+            .frame(minHeight: 44)
+            .accessibilityIdentifier("fst.service-status.retry")
+        #else
+        // The frame sits inside the label, as `SectionViewAllLink`'s does: outside it
+        // only padded the layout and left a text-sized target (#463).
+        return Button(action: retry) {
+            Text(title)
+                .font(.footnote.weight(.semibold))
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .accessibilityIdentifier("fst.service-status.retry")
+        #endif
     }
 }
 

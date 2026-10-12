@@ -38,7 +38,11 @@ public sealed class QuickLinksHost
         MenuMaxWidth = menuMaxWidth;
         Binder = new QuickLinksBinder(scroller, model, () => QuickLinksBinder.ReducedMotion(App.Session.Settings.ReduceMotion));
         menu.Model = model;
-        if (pane is not null) pane.Model = model;
+        if (pane is not null)
+        {
+            pane.Model = model;
+            CollapsedToolTip.CloseWhenCollapsed(pane);
+        }
         root.SizeChanged += (_, e) =>
         {
             width = e.NewSize.Width;
@@ -68,9 +72,17 @@ public sealed class QuickLinksHost
     private void Apply()
     {
         var wide = paneAllowed && width > 0 && QuickLinks.UsesPane(width);
+        // Focus on the entry point that the swap hides follows it to the other one, programmatically (no keyboard
+        // tooltip, and focus doesn't fall to the next control), as for every responsive swap (#571).
+        var menuFocused = CollapsedToolTip.HasFocusWithin(menu);
+        var paneFocused = pane is not null && CollapsedToolTip.HasFocusWithin(pane);
         if (pane is not null) pane.Visibility = wide && model.IsAvailable ? Visibility.Visible : Visibility.Collapsed;
         // The button still hides itself below two sections; this only suppresses it where the pane replaces it.
         menu.IsSuppressed = wide || (!paneAllowed && width >= MenuMaxWidth);
+        if (menuFocused && menu.Visibility == Visibility.Collapsed && pane is { Visibility: Visibility.Visible })
+            CollapsedToolTip.HandFocusWith(pane, pane.FocusCurrent);
+        else if (paneFocused && pane!.Visibility == Visibility.Collapsed && menu.Visibility == Visibility.Visible)
+            CollapsedToolTip.HandFocus(menu, () => menu);
     }
 }
 #endregion

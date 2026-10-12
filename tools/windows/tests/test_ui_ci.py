@@ -21,6 +21,22 @@ _WORKFLOW = _REPO / ".github" / "workflows" / "windows-ui.yml"
 class UiCiTests(unittest.TestCase):
     """Every run is valid and the workflow builds the app and calls the dispatcher."""
 
+    def test_shards_weigh_whole_file_runs_by_page_and_size(self):
+        """#571: a run without ``only`` executes its whole file, so it must not weigh 1 when balancing shards."""
+        whole = next(run for run in ci.RUNS if not run.only and len(ci.run_pages(run)) > 1)
+        sizes = whole.sizes.split(",")
+        self.assertEqual(ci.run_weight(whole),
+                         sum(len(m.page_sizes(page, sizes, whole.mode)) for page in ci.run_pages(whole)))
+        self.assertGreater(ci.run_weight(whole), 1)
+        runs = ci.tier_runs(list(ci.RUNS), "full")
+        workflow = (ci.JOURNEYS.parents[2] / ".github" / "workflows" / "windows-ui.yml").read_text(encoding="utf-8")
+        shards = int(workflow.split("--shards ")[1].split()[0])
+        self.assertIn(f"shard: [{', '.join(str(n) for n in range(1, shards + 1))}]", workflow)
+        buckets = [ci.shard_runs(runs, shard, shards) for shard in range(1, shards + 1)]
+        self.assertEqual(sorted(run.name for bucket in buckets for run in bucket), sorted(run.name for run in runs))
+        weights = [sum(map(ci.run_weight, bucket)) for bucket in buckets]
+        self.assertLessEqual(max(weights) - min(weights), max(map(ci.run_weight, runs)))
+
     def test_runs_are_valid(self):
         names = [run.name for run in ci.RUNS]
         self.assertEqual(len(names), len(set(names)))
@@ -755,6 +771,37 @@ class UiCiTests(unittest.TestCase):
                       "key:alt+down", "assertannounced:Loading Lead Expert path@5",
                       "assertfocus:id=fst.paths.instrument.compact@3", "assertfocus:id=fst.paths.difficulty.compact@3"):
             self.assertIn(check, steps[select:])
+
+    def test_paths_instrument_width_runs_in_ci(self):
+        # Issue #526 (#280): the compact Instrument box is sized for its longest option, so switching to the longest
+        # fixture name (Tap Vocals) by pointer and back to Bass by keyboard leaves all three selector boxes where they
+        # were, same width, on one line, read as "Instrument, combo box" with the new value. Checked in windows-ui at
+        # default and 225% text and with Animation effects off, Axe-scanned after the switch.
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-swap.json"]
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-swap.json").read_text(encoding="utf-8"))
+        page = next(page for page in pages if page["name"] == "paths-instrument-width")
+        self.assertTrue(page["scan"])
+        modes = {run.mode for run in runs if page in m.mode_pages(pages, run.mode)
+                 and m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({"normal", "text-225", "no-animations"}, modes)
+        steps = page["after_ready"]
+        boxes = ("instrument", "difficulty", "display")
+        first = steps.index("select:name=Tap Vocals&class=ComboBoxItem")
+        second = steps.index("key:enter")
+        for box in boxes:
+            self.assertIn(f"pin:id=fst.paths.{box}.compact", steps[:first])
+            self.assertIn(f"assertpinned:id=fst.paths.{box}.compact", steps[first:second])
+            self.assertIn(f"assertpinned:id=fst.paths.{box}.compact", steps[second:])
+        for check in ("assertlevel:id=fst.paths.instrument.compact|id=fst.paths.difficulty.compact",
+                      "assertlevel:id=fst.paths.difficulty.compact|id=fst.paths.display.compact"):
+            self.assertIn(check, steps[:first])
+        for check in ("assertstate:id=fst.paths.instrument.compact|value=Tap Vocals@5",
+                      "assertread:id=fst.paths.instrument.compact|Instrument, combo box, collapsed",
+                      "assertsize:id=fst.paths.instrument.compact|40x40", "scan:{stem}-tap-vocals"):
+            self.assertIn(check, steps[first:second])
+        for check in ("assertstate:id=fst.paths.instrument.compact|value=Bass@5",
+                      "assertfocus:id=fst.paths.instrument.compact@3", "assertfocus:id=fst.paths.display.compact@3"):
+            self.assertIn(check, steps[second:])
 
     def test_paths_display_focus_ring_runs_in_ci(self):
         # Issue #523 (#269): the dialog content is the dialog less its padding and border, so the compact Display box at
