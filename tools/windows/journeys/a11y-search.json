@@ -1,5 +1,30 @@
 [
   {
+    "name": "search-swap-widen",
+    "tab": "songs",
+    "tabs": 0,
+    "sizes": ["wide"],
+    "setup": ["resize:compact", "wait:1.5", "waitfor:id=fst.songs.row.fixture-pulse@30",
+      "waitfor:id=fst.global-search.open@20", "focus:id=fst.shell.profile",
+              "key:shift+tab", "assertfocus:id=fst.global-search.open@3",
+              "waitfor:name=Search songs, players and bands (Ctrl+E)@5", "resize:wide", "wait:1.5"],
+    "ready": ["waitfor:id=fst.shell.profile@30", "waitfor:id=fst.nav.leaderboards@10"],
+    "after_ready": ["waitgone:name=Search songs, players and bands (Ctrl+E)@3",
+                    "assertfocus:name=Search songs, players and bands@3"]
+  },
+  {
+    "name": "search-swap-narrow",
+    "tab": "songs",
+    "tabs": 0,
+    "sizes": ["compact"],
+    "setup": ["resize:wide", "wait:1.5", "waitfor:id=fst.songs.row.fixture-pulse@30",
+      "waitfor:id=fst.global-search.open@20", "key:ctrl+e",
+              "assertfocus:name=Search songs, players and bands@3", "resize:compact", "wait:1.5"],
+    "ready": ["waitfor:id=fst.shell.profile@30", "waitfor:id=fst.global-search.open@10"],
+    "after_ready": ["assertfocus:id=fst.global-search.open@3",
+                    "waitgone:name=Search songs, players and bands (Ctrl+E)@3"]
+  },
+  {
     "name": "search-closed",
     "fixture": ["profile_fixture.py"],
     "tab": "songs",
@@ -13,8 +38,9 @@
     "tabs": 0,
     "sizes": ["medium", "wide", "maximized"],
     "ready": ["waitfor:id=fst.songs.row.fixture-pulse@20"],
+    "note": "Issue #571: Ctrl+E focuses the box with keyboard focus, which opens its Ctrl+E hint tooltip after the show delay; once the user types or the suggestion list opens, the hint closes and stays closed so it never covers the suggestions (TypingToolTip). The wait outlasts the show delay.",
     "after_ready": ["key:ctrl+e", "assertfocus:name=Search songs, players and bands@3", "type:fix",
-                    "waitfor:name=Player, Fixture Player 1@10"],
+                    "waitfor:name=Player, Fixture Player 1@10", "wait:1.5", "waitgone:class=ToolTip@3"],
     "teardown": ["key:esc", "key:esc", "key:esc"]
   },
   {

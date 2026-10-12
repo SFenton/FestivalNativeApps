@@ -237,6 +237,21 @@ class MockServiceTests(unittest.TestCase):
             urlopen(self.base + "/api/rankings/bands/Band_Duets/fixture-team-unavailable/song-rows")
         self.assertEqual(error.exception.code, 503)
 
+    def test_outside_viewer_ranks_outside_every_top_five(self):
+        """`fixture-riv-ranked` (#370, #493) reads 45th of 60 on instrument and combo boards, never on them."""
+        with urlopen(self.base + "/api/rankings/Solo_Guitar/fixture-riv-ranked") as response:
+            row = json.load(response)
+        self.assertEqual((row["accountId"], row["totalScoreRank"], row["totalRankedAccounts"], row["songsPlayed"]),
+                         ("fixture-riv-ranked", 45, 60, 30))
+        with urlopen(self.base + "/api/rankings/combo/fixture-riv-ranked?combo=03&rankBy=totalscore") as response:
+            combo = json.load(response)
+        self.assertEqual((combo["comboId"], combo["rank"], combo["totalAccounts"]), ("03", 45, 60))
+        with urlopen(self.base + "/api/rankings/Solo_Guitar?page=1&pageSize=10") as response:
+            self.assertNotIn("fixture-riv-ranked", [e["accountId"] for e in json.load(response)["entries"]])
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + "/api/rankings/Solo_Guitar/fixture-riv")
+        self.assertEqual(error.exception.code, 404)
+
     def test_combo_rankings_serve_board_and_player_and_reject_cross_group(self):
         """Combo boards (#602) page the roster, rank one player, 400 single charts and 404 cross-group or unranked reads."""
         with urlopen(self.base + "/api/rankings/combo?combo=0F&rankBy=totalscore&page=1&pageSize=10") as response:
@@ -422,6 +437,21 @@ class MockServiceTests(unittest.TestCase):
             with self.subTest(route=bad), self.assertRaises(HTTPError) as failure:
                 urlopen(self.base + bad)
             self.assertIn(failure.exception.code, {400, 404})
+
+    def test_notify_many_feed_scrolls_newest_first_and_honours_limit(self):
+        """The #469 account's feed is long, unique, newest first and capped by limit."""
+        route = "/api/player/fixture-notify-many/notifications"
+        with urlopen(self.base + route + "?limit=50") as response:
+            items = json.load(response)["items"]
+        self.assertEqual(len(items), 24)
+        self.assertEqual(len({item["notificationGuid"] for item in items}), 24)
+        self.assertEqual(items[0]["notificationGuid"], "fixture-notify-many-0")
+        detected = [item["detectedAt"] for item in items]
+        self.assertEqual(detected, sorted(detected, reverse=True))
+        with urlopen(self.base + route + "?limit=5") as response:
+            self.assertEqual(len(json.load(response)["items"]), 5)
+        with urlopen(self.base + "/api/player/fixture-player-1/notifications?limit=50") as response:
+            self.assertEqual(len(json.load(response)["items"]), 2)
 
     def test_paged_leaderboard_and_original_artwork(self):
         """One page of 25 and one page of one share a 26-entry total."""

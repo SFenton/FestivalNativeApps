@@ -230,16 +230,33 @@ def run(name: str, exe: Path) -> list[str]:
     return failures
 
 
+def run_with_retries(name: str, exe: Path, retries: int) -> list[str]:
+    """Runs a scenario, relaunching it after a failure up to ``retries`` times; returns the last attempt's failures.
+
+    Same policy as ``ui_journey.py --retries`` (issue #571): a hosted runner occasionally stalls the UI thread or the
+    compositor between a toggle and the mover's start frames (the Settings leeway close once began 302 ms after its
+    toggle against the usual 12 ms). Each attempt is judged in full, so a real regression still fails every attempt.
+    """
+    failures = run(name, exe)
+    for attempt in range(1, retries + 1):
+        if not failures:
+            break
+        print(f"RETRY {name} ({attempt}/{retries}) after:\n  " + "\n  ".join(failures))
+        failures = run(name, exe)
+    return failures
+
 def main() -> int:
     """Runs the selected scenarios one app at a time."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--only", choices=sorted(SCENARIOS), action="append")
+    parser.add_argument("--retries", type=int, default=0,
+                        help="relaunch a failed scenario up to this many times (ci_ui.py passes its --retries)")
     journey_exe.add_argument(parser)
     options = parser.parse_args()
     failed = 0
     for name in options.only or list(SCENARIOS):
         print(f"{name}:")
-        failures = run(name, options.exe)
+        failures = run_with_retries(name, options.exe, options.retries)
         if failures:
             failed += 1
             print(f"FAIL {name}:\n  " + "\n  ".join(failures))

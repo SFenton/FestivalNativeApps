@@ -285,6 +285,9 @@ def parse_step(step: str) -> dict:
     ``scrollinset:<sel>|<scroller>|<epx>`` scrolls the second element (UIA Scroll pattern, no input) until the first
     element's top edge sits ``<epx>`` (more than 0) effective pixels below the scroller's top within 1 epx: a fixed,
     unclipped list position for scans (a clipped element's UIA top reads as the viewport edge, so a 0 inset proves nothing).
+    ``scrollinset:<sel>|<scroller>|<epx>|end`` also accepts the scroller's end (100%) when the target near the list's
+    bottom cannot rise to ``<epx>`` but its top is on screen below the scroller's top: the end is just as fixed a
+    position, and how far short of ``<epx>`` it stops depends on the host's text metrics (issue #571).
     ``markspan:<sel>|<sel>|<name>`` records the distance from the first element's top edge to the second's (epx)
     under ``<name>`` and ``assertspan:<sel>|<sel>|<name>`` fails unless that distance is unchanged within 1 epx
     in the same drive (a card that must keep its height across a transition, measured top to top so scrolling
@@ -397,6 +400,8 @@ def parse_step(step: str) -> dict:
         if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
             raise ValueError(f"{verb} needs element selectors, not coordinates")
     elif shape == "gap":
+        if verb == "scrollinset" and arg.endswith("|end"):
+            arg, result["end"] = arg[:-len("|end")], True
         first, sep, rest = arg.partition("|")
         second, sep2, epx = rest.rpartition("|")
         if not sep or not sep2 or not re.fullmatch(r"\d+(\.\d+)?", epx.strip()):

@@ -55,14 +55,15 @@ class PatternTests(unittest.TestCase):
         self.assertEqual(len(j.check_tree(untagged, j.Phase([], forbid=j.NO_PAGING))), 1)
 
 
-# The selected slide's control view in a real `uiwin.py tree` dump (2026-10-08), after a rotation swap.
+# The selected slide's control view in a real `uiwin.py tree` dump (2026-10-08), after a rotation swap; the heading and
+# description carry their x:Name AutomationIds since #498 restored #422's entrance (CI dump 2026-10-11, #571).
 SLIDE = [
     '          Unknown(flip view) "Songs" id=fst.first-run.slides class=FlipView rect=1260,336,1320,1110 patterns=Scroll',
     '            ListItem "Song List" id= class=FlipViewItem rect=1260,336,1320,1110 [focused,focusable,selected] patterns=SelectionItem',
 ]
 HEADING_AND_DESCRIPTION = [
-    '              Text "Song List" id= class=TextBlock rect=1272,1002,1296,80 heading=2',
-    '              Text "Browse and search the entire Festival library. Tap a song to see leaderboards and more details." id= class=TextBlock rect=1272,1118,1296,112',
+    '              Text "Song List" id=SlideTitle class=TextBlock rect=1272,1002,1296,80 heading=2',
+    '              Text "Browse and search the entire Festival library. Tap a song to see leaderboards and more details." id=SlideDescription class=TextBlock rect=1272,1118,1296,112',
 ]
 PAGER = ['          Menu "Pager" id=fst.first-run.pips class=Microsoft.UI.Xaml.Controls.PipsPager rect=1830,1482,180,70']
 # Before issue #421 the demo's rows were promoted into the slide's control view (only the demo itself was raw).

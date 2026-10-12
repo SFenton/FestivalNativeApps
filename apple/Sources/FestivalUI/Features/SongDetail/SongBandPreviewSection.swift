@@ -215,7 +215,8 @@ struct SongBandPreviewRow: View {
             .contentShape(Rectangle())
         }
         .festivalRowButtonStyle()
-        .accessibilityElement(children: .ignore)
+        // `.combine` keeps the link's press for VoiceOver on the Mac (#467).
+        .accessibilityElement(children: .combine)
         .accessibilityLabel(SongBandPreviewText.spokenLabel(entry, selected: highlighted))
         .accessibilityHint(SongBandRowNavigation.hint(for: route))
         .accessibilityAddTraits(.isButton)

@@ -21,6 +21,22 @@ _WORKFLOW = _REPO / ".github" / "workflows" / "windows-ui.yml"
 class UiCiTests(unittest.TestCase):
     """Every run is valid and the workflow builds the app and calls the dispatcher."""
 
+    def test_shards_weigh_whole_file_runs_by_page_and_size(self):
+        """#571: a run without ``only`` executes its whole file, so it must not weigh 1 when balancing shards."""
+        whole = next(run for run in ci.RUNS if not run.only and len(ci.run_pages(run)) > 1)
+        sizes = whole.sizes.split(",")
+        self.assertEqual(ci.run_weight(whole),
+                         sum(len(m.page_sizes(page, sizes, whole.mode)) for page in ci.run_pages(whole)))
+        self.assertGreater(ci.run_weight(whole), 1)
+        runs = ci.tier_runs(list(ci.RUNS), "full")
+        workflow = (ci.JOURNEYS.parents[2] / ".github" / "workflows" / "windows-ui.yml").read_text(encoding="utf-8")
+        shards = int(workflow.split("--shards ")[1].split()[0])
+        self.assertIn(f"shard: [{', '.join(str(n) for n in range(1, shards + 1))}]", workflow)
+        buckets = [ci.shard_runs(runs, shard, shards) for shard in range(1, shards + 1)]
+        self.assertEqual(sorted(run.name for bucket in buckets for run in bucket), sorted(run.name for run in runs))
+        weights = [sum(map(ci.run_weight, bucket)) for bucket in buckets]
+        self.assertLessEqual(max(weights) - min(weights), max(map(ci.run_weight, runs)))
+
     def test_runs_are_valid(self):
         names = [run.name for run in ci.RUNS]
         self.assertEqual(len(names), len(set(names)))

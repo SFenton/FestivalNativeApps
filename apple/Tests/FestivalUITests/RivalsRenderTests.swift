@@ -888,7 +888,7 @@ private func hostRivalsPageWithTools<Page: View>(
 ) -> (NSHostingView<NativeHostedRoot<AnyView>>, NSWindow) {
     let size = CGSize(width: 402, height: height)
     let host = nativeHostedView(AnyView(
-        NavigationStack { page.pageToolsScope() }
+        NavigationStack { page.pageToolsScope(inSelectedTab: true) }
             .environment(\.pageToolsRegistry, registry)
             .defaultAppStorage(storage)
             .preferredColorScheme(.dark)

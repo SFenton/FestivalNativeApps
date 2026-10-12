@@ -18,7 +18,8 @@ namespace Festival.App.Controls;
 /// opaque. A reader's own scroll first, a newer reveal or load, or leaving the page calls it off. With motion off it
 /// still waits for the realized row (a list the gate has just made visible has no layout yet, so an earlier scroll is a
 /// no-op, issue #493), then scrolls at once and holds or rushes nothing (R6). The scroll itself is the caller's
-/// (instant, centred; #318 made it reliable).
+/// (instant, centred; #318 made it reliable); repeater boards use <see cref="CentreRow"/>, which lays a freshly realized
+/// row out before centring it (#571).
 /// </summary>
 public static class SelectedRowReveal
 {
@@ -27,6 +28,56 @@ public static class SelectedRowReveal
 
     /// <summary>Rendered frames a reveal waits for the list to realize its rows before going ahead anyway (about 2 s).</summary>
     private const int RealizeFrames = 120;
+
+    /// <summary>Rendered frames <see cref="CentreRow"/> re-checks that its row landed in view (about 0.5 s).</summary>
+    private const int CentreFrames = 30;
+
+    /// <summary>
+    /// The reveal's scroll for an <see cref="ItemsRepeater"/> board: realizes the row, lays it out and centres it at once.
+    /// A row the repeater only now creates (the selected row lies past the realized first screen, as at 225% text) has no
+    /// arranged position yet, and bringing it into view before layout is a silent no-op that leaves the board at the top
+    /// with its first rows recycled (issue #571). So it lays the row out first and, for a few frames, asks again until the
+    /// row's centre lies inside the scroll viewport, stopping when the row is recycled or the list unloads.
+    /// </summary>
+    /// <param name="repeater">The board's repeater.</param>
+    /// <param name="index">The selected row's index.</param>
+    public static void CentreRow(ItemsRepeater repeater, int index)
+    {
+        if (repeater.GetOrCreateElement(index) is not UIElement row) return;
+        Centre(row);
+        var frames = 0;
+        void OnFrame(object? sender, object e)
+        {
+            if (++frames > CentreFrames || !repeater.IsLoaded || !ReferenceEquals(repeater.TryGetElement(index), row) || InView(row))
+            {
+                CompositionTarget.Rendering -= OnFrame;
+                return;
+            }
+            FadeIn.Trace("fade-reveal-retry", repeater, $"index={index} frame={frames}");
+            Centre(row);
+        }
+        CompositionTarget.Rendering += OnFrame;
+    }
+
+    /// <summary>Lays a row out and asks its scroll viewer to centre it instantly.</summary>
+    /// <param name="row">Realized row.</param>
+    private static void Centre(UIElement row)
+    {
+        row.UpdateLayout();
+        row.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
+    }
+
+    /// <summary>Whether a row's vertical centre lies inside its nearest scroll viewer's viewport.</summary>
+    /// <param name="row">Realized row.</param>
+    /// <returns><see langword="true"/> when visible, or when there is no scroll viewer to check.</returns>
+    private static bool InView(UIElement row)
+    {
+        var parent = VisualTreeHelper.GetParent(row);
+        while (parent is not null and not ScrollViewer) parent = VisualTreeHelper.GetParent(parent);
+        if (parent is not ScrollViewer scroller) return true;
+        var centre = row.TransformToVisual(scroller).TransformPoint(default).Y + row.ActualSize.Y / 2;
+        return centre >= 0 && centre <= scroller.ViewportHeight;
+    }
 
     /// <summary>Scrolls a stagger list to its selected row once the row's entrance has finished.</summary>
     /// <param name="list">The stagger list (<c>FadeIn.Stagger</c>: a <see cref="ListViewBase"/> or <see cref="ItemsRepeater"/>).</param>

@@ -226,8 +226,10 @@ enum SongsUITestSupport {
 
     /// Refresh the Songs toolbar after a drawer deselection.
     ///
-    /// Deselecting from the drawer can leave the Songs toolbar stale until the page
-    /// reappears, so visit another tab and return.
+    /// Deselecting from the drawer used to leave the Songs toolbar stale until the
+    /// page reappeared (an unselected tab root took the page-tools front; fixed in
+    /// #487 by `pageToolsScope(inSelectedTab:)`). Older journeys still visit another
+    /// tab and return; `SongsDeselectAccessibilityJourneyTests` deliberately does not.
     ///
     /// - Parameter app: Foreground app on the Songs root.
     @MainActor

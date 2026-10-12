@@ -275,6 +275,7 @@ public sealed partial class SongScoreHistoryChart : UserControl
         var lineBrush = Role("FSTChartLineBrush");
         var slot = plotWidth / bars.Count;
         var barWidth = Math.Max(4, slot * 0.8);
+        var scale = XamlRoot?.RasterizationScale ?? 1;
         var line = new Polyline { Stroke = lineBrush, StrokeThickness = 2, IsHitTestVisible = false };
         var dots = new List<Ellipse>(bars.Count);
         ToggleButton? restore = null;
@@ -283,6 +284,9 @@ public sealed partial class SongScoreHistoryChart : UserControl
             var bar = bars[i];
             var point = bar.Point;
             var centre = leftAxis + slot * (i + 0.5);
+            // Both edges on device pixels, so a contrast theme's 1 epx outline stays one crisp WindowText pixel.
+            var barLeft = ScoreHistoryChartScale.SnapToPixel(centre - barWidth / 2, scale);
+            var barRight = ScoreHistoryChartScale.SnapToPixel(centre + barWidth / 2, scale);
             var barHeight = Math.Max(2, (plotHeight - 4) * point.AccuracyPercent / 100);
             var fill = new Border
             {
@@ -296,7 +300,7 @@ public sealed partial class SongScoreHistoryChart : UserControl
             {
                 Style = (Style)Resources["FSTChartBarButtonStyle"],
                 Content = fill,
-                Width = barWidth,
+                Width = barRight - barLeft,
                 Height = plotHeight,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 IsChecked = bar.IsSelected,
@@ -310,7 +314,7 @@ public sealed partial class SongScoreHistoryChart : UserControl
             // Subscribed after IsChecked is set, so only a user (or UIA) toggle selects; an in-place restyle is ignored.
             button.Checked += (_, _) => { if (!reselecting) Model?.ToggleBar(index); };
             button.Unchecked += (_, _) => { if (!reselecting) Model?.ToggleBar(index); };
-            Canvas.SetLeft(button, centre - barWidth / 2);
+            Canvas.SetLeft(button, barLeft);
             Canvas.SetTop(button, topPad);
             Plot.Children.Add(button);
             drawnButtons.Add((button, fill));

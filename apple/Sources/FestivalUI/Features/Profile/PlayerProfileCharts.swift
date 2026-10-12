@@ -110,6 +110,8 @@ struct PlayerRankHistoryCard: View {
                         retryRevision += 1
                     }
                 }
+                // `.contain` first, or the identifier replaces Retry's own (#463).
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("fst.player.rank-history.\(instrument.rawValue).error")
             case let .loaded(points) where points.isEmpty:
                 EmptyView()

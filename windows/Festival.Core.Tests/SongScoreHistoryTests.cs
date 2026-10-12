@@ -84,6 +84,16 @@ public class SongScoreHistoryDomainTests
     public void NiceMax_RoundsUpToFourSteps(long max, long expected) => Assert.Equal(expected, ScoreHistoryChartScale.NiceMax(max));
 
     [Theory]
+    [InlineData(130.5, 1, 131)]          // CI 100%: a half-pixel bar edge lands on one pixel
+    [InlineData(130.4, 1, 130)]
+    [InlineData(13.35, 3, 13 + 1 / 3.0)] // 300%: thirds of an epx are whole pixels
+    [InlineData(10.2, 1.25, 10.4)]       // 125%: 12.75 px -> 13 px
+    [InlineData(7.5, 0, 8)]              // no scale yet counts as 100%
+    [InlineData(7.5, double.NaN, 8)]
+    public void SnapToPixel_RoundsToWholeDevicePixels(double value, double scale, double expected) =>
+        Assert.Equal(expected, ScoreHistoryChartScale.SnapToPixel(value, scale), 9);
+
+    [Theory]
     [InlineData(26, 19, 64)]       // 100% text: the original 64 epx gutter
     [InlineData(0, 0, 64)]
     [InlineData(-5, -5, 64)]
