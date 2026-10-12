@@ -35,13 +35,15 @@
 
 `DrawerAccessibilityJourneyTests` (#396) audits the open navigation drawer with `.all` and never drops a whole audit type. It applies the iPad lane's evidence rules within the same run:
 - **Named drawer element, contrast:** accepted when its rendered text in the app screenshot is ≥ 4.5:1 (`contrast-rendered`). The audit misjudges every white row on the dark glass.
-- **Page element under the drawer, contrast:** accepted when it is absent from `app.snapshot()` (`behind-modal-drawer`). This counts only when that snapshot holds the drawer's own rows.
+- **Page element under the drawer, contrast or Dynamic Type:** accepted when it is absent from `app.snapshot()` (`behind-modal-drawer`). This counts only when that snapshot holds the drawer's own rows. Dynamic Type was added for #489: the large-catalogue fixture puts the Songs rail beside the iPhone panel, and the rail's sizes are audited under the #388 rule by the Songs journeys.
 - **No element (iPhone Duo), contrast:** accepted when every static text in the panel renders ≥ 4.5:1 (`unattributed-contrast-page-floor`).
 - **Unattributed "may be clipped at larger sizes" prediction:** accepted only when the drawer relaunched at AX5 audits clean for clipping.
 
 `app.debugDescription` still prints SwiftUI views hidden with `accessibilityHidden`, such as the page under the drawer. Assert hiding against `app.snapshot()`, never the debug description. On the iPhone Duo simulator, `app.snapshot()` stops after about 11 nodes (depth 6), short of the drawer, and comes back empty after an audit. Before using a snapshot as evidence, check that it reaches the region under test. Element queries still work there. The Duo drawer's modality is proved by `DuoDrawerJourneyTests` (`isModal`).
 
 Allow one pixel of tolerance on target sizes. A fixed 44 pt control reports 43.67 pt (131 px at 3×) when layout lands it off the pixel grid.
+
+Its #489 journeys run in `apple-ci` against the large-catalogue fixture (`SongsUITestSupport.fixtureURL`); the #396 journeys still need `mock_service.py --port 18790`. To prove something happens *during* the drawer's sequence, slow it (`FST_DEBUG_DRAWER_SLOWMO`) and assert the elapsed time since the tap is well under the slowed duration. Polling `app.snapshot()` takes about a second on a runner, so a 0.4 s sequence would end before the first read.
 
 ## iPadOS and iPhone Duo audit journeys
 

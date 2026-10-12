@@ -4,7 +4,8 @@ A selector that matches nothing makes ``xcodebuild`` run no test, so a renamed j
 The ``JOURNEYS`` blocks (iPhone UI-test bundle, on the iPhone and the iPad) must keep the account-button
 reading-order journeys (``page-tools-and-nav-chrome`` R17, #394), the Songs section-title AX5 journey (#91, #441), the
 Songs section-push AX XXXL journey (#288, #452), the Songs large-title rest journeys on both scroll-reading paths (#560),
-the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape) and the pinned caption-icon journeys (``song-header`` R4, #542); ``HISTORY_JOURNEYS``/``HISTORY_IPAD_JOURNEYS``
+the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape), the pinned caption-icon journeys (``song-header`` R4, #542)
+and the drawer's Reduce Motion and closing journeys (#489, iPhone only); ``HISTORY_JOURNEYS``/``HISTORY_IPAD_JOURNEYS``
 (iPad bundle, on the iPhone and the iPad) must keep the Score History AX5 journeys (#385, the region #302 changed);
 ``PLAIN_JOURNEYS`` (iPhone bundle, on the iPhone in the plain-fixture step) must keep the Filter Invalid Scores score-check
 journey (#615); ``UNPINNED_JOURNEYS`` (iPhone bundle, on its own unpinned listener) must keep the player
@@ -355,6 +356,19 @@ class AppleCIJourneysTests(unittest.TestCase):
             "testPlayerHistoryCaptionIconAtLargestText",
         ):
             self.assertIn(f"SongBarCaptionIconJourneyTests/{method}", self.journeys)
+
+    def test_drawer_motion_journeys_run_on_the_iphone(self) -> None:
+        # #489 (for #362): the only iOS evidence that the Reduce Motion drawer audits clean and that closing hands
+        # the page back to VoiceOver and touch before the sequence ends. The drawer is phone-only, and the Duo
+        # window is simulated on an iPhone, so none runs in the iPad step.
+        iphone, ipad = self.blocks
+        for method in (
+            "testReduceMotionDrawerPassesAccessibilityAudit",
+            "testClosingDrawerHandsThePageBackAtOnce",
+            "testClosingDrawerHandsThePageBackAtOnceDuoFolded",
+        ):
+            self.assertIn(f"DrawerAccessibilityJourneyTests/{method}", iphone)
+            self.assertNotIn(f"DrawerAccessibilityJourneyTests/{method}", ipad)
 
     def test_profile_notice_ax5_journey_runs_on_its_unpinned_listener(self) -> None:
         # #446/#97: the only real Dynamic Type evidence for the profile's pause notice (macOS has none).
