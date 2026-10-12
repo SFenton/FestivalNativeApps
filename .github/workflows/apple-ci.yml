@@ -174,6 +174,10 @@ jobs:
             QuickLinksIconAccessibilityJourneyTests/testDuoMenuInstrumentIconMatchesSymbolRowAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5DuoFolded
+            DuoPageTitleAccessibilityJourneyTests/testRootTitlesAreAccessibleAtAX5DuoFolded
+            DuoPageTitleAccessibilityJourneyTests/testNoProfileStatisticsTitleIsAccessibleAtAX5DuoFolded
+            DuoPageTitleAccessibilityJourneyTests/testNoProfileStatisticsIsAccessibleAtAX5WithMoreContrastDuoFolded
+            DuoPageTitleAccessibilityJourneyTests/testNoProfileStatisticsTitleIsAccessibleAtAX5
             NotificationsAccessibilityJourneyTests/testRowsUnderThePinnedTitleKeepTheirAccessibility
             NotificationsAccessibilityJourneyTests/testRowsUnderThePinnedTitleKeepTheirAccessibilityAtAX5
             SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderIsAccessibleAtStandardSize
