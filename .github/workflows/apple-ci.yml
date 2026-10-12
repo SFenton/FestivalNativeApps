@@ -329,7 +329,8 @@ jobs:
   songs-filter-journeys:
     # The Songs Filter sheet without a profile (#432, for #77) on each Apple touch form factor: the
     # accessibility journey (performAccessibilityAudit, 44 pt targets, AX5) on the iPhone, the iPad and the
-    # folded iPhone Duo, and the iPad hardware-keyboard journey. The plain loopback fixture (8765), one
+    # folded iPhone Duo, and the iPad hardware-keyboard journey; on the folded Duo also the bottom Filter
+    # Songs field (#474, for #333). The plain loopback fixture (8765), one
     # throwaway simulator per leg, run in parallel with the build job. Release train: only on release-branch
     # dispatches, like the build job's journeys: testing/apple/xcuitest.md#ci-journeys.
     name: apple-ci Songs Filter journeys (${{ matrix.leg }})
@@ -363,6 +364,8 @@ jobs:
               SongsFilterAccessibilityJourneyTests/testNoProfileGeneralFiltersPassAccessibilityAudit
               SongsFilterAccessibilityJourneyTests/testDynamicTypeAuditWithShopHidden
               SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
+              SongsBottomFilterFieldJourneyTests/testBottomFilterFieldIsAccessibleDuoFolded
+              SongsBottomFilterFieldJourneyTests/testBottomFilterFieldGrowsAtAX5DuoFolded
     steps:
       - uses: actions/checkout@v4
         with:
