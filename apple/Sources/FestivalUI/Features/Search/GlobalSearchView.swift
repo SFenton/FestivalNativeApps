@@ -569,6 +569,13 @@ struct GlobalSearchField: View {
     var submit: () -> Void = {}
     @FocusState private var focused: Bool
 
+    /// Clear Search's hit region: HIG Accessibility's 44 × 44 pt iOS control minimum
+    /// (issue #475; the bare glyph was 13–17 pt).
+    static let clearTarget: CGFloat = 44
+    /// How far Clear Search's target reaches into the capsule's 12 pt end padding, so the
+    /// glyph stays near the trailing end (its target ends 2 pt inside the capsule).
+    static let clearOutset: CGFloat = 10
+
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
@@ -583,6 +590,7 @@ struct GlobalSearchField: View {
                 .textInputAutocapitalization(.never)
                 #endif
                 .foregroundStyle(FestivalText.primary)
+                .frame(minHeight: minHeight)
                 .accessibilityLabel(accessibilityLabel)
                 .accessibilityAddTraits(surface == .floating ? .isSearchField : [])
                 .accessibilityIdentifier(identifier)
@@ -592,8 +600,11 @@ struct GlobalSearchField: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(FestivalText.deemphasized)
+                        .frame(minWidth: Self.clearTarget, minHeight: Self.clearTarget)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .padding(.trailing, -Self.clearOutset)
                 .accessibilityLabel("Clear Search")
                 .accessibilityIdentifier(clearIdentifier)
             }
