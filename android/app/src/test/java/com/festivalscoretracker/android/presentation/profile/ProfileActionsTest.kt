@@ -142,6 +142,28 @@ class ProfileActionsTest {
     }
 
     @Test
+    fun overThresholdTileUsesTheUnroundedCeilingNotMinLeeway() = runTest(main.dispatcher) {
+        // Web isScoreValid (R8): only score vs CHOpt maximum × (1 + leeway / 100), unrounded.
+        leadMaximum = 100_000
+        settings.value = settings.value?.copy(filterInvalidScores = true, leeway = 1.0)
+        fun lead(vm: PlayerProfileViewModel) = vm.state.value.instruments.first { it.instrument == Instrument.Lead }.stats
+
+        // 101,040 is over the 101,000 ceiling even though its rounded ml (1.0) is within the leeway.
+        rows = listOf("""{"si":"s-alpha","ins":"01","sc":101040,"acc":1000,"fc":false,"st":5,"rk":3,"te":200,"ml":1.0}""")
+        val over = viewModel(this, Fixtures.ACCOUNT_A)
+        advanceUntilIdle()
+        assertEquals("1", lead(over).first { it.id == "over-threshold" }.value)
+
+        // At or below the ceiling, an ml above the leeway does not count.
+        for (score in listOf(101_000, 100_500)) {
+            rows = listOf("""{"si":"s-alpha","ins":"01","sc":$score,"acc":1000,"fc":false,"st":5,"rk":3,"te":200,"ml":1.5}""")
+            val under = viewModel(this, Fixtures.ACCOUNT_A)
+            advanceUntilIdle()
+            assertTrue("score $score", lead(under).none { it.id == "over-threshold" })
+        }
+    }
+
+    @Test
     fun viewedProfileShowsFilteredRanksLikeWebFilterPlayerScores() = runTest(main.dispatcher) {
         // #619: another player is selected, so this is a viewed (non-selected) profile.
         settings.value = AppSettings(selectedPlayer = SelectedPlayer(Fixtures.ACCOUNT_B, "Other Player"))
