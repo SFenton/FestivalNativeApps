@@ -12,6 +12,10 @@ import XCTest
 enum RecognizedText {
     /// Minimum growth of a text's glyphs from the default size to AX5 (project rule).
     static let minimumGrowth: CGFloat = 1.35
+    /// Minimum AX5 growth of a title UIKit hosts in a navigation bar (`system-bar-title-size`,
+    /// `testing/apple/accessibility.md`): UIKit caps it near 1.22× (the inline modal title, #429;
+    /// the phone Search tab's `inlineLarge` title, #611), so this floor still fails a fixed-size title.
+    static let minimumBarTitleGrowth: CGFloat = 1.15
 
     /// Text recognized from the element's own capture and its median line height in points.
     struct Reading {
