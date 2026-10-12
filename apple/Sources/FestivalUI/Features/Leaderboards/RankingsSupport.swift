@@ -822,9 +822,7 @@ struct RankingsPagerView: View {
         // frosted circle arrows around a "page / total" badge (operator batch 7.5).
         HStack(spacing: 10) {
             arrow("chevron.backward.2", "First page", id: "page-first", enabled: page > 1) { onChange(1) }
-                .accessibilitySortPriority(RankingsPagerReadingOrder.first)
             arrow("chevron.backward", "Previous page", id: "page-previous", enabled: page > 1) { onChange(page - 1) }
-                .accessibilitySortPriority(RankingsPagerReadingOrder.previous)
             Text("\(page) / \(totalPages)")
                 .font(.body.weight(.semibold))
                 .monospacedDigit()
@@ -850,14 +848,11 @@ struct RankingsPagerView: View {
                     }
                 }
                 .accessibilityIdentifier("\(idPrefix).page-info")
-                .accessibilitySortPriority(RankingsPagerReadingOrder.badge)
             arrow("chevron.forward", "Next page", id: "page-next", enabled: page < totalPages) { onChange(page + 1) }
-                .accessibilitySortPriority(RankingsPagerReadingOrder.next)
             arrow("chevron.forward.2", "Last page", id: "page-last", enabled: page < totalPages) { onChange(totalPages) }
-                .accessibilitySortPriority(RankingsPagerReadingOrder.last)
         }
-        // Read left to right even when the badge is taller than the arrows (issue #462).
-        .accessibilityElement(children: .contain)
+        // One top edge for every control: read left to right at AX5 (issue #462).
+        .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 16)
         .pagerScreenPlacement()
         .padding(.top, topPadding)
@@ -888,6 +883,7 @@ struct RankingsPagerView: View {
                 .frame(width: 44, height: 44)
                 .festivalCardCapsule()
                 .contentShape(Circle())
+                .pagerRowHeight()
         }
         .buttonStyle(HighContrastPagerStyle())
         .disabled(!enabled)
@@ -898,18 +894,22 @@ struct RankingsPagerView: View {
 
 // MARK: - Pager reading order
 
-/// VoiceOver priorities that keep both pagers reading First, Previous, Page, Next, Last.
-///
-/// SwiftUI orders a container's elements by their frames, top edge first. At the largest
-/// accessibility text sizes the `page / total` badge grows taller than the fixed 44 pt
-/// arrows, so its top sat above theirs and VoiceOver read "Page" before First and
-/// Previous (issue #462). Higher priorities are read first.
-enum RankingsPagerReadingOrder {
-    static let first: Double = 5
-    static let previous: Double = 4
-    static let badge: Double = 3
-    static let next: Double = 2
-    static let last: Double = 1
+extension View {
+    /// Stretch a pager control to its row's height, centred, so every control shares
+    /// one top edge.
+    ///
+    /// SwiftUI orders a container's elements by frame, top edge first, and the XCUITest
+    /// hierarchy ignores `accessibilitySortPriority`. At the largest accessibility text
+    /// sizes the `page / total` badge grows taller than the fixed 44 pt arrows, so its
+    /// top sat above theirs and VoiceOver read "Page" before First and Previous (issue
+    /// #462). Equal heights keep the order First, Previous, Page, Next, Last. The row
+    /// must be `fixedSize(horizontal: false, vertical: true)` so it stays as tall as its
+    /// tallest control.
+    ///
+    /// - Returns: The control, as tall as its row.
+    func pagerRowHeight() -> some View {
+        frame(maxHeight: .infinity).contentShape(Rectangle())
+    }
 }
 
 // MARK: - Pager screen placement
@@ -1091,9 +1091,7 @@ struct RankingsGlassPager: View {
     var body: some View {
         HStack(spacing: 0) {
             button(.first)
-                .accessibilitySortPriority(RankingsPagerReadingOrder.first)
             button(.previous)
-                .accessibilitySortPriority(RankingsPagerReadingOrder.previous)
             Text(state.label)
                 .font(.subheadline.weight(.semibold))
                 .monospacedDigit()
@@ -1116,12 +1114,11 @@ struct RankingsGlassPager: View {
                     }
                 }
                 .accessibilityIdentifier("\(idPrefix).page-info")
-                .accessibilitySortPriority(RankingsPagerReadingOrder.badge)
             button(.next)
-                .accessibilitySortPriority(RankingsPagerReadingOrder.next)
             button(.last)
-                .accessibilitySortPriority(RankingsPagerReadingOrder.last)
         }
+        // One top edge for every control: read left to right at AX5 (issue #462).
+        .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 4)
         .festivalCardCapsule()
         .accessibilityElement(children: .contain)
@@ -1147,6 +1144,7 @@ struct RankingsGlassPager: View {
                 .foregroundStyle(enabled ? FestivalText.primary : FestivalText.disabled)
                 .frame(width: buttonSize, height: buttonSize)
                 .contentShape(Circle())
+                .pagerRowHeight()
         }
         .buttonStyle(HighContrastPagerStyle())
         .disabled(!enabled)
