@@ -122,6 +122,10 @@ jobs:
             SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestText
             SongLeaderboardEndJourneyTests/testLastRowRestsAbovePagerAtLargestText
             SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestTextDuoFolded
+            DuoBoardPagerAccessibilityJourneyTests/testBandRankingsPagerIsAccessibleOnTheDuoFoldedBoardAtAX5
+            DuoBoardPagerAccessibilityJourneyTests/testBandRankingsPagerIsAccessibleOnTheDuoUnfoldedBoardAtAX5
+            DuoBoardPagerAccessibilityJourneyTests/testSongBoardPagerIsAccessibleOnTheDuoFoldedBoardAtAX5
+            DuoBoardPagerAccessibilityJourneyTests/testSongBoardPagerIsAccessibleOnTheDuoUnfoldedBoardAtAX5
             SongLeaderboardPagingJourneyTests/testPagingKeepsHeaderReadableAtLargestText
             FullRankingsFooterJourneyTests/testFooterOnThePlayersPageIsAccessibleAtLargestText
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder

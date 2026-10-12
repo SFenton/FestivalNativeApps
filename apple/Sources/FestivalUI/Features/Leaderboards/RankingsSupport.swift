@@ -851,6 +851,13 @@ struct RankingsPagerView: View {
             arrow("chevron.forward", "Next page", id: "page-next", enabled: page < totalPages) { onChange(page + 1) }
             arrow("chevron.forward.2", "Last page", id: "page-last", enabled: page < totalPages) { onChange(totalPages) }
         }
+        // iOS orders accessibility elements by frame, ignoring sort priority here: the
+        // row is one group, as ``RankingsGlassPager``, and the arrows' frames stretch to
+        // the badge's height (``arrow``), so the pinned selected row reads before the
+        // pager and First before the AX5-tall badge (#481).
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("\(idPrefix).pager")
         .padding(.horizontal, 16)
         .pagerScreenPlacement()
         .padding(.top, topPadding)
@@ -880,7 +887,10 @@ struct RankingsPagerView: View {
                 .foregroundStyle(enabled ? FestivalText.primary : FestivalText.disabled)
                 .frame(width: 44, height: 44)
                 .festivalCardCapsule()
-                .contentShape(Circle())
+                // The 44 pt circle stays put; the shape makes its column, as tall as an
+                // AX5 badge, the element's frame and target (#481).
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
         }
         .buttonStyle(HighContrastPagerStyle())
         .disabled(!enabled)
