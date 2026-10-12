@@ -399,6 +399,21 @@ class MockServiceTests(unittest.TestCase):
                 urlopen(self.base + bad)
             self.assertIn(failure.exception.code, {400, 404})
 
+    def test_notify_many_feed_scrolls_newest_first_and_honours_limit(self):
+        """The #469 account's feed is long, unique, newest first and capped by limit."""
+        route = "/api/player/fixture-notify-many/notifications"
+        with urlopen(self.base + route + "?limit=50") as response:
+            items = json.load(response)["items"]
+        self.assertEqual(len(items), 24)
+        self.assertEqual(len({item["notificationGuid"] for item in items}), 24)
+        self.assertEqual(items[0]["notificationGuid"], "fixture-notify-many-0")
+        detected = [item["detectedAt"] for item in items]
+        self.assertEqual(detected, sorted(detected, reverse=True))
+        with urlopen(self.base + route + "?limit=5") as response:
+            self.assertEqual(len(json.load(response)["items"]), 5)
+        with urlopen(self.base + "/api/player/fixture-player-1/notifications?limit=50") as response:
+            self.assertEqual(len(json.load(response)["items"]), 2)
+
     def test_paged_leaderboard_and_original_artwork(self):
         """One page of 25 and one page of one share a 26-entry total."""
         with urlopen(self.base + "/api/leaderboard/fixture-pulse/Solo_Guitar?top=25&offset=0") as response:

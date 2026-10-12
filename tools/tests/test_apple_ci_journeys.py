@@ -4,12 +4,15 @@ A selector that matches nothing makes ``xcodebuild`` run no test, so a renamed j
 The ``JOURNEYS`` blocks (iPhone UI-test bundle, on the iPhone and the iPad) must keep the account-button
 reading-order journeys (``page-tools-and-nav-chrome`` R17, #394), the Songs section-title AX5 journey (#91, #441), the
 Songs section-push AX XXXL journey (#288, #452), the Songs large-title rest journeys on both scroll-reading paths (#560),
-the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape) and the pinned caption-icon journeys (``song-header`` R4, #542); ``HISTORY_JOURNEYS``/``HISTORY_IPAD_JOURNEYS``
+the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape), the pinned caption-icon journeys (``song-header`` R4, #542)
+and the drawer's Reduce Motion and closing journeys (#489, iPhone only); ``HISTORY_JOURNEYS``/``HISTORY_IPAD_JOURNEYS``
 (iPad bundle, on the iPhone and the iPad) must keep the Score History AX5 journeys (#385, the region #302 changed);
 ``PLAIN_JOURNEYS`` (iPhone bundle, on the iPhone in the plain-fixture step) must keep the Filter Invalid Scores score-check
-journey (#615); ``UNPINNED_JOURNEYS`` (iPhone bundle, on its own unpinned listener) must keep the player
+journey (#615) and the Songs deselect-reset accessibility journeys (#487, the region #359 changed); ``UNPINNED_JOURNEYS`` (iPhone bundle, on its own unpinned listener) must keep the player
 profile's pause-notice AX5 journey (#446, the region #97 changed). The Songs Filter journeys (#432) must run on
 the iPhone, the iPad and the folded iPhone Duo on release-branch dispatches, gated by the required ``apple-ci`` job.
+The scroll-edge fade journeys (#462: the sheet header and every R9 board on the iPhone and the iPad, the Duo windows
+on the iPhone; ``SCROLL_EDGE_JOURNEYS``/``SCROLL_EDGE_IPAD_JOURNEYS``) run in their own gated job, likewise.
 """
 
 from __future__ import annotations
@@ -38,6 +41,8 @@ BLOCKS = {
     "HISTORY_JOURNEYS": IPAD_UITESTS,
     "HISTORY_IPAD_JOURNEYS": IPAD_UITESTS,
     "UNPINNED_JOURNEYS": UITESTS,
+    "SCROLL_EDGE_JOURNEYS": UITESTS,
+    "SCROLL_EDGE_IPAD_JOURNEYS": UITESTS,
 }
 
 
@@ -202,12 +207,12 @@ class AppleCIJourneysTests(unittest.TestCase):
     def test_required_check_needs_every_job(self) -> None:
         required = self.workflow.split("\n  apple-ci:\n", 1)[1]
         self.assertIn("name: apple-ci\n", required)
-        self.assertIn("needs: [build, songs-filter-journeys]", required)
+        self.assertIn("needs: [build, songs-filter-journeys, scroll-edge-journeys]", required)
         self.assertIn("if: always()", required)
         job_names = re.findall(r"^    name: (.+)$", self.workflow, flags=re.MULTILINE)
         self.assertEqual(job_names.count("apple-ci"), 1, "only the gate job is named apple-ci")
         jobs = re.findall(r"^  ([a-z][\w-]*):$", self.workflow.split("\njobs:\n", 1)[1], flags=re.MULTILINE)
-        self.assertEqual(sorted(jobs), sorted(["build", "songs-filter-journeys", "apple-ci"]),
+        self.assertEqual(sorted(jobs), sorted(["build", "songs-filter-journeys", "scroll-edge-journeys", "apple-ci"]),
                          "a new job must join the gate's needs")
 
     def test_gate_passes_only_when_every_job_passed_or_the_legs_are_not_due(self) -> None:
@@ -224,9 +229,13 @@ class AppleCIJourneysTests(unittest.TestCase):
             ("workflow_dispatch", "failure", "success"): False,
         }
         for (event, build, journeys), passes in cases.items():
-            env = {"EVENT": event, "BUILD": build, "JOURNEYS": journeys, "PATH": "/usr/bin:/bin"}
-            result = subprocess.run(["bash", "-e", "-c", script], env=env, capture_output=True, check=False)
-            self.assertEqual(result.returncode == 0, passes, (event, build, journeys))
+            # Each journey job alone decides the gate when the other passed or was not due.
+            other = "success" if event == "workflow_dispatch" else "skipped"
+            for filter_legs, scroll_edge in ((journeys, other), (other, journeys)):
+                env = {"EVENT": event, "BUILD": build, "JOURNEYS": filter_legs, "SCROLL_EDGE": scroll_edge,
+                       "PATH": "/usr/bin:/bin"}
+                result = subprocess.run(["bash", "-e", "-c", script], env=env, capture_output=True, check=False)
+                self.assertEqual(result.returncode == 0, passes, (event, build, filter_legs, scroll_edge))
 
     def gate_script(self) -> str:
         """The gate job's ``run`` script, dedented from its ``run: |`` block."""
@@ -262,26 +271,42 @@ class AppleCIJourneysTests(unittest.TestCase):
         sys.path.insert(0, str(ROOT / "tools"))
         import ios_sim
 
-        self.assertEqual(self.workflow.count(f'ci-device --type "{ios_sim.CI_IPAD_DEVICE_TYPE}"'), 2)
+        # The build job's plain-fixture and iPad steps, and the scroll-edge job (#462).
+        self.assertEqual(self.workflow.count(f'ci-device --type "{ios_sim.CI_IPAD_DEVICE_TYPE}"'), 3)
         self.assertRegex(self.workflow, rf"leg: ipad\n\s+device_type: {re.escape(ios_sim.CI_IPAD_DEVICE_TYPE)}\n")
 
     def test_score_history_ax5_journeys_run_on_iphone_and_ipad(self) -> None:
         page = "ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5"
         split = "ScoreHistoryAccessibilityJourneyTests/testScoreHistorySplitPaneAtAX5"
         self.assertEqual(self.history["HISTORY_JOURNEYS"], [page], "the iPhone run: the page only (the split skips)")
-        self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split])
+        # #478: the song board's split-pane title (#342) at AX5 rides the iPad run; it skips on the iPhone.
+        board = "SongBoardSplitAccessibilityJourneyTests/testSongBoardSplitTitleAtAX5"
+        self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split, board])
         self.assertEqual(self.workflow.count("uitest --app ipad"), 2)
         # iPhone journeys, the unpinned profile-notice run (#446), two Score History runs, the plain-fixture iPhone run
-        # (#615), the iPad journeys, the iPad keyboard batches (#473, #442) and the Songs Filter legs (#432).
-        self.assertEqual(self.workflow.count("--fail-on-skip"), 9)
+        # (#615), the iPad journeys, the iPad keyboard batches (#473, #442), the Songs Filter legs (#432) and the
+        # scroll-edge job's iPhone and iPad runs (#462).
+        self.assertEqual(self.workflow.count("--fail-on-skip"), 11)
 
     def test_invalid_score_filter_journey_runs_on_the_plain_fixture(self) -> None:
         # #615: the only device evidence for the Filter sheet's score checks under Filter Invalid Scores. It needs
         # `fixture-pulse` and `fixture-orbit` on screen, which the large catalogue pushes below the fold.
         journey = "SongsJourneyTests/testPlayerScoreFilterSettingsPauseAndDeselectScope"
-        self.assertEqual(ci_journeys(self.workflow, "PLAIN_JOURNEYS"), [journey])
+        self.assertEqual(ci_journeys(self.workflow, "PLAIN_JOURNEYS")[0], journey)
         self.assertNotIn(journey, self.journeys)
         self.assertIn('uitest --app phone --device "$iphone"', self.workflow)
+
+    def test_deselect_reset_journeys_run_on_the_plain_fixture(self) -> None:
+        # #487: device evidence for Songs' reset tools after a deselect (#359), default and AX5. They read the
+        # first rows' order, so they need `fixture-pulse` and `fixture-orbit` on screen like #615's journey.
+        expected = [
+            "SongsDeselectAccessibilityJourneyTests/testDeselectResetsSongsToolsForVoiceOver",
+            "SongsDeselectAccessibilityJourneyTests/testDeselectResetIsReachableAtLargestText",
+        ]
+        plain = ci_journeys(self.workflow, "PLAIN_JOURNEYS")
+        for journey in expected:
+            self.assertIn(journey, plain)
+            self.assertNotIn(journey, self.journeys)
 
     def test_board_footer_fade_keyboard_journey_runs_in_ci(self) -> None:
         # #473: the iPad hardware-keyboard form needs its own invocation, because --a11y applies to a whole run.
@@ -325,6 +350,35 @@ class AppleCIJourneysTests(unittest.TestCase):
         # #91/#441: the only iOS Dynamic Type and audit evidence for Songs' grouped-sort section titles.
         self.assertIn("SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5", self.journeys)
 
+    def test_scroll_edge_journeys_run_on_iphone_and_ipad(self) -> None:
+        # #462: the iOS evidence for scroll-edge R1, R7 and R9 (sheet header and every pager board), in its own job
+        # with its own `--large-rankings` fixture on 8766, gated by the required check like the Songs Filter legs.
+        job = self.workflow.split("\n  scroll-edge-journeys:\n", 1)[1].split("\n  apple-ci:\n", 1)[0]
+        self.assertIn("if: github.event_name == 'workflow_dispatch'", job.split("    steps:", 1)[0])
+        self.assertIn("mock_service.py --large-rankings --port 8766", job)
+        self.assertIn("--fail-on-skip", job)
+        self.assertIn("--retries 1", job)
+        self.assertIn('ci-device --type "iPad Pro 11-inch (M5)"', job)
+        (iphone,) = ci_journey_blocks(self.workflow, "SCROLL_EDGE_JOURNEYS")
+        (ipad,) = ci_journey_blocks(self.workflow, "SCROLL_EDGE_IPAD_JOURNEYS")
+        cls = "ScrollEdgeFadeAccessibilityJourneyTests"
+        boards = [
+            f"{cls}/test{board}FadeKeepsRowsAndPagerAccessible"
+            for board in ("SongLeaderboard", "FullRankings", "BandRankings", "SongBandLeaderboard", "PlayerBands")
+        ]
+        for journey in boards + [f"{cls}/testNotificationsSheetAtLargestTextWithHardEdge"]:
+            self.assertIn(journey, iphone)
+            self.assertIn(journey, ipad)
+        self.assertIn(f"{cls}/testNotificationsSheetHeaderAndPinnedTitlesAreAccessible", iphone)
+        # The Duo window journeys skip on iPad, which would fail --fail-on-skip.
+        for duo in ("testBoardFadesInDuoWindows", "testNotificationsSheetInDuoWindows"):
+            self.assertIn(f"{cls}/{duo}", iphone)
+            self.assertNotIn(f"{cls}/{duo}", ipad)
+        # The build job neither runs them nor starts their fixture.
+        build = self.workflow.split("\n  build:\n", 1)[1].split("\n  songs-filter-journeys:\n", 1)[0]
+        self.assertNotIn(cls, build)
+        self.assertNotIn("--port 8766", build)
+
     def test_section_push_ax5_journey_runs_in_ci(self) -> None:
         # #288/#452: the only iOS Dynamic Type and audit evidence for the Songs section push.
         self.assertIn("SongsChromeJourneyTests/testSectionPushIsAccessibleAtLargestText", self.journeys)
@@ -353,6 +407,19 @@ class AppleCIJourneysTests(unittest.TestCase):
             "testPlayerHistoryCaptionIconAtLargestText",
         ):
             self.assertIn(f"SongBarCaptionIconJourneyTests/{method}", self.journeys)
+
+    def test_drawer_motion_journeys_run_on_the_iphone(self) -> None:
+        # #489 (for #362): the only iOS evidence that the Reduce Motion drawer audits clean and that closing hands
+        # the page back to VoiceOver and touch before the sequence ends. The drawer is phone-only, and the Duo
+        # window is simulated on an iPhone, so none runs in the iPad step.
+        iphone, ipad = self.blocks
+        for method in (
+            "testReduceMotionDrawerPassesAccessibilityAudit",
+            "testClosingDrawerHandsThePageBackAtOnce",
+            "testClosingDrawerHandsThePageBackAtOnceDuoFolded",
+        ):
+            self.assertIn(f"DrawerAccessibilityJourneyTests/{method}", iphone)
+            self.assertNotIn(f"DrawerAccessibilityJourneyTests/{method}", ipad)
 
     def test_profile_notice_ax5_journey_runs_on_its_unpinned_listener(self) -> None:
         # #446/#97: the only real Dynamic Type evidence for the profile's pause notice (macOS has none).
