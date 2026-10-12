@@ -279,8 +279,9 @@ struct SongBandLeaderboardContent: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         // Pinned outside the reload gate, as a bottom safe-area inset like the Solo
         // chart's: the footer and pager stay put while another page loads, and the
-        // scroll view keeps its frame while only its content inset changes.
-        .safeAreaInset(edge: .bottom, spacing: 0) {
+        // scroll view keeps its frame while only its content inset changes. Read after
+        // the header and rows (#461).
+        .boardBottomChrome {
             bottomChrome
         }
         // The pinned band row's columns. In the trailing pane, when any member name on
@@ -402,7 +403,7 @@ struct SongBandLeaderboardContent: View {
                 }
             }
         }
-        .reportsBottomChromeTop(in: Self.pageSpace) { bottomChromeTop = $0 }
+        .boardBottomChrome(in: Self.pageSpace) { bottomChromeTop = $0 }
     }
 
     /// Padding that rests the last card one gap above the footer (or the pager without
@@ -466,10 +467,7 @@ struct SongBandLeaderboardContent: View {
                 .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-jump")
             }
         }
-        .buttonStyle(.plain)
-        .padding(.horizontal, 16)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("fst.song-band-leaderboard.spotlight-footer")
+        .pinnedFooterControl(identifier: "fst.song-band-leaderboard.spotlight-footer")
     }
 
     // MARK: Song header
@@ -561,15 +559,15 @@ struct SongBandLeaderboardContent: View {
                                 entry: entry, highlighted: isHighlighted(entry, in: payload.leaderboard)
                             )
                             .accessibilityIdentifier("fst.song-band-leaderboard.row.\(entry.id)")
-                            // Web `stagger(index)`; the page scope decides whether it
-                            // still fades (R5).
-                            .festivalFadeIn(staggerIndex: index)
                             .frame(maxWidth: .infinity)
                             // The preview card's hairline inset (the row's padding).
                             .festivalGroupSegment(
                                 .position(index: index, count: entries.count, columns: columns),
                                 separatorInset: 12
                             )
+                            // The card and every row in it fade in as one (owner #614);
+                            // the page scope decides whether it still fades (R5).
+                            .festivalCardSegmentFadeIn(cardIndex: BoardCardEntrance.index)
                         }
                     }
                 }
@@ -586,12 +584,12 @@ struct SongBandLeaderboardContent: View {
                     focusPending = false
                     return
                 }
-                // After the card's own entrance (web `navToBand`, #323).
+                // After the card's entrance (web `navToBand`, #323, #614).
                 // A pair's identity is its first row's (wide-columns, #353).
                 if await SelectedRowReveal.reveal(
                     entries[WideColumns.rowStart(of: targetIndex, columns: columns)].id,
                     proxy: proxy, reduceMotion: reduceMotion,
-                    staggerIndex: targetIndex, scope: fadeScope
+                    staggerIndex: BoardCardEntrance.index, scope: fadeScope
                 ) {
                     focusPending = false
                 }

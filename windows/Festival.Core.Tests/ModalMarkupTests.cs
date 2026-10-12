@@ -56,6 +56,7 @@ public class ModalMarkupTests
     [InlineData("MainWindow.WhatsNew.cs")]
     [InlineData("Pages/LicensesPage.xaml.cs")]
     [InlineData("Pages/SettingsPage.xaml.cs")]
+    [InlineData("Pages/SongsPage.xaml.cs")]
     public void EveryModal_UsesTheSharedFactory(string file)
     {
         var text = Sources(".cs").Single(source => source.Path == file).Text;
@@ -71,7 +72,7 @@ public class ModalMarkupTests
         Assert.Equal(
             ["Controls/FeedbackDialog.cs", "Controls/FirstRunCarousel.xaml.cs", "Controls/PlayerProfileView.xaml.cs",
              "Controls/PrivacyPolicyDialog.cs", "Controls/SongPathsView.xaml.cs", "MainWindow.WhatsNew.cs",
-             "Pages/LicensesPage.xaml.cs", "Pages/SettingsPage.xaml.cs"],
+             "Pages/LicensesPage.xaml.cs", "Pages/SettingsPage.xaml.cs", "Pages/SongsPage.xaml.cs"],
             callers);
     }
 
@@ -137,6 +138,20 @@ public class ModalMarkupTests
         Assert.Contains(@"TryGetValue(""FSTMinTargetSize""", chrome, StringComparison.Ordinal);
         Assert.Contains("button.MinHeight = size;", chrome, StringComparison.Ordinal);
         Assert.Contains("internal const double MinTargetSize = 40;", chrome, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FeedbackContentButtons_KeepTheMinimumTouchTarget()
+    {
+        // Issue #433: Discard and Keep Editing in the feedback form's discard bar were 32 epx default buttons.
+        var feedback = Sources(".cs").Single(source => source.Path == "Controls/FeedbackDialog.cs").Text;
+        Assert.Matches(@"new Button \{ Content = ""Discard"",[^}]*MinHeight = DialogChrome\.TargetSize", feedback);
+        Assert.Matches(@"new Button \{ Content = ""Keep Editing"",[^}]*MinHeight = DialogChrome\.TargetSize", feedback);
+        Assert.Matches(@"attach = new Button\s*\{(?s:.*?)MinHeight = DialogChrome\.TargetSize,", feedback);
+        Assert.DoesNotMatch(@"MinHeight = (?:3\d|[12]?\d)\b", feedback);
+        var chrome = Sources(".cs").Single(source => source.Path == "Controls/DialogChrome.cs").Text;
+        Assert.Contains("internal static double TargetSize =>", chrome, StringComparison.Ordinal);
+        Assert.Contains("var size = TargetSize;", chrome, StringComparison.Ordinal);
     }
 
     [Fact]

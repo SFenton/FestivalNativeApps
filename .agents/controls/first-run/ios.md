@@ -64,7 +64,19 @@
     (`FirstRunSheetStyle`) so tapping the dimmed page above it, or swiping down, dismisses.
     VoiceOver focus is left to the system on open, so the navigation title is announced first
     (HIG VoiceOver: a screen's title is announced first); `@AccessibilityFocusState` then moves
-    focus to each new slide on a page change. Animations skip under Reduce Motion. Each slide's
+    focus to each new slide on a page change. Accessibility test (#429,
+    `FirstRunJourneyTests.testGuideTitleIsReadFirstAtLargestText`, Songs and Leaderboards guides,
+    in `apple-ci`'s simulator journeys), each guide launched at the default size and at AX5: the
+    title is a heading named by its page; across the whole app snapshot (not just the bar) the
+    guide reads title → Close → first slide, and nothing of the page behind the sheet is in the
+    tree except the system "Sheet Grabber" button, which UIKit orders ahead of every grabber
+    sheet's content (sheet chrome, not body: `modal-shell` R2 holds); the title's ink grows
+    ≥ 1.15× from default to AX5 (measured 1.22× "Leaderboards", 1.23× "Songs"; UIKit caps the
+    inline bar title, `system-bar-title-size` in [accessibility](../../testing/apple/accessibility.md))
+    and reads back whole at both sizes, wholly on screen beside a hittable Close; the AX5 bar
+    audit, Dynamic Type included, is clean. The title is navigation-bar chrome a macOS-hosted view
+    cannot reproduce (a hosted `NavigationStack` bridges no window title), so a simulator journey,
+    not a hosted test, is its evidence. Animations skip under Reduce Motion. Each slide's
     title and description fade up after its demo cascade (`FirstRunMotion.textDelays`).
   - **Seen pages only**: the carousel records every page shown in a `FirstRunViewing` binding;
     the presenter's `onDismiss` marks only those seen (however it closed), so unviewed pages
@@ -282,6 +294,19 @@ Before #27 iOS showed one static state per demo; now each rotating demo swaps li
 - Hosted tests: `FirstRunDemoRotationUITests` (swap order, ticker policy, cancellation
   completes, web pools/templates; an active bar-select demo advances while an inactive one
   stays still, and system or app Reduce Motion holds an active one still past its interval).
+- Accessibility (#402): `FirstRunDemoRotationAccessibilityTests` hosts all 12 rotating demos
+  active with motion on, samples through a swap and requires the picture to change while nothing
+  becomes reachable (no element, song, placeholder or rival text). System or app Reduce Motion holds
+  every one of them still. The Statistics carousel slide reads the same before and after a swap at
+  Large and AX5: the same name, role, order and frames, and the targets still meet their minimum sizes.
+  On iPhone at AX5, `FirstRunJourneyTests.testSongDemoRotationKeepsSlideAccessibleAtLargestText`
+  (`FST_DEBUG_STILL_BACKGROUND=0`, an `apple-ci` journey) waits past a live swap and runs the AX5
+  checks and `performAccessibilityAudit` again. **Rule:** a swapped-in tile's loading spinner
+  (`ArtworkTile` → `FestivalLoadingView`) stays out of the accessibility children because the
+  demo is `accessibilityHidden`. On macOS, `macAccessibilityTree` still lists the
+  `NSProgressIndicator` behind it, because that walk also descends AppKit subviews, so test what
+  VoiceOver reaches with an `accessibilityChildren` walk (as `ReloadGateAccessibilityTests.reachable`
+  does).
 
 | Slide | Rotation (web source) |
 |---|---|

@@ -671,14 +671,19 @@ struct BandRankingRow: View {
     /// Draw the row as its own material card; see ``AccountRankingRow/cardSurface``.
     var cardSurface: Bool = false
 
-    /// The band a row opens.
+    /// The band a row opens, titled by its members so Band Detail's large title is
+    /// right before its board loads (#555).
     ///
     /// - Parameters:
     ///   - entry: A band rankings row.
     ///   - bandType: The board's band size.
     /// - Returns: The band route.
     static func route(_ entry: BandRankingEntry, bandType: BandType) -> AppRoute {
-        .band(bandId: entry.bandId, name: nil, bandType: bandType.rawValue, teamKey: entry.teamKey)
+        let names = entry.teamMembers.map { $0.displayName.flatMap { $0.isEmpty ? nil : $0 } ?? "Unknown User" }
+        return .band(
+            bandId: entry.bandId, name: names.isEmpty ? nil : BandPageFormatting.title(memberNames: names),
+            bandType: bandType.rawValue, teamKey: entry.teamKey
+        )
     }
 
     /// Mac arrow-key rows for a band board.
@@ -963,6 +968,28 @@ extension View {
     }
 }
 
+// MARK: - Board bottom chrome
+
+extension View {
+    /// Pin a board's bottom chrome (the selected row and the pager) under its rows as a
+    /// bottom safe-area inset, read after the rows ([leaderboard-row] R5).
+    ///
+    /// SwiftUI orders an inset's content before the view it insets, so VoiceOver would
+    /// read the pinned row and pager before the board's header and rows (#461). The board
+    /// takes a higher sort priority inside a container at the default priority (the
+    /// `FestivalReloadGate` precedent), so reading order follows the web DOM — header,
+    /// rows, pinned row, pager — without lifting the board above the page's own controls.
+    ///
+    /// - Parameter chrome: The pinned bottom chrome.
+    /// - Returns: The board with its chrome inset beneath it.
+    func boardBottomChrome<Chrome: View>(@ViewBuilder _ chrome: () -> Chrome) -> some View {
+        accessibilitySortPriority(1)
+            .safeAreaInset(edge: .bottom, spacing: 0, content: chrome)
+            .accessibilityElement(children: .contain)
+            .accessibilitySortPriority(0)
+    }
+}
+
 // MARK: - Floating pager
 
 /// Floating bottom bar for Band Rankings: a material pager
@@ -1026,11 +1053,17 @@ struct RankingsFloatingBar<SwitcherMenu: View>: View {
 /// Buttons are SF Symbols with spoken titles ("First Page" …) and keep their
 /// existing `<idPrefix>.page-*` identifiers. The label is one adjustable element
 /// ("Page, 1 of 34,757"): VoiceOver swipes up/down to page.
+///
+/// Like ``RankingsPagerView``, the arrows keep a fixed 44 pt target while their symbols
+/// and the label grow with Dynamic Type, and the label shrinks to fit: the targets used
+/// to scale to 124 pt at AX5, which pushed First Page and Last Page off an iPhone screen
+/// (issue #454).
 struct RankingsGlassPager: View {
     let state: RankingsPagerState
     let idPrefix: String
     let onChange: (Int) -> Void
-    @ScaledMetric(relativeTo: .body) private var buttonSize: CGFloat = 44
+    /// HIG Accessibility: iOS, iPadOS default control size 44×44 pt.
+    private let buttonSize: CGFloat = 44
 
     var body: some View {
         HStack(spacing: 0) {
@@ -1041,7 +1074,7 @@ struct RankingsGlassPager: View {
                 .monospacedDigit()
                 .foregroundStyle(FestivalText.primary)
                 .lineLimit(1)
-                .fixedSize()
+                .minimumScaleFactor(0.5)
                 .padding(.horizontal, 6)
                 .frame(minWidth: buttonSize, minHeight: buttonSize)
                 // The shape makes the 44 pt frame the element's frame; without it the
@@ -1077,7 +1110,7 @@ struct RankingsGlassPager: View {
     /// One symbol button; disabled at the matching edge.
     ///
     /// - Parameter action: Pager step.
-    /// - Returns: A 44 pt (scaled) plain button with a spoken title and stable id.
+    /// - Returns: A 44 pt plain button with a spoken title and stable id.
     private func button(_ action: RankingsPagerAction) -> some View {
         let enabled = state.destination(for: action) != nil
         return Button { go(action) } label: {
@@ -1122,6 +1155,11 @@ struct RankingsGlassPager: View {
 
 /// Material pill label for a board switcher menu in ``RankingsFloatingBar``: the
 /// board's icon, plus its name when there is room (web instrument pill).
+///
+/// The pill is one accessibility element that the menu names ("Band size, Duos"). Without
+/// that, macOS turned the icon and the title into two separate 28 × 14 pt menu buttons,
+/// so VoiceOver read the menu twice and drew a focus ring smaller than the 44 pt pill
+/// (issue #454).
 struct RankingsSwitcherPillLabel<Icon: View>: View {
     let title: String
     let showsTitle: Bool
@@ -1144,6 +1182,7 @@ struct RankingsSwitcherPillLabel<Icon: View>: View {
         .frame(minWidth: height, minHeight: height)
         .contentShape(Capsule())
         .festivalCardCapsule()
+        .accessibilityElement(children: .ignore)
     }
 }
 
@@ -1205,7 +1244,8 @@ struct RankByMenu: View {
     }
 }
 
-/// Native toolbar menu for the band-safe rank-by metrics (no Max Score).
+/// Native toolbar menu for the band-safe rank-by metrics (no Max Score), in the web's
+/// order, Total Score first (`BandRankingMetric.menuOrder`, pattern `experimental-ranks` R1).
 ///
 /// Offers only the metrics Settings › Experimental Ranks enables (pattern
 /// `experimental-ranks`); pages show it only while the switch is on, as on the web.

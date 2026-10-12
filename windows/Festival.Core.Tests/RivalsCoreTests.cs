@@ -1,4 +1,5 @@
 using System.Net;
+using Festival.Core.ViewModels;
 
 namespace Festival.Core.Tests;
 
@@ -22,6 +23,35 @@ public class RivalsCoreTests
 
     public static RivalSongComparison Song(string id, int delta, string? title = null, string instrument = "Solo_Guitar") =>
         new(id, title ?? id, "Artist", instrument, null, null, 10, 10 + delta, delta, 1000, 900);
+
+    #region Page titles
+    /// <summary>
+    /// #604 (page-tools-and-nav-chrome R18): only a one-chart scope (song or leaderboard rivals) leads the Rival Detail
+    /// subtitle with its icon and names it "{Instrument} Rivals"; every multi-chart or unscoped page reads "Rivals".
+    /// </summary>
+    [Fact]
+    public void SingleInstrument_DrivesTheRivalDetailSubtitle()
+    {
+        IReadOnlyList<Instrument> visible = [Instrument.Lead, Instrument.Bass];
+        Assert.Equal(Instrument.Bass, new RivalScope.Song([Instrument.Bass]).SingleInstrument);
+        Assert.Equal(Instrument.Drums, new RivalScope.Leaderboard(Instrument.Drums, RankingMetric.TotalScore).SingleInstrument);
+        Assert.Null(new RivalScope.Song([Instrument.Lead, Instrument.Bass]).SingleInstrument);
+        Assert.Null(new RivalScope.Song([]).SingleInstrument);
+        Assert.Null(new RivalScope.Combo("03").SingleInstrument);
+        Assert.Null(new RivalScope.FromSettings(RivalSettingsScope.Common).SingleInstrument);
+
+        Assert.Equal(("Bass Rivals", Instrument.Bass.IconFile()),
+            (RivalDetailText.Subtitle(new RivalScope.Song([Instrument.Bass]), visible), RivalDetailText.SubtitleIconFile(new RivalScope.Song([Instrument.Bass]), visible)));
+        var board = new RivalScope.Leaderboard(Instrument.Lead, RankingMetric.Weighted);
+        Assert.Equal(("Lead Rivals", Instrument.Lead.IconFile()), (RivalDetailText.Subtitle(board, visible), RivalDetailText.SubtitleIconFile(board, visible)));
+        foreach (var scope in new RivalScope?[] { null, new RivalScope.Song(visible), new RivalScope.Combo("03"),
+                     new RivalScope.FromSettings(RivalSettingsScope.Common), new RivalScope.FromSettings(RivalSettingsScope.Combo), new RivalScope.Song([]) })
+        {
+            Assert.Equal("Rivals", RivalDetailText.Subtitle(scope, visible));
+            Assert.Equal("", RivalDetailText.SubtitleIconFile(scope, visible));
+        }
+    }
+    #endregion
 
     #region Endpoints
     [Fact]
@@ -431,6 +461,21 @@ public class RivalsCoreTests
         Assert.Equal("mystery", RivalCategorization.Title("mystery"));
         Assert.True(RivalCategorization.IsKnown("almost_passed"));
         Assert.False(RivalCategorization.IsKnown(null));
+    }
+
+    [Fact]
+    public void QuickLinkGlyph_IsDistinctPerCategory()
+    {
+        // #605, quick-links R9: one shared category list; every key known, in page order, with its own glyph.
+        Assert.Equal(["closest_battles", "almost_passed", "slipping_away", "barely_winning", "pulling_forward", "dominating_them"],
+            RivalCategorization.Keys);
+        Assert.All(RivalCategorization.Keys, key => Assert.True(RivalCategorization.IsKnown(key)));
+        var glyphs = RivalCategorization.Keys.Select(RivalCategorization.QuickLinkGlyph).ToList();
+        Assert.Equal(["\uE8AB", "\uEAFC", "\uEB9E", "\uE7C1", "\uEB9D", "\uE734"], glyphs);
+        Assert.Equal(glyphs.Count, glyphs.Distinct().Count());
+        Assert.DoesNotContain(RivalCategorization.FallbackQuickLinkGlyph, glyphs);
+        // An unknown key still gets an icon, so the group stays uniform; it is the Rivals people glyph.
+        Assert.Equal(Festival.Core.ViewModels.RivalsHubViewModel.CommonGlyph, RivalCategorization.QuickLinkGlyph("mystery"));
     }
 
     [Fact]

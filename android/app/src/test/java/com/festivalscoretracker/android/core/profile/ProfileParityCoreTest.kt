@@ -262,6 +262,43 @@ class ProfileParityCoreTest {
         assertEquals(Instrument.Drums, links[2].instrument)
         // Every link lands on a row.
         links.forEach { link -> assertTrue(rows.any { it.key == ProfileSections.rowKey(link.id) }) }
+        // Issue #587: only chart statistics open with the flush instrument heading.
+        assertEquals(listOf(false, true, true, false, false), links.map { ProfileSections.isInstrumentId(it.id) })
+    }
+
+    @Test
+    fun quickLinksNestRankHistoryAndPercentilesUnderTheirChartLikeIos() {
+        // Issue #590: each chart's Rank History and Percentiles follow it at depth 1, in page order.
+        val visible = listOf(Instrument.Lead, Instrument.Drums)
+        val links = ProfileSections.quickLinks(
+            visible,
+            "Synthetic Player",
+            rankHistory = setOf(Instrument.Lead),
+            percentiles = setOf(Instrument.Lead, Instrument.Drums),
+        )
+        assertEquals(
+            listOf(
+                "global",
+                "instrument:Solo_Guitar", "rank-history:Solo_Guitar", "percentiles:Solo_Guitar",
+                "instrument:Solo_Drums", "percentiles:Solo_Drums",
+                "top-songs", "bands",
+            ),
+            links.map { it.id },
+        )
+        assertEquals(listOf(0, 0, 1, 1, 0, 1, 0, 0), links.map { it.depth })
+        assertEquals(listOf("Rank History", "Percentiles"), links.subList(2, 4).map { it.title })
+        assertEquals("Lead Rank History", links[2].accessibleTitle)
+        assertEquals("Drums Percentiles", links[5].accessibleTitle)
+        assertEquals("trend", links[2].icon)
+        assertEquals("percentiles", links[3].icon)
+        // Nested links land inside their chart's row.
+        assertEquals("instrument:Solo_Guitar", ProfileSections.rowKey("rank-history:Solo_Guitar"))
+        assertEquals("instrument:Solo_Drums", ProfileSections.rowKey("percentiles:Solo_Drums"))
+        assertEquals("overview", ProfileSections.rowKey("global"))
+        assertTrue(ProfileSections.isNested("rank-history:Solo_Guitar"))
+        assertTrue(ProfileSections.isNested("percentiles:Solo_Guitar"))
+        assertFalse(ProfileSections.isNested("instrument:Solo_Guitar"))
+        assertFalse(ProfileSections.isNested("top-songs"))
     }
 
     @Test
@@ -274,23 +311,23 @@ class ProfileParityCoreTest {
             ProfileBandGroup(PlayerBandGroup.Quads, page(1, "q1")),
         )
         val rows = ProfileSections.rows(listOf(Instrument.Lead), bands = groups)
-        val bandKeys = rows.dropWhile { it != ProfileRow.Bands }.map { it.key }
-        assertEquals(
-            listOf(
-                "bands",
-                "bands:duos", "bands:duos:0:d1", "bands:duos:1:d2", "bands:duos:view-all",
-                "bands:trios", "bands:trios:empty",
-                "bands:quads", "bands:quads:0:q1",
-            ),
-            bandKeys,
-        )
-        // Cards fill grid columns like the web's `span: false`; headers, empty states and View all span the row.
-        assertEquals(
-            listOf(true, true, false, false, true, true, true, true, false),
-            rows.dropWhile { it != ProfileRow.Bands }.map { it.fullWidth },
-        )
-        assertEquals(ProfileRow.BandsViewAll(PlayerBandGroup.Duos, 8), rows.single { it is ProfileRow.BandsViewAll })
-        assertEquals(0, (rows.last() as ProfileRow.BandCard).index)
+        val bandRows = rows.dropWhile { it != ProfileRow.Bands }
+        // Owner #596: one row (one card) per group, in web order.
+        assertEquals(listOf("bands", "bands:duos", "bands:trios", "bands:quads"), bandRows.map { it.key })
+        // The heading spans the row; each group card takes one column, like the Top Songs cards.
+        assertEquals(listOf(true, false, false, false), bandRows.map { it.fullWidth })
+        val (duos, trios, quads) = bandRows.drop(1).map { it as ProfileRow.BandGroup }
+        assertEquals(listOf("d1", "d2"), duos.entries.map { it.bandId })
+        assertEquals(8, duos.total)
+        // Every card with rows ends with View All (`view-all-cta` R1), even when its rows are the whole group.
+        assertTrue(duos.showsViewAll)
+        assertTrue(quads.showsViewAll)
+        assertEquals(1, quads.total)
+        // "No Bands Yet" has no View All.
+        assertTrue(trios.entries.isEmpty())
+        assertFalse(trios.showsViewAll)
+        // A total below the rows shown never reads fewer bands than the card lists.
+        assertEquals(2, ProfileSections.bandRow(ProfileBandGroup(PlayerBandGroup.Duos, page(0, "d1", "d2"))).total)
         assertEquals(rows.size, rows.map { it.key }.toSet().size)
         assertEquals(listOf(PlayerBandGroup.Duos, PlayerBandGroup.Trios, PlayerBandGroup.Quads), ProfileSections.BAND_GROUPS)
         // Still loading or failed: only the heading row.

@@ -37,17 +37,20 @@ public sealed partial class InstrumentSelector : UserControl
     private bool keyboardLead;
     private bool isCompact;
     private bool syncing;
+    private AccordionMover? details;
     private string idPrefix = "fst.instrument-selector";
 
     /// <summary>Creates the selector.</summary>
     public InstrumentSelector()
     {
         InitializeComponent();
-        // The width breakpoint swaps these rows; a tooltip open in the one it hides would otherwise float on (#574).
-        CollapsedToolTip.Own(PreviousButton);
-        CollapsedToolTip.Own(NextButton);
-        CollapsedToolTip.CloseWithinWhenCollapsed(Row);
-        CollapsedToolTip.CloseWithinWhenCollapsed(CompactRow);
+        // The responsive swap (and a consumer collapsing the whole selector, e.g. the compact Paths sheet) must not leave a
+        // circle's or arrow's tooltip floating where it was (#571).
+        CollapsedToolTip.Set(PreviousButton, "Previous instrument");
+        CollapsedToolTip.Set(NextButton, "Next instrument");
+        CollapsedToolTip.CloseWhenCollapsed(Row);
+        CollapsedToolTip.CloseWhenCollapsed(CompactRow);
+        CollapsedToolTip.CloseWhenCollapsed(this);
         SizeChanged += (_, e) => UpdateCompact(e.NewSize.Width);
         // Discs are code-built, so a contrast-theme switch must re-resolve their fill (inline brushes do not follow
         // {ThemeResource}).
@@ -180,6 +183,7 @@ public sealed partial class InstrumentSelector : UserControl
     /// <summary>Recreates the row buttons for the current instruments.</summary>
     private void Rebuild()
     {
+        CollapsedToolTip.CloseWithin(Row);
         Row.Children.Clear();
         buttons.Clear();
         foreach (var instrument in state.Available)
@@ -273,24 +277,12 @@ public sealed partial class InstrumentSelector : UserControl
         AutomationProperties.SetItemStatus(button, InstrumentSelectorState.ItemStatus(muted && !disabled));
     }
 
-    /// <summary>Shows or hides the detail content, fading it in over 167 ms when motion is allowed.</summary>
+    /// <summary>Opens or closes the detail content with the app's accordion motion (instant before load or without motion).</summary>
     /// <param name="show">Whether the details should be visible.</param>
     private void ShowDetails(bool show)
     {
-        var visible = DetailsPresenter.Visibility == Visibility.Visible;
-        if (show == visible) return;
-        if (show)
-        {
-            DetailsPresenter.Visibility = Visibility.Visible;
-            DetailsPresenter.OpacityTransition = Motion.Allowed ? new ScalarTransition { Duration = TimeSpan.FromMilliseconds(167) } : null;
-            DetailsPresenter.Opacity = 1;
-        }
-        else
-        {
-            DetailsPresenter.OpacityTransition = null;
-            DetailsPresenter.Opacity = 0;
-            DetailsPresenter.Visibility = Visibility.Collapsed;
-        }
+        details ??= new AccordionMover(this, DetailsClip, DetailsClip, DetailsPresenter, DetailsPresenter);
+        details.Set(show, animate: IsLoaded);
     }
 
     /// <summary>Names the row group from this control's automation name (default "Instrument").</summary>
@@ -328,19 +320,24 @@ public sealed partial class InstrumentSelector : UserControl
     {
         var compact = state.IsCompact(compactMode, width);
         if (compact == isCompact && Row.Visibility != CompactRow.Visibility) return;
-        var handOff = FocusedChild() is not null;
+        var focusState = FocusedChild()?.FocusState ?? FocusState.Unfocused;
         isCompact = compact;
         Row.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         CompactRow.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
         // Collapsing the focused circle would drop keyboard focus to the window; hand it to the counterpart instead,
-        // programmatically: the user resized, so the newcomer opens no keyboard tooltip of its own (#574).
-        if (handOff)
-        {
-            Control? target = compact ? compactButton
-                : state.FocusTarget() is { } instrument && buttons.TryGetValue(instrument, out var entry) ? entry.Button : null;
-            target?.Focus(FocusState.Programmatic);
-        }
+        // programmatically: the user resized, so the counterpart opens no keyboard tooltip (#571).
+        if (focusState != FocusState.Unfocused) CollapsedToolTip.HandFocus(this, CurrentButton);
     }
+
+    /// <summary>Moves focus to the visible circle for the current selection (the compact centre when compact), as a
+    /// consumer's responsive swap does when it replaces another control with this selector (#571).</summary>
+    /// <returns><see langword="true"/> when a circle took focus.</returns>
+    public bool FocusCurrent() => CurrentButton()?.Focus(FocusState.Programmatic) == true;
+
+    /// <summary>The circle that represents the selector in its current mode.</summary>
+    /// <returns>Compact centre, the selected (or first enabled) circle, or <see langword="null"/>.</returns>
+    private Control? CurrentButton() => isCompact ? compactButton
+        : state.FocusTarget() is { } instrument && buttons.TryGetValue(instrument, out var entry) ? entry.Button : null;
 
     /// <summary>The selector button that currently has focus, if any.</summary>
     /// <returns>Focused row, compact or arrow button, or <see langword="null"/>.</returns>

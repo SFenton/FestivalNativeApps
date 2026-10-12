@@ -2,6 +2,8 @@ using Festival.App.Controls;
 using Festival.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 
 namespace Festival.App.Pages;
 
@@ -25,6 +27,10 @@ public sealed partial class SettingsPage : Page
         InitializeComponent();
         QuickLinksMenu.Model = ViewModel.QuickLinks;
         InitializeDetails();
+        // Width swaps hide these hosts; a tooltip open inside one must close with it (#571).
+        CollapsedToolTip.CloseWhenCollapsed(MenuHost);
+        CollapsedToolTip.CloseWhenCollapsed(Pane);
+        CollapsedToolTip.CloseWhenCollapsed(DetailHost);
         quickLinks = new QuickLinksBinder(Scroller, ViewModel.QuickLinks, () => QuickLinksBinder.ReducedMotion(App.Session.Settings.ReduceMotion));
         ViewModel.ReplayRequested += (_, page) => MainWindow.Instance?.ShowFirstRunReplay(page);
         ViewModel.ServiceInfo.ProgressAnnounced += OnServiceProgressAnnounced;
@@ -219,15 +225,76 @@ public sealed partial class SettingsPage : Page
     {
         var split = SettingsDetails.UsesSplit(e.NewSize.Width);
         var pane = !split && QuickLinks.UsesPane(e.NewSize.Width);
+        // Focus follows each swap to the replacement, programmatically (no keyboard tooltip, and it doesn't fall to the
+        // next control; #571).
+        var menuFocused = CollapsedToolTip.HasFocusWithin(MenuHost);
+        var paneFocused = CollapsedToolTip.HasFocusWithin(Pane);
         Pane.Visibility = pane ? Visibility.Visible : Visibility.Collapsed;
         MenuHost.Visibility = pane ? Visibility.Collapsed : Visibility.Visible;
+        if (menuFocused && pane) CollapsedToolTip.HandFocusWith(Pane, Pane.FocusCurrent);
+        else if (paneFocused && !pane) CollapsedToolTip.HandFocus(QuickLinksMenu, () => QuickLinksMenu);
         if (split == IsSplit) return;
+        var focused = CollapsedToolTip.HasFocusWithin(Root) ? FocusManager.GetFocusedElement(XamlRoot) as Control : null;
+        var focusedDetail = focused is null ? null : DetailOf(focused);
+        // The inline sections and chevron rows swap by binding; close their tooltips, template strings included.
+        CollapsedToolTip.CloseWithin(Scroller);
         IsSplit = split;
         ListColumn.Width = split ? new GridLength(SettingsDetails.ListWidth) : new GridLength(1, GridUnitType.Star);
         DetailColumn.Width = split ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
         DetailHost.Visibility = split ? Visibility.Visible : Visibility.Collapsed;
         ApplyQuickLinkAnchors(split);
         ApplyDetail();
+        if (focused is not null) CollapsedToolTip.HandFocusWith(this, () => FocusAfterSplit(focused, focusedDetail, split));
+    }
+
+    /// <summary>The settings entry whose chevron row or one-column body holds <paramref name="element"/>.</summary>
+    /// <param name="element">Focused element.</param>
+    /// <returns>Entry, or <see langword="null"/> outside every entry.</returns>
+    private SettingsDetail? DetailOf(DependencyObject element)
+    {
+        for (DependencyObject? node = element; node is not null && !ReferenceEquals(node, Root); node = VisualTreeHelper.GetParent(node))
+        {
+            foreach (var (detail, row) in detailRows)
+                if (ReferenceEquals(node, row)) return detail;
+            foreach (var (detail, body) in detailBodies)
+                if (ReferenceEquals(node, body.Element)) return detail;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// After the list/detail switch, focus stays on the same control when it is still shown (a moved card returns to the
+    /// list), else moves to the entry's replacement: its chevron row in the split layout, its body in one column.
+    /// </summary>
+    /// <param name="focused">Control focused before the switch.</param>
+    /// <param name="detail">Its entry.</param>
+    /// <param name="split">New layout.</param>
+    /// <returns>Whether a control took focus.</returns>
+    private bool FocusAfterSplit(Control focused, SettingsDetail? detail, bool split)
+    {
+        Control? target = null;
+        if (IsShown(focused)) target = focused;
+        else if (detail is not { } entry) return false;
+        else if (split) target = detailRows.TryGetValue(entry, out var row) ? row : null;
+        else if (detailBodies.TryGetValue(entry, out var body)) target = FocusManager.FindFirstFocusableElement(body.Element) as Control;
+        if (target is null || !target.Focus(FocusState.Programmatic)) return false;
+        // Programmatic focus scrolls against the pre-switch layout; reveal the control once the new layout settles.
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+            () => target.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = false }));
+        return true;
+    }
+
+    /// <summary>Whether <paramref name="element"/> is in the page and neither it nor an ancestor is collapsed.</summary>
+    /// <param name="element">Element.</param>
+    /// <returns><see langword="true"/> when shown.</returns>
+    private bool IsShown(UIElement element)
+    {
+        for (DependencyObject? node = element; node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (node is UIElement { Visibility: Visibility.Collapsed }) return false;
+            if (ReferenceEquals(node, Root)) return true;
+        }
+        return false;
     }
 
     /// <summary>

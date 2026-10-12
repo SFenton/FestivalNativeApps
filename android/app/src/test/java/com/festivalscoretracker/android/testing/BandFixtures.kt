@@ -127,10 +127,12 @@ object BandFixtures {
      *
      * @param status `historyStatus`.
      * @param empty Whether no snapshots exist.
+     * @param rankBase Added to every ranked snapshot's ranks (wide labels for large-text layouts).
      * @return JSON.
      */
-    fun history(status: String? = null, empty: Boolean = false): String {
-        val rows = if (empty) "" else listOf("2024-01-03" to 1, "2024-01-01" to 3, "2024-01-02" to 2, "2024-01-04" to 0).joinToString(",") { (date, rank) ->
+    fun history(status: String? = null, empty: Boolean = false, rankBase: Int = 0): String {
+        val rows = if (empty) "" else listOf("2024-01-03" to 1, "2024-01-01" to 3, "2024-01-02" to 2, "2024-01-04" to 0).joinToString(",") { (date, small) ->
+            val rank = if (small == 0) 0 else rankBase + small
             """{"snapshotDate":"$date","adjustedSkillRank":$rank,"weightedRank":$rank,"fcRateRank":$rank,"totalScoreRank":$rank,
                "adjustedSkillRating":0.0${rank + 1},"weightedRating":0.05,"fcRate":0.3,"totalScore":${49000000 + rank}}"""
         }

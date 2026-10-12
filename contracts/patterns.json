@@ -63,6 +63,10 @@
           {
             "path": "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
             "symbol": "bottomChromeFade"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
+            "symbol": "boardBottomChrome"
           }
         ],
         "android": [
@@ -105,6 +109,14 @@
           {
             "path": "windows/Festival.App/Controls/BoardFooterFade.cs",
             "symbol": "Attach"
+          },
+          {
+            "path": "windows/Festival.App/Controls/TopEdgeFade.cs",
+            "symbol": "AutoScrollEdgeFade"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/FirstRunDemoContent.cs",
+            "symbol": "FirstRunAutoScroll"
           }
         ]
       },
@@ -129,6 +141,16 @@
             "apple/Sources/FestivalUI/Design/ModalTopEdgeFade.swift"
           ],
           "message": "System scroll-edge effects are configured only by TopEdgeScrim and the modal shell (scroll-edge R1, R6)."
+        },
+        {
+          "id": "apple-board-chrome",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\.reportsBottomChromeTop\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
+            "apple/Sources/FestivalUI/Features/Search/BottomSearchField.swift"
+          ],
+          "message": "A board's pinned footer and pager go through boardBottomChrome, so they read after the rows (scroll-edge R10)."
         },
         {
           "id": "android-dstin",
@@ -260,7 +282,7 @@
       "title": "Section-jump landing",
       "status": "current",
       "doc": ".agents/patterns/section-jump-landing.md",
-      "summary": "Quick Links and Songs section-index jumps land ordinary targets 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear; a section index fits the height it is given, condensing its labels rather than growing the page, and its labels follow the text size within that fit.",
+      "summary": "Quick Links and Songs section-index jumps land ordinary targets' titles (not their headers' padding) 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear and never leave a large title resting part-way collapsed; a section index fits the height it is given, condensing its labels rather than growing the page, and its labels follow the text size within that fit; the index is one adjustable control assistive technologies can name and step.",
       "keywords": [
         "quick links",
         "section jump",
@@ -300,6 +322,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongSectionIndexScrubber.swift",
             "symbol": "SongSectionIndexScrubber"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/LargeTitleRest.swift",
+            "symbol": "LargeTitleRest"
           }
         ],
         "android": [
@@ -387,7 +413,8 @@
         286,
         298,
         336,
-        393
+        393,
+        560
       ]
     },
     {
@@ -395,7 +422,7 @@
       "title": "Section headers",
       "status": "current",
       "doc": ".agents/patterns/section-headers.md",
-      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap.",
+      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap, the list end lets the last push finish, and Songs titles its sections in every sort, A–Z included.",
       "keywords": [
         "section header",
         "section title",
@@ -420,6 +447,10 @@
         {
           "path": "pages/player/components/PlayerBandsSection.tsx",
           "symbol": "buildPlayerBandsItems"
+        },
+        {
+          "path": "pages/player/components/TopSongsSection.tsx",
+          "symbol": "buildTopSongsItems"
         },
         {
           "path": "components/search/SearchModal.tsx",
@@ -461,6 +492,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt",
             "symbol": "SongsScreen"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/PinnedHeaderEdgeFade.kt",
+            "symbol": "rememberPinnedHeaderEndSpace"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FoldLane.kt",
@@ -514,13 +549,15 @@
         {
           "id": "android-fold-lane",
           "glob": "android/app/src/main/**/*.kt",
-          "regex": "StaggeredGridItemSpan\\.FullLine",
+          "regex": "GridItemSpan\\(maxLineSpan\\)",
           "allow": [
             "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FoldLane.kt",
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/PlayerProfileScreen.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/PlayerProfileScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/shop/ShopScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandListScreens.kt"
           ],
           "debt": [],
-          "message": "Full-line items in hinge-splitting staggered grids use foldLaneItem so titles stay on their side of the fold (section-headers R10, #343). Player Profile drops full-line rows to one lane when split."
+          "message": "Full-line items in hinge-splitting grids use foldLaneItem so titles stay on their side of the fold (section-headers R10, #343, #584). Player Profile wraps its line-spanning rows in FoldLane (Overview fills one pane at a fold); the Shop header is a FoldLane; Player Bands moves its controls to their own pane at a hinge."
         },
         {
           "id": "windows-view-all-copy",
@@ -562,7 +599,8 @@
         "controls": [
           "quick-links",
           "songs-section-index",
-          "global-search"
+          "global-search",
+          "profile-selection"
         ],
         "pages": [
           "songs"
@@ -577,7 +615,10 @@
         312,
         321,
         343,
-        348
+        348,
+        557,
+        560,
+        600
       ]
     },
     {
@@ -585,7 +626,7 @@
       "title": "Surface materials",
       "status": "current",
       "doc": ".agents/patterns/surface-materials.md",
-      "summary": "Use one native frosted material surface for content cards, rows and custom floating controls; reserve Liquid Glass and system materials for navigation and chrome; opaque fallbacks win for contrast and reduced transparency.",
+      "summary": "Use one native frosted material surface for content cards, rows and custom floating controls; reserve Liquid Glass and system materials for navigation and chrome; opaque fallbacks win for contrast and reduced transparency. Owner-approved #596 variant: the Apple profile's Duos, Trios and Quads band previews are one grouped card each (rows with hairlines, purple View All inside), unlike the web's per-band frosted cards. Android draws a long lazy list as one card from GlassCardSegment pieces (All Rivals, Rivalry, #603).",
       "keywords": [
         "material",
         "glass",
@@ -596,7 +637,11 @@
         "transparency",
         "view all",
         "grouped list",
-        "group card"
+        "group card",
+        "uncarded section",
+        "reset row",
+        "reading pane card",
+        "privacy policy pane"
       ],
       "web": [
         {
@@ -610,6 +655,10 @@
         {
           "path": "pages/player/components/PlayerBandsSection.tsx",
           "symbol": "BandViewAllCard"
+        },
+        {
+          "path": "pages/settings/SettingsPage.tsx",
+          "symbol": "resetRow"
         }
       ],
       "canonical": {
@@ -637,12 +686,12 @@
             "symbol": "GlassCard"
           },
           {
-            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/theme/FestivalTheme.kt",
-            "symbol": "BrandTokens"
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/DesignPrimitives.kt",
+            "symbol": "GlassCardSegment"
           },
           {
-            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/ProfileBands.kt",
-            "symbol": "ProfileBandsViewAll"
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/theme/FestivalTheme.kt",
+            "symbol": "BrandTokens"
           }
         ],
         "windows": [
@@ -667,12 +716,12 @@
             "symbol": "LeaderboardsPager"
           },
           {
-            "path": "windows/Festival.App/Controls/ViewAllCard.cs",
-            "symbol": "ViewAllCard"
-          },
-          {
             "path": "windows/Festival.App/Controls/GroupedRows.cs",
             "symbol": "GroupedRows"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/GroupedRowSlice.cs",
+            "symbol": "GroupedRowSlice"
           }
         ]
       },
@@ -680,12 +729,12 @@
         {
           "id": "apple-glass-effect",
           "glob": "apple/Sources/**/*.swift",
-          "regex": "\\.glassEffect\\s*\\(",
+          "regex": "\\.glassEffect\\s*\\(|UIGlassEffect\\s*\\(",
           "allow": [
             "apple/Sources/FestivalUI/Design/GlassSurface.swift"
           ],
           "debt": [],
-          "message": "Liquid Glass implementation belongs only to GlassSurface (surface-materials R2)."
+          "message": "Liquid Glass implementation (SwiftUI glassEffect or UIKit UIGlassEffect, including the #559 drawer search field backing) belongs only to GlassSurface (surface-materials R2)."
         },
         {
           "id": "apple-glass-consumers",
@@ -737,12 +786,12 @@
           "message": "The board pager draws on the rows' FSTCardSurfaceBrush / FSTCardStrokeBrush, never a pager-only plate (surface-materials R1, #319)."
         },
         {
-          "id": "windows-profile-purple-view-all",
-          "glob": "windows/Festival.App/Controls/PlayerProfileView.xaml",
-          "regex": "FSTViewAllButtonStyle",
+          "id": "windows-profile-band-group-card",
+          "glob": "windows/Festival.App/**/*",
+          "regex": "\\bViewAllCard\\b",
           "allow": [],
           "debt": [],
-          "message": "The profile's View All Bands (N) is the frosted ViewAllCard (web BandViewAllCard), not the purple leaderboard CTA (surface-materials R7, #312)."
+          "message": "Each profile Bands group is one FSTRowsCardStyle card of BandCardView rows ending in the shared purple FSTViewAllButtonStyle CTA (owner-approved variant #596, surface-materials R7); do not bring back a frosted View All tile."
         }
       ],
       "related": {
@@ -768,7 +817,10 @@
         272,
         312,
         319,
-        381
+        381,
+        461,
+        588,
+        596
       ]
     },
     {
@@ -776,7 +828,7 @@
       "title": "Page tools and navigation chrome",
       "status": "current",
       "doc": ".agents/patterns/page-tools-and-nav-chrome.md",
-      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android compact floating toolbar or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363).",
+      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android, Windows and Apple Rival pages name the rival and the section in the bar (Windows: the page header; Apple: R18's in-list InstrumentPageTitle with a subtitle line, pinned title over subtitle once it scrolls away): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too.",
       "keywords": [
         "navigation",
         "page tools",
@@ -791,7 +843,13 @@
         "hamburger",
         "page title",
         "navigation title",
-        "search drawer"
+        "search drawer",
+        "marquee",
+        "page subtitle",
+        "rival detail",
+        "rivalry",
+        "rival name",
+        "select profile"
       ],
       "web": [
         {
@@ -846,6 +904,10 @@
             "symbol": "VerticalBarActionItem"
           },
           {
+            "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
+            "symbol": "BarItemSpokenState"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Search/BottomSearchField.swift",
             "symbol": "BottomSearchFieldPlacement"
           },
@@ -870,6 +932,14 @@
             "symbol": "SidebarMenu"
           },
           {
+            "path": "apple/Sources/FestivalUI/Common/InstrumentPageTitle.swift",
+            "symbol": "InstrumentPageTitle"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/InstrumentPageTitle.swift",
+            "symbol": "InstrumentPageTitleToolbarItem"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Common/Chrome/SearchDrawerTransitionFill.swift",
             "symbol": "SearchDrawerTransitionFill"
           },
@@ -882,6 +952,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FloatingToolbar.kt",
             "symbol": "FloatingToolbar"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/FloatingToolbarPlacement.kt",
+            "symbol": "FloatingToolbarPlacement"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/BottomChromeSpacing.kt",
+            "symbol": "BottomChromeSpacing"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/search/GlobalSearch.kt",
@@ -898,6 +976,30 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
             "symbol": "FestivalScreen"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/FestivalSection.kt",
+            "symbol": "FestivalTabPolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/DrawerPolicy.kt",
+            "symbol": "DrawerPolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
+            "symbol": "FestivalBarTitle"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalPages.kt",
+            "symbol": "rivalScopeSubtitleIcon"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rivals/RivalScope.kt",
+            "symbol": "detailSubtitle"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FloatingToolbar.kt",
+            "symbol": "FloatingToolbarActionButton"
           }
         ],
         "windows": [
@@ -926,12 +1028,28 @@
             "symbol": "FSTMenuItemMinHeight"
           },
           {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "RadioButtonsRowSpacing"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "DefaultComboBoxItemStyle"
+          },
+          {
             "path": "windows/Festival.App/Controls/WrapPanel.cs",
             "symbol": "WrapPanel"
           },
           {
             "path": "windows/Festival.App/Controls/PopupHosting.cs",
             "symbol": "PopupHosting"
+          },
+          {
+            "path": "windows/Festival.App/Controls/InstrumentIconRow.cs",
+            "symbol": "InstrumentIconRow"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/RivalDetailViewModels.cs",
+            "symbol": "RivalDetailText"
           }
         ]
       },
@@ -951,9 +1069,17 @@
           "regex": "\\bFloatingToolbar\\s*\\(",
           "allow": [
             "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FloatingToolbar.kt",
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/OnDemandSplit.kt"
           ],
-          "message": "The shell alone renders the compact floating toolbar (page-tools-and-nav-chrome R4, R6)."
+          "message": "The shell alone renders the floating toolbar, at every window size, plus the on-demand split's trailing pane for its own page (page-tools-and-nav-chrome R4, R6; split-panes R7)."
+        },
+        {
+          "id": "android-floating-toolbar-stays-on-screen",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "exitAlwaysScrollBehavior|FloatingToolbarScrollState|pinActions\\b",
+          "allow": [],
+          "message": "The floating toolbar never hides on scroll, on any page (page-tools-and-nav-chrome R7, agent decision #577)."
         },
         {
           "id": "windows-titlebar-content",
@@ -995,7 +1121,16 @@
             "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
             "apple/Sources/FestivalUI/Features/Profile/ProfileSelectionSheet.swift"
           ],
-          "message": "A pushing page's search drawer goes through SongsSystemFilterField so SearchDrawerTransitionFill draws its capsule during push and pop (page-tools-and-nav-chrome R19); the Profile sheet never pushes."
+          "message": "A pushing page's search drawer goes through SongsSystemFilterField so SearchDrawerTransitionFill gives it the glass backing at every scroll position (#559) and draws its capsule during push and pop (page-tools-and-nav-chrome R19); the Profile sheet never pushes and keeps the system look."
+        },
+        {
+          "id": "android-one-top-app-bar",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "\\b(TopAppBar|CenterAlignedTopAppBar|MediumTopAppBar|LargeTopAppBar)\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt"
+          ],
+          "message": "Only FestivalScreen draws the top app bar, so every page title marquees through FestivalBarTitle (page-tools-and-nav-chrome R21, #597)."
         }
       ],
       "related": {
@@ -1011,7 +1146,10 @@
           "songs",
           "shop",
           "leaderboards",
-          "suggestions"
+          "suggestions",
+          "band-detail",
+          "rival-detail",
+          "rivalry"
         ]
       },
       "supersedes": [],
@@ -1033,7 +1171,12 @@
         363,
         394,
         534,
-        544
+        544,
+        557,
+        576,
+        597,
+        578,
+        604
       ]
     },
     {
@@ -1041,7 +1184,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420).",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586), and no sheet or dialog draws a line under the shared header (owner, #607); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612).",
       "keywords": [
         "modal",
         "sheet",
@@ -1055,7 +1198,9 @@
         "full-screen cover",
         "full window",
         "drag and drop",
-        "photo picker"
+        "photo picker",
+        "half height",
+        "partially expanded"
       ],
       "web": [
         {
@@ -1098,8 +1243,16 @@
             "symbol": "FeedbackPhotoLibraryPlacement"
           },
           {
+            "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackSentNotice.swift",
+            "symbol": "FeedbackSentPresentation"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackFormPanes.swift",
             "symbol": "FeedbackFormPanes"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/SheetStyle.swift",
+            "symbol": "festivalFormIdentifier"
           }
         ],
         "android": [
@@ -1114,6 +1267,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
             "symbol": "FestivalAlertDialog"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
+            "symbol": "FestivalModalHeader"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/HingeSide.kt",
@@ -1201,6 +1358,13 @@
           "message": "Centred dialogs take the window width less 16 dp margins, capped at 560 dp, never the platform dialog width (modal-shell R9)."
         },
         {
+          "id": "android-sheet-half-height",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "skipPartiallyExpanded\\s*=(?!\\s*true\\b)",
+          "allow": [],
+          "message": "Sheets open fully expanded with no half-height stop; never pass skipPartiallyExpanded other than true (modal-shell R13, #586)."
+        },
+        {
           "id": "windows-template-scroller",
           "glob": "windows/Festival.App/**/*.cs",
           "regex": "\"ContentScrollViewer\"",
@@ -1242,7 +1406,8 @@
         360,
         368,
         400,
-        420
+        420,
+        607
       ]
     },
     {
@@ -1250,7 +1415,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score, keyboard or screen-reader focus that scrolls a row clear of the floating pinned row and pager (WCAG 2.4.11, #409), and the owner-approved #543 variant that native song boards, Full Rankings, Band Rankings and Song Detail band previews draw a page's rows in one card with separators (the web keeps a card per row).",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, whose own row inside a board or preview speaks its rank as \"Your rank, <ordinal>\" (bands \"Your band, …\") so the highlight is never the only cue (#457), with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score, keyboard or screen-reader focus that scrolls a row clear of the floating pinned row and pager (WCAG 2.4.11, #409), and the owner-approved #543 variant that native song boards, Full Rankings, Band Rankings and Song Detail band previews draw a page's rows in one card with separators (the web keeps a card per row), and rank-history rows (Leaderboards, Profile, Band) that draw rank and value in fixed right-aligned tabular columns measured once over every chart day, so the bold newest row and the tapped bar's detail line up, the date moves above the columns at large text and, when even the columns don't fit side by side, each keeps its measured width right-aligned on its own line, in rows at least 48 units tall (#594).",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -1275,7 +1440,12 @@
         "trailing pane",
         "grouped card",
         "one card",
-        "grouped rows"
+        "grouped rows",
+        "rank history",
+        "column alignment",
+        "tabular figures",
+        "your rank",
+        "spoken rank"
       ],
       "web": [
         {
@@ -1301,6 +1471,18 @@
         {
           "path": "components/bands/SongBandScoreFooter.tsx",
           "symbol": "getSongBandScoreWidth"
+        },
+        {
+          "path": "pages/leaderboards/components/RankHistoryChart.tsx",
+          "symbol": "RankHistoryChart"
+        },
+        {
+          "path": "pages/band/components/BandRankHistoryChart.tsx",
+          "symbol": "BandRankHistoryChart"
+        },
+        {
+          "path": "pages/leaderboard/player/PlayerHistoryPage.tsx",
+          "symbol": "scoreWidth"
         }
       ],
       "canonical": {
@@ -1324,6 +1506,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SelectedScoreFooterRow.swift",
             "symbol": "SelectedScoreFooterRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SelectedScoreFooterRow.swift",
+            "symbol": "pinnedFooterControl"
           },
           {
             "path": "apple/Sources/FestivalCore/SelectedRowNavigation.swift",
@@ -1350,8 +1536,20 @@
             "symbol": "CompetePreviewSpotlight"
           },
           {
+            "path": "apple/Sources/FestivalUI/Features/Leaderboards/RankingsSupport.swift",
+            "symbol": "boardBottomChrome"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Design/GlassSection.swift",
             "symbol": "FestivalGroupSegment"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/LeaderboardColumnSlot.swift",
+            "symbol": "LeaderboardColumnSlot"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardEntryRow.swift",
+            "symbol": "spokenRank"
           }
         ],
         "android": [
@@ -1396,6 +1594,10 @@
             "symbol": "SelectedScoreFooterRow"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/RankingsBoardScaffold.kt",
+            "symbol": "PinnedSelectedRow"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/SelectedRowNavigation.kt",
             "symbol": "SelectedRowAction"
           },
@@ -1410,6 +1612,18 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/LeaderboardsPolicy.kt",
             "symbol": "previewSpotlightRoute"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rankings/LeaderboardColumnLayout.kt",
+            "symbol": "HistoryColumnPlan"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/LeaderboardSectionColumns.kt",
+            "symbol": "rememberHistoryColumns"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/leaderboards/LeaderboardSectionColumns.kt",
+            "symbol": "HistoryColumnsRow"
           }
         ],
         "windows": [
@@ -1444,6 +1658,10 @@
           {
             "path": "windows/Festival.Core/ViewModels/BandsSongLeaderboardViewModel.cs",
             "symbol": "SongBandSpotlightRow"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/BandsSongLeaderboardViewModel.cs",
+            "symbol": "SongBandRow"
           },
           {
             "path": "windows/Festival.Core/ViewModels/LeaderboardsRows.cs",
@@ -1503,6 +1721,14 @@
           "allow": [],
           "debt": [],
           "message": "Board pagination stays in the content under the board as RankingsPagerView, never as toolbar or rail items (leaderboard-row R5, #345)."
+        },
+        {
+          "id": "apple-pinned-footer-control",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "accessibilityIdentifier\\(\"fst\\.[a-z-]+\\.spotlight-footer\"\\)",
+          "allow": [],
+          "debt": [],
+          "message": "Pinned selected-row footers use pinnedFooterControl(identifier:) for the row button style (Mac focus ring, Return, hover), not their own button style (leaderboard-row R7, #461)."
         },
         {
           "id": "apple-name-owner",
@@ -1580,7 +1806,9 @@
           "song-band-leaderboard",
           "leaderboards",
           "compete",
-          "full-rankings"
+          "full-rankings",
+          "player-profile",
+          "band-detail"
         ]
       },
       "supersedes": [],
@@ -1602,7 +1830,10 @@
         364,
         370,
         381,
-        409
+        409,
+        461,
+        594,
+        578
       ]
     },
     {
@@ -1610,7 +1841,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; graph card lists run the web out/height/in list sequence and chart swaps keep the card's size; the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse.",
+      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence, chart swaps keep the card's size and paging a chart slides it to the new window over the web 400 ms (#593 decision); the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant).",
       "keywords": [
         "loading",
         "spinner",
@@ -1621,9 +1852,12 @@
         "transition",
         "reduce motion",
         "graph card",
+        "chart paging",
         "accordion",
         "expand",
-        "collapse"
+        "collapse",
+        "expander",
+        "disclosure"
       ],
       "web": [
         {
@@ -1682,6 +1916,10 @@
             "symbol": "FestivalFadeInScope"
           },
           {
+            "path": "apple/Sources/FestivalUI/Common/FadeInOnLoad.swift",
+            "symbol": "festivalCardSegmentFadeIn"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SelectedRowReveal.swift",
             "symbol": "SelectedRowReveal"
           },
@@ -1732,6 +1970,10 @@
             "symbol": "rememberLoadSwap"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadSwap.kt",
+            "symbol": "BOARD_CARD_INDEX"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadGate.kt",
             "symbol": "FestivalLoadGate"
           },
@@ -1766,6 +2008,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/AccordionMotion.kt",
             "symbol": "AccordionMotion"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/shell/ChartPageMotion.kt",
+            "symbol": "ChartPageMotion"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ChartPageSlide.kt",
+            "symbol": "rememberChartPageSlide"
           }
         ],
         "windows": [
@@ -1794,6 +2044,10 @@
             "symbol": "FadeIn"
           },
           {
+            "path": "windows/Festival.Core/Domain/FirstRunDemoContent.cs",
+            "symbol": "FirstRunEntrance"
+          },
+          {
             "path": "windows/Festival.Core/Domain/MotionPolicy.cs",
             "symbol": "StaggerArm"
           },
@@ -1812,6 +2066,22 @@
           {
             "path": "windows/Festival.Core/ViewModels/SongScoreHistoryViewModel.cs",
             "symbol": "ShowDetailSlot"
+          },
+          {
+            "path": "windows/Festival.App/Pages/SongDetailPage.xaml.cs",
+            "symbol": "PauseScrollAnchoring"
+          },
+          {
+            "path": "windows/Festival.App/Controls/Accordion.cs",
+            "symbol": "Accordion"
+          },
+          {
+            "path": "windows/Festival.App/Controls/Accordion.cs",
+            "symbol": "AccordionMover"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/MotionPolicy.cs",
+            "symbol": "AccordionMotion"
           }
         ]
       },
@@ -1941,6 +2211,17 @@
           ],
           "debt": [],
           "message": "Accordion-style reveals go through the shared AccordionReveal / AccordionRevealOf (height, then fade in; fade out, then collapse; instant under reduced motion), never a local expand/shrink transition (load-transition R10, #561)."
+        },
+        {
+          "id": "windows-accordion",
+          "glob": "windows/Festival.App/**/*.cs",
+          "regex": "new\\s+AccordionMover\\s*\\(",
+          "allow": [
+            "windows/Festival.App/Controls/Accordion.cs",
+            "windows/Festival.App/Controls/InstrumentSelector.xaml.cs"
+          ],
+          "debt": [],
+          "message": "Every Expander gets the shared accordion motion from the implicit Expander style (Accordion.Sequenced); a custom disclosure panel that drives its own AccordionMover must be listed so its grow-then-fade timing stays shared (load-transition R10, #561)."
         }
       ],
       "related": {
@@ -1970,6 +2251,101 @@
         316,
         323,
         380,
+        561,
+        614
+      ]
+    },
+    {
+      "id": "accordion",
+      "title": "Accordion",
+      "status": "current",
+      "doc": ".agents/patterns/accordion.md",
+      "summary": "Every in-place expand/collapse (filter-sheet disclosure groups, switch-revealed blocks, selector panels, Settings choice rows) opens the container first and then fades its content in, and fades the content out before collapsing (150 ms each, web QUICK_FADE_MS; owner #561). Steps are interruptible, Reduce Motion keeps only the fade, VoiceOver hears the requested state at once and transparent content is hidden and takes no touches. One shared component per platform.",
+      "keywords": [
+        "accordion",
+        "disclosure",
+        "DisclosureGroup",
+        "expand",
+        "collapse",
+        "expander",
+        "reveal",
+        "fade in",
+        "fade out",
+        "Reduce Motion",
+        "filter sheet",
+        "choice row"
+      ],
+      "web": [
+        {
+          "path": "components/common/Accordion.tsx",
+          "symbol": "Accordion"
+        },
+        {
+          "path": "components/page/CollapseOnExit.tsx",
+          "symbol": "CollapseOnExit"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
+            "symbol": "AccordionChoreography"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
+            "symbol": "FestivalAccordionState"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
+            "symbol": "FestivalAccordionContent"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
+            "symbol": "FestivalDisclosureGroup"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
+            "symbol": "FestivalAccordionAccessibility"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsSheets.kt",
+            "symbol": "Accordion"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "load-transition",
+          "settings-value-row"
+        ],
+        "controls": [
+          "songs-filter",
+          "instrument-selector"
+        ],
+        "pages": [
+          "songs",
+          "suggestions",
+          "settings"
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-raw-disclosure-group",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "(?<![A-Za-z])DisclosureGroup\\s*[({]",
+          "allow": [
+            "apple/Sources/FestivalUI/Design/FestivalAccordion.swift"
+          ],
+          "debt": [],
+          "message": "Accordions share one motion: use FestivalDisclosureGroup (or FestivalAccordionState + festivalAccordion(_:follows:) + FestivalAccordionContent for a reveal) instead of a raw DisclosureGroup (accordion R1, R5)."
+        }
+      ],
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        20,
         561
       ]
     },
@@ -1978,7 +2354,7 @@
       "title": "Empty and error states",
       "status": "current",
       "doc": ".agents/patterns/empty-error-states.md",
-      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator, exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls.",
+      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator, exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls; a score-update scrape freeze 503 for a URL the shared pinned-read client already verified in the same, still-current publication returns that kept body instead of the service status (R9, #554); cold reads, outages, non-score freezes and other publications still fail with Retry, and kept bodies are in-memory and byte-bounded.",
       "keywords": [
         "empty",
         "no results",
@@ -1994,7 +2370,12 @@
         "centred",
         "filtered empty",
         "paused",
-        "syncing"
+        "syncing",
+        "scrape freeze",
+        "scores are updating",
+        "best and worst songs",
+        "kept body",
+        "last published"
       ],
       "web": [
         {
@@ -2037,6 +2418,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt",
             "symbol": "ServiceStatusView"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/data/FestivalApi.kt",
+            "symbol": "readPinnedResponse"
           }
         ],
         "windows": [
@@ -2051,6 +2436,10 @@
           {
             "path": "windows/Festival.App/Controls/ServiceStatusView.xaml",
             "symbol": "ServiceStatusView"
+          },
+          {
+            "path": "windows/Festival.Core/Data/FestivalApiClient.cs",
+            "symbol": "ReadPinnedResponseAsync"
           }
         ]
       },
@@ -2128,7 +2517,9 @@
           "player-bands",
           "player-history",
           "statistics",
-          "bands"
+          "bands",
+          "band-detail",
+          "player-profile"
         ]
       },
       "supersedes": [],
@@ -2142,7 +2533,8 @@
         312,
         320,
         348,
-        377
+        377,
+        554
       ]
     },
     {
@@ -2150,14 +2542,15 @@
       "title": "Quick Links",
       "status": "current",
       "doc": ".agents/patterns/quick-links.md",
-      "summary": "One native Quick Links controller per page preserves web section order, uses a 32-unit shared landing/current line, and exposes an accessible current section through the platform chooser.",
+      "summary": "One native Quick Links controller per page preserves web section order, uses a 32-unit shared landing/current line, and exposes an accessible current section through the platform chooser; a nested section can be a card inside its parent row, landing at its measured offset (Profile Rank History and Percentiles, #590).",
       "keywords": [
         "quick links",
         "jump to section",
         "section navigation",
         "active section",
         "menu order",
-        "section index"
+        "section index",
+        "nested"
       ],
       "web": [
         {
@@ -2200,6 +2593,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/quicklinks/QuickLinksUi.kt",
             "symbol": "QuickLinksAction"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/quicklinks/QuickLinksUi.kt",
+            "symbol": "QuickLinkAnchors"
           }
         ],
         "windows": [
@@ -2214,6 +2611,10 @@
           {
             "path": "windows/Festival.App/Controls/QuickLinksMenuButton.cs",
             "symbol": "QuickLinksMenuButton"
+          },
+          {
+            "path": "windows/Festival.App/Controls/CollapsedToolTip.cs",
+            "symbol": "CollapsedToolTip"
           }
         ]
       },
@@ -2262,7 +2663,8 @@
         ],
         "pages": [
           "songs",
-          "rivalry"
+          "rivalry",
+          "rival-detail"
         ]
       },
       "supersedes": [],
@@ -2275,7 +2677,8 @@
         286,
         303,
         313,
-        545
+        545,
+        605
       ]
     },
     {
@@ -2377,7 +2780,8 @@
         "pages": [
           "player-profile",
           "leaderboards",
-          "song-detail"
+          "song-detail",
+          "band-detail"
         ]
       },
       "supersedes": [],
@@ -2391,7 +2795,7 @@
       "title": "Song leaderboard header",
       "status": "current",
       "doc": ".agents/patterns/song-leaderboard-header.md",
-      "summary": "A song-scoped leaderboard (instrument or band size) names the song first in an in-page header with the board on the line under the artist, keeps that header on screen through board, page and player reloads (only the rows reload), keeps the bar title empty until the header scrolls away, and sits on the song's static dimmed album art. Owner-approved variant (#342): a board opened beside Song Detail in a split's trailing pane drops the song header and is titled by its instrument icon and name (or band size).",
+      "summary": "A song-scoped leaderboard (instrument or band size) names the song first in an in-page header with the board on the line under the artist, keeps that header on screen through board, page and player reloads (only the rows reload), keeps the bar title empty until the header scrolls away, and sits on the song's static dimmed album art. Owner-approved variant (#342): a board opened beside Song Detail in a split's trailing pane drops the song header and is titled by its instrument icon and name (or band size). Android adopts the variant with its on-demand split (#583).",
       "keywords": [
         "song header",
         "band leaderboard",
@@ -2421,7 +2825,9 @@
         317,
         324,
         342,
-        542
+        542,
+        580,
+        583
       ],
       "web": [
         {
@@ -2476,6 +2882,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/background/SongCoverBackdrop.kt",
             "symbol": "SongCoverBackdrop"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/OnDemandSplit.kt",
+            "symbol": "isSplitPaneRoot"
           }
         ],
         "windows": [
@@ -2628,7 +3038,11 @@
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
-            "symbol": "marqueeTitle"
+            "symbol": "FestivalBarTitle"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
+            "symbol": "PinnedTitleSubtitle"
           }
         ],
         "windows": [
@@ -2700,7 +3114,9 @@
         317,
         342,
         363,
-        542
+        542,
+        580,
+        597
       ]
     },
     {
@@ -2708,7 +3124,7 @@
       "title": "View all call to action",
       "status": "current",
       "doc": ".agents/patterns/view-all-cta.md",
-      "summary": "A card of preview rows ends with one full-width brand-purple button after the rows (on Apple inside the group card as FestivalGlassSection's action, a flat opaque purple and never Liquid Glass, agent decision #382) (View Full Leaderboard, View All Rivals, View All on Rival Detail categories, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours. The preview keeps its capped length: the button navigates to the full list's own page (pushed, or the trailing pane in a split; Song Detail View All Scores opens Player History with its sorts) and never expands the card in place (R8, owner #324); Leaderboards' View All Rankings opens Full Rankings beside the overview (#352).",
+      "summary": "A card of preview rows ends with one full-width brand-purple button after the rows (on Apple inside the group card as FestivalGlassSection's action, a flat opaque purple and never Liquid Glass, agent decision #382; on Android inside the GlassCard of Song Detail's instrument, band and Score History cards, #588; on the Windows, Android and Apple profile each Duos/Trios/Quads group is one card ending in it, owner-approved variant #596) (View Full Leaderboard, View All Rivals, View All on Rival Detail categories, View All Rankings (N), View All Scores) at the platform minimum target, with no per-consumer overrides, a label-first accessible name and readable contrast-mode colours. The preview keeps its capped length: the button navigates to the full list's own page (pushed, or the trailing pane in a split; Song Detail View All Scores opens Player History with its sorts) and never expands the card in place (R8, owner #324); Leaderboards' View All Rankings opens Full Rankings beside the overview (#352).",
       "keywords": [
         "view all",
         "view full leaderboard",
@@ -2789,7 +3205,8 @@
           "rival-detail",
           "compete",
           "leaderboards",
-          "player-history"
+          "player-history",
+          "player-profile"
         ]
       },
       "guards": [
@@ -2820,6 +3237,86 @@
           ],
           "debt": [],
           "message": "Windows has one View all CTA style, FSTViewAllButtonStyle in Themes/Styles.xaml; extend it instead of adding another (view-all-cta R3)."
+        }
+      ]
+    },
+    {
+      "id": "stat-tile-grid",
+      "title": "Stat tile grid",
+      "status": "current",
+      "doc": ".agents/patterns/stat-tile-grid.md",
+      "summary": "Profile and Band stat tile grids: a tile whose value or label would wrap in one slot spans two (owner-approved variant #591, Android), tiles keep web order with the row's last tile widening instead of holes, every tile takes the grid's tallest height, and text that doesn't fit two slots wraps rather than truncating. One grid component per platform.",
+      "keywords": [
+        "stat tile",
+        "stat grid",
+        "StatBox",
+        "span",
+        "two slots",
+        "full combos",
+        "tile height",
+        "wrap",
+        "large text",
+        "band statistics",
+        "profile statistics"
+      ],
+      "web": [
+        {
+          "path": "components/player/StatBox.tsx",
+          "symbol": "StatBox"
+        },
+        {
+          "path": "pages/player/sections/OverallSummarySection.tsx",
+          "symbol": "buildOverallSummaryItems"
+        },
+        {
+          "path": "pages/band/BandPage.tsx",
+          "symbol": "BandPage"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerStatGrid.swift",
+            "symbol": "StatTileGridLayout"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/StatTileGrid.kt",
+            "symbol": "StatTileGrid"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/profile/StatTileSpans.kt",
+            "symbol": "StatTileSpans"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/PlayerStatTileView.cs",
+            "symbol": "PlayerStatTileView"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "surface-materials",
+          "wide-columns",
+          "hinge-columns"
+        ],
+        "pages": [
+          "player-profile",
+          "band-detail",
+          "statistics"
+        ]
+      },
+      "guards": [
+        {
+          "id": "android-row-chunking",
+          "glob": "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/**/*.kt",
+          "regex": "\\.chunked\\(|IntrinsicSize\\.Min",
+          "allow": [],
+          "debt": [],
+          "message": "Stat tile grids place and size tiles in one place: use StatTileGrid (spans, web order, one height) instead of chunked rows with intrinsic heights (stat-tile-grid R1-R5)."
         }
       ]
     },
@@ -2927,7 +3424,7 @@
       "title": "Back keeps place",
       "status": "current",
       "doc": ".agents/patterns/back-keeps-place.md",
-      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it. A player or band profile is a full page that covers the split, and its Back returns to the kept split (#352).",
+      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it. A player or band profile is a full page that covers the split, and its Back returns to the kept split (#352). Android (#583) follows the same order: system Back pops the pane's stack, then closes the pane, then leaves the page.",
       "keywords": [
         "back",
         "back navigation",
@@ -2975,6 +3472,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/compete/CompeteViewModel.kt",
             "symbol": "CompeteViewModel"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/OnDemandSplit.kt",
+            "symbol": "SplitBackRegistry"
           }
         ],
         "windows": [
@@ -3021,7 +3522,9 @@
         82,
         276,
         347,
-        369
+        369,
+        410,
+        583
       ]
     },
     {
@@ -3029,7 +3532,7 @@
       "title": "Songs profile panel",
       "status": "current",
       "doc": ".agents/patterns/songs-profile-panel.md",
-      "summary": "On wide Songs rows (iPad, iPhone Duo inner display, Mac) with a selected player or band whose score index is available and publication-matched, the row splits: song on the left, that profile's compact score cards (per scored instrument, or one band card) on the right. Compact cards keep one line or the row stays plain; loading, paused, failed, Filter Invalid Scores, accessibility sizes and Shop rows keep today's row. Card fields follow the saved Song Row Visual Order only while Independent Visual Order is on, else the web default order (MetadataField.songRowOrder).",
+      "summary": "On wide Songs rows (iPad, iPhone Duo inner display, Mac) with a selected player or band whose score index is available and publication-matched, the row splits: song on the left, that profile's compact score cards (per scored instrument, or one band card) on the right. Compact cards keep one line or the row stays plain; loading, paused, failed, accessibility sizes and Shop rows keep today's row; with Filter Invalid Scores on the cards show effective scores (invalid-scores, #613). Card fields follow the saved Song Row Visual Order only while Independent Visual Order is on, else the web default order (MetadataField.songRowOrder).",
       "keywords": [
         "profile panel",
         "wide row",
@@ -3089,7 +3592,8 @@
         "patterns": [
           "surface-materials",
           "load-transition",
-          "hinge-columns"
+          "hinge-columns",
+          "invalid-scores"
         ],
         "pages": [
           "songs"
@@ -3102,11 +3606,153 @@
       "guards": []
     },
     {
+      "id": "invalid-scores",
+      "title": "Invalid scores (Filter Invalid Scores)",
+      "status": "current",
+      "doc": ".agents/patterns/invalid-scores.md",
+      "summary": "With Settings > Filter Invalid Scores on and a player selected, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details uses the web's filterPlayerScores rule.",
+      "keywords": [
+        "filter invalid scores",
+        "invalid score",
+        "leeway",
+        "validScores",
+        "minLeeway",
+        "over chopt threshold",
+        "filtered score",
+        "effective score",
+        "populationTiers"
+      ],
+      "web": [
+        {
+          "path": "pages/songs/SongsPage.tsx",
+          "symbol": "effectiveScores"
+        },
+        {
+          "path": "hooks/data/useScoreFilter.ts",
+          "symbol": "filterPlayerScores"
+        },
+        {
+          "path": "pages/songs/components/InvalidScoreIcon.tsx",
+          "symbol": "InvalidScoreIcon"
+        },
+        {
+          "path": "pages/songs/modals/FilterModal.tsx",
+          "symbol": "overThreshold"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/InvalidScorePolicy.swift",
+            "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/InvalidScorePolicy.swift",
+            "symbol": "InvalidScoreWarning"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/InvalidScorePolicy.swift",
+            "symbol": "SongPopulationTierTable"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/InvalidScoreIndicator.swift",
+            "symbol": "songInvalidScoreIndicator"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/SongPlayerScoreFilter.swift",
+            "symbol": "overThreshold"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt",
+            "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt",
+            "symbol": "resolveFiltered"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt",
+            "symbol": "exceedsCeiling"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongScoreAdapter.kt",
+            "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongScoreAdapter.kt",
+            "symbol": "songDetails"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt",
+            "symbol": "InvalidScoreIcon"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "ResolveFiltered"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "InvalidScoreWarning"
+          },
+          {
+            "path": "windows/Festival.Core/Data/Models.cs",
+            "symbol": "FilteredPopulation"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongScoreSource.cs",
+            "symbol": "ForSongs"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongScoreSource.cs",
+            "symbol": "ForDetail"
+          },
+          {
+            "path": "windows/Festival.App/Controls/InvalidScoreIndicator.cs",
+            "symbol": "InvalidScoreIndicator"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "songs-profile-panel",
+          "catalogue-sort"
+        ],
+        "pages": [
+          "songs",
+          "song-detail",
+          "settings"
+        ],
+        "controls": [
+          "songs-filter",
+          "song-score-metadata",
+          "songs-instrument-status-chips"
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-invalid-score-pause",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "not available yet|paused while Filter Invalid Scores",
+          "allow": [],
+          "debt": [],
+          "message": "Filter Invalid Scores substitutes effective scores (invalid-scores R3, #613); never pause rows, panels, filters or sorts. Use InvalidScorePolicy."
+        }
+      ]
+    },
+    {
       "id": "hinge-columns",
       "title": "Hinge columns",
       "status": "current",
       "doc": ".agents/patterns/hinge-columns.md",
-      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; fully unfolded (flat), splits and page rows divide at the midpoint of the free content area, never on the flat hinge line (owner-approved, #361); cells sharing a row start at its top edge (#365); two-pane viewers (Paths Side by Side) use HingePanes, meeting at the fold in book pose and as equal halves when flat (owner-approved, #368).",
+      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; fully unfolded (flat), splits and page rows divide at the midpoint of the free content area, never on the flat hinge line (owner-approved, #361); cells sharing a row start at its top edge (#365; Android card grids are row-major LazyVerticalGrids and Band Detail pairs its sections in top-aligned rows under a full-width header, never masonry lanes, #584); two-pane viewers (Paths Side by Side) use HingePanes, meeting at the fold in book pose and as equal halves when flat (owner-approved, #368).",
       "keywords": [
         "hinge",
         "fold",
@@ -3163,6 +3809,10 @@
             "symbol": "AdaptiveCardGrid"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/ProfileGrid.kt",
+            "symbol": "ProfileGrid"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/HingeSplit.kt",
             "symbol": "rememberHingeSplit"
           },
@@ -3206,6 +3856,14 @@
           ],
           "debt": [],
           "message": "Page grids use HingeGrid so their gutter sits on an iPhone Duo fold in book pose (hinge-columns R1, R6); the First Run Shop demo is a fixed miniature inside a slide."
+        },
+        {
+          "id": "android-masonry-grid",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "LazyVerticalStaggeredGrid|LazyStaggeredGrid|StaggeredGridCells",
+          "allow": [],
+          "debt": [],
+          "message": "Card grids are row-major (LazyVerticalGrid through AdaptiveCardGrid, ProfileGrid or the Suggestions grid) so sections side by side start on their row's top edge however far the page scrolls; masonry lanes drift apart (hinge-columns R8, #584)."
         }
       ],
       "supersedes": [],
@@ -3216,7 +3874,9 @@
         365,
         366,
         368,
-        373
+        373,
+        583,
+        584
       ]
     },
     {
@@ -3224,7 +3884,7 @@
       "title": "Wide columns",
       "status": "current",
       "doc": ".agents/patterns/wide-columns.md",
-      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as the Mac Settings window panes flow column by column in balanced columns; the Settings page on iPad, iPhone Duo and Android tablets/foldables is a list/detail split instead, split-panes R6, owner-approved #371), meeting at the Duo hinge in book pose and at the free content area's midpoint when fully unfolded (owner-approved, #361), reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; the Item Shop list pairs its rows (its card grid keeps its own even-column policy); full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column.",
+      "summary": "Page rows and cards show in two columns only in wide landscape windows (iPad landscape, iPhone Duo unfolded landscape, a wide Mac surface), row-major under full-width headings (pages of unequal section cards such as the Mac Settings window panes flow column by column in balanced columns; the Settings page on iPad, iPhone Duo and Android tablets/foldables is a list/detail split instead, split-panes R6, owner-approved #371), meeting at the Duo hinge in book pose and at the free content area's midpoint when fully unfolded (owner-approved, #361), reflowing without reloading; portrait, compact windows and (for Settings) accessibility text sizes keep one column; the Item Shop list pairs its rows (its card grid keeps its own even-column policy); full-width leaderboards pair rank rows row-major under one full-width pinned row and pager, while split sub-pages stay one column. Owner-approved Android variant (#581): Android Songs shows two row-major columns in any landscape window or across a vertical fold with room for two 320 dp columns (no height-class gate), one column in portrait, at large text or under TalkBack, and no longer splits list/detail (a tap pushes Song Detail).",
       "keywords": [
         "two column",
         "two-column",
@@ -3286,7 +3946,28 @@
             "symbol": "ShopScreen"
           }
         ],
-        "android": [],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/layout/WideColumns.kt",
+            "symbol": "WideColumns"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/layout/WideColumns.kt",
+            "symbol": "WideColumnLines"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/WideColumnsLayout.kt",
+            "symbol": "rememberWideColumns"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/WideColumnsLayout.kt",
+            "symbol": "WideColumnsLine"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/WideColumnsLayout.kt",
+            "symbol": "KeepPlaceAcrossColumnChanges"
+          }
+        ],
         "windows": []
       },
       "related": {
@@ -3321,7 +4002,8 @@
         355,
         361,
         371,
-        378
+        378,
+        581
       ]
     },
     {
@@ -3329,7 +4011,7 @@
       "title": "Split panes",
       "status": "current",
       "doc": ".agents/patterns/split-panes.md",
-      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band. Owner-approved variant R6 (#371; iPad, iPhone Duo inner landscape and Android tablets/foldables): Settings always splits, showing a vertically centred placeholder (Settings icon, \"Settings\", \"Select a setting to see more options here\") until a chevron row opens its options on the right; plain toggles act in the list.",
+      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band. Owner-approved variant R6 (#371; iPad, iPhone Duo inner landscape and Android tablets/foldables): Settings always splits, showing a vertically centred placeholder (Settings icon, \"Settings\", \"Select a setting to see more options here\") until a chevron row opens its options on the right; plain toggles act in the list. Owner-approved Android variant R7 (#583): Android tablets, foldables and wide windows use the iPhone Duo's on-demand split: Rivals/All Rivals/Compete open Rival Detail, Leaderboards opens Full/Band Rankings and Song Detail opens its boards and Score History in a trailing pane when the window is landscape, regular and leaves 360 dp a pane, or at the fold in book posture; everything else stays one page, and Back closes the pane first.",
       "keywords": [
         "split view",
         "split",
@@ -3347,7 +4029,10 @@
         "settings placeholder",
         "settings topic",
         "settings list detail",
-        "select a setting"
+        "select a setting",
+        "on-demand split",
+        "trailing pane",
+        "book posture"
       ],
       "web": [],
       "canonical": {
@@ -3378,6 +4063,14 @@
           }
         ],
         "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/layout/OnDemandSplitPolicy.kt",
+            "symbol": "OnDemandSplitPolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/OnDemandSplit.kt",
+            "symbol": "OnDemandSplit"
+          },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/nav/FestivalSection.kt",
             "symbol": "listPaneWidth"
@@ -3432,9 +4125,7 @@
           "glob": "android/app/src/main/**/*.kt",
           "regex": "\\bVerticalDivider\\s*\\(",
           "allow": [],
-          "debt": [
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt"
-          ],
+          "debt": [],
           "message": "Split panes are separated by space, not a drawn divider; a hairline only under high contrast at a midpoint (split-panes R1, R2)."
         }
       ],
@@ -3443,7 +4134,8 @@
         344,
         361,
         369,
-        371
+        371,
+        583
       ]
     },
     {
@@ -3783,6 +4475,545 @@
       "issues": [
         541
       ]
+    },
+    {
+      "id": "shop-offer-status",
+      "title": "Item Shop offer status",
+      "status": "current",
+      "doc": ".agents/patterns/shop-offer-status.md",
+      "summary": "New and Leaving Tomorrow on Songs rows, Item Shop list rows, Item Shop grid cards and first-run demo rows: New is the gold outline alone with no chip, pill or sparkles glyph (operator 2026-09-28 for Songs; #562 for the Shop), only Leaving Tomorrow gets a visible indicator (red clock circle or pill, before the bag and chevron), and both states stay in the row or card's accessible name. Highlighting off or a hidden Shop shows no state. The outline and pill follow a live contrast switch (#516).",
+      "keywords": [
+        "item shop",
+        "new",
+        "leaving tomorrow",
+        "shop badge",
+        "shop highlight",
+        "sparkles",
+        "gold outline",
+        "shop pill"
+      ],
+      "web": [
+        {
+          "path": "pages/songs/components/SongRow.tsx",
+          "symbol": "leavingCircleMobile"
+        },
+        {
+          "path": "pages/songs/components/SongRow.tsx",
+          "symbol": "shopHighlightGold"
+        },
+        {
+          "path": "pages/shop/ShopPage.tsx",
+          "symbol": "shopHighlightGold"
+        },
+        {
+          "path": "pages/shop/components/ShopCard.tsx",
+          "symbol": "leavingTomorrowPill"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongRowView.swift",
+            "symbol": "ShopNewStatusMarker"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongRowView.swift",
+            "symbol": "ShopLeavingIndicator"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Shop/ShopScreen.swift",
+            "symbol": "offerBadge"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/ShopCatalog.swift",
+            "symbol": "ShopPresentationPolicy"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/shop/ShopScreen.kt",
+            "symbol": "ShopBadgeLabel"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/shop/ShopScreen.kt",
+            "symbol": "ShopListRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt",
+            "symbol": "shopBadgeIcon"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/ViewModels/ShopViewModel.cs",
+            "symbol": "ShowsPill"
+          },
+          {
+            "path": "windows/Festival.App/Pages/ShopPage.xaml.cs",
+            "symbol": "ApplyBadge"
+          },
+          {
+            "path": "windows/Festival.App/Controls/ShopPulseRing.cs",
+            "symbol": "ShopPulseRing"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "catalogue-sort"
+        ],
+        "pages": [
+          "songs",
+          "shop"
+        ],
+        "controls": [
+          "shop-offers",
+          "first-run"
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-shop-new-glyph",
+          "glob": "apple/Sources/FestivalUI/Features/Shop/**/*.swift",
+          "regex": "\"sparkles\"",
+          "allow": [],
+          "debt": [],
+          "message": "Item Shop New is the gold outline alone; no sparkles glyph or New pill (shop-offer-status R1, #562). Use ShopNewStatusMarker for the spoken state."
+        },
+        {
+          "id": "apple-songrow-new-glyph",
+          "glob": "apple/Sources/FestivalUI/Features/Songs/**/*.swift",
+          "regex": "\"sparkles\"",
+          "allow": [],
+          "debt": [],
+          "message": "Songs/Shop rows draw no New glyph (shop-offer-status R1); only ShopLeavingIndicator is visible (R2)."
+        },
+        {
+          "id": "android-new-glyph",
+          "glob": "android/app/src/main/java/com/festivalscoretracker/android/ui/shop/**/*.kt",
+          "regex": "AutoAwesome|ShopBadgeLabel\\(ShopHighlight\\.New",
+          "allow": [],
+          "debt": [],
+          "message": "Android Item Shop New has no visible badge or sparkle (shop-offer-status R1, #562); TalkBack hears it through stateDescription (R3)."
+        }
+      ]
+    },
+    {
+      "id": "rival-rows",
+      "title": "Rival rows",
+      "status": "current",
+      "doc": ".agents/patterns/rival-rows.md",
+      "summary": "Rows inside Rivals cards: the hub's rival rows and the song comparison rows on Rival Detail, Rivalry and the Duo category cards. One row component per kind on every surface, one shared red/green status capsule with text (readable red text), album art leading every song row through the shared ArtworkTile (art vertically centred alone, above the instrument icon when both, owner #558), one spoken element per row that names who leads, and pills that stack and wrap at accessibility sizes. Apple, Android and Windows song rows show '#rank Name' pills for both sides, the leader green and the trailer red, with a rank-delta badge and no scores (agent decisions #558, #603, owner may override). Each rival list is one card of rows with hairlines, never a card per row (R6, owner #603): the hub and Compete rivals cards with View All inside, each Rival Detail category, and All Rivals and Rivalry (Android lazy card segments, Windows grouped ListView slices).",
+      "keywords": [
+        "rival",
+        "rivals",
+        "rival row",
+        "rival song row",
+        "rivalry",
+        "ahead",
+        "behind",
+        "pill",
+        "status pill",
+        "album art",
+        "one card",
+        "card segment",
+        "closest battles"
+      ],
+      "web": [
+        {
+          "path": "pages/rivals/components/RivalRow.tsx",
+          "symbol": "RivalRow"
+        },
+        {
+          "path": "pages/rivals/components/RivalSongRow.tsx",
+          "symbol": "RivalSongRow"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalStatusPill"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalRowContent"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalSongRowContent"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalSongStanding"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Rivals/RivalsSupport.swift",
+            "symbol": "RivalStatusText"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalPill"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalSongRow"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalPreviewRows"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalCardSegment"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalComponents.kt",
+            "symbol": "RivalDeltaBadge"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rivals/RivalAnalysis.kt",
+            "symbol": "RivalSongStanding"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/RivalsResources.xaml",
+            "symbol": "FSTRivalPillStyle"
+          },
+          {
+            "path": "windows/Festival.App/Controls/RivalRowView.xaml",
+            "symbol": "RivalRowView"
+          },
+          {
+            "path": "windows/Festival.App/Controls/RivalSongRowView.xaml",
+            "symbol": "RivalSongRowView"
+          },
+          {
+            "path": "windows/Festival.App/Controls/GroupedRows.cs",
+            "symbol": "ApplyToContainer"
+          },
+          {
+            "path": "windows/Festival.App/Controls/RowSeparators.cs",
+            "symbol": "RowSeparators"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "surface-materials",
+          "view-all-cta"
+        ],
+        "pages": [
+          "rivals",
+          "all-rivals",
+          "rival-detail",
+          "rivalry",
+          "compete"
+        ]
+      },
+      "guards": []
+    },
+    {
+      "id": "band-member-lines",
+      "title": "Band member lines",
+      "status": "current",
+      "doc": ".agents/patterns/band-member-lines.md",
+      "summary": "A band card lists one line per member with the name leading on one shared edge (row to row and card to card) and the member's value (song score) and instrument icons trailing; the whole card stacks each member's icons under its name when any member can't fit inline (name clamped 96-180 plus gaps) or at large text, long names marquee/truncate/wrap inside their column, and the member lines stay inside the card's one screen-reader stop (#589).",
+      "keywords": [
+        "band card",
+        "band members",
+        "member names",
+        "usernames",
+        "align",
+        "instrument icons",
+        "band search",
+        "player bands",
+        "band results"
+      ],
+      "web": [
+        {
+          "path": "pages/player/components/PlayerBandCard.tsx",
+          "symbol": "BandMemberRow"
+        },
+        {
+          "path": "pages/player/components/PlayerBandCard.tsx",
+          "symbol": "resolveBandCardMemberLayouts"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerBandsScreen.swift",
+            "symbol": "PlayerBandRow"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongDetail/SongBandPreviewSection.swift",
+            "symbol": "SongBandPreviewRow"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandComponents.kt",
+            "symbol": "BandMemberRows"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/bands/BandLayout.kt",
+            "symbol": "BandMemberFit"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/BandCardView.xaml.cs",
+            "symbol": "BandCardView"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "leaderboard-row",
+          "surface-materials"
+        ],
+        "pages": [
+          "player-bands",
+          "song-band-leaderboard",
+          "song-detail",
+          "player-profile"
+        ],
+        "controls": [
+          "global-search"
+        ]
+      },
+      "guards": [],
+      "issues": [
+        589
+      ],
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "search-scopes",
+      "title": "Search scopes: global and profile search",
+      "status": "current",
+      "doc": ".agents/patterns/search-scopes.md",
+      "summary": "Every song/player/band search runs the platform's global-search engine with the kinds it needs as targets; the profile search offers All · Players · Bands and starts on All with players and bands searched together (owner #600, web SearchModal targets players|bands), names the scope's targets in its prompt (\"Search players or bands\"), reuses global search's rows, order and All-only titles, opens a player or a band's page (no gate message), and uses a native scope control with an explicit All (Apple scope bar, Android M3 segmented buttons, Windows SelectorBar; agent decision #600). Find Rival stays players-only.",
+      "keywords": [
+        "search scope",
+        "scope bar",
+        "profile search",
+        "select profile",
+        "find a profile",
+        "players and bands",
+        "segmented button",
+        "selectorbar",
+        "all players bands",
+        "global search",
+        "band search",
+        "player search",
+        "segmented control",
+        "targets"
+      ],
+      "web": [
+        {
+          "path": "App.tsx",
+          "symbol": "PROFILE_SEARCH_CONFIG"
+        },
+        {
+          "path": "components/search/SearchModal.tsx",
+          "symbol": "SearchModal"
+        },
+        {
+          "path": "hooks/data/useUnifiedSearch.ts",
+          "symbol": "useUnifiedSearch"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/GlobalSearch.swift",
+            "symbol": "GlobalSearchTargets"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchModel.swift",
+            "symbol": "GlobalSearchModel"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
+            "symbol": "GlobalSearchResults"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
+            "symbol": "GlobalSearchIdentifiers"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/search/GlobalSearchViewModel.kt",
+            "symbol": "GlobalSearchViewModel"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/search/GlobalSearch.kt",
+            "symbol": "profileScopes"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/search/GlobalSearch.kt",
+            "symbol": "searchResultItems"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/search/GlobalSearch.kt",
+            "symbol": "SearchAnnouncement"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/profile/ProfileSheet.kt",
+            "symbol": "ScopeRow"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/GlobalSearchResults.cs",
+            "symbol": "SearchScopes"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/GlobalSearchViewModel.cs",
+            "symbol": "GlobalSearchViewModel"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "section-headers",
+          "empty-error-states"
+        ],
+        "controls": [
+          "global-search",
+          "profile-selection"
+        ],
+        "pages": []
+      },
+      "guards": [],
+      "issues": [
+        299,
+        320,
+        348,
+        573,
+        600
+      ]
+    },
+    {
+      "id": "metadata-pills",
+      "title": "Metadata pills",
+      "status": "current",
+      "doc": ".agents/patterns/metadata-pills.md",
+      "summary": "The season chip (S15) and percentile chip (Top N%) are one shared component each per platform, one size everywhere (chip label style, 24 dp tall, 8 dp corners, season >= 48 dp, percentile >= 5.5 em), with the web colours: seasons textSecondary on surfaceSubtle with a borderSubtle outline and the catalogue's current season inverted; Top 1% skewed gold outline, Top 5% gold outline, else 10% white. Season pills read 'Season N' / 'Current season N' (#606).",
+      "keywords": [
+        "season pill",
+        "season chip",
+        "current season",
+        "percentile pill",
+        "top x%",
+        "top 1%",
+        "top 5%",
+        "chip contrast",
+        "metadata pill"
+      ],
+      "web": [
+        {
+          "path": "components/songs/metadata/SeasonPill.tsx",
+          "symbol": "SeasonPill"
+        },
+        {
+          "path": "components/songs/metadata/PercentilePill.tsx",
+          "symbol": "PercentilePill"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/ScoreSeasonPill.swift",
+            "symbol": "ScoreSeasonPill"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerPercentileTable.swift",
+            "symbol": "PercentilePill"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/MetadataPills.kt",
+            "symbol": "SeasonPill"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/design/MetadataPills.kt",
+            "symbol": "PercentilePill"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/MetadataPills.cs",
+            "symbol": "MetadataPills"
+          },
+          {
+            "path": "windows/Festival.App/Controls/MetadataPill.cs",
+            "symbol": "MetadataPill"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/MetadataPillStyle.cs",
+            "symbol": "MetadataPillStyle"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "leaderboard-row",
+          "surface-materials",
+          "shop-offer-status"
+        ],
+        "pages": [
+          "songs",
+          "suggestions",
+          "song-detail",
+          "song-leaderboard",
+          "player-history",
+          "player-profile",
+          "statistics",
+          "band-detail"
+        ],
+        "controls": [
+          "song-score-metadata",
+          "score-accuracy"
+        ]
+      },
+      "guards": [
+        {
+          "id": "android-private-pill",
+          "glob": "android/app/src/main/**/*.kt",
+          "regex": "fun\\s+\\w*(SeasonPill|PercentilePill)\\s*\\(",
+          "allow": [
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/design/MetadataPills.kt"
+          ],
+          "message": "Season and percentile chips use the shared ui/design/MetadataPills.kt components (metadata-pills R1)."
+        },
+        {
+          "id": "windows-private-pill",
+          "glob": "windows/Festival.App/**/*",
+          "regex": "FST(SeasonPill|CurrentSeason|PercentileNeutral|PercentilePill|GoldPillFill)\\w*Brush",
+          "allow": [
+            "windows/Festival.App/Themes/Styles.xaml"
+          ],
+          "message": "Season and percentile chips come from Controls/MetadataPills.cs, whose roles live in Festival.Core MetadataPillStyle (metadata-pills R1)."
+        }
+      ],
+      "issues": [
+        606
+      ],
+      "supersedes": [],
+      "supersededBy": null
     }
   ]
 }

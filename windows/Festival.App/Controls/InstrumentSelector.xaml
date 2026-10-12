@@ -91,19 +91,21 @@
                 <StackPanel x:Name="CompactRow" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center" Visibility="Collapsed"
                             XYFocusKeyboardNavigation="Enabled">
                     <Button x:Name="PreviousButton" Style="{StaticResource FSTInstrumentArrowButtonStyle}" Click="OnPrevious"
-                            AutomationProperties.Name="Previous instrument" ToolTipService.ToolTip="Previous instrument">
+                            AutomationProperties.Name="Previous instrument">
                         <FontIcon Glyph="&#xE76B;" FontSize="14" />
                     </Button>
                     <Border x:Name="CompactHost" />
                     <Button x:Name="NextButton" Style="{StaticResource FSTInstrumentArrowButtonStyle}" Click="OnNext"
-                            AutomationProperties.Name="Next instrument" ToolTipService.ToolTip="Next instrument">
+                            AutomationProperties.Name="Next instrument">
                         <FontIcon Glyph="&#xE76C;" FontSize="14" />
                     </Button>
                 </StackPanel>
             </Grid>
         </controls:AccessibleGroup>
-        <!-- Children expand under the row once an instrument is selected (web instrumentFiltersWrap); they fade in unless
-             motion is reduced. -->
-        <ContentPresenter x:Name="DetailsPresenter" Visibility="Collapsed" Opacity="0" />
+        <!-- Children expand under the row once an instrument is selected (web instrumentFiltersWrap) with the app's
+             accordion motion (Accordion, issue #561): the clip grows, then the details fade in, unless motion is reduced. -->
+        <Border x:Name="DetailsClip" Visibility="Collapsed">
+            <ContentPresenter x:Name="DetailsPresenter" Opacity="0" />
+        </Border>
     </StackPanel>
 </UserControl>

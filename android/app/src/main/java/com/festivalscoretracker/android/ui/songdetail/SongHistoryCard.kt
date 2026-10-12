@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -71,6 +72,9 @@ import androidx.compose.ui.unit.sp
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.profile.ScoreHistoryEntry
+import com.festivalscoretracker.android.core.shell.ChartPage
+import com.festivalscoretracker.android.core.shell.ChartPageMotion
+import com.festivalscoretracker.android.ui.common.rememberChartPageSlide
 import com.festivalscoretracker.android.core.songs.ScoreRowSeasonPolicy
 import com.festivalscoretracker.android.core.songs.SongHistoryChart
 import com.festivalscoretracker.android.core.songs.SongHistoryPaging
@@ -82,7 +86,11 @@ import com.festivalscoretracker.android.ui.common.ChartBandLabels
 import com.festivalscoretracker.android.ui.common.isLargeText
 import com.festivalscoretracker.android.ui.design.GlassCard
 import com.festivalscoretracker.android.ui.design.InstrumentSelector
+import com.festivalscoretracker.android.ui.design.InstrumentSelectorLook
+import com.festivalscoretracker.android.ui.design.LocalCurrentSeason
+import com.festivalscoretracker.android.ui.design.SeasonPill
 import com.festivalscoretracker.android.ui.design.SectionHeader
+import com.festivalscoretracker.android.ui.design.seasonPillDescription
 import com.festivalscoretracker.android.ui.design.ViewFullLeaderboardButton
 import com.festivalscoretracker.android.ui.leaderboards.FrostedPagerButton
 import com.festivalscoretracker.android.ui.theme.BrandTokens
@@ -106,9 +114,11 @@ import kotlin.math.max
  * are more than five. Switching chart fades the graph out and the new chart's back in
  * ([SongHistorySwap]; instant with reduced motion) while the card keeps its height: the
  * pager row stays reserved when any chart pages and the height is held during the swap.
- * The best scores below the card run the web GraphCard list sequence ([GraphCardList]:
- * old rows out, 300 ms height ease, new rows in), so the page content under them glides
- * rather than jumps; View All follows the selection at once, as on the web (issue #169).
+ * The best scores sit in the same card under the graph (issue #588, grouped rows with
+ * hairlines like the preview cards) and run the web GraphCard list sequence ([GraphCardList]:
+ * old rows out, 300 ms height ease, new rows in), so the card and the page under it glide
+ * rather than jump; View All Scores ends the card and follows the selection at once, as on
+ * the web (issue #169).
  *
  * @param entries This song's history rows (every chart, invalid scores already dropped).
  * @param visible Settings-visible charted instruments.
@@ -165,9 +175,14 @@ fun SongHistoryCard(
     val pinned = with(LocalDensity.current) { pin.value.toDp() }
     Column(modifier.fillMaxWidth().testTag("fst.song-detail.history")) {
         SectionHeader("Score History")
-        GlassCard(Modifier.fillMaxWidth().heightIn(min = pinned).testTag("fst.song-detail.history.card")) {
+        // Issue #588: one card for the selector, chart, best scores and View All Scores, like the
+        // instrument and band preview cards (and Apple's grouped Score History, #381/#382).
+        GlassCard(Modifier.fillMaxWidth().testTag("fst.song-detail.history.card")) {
+        Column {
+        // The graph section keeps its size through a chart swap; the rows below resize on their own.
+        Box(Modifier.fillMaxWidth().heightIn(min = pinned).testTag("fst.song-detail.history.graph")) {
             Column(
-                Modifier.padding(horizontal = 12.dp, vertical = 12.dp).onSizeChanged { natural = it.height },
+                Modifier.fillMaxWidth().onSizeChanged { natural = it.height }.padding(horizontal = 12.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 InstrumentSelector(
@@ -176,6 +191,7 @@ fun SongHistoryCard(
                     onSelect = { next -> if (next != null) chosen = next },
                     required = true,
                     keyboard = keyboard,
+                    look = InstrumentSelectorLook.Graph,
                     tag = "fst.song-detail.history.instrument",
                 )
                 Text(
@@ -197,27 +213,48 @@ fun SongHistoryCard(
         val selectedPoints = remember(entries, selected) { SongHistoryChart.points(entries, selected) }
         val top = remember(selectedPoints) { SongHistoryChart.top(selectedPoints) }
         // Issue #62: the list shows seasons only when its rows are at least 520 dp wide (web QUERY_SHOW_SEASON).
-        BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
             val width = maxWidth.value
-            GraphCardList(top, identity = { it.dateKey to it.score }, modifier = Modifier.fillMaxWidth().testTag("fst.song-detail.history.top")) { point, index ->
-                HistoryRow(
-                    point,
-                    best = index == 0,
-                    tag = "fst.song-detail.history.top.$index",
-                    showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryList, width, point.season),
-                )
+            // Grouped rows: a hairline above each row (the first separates the graph), fading with its row.
+            GraphCardList(top, identity = { it.dateKey to it.score }, modifier = Modifier.fillMaxWidth().testTag("fst.song-detail.history.top"), spacing = 0.dp) { point, index ->
+                Column {
+                    RowSeparator()
+                    HistoryRow(
+                        point,
+                        best = index == 0,
+                        tag = "fst.song-detail.history.top.$index",
+                        showSeason = ScoreRowSeasonPolicy.showsSeason(ScoreRowSeasonPolicy.Surface.HistoryList, width, point.season),
+                        grouped = true,
+                    )
+                }
             }
         }
         if (selectedPoints.size > SongHistoryChart.TOP_COUNT) {
+            // `view-all-cta` R1: the shared purple button ends the card, inset like the preview cards'.
+            // R4: label-first spoken name with the selected chart's card, e.g. "View All Scores, Lead Score History".
             ViewFullLeaderboardButton(
                 onClick = { onViewAll(selected) },
                 label = "View All Scores",
                 testTag = "fst.song-detail.history.view-all",
-                modifier = Modifier.padding(top = 8.dp),
+                cardName = scoreHistoryCardName(selected),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             )
+        } else {
+            Spacer(Modifier.height(4.dp))
+        }
+        }
         }
     }
 }
+
+/**
+ * The Score History card's name for View All Scores' spoken label (`view-all-cta` R4, as
+ * Apple's `PurpleActionName.spoken("View All Scores", card: "<chart> Score History")`).
+ *
+ * @param chart Selected chart.
+ * @return For example "Lead Score History".
+ */
+internal fun scoreHistoryCardName(chart: Instrument): String = "${chart.label} Score History"
 
 /**
  * Release the swap's height pin: ease from the held height to the new content height,
@@ -265,6 +302,11 @@ internal fun HistoryChart(
         if (paging.size != points.size || paging.maxBars != maxBars) paging = paging.resized(points.size, maxBars)
         if (selected != null && paging.selected != selected) paging = paging.copy(selected = selected)
         val page = points.subList(paging.pageStart, paging.pageEnd)
+        val slide = rememberChartPageSlide(
+            ChartPage(paging.pageStart, page.size, points.size),
+            niceMax(page.maxOfOrNull { it.score } ?: 0L).toFloat(),
+            key = points,
+        )
         val measurer = rememberTextMeasurer()
         val summary = remember(points, chart) { summary(points, chart) }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -299,28 +341,34 @@ internal fun HistoryChart(
                         drawText(accLabel, topLeft = Offset(axis + plotWidth + 4f, (y - accLabel.size.height / 2).coerceIn(0f, maxOf(0f, plotHeight - accLabel.size.height))))
                     }
                     if (page.isEmpty()) return@Canvas
-                    val slot = plotWidth / page.size
-                    val barWidth = minOf(slot * 0.9f, MAX_BAR.toPx())
+                    val barWidth = minOf(plotWidth / page.size * 0.9f, MAX_BAR.toPx())
                     val radius = CornerRadius(4.dp.toPx())
-                    page.forEachIndexed { i, point ->
-                        val x = axis + slot * i + (slot - barWidth) / 2
-                        val h = (plotHeight * (point.accuracyPercent / 100.0)).toFloat().coerceAtLeast(1f)
-                        val color = if (point.isGold) BrandTokens.gold else accuracyColor(point.accuracyPercent)
-                        drawRoundRect(color, Offset(x, plotHeight - h), Size(barWidth, h), radius)
-                        if (paging.selected == paging.pageStart + i) {
-                            drawRoundRect(BrandTokens.accentPurple, Offset(x, plotHeight - h), Size(barWidth, h), radius, style = Stroke(3.dp.toPx()))
+                    // The window slides on paging (load-transition R12): draw every point in or entering
+                    // the plot at its slot, clipped sideways to the plot; the score line eases to the new top.
+                    val slots = ChartPageMotion.slots(slide.start, page.size, points.size)
+                    val scoreTop = slide.valueTop.toDouble()
+                    fun centre(x: Float) = axis + plotWidth * x
+                    fun scoreY(point: SongHistoryPoint) = plotHeight * (1 - ChartPageMotion.height(point.score.toDouble(), scoreTop))
+                    clipRect(left = axis, top = -plotHeight, right = axis + plotWidth, bottom = plotHeight * 2) {
+                        slots.forEach { slot ->
+                            val point = points[slot.index]
+                            val x = centre(slot.x) - barWidth / 2
+                            val h = (plotHeight * (point.accuracyPercent / 100.0)).toFloat().coerceAtLeast(1f)
+                            val color = if (point.isGold) BrandTokens.gold else accuracyColor(point.accuracyPercent)
+                            drawRoundRect(color, Offset(x, plotHeight - h), Size(barWidth, h), radius)
+                            if (paging.selected == slot.index) {
+                                drawRoundRect(BrandTokens.accentPurple, Offset(x, plotHeight - h), Size(barWidth, h), radius, style = Stroke(3.dp.toPx()))
+                            }
                         }
-                    }
-                    // Score line with dots (web accentBlueBright).
-                    val line = Path()
-                    page.forEachIndexed { i, point ->
-                        val cx = axis + slot * i + slot / 2
-                        val cy = plotHeight * (1 - point.score.toFloat() / topScore)
-                        if (i == 0) line.moveTo(cx, cy) else line.lineTo(cx, cy)
-                    }
-                    drawPath(line, SCORE_BLUE, style = Stroke(2.dp.toPx()))
-                    page.forEachIndexed { i, point ->
-                        drawCircle(SCORE_BLUE, 4.dp.toPx(), Offset(axis + slot * i + slot / 2, plotHeight * (1 - point.score.toFloat() / topScore)))
+                        // Score line with dots (web accentBlueBright).
+                        val line = Path()
+                        slots.forEachIndexed { i, slot ->
+                            val cx = centre(slot.x)
+                            val cy = scoreY(points[slot.index])
+                            if (i == 0) line.moveTo(cx, cy) else line.lineTo(cx, cy)
+                        }
+                        drawPath(line, SCORE_BLUE, style = Stroke(2.dp.toPx()))
+                        slots.forEach { slot -> drawCircle(SCORE_BLUE, 4.dp.toPx(), Offset(centre(slot.x), scoreY(points[slot.index]))) }
                     }
                 }
                 // One date centred under each bar; the bars' dates are in the chart's description, so TalkBack skips them.
@@ -330,6 +378,7 @@ internal fun HistoryChart(
                     style = TICK_STYLE,
                     color = BrandTokens.textMuted,
                     modifier = Modifier.padding(top = 4.dp).testTag("fst.song-detail.history.dates"),
+                    shift = { slide.labelShift },
                 )
             }
             Legend(page)
@@ -390,38 +439,49 @@ private fun Pager(paging: SongHistoryPaging, onChange: (SongHistoryPaging) -> Un
 }
 
 /**
- * One score card (web score list card): date, season, score and accuracy; the best
+ * One score row (web score list card): date, season, score and accuracy; the best
  * score is purple-highlighted and bold like a selected leaderboard row.
  *
  * @param point The score.
  * @param best Whether this is the best score (highlighted).
  * @param tag Test tag.
  * @param showSeason Whether to show the season pill and read it to TalkBack ([ScoreRowSeasonPolicy]).
+ * @param grouped Whether the row sits in a card with other rows (Song Detail's Score History card,
+ *   issue #588): it drops its own card and the best row takes the preview cards' selected-row
+ *   highlight ([selectedRowHighlight]); otherwise it is its own frosted card (the tapped bar's detail).
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String, showSeason: Boolean) {
+internal fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String, showSeason: Boolean, grouped: Boolean = false) {
     val season = point.season?.takeIf { showSeason }
     val shape = RoundedCornerShape(12.dp)
     val date = longDate(point.dateKey)
     val accuracy = "${ScoreFormatting.accuracy(point.accuracyPercent * 10_000)}%"
     val score = NumberFormat.getIntegerInstance().format(point.score)
-    val modifier = Modifier
-        .fillMaxWidth()
+    val surface = if (grouped) {
+        Modifier.fillMaxWidth().selectedRowHighlight(best)
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(if (best) PurpleHighlight else BrandTokens.surfaceFrosted)
+            .border(1.dp, if (best) PurpleHighlightBorder else BrandTokens.glassBorder, shape)
+    }
+    // Grouped rows keep 12 dp from the card's edge: the highlight's inset plus the row's own padding.
+    val inset = if (grouped) SCORE_ROW_PADDING else 12.dp
+    val currentSeason = LocalCurrentSeason.current
+    val modifier = surface
         .heightIn(min = 48.dp)
-        .clip(shape)
-        .background(if (best) PurpleHighlight else BrandTokens.surfaceFrosted)
-        .border(1.dp, if (best) PurpleHighlightBorder else BrandTokens.glassBorder, shape)
         .testTag(tag)
         // One stop that reads the summary once (not the summary and then each child text).
         .clearAndSetSemantics {
-            contentDescription = listOfNotNull(date, season?.let { "Season $it" }, "score $score", "accuracy $accuracy", "full combo".takeIf { point.isFullCombo }, "best score".takeIf { best }).joinToString(", ")
+            contentDescription = listOfNotNull(date, season?.let { seasonPillDescription(it, it == currentSeason) }, "score $score", "accuracy $accuracy", "full combo".takeIf { point.isFullCombo }, "best score".takeIf { best }).joinToString(", ")
         }
     val dateWeight = if (best) FontWeight.Bold else null
     if (isLargeText()) {
         // Large text: the date on its own line and the values flowing under it, so the date
         // never ends in an ellipsis and the accuracy pill never breaks "100%" (like StackedScoreRow).
-        Column(modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(modifier.padding(horizontal = inset, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(date, color = BrandTokens.textPrimary, fontWeight = dateWeight)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                 season?.let { SeasonPill(it) }
@@ -430,24 +490,13 @@ internal fun HistoryRow(point: SongHistoryPoint, best: Boolean, tag: String, sho
             }
         }
     } else {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = modifier.padding(horizontal = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = modifier.padding(horizontal = inset)) {
             Text(date, color = BrandTokens.textPrimary, fontWeight = dateWeight, modifier = Modifier.weight(1f), maxLines = 1)
             season?.let { SeasonPill(it) }
             Text(score, color = BrandTokens.textPrimary, fontWeight = FontWeight.SemiBold)
             AccuracyText(accuracy, point.isFullCombo)
         }
     }
-}
-
-@Composable
-private fun SeasonPill(season: Int) {
-    Text(
-        "S$season",
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = BrandTokens.textPrimary,
-        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(BrandTokens.surfaceMuted).padding(horizontal = 8.dp, vertical = 2.dp),
-    )
 }
 
 @Composable

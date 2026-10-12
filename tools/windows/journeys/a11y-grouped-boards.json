@@ -1,4 +1,18 @@
 [
+  {"name": "grouped-song-board-one-card", "route": "/songs/fixture-pulse/Solo_Guitar", "profile": "fixture-player-1:Fixture Player 1", "scan": true, "tabs": 0,
+   "note": "Issue #614: the grouped card fades in as one unit with its pinned row (load-transition R11), so the card's rows and the pinned row are all named, 40+ epx stops in visual order as soon as the card appears, with no row still waiting its stagger slot; under reduced motion (ui_ci grouped-boards-reduced) the card shows with no fade and the same order.",
+   "ready": ["waitfor:id=fst.song-leaderboard.row.fixture-player-3@30", "waitfor:id=fst.song-leaderboard.spotlight-footer@15", "wait:0.6"],
+   "after_ready": [
+     "assertsize:id=fst.song-leaderboard.row.fixture-player-1|0x40",
+     "assertsize:id=fst.song-leaderboard.row.fixture-player-3|0x40",
+     "assertgap:id=fst.song-leaderboard.row.fixture-player-2|id=fst.song-leaderboard.row.fixture-player-3|0",
+     "assertread:id=fst.song-leaderboard.row.fixture-player-3|~^Rank #3, ",
+     "assertorder:id=fst.song-leaderboard.row.fixture-player-1|id=fst.song-leaderboard.row.fixture-player-2|id=fst.song-leaderboard.row.fixture-player-3|id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-next",
+     "focus:id=fst.song-leaderboard.row.fixture-player-3",
+     "assertfocus:id=fst.song-leaderboard.row.fixture-player-3@3",
+     "key:tab",
+     "assertfocus:id=fst.song-leaderboard.spotlight-footer@3"
+   ]},
   {"name": "grouped-song-board", "route": "/songs/fixture-pulse/Solo_Guitar", "profile": "fixture-player-1:Fixture Player 1", "scan": true, "tabs": 0,
    "note": "Issue #543: the page's entries form one grouped card. The rows touch (0 epx apart, hairlines between them) and each is still one 40+ epx Button stop read in visual order: rows -> pinned row -> pager. Up/Down move between rows and Tab reaches the pinned row.",
    "ready": ["waitfor:id=fst.song-leaderboard.row.fixture-player-3@30", "waitfor:id=fst.song-leaderboard.spotlight-footer@15", "wait:1.5"],
@@ -7,7 +21,7 @@
      "assertgap:id=fst.song-leaderboard.row.fixture-player-2|id=fst.song-leaderboard.row.fixture-player-3|0",
      "assertsize:id=fst.song-leaderboard.row.fixture-player-1|0x40",
      "assertsize:id=fst.song-leaderboard.row.fixture-player-2|0x40",
-     "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, current season 9)?, 5 stars, button$",
      "assertorder:id=fst.song-leaderboard.row.fixture-player-1|id=fst.song-leaderboard.row.fixture-player-2|id=fst.song-leaderboard.row.fixture-player-3|id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-next",
      "focus:id=fst.song-leaderboard.row.fixture-player-1",
      "assertfocus:id=fst.song-leaderboard.row.fixture-player-1@3",

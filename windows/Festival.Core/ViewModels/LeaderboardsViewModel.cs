@@ -15,6 +15,7 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
 {
     private readonly FestivalSession session;
     private readonly OwnRankingReader? reader;
+    private readonly ComboRankingReader? comboReader;
     private CancellationTokenSource? load;
     private string? loadedKey;
     private bool attached;
@@ -22,10 +23,12 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
     /// <summary>Creates the overview.</summary>
     /// <param name="session">Shared session.</param>
     /// <param name="reader">Selected player's own-row reader (defaults to the public single-account read).</param>
-    public LeaderboardsViewModel(FestivalSession session, OwnRankingReader? reader = null)
+    /// <param name="comboReader">Selected player's combo-row reader (defaults to the public single-account combo read).</param>
+    public LeaderboardsViewModel(FestivalSession session, OwnRankingReader? reader = null, ComboRankingReader? comboReader = null)
     {
         this.session = session;
         this.reader = reader ?? LeaderboardPreferences.DefaultReader(session);
+        this.comboReader = comboReader ?? LeaderboardPreferences.DefaultComboReader(session);
         metric = LeaderboardPreferences.RankBy(session);
         LoadSwap = new LoadSwap(session.Time);
     }
@@ -41,7 +44,10 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(MetricLabel), nameof(MetricButtonName))]
     private RankingMetric metric;
 
-    /// <summary>Instrument cards in Settings order.</summary>
+    /// <summary>
+    /// Player cards in page order (web <c>resolveSupportedRankingScopes</c>, issue #602): per family, the combo board first
+    /// when two or more OG band or Pro Strings instruments are visible, then each visible instrument.
+    /// </summary>
     [ObservableProperty]
     private List<RankingCardViewModel> instrumentCards = [];
 
@@ -133,14 +139,16 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
         var swap = LoadSwap.BeginReloadAsync(AnimateLoadSwaps(), IsReady && LoadSwap.ContentVisible);
         loadedKey = Key;
         var visible = session.Settings.VisibleInstruments;
-        var cards = InstrumentInfo.All.Where(visible.Contains)
-            .Select(i => new RankingCardViewModel(session, i, Metric, reader)).ToList();
+        var cards = RankingBoard.Scopes(visible)
+            .Select(b => new RankingCardViewModel(session, b, Metric, reader, comboReader)).ToList();
         var bands = BandTypeInfo.All.Select(b => new BandRankingCardViewModel(session, b, Metric.ToBandMetric())).ToList();
         var swapRequest = await swap;
         if (token.IsCancellationRequested) return;
         InstrumentCards = cards;
         BandCards = bands;
-        QuickLinks.SetSections(cards.Select(c => new QuickLinkSection(c.QuickLinkId, c.Title, Instrument: c.Instrument))
+        QuickLinks.SetSections(cards.Select(c => c.Board.IsCombo
+                ? new QuickLinkSection(c.QuickLinkId, c.Title, ComboQuickLinkGlyph)
+                : new QuickLinkSection(c.QuickLinkId, c.Title, Instrument: c.Instrument))
             .Concat(bands.Select(b => new QuickLinkSection(b.QuickLinkId, b.Title, BandQuickLinkGlyph))));
         IsReady = false;
         using var gate = new SemaphoreSlim(MaxConcurrentLoads);
@@ -153,6 +161,9 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
         await Task.WhenAll(loads);
         if (!token.IsCancellationRequested) IsReady = true;
     }
+
+    /// <summary>Glyph for combo sections (the Rivals hub's combo glyph; the web shows the combo's instrument icons).</summary>
+    public const string ComboQuickLinkGlyph = "\uE8D6";
 
     /// <summary>People glyph for band sections (web <c>IoPeople</c>).</summary>
     public const string BandQuickLinkGlyph = "\uE716";
@@ -221,11 +232,35 @@ public static class LeaderboardPreferences
     /// <returns>Reader.</returns>
     public static OwnRankingReader DefaultReader(FestivalSession session) => async (instrument, accountId, cancellationToken) =>
         (await session.Api.GetPlayerInstrumentRankingAsync(instrument, accountId, cancellationToken)).Ranking;
+
+    /// <summary>
+    /// Reads the selected player's combo row through <c>GET /api/rankings/combo/{accountId}?combo=&amp;rankBy=</c>
+    /// (pure read; 404 → unranked → <see langword="null"/>).
+    /// </summary>
+    /// <param name="session">Shared session.</param>
+    /// <returns>Reader.</returns>
+    public static ComboRankingReader DefaultComboReader(FestivalSession session) => async (board, accountId, metric, cancellationToken) =>
+        await session.Api.GetPlayerComboRankingAsync(board, accountId, metric, cancellationToken);
+
+    /// <summary>The own-row read for one board and metric: the instrument reader, or the combo reader for a combo board.</summary>
+    /// <param name="board">Board.</param>
+    /// <param name="metric">Rank By metric (a combo row has one rank, for this metric).</param>
+    /// <param name="reader">Instrument reader.</param>
+    /// <param name="comboReader">Combo reader.</param>
+    /// <returns>Read, or <see langword="null"/> when the board's reader is missing.</returns>
+    public static Func<string, CancellationToken, Task<AccountRankingEntry?>>? BoardReader(
+        RankingBoard board, RankingMetric metric, OwnRankingReader? reader, ComboRankingReader? comboReader) =>
+        board.IsCombo
+            ? comboReader is null ? null : (account, token) => comboReader(board, account, metric, token)
+            : reader is null ? null : (account, token) => reader(board.Instrument, account, token);
 }
 #endregion
 
 #region Instrument card
-/// <summary>One instrument's top-ten card with loading, empty, failed and rows states plus the selected-player spotlight.</summary>
+/// <summary>
+/// One board's top-ten card (an instrument, or a within-group combo as on the web's Compete page, issue #602) with loading,
+/// empty, failed and rows states plus the selected-player spotlight.
+/// </summary>
 public sealed partial class RankingCardViewModel : ObservableObject
 {
     private readonly FestivalSession session;
@@ -236,15 +271,26 @@ public sealed partial class RankingCardViewModel : ObservableObject
     /// <param name="metric">Rank By metric.</param>
     /// <param name="reader">Own-row reader.</param>
     public RankingCardViewModel(FestivalSession session, Instrument instrument, RankingMetric metric, OwnRankingReader? reader)
+        : this(session, RankingBoard.Single(instrument), metric, reader, null)
+    {
+    }
+
+    /// <summary>Creates a card for any board.</summary>
+    /// <param name="session">Shared session.</param>
+    /// <param name="board">Instrument or combo board.</param>
+    /// <param name="metric">Rank By metric.</param>
+    /// <param name="reader">Own-row reader for an instrument board.</param>
+    /// <param name="comboReader">Own-row reader for a combo board.</param>
+    public RankingCardViewModel(FestivalSession session, RankingBoard board, RankingMetric metric, OwnRankingReader? reader,
+        ComboRankingReader? comboReader)
     {
         this.session = session;
-        Instrument = instrument;
+        Board = board;
         Metric = metric;
         SkeletonRows = LeaderboardRowMetrics.SkeletonRows(metric, AutomationId);
-        Status = new ServiceStatusViewModel($"leaderboards.{instrument.ServiceId()}", $"{instrument.Label()} unavailable",
-            () => LoadAsync(), session.Time);
-        Spotlight = new RankingSpotlightViewModel(instrument, reader, session.Time, $"leaderboards.spotlight.{instrument.ServiceId()}",
-            opensFullBoard: true);
+        Status = new ServiceStatusViewModel($"leaderboards.{board.Id}", $"{board.Label} unavailable", () => LoadAsync(), session.Time);
+        Spotlight = new RankingSpotlightViewModel(board, LeaderboardPreferences.BoardReader(board, metric, reader, comboReader), session.Time,
+            $"leaderboards.spotlight.{board.Id}", opensFullBoard: true);
         // The pinned row arrives after the top ten: widen every rank column to fit it (operator batch 7.9).
         Spotlight.PropertyChanged += (_, e) =>
         {
@@ -253,25 +299,31 @@ public sealed partial class RankingCardViewModel : ObservableObject
     }
 
     /// <summary>Board.</summary>
-    public Instrument Instrument { get; }
+    public RankingBoard Board { get; }
+
+    /// <summary>The board's (first) instrument.</summary>
+    public Instrument Instrument => Board.Instrument;
 
     /// <summary>Displayed metric.</summary>
     public RankingMetric Metric { get; }
 
-    /// <summary>Card title.</summary>
-    public string Title => Instrument.Label();
+    /// <summary>Card title: the instrument, or the combo's instruments joined with " + " (web <c>rankingScopeLabel</c>).</summary>
+    public string Title => Board.Label;
 
     /// <summary>Metric subtitle.</summary>
     public string Subtitle => Metric.Label();
 
-    /// <summary>Icon file.</summary>
+    /// <summary>Icon file (an instrument card's single icon).</summary>
     public string IconFile => Instrument.IconFile();
 
-    /// <summary>Card automation ID.</summary>
-    public string AutomationId => "fst.leaderboards.card." + Instrument.ServiceId();
+    /// <summary>A combo card's icon row above its title (web <c>CompeteScopeHeader</c>); empty for an instrument card.</summary>
+    public IReadOnlyList<string> IconFiles => Board.IsCombo ? Board.IconFiles : [];
 
-    /// <summary>Quick Links section ID (web <c>instrumentQuickLinkId</c>).</summary>
-    public string QuickLinkId => "instrument:" + Instrument.ServiceId();
+    /// <summary>Card automation ID (<c>…card.lead</c>, or <c>…card.0f</c> for a combo).</summary>
+    public string AutomationId => "fst.leaderboards.card." + Board.Id;
+
+    /// <summary>Quick Links section ID (web <c>instrumentQuickLinkId</c>; <c>combo:&lt;id&gt;</c> for a combo).</summary>
+    public string QuickLinkId => (Board.IsCombo ? "combo:" : "instrument:") + Board.Id;
 
     /// <summary>"View All" automation ID.</summary>
     public string ViewAllAutomationId => AutomationId + ".view-all";
@@ -289,7 +341,7 @@ public sealed partial class RankingCardViewModel : ObservableObject
     private string viewAllText = RankingViewAll.Label(0);
 
     /// <summary>Full Rankings route for this board and metric.</summary>
-    public AppRoute ViewAllRoute => new AppRoute.FullRankings(Instrument, Metric.ServiceId());
+    public AppRoute ViewAllRoute => AppRoute.FullRankings.For(Board, Metric.ServiceId());
 
     /// <summary>Inline failure.</summary>
     public ServiceStatusViewModel Status { get; }
@@ -322,7 +374,7 @@ public sealed partial class RankingCardViewModel : ObservableObject
     public bool ShowError => State == LoadState.Failed;
 
     /// <summary>Empty text.</summary>
-    public string EmptyText => $"No ranked {Instrument.Label()} players yet.";
+    public string EmptyText => $"No ranked {Board.Label} players yet.";
 
     /// <summary>Loads the top ten, then the spotlight when the selected player is not among them.</summary>
     /// <param name="cancellationToken">Cancelled by a newer overview load.</param>
@@ -333,7 +385,9 @@ public sealed partial class RankingCardViewModel : ObservableObject
         List<AccountRankingEntry> entries;
         try
         {
-            var board = await session.Api.GetRankingsAsync(Instrument, Metric, 1, LeaderboardPaging.CardSize, cancellationToken);
+            var board = Board.IsCombo
+                ? (await session.Api.GetComboRankingsAsync(Board, Metric, 1, LeaderboardPaging.CardSize, cancellationToken)).ToBoard()
+                : await session.Api.GetRankingsAsync(Instrument, Metric, 1, LeaderboardPaging.CardSize, cancellationToken);
             entries = board.Entries;
             ViewAllText = RankingViewAll.Label(board.TotalAccounts);
         }
@@ -393,7 +447,8 @@ public sealed partial class BandRankingCardViewModel : ObservableObject
         this.session = session;
         BandType = bandType;
         Metric = metric;
-        SkeletonRows = LeaderboardRowMetrics.SkeletonRows(metric.ToRankingMetric(), AutomationId);
+        SkeletonRows = LeaderboardRowMetrics.SkeletonRows(metric.ToRankingMetric(), AutomationId,
+            LeaderboardRowMetrics.BandNameLines(bandType.MemberCount()));
         Status = new ServiceStatusViewModel($"leaderboards.{bandType.ServiceId()}", $"{bandType.Label()} unavailable",
             () => LoadAsync(), session.Time);
     }

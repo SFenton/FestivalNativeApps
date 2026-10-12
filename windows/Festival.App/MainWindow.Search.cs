@@ -44,12 +44,7 @@ public sealed partial class MainWindow
         // The width breakpoint swaps these two; a tooltip open on the one it hides would otherwise float on (#571).
         Controls.CollapsedToolTip.CloseWhenCollapsed(GlobalSearchBox);
         Controls.CollapsedToolTip.CloseWhenCollapsed(GlobalSearchButton);
-        // The box's keyboard tooltip opens after a delay and would cover the suggestions the user is reading (#574).
-        if (ToolTipService.GetToolTip(GlobalSearchBox) is ToolTip boxTip)
-            boxTip.Opened += (_, _) =>
-            {
-                if (GlobalSearchBox.IsSuggestionListOpen || GlobalSearchBox.Text.Length > 0) boxTip.IsOpen = false;
-            };
+        Controls.TypingToolTip.SuspendWhileTyping(GlobalSearchBox);
         RootGrid.SizeChanged += (_, e) => ApplySearchWidth(e.NewSize.Width);
         // The window-wide accelerators belong to no visible control; their automatic key tip would float over content.
         RootGrid.KeyboardAcceleratorPlacementMode = KeyboardAcceleratorPlacementMode.Hidden;
@@ -67,12 +62,11 @@ public sealed partial class MainWindow
         // programmatically: the user resized, so the newcomer opens no keyboard tooltip of its own (#571).
         Control leaving = compact ? GlobalSearchBox : GlobalSearchButton;
         Control entering = compact ? GlobalSearchButton : GlobalSearchBox;
-        var handOff = leaving.Visibility == Visibility.Visible && entering.Visibility == Visibility.Collapsed
-            && HasFocusWithin(leaving);
+        var handOff = entering.Visibility == Visibility.Collapsed && Controls.CollapsedToolTip.HasFocusWithin(leaving);
         // The host is the box's passthrough rect (issue #536); collapsed with it so no empty strip stays clickable.
         GlobalSearchBoxHost.Visibility = GlobalSearchBox.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
         GlobalSearchButton.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
-        if (handOff) entering.Focus(FocusState.Programmatic);
+        if (handOff) Controls.CollapsedToolTip.HandFocus(entering, () => entering);
         // Responsive box: ~36% of the window, 240 (medium) or 320 (wide) to 580 epx as in the WinUI Gallery.
         var min = width >= WideSearchWidth ? 320 : 240;
         GlobalSearchBox.MinWidth = min;
@@ -81,32 +75,15 @@ public sealed partial class MainWindow
 
     /// <summary>Whether the title-bar box is the visible entry point.</summary>
     private bool UsesTitleBarBox => GlobalSearchBox.Visibility == Visibility.Visible;
-
-    /// <summary>Whether keyboard focus is on <paramref name="control"/> or inside it (the box's focus is its TextBox).</summary>
-    /// <param name="control">Entry point.</param>
-    /// <returns><see langword="true"/> when the focused element is the control or one of its descendants.</returns>
-    private bool HasFocusWithin(Control control)
-    {
-        if (RootGrid.XamlRoot is null) return false;
-        for (var node = FocusManager.GetFocusedElement(RootGrid.XamlRoot) as DependencyObject; node is not null;
-             node = VisualTreeHelper.GetParent(node))
-        {
-            if (ReferenceEquals(node, control)) return true;
-        }
-        return false;
-    }
     #endregion
 
     #region Title-bar box
-    /// <summary>Feeds user typing into the model (suggestion browsing does not re-query) and dismisses the box's
-    /// hint tooltip, which would otherwise cover the suggestion list (#574).</summary>
+    /// <summary>Feeds user typing into the model (suggestion browsing does not re-query).</summary>
     /// <param name="sender">Box.</param>
     /// <param name="args">Reason.</param>
     private void OnGlobalSearchTextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
-        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput) return;
-        Controls.CollapsedToolTip.Close(sender);
-        TitleBarSearch.Query = sender.Text;
+        if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput) TitleBarSearch.Query = sender.Text;
     }
 
     /// <summary>Shows the highlighted suggestion's title while arrowing (the box doesn't use <c>ToString</c>, the UIA name).</summary>

@@ -26,8 +26,15 @@ public enum LeaderboardRowKind
 /// Whether any row opens a destination: the chevron column is then reserved on every row, so a row that can't be opened
 /// (no account or team key) keeps its values in line with the rest (issue #209).
 /// </param>
+/// <param name="NameLines">
+/// Name lines every row of the section reserves while names wrap at large text (pattern <c>leaderboard-row</c> R2, issue
+/// #455): the most any row asks for (<see cref="ViewModels.LeaderboardRowMetrics.PlayerNameLines"/>, one per band member,
+/// one for a date label), shared by loaded, pinned and skeleton rows so a wrapped name doesn't make its row taller than
+/// its neighbours or the card jump when rows load. A minimum, never a cap.
+/// </param>
 public sealed record LeaderboardSection(
-    LeaderboardRowKind Kind, int RankChars, int MetaChars, int ValueChars, bool HasAccuracy, bool HasStars, bool HasRoutes = true)
+    LeaderboardRowKind Kind, int RankChars, int MetaChars, int ValueChars, bool HasAccuracy, bool HasStars, bool HasRoutes = true,
+    int NameLines = ViewModels.LeaderboardRowMetrics.PlayerNameLines)
 {
     /// <summary>Whether any row has a season (score sections) or songs label (rankings sections).</summary>
     public bool HasMeta => MetaChars > 0;
@@ -106,7 +113,7 @@ public static class LeaderboardColumnLayout
     /// <summary>Rating width per character (wider than a bold digit, so a bold selected rating keeps its place).</summary>
     public const double RatingCharWidth = 9.5;
 
-    /// <summary>Season width per character (body text, <c>S15</c>).</summary>
+    /// <summary>Season label width per character (the season pill's 14 epx label, <c>S15</c>).</summary>
     public const double SeasonCharWidth = 8.5;
 
     /// <summary>Songs-label width per character (12 epx caption, bold on the selected row).</summary>
@@ -142,6 +149,27 @@ public static class LeaderboardColumnLayout
     /// <summary>Column gaps in a row: the row grid spaces all seven columns, shown or not.</summary>
     private const int GapCount = 6;
 
+    /// <summary>
+    /// One rank column width at 100% text for the longest rank text of a list (web <c>computeRankWidth</c>), so every
+    /// row's rank, bold or not, takes the same column and the columns after it line up (issue #594).
+    /// </summary>
+    /// <param name="rankChars">Longest rank text length (<c>#1,234</c> is 6).</param>
+    /// <param name="minWidth">Narrowest column.</param>
+    /// <returns>Width in epx at 100% text; scale it with the Windows text size.</returns>
+    public static double RankColumnWidth(int rankChars, double minWidth = MinRankWidth) =>
+        Math.Max(minWidth, Math.Ceiling(Math.Max(0, rankChars) * RankCharWidth));
+
+    /// <summary>
+    /// The widest rank text a list shows (the longest; ranks use tabular digits, so equal lengths draw equally wide).
+    /// Band cards and history rows put an invisible bold copy of it in every row's rank cell, so the rank column is
+    /// measured from real text at any text size and weight, a bold selected rank included, like the web's
+    /// <c>computeRankWidth</c> over every visible rank (issue #594).
+    /// </summary>
+    /// <param name="ranks">Every visible rank text, including a selected or appended row's.</param>
+    /// <returns>The widest rank text, or empty for no ranks.</returns>
+    public static string WidestRank(IEnumerable<string> ranks) =>
+        ranks.Aggregate("", (widest, rank) => rank.Length > widest.Length ? rank : widest);
+
     /// <summary>Fits a section's columns into a row width.</summary>
     /// <param name="section">Section content (every row plus the pinned row).</param>
     /// <param name="rowWidth">Row width in epx, including padding; NaN or 0 before the first layout (no optional columns).</param>
@@ -157,9 +185,11 @@ public static class LeaderboardColumnLayout
         var scale = double.IsFinite(textScale) ? Math.Max(1, textScale) : 1;
         var score = section.Kind == LeaderboardRowKind.Score;
         var gap = known && rowWidth < CompactBreakpoint ? CompactGap : WideGap;
-        var rank = section.RankChars == 0 ? 0 : Math.Max(MinRankWidth, Math.Ceiling(section.RankChars * RankCharWidth)) * scale;
+        var rank = section.RankChars == 0 ? 0 : RankColumnWidth(section.RankChars) * scale;
         var value = Math.Ceiling(section.ValueChars * (score ? ScoreCharWidth : RatingCharWidth)) * scale;
-        var meta = Math.Ceiling(section.MetaChars * (score ? SeasonCharWidth : SongsCharWidth)) * scale;
+        // A score row's season is the shared season pill (issue #606): its label plus chrome, at least 48 epx.
+        var meta = section.MetaChars == 0 ? 0
+            : (score ? MetadataPillStyle.SeasonWidth(section.MetaChars, SeasonCharWidth) : Math.Ceiling(section.MetaChars * SongsCharWidth)) * scale;
         var accuracy = score && section.HasAccuracy ? AccuracyWidth * scale : 0;
         var pinned = score && pinSeason;
         var showMeta = section.HasMeta && (!score || pinned || (known && rowWidth >= SeasonBreakpoint));

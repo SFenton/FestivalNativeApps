@@ -422,6 +422,166 @@ private func rivalsSegmentedControls(in view: NSView) -> [NSSegmentedControl] {
     assertRendersContent(host, image: image, containing: ["Common Rivals", "Fixture Rival Golf"])
 }
 
+/// The page title leads the list once (#557): one heading named only by the title (the
+/// instrument icon is hidden from VoiceOver), above the first rival and inside the
+/// window, with no repeated section title on the card. Text scaling needs a device:
+/// `RivalsJourneyTests.testAllRivalsTitleLeadsTheListAndPinsAfterScroll` covers AX5.
+@MainActor
+@Test(arguments: [
+    (RivalScope.song(instruments: ["Solo_Guitar"]), "Lead Rivals", "Fixture Rival Golf"),
+    (RivalScope.leaderboard(instrument: "Solo_Guitar", rankBy: .totalscore), "Lead Leaderboard Rivals",
+     "Fixture Rival Bravo"),
+    (RivalScope.song(instruments: ["Solo_Guitar", "Solo_Bass"]), "Common Rivals", "Fixture Rival Golf"),
+    (RivalScope.combo(token: "03", instruments: ["Solo_Guitar", "Solo_Bass"]), "Combo Rivals",
+     "Fixture Rival Golf"),
+])
+func allRivalsTitleIsOneHeadingAboveTheRows(scope: RivalScope, title: String, rival: String) async throws {
+    let (session, storage, suite) = try await rivalsFixtureSession(accountId: "fixture-riv", visible: leadAndBass)
+    defer { storage.removePersistentDomain(forName: suite) }
+    let size = CGSize(width: 402, height: 1000)
+    let host = nativeHostedView(
+        NavigationStack { AllRivalsScreen(session: session, scope: scope) }
+            .defaultAppStorage(storage)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: [title, rival], excluding: ["Loading"])
+    let slug = title.lowercased().replacingOccurrences(of: " ", with: "-")
+    _ = try nativeHostedPNG(image, filename: "all-rivals-title-\(slug).png", environment: "FST_RIVALS_RENDER_OUT")
+
+    let heading = try #require(nativeHostedAccessibilityElement("fst.all-rivals.title", in: host))
+    #expect(nativeHostedAccessibilityString(heading, "accessibilityRole") == "AXHeading")
+    #expect(nativeHostedAccessibilityString(heading, "accessibilityLabel") == title,
+            "the icon adds nothing to the spoken title")
+    let tree = nativeHostedAccessibility(host)
+    #expect(!tree.identifiers.contains("fst.all-rivals.pinned-title"), "no bar copy while the title is in view")
+    // The title is spoken once: no section header repeats it above the card.
+    let headings = rivalsAccessibilityNodes(in: host).filter { $0.role == "AXHeading" }
+    #expect(headings.map(\.label) == [title], "headings: \(headings)")
+
+    let titleFrame = try #require(nativeHostedAccessibilityFrame(of: heading, in: host))
+    let firstRow = try #require(nativeHostedAccessibilityElement(in: host) {
+        nativeHostedAccessibilityString($0, "accessibilityIdentifier").hasPrefix("fst.all-rivals.row.")
+    }.flatMap { nativeHostedAccessibilityFrame(of: $0, in: host) })
+    #expect(titleFrame.maxY <= firstRow.minY + 0.5, "title \(titleFrame) reads before the rows \(firstRow)")
+    #expect(titleFrame.minX >= 0 && titleFrame.maxX <= size.width, "title \(titleFrame) fits the window")
+}
+
+// MARK: - Rival page titles (#604)
+
+/// A Rival page under test: Rival Detail opened from a scope, or a Rivalry section.
+enum RivalTitlePage: Sendable, CustomTestStringConvertible {
+    case detail(rivalId: String, name: String, scope: RivalScope?)
+    case rivalry(mode: String)
+
+    var testDescription: String {
+        switch self {
+        case let .detail(_, _, scope): "detail \(String(describing: scope))"
+        case let .rivalry(mode): "rivalry \(mode)"
+        }
+    }
+}
+
+/// Rival Detail is titled with the rival's name over the list it came from ("Lead
+/// Rivals" led by the decorative chart icon, or "Rivals"), and Rivalry with the section
+/// over the rival's name (owner, #604; page-tools-and-nav-chrome R23). Each title is
+/// one heading, read title then subtitle, first in the page and inside the window;
+/// the icon adds nothing to the spoken name, and the bar shows no copy while the title
+/// is in view. Rivalry's one card repeats no title (section-headers R11).
+@MainActor
+@Test(arguments: [
+    (RivalTitlePage.detail(rivalId: "f1c749eb07c32578cfa3e59ec38c03a8", name: "Fixture Rival Golf",
+                           scope: .song(instruments: ["Solo_Guitar"])),
+     "Fixture Rival Golf, Lead Rivals", "Closest Battles"),
+    (RivalTitlePage.detail(rivalId: "f1c71052e0052ae7143f3b3c750f2f49", name: "Fixture Rival Bravo",
+                           scope: .leaderboard(instrument: "Solo_Guitar", rankBy: .totalscore)),
+     "Fixture Rival Bravo, Lead Rivals", "Closest Battles"),
+    (RivalTitlePage.detail(rivalId: "f1c749eb07c32578cfa3e59ec38c03a8", name: "Fixture Rival Golf",
+                           scope: .combo(token: "03", instruments: ["Solo_Guitar", "Solo_Bass"])),
+     "Fixture Rival Golf, Rivals", "Closest Battles"),
+    (RivalTitlePage.rivalry(mode: "closest_battles"), "Closest Battles, Fixture Rival Golf", "Fixture Drift"),
+])
+func rivalPageTitleIsOneHeadingNamingTheRivalAndTheSection(
+    page: RivalTitlePage, label: String, content: String
+) async throws {
+    nativeHostedEnableAccessibility()
+    let (session, storage, suite) = try await rivalsFixtureSession(accountId: "fixture-riv", visible: leadAndBass)
+    defer { storage.removePersistentDomain(forName: suite) }
+    let size = CGSize(width: 402, height: 1400)
+    let screen: AnyView
+    let prefix: String
+    switch page {
+    case let .detail(rivalId, name, scope):
+        screen = AnyView(RivalDetailScreen(session: session, rivalId: rivalId, name: name, scope: scope))
+        prefix = "fst.rival-detail"
+    case let .rivalry(mode):
+        screen = AnyView(RivalryScreen(
+            session: session, rivalId: "f1c749eb07c32578cfa3e59ec38c03a8", mode: mode,
+            name: "Fixture Rival Golf", scope: .song(instruments: ["Solo_Guitar"])
+        ))
+        prefix = "fst.rivalry"
+    }
+    let host = nativeHostedView(
+        NavigationStack { screen }
+            .defaultAppStorage(storage)
+            .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    let image = try await nativeHostedSettle(host, untilText: [content], excluding: ["Loading"])
+    let slug = label.lowercased().replacingOccurrences(of: ", ", with: "-").replacingOccurrences(of: " ", with: "-")
+    _ = try nativeHostedPNG(image, filename: "rival-title-\(slug).png", environment: "FST_RIVALS_RENDER_OUT")
+
+    let heading = try #require(nativeHostedAccessibilityElement("\(prefix).title", in: host))
+    #expect(nativeHostedAccessibilityString(heading, "accessibilityRole") == "AXHeading")
+    #expect(nativeHostedAccessibilityString(heading, "accessibilityLabel") == label,
+            "title then subtitle, the icon unspoken")
+    #expect(!nativeHostedAccessibility(host).identifiers.contains("\(prefix).pinned-title"),
+            "no bar copy while the title is in view")
+    let headings = rivalsAccessibilityNodes(in: host).filter { $0.role == "AXHeading" }
+    #expect(headings.first?.label == label, "the title is the page's first heading: \(headings)")
+    #expect(headings.filter { $0.label == label }.count == 1, "the title is read once: \(headings)")
+    if case .rivalry = page {
+        #expect(headings.map(\.label) == [label], "Rivalry's card repeats no title: \(headings)")
+    }
+
+    let titleFrame = try #require(nativeHostedAccessibilityFrame(of: heading, in: host))
+    #expect(titleFrame.minX >= 0 && titleFrame.maxX <= size.width, "title \(titleFrame) fits the window")
+    let nodes = macAccessibilityTree(host).filter(\.isElement)
+    let titleIndex = try #require(nodes.firstIndex { $0.identifier == "\(prefix).title" })
+    let contentIndex = try #require(nodes.firstIndex { $0.spokenName.hasPrefix(content) })
+    #expect(titleIndex < contentIndex, "the title reads before the page's content")
+    #expect(macAccessibilityFindings(nodes) == [], "\(macAccessibilityFindings(nodes))")
+}
+
+/// Role and label of every realized accessibility element under `host`, in tree order.
+@MainActor
+private func rivalsAccessibilityNodes(in host: NSView) -> [(role: String, label: String)] {
+    var nodes: [(role: String, label: String)] = []
+    var seen = Set<ObjectIdentifier>()
+    func walk(_ node: Any, depth: Int) {
+        guard depth < 80, let object = node as? NSObject, seen.insert(ObjectIdentifier(object)).inserted else {
+            return
+        }
+        let role = nativeHostedAccessibilityString(object, "accessibilityRole")
+        if !role.isEmpty {
+            nodes.append((role, nativeHostedAccessibilityString(object, "accessibilityLabel")))
+        }
+        if object.responds(to: NSSelectorFromString("accessibilityChildren")),
+           let children = object.value(forKey: "accessibilityChildren") as? [Any] {
+            for child in children { walk(child, depth: depth + 1) }
+        }
+        if let view = object as? NSView {
+            for subview in view.subviews { walk(subview, depth: depth + 1) }
+        }
+    }
+    walk(host, depth: 0)
+    return nodes
+}
+
 // MARK: - RivalDetailScreen: categorization
 
 @MainActor

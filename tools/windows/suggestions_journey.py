@@ -95,10 +95,13 @@ SCENARIOS: dict[str, tuple[str | None, dict[str, str], list[str]]] = {
             "invoke:id=fst.suggestions.filter-button",
             "waitfor:id=fst.suggestions.filter.instruments@10",
             "expand:id=fst.suggestions.filter.instruments",
+            # The flyout fits the window (#513), so the open Instruments list can push General below the fold.
+            "scrollinto:id=fst.suggestions.filter.general@5",
             "expand:id=fst.suggestions.filter.general",
             "{shot:filter-open}",
             "scan:{scans}/filter-open",
             # Live apply: hiding Pro Lead drops its card; Reset brings it back.
+            "scrollinto:id=fst.suggestions.filter.instrument.Solo_PeripheralGuitar@5",
             "toggle:id=fst.suggestions.filter.instrument.Solo_PeripheralGuitar",
             f"waitgone:{CARD}@10",
             "{shot:filter-applied}",

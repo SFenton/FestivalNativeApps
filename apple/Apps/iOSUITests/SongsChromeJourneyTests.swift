@@ -121,8 +121,8 @@ final class SongsChromeJourneyTests: XCTestCase {
         let detail = app.descendants(matching: .any)["fst.song-detail.hero-title"]
 
         func hittableRow() -> XCUIElement? {
-            let candidates = rows.allElementsBoundByIndex.prefix(12)
-            return candidates.first { $0.isHittable && $0.frame.midY > app.frame.height * 0.3 }
+            SongsUITestSupport.songsRows(in: app, limit: 12)
+                .first { $0.isHittable && $0.frame.midY > app.frame.height * 0.3 }
         }
 
         func openAndReturn(_ row: XCUIElement) -> CGRect {
@@ -137,7 +137,9 @@ final class SongsChromeJourneyTests: XCTestCase {
             XCTAssertTrue(field.isHittable, "Filter Songs field not tappable right after Back")
             XCTAssertEqual(field.placeholderValue, "Filter Songs")
             XCTAssertEqual(field.elementType, .searchField)
-            XCTAssertGreaterThanOrEqual(field.frame.height, 36, "Filter Songs field below a usable target height")
+            // The system capsule is 36 pt; its 44 pt target is proven in
+            // testFilterFieldIsGlassAtTopAndScrolled.
+            XCTAssertGreaterThanOrEqual(field.frame.height, 36, "Filter Songs capsule collapsed after Back")
             let returned = app.buttons[identifier]
             XCTAssertTrue(returned.waitForExistence(timeout: FestivalApp.budget(2)))
             return returned.frame
@@ -165,13 +167,182 @@ final class SongsChromeJourneyTests: XCTestCase {
         field.typeText(query)
         var filtered: XCUIElement?
         for _ in 0..<Int(FestivalApp.budget(50)) {
-            filtered = rows.allElementsBoundByIndex.prefix(6).first { $0.isHittable }
+            filtered = SongsUITestSupport.songsRows(in: app, limit: 6).first { $0.isHittable }
             if filtered != nil { break }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
         _ = openAndReturn(try XCTUnwrap(filtered, "No filtered row"))
         let kept = SongsUITestSupport.songsSearchField(in: app)
         XCTAssertEqual(kept.value as? String, query, "Filter text was lost on Back")
+    }
+
+    /// The Filter Songs drawer field is Liquid Glass at the top of the list and scrolled
+    /// (issue #559): UIKit used to draw it as a flat fill at the top edge and as glass
+    /// only once rows scrolled under the bar. Glass draws a bright specular rim just
+    /// inside the capsule's top edge; the flat fill has none. Under the app's Reduce
+    /// Transparency toggle it is the opaque `cardBackground` capsule instead (R4). The
+    /// field stays the system search field: role, label and a 44 × 44 pt tappable target
+    /// with either backing (``assertSearchFieldTarget(_:_:line:)``), and stays glass after
+    /// a search ends (UIKit then restores its flat fill, which the backing clears).
+    @MainActor
+    func testFilterFieldIsGlassAtTopAndScrolled() throws {
+        continueAfterFailure = false
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let environment = [
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_STILL_BACKGROUND": "1",
+        ]
+        let app = FestivalApp.makeApp(environment)
+        app.launch()
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(15)))
+        let field = SongsUITestSupport.songsSearchEntry(in: app)
+        XCTAssertTrue(field.waitForExistence(timeout: FestivalApp.budget(5)))
+        RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(1)))
+        assertSearchFieldContract(field)
+        let top = try fieldPixels(app, field, "Filter Songs at the top")
+        XCTAssertGreaterThan(top.rim, 6, "Filter Songs is flat at the top of the list (rim \(top.rim))")
+        try assertSearchFieldTarget(app, field)
+        // UIKit restores its flat fill when a search ends; the backing must clear it.
+        let ended = try fieldPixels(app, field, "Filter Songs after a search ends")
+        XCTAssertGreaterThan(ended.rim, 6, "Filter Songs turned flat after Cancel (rim \(ended.rim))")
+
+        let rail = app.descendants(matching: .any).matching(identifier: "fst.songs.section-index").firstMatch
+        if rail.waitForExistence(timeout: FestivalApp.budget(3)) {
+            app.swipeUp()
+            RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(1.5)))
+            assertSearchFieldContract(field)
+            let scrolled = try fieldPixels(app, field, "Filter Songs scrolled")
+            // iOS 26.x draws glass under the scrolled bar without its specular rim (with or
+            // without the backing); iOS 27, which the report came from, keeps it.
+            if ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27 {
+                XCTAssertGreaterThan(scrolled.rim, 6, "Filter Songs is flat scrolled (rim \(scrolled.rim))")
+            }
+        }
+        app.terminate()
+
+        let reduced = FestivalApp.makeApp(environment)
+        reduced.launchArguments += ["-fst.accessibility.lessTransparency", "YES"]
+        reduced.launch()
+        let opaqueField = SongsUITestSupport.songsSearchEntry(in: reduced)
+        XCTAssertTrue(opaqueField.waitForExistence(timeout: FestivalApp.budget(15)))
+        RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(1)))
+        assertSearchFieldContract(opaqueField)
+        let opaque = try fieldPixels(reduced, opaqueField, "Filter Songs, Reduce Transparency")
+        // BrandTokens.cardBackground is sRGB 11, 18, 32.
+        XCTAssertLessThan(opaque.interiorDistance, 12, "Filter Songs is not the opaque card capsule (Δ \(opaque.interiorDistance))")
+        try assertSearchFieldTarget(reduced, opaqueField)
+    }
+
+    /// The system search field contract the backing must not change.
+    @MainActor
+    private func assertSearchFieldContract(_ field: XCUIElement, line: UInt = #line) {
+        XCTAssertEqual(field.elementType, .searchField, line: line)
+        XCTAssertEqual(field.placeholderValue, "Filter Songs", line: line)
+        XCTAssertTrue(field.isHittable, "Filter Songs not tappable", line: line)
+        // HIG Buttons: "the hit region is at least 44x44 pt".
+        let tolerance: CGFloat = 0.01
+        XCTAssertGreaterThanOrEqual(field.frame.height + tolerance, 44, "Filter Songs \(field.frame) under 44 pt tall", line: line)
+        XCTAssertGreaterThanOrEqual(field.frame.width + tolerance, 44, "Filter Songs \(field.frame) under 44 pt wide", line: line)
+    }
+
+    /// Offsets from the Filter Songs field's centre near the edges of a 44 × 44 pt square
+    /// (the field's top and bottom edges and two corners of the square).
+    private static let filterFieldNearMisses: [CGVector] = [
+        CGVector(dx: 0, dy: -21), CGVector(dx: 0, dy: 21),
+        CGVector(dx: -21, dy: -21), CGVector(dx: 21, dy: 21),
+    ]
+
+    /// HIG Buttons: "the hit region is at least 44x44 pt". The backing capsule takes no
+    /// touches, so taps 21 pt from the field's centre, at the edges of its 44 pt target,
+    /// must still focus the system field, and XCUITest's hit-region audit must report
+    /// nothing for it. Each tap ends the search with the system's end-search button.
+    ///
+    /// - Parameters:
+    ///   - app: Foreground app on the Songs root with the field at rest (not focused).
+    ///   - field: The Filter Songs search field.
+    @MainActor
+    private func assertSearchFieldTarget(
+        _ app: XCUIApplication, _ field: XCUIElement, line: UInt = #line
+    ) throws {
+        try app.performAccessibilityAudit(for: [.hitRegion]) { issue in
+            guard let element = issue.element, element.elementType == .searchField else { return true }
+            return false
+        }
+        let frame = field.frame
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        let focused = NSPredicate(format: "hasKeyboardFocus == true")
+        let unfocused = NSPredicate(format: "hasKeyboardFocus == false")
+        for offset in Self.filterFieldNearMisses {
+            origin.withOffset(CGVector(dx: frame.midX + offset.dx, dy: frame.midY + offset.dy)).tap()
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: focused, object: field)],
+                               timeout: FestivalApp.budget(3)),
+                .completed,
+                "Filter Songs \(frame) ignored a tap at (\(Int(offset.dx)), \(Int(offset.dy))) pt from its centre",
+                line: line
+            )
+            // iOS 26+ ends search with a close button trailing the field (older: "Cancel").
+            let active = field.frame
+            let barButtons = app.navigationBars.firstMatch.buttons.allElementsBoundByIndex
+            let end = barButtons.first {
+                $0.isHittable && $0.frame.minX >= active.maxX - 1
+                    && $0.frame.midY > active.minY && $0.frame.midY < active.maxY
+            }
+            let labels = barButtons.map { "\($0.label) \($0.frame)" }.joined(separator: "; ")
+            try XCTUnwrap(end, "No end-search button beside Filter Songs \(active): \(labels)", line: line).tap()
+            XCTAssertEqual(
+                XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: unfocused, object: field)],
+                               timeout: FestivalApp.budget(3)),
+                .completed, "Filter Songs kept focus after Cancel", line: line
+            )
+            RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(0.6)))
+            XCTAssertEqual(field.frame.minY, frame.minY, accuracy: 1, "Filter Songs moved after Cancel", line: line)
+        }
+    }
+
+    /// Sample a search field's capsule in a screenshot.
+    ///
+    /// - Returns: `rim`, the brightest luminance just inside the capsule's top edge minus
+    ///   the mean luminance across its middle (over 60–90% of its width, clear of the
+    ///   prompt), and `interiorDistance`, the largest channel distance of that middle from
+    ///   `cardBackground`.
+    @MainActor
+    private func fieldPixels(
+        _ app: XCUIApplication, _ field: XCUIElement, _ name: String
+    ) throws -> (rim: Double, interiorDistance: Double) {
+        let shot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: shot)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        let image = try XCTUnwrap(shot.image.cgImage)
+        let bitmap = try XCTUnwrap(ButtonFillPixels(image: image, pointWidth: app.frame.width))
+        let frame = field.frame
+        let xs = stride(
+            from: Int((frame.minX + frame.width * 0.6) * bitmap.scale),
+            to: Int((frame.minX + frame.width * 0.9) * bitmap.scale), by: 3
+        ).map { $0 }
+        func rgb(_ x: Int, _ y: Int) -> (Double, Double, Double) {
+            let offset = (y * bitmap.width + x) * 4
+            return (Double(bitmap.pixels[offset]), Double(bitmap.pixels[offset + 1]), Double(bitmap.pixels[offset + 2]))
+        }
+        func luminance(_ x: Int, _ y: Int) -> Double {
+            let (r, g, b) = rgb(x, y)
+            return 0.299 * r + 0.587 * g + 0.114 * b
+        }
+        let top = Int(frame.minY * bitmap.scale)
+        let middle = Int(frame.midY * bitmap.scale)
+        let rimRows = (top + Int(bitmap.scale * 0.6))...(top + Int(bitmap.scale * 4))
+        let rimPeak = rimRows.map { y in xs.map { luminance($0, y) }.max() ?? 0 }.max() ?? 0
+        let middleMean = xs.map { luminance($0, middle) }.reduce(0, +) / Double(max(xs.count, 1))
+        let distance = xs.map { x -> Double in
+            let (r, g, b) = rgb(x, middle)
+            return max(abs(r - 11), abs(g - 18), abs(b - 32))
+        }.max() ?? .infinity
+        return (rimPeak - middleMean, distance)
     }
 
     /// The A–Z rail is centred between the navigation bar and the tab bar, stays put when
@@ -608,11 +779,13 @@ final class SongsChromeJourneyTests: XCTestCase {
         let navigation = app.navigationBars.firstMatch.frame
         XCTAssertGreaterThanOrEqual(bar.frame.minY, navigation.maxY - 1, "Bar \(bar.frame) under \(navigation)")
         let barHeight = bar.frame.height
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
+        let barBottom = bar.frame.maxY
         let tabs = app.tabBars.firstMatch.frame
-        // At AX5 a row can be taller than the band, so count any row showing ≥ 44 pt of it.
-        let visible = rows.allElementsBoundByIndex.filter {
-            $0.isHittable && min($0.frame.maxY, tabs.minY) - max($0.frame.minY, bar.frame.maxY) >= 44
+        let window = app.windows.firstMatch.frame
+        // At AX5 a row can be taller than the band, so count any row showing ≥ 44 pt of it
+        // between the bar and the tab bar. One snapshot: the lazy list recycles rows (#572).
+        let visible = try FestivalApp.snapshotNodes(in: app, where: SongsUITestSupport.isSongsRow).filter {
+            window.intersects($0.frame) && min($0.frame.maxY, tabs.minY) - max($0.frame.minY, barBottom) >= 44
         }
         XCTAssertFalse(visible.isEmpty, "No song rows below the section bar")
         for row in visible {
@@ -671,10 +844,10 @@ final class SongsChromeJourneyTests: XCTestCase {
     /// - Parameter app: Songs right after a swipe.
     @MainActor
     private func waitForListToSettle(_ app: XCUIApplication) {
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
         var last: [CGRect] = []
         for _ in 0..<Int(FestivalApp.budget(20)) {
-            let frames = rows.allElementsBoundByIndex.prefix(4).map(\.frame)
+            let rows = (try? FestivalApp.snapshotNodes(in: app, where: SongsUITestSupport.isSongsRow)) ?? []
+            let frames = rows.prefix(4).map(\.frame)
             if !frames.isEmpty, frames == last { return }
             last = frames
             RunLoop.current.run(until: Date().addingTimeInterval(0.4))
@@ -731,7 +904,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         var failures: [String] = []
         var unattributedClipped = 0
         var unattributedContrast: [String] = []
-        try performAuditRetryingTimeout(app, .all, name: name, reset: {
+        try SongsUITestSupport.performAuditRetryingTimeout(app, .all, name: name, reset: {
             page = nil
             accepted = []
             failures = []
@@ -814,7 +987,7 @@ final class SongsChromeJourneyTests: XCTestCase {
     @MainActor
     private func ax5Clipping(_ app: XCUIApplication) throws -> [String] {
         var clipped: [String] = []
-        try performAuditRetryingTimeout(app, .textClipped, name: "ax5 clipping", reset: { clipped = [] }) { issue in
+        try SongsUITestSupport.performAuditRetryingTimeout(app, .textClipped, name: "ax5 clipping", reset: { clipped = [] }) { issue in
             if issue.element?.elementType != .searchField {
                 clipped.append(issue.element.map { "\($0.elementType.rawValue) '\($0.label)'" } ?? "no element")
             }
@@ -822,35 +995,6 @@ final class SongsChromeJourneyTests: XCTestCase {
         }
         XCTContext.runActivity(named: "AX5 clipping: \(clipped)") { _ in }
         return clipped
-    }
-
-    /// Run an accessibility audit, once more when it does not complete in time: the CI
-    /// runner's virtual machine sometimes exceeds XCTest's audit deadline on this long
-    /// list (`com.apple.xcode.xctest.accessibilityAudit` -56, #388).
-    ///
-    /// - Parameters:
-    ///   - app: The app to audit.
-    ///   - types: The audit types.
-    ///   - name: Names the retry activity.
-    ///   - reset: Clears what the handler collected before the retry.
-    ///   - handler: The issue handler.
-    /// - Throws: The second timeout or any other audit error.
-    @MainActor
-    private func performAuditRetryingTimeout(
-        _ app: XCUIApplication,
-        _ types: XCUIAccessibilityAuditType,
-        name: String,
-        reset: () -> Void,
-        _ handler: @escaping (XCUIAccessibilityAuditIssue) throws -> Bool
-    ) throws {
-        do {
-            try app.performAccessibilityAudit(for: types, handler)
-        } catch let error as NSError
-            where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56 {
-            XCTContext.runActivity(named: "Audit \(name) did not complete in time; retrying once") { _ in }
-            reset()
-            try app.performAccessibilityAudit(for: types, handler)
-        }
     }
 
     /// The static texts between the top ramp and the bottom chrome that do not render
@@ -867,7 +1011,9 @@ final class SongsChromeJourneyTests: XCTestCase {
     ) throws -> [String] {
         var weak: [String] = []
         var measured = 0
-        for text in app.staticTexts.allElementsBoundByIndex {
+        // One snapshot: after the audit's text-size cycle the lazy list is still recycling
+        // rows, and a bound-by-index walk failed on a vanished last text (#572).
+        for text in try FestivalApp.snapshotNodes(in: app, where: { $0.elementType == .staticText }) {
             let frame = text.frame
             guard !frame.isEmpty, page.window.contains(frame),
                   frame.minY >= page.rampEnd, frame.maxY <= page.chromeTop else { continue }
@@ -1124,7 +1270,7 @@ final class SongsChromeJourneyTests: XCTestCase {
                        "\(to) \(incoming.frame) not sized like the floating title \(sectionBar.frame)")
 
         var issues: [String] = []
-        try performAuditRetryingTimeout(
+        try SongsUITestSupport.performAuditRetryingTimeout(
             app, [.dynamicType, .textClipped, .sufficientElementDescription, .trait],
             name: "section push", reset: { issues = [] }
         ) { issue in
@@ -1136,6 +1282,145 @@ final class SongsChromeJourneyTests: XCTestCase {
             return true
         }
         XCTAssertEqual(issues, [], "Section title audit issues mid-push at AX XXXL")
+    }
+
+    /// Issue #451 (accessibility for #286), at the largest text size: a jump from the A–Z
+    /// index lands the letter's grown title on the section bar's line, below the
+    /// navigation bar, with its first row (a named button at least 44 pt tall) right
+    /// under it; the bar names the landed section and the index's spoken value follows
+    /// it. Mid-alphabet, far back and far forward; then the system audit on the landed
+    /// section titles and rows. The macOS-hosted counterpart that `apple-ci` runs on
+    /// every change, `SongsSectionJumpAccessibilityTests`, covers reading order, Quick
+    /// Links on grouped sorts and Reduce Motion/Transparency. Needs the large fixture
+    /// like the tests above (skips otherwise).
+    @MainActor
+    func testSectionJumpIsAccessibleAtLargestText() throws {
+        try assertSectionJumpAccessibleAtLargestText(duoWindow: nil)
+    }
+
+    /// The same on the folded iPhone Duo's outer display (simulated on an iPhone; the
+    /// vertical system bar trails the rail).
+    @MainActor
+    func testSectionJumpIsAccessibleAtLargestTextDuoFolded() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The Duo window is simulated on an iPhone")
+        try assertSectionJumpAccessibleAtLargestText(duoWindow: "folded")
+    }
+
+    /// Launch Songs at AX5, jump with the A–Z index and check each landing.
+    ///
+    /// - Parameter duoWindow: `DebugDuoWindow` to simulate, or nil for the device itself.
+    /// - Throws: A skip without iOS 26's section bar or the large fixture; audit failures.
+    @MainActor
+    private func assertSectionJumpAccessibleAtLargestText(duoWindow: String?) throws {
+        continueAfterFailure = false
+        guard #available(iOS 26.0, *) else { throw XCTSkip("The section bar is iOS 26+.") }
+        XCUIDevice.shared.orientation = .portrait
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        var environment = [
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_STILL_BACKGROUND": "1",
+        ]
+        if let duoWindow {
+            environment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
+            environment["FST_DEBUG_DUO_WINDOW"] = duoWindow
+        }
+        let app = FestivalApp.makeApp(environment)
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        let rail = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch
+        guard rail.waitForExistence(timeout: FestivalApp.budget(20)),
+              rail.staticTexts.matching(NSPredicate(format: "label == 'P'")).firstMatch.exists
+        else {
+            throw XCTSkip("Catalogue lacks the A–Z sections; use mock_service.py --large-catalogue.")
+        }
+        if let duoWindow {
+            let readout = app.staticTexts["fst.shell.debug.duo-window"]
+            let reached = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "label BEGINSWITH %@", "\(duoWindow) "), object: readout
+            )
+            XCTAssertEqual(XCTWaiter().wait(for: [reached], timeout: FestivalApp.budget(10)), .completed,
+                           "The app never simulated \(duoWindow)")
+        }
+        // The index: one named, adjustable element whose value is the current letter.
+        XCTAssertEqual(rail.label, "Jump to section")
+        XCTAssertEqual(rail.value as? String, "#")
+        XCTAssertGreaterThanOrEqual(rail.frame.height, 44, "Index target \(rail.frame)")
+
+        let letters = Array("#ABCDEFGHIJKLMNOPQRSTUVWXYZ").map(String.init)
+        let sectionBar = app.staticTexts["fst.songs.section-bar"]
+        let list = app.descendants(matching: .any)["fst.songs.list"]
+        func title(_ letter: String) -> XCUIElement {
+            app.staticTexts["fst.songs.section.\(letters.firstIndex(of: letter)!)"]
+        }
+        // The rail condenses at this size (#388): take the first letter of a run it shows.
+        func shown(_ run: String) -> String? {
+            run.map(String.init).first {
+                rail.staticTexts.matching(NSPredicate(format: "label == %@", $0)).firstMatch.exists
+            }
+        }
+        func waitUntil(_ what: @autoclosure () -> String, _ condition: @escaping () -> Bool) {
+            let settled = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in condition() }, object: nil)
+            XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: FestivalApp.budget(8)), .completed, what())
+        }
+        func jump(to letter: String) throws {
+            rail.staticTexts.matching(NSPredicate(format: "label == %@", letter)).firstMatch.tap()
+            let target = title(letter)
+            waitUntil("Did not land on \(letter): bar \(sectionBar.label) \(sectionBar.frame), title \(target.frame)") {
+                sectionBar.exists && sectionBar.label == letter && target.exists
+                    && abs(target.frame.minY - sectionBar.frame.minY) <= 1
+            }
+            // Grown with the text, below the top chrome (the #286 symptom), and read once.
+            XCTAssertGreaterThanOrEqual(sectionBar.frame.height, 40, "\(letter) bar not grown: \(sectionBar.frame)")
+            XCTAssertEqual(app.staticTexts.matching(identifier: "fst.songs.section-bar").count, 1)
+            let navigation = app.navigationBars.firstMatch
+            if navigation.exists {
+                XCTAssertGreaterThanOrEqual(target.frame.minY, navigation.frame.maxY - 1,
+                                            "\(letter) title under the navigation bar: \(target.frame) \(navigation.frame)")
+            }
+            XCTAssertEqual(target.label, letter)
+            // Its first row follows at once, named, full size and in view.
+            let titleBottom = target.frame.maxY
+            let window = app.windows.firstMatch.frame
+            let rows = try FestivalApp.snapshotNodes(in: list) {
+                $0.identifier.hasPrefix("fst.songs.row.") && $0.frame.minY >= titleBottom - 1
+            }
+            let first = try XCTUnwrap(rows.min { $0.frame.minY < $1.frame.minY }, "\(letter): no row below its title")
+            XCTAssertLessThanOrEqual(first.frame.minY - titleBottom, 8, "\(letter) first row \(first.frame) far from its title")
+            XCTAssertTrue(first.label.hasPrefix(letter), "\(letter) first row is '\(first.label)'")
+            XCTAssertGreaterThanOrEqual(first.frame.height, 44, "\(letter) first row \(first.frame)")
+            XCTAssertTrue(window.intersects(first.frame), "\(letter) first row off screen: \(first.frame)")
+            waitUntil("Index value \(String(describing: rail.value)), not \(letter)") {
+                rail.value as? String == letter
+            }
+        }
+
+        let mid = try XCTUnwrap(shown("MNOPQRST"), "The index shows none of M–T")
+        try jump(to: mid)
+        try jump(to: try XCTUnwrap(shown("BCDEFGH"), "The index shows none of B–H"))
+        try jump(to: try XCTUnwrap(shown("UVW"), "The index shows none of U–W"))
+        SongsUITestSupport.record(app, name: "songs-section-jump-ax5\(duoWindow.map { "-duo-\($0)" } ?? "")")
+
+        // The system audit on the landed section titles, the bar and the rows (the rail's
+        // condensed letters and the rest of the page have their own journeys).
+        var issues: [String] = []
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            app, [.dynamicType, .textClipped, .sufficientElementDescription, .trait],
+            name: "section jump", reset: { issues = [] }
+        ) { issue in
+            let id = issue.element?.identifier ?? ""
+            let titles = id == "fst.songs.section-bar" || id.hasPrefix("fst.songs.section.")
+            let rows = id.hasPrefix("fst.songs.row.")
+                && [.sufficientElementDescription, .trait].contains(issue.auditType)
+            guard titles || rows else { return true }
+            issues.append("\(id): \(issue.compactDescription)")
+            return true
+        }
+        XCTAssertEqual(issues, [], "Landed section audit issues at AX XXXL")
     }
 
     /// Issue #8: scrolling near the top changed scroll-driven state on the Songs screen
@@ -1286,15 +1571,17 @@ final class SongsChromeJourneyTests: XCTestCase {
         // Reading order from the layout, top to bottom then leading to trailing (XCUITest
         // lists descendants depth first, not in VoiceOver's order; as `DuoDrawerJourneyTests`):
         // no later section title is above the bar, and the bar is leading of the rail.
-        let titles = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH 'fst.songs.section.'"))
-            .allElementsBoundByIndex.filter { $0.identifier != "fst.songs.section.0" && window.intersects($0.frame) }
+        let titles = try FestivalApp.snapshotNodes(in: app) {
+            $0.elementType == .staticText && $0.identifier.hasPrefix("fst.songs.section.")
+                && $0.identifier != "fst.songs.section.0" && window.intersects($0.frame)
+        }
         for title in titles {
             XCTAssertGreaterThanOrEqual(title.frame.minY, bar.maxY, "\(title.label) is above the bar: \(title.frame) \(bar)")
         }
         XCTAssertLessThanOrEqual(bar.maxX, rail.frame.minX, "The bar is not leading of the rail: \(bar) \(rail.frame)")
 
         // The system audit, for the bar only (other regions have their own journeys).
-        try performAuditRetryingTimeout(
+        try SongsUITestSupport.performAuditRetryingTimeout(
             app, [.dynamicType, .textClipped, .sufficientElementDescription],
             name: "section bar", reset: {}
         ) { issue in
@@ -1437,6 +1724,138 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertLessThanOrEqual(flips, 2 * (cycles.count * 2 + 4), "Scroll-away state oscillated")
         XCTAssertEqual(bodies, 0, "Scrolling near the top re-rendered the Songs screen")
         XCTAssertEqual(delta("songs.sort"), 0, "Scrolling near the top re-sorted the catalogue")
+    }
+
+    /// Issue #560: a programmatic scroll (a landing correction, a `.top` jump while the
+    /// inset changes) could leave the List resting part-way through the large title's
+    /// collapse; UIKit snaps the title only when a drag ends. The large title then sat
+    /// behind Open Navigation and the "#" title under the Filter field.
+    ///
+    /// After one scroll down and back (so the collapse band is known), the journey
+    /// creates `FST_DEBUG_SONGS_PARK_TOP`'s trigger file and the app moves the List 15 pt
+    /// up programmatically, the way a landing correction does (a trigger, not a timer, so
+    /// a slow CI host cannot park it mid-preparation). The List must settle at the nearer end of the collapse:
+    /// back at its top with the title open. Accessibility: the large title never overlaps
+    /// the toolbar buttons, Open Navigation and Choose Profile stay hittable with their
+    /// 36 pt glass targets, and the first section title is not hidden under the Filter
+    /// field. Needs the large fixture (skips otherwise). Runs on every supported iOS.
+    @MainActor
+    func testProgrammaticScrollNeverRestsPartWayThroughTheLargeTitle() throws {
+        try assertProgrammaticParkSettles(legacyScrollGeometry: false)
+    }
+
+    /// Issue #560 on the iOS 17 path: there `onScrollGeometryChange` and the scroll phase
+    /// are missing, so the rest watch reads the List's platform scroll view
+    /// (`PlatformScrollObserver`) and waits out touches and deceleration itself.
+    /// `FST_DEBUG_LEGACY_SCROLL_GEOMETRY=1` forces that path on a newer simulator; the
+    /// same programmatic park must settle once, with the same accessibility checks.
+    @MainActor
+    func testProgrammaticScrollNeverRestsPartWayOnTheLegacyScrollPath() throws {
+        try assertProgrammaticParkSettles(legacyScrollGeometry: true)
+    }
+
+    /// Park the List 15 pt into the large title's collapse band and require it to settle
+    /// once at the open top, with the toolbar and the first section title uncovered.
+    ///
+    /// - Parameter legacyScrollGeometry: Force the iOS 17 scroll-reading path.
+    @MainActor
+    private func assertProgrammaticParkSettles(legacyScrollGeometry: Bool) throws {
+        let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let log = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("songs-title-rest-\(UUID().uuidString).json")
+        let trigger = log.deletingPathExtension().appendingPathExtension("park")
+        defer {
+            try? FileManager.default.removeItem(at: log)
+            try? FileManager.default.removeItem(at: trigger)
+        }
+        var environment = [
+            "FST_API_BASE_URL": base,
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
+            "FST_DEBUG_STILL_BACKGROUND": "1",
+            "FST_DEBUG_STALL_LOG": log.path,
+            "FST_DEBUG_SONGS_PARK_TOP": "15@\(trigger.path)",
+        ]
+        if legacyScrollGeometry { environment["FST_DEBUG_LEGACY_SCROLL_GEOMETRY"] = "1" }
+        let app = FestivalApp.makeApp(environment)
+        app.launch()
+        defer { app.terminate() }
+        XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: FestivalApp.budget(15)))
+        // The Sort button shows before the catalogue loads: wait for a row before judging
+        // the catalogue's length by the A–Z rail.
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-song-1"].waitForExistence(timeout: FestivalApp.budget(15)))
+        guard app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch
+            .waitForExistence(timeout: FestivalApp.budget(3)) else {
+            throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
+        }
+
+        // Runs on iOS 17 too: the first section title keeps its identifier as an opaque
+        // pinned List header there, and the Filter field still sits above it.
+        let title = app.navigationBars.staticTexts["Songs"]
+        let first = app.staticTexts["fst.songs.section.0"]
+        let drawer = app.buttons["fst.shell.drawer.open"]
+        let profile = app.buttons["fst.shell.profile"]
+        XCTAssertTrue(title.waitForExistence(timeout: FestivalApp.budget(5)))
+        XCTAssertTrue(first.waitForExistence(timeout: FestivalApp.budget(5)))
+        Thread.sleep(forTimeInterval: FestivalApp.budget(1))
+        let restTitle = title.frame
+        let restFirst = first.frame
+        func atRest() -> Bool {
+            abs(title.frame.minY - restTitle.minY) <= 1 && abs(first.frame.minY - restFirst.minY) <= 1
+        }
+        func waitUntil(_ what: String, timeout: TimeInterval = 5, _ condition: @escaping () -> Bool) {
+            let met = XCTNSPredicateExpectation(
+                predicate: NSPredicate { _, _ in condition() }, object: nil
+            )
+            XCTAssertEqual(XCTWaiter.wait(for: [met], timeout: FestivalApp.budget(timeout)), .completed, what)
+        }
+
+        // Collapse the title once, then come back to the open top before the park.
+        let list = app.descendants(matching: .any).matching(identifier: "fst.songs.list").firstMatch
+        list.swipeUp()
+        waitUntil("The large title did not collapse") { restTitle.minY - title.frame.minY > 30 }
+        for _ in 0..<3 where !atRest() {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45)).press(
+                forDuration: 0.05,
+                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95))
+            )
+            Thread.sleep(forTimeInterval: FestivalApp.budget(1))
+        }
+        waitUntil("Songs did not return to its open top before the park", atRest)
+
+        struct Report: Decodable { var counters: [String: Int] }
+        func settles() -> Int {
+            (try? Data(contentsOf: log))
+                .flatMap { try? JSONDecoder().decode(Report.self, from: $0) }?
+                .counters["songs.largeTitle.settle"] ?? 0
+        }
+        XCTAssertEqual(settles(), 0, "A settle ran before the park")
+        XCTAssertTrue(FileManager.default.createFile(atPath: trigger.path, contents: nil))
+        waitUntil("The parked List never settled the large title", timeout: 10) { settles() > 0 }
+        waitUntil(
+            "Rested part-way: title \(title.frame) vs \(restTitle), # \(first.frame) vs \(restFirst)",
+            atRest
+        )
+
+        // Accessibility: nothing the title or a row covers loses its target.
+        for button in [drawer, profile] {
+            XCTAssertTrue(button.isHittable, "\(button.identifier) is covered")
+            XCTAssertGreaterThanOrEqual(button.frame.height, 36, "\(button.identifier) target shrank")
+            XCTAssertFalse(
+                title.frame.intersects(button.frame),
+                "Large title \(title.frame) overlaps \(button.identifier) \(button.frame)"
+            )
+        }
+        let field = SongsUITestSupport.songsSearchField(in: app)
+        XCTAssertTrue(field.isHittable)
+        XCTAssertGreaterThanOrEqual(
+            first.frame.minY, field.frame.maxY - 1,
+            "The first section title \(first.frame) sits under the Filter field \(field.frame)"
+        )
+        XCTAssertEqual(first.label, "#")
+        XCTAssertEqual(settles(), 1, "The settle repeated: the List kept moving")
     }
 }
 

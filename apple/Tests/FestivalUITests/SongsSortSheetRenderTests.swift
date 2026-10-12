@@ -220,4 +220,99 @@ private func songFormSurfacePixels(
     // AX5 no longer changes the macOS-hosted render: the sheet has no custom title or
     // footer layout that read Dynamic Type (immediate-apply sheet with a toolbar Done).
 }
+
+/// Settings › Filter Invalid Scores adds the web's Over CHOpt Threshold check to the
+/// Filter sheet's score section (#613); without it the check is absent. (On macOS the
+/// form's identifier replaces its rows', so the toggle is found by its name.)
+@MainActor
+@Test func songsFilterSheetOffersOverThresholdOnlyWhileFilteringInvalidScores() async throws {
+    for invalidMode in [true, false] {
+        let size = CGSize(width: 390, height: 1400)
+        let host = nativeHostedView(
+            SongsFilterSheet(
+                showShop: true, shopAvailable: true,
+                // An active saved check opens the Player Scores sections.
+                appliedPlayerFilter: SongPlayerScoreFilter(hasScores: [.lead, .drums]),
+                visibleInstruments: [.lead, .drums], selectedPlayer: true,
+                scoreAvailable: true,
+                invalidScoreFilteringEnabled: invalidMode,
+                onApply: { _, _, _ in }
+            )
+            .preferredColorScheme(.dark),
+            size: size
+        )
+        let window = nativeHostedWindow(host, size: size)
+        _ = try await nativeHostedSettle(host) {
+            macAccessibilityTree(host).contains { $0.spokenName == "Has FCs" }
+        }
+        let nodes = macAccessibilityTree(host)
+        let dump = nodes.map(\.description).joined(separator: "\n")
+        let names = nodes.filter(\.isElement).map(\.spokenName)
+        let hasFCs = try #require(names.firstIndex(of: "Has FCs"), "\(dump)")
+        let toggle = names.firstIndex(of: "Over CHOpt Threshold")
+        if invalidMode {
+            let index = try #require(toggle, "\(dump)")
+            // Web FilterModal order: after the four score kinds, enabled for a player.
+            #expect(index == hasFCs + 1, "\(dump)")
+            let node = nodes.filter(\.isElement)[index]
+            #expect(node.role == "AXCheckBox", "\(node)")
+            #expect(!dump.contains("paused while Filter Invalid Scores"), "\(dump)")
+        } else {
+            #expect(toggle == nil, "\(dump)")
+        }
+        #expect(names.contains("Has Scores"))
+        withExtendedLifetime(window) {}
+    }
+}
+/// Settings › Filter Invalid Scores no longer pauses the Filter sheet's player score
+/// checks (#615): with a selected player and current scores, Missing/Has Scores,
+/// Missing/Has FCs and Over CHOpt Threshold are enabled VoiceOver checkboxes named as
+/// on the web, in web order, reporting their saved state, with no paused notice. Without
+/// current scores the same checks are disabled, which proves the enabled probe reads state.
+@MainActor
+@Test func songsFilterSheetScoreChecksStayEnabledWhileFilteringInvalidScores() async throws {
+    let kinds = ["Missing Scores", "Has Scores", "Missing FCs", "Has FCs", "Over CHOpt Threshold"]
+    for scoreAvailable in [true, false] {
+        let size = CGSize(width: 390, height: 1400)
+        let host = nativeHostedView(
+            SongsFilterSheet(
+                showShop: true, shopAvailable: true,
+                appliedPlayerFilter: SongPlayerScoreFilter(hasScores: [.lead, .drums])
+                    .settingOverThreshold(.lead, enabled: true),
+                visibleInstruments: [.lead, .drums], selectedPlayer: true,
+                scoreAvailable: scoreAvailable,
+                invalidScoreFilteringEnabled: true,
+                onApply: { _, _, _ in }
+            )
+            .preferredColorScheme(.dark),
+            size: size
+        )
+        let window = nativeHostedWindow(host, size: size)
+        _ = try await nativeHostedSettle(host) {
+            macAccessibilityTree(host).contains { $0.spokenName == "Over CHOpt Threshold" }
+        }
+        let nodes = macAccessibilityTree(host, navigationOrder: true)
+        macAccessibilityDump(nodes, name: "songs-filter-invalid-scores-\(scoreAvailable)")
+        let dump = nodes.map(\.description).joined(separator: "\n")
+        let elements = nodes.filter(\.isElement)
+        let checks = try kinds.map { name in
+            try #require(elements.firstIndex { $0.spokenName == name }, "\(name)\n\(dump)")
+        }
+        #expect(checks == checks.sorted(), "Web FilterModal order\n\(dump)")
+        #expect(checks.last.map { $0 - checks[0] } == kinds.count - 1, "Adjacent\n\(dump)")
+        for index in checks {
+            let node = elements[index]
+            #expect(node.role == "AXCheckBox", "\(node)")
+            #expect(node.isEnabled == scoreAvailable, "\(node)")
+        }
+        // Saved state survives: every visible chart has Has Scores; only Lead is
+        // over the threshold, so the all-charts Over CHOpt Threshold check is off.
+        #expect(elements[checks[1]].value == "1", "\(elements[checks[1]])")
+        #expect(elements[checks[0]].value == "0", "\(elements[checks[0]])")
+        #expect(elements[checks[4]].value == "0", "\(elements[checks[4]])")
+        #expect(!dump.contains("paused while Filter Invalid Scores"), "\(dump)")
+        #expect(macAccessibilityFindings(nodes).isEmpty, "\(macAccessibilityFindings(nodes))")
+        withExtendedLifetime(window) {}
+    }
+}
 #endif

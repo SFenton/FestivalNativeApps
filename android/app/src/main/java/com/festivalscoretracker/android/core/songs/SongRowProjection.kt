@@ -60,6 +60,7 @@ data class SongScoreDetail(
  * @property rowState Per-row text while unavailable ("Scores syncing"…).
  * @property notice List-level notice while unavailable.
  * @property invalid Per-song reasons the shown scores differ from the raw ones (Filter Invalid Scores).
+ * @property overThreshold Whether a chart's shown score passes its Over CHOpt Threshold check (pattern invalid-scores R8).
  */
 data class SongScoreSource(
     val hasPlayer: Boolean,
@@ -67,6 +68,7 @@ data class SongScoreSource(
     val rowState: String? = null,
     val notice: String? = null,
     val invalid: (String) -> Map<Instrument, InvalidScoreReason> = { emptyMap() },
+    val overThreshold: (String, Instrument) -> Boolean = { songId, chart -> invalid(songId)[chart] == InvalidScoreReason.OverThreshold },
 ) {
     /** Whether a matching, available index backs [detail]. */
     val available: Boolean get() = detail != null
@@ -76,7 +78,7 @@ data class SongScoreSource(
         get() = detail?.let { lookup ->
             { songId, chart ->
                 lookup(songId, chart)?.facts?.let { facts ->
-                    if (invalid(songId)[chart] == InvalidScoreReason.OverThreshold) facts.copy(overThreshold = true) else facts
+                    if (overThreshold(songId, chart)) facts.copy(overThreshold = true) else facts
                 }
             }
         }
@@ -221,6 +223,7 @@ enum class SongPercentileTier {
  * @property starCount Stars shown (1–5).
  * @property goldStars Stars are gold (service 6).
  * @property currentSeason Season equals the catalogue season (inverted pill).
+ * @property season Season number of a [MetadataField.Season] pill.
  * @property intensityRaw Raw chart intensity for the meter.
  * @property gameDifficulty Game difficulty 0–3, or −1.
  */
@@ -234,6 +237,7 @@ data class SongMetadataPill(
     val starCount: Int = 0,
     val goldStars: Boolean = false,
     val currentSeason: Boolean = false,
+    val season: Int? = null,
     val intensityRaw: Double? = null,
     val gameDifficulty: Int = -1,
 )
@@ -316,7 +320,7 @@ object SongMetadataPolicy {
         if (MetadataField.Season in shown && season != null && season > 0) {
             val current = season == currentSeason
             byKind[MetadataField.Season] = SongMetadataPill(
-                MetadataField.Season, "S$season", if (current) "Current season $season" else "Season $season", currentSeason = current,
+                MetadataField.Season, "S$season", if (current) "Current season $season" else "Season $season", currentSeason = current, season = season,
             )
         }
         val raw = song.difficulty?.chartedValue(chart)

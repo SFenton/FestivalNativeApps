@@ -68,6 +68,38 @@ public static class DialogChrome
     };
 
     /// <summary>
+    /// Resizes an open dialog with its window. The template takes its surface bounds from <c>ContentDialogMaxWidth</c>,
+    /// <c>ContentDialogMinWidth</c> and <c>ContentDialogMaxHeight</c> once, when it is applied, so a dialog sized from the
+    /// window at opening otherwise stays that size: wider than a narrowed window (clipped on the right) and never
+    /// crossing its content's width breakpoints (issue #571, the Paths dialog).
+    /// </summary>
+    /// <param name="dialog">Dialog, before it is shown.</param>
+    /// <param name="resize">Given the window's size, fits the dialog's content and returns the surface bounds.</param>
+    public static void FollowWindow(ContentDialog dialog, Func<Windows.Foundation.Size, DialogBounds> resize)
+    {
+        void OnChanged(XamlRoot root, XamlRootChangedEventArgs args)
+        {
+            var bounds = resize(root.Size);
+            if (Find(dialog, "BackgroundElement") is not FrameworkElement surface) return;
+            surface.MinWidth = bounds.MinWidth;
+            surface.MaxWidth = bounds.MaxWidth;
+            surface.MaxHeight = bounds.MaxHeight;
+        }
+        XamlRoot? followed = null;
+        dialog.Opened += (_, _) =>
+        {
+            if (followed is not null || dialog.XamlRoot is not { } root) return;
+            followed = root;
+            root.Changed += OnChanged;
+        };
+        dialog.Closed += (_, _) =>
+        {
+            if (followed is not null) followed.Changed -= OnChanged;
+            followed = null;
+        };
+    }
+
+    /// <summary>
     /// Drops WinUI's automatic high-contrast text backplate from the command buttons' labels. The template already draws
     /// them in system colour pairs (ButtonText on ButtonFace, HighlightText on Highlight for the default button), so the
     /// adjustment only painted a Window-coloured box inside the default button's Highlight fill
@@ -93,9 +125,7 @@ public static class DialogChrome
     /// <param name="dialog">Dialog, before it is shown.</param>
     public static void CommandTargets(ContentDialog dialog)
     {
-        var size = Application.Current?.Resources.TryGetValue("FSTMinTargetSize", out var value) == true && value is double d
-            ? d
-            : MinTargetSize;
+        var size = TargetSize;
         void Apply()
         {
             foreach (var name in CommandButtons)
@@ -107,6 +137,13 @@ public static class DialogChrome
 
     /// <summary>Fallback for <c>FSTMinTargetSize</c> (Styles.xaml) when the app resources are not loaded.</summary>
     internal const double MinTargetSize = 40;
+
+    /// <summary>
+    /// Fluent's minimum touch target in epx (<c>FSTMinTargetSize</c>, else <see cref="MinTargetSize"/>), for buttons a modal
+    /// builds in code inside its content (e.g. the feedback form's discard confirmation, issue #433).
+    /// </summary>
+    internal static double TargetSize =>
+        Application.Current?.Resources.TryGetValue("FSTMinTargetSize", out var value) == true && value is double d ? d : MinTargetSize;
 
     /// <summary>Template part names of the dialog's command buttons.</summary>
     internal static readonly string[] CommandButtons = ["PrimaryButton", "SecondaryButton", "CloseButton"];
@@ -127,5 +164,21 @@ public static class DialogChrome
         VisualTreeHelper.GetChildrenCount(dialog) > 0 && VisualTreeHelper.GetChild(dialog, 0) is FrameworkElement root
             ? root.FindName(name)
             : null;
+}
+
+/// <summary>A dialog surface's size bounds in effective pixels (the template's <c>ContentDialog*Width/Height</c> resources).</summary>
+/// <param name="MaxWidth">Maximum (and, for a full-size dialog, actual) width.</param>
+/// <param name="MinWidth">Minimum width.</param>
+/// <param name="MaxHeight">Maximum height.</param>
+public readonly record struct DialogBounds(double MaxWidth, double MinWidth, double MaxHeight)
+{
+    /// <summary>Writes the bounds into a dialog's resources, read when its template is applied.</summary>
+    /// <param name="dialog">Dialog, before it is shown.</param>
+    public void ApplyTo(ContentDialog dialog)
+    {
+        dialog.Resources["ContentDialogMaxWidth"] = MaxWidth;
+        dialog.Resources["ContentDialogMinWidth"] = MinWidth;
+        dialog.Resources["ContentDialogMaxHeight"] = MaxHeight;
+    }
 }
 #endregion

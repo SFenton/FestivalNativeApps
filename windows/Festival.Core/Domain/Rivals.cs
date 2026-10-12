@@ -73,8 +73,13 @@ public static class RivalCombo
     {
         var mask = Mask(visible);
         if (mask == ProDrumsFamilyMask) return ProDrumsToken;
-        return int.PopCount(mask) >= 2 && GroupMasks.Any(g => (mask & ~g) == 0) ? ComboId(FromMask(mask)) : null;
+        return IsWithinGroup(mask) ? ComboId(FromMask(mask)) : null;
     }
+
+    /// <summary>Whether a mask names two or more instruments of one combo group (web <c>isWithinGroupComboId</c>).</summary>
+    /// <param name="mask">Instrument mask.</param>
+    /// <returns><see langword="true"/> for an OG band or Pro Strings combo.</returns>
+    public static bool IsWithinGroup(int mask) => int.PopCount(mask) >= 2 && GroupMasks.Any(g => (mask & ~g) == 0);
 
     /// <summary>Instruments named by a combo token.</summary>
     /// <param name="token"><see cref="ProDrumsToken"/> or a 1–4 digit hex ID over the nine charts.</param>
@@ -166,6 +171,18 @@ public abstract record RivalScope
         Leaderboard l => $"{l.Instrument.Label()} Rivals",
         Combo c => $"{RivalCombo.Label(c.Token)} Rivals",
         _ => "Combined Rivals",
+    };
+
+    /// <summary>
+    /// The one chart a single-instrument scope (song or leaderboard rivals) is about, whose icon leads the All Rivals
+    /// title and the Rival Detail subtitle (page-tools-and-nav-chrome R18, #557, #604); <see langword="null"/> for lists
+    /// spanning several charts (Common, combos, Settings-derived).
+    /// </summary>
+    public Instrument? SingleInstrument => this switch
+    {
+        Song { IsCommon: false, Mask: not 0 } s => s.Instruments[0],
+        Leaderboard l => l.Instrument,
+        _ => null,
     };
 
     /// <summary>Compact token for <c>?scope=</c> on rival detail and rivalry paths.</summary>
@@ -320,6 +337,35 @@ public static class RivalCategorization
         ["dominating_them"] = ("Dominating Them", "You're far ahead — these are your strongest matchups.", RivalCategorySentiment.Positive),
     };
 
+    /// <summary>Every category key in page order (web <c>categorizeRivalSongs</c>).</summary>
+    public static IReadOnlyList<string> Keys { get; } =
+        ["closest_battles", "almost_passed", "slipping_away", "barely_winning", "pulling_forward", "dominating_them"];
+
+    /// <summary>
+    /// Segoe Fluent glyph for a key outside <see cref="Keys"/> (People, as the Rivals hub's Common Rivals entry), so
+    /// the Quick Links group keeps an icon on every row.
+    /// </summary>
+    public const string FallbackQuickLinkGlyph = "\uE716";
+
+    /// <summary>
+    /// The Segoe Fluent Icons glyph of one category's Rival Detail Quick Links entry (#605; shared category list in
+    /// pattern <c>quick-links</c> R9). Each shows what the category means: neck and neck (Switch), closing in
+    /// (Market), losing ground (Rewind), a narrow win (Flag), a growing lead (FastForward), a commanding lead
+    /// (FavoriteStar; Segoe has no crown). All six also exist in Segoe MDL2 Assets, the Windows 10 fallback.
+    /// </summary>
+    /// <param name="key">Category key (<see cref="RivalCategory.Key"/>).</param>
+    /// <returns>A glyph; <see cref="FallbackQuickLinkGlyph"/> for an unknown key.</returns>
+    public static string QuickLinkGlyph(string key) => key switch
+    {
+        "closest_battles" => "\uE8AB",
+        "almost_passed" => "\uEAFC",
+        "slipping_away" => "\uEB9E",
+        "barely_winning" => "\uE7C1",
+        "pulling_forward" => "\uEB9D",
+        "dominating_them" => "\uE734",
+        _ => FallbackQuickLinkGlyph,
+    };
+
     /// <summary>Title for a category key, or the key itself when unknown (as on the web).</summary>
     /// <param name="key">Category key.</param>
     /// <returns>Heading.</returns>
@@ -329,6 +375,12 @@ public static class RivalCategorization
     /// <param name="key">Category key.</param>
     /// <returns><see langword="true"/> for the six web keys.</returns>
     public static bool IsKnown(string? key) => key is not null && Meta.ContainsKey(key);
+
+    /// <summary>A category's description and tone, as the Rival Detail page heads it.</summary>
+    /// <param name="key">Category key.</param>
+    /// <returns>Subtitle and sentiment, or <see langword="null"/> for an unknown key.</returns>
+    public static (string Subtitle, RivalCategorySentiment Sentiment)? Describe(string key) =>
+        Meta.TryGetValue(key, out var meta) ? (meta.Subtitle, meta.Sentiment) : null;
 
     /// <summary>Splits shared songs into non-empty categories in web order.</summary>
     /// <param name="songs">Compared songs.</param>

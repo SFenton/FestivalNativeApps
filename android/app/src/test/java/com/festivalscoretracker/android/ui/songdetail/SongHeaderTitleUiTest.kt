@@ -36,6 +36,7 @@ import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -48,7 +49,9 @@ import org.robolectric.annotation.GraphicsMode
  * `song-header` R2–R4 (issue #315) on every Android song page, in the whole shell against a
  * synthetic song with an overflowing title: the in-page title takes the full width beside the
  * art (or icon) on one scrolling line, Reduce Motion tail-truncates it, 200% text wraps it
- * in-page, and the pinned top-bar title stays one scrolling line that fills the bar.
+ * in-page, and the pinned top-bar title stays one scrolling line that fills the bar. On the song
+ * boards the pinned title sits over the board's line (issue #580): the instrument led by its
+ * decorative icon, or the band size alone, read with the title as one TalkBack stop.
  */
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -107,6 +110,42 @@ class SongHeaderTitleUiTest {
 
     private fun px(dp: Float) = dp * rule.activity.resources.displayMetrics.density
 
+    private fun exists(tag: String) = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+
+    private fun subtitles() = rule.onAllNodesWithTag("fst.nav.subtitle", useUnmergedTree = true).fetchSemanticsNodes()
+
+    /**
+     * The pinned title's board line reads [board], sits under the title inside the bar, and the
+     * bar's title block is one TalkBack stop that names the song and the board once each, with
+     * no icon description.
+     */
+    private fun assertBoardLine(title: SemanticsNode, board: String) {
+        val subtitle = subtitles().single()
+        assertEquals(board, subtitle.config[SemanticsProperties.Text].joinToString { it.text })
+        assertEquals("one line", 1, layout(subtitle).lineCount)
+        assertFalse("not ellipsized", layout(subtitle).isLineEllipsized(0))
+        val line = subtitle.boundsInRoot
+        val bar = bounds("fst.nav.top-bar")
+        assertTrue("board line ${line.top} under the title ${title.boundsInRoot.bottom}", line.top >= title.boundsInRoot.bottom - px(1f))
+        assertTrue("title $title inside the bar $bar", title.boundsInRoot.top >= bar.top - px(1f))
+        assertTrue("board line $line inside the bar $bar", line.bottom <= bar.bottom + px(1f))
+        val block = rule.onNodeWithTag("fst.nav.title-block").fetchSemanticsNode().config
+        val texts = block[SemanticsProperties.Text].map { it.text }
+        assertEquals("song read once in $texts", 1, texts.count { it == LONG })
+        assertEquals("board read once in $texts", 1, texts.count { it == board })
+        assertTrue("song before board in $texts", texts.indexOf(LONG) < texts.indexOf(board))
+        assertTrue("no icon description", block.getOrNull(SemanticsProperties.ContentDescription).isNullOrEmpty())
+    }
+
+    /** The instrument icon leads the board line, centred on it and no taller than its line. */
+    private fun assertInstrumentIcon() {
+        val icon = bounds("fst.nav.subtitle-icon")
+        val line = subtitles().single().boundsInRoot
+        assertTrue("icon $icon before the name $line", icon.right <= line.left + px(0.5f))
+        assertEquals(line.center.y, icon.center.y, px(2f))
+        assertTrue("icon $icon within the line $line", icon.height <= line.height + px(1f))
+    }
+
     /**
      * The in-page title scrolls on one line and its box reaches the header's trailing edge.
      *
@@ -160,6 +199,9 @@ class SongHeaderTitleUiTest {
         assertTrue(stops.single().config.contains(SemanticsProperties.Heading))
         assertEquals(1, stops.single().config[SemanticsProperties.Text].count { it.text == LONG })
         assertPinnedTitleScrollsAcrossTheBar("fst.song-detail.list")
+        // Song Details pins the title alone (like Apple's caption-free SongBarTitle).
+        assertTrue(subtitles().isEmpty())
+        assertFalse(exists("fst.nav.title-block"))
     }
 
     @Test
@@ -192,6 +234,51 @@ class SongHeaderTitleUiTest {
         val title = header.fetchSemanticsNodes().first()
         assertEquals(FestivalMarquee.Mode.Static, mode(title))
         assertEquals(1, layout(title).lineCount)
+    }
+
+    // endregion
+
+    // region Board line (issue #580)
+
+    @Test
+    fun songLeaderboardBarShowsTheInstrumentUnderThePinnedTitle() {
+        launch("songLeaderboard:s-alpha:Solo_Guitar")
+        waitForTitle(DETAIL_HEADER)
+        assertTrue("no board line while the header shows", subtitles().isEmpty())
+        assertFalse(exists("fst.nav.subtitle-icon"))
+        val title = pinnedTitle("fst.song-leaderboard.list")
+        assertEquals("the title still scrolls", FestivalMarquee.Mode.Scrolling, mode(title))
+        assertBoardLine(title, "Lead")
+        assertInstrumentIcon()
+        // The header back in view empties the bar again.
+        rule.onNodeWithTag("fst.song-leaderboard.list").performScrollToIndex(0)
+        rule.waitUntil(5_000) { settle(100); subtitles().isEmpty() }
+        assertFalse(exists("fst.nav.subtitle-icon"))
+    }
+
+    @Test
+    fun songBandLeaderboardBarShowsTheBandSizeWithoutAnIcon() {
+        launch("songBandLeaderboard:s-alpha:Band_Duets")
+        waitForTitle(BAND_HEADER)
+        assertTrue("no board line while the header shows", subtitles().isEmpty())
+        val title = pinnedTitle("fst.song-band-leaderboard.list")
+        assertBoardLine(title, "Duos")
+        assertFalse("a band size has no icon", exists("fst.nav.subtitle-icon"))
+    }
+
+    @Test
+    fun largeTextGrowsTheBarOnceToFitTheTitleAndBoardLine() {
+        launch("songLeaderboard:s-alpha:Solo_Guitar", fontScale = 2f)
+        waitForTitle(DETAIL_HEADER)
+        val empty = bounds("fst.nav.top-bar")
+        val title = pinnedTitle("fst.song-leaderboard.list")
+        assertEquals("the bar keeps its height when the title appears", empty.height, bounds("fst.nav.top-bar").height, px(1f))
+        assertEquals("the bar title keeps scrolling", FestivalMarquee.Mode.Scrolling, mode(title))
+        assertEquals(1, layout(title).lineCount)
+        assertEquals("board line at 200% text", 2f, layout(subtitles().single()).layoutInput.density.fontScale, 0.01f)
+        assertBoardLine(title, "Lead")
+        assertInstrumentIcon()
+        assertTrue("the icon grows with the text", bounds("fst.nav.subtitle-icon").height > px(24f))
     }
 
     // endregion

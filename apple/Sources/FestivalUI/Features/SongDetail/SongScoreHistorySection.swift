@@ -123,6 +123,8 @@ struct SongScoreHistorySection: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(Self.anchor)
+            // One score column for the list and the tapped bar's row (#594).
+            .leaderboardSectionColumns(.scoreHistory(rows.map(\.newScore)))
             .onAppear {
                 if displayed == nil { displayed = shown }
             }
@@ -469,46 +471,46 @@ struct ScoreHistoryListRow: View {
 
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.festivalGroupedRow) private var grouped
+    /// The list's shared score width (`LeaderboardRowColumns.scoreHistory`, #594).
+    @Environment(\.leaderboardRowColumns) private var columns
 
     var body: some View {
-        // Accessibility sizes stack the season under the date (HIG layout: horizontal
-        // views may stack); standard sizes keep the web's single-line label.
-        let stacked = dynamicTypeSize.isAccessibilitySize
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(dateText)
-                    .font(.body.weight(isBest ? .bold : .regular))
-                    .foregroundStyle(FestivalText.primary)
-                    .lineLimit(stacked ? nil : 1)
-                    .minimumScaleFactor(stacked ? 1 : 0.75)
-                if stacked, let season {
-                    ScoreSeasonPill(season: season, current: season == currentSeason)
-                }
-            }
-            Spacer(minLength: 8)
-            if seasonColumn, !stacked {
-                ScoreSeasonPill(season: season, current: season != nil && season == currentSeason)
-            }
-            Text(entry.newScore.formatted())
-                .font(.body.weight(.semibold).monospacedDigit())
-                .foregroundStyle(FestivalText.primary)
-            if let accuracy = entry.accuracy {
-                let fullCombo = entry.isFullCombo == true
-                Text("\(ScoreFormatting.accuracy(accuracy))%")
-                    .font(fullCombo ? .body.bold().italic() : .body)
-                    .foregroundStyle(fullCombo ? BrandTokens.gold : FestivalText.primary)
-                    // A fixed 76 × 24 pt pill cut "95.5%" to "9…" at AX5 (iPad audit, Lane
-                    // A11Y3); accessibility sizes let it grow around the text.
-                    .lineLimit(1)
-                    .padding(.horizontal, stacked ? 8 : 0)
-                    .frame(width: stacked ? nil : 76, height: stacked ? nil : 24)
-                    .frame(minWidth: stacked ? 76 : nil, minHeight: stacked ? 24 : nil)
-                    .fixedSize(horizontal: stacked, vertical: stacked)
-                    .background(fullCombo ? Color.clear : ScoreHistoryChart.accuracyColor(accuracy / 10_000).opacity(0.25),
-                                in: GoldSkewBadgeShape(skewed: fullCombo))
-                    .overlay {
-                        if fullCombo { GoldSkewBadgeShape(skewed: true).stroke(BrandTokens.gold, lineWidth: 2) }
+        // Accessibility sizes stack the date (and season) over the score and accuracy
+        // (HIG Typography: "consider stacking text above secondary items"; leaderboard-row
+        // R2, as `RankingRowLayout`): one line squeezed "850,000" into "85 / 0, / 00 / 0"
+        // on an iPhone at AX5 (#385). Standard sizes keep the web's single-line row.
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 6) {
+                    dateLabel(stacked: true)
+                    if let season {
+                        ScoreSeasonPill(season: season, current: season == currentSeason)
                     }
+                    // Score and accuracy share a line when it fits, else stack.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 10) {
+                            scoreLabel(stacked: true)
+                            Spacer(minLength: 8)
+                            accuracyBadge(stacked: true)
+                        }
+                        VStack(alignment: .leading, spacing: 6) {
+                            scoreLabel(stacked: true)
+                            accuracyBadge(stacked: true)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 10)
+            } else {
+                HStack(spacing: 10) {
+                    dateLabel(stacked: false)
+                    Spacer(minLength: 8)
+                    if seasonColumn {
+                        ScoreSeasonPill(season: season, current: season != nil && season == currentSeason)
+                    }
+                    scoreLabel(stacked: false)
+                    accuracyBadge(stacked: false)
+                }
             }
         }
         .padding(.horizontal, 14)
@@ -526,7 +528,13 @@ struct ScoreHistoryListRow: View {
                 Color.clear.festivalCard(cornerRadius: 12)
             }
         }
+        // Read-only text whose focus frame is the whole row: a grouped row draws no
+        // background, so the element had no role and a frame shrunk to its text (#406).
+        // The plain content shape sets that frame; `.contentShape(.accessibility, …)`
+        // kept Song Detail from idling while it scrolled on iPhone.
+        .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isStaticText)
         .accessibilityLabel(
             "\(dateText)"
                 + (season.map { ", " + ScoreSeasonPill.spokenLabel(season: $0, current: $0 == currentSeason).lowercased() } ?? "")
@@ -535,5 +543,70 @@ struct ScoreHistoryListRow: View {
                 + (entry.isFullCombo == true ? ", full combo" : "")
                 + (isBest ? ", best score" : "")
         )
+    }
+
+    /// The score's date; wraps at word boundaries at accessibility sizes, otherwise one
+    /// line that may shrink a little.
+    ///
+    /// - Parameter stacked: Accessibility-size layout.
+    /// - Returns: The date text.
+    private func dateLabel(stacked: Bool) -> some View {
+        Text(dateText)
+            .font(.body.weight(isBest ? .bold : .regular))
+            .foregroundStyle(FestivalText.primary)
+            .lineLimit(stacked ? nil : 1)
+            .minimumScaleFactor(stacked ? 1 : 0.75)
+            .fixedSize(horizontal: false, vertical: stacked)
+    }
+
+    /// The score, kept whole on one line (leaderboard-row R8): at accessibility sizes it
+    /// scales down rather than break between digits. On one line it sits in the list's
+    /// shared column (web `ScorePill` `scoreWidth`), so a shorter score keeps the season
+    /// pill and score lined up with the other rows (#594); stacked rows keep their
+    /// natural width.
+    ///
+    /// - Parameter stacked: Accessibility-size layout.
+    /// - Returns: The score text.
+    private func scoreLabel(stacked: Bool) -> some View {
+        LeaderboardColumnSlot(template: stacked ? nil : columns?.scoreLabel, alignment: .trailing) {
+            Text(entry.newScore.formatted())
+                .font(.body.weight(.semibold).monospacedDigit())
+                .foregroundStyle(FestivalText.primary)
+                .lineLimit(1)
+                .minimumScaleFactor(stacked ? 0.5 : 1)
+        }
+    }
+
+    /// The shared accuracy badge (gold skewed outline for a full combo).
+    ///
+    /// - Parameter stacked: Accessibility-size layout: the badge grows around its text.
+    /// - Returns: The badge; without accuracy, an empty slot of the badge's width on one
+    ///   line and nothing when stacked.
+    @ViewBuilder
+    private func accuracyBadge(stacked: Bool) -> some View {
+        if let accuracy = entry.accuracy {
+            let fullCombo = entry.isFullCombo == true
+            Text("\(ScoreFormatting.accuracy(accuracy))%")
+                .font(fullCombo ? .body.bold().italic() : .body)
+                .foregroundStyle(fullCombo ? BrandTokens.gold : FestivalText.primary)
+                // A fixed 76 × 24 pt pill cut "95.5%" to "9…" at AX5 (iPad audit, Lane
+                // A11Y3); accessibility sizes let it grow around the text.
+                .lineLimit(1)
+                .padding(.horizontal, stacked ? 8 : 0)
+                .frame(width: stacked ? nil : 76, height: stacked ? nil : 24)
+                .frame(minWidth: stacked ? 76 : nil, minHeight: stacked ? 24 : nil)
+                .fixedSize(horizontal: stacked, vertical: stacked)
+                .background(fullCombo ? Color.clear : ScoreHistoryChart.accuracyColor(accuracy / 10_000).opacity(0.25),
+                            in: GoldSkewBadgeShape(skewed: fullCombo))
+                .overlay {
+                    if fullCombo { GoldSkewBadgeShape(skewed: true).stroke(BrandTokens.gold, lineWidth: 2) }
+                }
+        } else if !stacked {
+            // Keep the badge's column so the score lines up with rows that have one
+            // (web `colAcc` is a fixed width, #594).
+            Color.clear
+                .frame(width: 76, height: 24)
+                .accessibilityHidden(true)
+        }
     }
 }

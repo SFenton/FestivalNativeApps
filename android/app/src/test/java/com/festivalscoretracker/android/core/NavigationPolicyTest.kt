@@ -11,6 +11,7 @@ import com.festivalscoretracker.android.core.nav.FestivalSection.Compete
 import com.festivalscoretracker.android.core.nav.FestivalSection.Leaderboards
 import com.festivalscoretracker.android.core.nav.FestivalSection.Rivals
 import com.festivalscoretracker.android.core.nav.FestivalSection.Settings
+import com.festivalscoretracker.android.core.nav.FestivalSection.Shop
 import com.festivalscoretracker.android.core.nav.FestivalSection.Songs
 import com.festivalscoretracker.android.core.nav.FestivalSection.Statistics
 import com.festivalscoretracker.android.core.nav.FestivalSection.Suggestions
@@ -41,9 +42,30 @@ class NavigationPolicyTest {
     fun tabsMirrorWebBottomNav() {
         assertEquals(listOf(Songs, Leaderboards, Settings), FestivalTabPolicy.sections(ProfileKind.None, false))
         assertEquals(listOf(Songs, Leaderboards, Settings), FestivalTabPolicy.sections(ProfileKind.None, true))
-        assertEquals(listOf(Songs, Suggestions, Compete, Statistics, Settings), FestivalTabPolicy.sections(ProfileKind.Player, false))
-        assertEquals(listOf(Songs, Suggestions, Leaderboards, Rivals, Statistics, Settings), FestivalTabPolicy.sections(ProfileKind.Player, true))
-        assertEquals(listOf(Songs, Suggestions, Leaderboards, Statistics, Settings), FestivalTabPolicy.sections(ProfileKind.Band, false))
+        assertEquals(listOf(Songs, Suggestions, Compete, Shop, Settings), FestivalTabPolicy.sections(ProfileKind.Player, false))
+        assertEquals(listOf(Songs, Suggestions, Leaderboards, Rivals, Shop, Settings), FestivalTabPolicy.sections(ProfileKind.Player, true))
+        assertEquals(listOf(Songs, Suggestions, Leaderboards, Shop, Settings), FestivalTabPolicy.sections(ProfileKind.Band, false))
+    }
+
+    /** Owner (#601): Item Shop takes Statistics' slot; the profile button opens Statistics. */
+    @Test
+    fun itemShopReplacesStatisticsAndHideItemShopLeavesTheSlotEmpty() {
+        ProfileKind.entries.forEach { profile ->
+            listOf(false, true).forEach { regular ->
+                assertFalse(Statistics in FestivalTabPolicy.sections(profile, regular))
+                assertFalse(Shop in FestivalTabPolicy.sections(profile, regular, showShop = false))
+            }
+        }
+        assertFalse(Shop in FestivalTabPolicy.sections(ProfileKind.None, false))
+        assertEquals(listOf(Songs, Suggestions, Compete, Settings), FestivalTabPolicy.sections(ProfileKind.Player, false, showShop = false))
+        assertEquals(listOf(Songs, Suggestions, Leaderboards, Rivals, Settings), FestivalTabPolicy.sections(ProfileKind.Player, true, showShop = false))
+        assertEquals(listOf(Songs, Suggestions, Leaderboards, Settings), FestivalTabPolicy.sections(ProfileKind.Band, false, showShop = false))
+        // Turning Hide Item Shop on (or deselecting) while on the Shop tab moves to Songs.
+        assertEquals(Songs, FestivalTabPolicy.resolve(Shop, FestivalTabPolicy.sections(ProfileKind.Player, false, showShop = false)))
+        assertEquals(Songs, FestivalTabPolicy.resolve(Shop, FestivalTabPolicy.sections(ProfileKind.None, false)))
+        assertEquals(Shop, FestivalTabPolicy.resolve(Shop, FestivalTabPolicy.sections(ProfileKind.Band, true)))
+        assertEquals(Shop, FestivalSection.fromName("shop"))
+        assertEquals("Item Shop", Shop.title)
     }
 
     @Test
@@ -63,6 +85,14 @@ class NavigationPolicyTest {
         assertEquals(Suggestions, FestivalSection.fromName("SUGGESTIONS"))
         assertNull(FestivalSection.fromName("manual"))
         assertNull(FestivalSection.fromName(null))
+    }
+
+    /** #610 (web `BottomNav` Compete `activeKeys`): Compete is the home of Leaderboards and Rivals. */
+    @Test
+    fun competeIsTheParentOfLeaderboardsAndRivals() {
+        assertEquals(Compete, FestivalTabPolicy.parent(Leaderboards))
+        assertEquals(Compete, FestivalTabPolicy.parent(Rivals))
+        listOf(Songs, Suggestions, Compete, Statistics, Shop, Settings).forEach { assertNull(FestivalTabPolicy.parent(it)) }
     }
 
     // endregion

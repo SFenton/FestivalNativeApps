@@ -66,6 +66,10 @@
   },
   {
     "name": "instrument-selector-lab-compact",
+    "note": "Issue #571: the UIA toggle focuses the Detail content Lead circle, and WinUI opens a circle's tooltip for UIA-sourced focus by design (ToolTipService::OnOwnerGotFocus); Esc does not close it, tooltips are always windowed, and every focusable control in the lab has a tooltip, so focus cannot move to a tooltip-free control before the scan. The allowance drops only WinUI's windowed PopupHost finding (windows-accessibility open item 8), as for a11y-history-swap's post-pick tooltip; every other finding still fails.",
+    "axe_allow": [
+      "framework-popup"
+    ],
     "route": "/songs",
     "env": {
       "FST_DEBUG_CONTROL_LAB": "instrument-selector"
@@ -131,6 +135,64 @@
     "teardown": [
       "key:esc",
       "wait:0.5"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "instrument-selector-swap-compact",
+    "route": "/songs",
+    "env": {
+      "FST_DEBUG_CONTROL_LAB": "instrument-selector"
+    },
+    "sizes": [
+      "compact"
+    ],
+    "setup": [
+      "resize:medium",
+      "wait:1.5",
+      "scrollinto:id=fst.instrument-selector.auto.Solo_Bass@20",
+      "focus:id=fst.instrument-selector.auto.Solo_Bass",
+      "key:shift+tab",
+      "assertfocus:id=fst.instrument-selector.auto.Solo_Guitar@3",
+      "waitfor:name=Lead&class=ToolTip@5",
+      "resize:compact",
+      "wait:1.5"
+    ],
+    "ready": [
+      "waitfor:id=fst.instrument-selector.auto.compact@10"
+    ],
+    "after_ready": [
+      "waitgone:name=Lead&class=ToolTip@3",
+      "assertfocus:id=fst.instrument-selector.auto.compact@3"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "instrument-selector-swap-full",
+    "route": "/songs",
+    "env": {
+      "FST_DEBUG_CONTROL_LAB": "instrument-selector"
+    },
+    "sizes": [
+      "medium"
+    ],
+    "setup": [
+      "resize:compact",
+      "wait:1.5",
+      "scrollinto:id=fst.instrument-selector.auto.compact@20",
+      "focus:id=fst.instrument-selector.auto.previous",
+      "key:tab",
+      "assertfocus:id=fst.instrument-selector.auto.compact@3",
+      "waitfor:name=Lead&class=ToolTip@5",
+      "resize:medium",
+      "wait:1.5"
+    ],
+    "ready": [
+      "waitfor:id=fst.instrument-selector.auto.Solo_Bass@10"
+    ],
+    "after_ready": [
+      "waitgone:name=Lead&class=ToolTip@3",
+      "assertfocus:id=fst.instrument-selector.auto.Solo_Guitar@3"
     ],
     "tabs": 0
   }

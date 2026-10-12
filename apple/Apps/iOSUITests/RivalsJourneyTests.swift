@@ -1,3 +1,4 @@
+import UIKit
 import XCTest
 
 /// Rivals/Compete navigation journeys, fixture-backed against
@@ -51,7 +52,8 @@ final class RivalsJourneyTests: XCTestCase {
         // The first "View All Rivals" row belongs to whichever section loaded
         // first (Common Rivals when 2+ instruments are visible, else the first
         // per-instrument section); either way it reaches `AllRivalsScreen`.
-        let viewAll = app.buttons["View All Rivals"].firstMatch
+        // Spoken "View All Rivals, <card>" (view-all-cta R4).
+        let viewAll = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "View All Rivals")).firstMatch
         XCTAssertTrue(viewAll.waitForExistence(timeout: 15))
         viewAll.tap()
 
@@ -72,8 +74,15 @@ final class RivalsJourneyTests: XCTestCase {
         XCTAssertTrue(categoryViewAll.waitForExistence(timeout: 10))
         XCTAssertTrue(categoryViewAll.label.hasPrefix("View All, "))
         XCTAssertFalse(app.buttons["See All"].exists)
+        let detailTitle = app.descendants(matching: .any)["fst.rival-detail.title"]
+        // Common Rivals gives "Rivals", a per-instrument section "{Instrument} Rivals".
+        XCTAssertTrue(detailTitle.exists && detailTitle.label.hasSuffix("Rivals") && detailTitle.label.contains(", "),
+                      "Rival Detail is the rival's name over its Rivals list (#604): \(detailTitle.label)")
         categoryViewAll.tap()
         XCTAssertTrue(app.buttons["fst.rivalry.view-profile"].waitForExistence(timeout: 15))
+        let rivalryTitle = app.descendants(matching: .any)["fst.rivalry.title"]
+        XCTAssertTrue(rivalryTitle.label.hasPrefix("Closest Battles, "),
+                      "Rivalry is the section over the rival's name (#604): \(rivalryTitle.label)")
     }
 
     // MARK: - Compete -> rival row (#369)
@@ -221,6 +230,42 @@ final class RivalsJourneyTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Closest Battles"].waitForExistence(timeout: 10))
     }
 
+    // MARK: - Song comparison cards (#558, pattern rival-rows)
+
+    /// At the largest accessibility size each Rival Detail song card is still one element
+    /// reading the song, both ranks and who leads (colour is never the only signal), keeps a
+    /// 44 pt target, and the audit finds no clipped text or small hit region in the cards
+    /// now that their "#rank Name" pills wrap and the art column joins them.
+    @MainActor
+    func testRivalDetailSongCardsAreAccessibleAtAX5() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_ROUTE"] =
+            "rivalDetail:f1c749eb07c32578cfa3e59ec38c03a8:song:Solo_Guitar"
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        let card = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@", ", you rank ")).firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: FestivalApp.budget(20)))
+        XCTAssertTrue(
+            card.label.hasSuffix(" leads") || card.label.hasSuffix("you lead") || card.label.hasSuffix(", tied"),
+            "Card label must name who leads: \(card.label)"
+        )
+        XCTAssertTrue(card.label.contains(" ranks "), "Card label must read the rival's rank: \(card.label)")
+        XCTAssertGreaterThanOrEqual(card.frame.height, 44)
+
+        var open: [String] = []
+        try app.performAccessibilityAudit(for: [.textClipped, .hitRegion]) { issue in
+            guard let element = issue.element, element.label.contains(", you rank ") else { return true }
+            open.append("\(issue.compactDescription): '\(element.label)' \(element.frame)")
+            return true
+        }
+        XCTAssertEqual(open, [], "Rival song cards must not clip or shrink at AX5")
+    }
+
     /// A `leaderboard:<instrument>:<rankBy>` scope also resolves directly.
     @MainActor
     func testDeepLinkIntoAllRivalsWithLeaderboardScope() throws {
@@ -231,5 +276,296 @@ final class RivalsJourneyTests: XCTestCase {
         // `Instrument.lead.rawValue == "Solo_Guitar"`; `AllRivalsScreen`'s title
         // uses the instrument's display label ("Lead"), not its raw wire value.
         XCTAssertTrue(app.navigationBars["Lead Leaderboard Rivals"].waitForExistence(timeout: 15))
+    }
+
+    // MARK: - All Rivals title (#557)
+
+    /// All Rivals leads with its own icon-led title (Full Rankings' `InstrumentPageTitle`):
+    /// read once, above the rows, with no section title repeating it on the card. Once
+    /// it scrolls under the bar, the bar shows the compact copy, still read as the title
+    /// alone (the icon is hidden). The title passes the accessibility audit at the top and
+    /// pinned, and at AX5 it grows with the text and stays on screen. The fixture's six
+    /// rivals only overflow the screen at AX5, so the pinned title is checked there.
+    @MainActor
+    func testAllRivalsTitleLeadsTheListAndPinsAfterScroll() throws {
+        continueAfterFailure = false
+        let defaultHeight = try checkAllRivalsTitle(largeText: false)
+        let largeHeight = try checkAllRivalsTitle(largeText: true)
+        XCTAssertGreaterThan(
+            largeHeight, defaultHeight * 1.35,
+            "The title did not scale: \(largeHeight) pt at AX5, \(defaultHeight) pt default"
+        )
+    }
+
+    /// Open Lead Rivals and check its title at the top and pinned.
+    ///
+    /// - Parameter largeText: Launch at the largest accessibility text size (AX5).
+    /// - Returns: The in-list title's height.
+    @MainActor
+    private func checkAllRivalsTitle(largeText: Bool) throws -> CGFloat {
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_ROUTE"] = "allRivals:song:Solo_Guitar"
+        if largeText {
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+            ]
+        }
+        app.launch()
+        defer { app.terminate() }
+        let title = app.descendants(matching: .any)["fst.all-rivals.title"]
+        XCTAssertTrue(title.waitForExistence(timeout: FestivalApp.budget(15)))
+        let firstRow = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@", "fst.all-rivals.row."
+        )).firstMatch
+        XCTAssertTrue(firstRow.waitForExistence(timeout: FestivalApp.budget(15)))
+        XCTAssertEqual(title.label, "Lead Rivals", "The icon adds nothing to the spoken title")
+        XCTAssertLessThanOrEqual(title.frame.maxY, firstRow.frame.minY + 1, "The title reads before the rows")
+        let window = app.windows.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(title.frame.minX, window.minX)
+        XCTAssertLessThanOrEqual(title.frame.maxX, window.maxX, "The title fits the window: \(title.frame)")
+        let bar = app.navigationBars.firstMatch.frame
+        let named = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Lead Rivals"))
+            .allElementsBoundByIndex.filter { $0.exists && $0.frame.minY >= bar.maxY && $0.frame.height > 0 }
+        let elsewhere = named.filter { !title.frame.insetBy(dx: -1, dy: -1).contains($0.frame) }
+        XCTAssertTrue(elsewhere.isEmpty, "No section title repeats the page name: \(elsewhere.map(\.frame))")
+        XCTAssertFalse(app.descendants(matching: .any)["fst.all-rivals.pinned-title"].exists,
+                       "No bar copy while the title is in view")
+        let height = title.frame.height
+        // The title's own text, right of the icon, measured as rendered over the page
+        // background: at least 4.5:1, so the audit's estimate is checked, not trusted.
+        let titleText = named.first { $0.frame.minX > title.frame.minX + 1 } ?? title
+        try SongsUITestSupport.assertHeaderContrast(titleText, in: app)
+        // The fixture's six rivals fit the default-size screen, so only AX5 scrolls. The
+        // audit cycles text sizes and then restores the system size, so it runs last.
+        guard largeText else {
+            try auditTitleRegion(app, name: "top")
+            return height
+        }
+        let pinned = app.descendants(matching: .any)["fst.all-rivals.pinned-title"]
+        for _ in 0..<4 where !pinned.exists {
+            app.swipeUp()
+            _ = pinned.waitForExistence(timeout: FestivalApp.budget(2))
+        }
+        XCTAssertTrue(pinned.exists, "The title pins to the bar after scrolling")
+        XCTAssertEqual(pinned.label, "Lead Rivals", "The pinned icon is hidden too")
+        XCTAssertLessThan(pinned.frame.midY, app.navigationBars.firstMatch.frame.maxY, "Pinned in the bar")
+        try auditTitleRegion(app, name: "ax5 scrolled")
+        return height
+    }
+
+    // MARK: - Rival page titles (#604)
+
+    /// Rival Detail is titled with the rival's name over the decorative Lead icon and
+    /// "Lead Rivals"; Rivalry with the section over the rival's name (owner, #604;
+    /// page-tools-and-nav-chrome R23). Each title is one heading read title then subtitle,
+    /// before the page's content and inside the window; it grows with the text, pins to
+    /// the bar (title over subtitle, the icon still unspoken) once it scrolls away, and
+    /// its region passes `performAccessibilityAudit` at default size and at AX5.
+    @MainActor
+    func testRivalPageTitlesNameTheRivalAndTheSection() throws {
+        continueAfterFailure = false
+        let pages: [(route: String, prefix: String, title: String, subtitle: String)] = [
+            ("rivalDetail:f1c749eb07c32578cfa3e59ec38c03a8:song:Solo_Guitar", "fst.rival-detail",
+             "Fixture Rival Golf", "Lead Rivals"),
+            ("rivalry:f1c749eb07c32578cfa3e59ec38c03a8:closest_battles:song:Solo_Guitar", "fst.rivalry",
+             "Closest Battles", "Fixture Rival Golf"),
+        ]
+        for page in pages {
+            let defaultHeight = try checkRivalPageTitle(page, largeText: false)
+            let largeHeight = try checkRivalPageTitle(page, largeText: true)
+            XCTAssertGreaterThan(
+                largeHeight, defaultHeight * 1.35,
+                "\(page.prefix): the title did not scale: \(largeHeight) pt at AX5, \(defaultHeight) pt default"
+            )
+        }
+    }
+
+    /// Open one Rival page and check its title at the top and, once scrolled, pinned.
+    ///
+    /// - Parameters:
+    ///   - page: The debug route, identifier prefix and the expected title and subtitle.
+    ///   - largeText: Launch at the largest accessibility text size (AX5).
+    /// - Returns: The in-list title's height.
+    @MainActor
+    private func checkRivalPageTitle(
+        _ page: (route: String, prefix: String, title: String, subtitle: String), largeText: Bool
+    ) throws -> CGFloat {
+        let app = fixtureApp()
+        app.launchEnvironment["FST_DEBUG_ROUTE"] = page.route
+        if largeText {
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+            ]
+        }
+        app.launch()
+        defer { app.terminate() }
+        let label = "\(page.title), \(page.subtitle)"
+        let title = app.descendants(matching: .any)["\(page.prefix).title"]
+        XCTAssertTrue(title.waitForExistence(timeout: FestivalApp.budget(15)), "\(page.prefix): no title")
+        let firstCard = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@", ", you rank ")).firstMatch
+        XCTAssertTrue(firstCard.waitForExistence(timeout: FestivalApp.budget(15)))
+        XCTAssertEqual(title.label, label, "Title then subtitle; the icon adds nothing to the spoken title")
+        XCTAssertLessThanOrEqual(title.frame.maxY, firstCard.frame.minY + 1, "The title reads before the songs")
+        let window = app.windows.firstMatch.frame
+        XCTAssertGreaterThanOrEqual(title.frame.minX, window.minX)
+        XCTAssertLessThanOrEqual(title.frame.maxX, window.maxX, "The title fits the window: \(title.frame)")
+        let pinned = app.descendants(matching: .any)["\(page.prefix).pinned-title"]
+        XCTAssertFalse(pinned.exists, "No bar copy while the title is in view")
+        let height = title.frame.height
+        let text = app.staticTexts.matching(NSPredicate(format: "label == %@", page.title))
+            .allElementsBoundByIndex.first { $0.exists && title.frame.insetBy(dx: -1, dy: -1).contains($0.frame) }
+        try SongsUITestSupport.assertHeaderContrast(text ?? title, in: app)
+        let owned: Set<String> = ["\(page.prefix).title", "\(page.prefix).pinned-title"]
+        let texts: Set<String> = [page.title, page.subtitle, label]
+        // Rival Detail's four cards always overflow; Rivalry's four songs only at AX5.
+        guard largeText || page.prefix == "fst.rival-detail" else {
+            try auditTitleRegion(app, name: "\(page.prefix) top", owned: owned, texts: texts)
+            return height
+        }
+        for _ in 0..<4 where !pinned.exists {
+            app.swipeUp()
+            _ = pinned.waitForExistence(timeout: FestivalApp.budget(2))
+        }
+        XCTAssertTrue(pinned.exists, "\(page.prefix): the title pins to the bar after scrolling")
+        XCTAssertEqual(pinned.label, label, "The pinned copy keeps the subtitle; its icon is hidden too")
+        XCTAssertLessThan(pinned.frame.midY, app.navigationBars.firstMatch.frame.maxY, "Pinned in the bar")
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "\(page.prefix)-pinned\(largeText ? "-ax5" : "")"
+        shot.lifetime = .keepAlways
+        add(shot)
+        try auditTitleRegion(app, name: "\(page.prefix) scrolled", owned: owned, texts: texts)
+        return height
+    }
+
+    /// Beside the iPhone Duo vertical bar (folded outer display and inner landscape),
+    /// iOS 27 minimizes the top bar on scroll, so All Rivals never pins its custom title
+    /// there: the system title is in the bar at the top, no custom copy appears after the
+    /// in-list title scrolls away, and on a real Duo (whose bar minimizes, title and all)
+    /// the system title returns at the top (page-tools-and-nav-chrome R14, #557). The app simulates each Duo
+    /// window through the Debug `FST_DEBUG_DUO_WINDOW` switch (`DebugDuoWindow`: size
+    /// classes and vertical bar), so this runs on any iPhone simulator, the Duo included.
+    /// At AX5 the fixture's six rivals overflow the screen, so the title can scroll away.
+    @MainActor
+    func testAllRivalsDuoVerticalBarKeepsSystemTitle() throws {
+        continueAfterFailure = false
+        for window in ["folded", "unfolded-landscape"] {
+            let app = fixtureApp()
+            app.launchEnvironment["FST_DEBUG_ROUTE"] = "allRivals:song:Solo_Guitar"
+            app.launchEnvironment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
+            app.launchEnvironment["FST_DEBUG_DUO_WINDOW"] = window
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+            ]
+            app.launch()
+            defer { app.terminate() }
+            let readout = app.staticTexts["fst.shell.debug.duo-window"]
+            let simulated = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@",
+                                       "\(window) ", "chrome=verticalBar"),
+                object: readout
+            )
+            XCTAssertEqual(XCTWaiter().wait(for: [simulated], timeout: FestivalApp.budget(15)), .completed,
+                           "\(window): the app never simulated the vertical bar (\(readout.label))")
+            let title = app.descendants(matching: .any)["fst.all-rivals.title"]
+            XCTAssertTrue(title.waitForExistence(timeout: FestivalApp.budget(15)), "\(window): no in-list title")
+            let pinned = app.descendants(matching: .any)["fst.all-rivals.pinned-title"]
+            let systemTitle = app.navigationBars.staticTexts
+                .matching(NSPredicate(format: "label == %@", "Lead Rivals")).firstMatch
+            XCTAssertTrue(systemTitle.waitForExistence(timeout: FestivalApp.budget(10)),
+                          "\(window): the system title is in the bar at the top")
+            XCTAssertFalse(pinned.exists, "\(window): no custom pinned title at the top")
+
+            let bar = app.navigationBars.firstMatch
+            for _ in 0..<4 where title.exists && title.frame.maxY > bar.frame.maxY {
+                app.swipeUp()
+            }
+            XCTAssertTrue(!title.exists || title.frame.maxY <= bar.frame.maxY + 1,
+                          "\(window): the in-list title never scrolled under the bar (\(title.frame))")
+            // Give the pinned-title animation time to run before asserting it never came.
+            XCTAssertFalse(pinned.waitForExistence(timeout: FestivalApp.budget(2)),
+                           "\(window): the custom pinned title replaced the system title after scrolling")
+            let shot = XCTAttachment(screenshot: app.screenshot())
+            shot.name = "all-rivals-duo-\(window)-scrolled"
+            shot.lifetime = .keepAlways
+            add(shot)
+            if Self.isRealDuoWindow(app.windows.firstMatch.frame.size) {
+                // A real Duo vertical bar minimizes the top bar, system title included,
+                // on scroll; it must come back, still the system title, at the top.
+                for _ in 0..<4 where !systemTitle.exists { app.swipeDown() }
+                XCTAssertTrue(systemTitle.waitForExistence(timeout: FestivalApp.budget(5)),
+                              "\(window): the system title returns at the top")
+                XCTAssertFalse(pinned.exists, "\(window): no custom pinned title back at the top")
+            } else {
+                XCTAssertTrue(systemTitle.exists, "\(window): the system title stays after scrolling")
+            }
+        }
+    }
+
+    /// Whether the real window is one of the iPhone Duo's (outer 466 × 678 or inner
+    /// 951 × 669 pt, either orientation; `DebugDuoWindow.size`), where the system
+    /// vertical bar is real and minimizes the top bar on scroll.
+    private static func isRealDuoWindow(_ size: CGSize) -> Bool {
+        let sides = [min(size.width, size.height).rounded(), max(size.width, size.height).rounded()]
+        return sides == [466, 678] || sides == [669, 951]
+    }
+
+    /// Audit the title region this page owns (#557, #604): the in-list title, the pinned
+    /// bar title and anything else named by the title. Other regions (rows, chrome) have
+    /// their own journeys; their issues are listed as an activity, not failed here. A
+    /// contrast estimate on the title text is accepted only because the caller first
+    /// measured the title's rendered contrast (`SongsUITestSupport.assertHeaderContrast`).
+    ///
+    /// - Parameters:
+    ///   - app: The page (All Rivals, Rival Detail or Rivalry).
+    ///   - name: Names the audit pass.
+    ///   - owned: Identifiers of the in-list and pinned titles.
+    ///   - texts: The title's own texts (title, subtitle and their combined label).
+    @MainActor
+    private func auditTitleRegion(
+        _ app: XCUIApplication, name: String,
+        owned: Set<String> = ["fst.all-rivals.title", "fst.all-rivals.pinned-title"],
+        texts: Set<String> = ["Lead Rivals"]
+    ) throws {
+        var rejected: [String] = []
+        var elsewhere: [String] = []
+        let pinned = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier IN %@", Array(owned.filter { $0.hasSuffix("pinned-title") })))
+            .firstMatch
+        let check: (XCUIAccessibilityAuditIssue) -> Bool = { issue in
+            let element = issue.element.map {
+                "\($0.elementType.rawValue) '\($0.identifier)' '\($0.label)' \($0.frame)"
+            } ?? "no element"
+            let description = "\(issue.compactDescription) [\(element)]"
+            if let target = issue.element, owned.contains(target.identifier) || texts.contains(target.label) {
+                let bar = app.navigationBars.firstMatch.frame
+                if issue.auditType == .dynamicType, target.elementType == .staticText,
+                   bar.insetBy(dx: 0, dy: -1).contains(target.frame), pinned.exists {
+                    // UIKit caps the text a bar hosts; the pinned copy offers the Large
+                    // Content Viewer and the in-list title it repeats grew ≥ 1.35× (the
+                    // caller's check; `testing/apple/accessibility.md` `system-bar-title-size`).
+                    elsewhere.append("bar-capped pinned title: \(description)")
+                } else if issue.auditType == .contrast, target.elementType == .staticText {
+                    // The audit cycles text sizes and samples the artwork behind the
+                    // title; its rendered contrast was measured at ≥ 4.5:1 above.
+                    elsewhere.append("title measured ≥ 4.5:1: \(description)")
+                } else {
+                    rejected.append(description)
+                }
+            } else {
+                elsewhere.append(description)
+            }
+            return true
+        }
+        do {
+            try app.performAccessibilityAudit(for: .all, check)
+        } catch let error as NSError
+            where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56 {
+            rejected = []
+            elsewhere = []
+            try app.performAccessibilityAudit(for: .all, check)
+        }
+        XCTContext.runActivity(named: "\(name): outside the title \(elsewhere)") { _ in }
+        XCTAssertTrue(rejected.isEmpty, "\(name): \(rejected)")
     }
 }

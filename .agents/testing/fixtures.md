@@ -39,7 +39,9 @@
 
 Diagnostics (numeric only, never IDs or payloads): `/__fixture__/last-score-query`, `/__fixture__/last-full-score-query` (only `top=25`), `/__fixture__/publication-join-reads`.
 
-Online-only (2026-09-27): the one-shot offline listeners support older journeys; do not add new offline tests. Reuse of a pre-existing 8765 is allowed only if its startup hashes and flags match the frozen inputs; never kill a stale service you did not start.
+Hold control (any listener, no flag; #430): `GET /__fixture__/hold-paths?seconds=N` holds every valid Paths image/text read for up to N s (0–60; `seconds=0` releases them at once), so a journey can inspect the sheet mid-switch; with no query it returns `{"held", "waiting"}` (waiting = reads parked now). Invalid Paths reads still fail at once. Used by `PathsSwitchAccessibilityJourneyTests`; always release in `tearDown`.
+
+Online-only (2026-09-27): the one-shot offline listeners support older journeys; do not add new offline tests. Reuse of a pre-existing 8765 is allowed only if its startup hashes and flags match the frozen inputs; never kill a stale service you did not start. `SongsFilterAccessibilityJourneyTests` reads `TEST_RUNNER_FST_SONGS_FILTER_FIXTURE_PORT=<port>` to use a fresh default listener (`tools/mock_service.py --port <port>`) when 8765 is stale.
 
 ## Bands/Player/Statistics additions (Lane U4)
 
@@ -59,6 +61,7 @@ none of these routes previously existed in the fixture server:
 - `GET /api/account/search?q=slowpoke` (issue #299): waits `SLOW_ACCOUNT_SEARCH_SECONDS` (4 s), then returns an empty `results` list, so a UI test can see global search's one centred spinner before the empty state. `GlobalSearchJourneyTests.testSearchingSpinnerIsCentredBelowScopeBar` expects it on a dedicated `127.0.0.1:18936` instance (`python3 tools/mock_service.py --port 18936`) and skips without it. The other magic terms stay: `blocked` → 403, `busy` → 503 freeze, `rate` → 429.
 - `DuoShellJourneyTests` (issue #337, iPhone Duo fold/unfold shell) uses the default routes on a dedicated `127.0.0.1:18337` instance (`python3 tools/mock_service.py --port 18337`) and skips without it.
 - `DuoPathsSelectorJourneyTests` (issue #360, folded-Duo Paths selector and title; #368, the unfolded / book-pose / folded full-window viewer) uses the default routes on a dedicated `127.0.0.1:18360` instance (`python3 tools/mock_service.py --port 18360`) and skips without it.
+- `ProfileNoticeTextSizeJourneyTests` (issue #446, the player profile's unverified notice at AX5) needs an unpinned listener on a dedicated `127.0.0.1:18446` instance (`python3 tools/mock_service.py --port 18446 --unpinned`): the player read then proves no publication, so the `.unverified` notice shows. The test skips without it; `TEST_RUNNER_FST_PROFILE_NOTICE_FIXTURE_URL=<origin>` points it at another listener.
 
 A dedicated loopback instance for these lane's XCUITest journeys runs on `127.0.0.1:18790` (started manually, not the shared default `8765`) since the shared `8765` listener predates this lane's `tools/mock_service.py` changes and "never kill a stale service you did not start" forbids restarting it to pick up new code; hosted (non-simulator) tests instead reuse `RivalsMockService`'s `--port 0` launcher, which always starts a fresh process from the current source.
 

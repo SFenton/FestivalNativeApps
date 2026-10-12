@@ -149,7 +149,7 @@ private func selectedRowSession(
 ///   - icons: Saved Show Instrument Icons setting.
 ///   - visible: Enabled instrument set.
 ///   - metadata: Independent score-field settings.
-///   - invalidFilter: Deliberately paused invalid-score policy.
+///   - invalidLeeway: Filter Invalid Scores' leeway, or nil while it is off.
 ///   - shop: Optional validated synthetic Shop accent.
 ///   - typeSize: Ordinary or accessibility text size.
 ///   - size: Available native card content dimensions.
@@ -162,7 +162,7 @@ private func selectedSongRow(
     chart: Instrument = .lead, filter: Instrument? = nil,
     icons: Bool = true, visible: Set<Instrument> = Set(Instrument.allCases),
     metadata: SongMetadataVisibility = SongMetadataVisibility(),
-    invalidFilter: Bool = false, shop: ShopHighlight? = nil,
+    invalidLeeway: Double? = nil, shop: ShopHighlight? = nil,
     typeSize: DynamicTypeSize = .large, size: CGSize = CGSize(width: 390, height: 320),
     profilePanel: Bool = false
 ) throws -> (data: Data, fills: (gold: Int, green: Int, red: Int)) {
@@ -171,7 +171,7 @@ private func selectedSongRow(
             song: song, instrument: filter, session: session, highContrast: false,
             shopHighlight: shop, profileChart: chart, catalogueObservation: 7,
             metadata: metadata,
-            filterInvalidScores: invalidFilter, showInstrumentIcons: icons,
+            invalidScoreLeeway: invalidLeeway, showInstrumentIcons: icons,
             visibleInstruments: visible, currentSeason: season
         )
         .environment(\.songRowsAllowProfilePanel, profilePanel)
@@ -243,9 +243,11 @@ private func selectedSongRow(
         season: fixtures.season, chart: .drums, icons: false,
         visible: [.drums, .vocals, .proDrums]
     )
-    let paused = try selectedSongRow(
-        name: "invalid-filter-paused", song: fixtures.song, session: second,
-        season: fixtures.season, icons: false, invalidFilter: true
+    // Filter Invalid Scores shows effective scores (#613): every fixture score is
+    // valid, so the row is unchanged rather than paused.
+    let filteredValid = try selectedSongRow(
+        name: "invalid-filter-valid", song: fixtures.song, session: second,
+        season: fixtures.season, icons: false, invalidLeeway: 1, shop: .new
     )
     let largest = try selectedSongRow(
         name: "chips-ax5", song: fixtures.song, session: second,
@@ -255,14 +257,14 @@ private func selectedSongRow(
     #expect(lead.data != accuracyFirst.data)
     #expect(lead.data != drums.data)
     #expect(drums.data == visibleDrums.data)
-    #expect(lead.data != paused.data)
+    #expect(lead.data == filteredValid.data)
     #expect(lead.fills.gold > 10)
     #expect(largest.fills.gold > 10 && largest.fills.green > 10)
 }
 
 /// Wide rows split only for a selected player with a current score index (#340): no
-/// profile, a narrow row, Filter Invalid Scores or an accessibility size keeps the
-/// plain row pixel for pixel.
+/// profile, a narrow row or an accessibility size keeps the plain row pixel for pixel.
+/// Filter Invalid Scores splits too, with effective scores (#613).
 @MainActor
 @Test func wideSongRowsSplitOnlyForASelectedPlayersScores() async throws {
     let fixtures = try selectedRowFixtures()
@@ -271,11 +273,11 @@ private func selectedSongRow(
     let wide = CGSize(width: 900, height: 200)
     func row(
         _ name: String, _ session: FestivalSession, panel: Bool, size: CGSize = wide,
-        invalid: Bool = false, typeSize: DynamicTypeSize = .large, filter: Instrument? = nil
+        invalid: Double? = nil, typeSize: DynamicTypeSize = .large, filter: Instrument? = nil
     ) throws -> (data: Data, fills: (gold: Int, green: Int, red: Int)) {
         try selectedSongRow(
             name: name, song: fixtures.song, session: session, season: fixtures.season,
-            chart: filter ?? .lead, filter: filter, invalidFilter: invalid,
+            chart: filter ?? .lead, filter: filter, invalidLeeway: invalid,
             typeSize: typeSize, size: size, profilePanel: panel
         )
     }
@@ -290,9 +292,8 @@ private func selectedSongRow(
     let narrow = CGSize(width: 560, height: 200)
     #expect(try row("panel-narrow", player, panel: true, size: narrow).data
         == row("panel-narrow-off", player, panel: false, size: narrow).data)
-    // Filter Invalid Scores keeps its paused row.
-    #expect(try row("panel-invalid", player, panel: true, invalid: true).data
-        == row("panel-invalid-off", player, panel: false, invalid: true).data)
+    // Filter Invalid Scores splits with effective scores (all valid here, so unchanged).
+    #expect(try row("panel-invalid", player, panel: true, invalid: 1).data == split.data)
     // Accessibility sizes keep the stacked row.
     let tall = CGSize(width: 900, height: 620)
     #expect(try row("panel-ax", player, panel: true, size: tall, typeSize: .accessibility3).data
@@ -475,6 +476,132 @@ private func expectPanelFollowsSong(
     expectPanelFollowsSong(bandTree, songId: song, cards: [("band", "Fixture Duo")])
 }
 
+// MARK: - Filtered player scores (#613)
+
+/// The fixtures with fixture-player-2's `fixture-pulse` Lead score invalid above a 2%
+/// leeway but valid at 0.5% as a 95,000 variant (ranked third), and its Drums score
+/// invalid above 3% with no fallback.
+///
+/// - Parameter fixtures: The checked-in fixtures.
+/// - Returns: The same catalogue with the edited profile bytes.
+/// - Throws: An unexpected fixture shape.
+private func invalidScoreFixtures(_ fixtures: SelectedRowFixtures) throws -> SelectedRowFixtures {
+    let raw = try #require(fixtures.profiles["fixture-player-2"])
+    var profile = try #require(JSONSerialization.jsonObject(with: raw) as? [String: Any])
+    var scores = try #require(profile["scores"] as? [[String: Any]])
+    for index in scores.indices where scores[index]["si"] as? String == "fixture-pulse" {
+        switch scores[index]["ins"] as? String {
+        case "01":
+            scores[index]["ml"] = 2.0
+            scores[index]["vs"] = [[
+                "sc": 95_000, "acc": 950, "fc": false, "st": 5, "ml": 0.5,
+                "rt": [["l": 0.5, "r": 3]],
+            ]]
+        case "04":
+            scores[index]["ml"] = 3.0
+        default:
+            break
+        }
+    }
+    profile["scores"] = scores
+    var profiles = fixtures.profiles
+    profiles["fixture-player-2"] = try JSONSerialization.data(withJSONObject: profile)
+    return SelectedRowFixtures(
+        song: fixtures.song, season: fixtures.season, profiles: profiles, catalog: fixtures.catalog
+    )
+}
+
+/// Host the real Songs page with Filter Invalid Scores on at a 1% leeway and read its
+/// tree once the row's invalid-score indicator appears.
+///
+/// - Parameters:
+///   - session: A selected player with a current score index.
+///   - catalog: The artless catalogue.
+///   - size: Host size: an iPhone-width list or a wide split list.
+///   - indicator: The indicator's identifier.
+/// - Returns: Nodes in VoiceOver order and the indicator's on-screen size.
+/// - Throws: A failed hosted render.
+@MainActor
+private func filteredSongsAccessibility(
+    session: FestivalSession, catalog: CatalogPayload, size: CGSize, indicator: String
+) async throws -> (nodes: [MacAXNode], target: CGSize) {
+    let suiteName = "fst-songs-invalid-ax-\(UUID().uuidString)"
+    let storage = try #require(UserDefaults(suiteName: suiteName))
+    defer { storage.removePersistentDomain(forName: suiteName) }
+    storage.set(true, forKey: "fst.settings.hideShop")
+    storage.set(true, forKey: "fst.accessibility.moreContrast")
+    storage.set(true, forKey: "fst.settings.filterInvalidScores")
+    storage.set(1.0, forKey: "fst.settings.leeway")
+    let host = nativeHostedView(
+        NavigationStack {
+            SongsScreen(session: session, initialState: .loaded(catalog), isVisible: false)
+        }
+        .defaultAppStorage(storage)
+        .preferredColorScheme(.dark),
+        size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    _ = try await nativeHostedSettle(host) {
+        nativeHostedAccessibilityElement(indicator, in: host) != nil
+    }
+    let nodes = macAccessibilityTree(host, navigationOrder: true)
+    macAccessibilityDump(nodes, name: "songs-invalid-score-\(Int(size.width))")
+    let element = try #require(nativeHostedAccessibilityElement(indicator, in: host))
+    let frame = (element.value(forKey: "accessibilityFrame") as? NSRect) ?? .zero
+    withExtendedLifetime(window) {}
+    return (nodes, frame.size)
+}
+
+/// With Filter Invalid Scores on, a Songs row shows the selected chart's effective
+/// scores (web `SongsPage.effectiveScores`): the iPhone-width row's chips read the
+/// dropped Drums score as "no score", the wide row's Lead card reads the 95,000 variant
+/// instead of the invalid 99,800, nothing reads "not available yet" or "paused", and
+/// the row's invalid-score indicator is a labelled button of at least 44 pt read after
+/// the song and before the profile panel's cards.
+///
+/// The macOS-hosted List's navigation order puts a wide row's link after all of its
+/// overlays (the profile panel's too, which is why its own test reads raw order), so
+/// row-before-indicator is asserted on the iPhone-width list, where it is honored.
+@MainActor
+@Test func filteredScoresShowEffectiveScoresAndAnIndicatorAfterTheSong() async throws {
+    let fixtures = try invalidScoreFixtures(selectedRowFixtures())
+    let player = try await selectedRowSession(accountId: "fixture-player-2", fixtures: fixtures)
+    let song = fixtures.song.songId
+    let indicator = "fst.songs.invalid-score.\(song)"
+    for wide in [false, true] {
+        let size = wide ? CGSize(width: 1100, height: 700) : CGSize(width: 390, height: 844)
+        let (nodes, target) = try await filteredSongsAccessibility(
+            session: player, catalog: fixtures.catalog, size: size, indicator: indicator
+        )
+        let dump = nodes.map(\.description).joined(separator: "\n")
+        let row = try #require(nodes.firstIndex {
+            $0.isElement && $0.identifier == "fst.songs.row.\(song)"
+        }, "\(dump)")
+        let button = try #require(nodes.firstIndex {
+            $0.isElement && $0.identifier == indicator
+        }, "\(dump)")
+        #expect(nodes[button].role == "AXButton", "\(nodes[button])")
+        #expect(nodes[button].spokenName == InvalidScoreWarning.accessibilityLabel)
+        #expect(target.width >= 44 && target.height >= 44, "\(target)")
+        #expect(!dump.contains("not available yet"), "\(dump)")
+        #expect(!dump.contains("paused while Filter Invalid Scores"), "\(dump)")
+        if wide {
+            let panel = try #require(nodes.firstIndex {
+                $0.identifier == "fst.songs.profile-panel.\(song)"
+            }, "\(dump)")
+            #expect(button < panel, "\(dump)")
+            let lead = try #require(nodes.first {
+                $0.identifier == "fst.songs.profile-panel.\(song).\(Instrument.lead.rawValue)"
+            }, "\(dump)")
+            #expect(lead.spokenName.contains("95,000") && !lead.spokenName.contains("99,800"), "\(lead)")
+        } else {
+            #expect(row < button, "\(dump)")
+            #expect(nodes[row].spokenName.contains("Lead, scored; Bass, no score; Drums, no score"),
+                    "\(nodes[row])")
+        }
+    }
+}
+
 // MARK: - Song Row Visual Order (#372)
 
 /// A deliberately non-default saved Song Row Visual Order: Stars, Percentile, Accuracy,
@@ -552,7 +679,7 @@ private func pillOrder(_ nodes: [MacAXNode], songId: String) -> [String] {
         SongRowView(
             song: fixtures.song, instrument: nil, session: player, highContrast: false,
             shopHighlight: nil, profileChart: .lead, catalogueObservation: 7,
-            metadata: SongMetadataVisibility(), filterInvalidScores: false,
+            metadata: SongMetadataVisibility(),
             showInstrumentIcons: false, visibleInstruments: Set(Instrument.allCases),
             currentSeason: fixtures.season
         )

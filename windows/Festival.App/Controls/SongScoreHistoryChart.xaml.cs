@@ -37,8 +37,17 @@ public sealed partial class SongScoreHistoryChart : UserControl
     private double rightAxis = ScoreHistoryChartScale.MinAxisGutter;
     private double tickHeight = 16;
     private double labelBand = 28;
+    private double scoreTickWidth = 40;
+    private double accuracyTickWidth = 40;
     private Size scoreTitle = new(40, 20);
     private Size accuracyTitle = new(64, 20);
+
+    /// <summary>Bars as last drawn, and their buttons and fills in the same order (restyled in place on a selection).</summary>
+    private IReadOnlyList<ScoreHistoryBar> drawnBars = [];
+    private readonly List<(ToggleButton Button, Border Fill)> drawnButtons = [];
+
+    /// <summary>Set while <see cref="Reselect"/> restyles the bars, so their Checked/Unchecked handlers do not toggle.</summary>
+    private bool reselecting;
 
     /// <summary>Creates the chart.</summary>
     public SongScoreHistoryChart()
@@ -105,6 +114,8 @@ public sealed partial class SongScoreHistoryChart : UserControl
         scoreTitle = MeasureText("Score", TitleFontSize, FontWeights.SemiBold);
         accuracyTitle = MeasureText("Accuracy", TitleFontSize, FontWeights.SemiBold);
         tickHeight = Math.Max(tick.Height, 16);
+        scoreTickWidth = Math.Ceiling(tick.Width);
+        accuracyTickWidth = Math.Ceiling(percent.Width);
         labelBand = Math.Max(28, Math.Ceiling(6 + tickHeight + 4));
         leftAxis = ScoreHistoryChartScale.AxisGutter(tick.Width, scoreTitle.Height);
         rightAxis = ScoreHistoryChartScale.AxisGutter(percent.Width, accuracyTitle.Height);
@@ -128,6 +139,24 @@ public sealed partial class SongScoreHistoryChart : UserControl
         get => (SongScoreHistoryViewModel?)GetValue(ModelProperty);
         set => SetValue(ModelProperty, value);
     }
+
+    /// <summary>
+    /// Height of the plot (axes, bars and date band; the legend sits below it). Song Detail keeps the 260 epx default; the
+    /// First Run guide hosts the same chart in its shorter demo frame (issue #380).
+    /// </summary>
+    public double PlotHeight
+    {
+        get => Plot.Height;
+        set
+        {
+            if (Plot.Height == value) return;
+            Plot.Height = value;
+            Redraw();
+        }
+    }
+
+    /// <summary>Raised after every redraw (the bars are rebuilt), e.g. so a First Run demo can make the new bars inert.</summary>
+    public event EventHandler? Redrawn;
 
     /// <summary>Follows the new model's page of bars.</summary>
     /// <param name="old">Previous model.</param>
@@ -154,18 +183,66 @@ public sealed partial class SongScoreHistoryChart : UserControl
     /// <param name="e">Changed property.</param>
     private void OnModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(SongScoreHistoryViewModel.Bars)) Redraw();
+        if (e.PropertyName is nameof(SongScoreHistoryViewModel.Bars)) { if (!Reselect()) Redraw(); }
         else if (e.PropertyName is nameof(SongScoreHistoryViewModel.ChartSummary)) AutomationProperties.SetName(Plot, Model?.ChartSummary ?? "");
     }
 
     /// <summary>
-    /// Rebuilds the plot for the current page. A bar that had keyboard focus keeps it: selecting a bar redraws the plot,
-    /// and without this the focus would fall to the pager below and a keyboard or Narrator user would lose their place.
+    /// Restyles the drawn bars for a new selection on the same page instead of rebuilding them. A rebuild moved focus to
+    /// a new bar before layout, which could scroll the page and leave Left/Right without a neighbour (issue #512).
+    /// </summary>
+    /// <returns><see langword="true"/> when only the selection changed and the bars were restyled.</returns>
+    private bool Reselect()
+    {
+        var bars = Model?.Bars ?? [];
+        if (!ScoreHistoryBar.OnlySelectionChanged(drawnBars, bars) || drawnButtons.Count != bars.Count) return false;
+        var contrast = Services.ContrastTheme.IsOn;
+        reselecting = true;
+        try
+        {
+            for (var i = 0; i < bars.Count; i++)
+            {
+                var (button, fill) = drawnButtons[i];
+                button.IsChecked = bars[i].IsSelected;
+                StyleSelection(fill, bars[i].IsSelected, contrast);
+            }
+        }
+        finally
+        {
+            reselecting = false;
+        }
+        drawnBars = bars;
+        return true;
+    }
+
+    /// <summary>A bar's outline: the selection stroke, a contrast theme's WindowText outline, or none.</summary>
+    /// <param name="fill">Bar fill.</param>
+    /// <param name="selected">Whether the bar is selected.</param>
+    /// <param name="contrast">Whether a contrast theme is on.</param>
+    private static void StyleSelection(Border fill, bool selected, bool contrast)
+    {
+        fill.BorderBrush = selected ? Role("FSTChartSelectedStrokeBrush") : contrast ? Role("FSTChartBarStrokeBrush") : Clear;
+        fill.BorderThickness = new Thickness(selected ? 3 : contrast ? 1 : 0);
+    }
+
+    /// <summary>
+    /// Rebuilds the plot for the current page. A bar that had keyboard focus keeps it: paging, resizing or a theme or text
+    /// size change redraws the plot (a selection only restyles it, <see cref="Reselect"/>), and without this the focus
+    /// would fall to the pager below and a keyboard or Narrator user would lose their place.
     /// </summary>
     private void Redraw()
     {
+        DrawPlot();
+        Redrawn?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>Draws the axes, bars, score line and labels (see <see cref="Redraw"/>).</summary>
+    private void DrawPlot()
+    {
         var (focusedIndex, focusState) = FocusedBar();
         Plot.Children.Clear();
+        drawnBars = [];
+        drawnButtons.Clear();
         var bars = Model?.Bars ?? [];
         var width = Plot.ActualWidth;
         var height = Plot.Height;
@@ -186,18 +263,19 @@ public sealed partial class SongScoreHistoryChart : UserControl
         for (var i = 0; i <= 4; i++)
         {
             var y = bottom - plotHeight * i / 4;
-            AddText(ScoreHistoryChartScale.Tick(niceMax * i / 4.0), 0, y - tickHeight / 2, leftAxis - ScoreHistoryChartScale.AxisTickGap, TextAlignment.Right);
+            AddText(ScoreHistoryChartScale.Tick(niceMax * i / 4.0), leftAxis - ScoreHistoryChartScale.AxisTickGap - scoreTickWidth, y - tickHeight / 2, scoreTickWidth, TextAlignment.Right, "fst.history.tick.score." + i.ToString(CultureInfo.InvariantCulture));
             var accY = bottom - (plotHeight - 4) * i / 4;
-            AddText((25 * i).ToString(CultureInfo.InvariantCulture) + "%", leftAxis + plotWidth + ScoreHistoryChartScale.AxisTickGap, accY - tickHeight / 2, rightAxis - ScoreHistoryChartScale.AxisTickGap, TextAlignment.Left);
+            AddText((25 * i).ToString(CultureInfo.InvariantCulture) + "%", leftAxis + plotWidth + ScoreHistoryChartScale.AxisTickGap, accY - tickHeight / 2, accuracyTickWidth, TextAlignment.Left, "fst.history.tick.accuracy." + i.ToString(CultureInfo.InvariantCulture));
         }
-        AddAxisTitle("Score", scoreTitle, ScoreHistoryChartScale.AxisTitleInset + scoreTitle.Height / 2, topPad + plotHeight / 2, -90);
-        AddAxisTitle("Accuracy", accuracyTitle, width - ScoreHistoryChartScale.AxisTitleInset - accuracyTitle.Height / 2, topPad + plotHeight / 2, 90);
+        AddAxisTitle("Score", scoreTitle, ScoreHistoryChartScale.AxisTitleInset + scoreTitle.Height / 2, topPad + plotHeight / 2, -90, "fst.history.axis.score");
+        AddAxisTitle("Accuracy", accuracyTitle, width - ScoreHistoryChartScale.AxisTitleInset - accuracyTitle.Height / 2, topPad + plotHeight / 2, 90, "fst.history.axis.accuracy");
 
         // Bars (80% of each category, web barCategoryGap 10%), then the score line and dots over them. Under a contrast
         // theme the bars are outlined in WindowText, FC bars filled, and the selection and score line use Highlight.
         var lineBrush = Role("FSTChartLineBrush");
         var slot = plotWidth / bars.Count;
         var barWidth = Math.Max(4, slot * 0.8);
+        var scale = XamlRoot?.RasterizationScale ?? 1;
         var line = new Polyline { Stroke = lineBrush, StrokeThickness = 2, IsHitTestVisible = false };
         var dots = new List<Ellipse>(bars.Count);
         ToggleButton? restore = null;
@@ -206,39 +284,42 @@ public sealed partial class SongScoreHistoryChart : UserControl
             var bar = bars[i];
             var point = bar.Point;
             var centre = leftAxis + slot * (i + 0.5);
+            // Both edges on device pixels, so a contrast theme's 1 epx outline stays one crisp WindowText pixel.
+            var barLeft = ScoreHistoryChartScale.SnapToPixel(centre - barWidth / 2, scale);
+            var barRight = ScoreHistoryChartScale.SnapToPixel(centre + barWidth / 2, scale);
             var barHeight = Math.Max(2, (plotHeight - 4) * point.AccuracyPercent / 100);
             var fill = new Border
             {
                 Height = barHeight,
                 CornerRadius = new CornerRadius(4, 4, 0, 0),
                 Background = BarFill(point, contrast),
-                BorderBrush = bar.IsSelected ? Role("FSTChartSelectedStrokeBrush") : contrast ? Role("FSTChartBarStrokeBrush") : Clear,
-                BorderThickness = new Thickness(bar.IsSelected ? 3 : contrast ? 1 : 0),
             };
+            StyleSelection(fill, bar.IsSelected, contrast);
             // A toggle button, so UIA and Narrator report which bar is selected (pressed) and Space/Enter toggle it.
             var button = new ToggleButton
             {
                 Style = (Style)Resources["FSTChartBarButtonStyle"],
                 Content = fill,
-                Width = barWidth,
+                Width = barRight - barLeft,
                 Height = plotHeight,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 IsChecked = bar.IsSelected,
                 Tag = bar.Index,
             };
             var row = new ScoreHistoryListRow(point, false);
-            AutomationProperties.SetName(button, row.SeasonShownAnnouncement);
+            AutomationProperties.SetName(button, MetadataPillStyle.WithCurrentSeason(row.SeasonShownAnnouncement, row.SeasonNumber, App.Session.Catalog?.CurrentSeason));
             AutomationProperties.SetAutomationId(button, "fst.history.bar." + bar.Index.ToString(CultureInfo.InvariantCulture));
             ToolTipService.SetToolTip(button, $"{point.DateLabel} · {row.Score} · {row.Accuracy}");
             var index = bar.Index;
-            // Subscribed after IsChecked is set, so only a user (or UIA) toggle selects.
-            button.Checked += (_, _) => Model?.ToggleBar(index);
-            button.Unchecked += (_, _) => Model?.ToggleBar(index);
-            Canvas.SetLeft(button, centre - barWidth / 2);
+            // Subscribed after IsChecked is set, so only a user (or UIA) toggle selects; an in-place restyle is ignored.
+            button.Checked += (_, _) => { if (!reselecting) Model?.ToggleBar(index); };
+            button.Unchecked += (_, _) => { if (!reselecting) Model?.ToggleBar(index); };
+            Canvas.SetLeft(button, barLeft);
             Canvas.SetTop(button, topPad);
             Plot.Children.Add(button);
+            drawnButtons.Add((button, fill));
             if (focusedIndex == bar.Index) restore = button;
-            AddText(point.DateLabel, centre - slot / 2, bottom + 6, slot, TextAlignment.Center);
+            AddText(point.DateLabel, centre - slot / 2, bottom + 6, slot, TextAlignment.Center, "fst.history.date." + bar.Index.ToString(CultureInfo.InvariantCulture));
 
             var y = bottom - plotHeight * point.Score / (double)niceMax;
             line.Points.Add(new Point(centre, y));
@@ -254,6 +335,7 @@ public sealed partial class SongScoreHistoryChart : UserControl
         if (line.Points.Count > 1) Plot.Children.Add(line);
         foreach (var dot in dots) Plot.Children.Add(dot);
         AutomationProperties.SetName(Plot, Model?.ChartSummary ?? "");
+        drawnBars = bars;
         if (focusedIndex is not null) RestoreFocus(restore ?? NearestBar(focusedIndex.Value), focusState);
     }
 
@@ -305,13 +387,17 @@ public sealed partial class SongScoreHistoryChart : UserControl
     private void AddLine(double x1, double y1, double x2, double y2) =>
         Plot.Children.Add(new Line { X1 = x1, Y1 = y1, X2 = x2, Y2 = y2, Stroke = Role("FSTChartAxisBrush"), StrokeThickness = 1, IsHitTestVisible = false });
 
-    /// <summary>Adds a 12 epx label.</summary>
+    /// <summary>
+    /// Adds a 12 epx label. Labels are raw UIA views (the bars and the plot's summary carry the data for Narrator); the
+    /// automation ID lets UI tests measure them (e.g. tick labels clear of the axis title at 225% text).
+    /// </summary>
     /// <param name="text">Text.</param>
     /// <param name="left">Left.</param>
     /// <param name="top">Top.</param>
     /// <param name="width">Box width.</param>
     /// <param name="alignment">Alignment in the box.</param>
-    private void AddText(string text, double left, double top, double width, TextAlignment alignment)
+    /// <param name="automationId">Raw-view automation ID.</param>
+    private void AddText(string text, double left, double top, double width, TextAlignment alignment, string automationId)
     {
         var block = new TextBlock
         {
@@ -319,6 +405,7 @@ public sealed partial class SongScoreHistoryChart : UserControl
             TextTrimming = TextTrimming.Clip, TextWrapping = TextWrapping.NoWrap,
         };
         AutomationProperties.SetAccessibilityView(block, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
+        AutomationProperties.SetAutomationId(block, automationId);
         Canvas.SetLeft(block, left);
         Canvas.SetTop(block, top);
         Plot.Children.Add(block);
@@ -330,7 +417,8 @@ public sealed partial class SongScoreHistoryChart : UserControl
     /// <param name="x">Centre x.</param>
     /// <param name="y">Centre y.</param>
     /// <param name="angle">Rotation.</param>
-    private void AddAxisTitle(string text, Size measured, double x, double y, double angle)
+    /// <param name="automationId">Raw-view automation ID.</param>
+    private void AddAxisTitle(string text, Size measured, double x, double y, double angle, string automationId)
     {
         var box = Math.Max(120, Math.Ceiling(measured.Width) + 8);
         var block = new TextBlock
@@ -341,6 +429,7 @@ public sealed partial class SongScoreHistoryChart : UserControl
             RenderTransform = new RotateTransform { Angle = angle },
         };
         AutomationProperties.SetAccessibilityView(block, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
+        AutomationProperties.SetAutomationId(block, automationId);
         Canvas.SetLeft(block, x - box / 2);
         Canvas.SetTop(block, y - measured.Height / 2);
         Plot.Children.Add(block);

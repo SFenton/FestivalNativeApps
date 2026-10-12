@@ -6,7 +6,7 @@ import Testing
 @testable import FestivalCore
 @testable import FestivalUI
 
-// MARK: - Songs section push accessibility (#288, #452)
+// MARK: - Songs section push accessibility (#288, #452, #458)
 //
 // #288 made the Songs floating section title (`SongsSectionBar`, iOS/macOS 26) behave
 // like native pinned headers: the next section's title rises with the scroll and pushes
@@ -17,6 +17,9 @@ import Testing
 // naming the current section, never the hidden moving copies; the in-list titles stay
 // named headings in list order, including mid-push; the title grows with text size; and
 // with Reduce Motion and Reduce Transparency on, the push still tracks the scroll 1:1.
+// After a long return to the top (#297), read in VoiceOver's order (navigation order,
+// List rows by row index), the List reads as it first did and scrolling again names the
+// first section, read before its rows.
 // The same SwiftUI code serves iPhone, iPhone Duo, iPad and Mac; this runs on the
 // `apple-ci` macOS host. The iPhone position journey is
 // `SongsChromeJourneyTests.testRailFarJumpLandsOnTheLetterAndNamesIt`.
@@ -26,6 +29,12 @@ private let barID = "fst.songs.section-bar"
 
 /// Section letters of the fixture catalogue, in list order.
 private let pushLetters = ["A", "B", "C", "D", "E"]
+
+/// The fixture List's element identifiers in list order: each section's title, then its
+/// eight songs.
+private let pushListOrder: [String] = pushLetters.enumerated().flatMap { index, letter in
+    ["fst.songs.section.\(index)"] + (1...8).map { "fst.songs.row.push-\(letter)-\($0)" }
+}
 
 /// One accessibility element of the hosted Songs page.
 private struct PushElement: CustomStringConvertible {
@@ -256,6 +265,124 @@ struct SongsSectionPushAccessibilityTests {
         let home = try await scrollSongs(scroll, to: 0, host: host)
         #expect(home.bar == nil, "The floating title stayed at the top")
         withExtendedLifetime(window) {}
+    }
+
+    /// Issue #297 (accessibility, #458): back at the top after one long move from deep in
+    /// the list (a status-bar tap), then scrolling again, the floating heading names the
+    /// first section, not a section the List recycled before its title reported leaving
+    /// the bar. Read in VoiceOver's order (navigation order, List rows by row index; AppKit
+    /// recycles row views out of order): at the top the bar leaves the tree and the List
+    /// reads exactly as it first did, the first section's heading and then its first song;
+    /// scrolled again, the one bar heading is read before the rows, names A and then B, and
+    /// the List follows in list order with no exposed moving copy.
+    @Test(arguments: [
+        SongsPushCase(name: "default", typeSize: .large, reduced: false),
+        SongsPushCase(name: "AX5", typeSize: .accessibility5, reduced: false),
+    ])
+    func longReturnToTheTopThenScrollingNamesTheFirstSection(_ pushCase: SongsPushCase) async throws {
+        guard SongsScreen.usesSectionBar else { return }
+        let (host, window, scroll) = try await hostSongs(pushCase)
+        defer { window.orderOut(nil) }
+        let table = try #require(scroll.documentView as? NSTableView)
+        let initial = try await scrollSongs(scroll, to: 0, host: host)
+        let pinnedY = try #require(initial.titles.first { $0.label == "A" }).frame.minY
+        let initialOrder = macListReadingOrder(host, table: table)
+        macAccessibilityDump(initialOrder.all, name: "songs-push-long-return-initial-\(pushCase.name)")
+        checkReadingOrder(initialOrder, bar: nil, state: "first render")
+        #expect(initialOrder.rows.prefix(2).map(\.identifier) == ["fst.songs.section.0", "fst.songs.row.push-A-1"],
+                "The List does not start with A's heading and first song: \(initialOrder.rows)")
+
+        // Down the way a person scrolls (steps shorter than a title's passing band) until
+        // D is current: A, B and C have reported passing the bar.
+        var offset: CGFloat = 0
+        var deep = initial
+        while deep.bar?.label != "D", offset < 8_000 {
+            offset += 24
+            deep = try await scrollSongs(scroll, to: offset, host: host)
+        }
+        #expect(deep.bar?.label == "D", "Never reached D: \(String(describing: deep.bar))")
+        #expect(!deep.titles.contains { $0.label == "B" }, "B is still built; the jump would not skip it")
+
+        // One move to the top: the bar leaves and the List reads exactly as it first did.
+        let top = try await scrollSongs(scroll, to: 0, host: host)
+        #expect(top.bar == nil, "A section title is pinned at the top: \(String(describing: top.bar))")
+        let topOrder = macListReadingOrder(host, table: table)
+        macAccessibilityDump(topOrder.all, name: "songs-push-long-return-top-\(pushCase.name)")
+        checkReadingOrder(topOrder, bar: nil, state: "back at the top")
+        func spoken(_ order: MacListReadingOrder) -> [String] {
+            order.all.map { "\($0.role) '\($0.spokenName)' #\($0.identifier)" }
+        }
+        #expect(spoken(topOrder) == spoken(initialOrder),
+                "Reading order changed at the top: \(topOrder.all) vs \(initialOrder.all)")
+
+        // Scrolling again, the bar first names A, then B once B pushes A out.
+        var steps: [PushStep] = []
+        var names: [String] = []
+        offset = 0
+        while offset < 6_000 {
+            offset += 6
+            let step = try await scrollSongs(scroll, to: offset, host: host)
+            guard step.bar != nil || !steps.isEmpty else { continue }
+            steps.append(step)
+            checkStep(step)
+            let order = macListReadingOrder(host, table: table)
+            checkReadingOrder(order, bar: step.bar?.label, state: "scrolled again to \(offset)")
+            if let name = order.before.first(where: { $0.identifier == barID })?.spokenName, names.last != name {
+                names.append(name)
+            }
+            if step.bar?.label == "B" {
+                macAccessibilityDump(order.all, name: "songs-push-long-return-b-\(pushCase.name)")
+                break
+            }
+        }
+        #expect(steps.first?.bar?.label == "A",
+                "Scrolled again, the bar named \(String(describing: steps.first?.bar)) instead of A")
+        let bar = try #require(steps.first?.bar)
+        #expect(abs(bar.frame.minY - pinnedY) <= 1, "Floating A at \(bar.frame.minY), its in-list title at \(pinnedY)")
+        #expect(steps.last?.bar?.label == "B", "Never reached B: \(String(describing: steps.last?.bar))")
+        #expect(names == ["A", "B"], "VoiceOver heard the bar name \(names), expected A then B")
+        withExtendedLifetime(window) {}
+    }
+
+    /// VoiceOver's reading order in one state (section-headers R6): the floating title is
+    /// read once, as a heading naming `bar`, before every List row (or is absent when `bar`
+    /// is nil); the List reads a contiguous run of the fixture in list order (each heading
+    /// before its songs, sections in order); rows read before the List's first heading
+    /// belong to the bar's section; and only the bar and the in-list titles name a section.
+    private func checkReadingOrder(
+        _ order: MacListReadingOrder, bar: String?, state: String,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) {
+        let bars = order.all.filter { $0.identifier == barID }
+        if let bar {
+            #expect(bars.count == 1, "\(state): \(bars.count) floating titles: \(order.all)",
+                    sourceLocation: sourceLocation)
+            let read = order.before.first { $0.identifier == barID }
+            #expect(read?.role == "AXHeading" && read?.spokenName == bar,
+                    "\(state): the bar heading for \(bar) is not read before the List: \(order.all)",
+                    sourceLocation: sourceLocation)
+        } else {
+            #expect(bars.isEmpty, "\(state): a floating title is exposed: \(bars)", sourceLocation: sourceLocation)
+        }
+        let ids = order.rows.map(\.identifier)
+        let first = ids.first.flatMap { pushListOrder.firstIndex(of: $0) }
+        #expect(first != nil && pushListOrder.dropFirst(first ?? 0).prefix(ids.count).elementsEqual(ids),
+                "\(state): the List does not read in list order: \(order.rows)", sourceLocation: sourceLocation)
+        for title in order.rows where title.identifier.hasPrefix("fst.songs.section.") {
+            #expect(title.role == "AXHeading", "\(state): in-list title is not a heading: \(title)",
+                    sourceLocation: sourceLocation)
+        }
+        if let bar {
+            let lead = ids.prefix { !$0.hasPrefix("fst.songs.section.") }
+            #expect(lead.allSatisfy { $0.hasPrefix("fst.songs.row.push-\(bar)-") },
+                    "\(state): rows read under the \(bar) bar belong to another section: \(lead)",
+                    sourceLocation: sourceLocation)
+        }
+        let strays = order.all.filter {
+            pushLetters.contains($0.spokenName) && $0.identifier != barID
+                && !$0.identifier.hasPrefix("fst.songs.section.")
+        }
+        #expect(strays.isEmpty, "\(state): moving title copies exposed: \(strays)", sourceLocation: sourceLocation)
     }
 
     /// One scrolled step: the floating title is a heading naming a fixture section, it is

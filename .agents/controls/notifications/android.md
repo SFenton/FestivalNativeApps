@@ -38,11 +38,11 @@ Emulator API 37, debug build, live public service (keyless `GET /api/player/{id}
 | Configuration | Result |
 |---|---|
 | FST_Phone portrait, font 1.0 and 2.0; system light and dark | OK: `NEW` rows with gold dots, chevrons only on navigable rows, flag pills. At 2.0 titles wrap (the marquee title wraps at large text), the message and pills grow and nothing clips; the list scrolls. Closing marks every row seen; reopening shows `OLDER` only. |
-| FST_Phone landscape, font 1.0 and 2.0 | OK; the sheet opens partially expanded and the drag handle expands it. |
+| FST_Phone landscape, font 1.0 and 2.0 | OK; the sheet opens fully expanded (`modal-shell` R13) and its list scrolls. |
 | FST_Phone navigation | Personal-best row → Song Detail (Night Terror, Drums); back; Karaoke weighted-rank row → **Karaoke full rankings** with SFentonX pinned (was the Leaderboards hub, fixed below). |
 | FST_Phone no profile (`FST_DEBUG_ANONYMOUS`) | OK: "Select a player profile…" with Select Player Profile; no feed request. |
 | FST_Phone reduced motion (animator scales 0) | The sheet opens and closes without animation; long titles end in an ellipsis instead of scrolling (`FestivalMarqueeText`). |
-| FST_Tablet landscape ⇄ portrait, font 1.0 and 2.0 | OK; centred sheet (640 dp max) opens partially expanded; rank row opens full rankings. |
+| FST_Tablet landscape ⇄ portrait, font 1.0 and 2.0 | OK; centred sheet (640 dp max) opens fully expanded (`modal-shell` R13); rank row opens full rankings. |
 | FST_Resizable phone / foldable / tablet / desktop, desktop font 2.0 | OK; bottom bar at compact, rail at medium and expanded, centred sheet. |
 | FST_Book_Fold folded / unfolded / half-open, half at font 2.0 | OK. Half-open: the sheet sits in the start pane beside the vertical hinge (`festivalSheetHingeSide`). Long titles stay on one line at 1.0 (marquee, or an ellipsis with animations off; TalkBack reads the full title) and wrap at 2.0. |
 | FST_Passport_Fold folded / unfolded / half-open, half at font 2.0 | OK; same hinge behaviour. |

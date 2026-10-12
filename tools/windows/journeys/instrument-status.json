@@ -71,7 +71,28 @@
     "waitfor:raw=fst.songs.instrument-status.fixture-orbit.Solo_PeripheralGuitar@30",
     "assertname:raw=fst.songs.instrument-status.fixture-orbit.Solo_PeripheralGuitar|Pro Lead, full combo",
     "assertname:raw=fst.songs.instrument-status.fixture-pulse.Solo_Guitar|Lead, full combo",
-    "waitgone:id=fst.songs.score-filter-paused@1"
+    "waitgone:id=fst.songs.score-filter-paused@1",
+    "assertread:id=fst.songs.invalid-score.fixture-orbit|Invalid score indicator, button",
+    "assertsize:id=fst.songs.invalid-score.fixture-orbit|40x40",
+    "waitgone:id=fst.songs.invalid-score.fixture-pulse@1",
+    "invoke:id=fst.songs.invalid-score.fixture-orbit",
+    "waitfor:id=fst.songs.invalid-score.alert@5",
+    "waitfor:id=fst.songs.invalid-score.message@2",
+    "assertread:id=PrimaryButton|Settings, button",
+    "assertread:id=CloseButton|OK, button",
+    "waitgone:id=SecondaryButton@1",
+    "invoke:id=CloseButton",
+    "waitgone:id=fst.songs.invalid-score.alert@3",
+    "invoke:id=fst.songs.invalid-score.fixture-orbit",
+    "waitfor:id=fst.songs.invalid-score.alert@5",
+    "invoke:id=PrimaryButton",
+    "waitgone:id=fst.songs.invalid-score.alert@3",
+    "waitfor:id=fst.settings.show-instrument-icons@10"
+  ]},
+  {"name": "chips-invalid-scores-off", "fixture": ["instrument_status_fixture.py"], "route": "/songs", "profile": "fixture-player-1:Fixture Player 1", "ready": [
+    "waitfor:raw=fst.songs.instrument-status.fixture-orbit.Solo_PeripheralGuitar@30",
+    "assertname:raw=fst.songs.instrument-status.fixture-orbit.Solo_PeripheralGuitar|Pro Lead, scored",
+    "waitgone:id=fst.songs.invalid-score.fixture-orbit@1"
   ]},
   {"name": "chips-filter-damaged", "fixture": ["instrument_status_fixture.py"], "route": "/songs", "profile": "fixture-player-1:Fixture Player 1",
    "settings": {"songGeneralFilter": {"excludedDecades": [1985]}}, "ready": [

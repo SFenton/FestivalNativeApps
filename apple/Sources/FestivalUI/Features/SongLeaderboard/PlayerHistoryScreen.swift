@@ -236,6 +236,8 @@ struct PlayerHistoryScreen: View {
             .listRowBackground(Color.clear)
             .listRowSeparator(.hidden)
         }
+        // One score column for every row, like the web's `scoreWidth` (#594).
+        .leaderboardSectionColumns(.scoreHistory(entries.map(\.newScore)))
     }
 
     // MARK: States
@@ -314,7 +316,9 @@ struct PlayerHistoryScreen: View {
         }
         .help("Sort Scores")
         #endif
-        .accessibilityValue(PlayerScoreHistorySort.spokenValue(mode: sortMode, ascending: sortAscending))
+        .festivalBarItemAccessibility(
+            label: "Sort", value: PlayerScoreHistorySort.spokenValue(mode: sortMode, ascending: sortAscending)
+        )
         .accessibilityIdentifier("fst.history.sort.open")
         .tint(PlayerScoreHistorySort.isCustomized(mode: sortMode, ascending: sortAscending)
             ? BrandTokens.gold : BrandTokens.accentBlue)

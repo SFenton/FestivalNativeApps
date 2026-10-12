@@ -50,10 +50,12 @@ import org.junit.runner.RunWith
  * journey checks that each layout stays accessible in both postures, on the real
  * accessibility tree:
  *
- * - **Band Detail:** TalkBack reads the whole leading pane (title, Members, a member card, Band
- *   Summary, Band Statistics) before the trailing pane (Band Rank History, Five Best Songs), so
- *   two side-by-side panes never interleave. Flat, the panes are equal and meet at the content
- *   midpoint. Half open, each pane keeps to its side of the hinge. Every section header is a
+ * - **Band Detail (#584):** one scroll under a full-width band header, with the sections paired
+ *   in rows (Members | Band Summary, Band Statistics | Band Rank History, Five Best | Five Worst)
+ *   whose two cells share a top edge. TalkBack reads cell by cell, row by row, so the sections
+ *   keep the web's order and a cell never interleaves with its neighbour. Flat, the header spans
+ *   both columns and the cells are equal halves meeting at the content midpoint. Half open, the
+ *   header keeps to the leading side of the hinge and each cell to its side. Every section header is a
  *   heading and Rank By is a labelled 48 dp button. Rank By shows only with Experimental Ranks
  *   on (`experimental-ranks` R1, #541), so that journey launches with the setting on; a second
  *   one keeps the default (off) and checks Rank By is absent from the page and from TalkBack
@@ -252,9 +254,8 @@ class BandFoldAccessibilityJourneyTest {
 
     // region Band Detail
 
-    /** Band Detail's pane headings, leading pane first. */
-    private val leadingHeadings = listOf(MEMBERS to "Members", SUMMARY to "Band Summary", STATISTICS to "Band Statistics")
-    private val trailingHeadings = listOf(HISTORY to "Band Rank History", SONGS to "Five Best Songs")
+    /** Band Detail's section headings in the web's reading order (row by row, leading cell first). */
+    private val headings = listOf(MEMBERS to "Members", SUMMARY to "Band Summary", STATISTICS to "Band Statistics", HISTORY to "Band Rank History", SONGS to "Five Best Songs")
 
     /** The duo's Band Detail route. */
     private val bandRoute get() = DebugLaunch.parseRoute("band:${BandFixtures.DUO_ID}:Band_Duets:${BandFixtures.DUO_KEY}")
@@ -269,29 +270,56 @@ class BandFoldAccessibilityJourneyTest {
     private fun experimentalRanks(on: Boolean) = MemoryPreferences(mutablePreferencesOf(booleanPreferencesKey(SettingsRegistry.EXPERIMENTAL_RANKS) to on))
 
     /**
-     * Band Detail's TalkBack order in the current layout: every leading-pane stop that is on
-     * screen comes before every trailing-pane stop, and each pane's top stop is read.
+     * Band Detail's TalkBack order in the current layout: the title, Members and a member card,
+     * then every section heading on screen in the web's order. Each row cell is a traversal
+     * group, so a cell is read whole before its neighbour (#584).
      *
      * @param config Configuration, for messages and the log.
-     * @param twoPane Whether the trailing pane is on screen beside the leading one (in one
-     *   column it starts below the viewport).
+     * @param twoPane Whether the rows pair two sections (Band Summary is then beside Members).
      */
-    private fun assertBandDetailReadsLeadingThenTrailing(config: String, twoPane: Boolean) {
+    private fun assertBandDetailReadsRowByRow(config: String, twoPane: Boolean) {
         val order = h.readingOrder("band-detail-$config", fresh = true)
         val title = text(node(BAND_TITLE))
         val member = description(MEMBER)
-        val leading = (listOf(title, member) + leadingHeadings.map { it.second }).map { indexOf(order, it) }.filter { it >= 0 }
-        val trailing = trailingHeadings.map { indexOf(order, it.second) }.filter { it >= 0 }
         assertTrue("$config: TalkBack never reaches the title, Members or a member card: $order", listOf(title, "Members", member).all { indexOf(order, it) >= 0 })
-        if (twoPane) assertTrue("$config: TalkBack never reaches Band Rank History: $order", indexOf(order, "Band Rank History") >= 0)
-        if (trailing.isNotEmpty()) assertTrue("$config: the panes interleave; a trailing stop is read before the leading pane ends: $order", leading.max() < trailing.min())
-        assertTrue("$config: the title is not read first: $order", indexOf(order, title) == leading.min())
+        if (twoPane) assertTrue("$config: TalkBack never reaches Band Summary beside Members: $order", indexOf(order, "Band Summary") >= 0)
+        val read = (listOf(title, "Members", member) + headings.drop(1).map { it.second }).map { indexOf(order, it) }.filter { it >= 0 }
+        assertEquals("$config: the sections aren't read in the web's order, row by row: $order", read.sorted(), read)
+        assertEquals("$config: the title is not read first: $order", indexOf(order, title), read.first())
     }
 
     /**
-     * Flat: two equal panes centred on the content area beside the rail; half open: the leading
-     * pane ends at the hinge and the trailing one starts after it, with no header, chart or
-     * button across it. Both read leading then trailing; 200% text drops to one column.
+     * Two-pane geometry (#584): every row's cells share a top edge and the band header sits
+     * above the first row. Flat, the header spans both columns; half open, it ends at the hinge.
+     *
+     * @param config Configuration, for messages.
+     * @param fold The hinge x when half open, or null when flat.
+     */
+    private fun assertRowsAligned(config: String, fold: Float?) {
+        val header = bounds(HEADER)
+        val first = bounds(LEADING)
+        assertTrue("$config: the header $header overlaps the first row $first", header.bottom <= first.top + 1f)
+        BandLayout.DETAIL_ROWS.indices.filter { h.exists(row(it, "leading")) }.forEach { i ->
+            val leading = bounds(row(i, "leading"))
+            val trailing = bounds(row(i, "trailing"))
+            assertEquals("$config: row $i cells $leading | $trailing don't share a top edge", leading.top, trailing.top, 1f)
+        }
+        if (fold == null) {
+            val trailing = bounds(TRAILING)
+            assertTrue(
+                "$config: the header $header doesn't span both columns $first | $trailing",
+                header.left <= first.left + 1f && header.right >= trailing.right - 1f,
+            )
+        } else {
+            assertTrue("$config: the header $header runs past the hinge $fold", header.right <= fold + 1f)
+        }
+    }
+
+    /**
+     * Flat: a full-width header over rows of two equal cells centred on the content area beside
+     * the rail; half open: the header and leading cells end at the hinge and the trailing cells
+     * start after it, with no header, chart or button across it. Both read row by row with
+     * aligned cells (#584); 200% text drops to one column.
      * Experimental Ranks is on so Rank By is on the page (#541).
      */
     @Test
@@ -307,7 +335,7 @@ class BandFoldAccessibilityJourneyTest {
         publish(State.FLAT) { if (wide) h.exists(LEADING) && h.exists(TRAILING) else h.exists(CONTENT) }
         h.waitForTag(HISTORY)
         h.awaitAccessibilityTree(present = MEMBERS)
-        (leadingHeadings + trailingHeadings).forEach { (tag, title) -> assertHeading(tag, title, "flat") }
+        headings.forEach { (tag, title) -> assertHeading(tag, title, "flat") }
         assertTrue("flat: the band title is not a heading", node(BAND_TITLE).config.contains(SemanticsProperties.Heading))
         assertTarget(RANK_BY, "flat: Rank By", Role.Button)
         assertTrue("flat: Rank By has no label", description(RANK_BY).startsWith("Rank by "))
@@ -317,10 +345,11 @@ class BandFoldAccessibilityJourneyTest {
             assertEquals("flat: unequal panes $leading | $trailing", leading.width, trailing.width, 2f)
             val gap = (leading.right + trailing.left) / 2
             assertEquals("flat: the panes don't meet at the content midpoint", (leading.left + trailing.right) / 2, gap, 2f)
+            assertRowsAligned("flat", fold = null)
         } else {
             assertFalse("flat: a compact window split into panes", h.exists(LEADING))
         }
-        assertBandDetailReadsLeadingThenTrailing("flat", wide)
+        assertBandDetailReadsRowByRow("flat", wide)
 
         if (wide) {
             val fold = foldX()
@@ -329,8 +358,9 @@ class BandFoldAccessibilityJourneyTest {
             assertTrue("half open: the leading pane ${bounds(LEADING)} runs past the hinge $fold", bounds(LEADING).right <= fold + 1f)
             assertTrue("half open: the trailing pane ${bounds(TRAILING)} starts before the hinge $fold", bounds(TRAILING).left >= fold - 1f)
             assertOffTheHinge(fold, BAND_TITLE, MEMBERS, MEMBER, SUMMARY, STATISTICS, RANK_BY, HISTORY, HISTORY_CHART, SONGS)
+            assertRowsAligned("half open", fold)
             assertTarget(RANK_BY, "half open: Rank By", Role.Button)
-            assertBandDetailReadsLeadingThenTrailing("half-open", twoPane = true)
+            assertBandDetailReadsRowByRow("half-open", twoPane = true)
 
             // Unfolding reflows the same page in place (#346): equal panes again, no reload.
             publish(State.FLAT) { kotlin.math.abs(bounds(LEADING).width - bounds(TRAILING).width) <= 2f }
@@ -340,10 +370,10 @@ class BandFoldAccessibilityJourneyTest {
         assertNoClippedText(MEMBERS, "flat 100%")
 
         scale = 2f
-        rule.waitUntil(15_000) { h.exists(CONTENT) && !h.exists(LEADING) }
+        rule.waitUntil(15_000) { h.exists(CONTENT) && !h.exists(ROW) }
         rule.waitForIdle()
         h.awaitAccessibilityTree(present = MEMBERS)
-        (leadingHeadings + trailingHeadings).forEach { (tag, title) -> assertHeading(tag, title, "200%") }
+        headings.forEach { (tag, title) -> assertHeading(tag, title, "200%") }
         assertTarget(RANK_BY, "200%: Rank By", Role.Button)
         val titleAt200 = assertNoClippedText(BAND_TITLE, "200%")
         assertNoClippedText(MEMBERS, "200%")
@@ -357,7 +387,7 @@ class BandFoldAccessibilityJourneyTest {
     /**
      * Experimental Ranks off (the default): Band Detail has no Rank By, on the page or in
      * TalkBack, flat and half open, and Band Statistics stays a heading clear of the hinge with
-     * the panes still read leading then trailing (`experimental-ranks` R1, #541, #563).
+     * the sections still read row by row (`experimental-ranks` R1, #541, #563).
      */
     @Test
     fun bandDetailHidesRankByWithoutExperimentalRanks() {
@@ -374,7 +404,7 @@ class BandFoldAccessibilityJourneyTest {
         assertFalse("flat, off: Rank By offered with Experimental Ranks off", h.exists(RANK_BY))
         val order = h.readingOrder("band-detail-ranks-off", fresh = true)
         assertTrue("flat, off: TalkBack reads Rank By with Experimental Ranks off: $order", order.none { it.startsWith("Rank by") })
-        assertBandDetailReadsLeadingThenTrailing("flat-ranks-off", wide)
+        assertBandDetailReadsRowByRow("flat-ranks-off", wide)
 
         if (wide) {
             val fold = foldX()
@@ -382,12 +412,15 @@ class BandFoldAccessibilityJourneyTest {
             h.awaitAccessibilityTree(present = MEMBERS)
             assertFalse("half open, off: Rank By offered with Experimental Ranks off", h.exists(RANK_BY))
             assertOffTheHinge(fold, BAND_TITLE, MEMBERS, MEMBER, SUMMARY, STATISTICS, HISTORY, HISTORY_CHART, SONGS)
-            assertBandDetailReadsLeadingThenTrailing("half-open-ranks-off", twoPane = true)
+            assertBandDetailReadsRowByRow("half-open-ranks-off", twoPane = true)
         }
         h.assertAccessible()
     }
 
     // endregion
+
+    /** Test tag of row [index]'s [side] cell (`leading` or `trailing`). */
+    private fun row(index: Int, side: String) = "fst.band.row.$index.$side"
 
     // region Player Bands
 
@@ -475,8 +508,10 @@ class BandFoldAccessibilityJourneyTest {
     // endregion
 
     private companion object {
-        const val LEADING = "fst.band.pane.leading"
-        const val TRAILING = "fst.band.pane.trailing"
+        const val ROW = "fst.band.row.0"
+        const val LEADING = "$ROW.leading"
+        const val TRAILING = "$ROW.trailing"
+        const val HEADER = "fst.band.header"
         const val CONTENT = "fst.band.content"
         const val BAND_TITLE = "fst.band.title"
         const val MEMBERS = "fst.band.members-section"

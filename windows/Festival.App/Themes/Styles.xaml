@@ -69,17 +69,24 @@
             <SolidColorBrush x:Key="FSTStatGreenBrush" Color="#FF2ECC71" />
             <SolidColorBrush x:Key="FSTTopOneFillBrush" Color="#FFFFD700" />
             <SolidColorBrush x:Key="FSTTopOneTextBrush" Color="#FF000000" />
-            <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="#FFFFFFFF" />
-            <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="#FF000000" />
+            <!-- Shared season and percentile pills (pattern metadata-pills, Controls/MetadataPills, issue #606): Apple
+                 ScoreSeasonPill / web SeasonPill textSecondary on surfaceSubtle with a borderSubtle ring; the current season
+                 is the inverted pill. Ordinary "Top N%" is textSecondary on surfaceMuted (web surfaceWhiteSubtle, opaque). -->
+            <SolidColorBrush x:Key="FSTSeasonPillFillBrush" Color="#FF162133" />
+            <SolidColorBrush x:Key="FSTSeasonPillTextBrush" Color="#FFD7DEE8" />
+            <SolidColorBrush x:Key="FSTSeasonPillStrokeBrush" Color="#FF1E2A3A" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="#FFD7DEE8" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="#FF162133" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonStrokeBrush" Color="#FF162133" />
+            <SolidColorBrush x:Key="FSTPercentileNeutralFillBrush" Color="#FF223047" />
+            <SolidColorBrush x:Key="FSTPercentileNeutralTextBrush" Color="#FFD7DEE8" />
+            <SolidColorBrush x:Key="FSTPercentileNeutralStrokeBrush" Color="#00000000" />
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="#1FFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="#00000000" />
             <!-- Gold-outline pill (Player Profile Top 1–5% rows): no fill over the card; Window under a contrast theme so
                  the pill stays readable on the Highlight row hover. -->
             <SolidColorBrush x:Key="FSTGoldPillFillBrush" Color="#00000000" />
-            <!-- Band Detail song rows' "Top N%" pill (web purple percentile badge). -->
-            <SolidColorBrush x:Key="FSTPercentilePillFillBrush" Color="#FF7C3AED" />
-            <SolidColorBrush x:Key="FSTPercentilePillTextBrush" Color="#FFFFFFFF" />
             <!-- Notifications flag pill (issue #229): white text and the web's translucent ring around the FLAG_COLORS fill. -->
             <SolidColorBrush x:Key="FSTNotificationFlagTextBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTNotificationFlagStrokeBrush" Color="#2EFFFFFF" />
@@ -223,15 +230,20 @@
             <SolidColorBrush x:Key="FSTStatGreenBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTTopOneFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTTopOneTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <!-- Season and ordinary percentile pills are ButtonFace/ButtonText pills; the current season is Highlight. -->
+            <SolidColorBrush x:Key="FSTSeasonPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FSTSeasonPillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTSeasonPillStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonStrokeBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTPercentileNeutralFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FSTPercentileNeutralTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTPercentileNeutralStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTGoldPillFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
-            <!-- Percentile pills become plain system pills (outlined by FSTNeutralPillStrokeBrush). -->
-            <SolidColorBrush x:Key="FSTPercentilePillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
-            <SolidColorBrush x:Key="FSTPercentilePillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <!-- Notification flags become outlined system pills; the flag word, not its hue, carries the meaning. -->
             <SolidColorBrush x:Key="FSTNotificationFlagTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTNotificationFlagStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
@@ -322,6 +334,12 @@
         <Setter Property="AutomationProperties.Name" Value="Options" />
     </Style>
 
+    <!-- Every Expander is an accordion with the sequenced motion (load-transition owner-approved accordion variant, issue
+         #561): the section grows, then its content fades in; closing fades the content out, then collapses. -->
+    <Style TargetType="Expander">
+        <Setter Property="controls:Accordion.Sequenced" Value="True" />
+    </Style>
+
     <!-- Menu items are targets too (page-tools-and-nav-chrome R10, issue #416): WinUI's keyboard/mouse padding
          (MenuFlyoutItemThemePaddingNarrow) left them 27 epx tall. The item template insets its hit-testable pill by
          MenuFlyoutItemMargin (4,2,4,2), so the item is FSTMinTargetSize plus that 2+2 epx for a 40 epx pill. Implicit
@@ -335,6 +353,25 @@
     </Style>
     <Style TargetType="RadioMenuFlyoutItem" BasedOn="{StaticResource DefaultRadioMenuFlyoutItemStyle}">
         <Setter Property="MinHeight" Value="{StaticResource FSTMenuItemMinHeight}" />
+    </Style>
+
+    <!-- Drop-down options are targets too (page-tools-and-nav-chrome R10, issue #439): WinUI's keyboard/mouse
+         ComboBoxItemThemePadding (5 epx above, 7 below) left the Paths Instrument options 38 epx tall. The item template
+         insets its pill (LayoutRoot) by 2 epx top and bottom, like a menu item, so the same height gives a 40 epx pill. -->
+    <Style TargetType="ComboBoxItem" BasedOn="{StaticResource DefaultComboBoxItemStyle}">
+        <Setter Property="MinHeight" Value="{StaticResource FSTMenuItemMinHeight}" />
+    </Style>
+
+    <!-- Radio choices are targets too (page-tools-and-nav-chrome R10, issue #430): WinUI's template draws each RadioButton
+         32 epx tall (a fixed 32 epx circle row, no MinHeight) with an 8 epx RadioButtonsRowSpacing between them, so the
+         Paths Difficulty/Display, Sort By/Direction and Settings Path Default View choices were 32 epx targets. Each
+         RadioButton is at least FSTMinTargetSize tall (6 epx under the label, matching the template's 6 epx above it)
+         and the target absorbs the old row gap, so a one-line list keeps its 40 epx row pitch. Implicit styles match
+         the exact type; RadioButtons' generated items pick this one up. -->
+    <x:Double x:Key="RadioButtonsRowSpacing">0</x:Double>
+    <Style TargetType="RadioButton" BasedOn="{StaticResource DefaultRadioButtonStyle}">
+        <Setter Property="MinHeight" Value="{StaticResource FSTMinTargetSize}" />
+        <Setter Property="Padding" Value="8,6,0,6" />
     </Style>
 
     <!-- Every ProgressRing/ProgressBar is white (neutral) rather than accent-coloured, with no caption beside it. -->
@@ -381,7 +418,8 @@
     </Style>
 
     <!-- Full-width accent "View all" call to action below a card's rows (web ViewFullLeaderboardCta / Rivals viewAllButton):
-         Song Detail's View Full Leaderboard, Leaderboards' View All Rankings and Rivals' View All Rivals. Consumers set no
+         Song Detail's View Full Leaderboard, Leaderboards' View All Rankings, Rivals' View All Rivals and the profile Bands
+         groups' View All Bands (N) (owner #596). Consumers set no
          layout overrides, so every one has the same gap, height and fill (issue #268). Contrast themes draw the accent
          button as HighlightText on Highlight; without HighContrastAdjustment None WinUI paints a Window backplate box
          behind the label (same as ServiceStatusView's Retry; issues #264, #268). -->
@@ -392,23 +430,6 @@
         <Setter Property="MinHeight" Value="{StaticResource FSTMinTargetSize}" />
         <Setter Property="Margin" Value="0,4,0,0" />
         <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
-
-    <!-- Frosted "View all" card (surface-materials R7; web PlayerBandsSection BandViewAllCard, frostedCard at
-         Layout.entryRowHeight 48 px): the canonical card surface and stroke, full width, 48 epx minimum height; the
-         control centres its label and chevron and swaps in the card hover/press fills. Profile Bands' View All Bands (N)
-         (issue #312). Consumers set no layout or colour overrides (ViewAllCardTests). -->
-    <x:Double x:Key="FSTViewAllCardMinHeight">48</x:Double>
-    <Style TargetType="controls:ViewAllCard">
-        <Setter Property="Background" Value="{ThemeResource FSTCardSurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{ThemeResource FSTCardStrokeBrush}" />
-        <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
-        <Setter Property="HorizontalAlignment" Value="Stretch" />
-        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-        <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="MinHeight" Value="{StaticResource FSTViewAllCardMinHeight}" />
-        <Setter Property="Padding" Value="16,8" />
     </Style>
 
     <!-- Instrument / band header above a card (web InstrumentHeader MD): 36 epx icon, bold title, optional subtitle. -->

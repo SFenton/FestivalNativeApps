@@ -187,14 +187,15 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
     private string? SelectedAccount => session.SelectedPlayer?.AccountId is { } id && ProfileText.IsValidAccountId(id) ? id : null;
 
     /// <summary>
-    /// Switching size returns to page one and drops the old size's entry total at once: the board line names the new size
-    /// immediately, and its total appears only when that size's response commits (song-leaderboard-header R5).
+    /// Switching size returns to page one and drops the old size's entry total and page count at once: the board line
+    /// names the new size immediately, and its total and pager appear only when that size's response commits
+    /// (song-leaderboard-header R5, load-transition R4, issue #575).
     /// </summary>
     /// <param name="value">New size.</param>
     partial void OnBandTypeChanged(BandType value)
     {
         TotalText = "";
-        Pager.Page = 1;
+        Pager.Reset();
         RevealSelected = false;
         _ = LoadAsync();
     }
@@ -253,7 +254,8 @@ public sealed partial class SongBandLeaderboardViewModel : ObservableObject
                 TotalText = board.ShowLeaderboardEntryTotals == true && board.TotalEntries > 0
                     ? $"{BandFormatting.Count(board.TotalEntries)} {type.Label()} {(board.TotalEntries == 1 ? "entry" : "entries")}" : "";
                 Pager.PageCount = pages;
-                Rows = [.. board.Entries.Select(e => new SongBandRow(e, pinned is not null && SongBandPreview.IsSameBand(e, pinned)))];
+                var railRank = SongBandRow.WidestRank(board.Entries);
+                Rows = [.. board.Entries.Select(e => new SongBandRow(e, pinned is not null && SongBandPreview.IsSameBand(e, pinned), railRank))];
                 Spotlight = pinned is null ? null : SongBandSpotlightRow.Pinned(pinned, SelectedRowAction.Footer(pinned.Rank,
                     Rows.Any(r => r.IsSelected) || LeaderboardPaging.PageForRank(pinned.Rank, PageSize) == page, PageSize), board.Entries);
                 State = Rows.Count == 0 ? LoadState.Empty : LoadState.Loaded;
@@ -311,15 +313,29 @@ public sealed record SongBandRow
     /// <summary>Creates a row.</summary>
     /// <param name="entry">Wire row.</param>
     /// <param name="isSelected">Whether this is the selected player's band.</param>
-    public SongBandRow(SongBandLeaderboardEntry entry, bool isSelected = false)
+    /// <param name="railRank">The section's widest rank text, which sizes every row's rank rail (issue #594); empty sizes the rail by the row's own rank.</param>
+    public SongBandRow(SongBandLeaderboardEntry entry, bool isSelected = false, string railRank = "")
     {
         Entry = entry;
         IsSelected = isSelected;
+        RailRank = railRank;
         Members = [.. entry.Members.DistinctBy(m => m.AccountId, StringComparer.Ordinal).Select(m => new BandMemberRow(m) { OnPlayerRow = isSelected })];
     }
 
+    /// <summary>
+    /// The widest rank of every row a section draws: one rail sized by it keeps the members of every card in line, a
+    /// selected band's bold or longer rank included (web <c>computeRankWidth</c>; issue #594).
+    /// </summary>
+    /// <param name="entries">The section's wire rows, an appended selected row included.</param>
+    /// <returns>The widest rank text (<see cref="LeaderboardColumnLayout.WidestRank"/>).</returns>
+    public static string WidestRank(IEnumerable<SongBandLeaderboardEntry> entries) =>
+        LeaderboardColumnLayout.WidestRank(entries.Select(e => BandFormatting.Rank(e.Rank)));
+
     /// <summary>Wire row.</summary>
     public SongBandLeaderboardEntry Entry { get; }
+
+    /// <summary>The section's widest rank text; the view draws an invisible bold copy in the rank cell to size the rail.</summary>
+    public string RailRank { get; }
 
     /// <summary>Whether this is the selected player's pinned band (web <c>isSelected</c>: player-row fill in place).</summary>
     public bool IsSelected { get; }
@@ -353,6 +369,15 @@ public sealed record SongBandRow
 
     /// <summary>Automation ID (<c>fst.song-band-leaderboard.row.&lt;key&gt;:&lt;rank&gt;</c>).</summary>
     public string AutomationId => $"fst.song-band-leaderboard.row.{(Entry.BandId.Length > 0 ? Entry.BandId : Entry.TeamKey)}:{Entry.Rank}";
+
+    /// <summary>Raw-view ID of the board row's rank text (<c>&lt;row&gt;.rank</c>), for column-alignment checks.</summary>
+    public string RankAutomationId => AutomationId + ".rank";
+
+    /// <summary>Raw-view ID of the board row's member list (<c>&lt;row&gt;.members</c>), for column-alignment checks.</summary>
+    public string MembersAutomationId => AutomationId + ".members";
+
+    /// <summary>Raw-view ID of the board row's accuracy pill text (<c>&lt;row&gt;.accuracy</c>), for contrast-theme paint checks.</summary>
+    public string AccuracyAutomationId => AutomationId + ".accuracy";
 
     /// <summary>Screen-reader summary.</summary>
     public string Announcement => $"Rank {Entry.Rank}, {Names}, {Score} points" +
@@ -397,6 +422,9 @@ public sealed record SongBandSpotlightRow(SongBandLeaderboardEntry Entry, Select
     /// <summary>Joined member names (<c>A + B</c>).</summary>
     public string Name => Entry.MembersLabel;
 
+    /// <summary>One large-text name line per member (<see cref="LeaderboardRowMetrics.BandNameLines"/>, issue #455).</summary>
+    public int LargeTextNameLines => LeaderboardRowMetrics.BandNameLines(Entry.Members.Count);
+
     /// <summary>Always the selected player's band (purple highlight, bold).</summary>
     public bool IsSelected => true;
 
@@ -437,6 +465,9 @@ public sealed record SongBandSpotlightRow(SongBandLeaderboardEntry Entry, Select
 
     /// <summary>Season text (<c>S15</c>), or empty.</summary>
     public string Season => Entry.Season is { } s ? string.Create(CultureInfo.InvariantCulture, $"S{s}") : "";
+
+    /// <inheritdoc />
+    public int? SeasonNumber => Entry.Season;
 
     /// <summary>Band Detail with the safe lookup keys (as the in-list row); a jump is the page's command (<see cref="Action"/>).</summary>
     public AppRoute? Route => new AppRoute.Band(Entry.BandId.Length > 0 ? Entry.BandId : Entry.TeamKey, Entry.BandType, Entry.TeamKey);
