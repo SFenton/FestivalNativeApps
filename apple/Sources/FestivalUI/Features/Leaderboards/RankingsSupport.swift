@@ -190,6 +190,10 @@ struct RankingRowLayout: View {
                         }
                     }
                 }
+                // Fill the row like the one-line layout's name column does, so the target
+                // and the selected band span the card rather than the stacked text (#499;
+                // `ScoreHistoryListRow` stacks the same way).
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 HStack(spacing: Self.columnSpacing) {
                     LeaderboardColumnSlot(template: columns?.rankLabel) { rankText }
