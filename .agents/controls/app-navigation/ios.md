@@ -47,6 +47,7 @@ Measured (`FST_DEBUG_DRAWER_RADII=1` shows the panel frame and `GeometryProxy.co
 
 Rules, enforced by the tests below:
 - Each drawer control is a target of at least 44×44 pt (HIG Buttons: "the hit region is at least 44x44 pt"). Deselect uses `.controlSize(.large)`; the regular bordered size was 34 pt tall.
+- Deselect is white on the brand red fill (`.borderedProminent`, `BrandTokens.statusRed`, ≈ 5.6:1), like the web `btnDanger` and Settings' Reset. Red text on the bordered tint depends on what the glass shows: it measured 4.46:1 over the large catalogue's artwork. Agent decision (#489, 2026-10-12; the owner may override with `/choose`). HIG Accessibility contrast table: "Up to 17 pt | All | 4.5:1".
 - The symbol column (`DrawerRow.iconWidth`, 26 pt at the default size) and the footer avatar scale with `@ScaledMetric(relativeTo: .body)`. At AX5 a fixed column let symbols overlap their titles and spill toward the rounded corner.
 - Every target lies wholly inside the concentric panel shape.
 - The page behind leaves `app.snapshot()` while the drawer is open.
@@ -54,4 +55,8 @@ Rules, enforced by the tests below:
 Tests:
 - `DrawerCornersAccessibilityTests` (hosted, `apple-ci`). It covers 7 iPhone and Duo geometries × default/AX5 × anonymous/player. It checks reading order, names, roles, selected state, the 12 pt inset, target size and clearance from the worst-case corner, plus the same tree under Reduce Transparency.
 - `DrawerAccessibilityJourneyTests` (simulator, iPhone and `--device duo`). It runs a `performAccessibilityAudit` `.all` and an AX5 audit, using the measured-contrast, behind-modal and page-floor rules in [Apple accessibility audits](../../testing/apple/accessibility.md#drawer-journey-iphone-and-iphone-duo).
+
+The open and close sequence (#362, tests #489) must not cost accessibility. After an animated open, sliding or with the Reduce Motion fade, the drawer reads as the static drawer does: same tree, same order, every control at its resting frame inside the panel. From the first frame of a close, the drawer is out of the accessibility tree and touches reach the page; reopening mid-close restores it whole. With Reduce Motion a control's frame never moves, so the VoiceOver cursor never travels with a slide. The panel is `.isModal` only while `isPresented`. On iOS, a closing panel that stayed modal kept Songs out of `app.snapshot()` until the slide-out ended, even though the panel was already hidden; the journeys below caught this (#489). Tests:
+- `DrawerMotionAccessibilityTests` (hosted, `apple-ci`). It covers every iPhone and Duo geometry plus the iPad flyout, with slide and Reduce Motion, at the default size and AX5. It checks the animated open against the static drawer, closing (scrim click, then tree and click handed to a page button beside the panel, one `onDismissed`, reopen), reopening mid-close, and `DrawerPanelStage` stepped through the sequence.
+- `DrawerAccessibilityJourneyTests` (simulator, in `apple-ci` against the large-catalogue fixture). `testReduceMotionDrawerPassesAccessibilityAudit` audits the Reduce Motion drawer. `testClosingDrawerHandsThePageBackAtOnce` and its `DuoFolded` form use `FST_DEBUG_DRAWER_SLOWMO=40`. They check that Songs is back in `app.snapshot()` with the drawer gone well before the 16 s close ends, then reopen the drawer from the menu button mid-close.
 
