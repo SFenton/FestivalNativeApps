@@ -112,6 +112,8 @@ jobs:
             SongsChromeJourneyTests/testSlowDragsNearTheTopKeepTheTopOfSongsAccessibleAtAX5
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             FirstRunJourneyTests/testSongDemoRotationKeepsSlideAccessibleAtLargestText
+            FirstRunJourneyTests/testSongsGuideRealControlDemosAccessibleAtLargestText
+            FirstRunJourneyTests/testSongsGuideRealControlDemosAccessibleAtLargestTextDuoFolded
             RivalsViewAllAccessibilityJourneyTests/testViewAllRivalsIsReadableAtAX5
             ProfileBandsAccessibilityJourneyTests/testProfileBandsSectionIsReadableAtAX5
             ProfileBandsAccessibilityJourneyTests/testFailedBandsRetryIsANamed44PointTarget

@@ -239,17 +239,23 @@ struct FirstRunNativeDemosAccessibilityTests {
             .leaderboards, first: slide, session: session, storage: storage, systemReduceMotion: setting == .system
         )
         defer { window.orderOut(nil) }
+        // Synchronous, before any run-loop turn: the entrance has not started.
         let first = try nativeHostedImage(host)
-        try await Task.sleep(for: .seconds(Self.entranceSeconds(slide.id)))
-        let rest = try await nativeHostedSettle(host, animationGrace: .milliseconds(400))
         let label = setting?.rawValue ?? "motion allowed"
         // The title and description band: below the demo (its frame ends by 383 pt; its card
         // material settles a shade after the first frame, which is not motion) and above the
         // page dots, inside the sheet's edges.
         let dots = try #require(nativeHostedAccessibilityFrame("fst.first-run.dots", in: host), "dots frame")
         let text = CGRect(x: 8, y: 390, width: host.bounds.width - 16, height: dots.minY - 4 - 390)
-        let firstInk = nativeHostedContent(try Self.crop(first, to: text, in: host.bounds.size)).inkFraction
-        let restInk = nativeHostedContent(try Self.crop(rest, to: text, in: host.bounds.size)).inkFraction
+        func ink(_ image: CGImage) throws -> Double {
+            nativeHostedContent(try Self.crop(image, to: text, in: host.bounds.size)).inkFraction
+        }
+        let firstInk = try ink(first)
+        // The resting text, judged by what it draws rather than when a capture lands.
+        let rest = try await nativeHostedSettle(host, animationGrace: .seconds(Self.entranceSeconds(slide.id))) {
+            ((try? nativeHostedImage(host)).flatMap { try? ink($0) } ?? 0) > 0.01
+        }
+        let restInk = try ink(rest)
         #expect(restInk > 0.01, "the title and description show after the entrance (\(label)): ink \(restInk)")
         if setting == nil {
             #expect(firstInk < restInk / 4, "the text fades in with motion allowed: ink \(firstInk) → \(restInk)")
