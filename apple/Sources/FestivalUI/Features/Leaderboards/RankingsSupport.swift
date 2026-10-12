@@ -190,6 +190,9 @@ struct RankingRowLayout: View {
                         }
                     }
                 }
+                // Fill the row like the one-line layout's name column, so the whole band is the
+                // target and the selected player's purple band spans the card (#493).
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 HStack(spacing: Self.columnSpacing) {
                     LeaderboardColumnSlot(template: columns?.rankLabel) { rankText }
