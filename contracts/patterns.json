@@ -2082,6 +2082,14 @@
           {
             "path": "windows/Festival.Core/Domain/MotionPolicy.cs",
             "symbol": "AccordionMotion"
+          },
+          {
+            "path": "windows/Festival.Core/Data/PublicationLiveUpdates.cs",
+            "symbol": "PublicationLiveConnection"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongsViewModel.cs",
+            "symbol": "RefreshForPublicationAsync"
           }
         ]
       },
@@ -2186,7 +2194,8 @@
             "windows/Festival.App/Pages/LeaderboardsPage.xaml",
             "windows/Festival.App/Pages/LeaderboardsSongPage.xaml",
             "windows/Festival.App/Pages/LeaderboardsBandRankingsPage.xaml",
-            "windows/Festival.App/Pages/BandsSongLeaderboardPage.xaml"
+            "windows/Festival.App/Pages/BandsSongLeaderboardPage.xaml",
+            "windows/Festival.App/Pages/SongsPage.xaml"
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
@@ -2252,7 +2261,8 @@
         323,
         380,
         561,
-        614
+        614,
+        616
       ]
     },
     {
