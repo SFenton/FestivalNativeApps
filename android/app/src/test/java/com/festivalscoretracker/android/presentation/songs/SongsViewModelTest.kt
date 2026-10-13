@@ -14,13 +14,16 @@ import com.festivalscoretracker.android.core.songs.SongSortMode
 import com.festivalscoretracker.android.data.CatalogPayload
 import com.festivalscoretracker.android.data.songs.SongsPreferencesState
 import com.festivalscoretracker.android.presentation.LoadState
+import com.festivalscoretracker.android.presentation.SongsPublicationHold
 import com.festivalscoretracker.android.presentation.SongsViewModel
+import com.festivalscoretracker.android.presentation.valueOrNull
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileState
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileStatus
 import com.festivalscoretracker.android.presentation.shop.ShopStore
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.MainDispatcherRule
 import com.festivalscoretracker.android.testing.SongsFixtures
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
@@ -28,6 +31,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -48,6 +52,10 @@ class SongsViewModelTest {
     )
     private val payload = CatalogPayload(SongsResponse(3, 15, songs), 7)
     private val player = SelectedPlayer(Fixtures.ACCOUNT_A, "P")
+
+    private companion object {
+        const val PAUSED = "Player scores paused until songs update"
+    }
 
     private class Inputs {
         val settings = MutableStateFlow<AppSettings?>(AppSettings())
@@ -182,6 +190,96 @@ class SongsViewModelTest {
         advanceUntilIdle()
         assertTrue(vm.uiState.value.invalidSavedFilter)
         assertTrue(vm.uiState.value.rows.isEmpty())
+    }
+
+    @Test
+    fun newPublicationRefreshesSongsInPlaceKeepingFiltersAndSort() = runTest(main.dispatcher) {
+        val inputs = Inputs()
+        inputs.settings.value = AppSettings(selectedPlayer = player, songSort = SongSortMode.Year, songSortAscending = false)
+        inputs.prefs.value = SongsPreferencesState(playerFilter = SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead)))
+        val scores = arrayOf(SongsFixtures.score("a", Instrument.Lead, 1000), SongsFixtures.score("b", Instrument.Lead, 900))
+        inputs.profile.value = available(*scores)
+        var gate: CompletableDeferred<Unit>? = null
+        var loads = 0
+        val vm = viewModel(inputs) {
+            loads++
+            gate?.await()
+            CatalogPayload(SongsResponse(3, 15, songs), inputs.publication.value ?: 7)
+        }
+        advanceUntilIdle()
+        val before = vm.uiState.value
+        assertEquals(listOf("a", "b"), before.rows.map { it.song.songId })
+        assertFalse(before.updatingPublication)
+        assertTrue(before.rows.none { it.scoreState == PAUSED })
+
+        // The live socket (or the bell) observes 8; the profile store reloads its scores.
+        gate = CompletableDeferred()
+        inputs.publication.value = 8
+        inputs.profile.value = SelectedProfileState(player, SelectedProfileStatus.Loading)
+        runCurrent()
+        val held = vm.uiState.value
+        assertTrue(held.updatingPublication)
+        assertEquals(before.rows, held.rows)
+        assertEquals(before.notices, held.notices)
+
+        // New rows wait for the scores too, so they never flash paused.
+        gate!!.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.updatingPublication)
+        assertEquals(before.rows, vm.uiState.value.rows)
+
+        inputs.profile.value = available(*scores, observed = 8)
+        advanceUntilIdle()
+        val after = vm.uiState.value
+        assertFalse(after.updatingPublication)
+        assertEquals(8, after.catalog.valueOrNull?.publicationId)
+        assertEquals(listOf("a", "b"), after.rows.map { it.song.songId })
+        assertTrue(after.rows.none { it.scoreState == PAUSED })
+        assertTrue(after.filtersApplied)
+        assertEquals(SongSortMode.Year, after.effectiveSort)
+        assertEquals(before.notices, after.notices)
+        assertEquals(2, loads)
+    }
+
+    @Test
+    fun failedPublicationFollowShowsTheExplicitPausedState() = runTest(main.dispatcher) {
+        val inputs = Inputs()
+        inputs.settings.value = AppSettings(selectedPlayer = player)
+        inputs.profile.value = available(SongsFixtures.score("a", Instrument.Lead, 1000))
+        var loads = 0
+        val vm = viewModel(inputs) {
+            loads++
+            if (loads > 1) throw FestivalApiException.HttpStatus(500)
+            payload
+        }
+        advanceUntilIdle()
+
+        inputs.publication.value = 8
+        inputs.profile.value = available(SongsFixtures.score("a", Instrument.Lead, 1000), observed = 8)
+        advanceUntilIdle()
+        val state = vm.uiState.value
+        assertFalse(state.updatingPublication)
+        assertEquals(7, state.catalog.valueOrNull?.publicationId)
+        assertEquals(PAUSED, state.rows.first { it.song.songId == "a" }.scoreState)
+        assertEquals(2, loads)
+    }
+
+    @Test
+    fun publicationHoldTruthTable() {
+        // Nothing shown, nothing observed or nothing loaded: never hold.
+        assertFalse(SongsPublicationHold.holding(null, 8, 7, null, profileSettled = true, shopSettled = true))
+        assertFalse(SongsPublicationHold.holding(7, null, 7, null, profileSettled = true, shopSettled = true))
+        assertFalse(SongsPublicationHold.holding(7, 8, null, null, profileSettled = true, shopSettled = true))
+        // Shown rows are current.
+        assertFalse(SongsPublicationHold.holding(8, 8, 8, null, profileSettled = false, shopSettled = false))
+        // Catalogue, scores or Shop still loading for the new generation.
+        assertTrue(SongsPublicationHold.holding(7, 8, 7, null, profileSettled = true, shopSettled = true))
+        assertTrue(SongsPublicationHold.holding(7, 8, 8, null, profileSettled = false, shopSettled = true))
+        assertTrue(SongsPublicationHold.holding(7, 8, 8, null, profileSettled = true, shopSettled = false))
+        // Everything ready, or the follow gave up on this generation.
+        assertFalse(SongsPublicationHold.holding(7, 8, 8, null, profileSettled = true, shopSettled = true))
+        assertFalse(SongsPublicationHold.holding(7, 8, 7, 8, profileSettled = false, shopSettled = false))
+        assertTrue(SongsPublicationHold.holding(7, 9, 7, 8, profileSettled = true, shopSettled = true))
     }
 
     @Test

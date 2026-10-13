@@ -23,6 +23,7 @@ import com.festivalscoretracker.android.core.songs.SongSortMode
 import com.festivalscoretracker.android.data.CatalogPayload
 import com.festivalscoretracker.android.data.songs.SongsPreferencesState
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileState
+import com.festivalscoretracker.android.presentation.profile.SelectedProfileStatus
 import com.festivalscoretracker.android.presentation.songs.InvalidScoreContext
 import com.festivalscoretracker.android.presentation.songs.songScoreSource
 import kotlinx.coroutines.CoroutineDispatcher
@@ -66,6 +67,9 @@ import kotlinx.coroutines.flow.stateIn
  * @property availableSeasons Seasons in the selected player's scores (Filter Season buckets).
  * @property availableDecades Catalogue release decades (General Year toggles).
  * @property durationBuckets Catalogue duration buckets (General Duration toggles).
+ * @property updatingPublication A newer publication is loading (load-transition R9, #616): every
+ *   other field still describes the last consistent generation, which the list hides behind the
+ *   publication-refresh spinner until the new rows are ready.
  */
 data class SongsUiState(
     val catalog: LoadState<CatalogPayload> = LoadState.Loading,
@@ -89,6 +93,7 @@ data class SongsUiState(
     val availableSeasons: List<Int> = emptyList(),
     val availableDecades: List<Int> = emptyList(),
     val durationBuckets: List<Int> = emptyList(),
+    val updatingPublication: Boolean = false,
 ) {
     /** Whether a saved filter applies (gold Filter icon; web `isFilterActive`). */
     val filterActive: Boolean get() = prefs.filterActive(hasPlayer, hideShop)
@@ -133,6 +138,43 @@ internal data class ShopMatch(val offers: Map<String, com.festivalscoretracker.a
     }
 }
 
+/**
+ * Songs' related inputs: Shop feed, selected-player scores, the latest generation and a
+ * publication follow that could not reach it.
+ */
+private data class Related(
+    val shop: LoadState<ShopPayload>,
+    val player: SelectedProfileState,
+    val current: Int?,
+    val followFailedFor: Int?,
+)
+
+/**
+ * When Songs holds its last consistent rows behind the publication-refresh spinner
+ * (load-transition R9, #616) rather than showing a half-updated list: from the moment the app
+ * observes a newer generation than the shown rows until the catalogue, the selected player's
+ * scores and the Shop feed have all re-read for it. A follow that could not reach the new
+ * generation ends the hold, so the rows show their explicit paused state instead.
+ */
+internal object SongsPublicationHold {
+    /**
+     * Whether Songs should keep holding.
+     *
+     * @param shown Generation of the shown (last consistent) catalogue rows.
+     * @param current Latest generation observed by the app.
+     * @param catalogue Generation of the loaded catalogue, or null while none is loaded.
+     * @param followFailedFor Generation the catalogue follow could not reach, or null.
+     * @param profileSettled The selected player's scores are not loading (or no player is selected).
+     * @param shopSettled The Shop feed is not refreshing (or the Shop is hidden).
+     * @return True while the shown rows are older than [current] and the new rows aren't ready.
+     */
+    fun holding(shown: Int?, current: Int?, catalogue: Int?, followFailedFor: Int?, profileSettled: Boolean, shopSettled: Boolean): Boolean {
+        if (shown == null || current == null || catalogue == null || current <= shown) return false
+        if (followFailedFor == current) return false
+        return catalogue < current || !profileSettled || !shopSettled
+    }
+}
+
 // endregion
 
 // region Songs view model
@@ -170,7 +212,12 @@ class SongsViewModel(
     /** Raw (undebounced) search field text. */
     val searchInput: StateFlow<String> = searchText.asStateFlow()
 
-    private val related = combine(shop, profile, publication) { shopState, player, current -> Triple(shopState, player, current) }
+    private val related = combine(shop, profile, publication, loader.followFailedFor) { shopState, player, current, failed ->
+        Related(shopState, player, current, failed)
+    }
+
+    /** The last state built outside a publication hold (shown while the next generation loads). */
+    private var stable: SongsUiState? = null
 
     /** Derived screen state. */
     val uiState: StateFlow<SongsUiState> = combine(
@@ -179,12 +226,27 @@ class SongsViewModel(
         settings.filterNotNull(),
         prefs,
         related,
-    ) { catalog, text, app, saved, (shopState, player, current) ->
-        build(catalog, text, app, saved, shopState, player, current)
+    ) { catalog, text, app, saved, related ->
+        val held = stable
+        val holding = held != null && SongsPublicationHold.holding(
+            shown = held.catalog.valueOrNull?.publicationId,
+            current = related.current,
+            catalogue = catalog.valueOrNull?.publicationId,
+            followFailedFor = related.followFailedFor,
+            profileSettled = app.selectedPlayer == null || related.player.status != SelectedProfileStatus.Loading,
+            shopSettled = app.hideShop || (related.shop as? LoadState.Loaded)?.refreshing != true,
+        )
+        if (held != null && holding) {
+            held.copy(updatingPublication = true)
+        } else {
+            build(catalog, text, app, saved, related.shop, related.player, related.current).also { stable = it }
+        }
     }.flowOn(computeDispatcher).stateIn(viewModelScope, SharingStarted.Eagerly, SongsUiState())
 
     init {
         loader.ensureStarted()
+        // A newer publication re-reads the catalogue in place (#616), so rows never stay paused.
+        loader.followPublications(publication) { it.publicationId }
     }
 
     private fun build(

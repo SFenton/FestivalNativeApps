@@ -6,9 +6,13 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 // region Load state
@@ -60,10 +64,20 @@ class RetryingLoader<T>(
     private val loader: suspend (refresh: Boolean) -> T,
 ) {
     private val mutableState = MutableStateFlow<LoadState<T>>(LoadState.Loading)
+    private val mutableFollowFailed = MutableStateFlow<Int?>(null)
     private var job: Job? = null
+    private var followObserved: ((T) -> Int?)? = null
+    private var followCurrent: Int? = null
 
     /** Current state. */
     val state: StateFlow<LoadState<T>> = mutableState.asStateFlow()
+
+    /**
+     * The newer publication a [followPublications] refresh could not reach (the read failed or
+     * still answered from an older generation), or null. The page keeps its older content and
+     * shows its explicit paused state for that generation instead of refreshing again.
+     */
+    val followFailedFor: StateFlow<Int?> = mutableFollowFailed.asStateFlow()
 
     /** Start the first load if nothing has started yet. */
     fun ensureStarted() {
@@ -80,12 +94,63 @@ class RetryingLoader<T>(
         start(refresh = true)
     }
 
-    private fun start(refresh: Boolean) {
-        job?.cancel()
-        job = scope.launch { run(refresh) }
+    /**
+     * Keep the loaded value on the newest publication (load-transition R9, #616): when the app
+     * observes a newer generation than [observed] reports for the loaded value (the live
+     * `/api/ws` socket, or any other pinned read such as the notification bell), re-read once
+     * in place. Content stays visible as `Loaded(refreshing)` while the read runs; a failed
+     * read keeps the older content and records [followFailedFor] so the page shows its
+     * paused state rather than an error or a loop. A failure without an automatic retry is
+     * retried once on the next new generation. Call once, from the owner's init.
+     *
+     * @param publications Latest observed publication (`FestivalApi.publicationChanges`).
+     * @param observed The generation a loaded value was read in, or null when it carries none.
+     */
+    fun followPublications(publications: Flow<Int?>, observed: (T) -> Int?) {
+        if (followObserved != null) return
+        followObserved = observed
+        scope.launch {
+            var refreshedFor: Int? = null
+            var lastSeen: Int? = null
+            combine(mutableState, publications.filterNotNull().distinctUntilChanged()) { state, current -> state to current }.collect { (state, current) ->
+                val changed = lastSeen != null && lastSeen != current
+                lastSeen = current
+                followCurrent = current
+                when (state) {
+                    is LoadState.Loaded -> {
+                        if (state.refreshing) return@collect
+                        val seen = observed(state.value) ?: return@collect
+                        if (seen >= current) {
+                            if (mutableFollowFailed.value != null) mutableFollowFailed.value = null
+                        } else if (refreshedFor != current) {
+                            refreshedFor = current
+                            mutableFollowFailed.value = null
+                            start(refresh = true, followFor = current)
+                        }
+                    }
+                    is LoadState.Failed -> if (changed && state.countdown == null && refreshedFor != current) {
+                        refreshedFor = current
+                        retry()
+                    }
+                    LoadState.Loading -> Unit
+                }
+            }
+        }
     }
 
-    private suspend fun run(refresh: Boolean) {
+    private fun start(refresh: Boolean, followFor: Int? = null) {
+        job?.cancel()
+        job = scope.launch { run(refresh, followFor) }
+    }
+
+    /**
+     * Load until success or a non-retrying failure.
+     *
+     * @param refresh Keep loaded content visible while reading.
+     * @param followFor The newer publication a [followPublications] refresh is for: a failure
+     *   keeps the previous content, and a failed or still-older read records [followFailedFor].
+     */
+    private suspend fun run(refresh: Boolean, followFor: Int? = null) {
         var isRefresh = refresh
         while (true) {
             val previous = mutableState.value
@@ -94,11 +159,23 @@ class RetryingLoader<T>(
                 val value = loader(isRefresh)
                 backoff.reset(key)
                 mutableState.value = LoadState.Loaded(value)
+                if (followObserved != null) {
+                    // Any read that lands behind the newest observed generation ends a follow.
+                    val target = followFor ?: followCurrent
+                    val seen = followObserved?.invoke(value)
+                    if (target != null && seen != null && seen < target) mutableFollowFailed.value = target
+                }
                 return
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
                 val issue = ServiceIssue.from(error)
+                if (followFor != null && previous is LoadState.Loaded) {
+                    // A publication follow never swaps shown content for an error (R9).
+                    mutableState.value = previous.copy(refreshing = false)
+                    mutableFollowFailed.value = followFor
+                    return
+                }
                 if (!issue.retriesAutomatically) {
                     mutableState.value = LoadState.Failed(issue)
                     return

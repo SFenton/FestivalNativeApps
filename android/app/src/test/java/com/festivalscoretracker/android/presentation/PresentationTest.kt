@@ -103,6 +103,100 @@ class PresentationTest {
     }
 
     @Test
+    fun followRefreshesInPlaceOnANewerPublication() = runTest(main.dispatcher) {
+        val publications = MutableStateFlow<Int?>(7)
+        val gate = CompletableDeferred<Unit>()
+        val refreshes = mutableListOf<Boolean>()
+        val loader = RetryingLoader(backgroundScope, "k", ServiceRetryBackoff()) { refresh ->
+            refreshes += refresh
+            if (refreshes.size > 1) gate.await()
+            publications.value ?: 0
+        }
+        loader.followPublications(publications) { it }
+        loader.ensureStarted()
+        runCurrent()
+        assertEquals(LoadState.Loaded(7), loader.state.value)
+
+        // Another read (the bell, or the live socket) observes 8: refresh in place, no Loading.
+        publications.value = 8
+        runCurrent()
+        assertEquals(LoadState.Loaded(7, refreshing = true), loader.state.value)
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals(LoadState.Loaded(8), loader.state.value)
+        assertEquals(listOf(false, true), refreshes)
+        assertNull(loader.followFailedFor.value)
+
+        // The same generation again does nothing.
+        publications.value = 8
+        runCurrent()
+        assertEquals(2, refreshes.size)
+    }
+
+    @Test
+    fun followFailureKeepsContentMarksTheGenerationAndNeverLoops() = runTest(main.dispatcher) {
+        val publications = MutableStateFlow<Int?>(7)
+        var calls = 0
+        var behind = false
+        val loader = RetryingLoader(backgroundScope, "k", ServiceRetryBackoff()) {
+            calls++
+            when {
+                calls == 2 -> throw FestivalApiException.HttpStatus(500)
+                behind -> 7
+                else -> publications.value ?: 0
+            }
+        }
+        loader.followPublications(publications) { it }
+        loader.ensureStarted()
+        runCurrent()
+
+        // A failed follow keeps the shown value (never an error card) and records 8.
+        publications.value = 8
+        runCurrent()
+        assertEquals(LoadState.Loaded(7), loader.state.value)
+        assertEquals(8, loader.followFailedFor.value)
+        assertEquals(2, calls)
+
+        // A follow that answers with the older generation also stops (no loop).
+        behind = true
+        publications.value = 9
+        runCurrent()
+        assertEquals(LoadState.Loaded(7), loader.state.value)
+        assertEquals(9, loader.followFailedFor.value)
+        assertEquals(3, calls)
+
+        // A later read that reaches the generation clears the marker.
+        behind = false
+        loader.refresh()
+        runCurrent()
+        assertEquals(LoadState.Loaded(9), loader.state.value)
+        assertNull(loader.followFailedFor.value)
+    }
+
+    @Test
+    fun followRetriesAFailedLoadOnceOnANewPublication() = runTest(main.dispatcher) {
+        val publications = MutableStateFlow<Int?>(7)
+        var fail = true
+        var calls = 0
+        val loader = RetryingLoader(backgroundScope, "k", ServiceRetryBackoff()) {
+            calls++
+            if (fail) throw FestivalApiException.HttpStatus(404) else publications.value ?: 0
+        }
+        loader.followPublications(publications) { it }
+        loader.followPublications(publications) { it }
+        loader.ensureStarted()
+        runCurrent()
+        assertTrue(loader.state.value is LoadState.Failed)
+        assertEquals(1, calls)
+
+        fail = false
+        publications.value = 8
+        runCurrent()
+        assertEquals(LoadState.Loaded(8), loader.state.value)
+        assertEquals(2, calls)
+    }
+
+    @Test
     fun refreshKeepsContentAndNewerLoadWins() = runTest(main.dispatcher) {
         val gate = CompletableDeferred<Int>()
         var first = true

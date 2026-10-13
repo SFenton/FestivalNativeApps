@@ -84,6 +84,10 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import com.festivalscoretracker.android.core.shell.LoadSwapPhase
+import com.festivalscoretracker.android.ui.common.PublicationRefreshSpinner
+import com.festivalscoretracker.android.ui.common.PublicationRefreshStatus
+import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
@@ -362,7 +366,7 @@ private fun InvalidFilterView(onReset: () -> Unit, padding: PaddingValues) {
 
 @Composable
 private fun SongList(
-    state: SongsUiState,
+    latest: SongsUiState,
     listState: LazyListState,
     search: String,
     onSearchChange: (String) -> Unit,
@@ -372,6 +376,11 @@ private fun SongList(
     onLines: (WideColumnLines) -> Unit,
     onWarning: (InvalidScoreWarning) -> Unit,
 ) {
+    // A new publication (load-transition R9, #616) runs the shared load swap over the results:
+    // the shown rows fade out, the spinner holds until the new generation's rows are ready, and
+    // they fade back in where the reader was (the list state is hoisted). The search field stays.
+    val swap = rememberLoadSwap(latest, ready = !latest.updatingPublication)
+    val state = swap.shown
     val scope = rememberCoroutineScope()
     val leading = state.notices.size
     val showIndex = state.sections.size > 1
@@ -427,77 +436,85 @@ private fun SongList(
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.padding(start = 16.dp, end = endPadding, top = padding.calculateTopPadding())) {
                     FoldLane { SearchField(search, onSearchChange, findFocus) }
+                    PublicationRefreshStatus(latest.updatingPublication, Modifier.align(Alignment.BottomStart))
                 }
                 Box(Modifier.fillMaxWidth().weight(1f)) {
-                    LazyColumn(
-                        state = listState,
-                        contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = endPadding,
-                            bottom = bottomPadding + endSpace,
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(LIST_SPACING),
-                        modifier = Modifier.fillMaxSize()
-                            .pinnedHeaderEdgeFade(headerEdge, headerStart)
-                            .testTag("fst.songs.list"),
+                    if (swap.showsSpinner) {
+                        PublicationRefreshSpinner(swap)
+                    } else Box(
+                        Modifier.fillMaxSize().then(swap.contentModifier)
+                            .then(if (swap.phase == LoadSwapPhase.ContentOut) Modifier.clearAndSetSemantics { } else Modifier),
                     ) {
-                        state.notices.forEachIndexed { index, notice ->
-                            item(key = "notice-$index", contentType = "notice") {
-                                FoldLane { Notice(notice, if (notice == state.sortPaused) "fst.songs.sort-paused" else "fst.songs.notice.$index") }
-                            }
-                        }
-                        // Web full-page EmptyState, vertically centred in the viewport (6.33).
-                        if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty", state = listState)
-                        // A row's key is its song; a two-column line's is its first song's, so narrowing to
-                        // one column keeps the reader's place by key (KeepPlaceAcrossColumnChanges does the rest).
-                        val songRow: @Composable (SongRowModel, Any) -> Unit = { row, lineKey ->
-                            SongRow(
-                                row, artworkUrl(row.song.albumArt), pulse = pulse, breathe = breathe,
-                                onWarning = row.warning?.let { shown -> { onWarning(shown) } },
-                                modifier = rememberHiddenUnderPinnedHeader(headerEdge, lineKey),
-                            ) { onSongClick(row.song) }
-                        }
-                        // Section headers (every sort, Title/Artist's #/A–Z too, issue #582) stick under the pinned
-                        // search field with no backing (issue #91, like iOS): rows passing beneath are hidden behind them and fade out
-                        // just below them (pinnedHeaderEdgeFade, issue #49). They span both columns (wide-columns R2).
-                        grid.lines.forEach { line ->
-                            when (line) {
-                                is WideLine.Header -> {
-                                    val header = state.headers[line.ordinal]
-                                    stickyHeader(key = headerKey(header), contentType = "header") { FoldLane { BucketHeader(header, headerEdge) } }
+                        LazyColumn(
+                            state = listState,
+                            contentPadding = PaddingValues(
+                                start = 16.dp,
+                                end = endPadding,
+                                bottom = bottomPadding + endSpace,
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(LIST_SPACING),
+                            modifier = Modifier.fillMaxSize()
+                                .pinnedHeaderEdgeFade(headerEdge, headerStart)
+                                .testTag("fst.songs.list"),
+                        ) {
+                            state.notices.forEachIndexed { index, notice ->
+                                item(key = "notice-$index", contentType = "notice") {
+                                    FoldLane { Notice(notice, if (notice == state.sortPaused) "fst.songs.sort-paused" else "fst.songs.notice.$index") }
                                 }
-                                is WideLine.Cells -> {
-                                    val first = state.rows[line.start]
-                                    val key = first.song.songId
-                                    if (grid.columns == 1) {
-                                        item(key = key, contentType = "song") { songRow(first, key) }
-                                    } else {
-                                        item(key = key, contentType = "song-line") {
-                                            WideColumnsLine(line.end - line.start, wide) { index -> songRow(state.rows[line.start + index], key) }
+                            }
+                            // Web full-page EmptyState, vertically centred in the viewport (6.33).
+                            if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty", state = listState)
+                            // A row's key is its song; a two-column line's is its first song's, so narrowing to
+                            // one column keeps the reader's place by key (KeepPlaceAcrossColumnChanges does the rest).
+                            val songRow: @Composable (SongRowModel, Any) -> Unit = { row, lineKey ->
+                                SongRow(
+                                    row, artworkUrl(row.song.albumArt), pulse = pulse, breathe = breathe,
+                                    onWarning = row.warning?.let { shown -> { onWarning(shown) } },
+                                    modifier = rememberHiddenUnderPinnedHeader(headerEdge, lineKey),
+                                ) { onSongClick(row.song) }
+                            }
+                            // Section headers (every sort, Title/Artist's #/A–Z too, issue #582) stick under the pinned
+                            // search field with no backing (issue #91, like iOS): rows passing beneath are hidden behind them and fade out
+                            // just below them (pinnedHeaderEdgeFade, issue #49). They span both columns (wide-columns R2).
+                            grid.lines.forEach { line ->
+                                when (line) {
+                                    is WideLine.Header -> {
+                                        val header = state.headers[line.ordinal]
+                                        stickyHeader(key = headerKey(header), contentType = "header") { FoldLane { BucketHeader(header, headerEdge) } }
+                                    }
+                                    is WideLine.Cells -> {
+                                        val first = state.rows[line.start]
+                                        val key = first.song.songId
+                                        if (grid.columns == 1) {
+                                            item(key = key, contentType = "song") { songRow(first, key) }
+                                        } else {
+                                            item(key = key, contentType = "song-line") {
+                                                WideColumnsLine(line.end - line.start, wide) { index -> songRow(state.rows[line.start + index], key) }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                    // Fully qualified: the ColumnScope overload would otherwise capture this call.
-                    // Reduce Motion (in-app or Remove animations) shows and hides the rail at once.
-                    val stillRail = LocalFestivalAccessibility.current.reduceMotion
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = showIndex,
-                        enter = if (stillRail) EnterTransition.None else fadeIn() + slideInHorizontally { it },
-                        exit = if (stillRail) ExitTransition.None else fadeOut() + slideOutHorizontally { it },
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .padding(top = 8.dp, bottom = padding.calculateBottomPadding() + 8.dp)
-                            .fillMaxHeight(),
-                    ) {
-                        val position = rememberSectionPosition(listState, state.sections, grid)
-                        SectionIndexScrubber(
-                            sections = state.sections,
-                            current = position.current,
-                            onJump = { section -> scope.launch { position.jumpTo(section) } },
-                        )
+                        // Fully qualified: the ColumnScope overload would otherwise capture this call.
+                        // Reduce Motion (in-app or Remove animations) shows and hides the rail at once.
+                        val stillRail = LocalFestivalAccessibility.current.reduceMotion
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = showIndex,
+                            enter = if (stillRail) EnterTransition.None else fadeIn() + slideInHorizontally { it },
+                            exit = if (stillRail) ExitTransition.None else fadeOut() + slideOutHorizontally { it },
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .padding(top = 8.dp, bottom = padding.calculateBottomPadding() + 8.dp)
+                                .fillMaxHeight(),
+                        ) {
+                            val position = rememberSectionPosition(listState, state.sections, grid)
+                            SectionIndexScrubber(
+                                sections = state.sections,
+                                current = position.current,
+                                onJump = { section -> scope.launch { position.jumpTo(section) } },
+                            )
+                        }
                     }
                 }
             }
