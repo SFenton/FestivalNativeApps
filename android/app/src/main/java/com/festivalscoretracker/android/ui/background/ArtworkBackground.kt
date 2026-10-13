@@ -55,6 +55,7 @@ import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -100,6 +101,7 @@ fun ArtworkBackground(
 ) {
     val context = LocalContext.current
     val covers by controller.covers.collectAsStateWithLifecycle()
+    val publication by controller.publication.collectAsStateWithLifecycle()
     val focus by controller.focus.collectAsStateWithLifecycle()
     val openModals by coverage.openCount.collectAsStateWithLifecycle()
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
@@ -113,8 +115,14 @@ fun ArtworkBackground(
         visible = visible,
         covered = openModals > 0,
     )
-    val pacer = remember(covers) { CoverFailurePacer() }
-    var index by remember(covers) { mutableIntStateOf(0) }
+    val canLoad = visible && !dataSaver && openModals == 0
+    LaunchedEffect(controller, canLoad) {
+        if (canLoad) controller.start(this)
+    }
+    val pacer = remember(publication, covers, focus) { CoverFailurePacer() }
+    var index by remember(publication, covers) { mutableIntStateOf(0) }
+    var failed by remember(publication, covers, focus) { mutableStateOf<String?>(null) }
+    var retry by remember(publication, covers, focus) { mutableIntStateOf(0) }
     val target = if (mode == BackgroundMode.None) null else focus ?: covers.getOrNull(index)
     val state = BackgroundPolicy.state(
         systemReduceMotion = reduceMotion,
@@ -138,7 +146,7 @@ fun ArtworkBackground(
         if (mode == BackgroundMode.None) return@Box
         val animating = mode == BackgroundMode.Animated && focus == null
         val motionAllowed = !reduceMotion && !forceStill
-        LaunchedEffect(covers, animating) {
+        LaunchedEffect(publication, covers, animating) {
             if (!animating || covers.size < 2) return@LaunchedEffect
             while (!pacer.exhausted) {
                 delay(BackgroundPolicy.DWELL_MS)
@@ -147,23 +155,45 @@ fun ArtworkBackground(
                 index = (index + 1) % covers.size
             }
         }
-        LaunchedEffect(covers, index, animating) {
-            if (animating && covers.size > 1) {
+        LaunchedEffect(publication, covers, index, animating) {
+            if (animating && covers.size > 1 && !pacer.exhausted) {
                 val next = covers[(index + 1) % covers.size]
-                imageLoader.enqueue(ImageRequest.Builder(context).data(next).build())
+                val preload = imageLoader.enqueue(ImageRequest.Builder(context).data(next).build())
+                try {
+                    awaitCancellation()
+                } finally {
+                    preload.dispose()
+                }
             }
+        }
+        LaunchedEffect(publication, target, failed, canLoad, animating) {
+            if (!canLoad || failed != target || target == null || pacer.exhausted) return@LaunchedEffect
+            if (animating && covers.size > 1) return@LaunchedEffect
+            delay(BackgroundPolicy.DWELL_MS)
+            pacer.onDeadline()
+            failed = null
+            if (focus == null && covers.size > 1) index = (index + 1) % covers.size else retry++
         }
         // Brand surface never dims; only the art is multiplied (= black 0.7 over opaque art).
         val dim = remember {
             val lightness = BackgroundPolicy.ART_LIGHTNESS
             ColorFilter.tint(Color(lightness, lightness, lightness), BlendMode.Modulate)
         }
-        SteppedCrossfade(target) { url, onLoaded ->
-            KenBurnsImage(url = url, animate = animating, drift = motionAllowed && url != focus, imageLoader = imageLoader, dim = dim, onLoaded = onLoaded) { error ->
-                val carousel = focus == null && url in covers
-                val skip = carousel && covers.size > 1 && url == covers.getOrNull(index) && pacer.onFailure()
-                Log.w(LOG_TAG, "Cover failed (${if (skip) "skipping" else "waiting"}, ${pacer.failureCount} in pool): $url", error)
-                if (skip) index = (index + 1) % covers.size
+        key(publication) {
+            SteppedCrossfade(target) { url, onLoaded ->
+                KenBurnsImage(url = url, retry = if (url == target) retry else 0, animate = animating, drift = motionAllowed && url != focus, imageLoader = imageLoader, dim = dim, onLoaded = {
+                    if (failed == url) failed = null
+                    onLoaded()
+                }) { error ->
+                    if (url == target) {
+                        failed = url
+                        val skip = pacer.onFailure() && focus == null && covers.size > 1
+                        Log.w(LOG_TAG, "Cover failed (${if (skip) "skipping" else "waiting"}, ${pacer.failureCount} in pool): $url", error)
+                        if (skip) index = (index + 1) % covers.size
+                    } else {
+                        Log.w(LOG_TAG, "Outgoing cover failed: $url", error)
+                    }
+                }
             }
         }
     }
@@ -253,6 +283,7 @@ private fun SteppedCrossfade(target: String?, content: @Composable (url: String,
  * frame; resuming finishes the drift at its original speed.
  *
  * @param url Cover URL.
+ * @param retry Paced attempt number for a failed still or focused cover.
  * @param animate Whether to zoom/pan now.
  * @param drift Whether this cover drifts at all; false (reduced motion, song cover) draws it untransformed.
  * @param imageLoader Cover loader.
@@ -263,6 +294,7 @@ private fun SteppedCrossfade(target: String?, content: @Composable (url: String,
 @Composable
 private fun KenBurnsImage(
     url: String,
+    retry: Int,
     animate: Boolean,
     drift: Boolean,
     imageLoader: ImageLoader,
@@ -278,26 +310,28 @@ private fun KenBurnsImage(
             stepped { progress.animateTo(1f, tween(BackgroundPolicy.remainingZoomMs(progress.value), easing = LinearEasing)) }
         }
     }
-    AsyncImage(
-        model = url,
-        contentDescription = null,
-        imageLoader = imageLoader,
-        contentScale = ContentScale.Crop,
-        colorFilter = dim,
-        onSuccess = { onLoaded() },
-        onError = { onError(it.result.throwable) },
-        modifier = Modifier
-            .fillMaxSize()
-            .graphicsLayer {
-                if (!drift) return@graphicsLayer
-                val t = progress.value
-                val scale = preset.scaleAt(t)
-                scaleX = scale
-                scaleY = scale
-                translationX = with(density) { preset.offsetXAt(t).dp.toPx() }
-                translationY = with(density) { preset.offsetYAt(t).dp.toPx() }
-            },
-    )
+    key(retry) {
+        AsyncImage(
+            model = url,
+            contentDescription = null,
+            imageLoader = imageLoader,
+            contentScale = ContentScale.Crop,
+            colorFilter = dim,
+            onSuccess = { onLoaded() },
+            onError = { onError(it.result.throwable) },
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    if (!drift) return@graphicsLayer
+                    val t = progress.value
+                    val scale = preset.scaleAt(t)
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = with(density) { preset.offsetXAt(t).dp.toPx() }
+                    translationY = with(density) { preset.offsetYAt(t).dp.toPx() }
+                },
+        )
+    }
 }
 
 /**

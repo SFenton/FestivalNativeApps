@@ -285,6 +285,41 @@ public struct PlayerProfileResponse: Decodable, Sendable, Equatable {
         notYetPublished = try fields.decodeIfPresent(Bool.self, forKey: .notYetPublished)
     }
 
+    /// The same envelope holding other scores (``filteringInvalidScores(songsById:leeway:)``).
+    ///
+    /// - Parameters:
+    ///   - base: The validated read.
+    ///   - scores: Scores that replace the read's own.
+    private init(replacingScoresOf base: PlayerProfileResponse, with scores: [PlayerScore]) {
+        accountId = base.accountId
+        displayName = base.displayName
+        totalScores = scores.count
+        self.scores = scores
+        status = base.status
+        notYetPublished = base.notYetPublished
+    }
+
+    /// The scores every player-page figure reads (web `PlayerContent` `effectiveScores`,
+    /// `filterPlayerScores`; pattern `invalid-scores` R9): each score as Song Details
+    /// shows it (``InvalidScorePolicy/filtered(_:song:leeway:)``, R4). A substituted
+    /// score brings its filtered rank and population; a score with no valid fallback is
+    /// dropped. Applies to any viewed player, selected or not.
+    ///
+    /// - Parameters:
+    ///   - songsById: Catalogue songs by ID (CHOpt maximums, population tiers); a
+    ///     missing song keeps scores without `ml` and the published population.
+    ///   - leeway: Settings leeway percentage, or nil when Filter Invalid Scores is off.
+    /// - Returns: `self` when the filter is off, else a copy with the effective scores.
+    public func filteringInvalidScores(
+        songsById: [String: Song], leeway: Double?
+    ) -> PlayerProfileResponse {
+        guard let leeway else { return self }
+        let effective = scores.compactMap {
+            InvalidScorePolicy.filtered($0, song: songsById[$0.songId], leeway: leeway)
+        }
+        return PlayerProfileResponse(replacingScoresOf: self, with: effective)
+    }
+
     /// Validate the requested account, all rows and a distinct syncing envelope.
     ///
     /// - Parameter requestedAccountId: Validated account ID from a search result.
@@ -346,6 +381,21 @@ public struct PlayerProfilePayload: Sendable {
     public let state: PlayerProfileState
     public let publicationId: Int?
     public let observedPublicationId: Int
+
+    /// The read with its scores filtered for display (``PlayerProfileResponse/filteringInvalidScores(songsById:leeway:)``).
+    /// Provenance and state are kept; select a profile from the raw read, never this copy.
+    ///
+    /// - Parameters:
+    ///   - songsById: Catalogue songs by ID.
+    ///   - leeway: Settings leeway percentage, or nil when Filter Invalid Scores is off.
+    /// - Returns: `self` when the filter is off, else a copy with the effective scores.
+    public func filteringInvalidScores(songsById: [String: Song], leeway: Double?) -> PlayerProfilePayload {
+        guard leeway != nil else { return self }
+        return PlayerProfilePayload(
+            profile: profile.filteringInvalidScores(songsById: songsById, leeway: leeway),
+            state: state, publicationId: publicationId, observedPublicationId: observedPublicationId
+        )
+    }
 }
 
 // MARK: - Client-side aggregation

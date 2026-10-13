@@ -21,8 +21,8 @@ def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-class CheckDocsTests(unittest.TestCase):
-    """Exercise each rule against a small synthetic `.agents` tree."""
+class SyntheticTreeTestCase(unittest.TestCase):
+    """Base for tests that run the checker against a small synthetic `.agents` tree."""
 
     def setUp(self) -> None:
         """Point the checker at a minimal valid repository."""
@@ -53,6 +53,10 @@ class CheckDocsTests(unittest.TestCase):
         check_docs.ROOT, check_docs.AGENTS, check_docs.PRODUCT, check_docs.BACKLOG = self._saved
         self.tmp.cleanup()
 
+
+class CheckDocsTests(SyntheticTreeTestCase):
+    """Exercise each rule against a small synthetic `.agents` tree."""
+
     def test_valid_tree_passes(self) -> None:
         """A consistent tree has no errors and routes platform files."""
         report = check_docs.run()
@@ -73,6 +77,25 @@ class CheckDocsTests(unittest.TestCase):
         self.assertIn("frontmatter `name` must be `fix`", errors)
         self.assertIn("needs a `description`", errors)
         self.assertIn("skills live in `<name>/SKILL.md` folders", errors)
+
+    def test_duplicate_pattern_rule_numbers_fail(self) -> None:
+        """A pattern doc that numbers two rules the same is an error, so the run exits non-zero."""
+        _write(check_docs.AGENTS / "patterns/demo.md",
+               "# T\n\n> x\n\n- **R1. One.** a\n- **R2. Two.** b\n- **R1. One.** a, newer\n")
+        report = check_docs.Report()
+        check_docs.check_pattern_rules(report)
+        self.assertEqual(len(report.errors), 1)
+        self.assertIn("rule R1 is defined 2 times (lines 5, 7)", report.errors[0])
+        self.assertEqual(report.warnings, [])
+        self.assertTrue(any("rule R1 is defined 2 times" in e for e in check_docs.run().errors))
+
+    def test_distinct_pattern_rule_numbers_in_any_order_pass(self) -> None:
+        """Unique rule numbers, in any order, and prose that cites a rule are fine."""
+        _write(check_docs.AGENTS / "patterns/demo.md",
+               "# T\n\n> x\n\n- **R2. Two.** b, see R1\n- **R1. One.** a\n- Guard (R1): x\n")
+        report = check_docs.Report()
+        check_docs.check_pattern_rules(report)
+        self.assertEqual(report.errors, [])
 
     def test_spec_naming_a_platform_fails(self) -> None:
         """Platform-neutral specs cannot carry platform headings."""
@@ -123,6 +146,89 @@ class CheckDocsTests(unittest.TestCase):
         _write(check_docs.AGENTS / "pages/songs/ipados.md", "# T\n\n> x\n")
         self.assertTrue(any("stale" in e for e in check_docs.run().errors))
         self.assertEqual(check_docs.run(fix=True).errors, [])
+
+    def _write_pattern(self, rules: str) -> None:
+        """Add a routed pattern doc with the given rule lines.
+
+        Args:
+            rules: Markdown for the doc's `## Rules` section.
+        """
+        a = check_docs.AGENTS
+        header = "# T\n\n> **What:** x. **Read when:** y.\n"
+        _write(a / "README.md", header + "[p](pages/README.md) [c](controls/README.md) [pt](patterns/README.md)\n")
+        _write(a / "patterns/README.md", header + "[s](scroll.md)\n")
+        _write(a / "patterns/scroll.md", header + "## Rules\n\n" + rules)
+
+    def test_distinct_pattern_rule_numbers_pass(self) -> None:
+        """Each rule number once, with mentions of other rules in the text, is clean."""
+        self._write_pattern("- **R1. One.** See R2.\n- **R2. Two.** Unlike R1.\n- **R10. Ten.**\n")
+        self.assertEqual(check_docs.run().errors, [])
+
+    def test_duplicated_pattern_rule_number_is_an_error(self) -> None:
+        """A merge that keeps two copies of a rule fails the run, naming every line (#621)."""
+        self._write_pattern("- **R1. Old.**\n- **R2. Two.**\n- **R1. New.**\n- **R2. Other.**\n- **R2. Third.**\n")
+        report = check_docs.run()
+        self.assertIn("patterns/scroll.md: rule R1 is defined 2 times (lines 6, 8)", "\n".join(report.errors))
+        self.assertTrue(any("rule R2 is defined 3 times (lines 7, 9, 10)" in e for e in report.errors))
+        self.assertFalse(any("rule R" in w for w in report.warnings))
+        self.assertEqual(check_docs.main(["--quiet"]), 1)
+
+    def test_rule_numbers_inside_code_fences_are_ignored(self) -> None:
+        """An example rule in a fenced block is not a second definition."""
+        self._write_pattern("- **R1. One.**\n\n```md\n- **R1. Example.**\n```\n")
+        self.assertEqual(check_docs.run().errors, [])
+
+
+class PatternRuleTests(SyntheticTreeTestCase):
+    """Pattern docs define each rule number once (#621)."""
+
+    def _pattern(self, rules: str) -> None:
+        """Write a routed pattern doc with the given Rules block.
+
+        Args:
+            rules: Markdown for the rule list.
+        """
+        a = check_docs.AGENTS
+        header = "# T\n\n> **What:** x. **Read when:** y.\n"
+        _write(a / "README.md", header + "[p](pages/README.md) [c](controls/README.md) [x](patterns/README.md)\n")
+        _write(a / "patterns/README.md", header + "[s](scroll.md) R1 R1\n- **R1. Not a rule doc.** x\n- **R1. Same.** y\n")
+        _write(a / "patterns/scroll.md", header + "\n## Rules\n\n" + rules)
+
+    def test_unique_rule_numbers_pass(self) -> None:
+        """Both list styles, out-of-order numbers and fenced examples are fine."""
+        self._pattern(
+            "- **R1. One.** a\n- **R3. Three.** b (see R1)\n- **R2. Two.** c\n"
+            "4. **R4. Four.** d\n\n```\n- **R1. Example.** e\n```\n"
+        )
+        self.assertEqual(check_docs.run().errors, [])
+        self.assertEqual(check_docs.pattern_rules("- **R2. A.**\n1. **R2. B.**\n"), {2: [1, 2]})
+
+    def test_duplicate_rule_number_is_an_error(self) -> None:
+        """Two definitions of one number fail the run, naming the rule and its lines."""
+        self._pattern("- **R1. Old copy.** a\n- **R2. Two.** b\n- **R1. New copy.** a, plus c\n")
+        errors = check_docs.run().errors
+        self.assertEqual(len(errors), 1)
+        self.assertIn("patterns/scroll.md: rule R1 is defined 2 times (lines 7, 9)", errors[0])
+        self.assertEqual(check_docs.main(["--quiet"]), 1)
+
+    def test_three_copies_and_numbered_list_style_are_reported(self) -> None:
+        """A rule kept three times, in either list style, is reported once with every line."""
+        self._pattern("1. **R5. A.** a\n2. **R5. B.** b\n- **R5. C.** c\n")
+        errors = check_docs.run().errors
+        self.assertEqual(len(errors), 1)
+        self.assertIn("rule R5 is defined 3 times (lines 7, 8, 9)", errors[0])
+
+    def test_fix_preserves_duplicate_rules_and_still_fails(self) -> None:
+        """--fix never chooses between conflicting requirements or downgrades errors."""
+        self._pattern("- **R7. Old placement.** under the card\n+ **R7. New placement.** inside the card\n")
+        doc = check_docs.AGENTS / "patterns/scroll.md"
+        original = doc.read_text(encoding="utf-8")
+        self.assertEqual(check_docs.main(["--fix", "--quiet"]), 1)
+        self.assertEqual(doc.read_text(encoding="utf-8"), original)
+        report = check_docs.run()
+        self.assertEqual(len(report.errors), 1)
+        self.assertIn("rule R7 is defined 2 times (lines 7, 8)", report.errors[0])
+        self.assertEqual(report.warnings, [])
 
 
 class RepositoryTests(unittest.TestCase):

@@ -72,4 +72,27 @@ class LoadSwapPolicyTest {
         assertFalse(LoadSwapPolicy.animatesEntrance(sawSpinner = false, reduceMotion = false))
         assertFalse(LoadSwapPolicy.animatesEntrance(sawSpinner = true, reduceMotion = true))
     }
+
+    /** Publication refresh (load-transition R3, issue #616): web `QUICK_FADE_MS` and `MIN_SPINNER_MS`. */
+    @Test
+    fun heldSpinnerTimings() {
+        assertEquals(150, LoadSwapPolicy.SPINNER_IN_MS)
+        assertEquals(400, LoadSwapPolicy.MIN_SPINNER_MS)
+        assertEquals(150, LoadSwapPolicy.spinnerInMs(reduceMotion = false))
+        assertEquals(0, LoadSwapPolicy.spinnerInMs(reduceMotion = true))
+    }
+
+    @Test
+    fun heldSpinnerNeverSkipsStraightToItsFadeOut() {
+        // Data that landed during the content fade-out still goes through the spinner and its hold.
+        assertEquals(LoadSwapPhase.Loading, LoadSwapPolicy.afterContentOut(ready = true, reduceMotion = false, holdsSpinner = true))
+        assertEquals(LoadSwapPhase.Loading, LoadSwapPolicy.afterContentOut(ready = false, reduceMotion = false, holdsSpinner = true))
+        // Under Reduce Motion the content leaves at once for the held spinner, ready or not (R6 keeps the hold).
+        assertEquals(LoadSwapPhase.Loading, LoadSwapPolicy.onInputs(LoadSwapPhase.ContentIn, ready = true, swapped = true, reduceMotion = true, holdsSpinner = true))
+        assertEquals(LoadSwapPhase.Loading, LoadSwapPolicy.afterContentOut(ready = true, reduceMotion = true, holdsSpinner = true))
+        assertEquals(LoadSwapPhase.Loading, LoadSwapPolicy.onInputs(LoadSwapPhase.ContentOut, ready = true, swapped = true, reduceMotion = true, holdsSpinner = true))
+        // Without the hold, nothing changes for board and page swaps.
+        assertEquals(LoadSwapPhase.SpinnerOut, LoadSwapPolicy.afterContentOut(ready = true, reduceMotion = false))
+        assertEquals(LoadSwapPhase.ContentOut, LoadSwapPolicy.onInputs(LoadSwapPhase.ContentIn, ready = false, swapped = false, reduceMotion = false, holdsSpinner = true))
+    }
 }

@@ -129,6 +129,11 @@ struct PlayerProfileContent: View {
     @AppStorage("fst.settings.showKaraoke") private var showKaraoke = true
     @AppStorage("fst.settings.showProCymbals") private var showProCymbals = true
     @AppStorage("fst.settings.showProDrums") private var showProDrums = true
+    @AppStorage("fst.settings.filterInvalidScores") private var filterInvalidScores = false
+    @AppStorage("fst.settings.leeway") private var leeway = 1.0
+    /// Catalogue songs by ID, read with the profile: Filter Invalid Scores needs their
+    /// CHOpt maximums and population tiers (pattern `invalid-scores` R9).
+    @State private var songsById: [String: Song] = [:]
 
     private struct LoadKey: Hashable {
         let accountId: String
@@ -178,6 +183,23 @@ struct PlayerProfileContent: View {
     }
 
     private var isSelected: Bool { session.selectedPlayer?.accountId == accountId }
+
+    /// The Settings leeway rounded to 0.1 while Filter Invalid Scores is on, else nil
+    /// (pattern `invalid-scores` R1).
+    private var invalidScoreLeeway: Double? {
+        filterInvalidScores ? (leeway * 10).rounded() / 10 : nil
+    }
+
+    /// The read every score figure aggregates: the effective scores for any player,
+    /// selected or not (web `PlayerContent` `effectiveScores`; `invalid-scores` R9).
+    /// Recomputed from the raw read when the setting or the leeway changes, so the open
+    /// page updates in place. Selection still uses the raw read (``select()``).
+    ///
+    /// - Parameter payload: The validated raw read.
+    /// - Returns: The read with its effective scores.
+    private func effective(_ payload: PlayerProfilePayload) -> PlayerProfilePayload {
+        payload.filteringInvalidScores(songsById: songsById, leeway: invalidScoreLeeway)
+    }
 
     /// Select, Switch or Deselect for the shown account; nil while loading or paused.
     private var identity: ProfileIdentityAction? {
@@ -300,7 +322,8 @@ struct PlayerProfileContent: View {
         case let .failed(issue):
             ServiceStatusView(issue, title: "Profile Unavailable") { retryRevision += 1 }
             .accessibilityIdentifier("fst.player.error")
-        case let .available(payload):
+        case let .available(raw):
+            let payload = effective(raw)
             // iPhone Duo inner display, portrait: overview on top, graphs as swipeable
             // cards below (`PlayerProfileDualSource.swift`).
             DualSourceLayout {
@@ -661,13 +684,20 @@ struct PlayerProfileContent: View {
 
     // MARK: Load
 
-    /// Read the public profile without selecting or persisting it, then (in parallel)
-    /// every played visible instrument's ranking and rank history, and only then show
-    /// the page (web `PlayerPage` `dataReady`).
+    /// Read the public profile without selecting or persisting it, with the catalogue
+    /// alongside (Filter Invalid Scores needs it; a failed catalogue read leaves the
+    /// raw ranks of scores without `ml`), then (in parallel) every played visible
+    /// instrument's ranking and rank history, and only then show the page (web
+    /// `PlayerPage` `dataReady`). Rankings are preloaded from the raw scores, so turning
+    /// the filter off later finds them ready.
     private func load() async {
         phase = .loading
         do {
+            async let catalogue = try? session.catalog()
             let payload = try await session.viewPlayer(accountId: accountId)
+            if let songs = await catalogue?.catalog.songs {
+                songsById = Dictionary(songs.map { ($0.songId, $0) }, uniquingKeysWith: { first, _ in first })
+            }
             try Task.checkCancellation()
             guard payload.state != .syncing else {
                 phase = .syncing

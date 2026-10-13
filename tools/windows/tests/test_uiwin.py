@@ -646,6 +646,25 @@ class OcclusionRobustnessTests(unittest.TestCase):
         self.assertIn("window.Contains(corner)", park)
         self.assertIn("Native.MouseAt(corner)", park)
 
+    def test_driver_launch_retries_transient_uia_errors(self):
+        # #618: a launch failed with "Operation timed out. (0x80131505)" on one timed-out desktop search before any
+        # step ran. The window poll must search again after a transient UIA error (like Find, #552), rethrow it only
+        # when it persists to the timeout, and end the launched app when it can't attach.
+        source = (u.DRIVER_DIR / "Program.cs").read_text(encoding="utf-8")
+        poll = source.split("private Window? WaitForWindow(", 1)[1].split("private Window? TopWindow(", 1)[0]
+        self.assertIn("catch (Exception error) when (IsTransientUia(error) && (!retried || DateTime.UtcNow < until))",
+                      poll)
+        self.assertIn("retried = true;", poll)
+        launch = source.split("private JsonNode Launch(", 1)[1].split("private Window? WaitForWindow(", 1)[0]
+        self.assertEqual(2, launch.count("StopLaunched(process);"))
+        self.assertIn("process.Kill(entireProcessTree: true)", launch)
+
+    def test_run_driver_logs_failure_detail(self):
+        # #618: the driver's stack trace goes to the log, so a failure before any step still names its UIA call.
+        source = Path(u.__file__).read_text(encoding="utf-8")
+        body = source.split("def run_driver(", 1)[1].split("\ndef ", 1)[0]
+        self.assertIn("driver error detail:", body)
+
     def test_held_motion_statuses_are_read_without_restoring_the_window(self):
         # #498: a minimized First Run demo's paused auto-scroll (like a held Shop pulse) must be read while still
         # minimized; restoring the window first would resume it and the assertion could never pass.

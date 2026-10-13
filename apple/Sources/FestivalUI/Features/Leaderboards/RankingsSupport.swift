@@ -190,6 +190,10 @@ struct RankingRowLayout: View {
                         }
                     }
                 }
+                // Fill the row like the one-line layout's name column, so the whole band is the
+                // target and the selected player's purple band spans the card (#493, #499;
+                // `ScoreHistoryListRow` stacks the same way).
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 HStack(spacing: Self.columnSpacing) {
                     LeaderboardColumnSlot(template: columns?.rankLabel) { rankText }
@@ -851,8 +855,12 @@ struct RankingsPagerView: View {
             arrow("chevron.forward", "Next page", id: "page-next", enabled: page < totalPages) { onChange(page + 1) }
             arrow("chevron.forward.2", "Last page", id: "page-last", enabled: page < totalPages) { onChange(totalPages) }
         }
-        // One top edge for every control: read left to right at AX5 (issue #462).
+        // One top edge for every control: read left to right at AX5 (issue #462). The
+        // row is one group, as ``RankingsGlassPager``, so the pinned selected row reads
+        // before the pager (#481).
         .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("\(idPrefix).pager")
         .padding(.horizontal, 16)
         .pagerScreenPlacement()
         .padding(.top, topPadding)

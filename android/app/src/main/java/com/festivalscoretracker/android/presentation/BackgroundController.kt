@@ -1,13 +1,23 @@
 package com.festivalscoretracker.android.presentation
 
 import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.core.service.ServiceIssue
+import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.data.CatalogPayload
+import java.util.logging.Level
+import java.util.logging.Logger
 import kotlin.random.Random
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 // region Background policy
@@ -268,42 +278,82 @@ object BackgroundPolicy {
  * @property loadCatalog Catalogue read.
  * @property artworkUrl Artwork resolver.
  * @property random Shuffle source.
+ * @property publications Newest observed catalogue publication.
+ * @property backoff Shared retry pacing, including the service's Retry-After.
+ * @property onFailure Reports a failed catalogue read before its paced retry.
+ * @property onPublicationChanged Clears the shared ephemeral artwork cache.
  */
 class BackgroundController(
     private val loadCatalog: suspend () -> CatalogPayload,
     private val artworkUrl: (String?) -> String?,
     private val random: Random = Random.Default,
+    private val publications: Flow<Int?> = flowOf(null),
+    private val backoff: ServiceRetryBackoff = ServiceRetryBackoff(),
+    private val onFailure: (Exception) -> Unit = {
+        Logger.getLogger("FST_ART").log(Level.WARNING, "Artwork catalogue failed; retrying", it)
+    },
+    private val onPublicationChanged: () -> Unit = {},
 ) {
     private val coversFlow = MutableStateFlow<List<String>>(emptyList())
     private val focusStack = MutableStateFlow<List<Pair<Any, String>>>(emptyList())
     private val focusFlow = MutableStateFlow<String?>(null)
     private var loadedPublication: Int? = null
+    private val publicationFlow = MutableStateFlow<Int?>(null)
+    private var loading: Job? = null
 
     /** Shuffled carousel covers (empty until the catalogue loads). */
     val covers: StateFlow<List<String>> = coversFlow.asStateFlow()
+
+    /** Publication of the current artwork pool; resets render and failure state even for identical URLs. */
+    val publication: StateFlow<Int?> = publicationFlow.asStateFlow()
 
     /** The topmost focused (static, dimmed) song cover, or null for the carousel. */
     val focus: StateFlow<String?> = focusFlow.asStateFlow()
 
     /**
-     * Load covers once per publication; failures are ignored (the art is decorative).
+     * Load independently of Songs and follow publication changes. A failed read is logged
+     * and retried with capped service backoff, never treated as an empty catalogue.
+     * Cancelling [scope] stops both observation and retries; a later start resumes.
      *
-     * @param scope Scope to load in.
+     * @param scope Visible, uncovered artwork host's scope (not active under Data Saver).
+     * @return The one active catalogue watcher.
      */
-    fun start(scope: CoroutineScope) {
-        scope.launch {
-            try {
-                val payload = loadCatalog()
-                if (payload.publicationId != loadedPublication) {
-                    loadedPublication = payload.publicationId
-                    coversFlow.value = BackgroundPolicy.pickCovers(payload.catalog.songs, artworkUrl, random)
+    fun start(scope: CoroutineScope): Job {
+        loading?.takeIf { it.isActive }?.let { return it }
+        return scope.launch {
+            publications.distinctUntilChanged().collectLatest { observed ->
+                if (observed != null && observed <= (loadedPublication ?: 0)) return@collectLatest
+                if (observed != null) adoptPublication(observed)
+                while (true) {
+                    try {
+                        val payload = loadCatalog()
+                        check(payload.publicationId >= (publicationFlow.value ?: 0)) {
+                            "Artwork catalogue is behind the observed publication"
+                        }
+                        adoptPublication(payload.publicationId)
+                        if (payload.publicationId != loadedPublication) {
+                            coversFlow.value = BackgroundPolicy.pickCovers(payload.catalog.songs, artworkUrl, random)
+                            loadedPublication = payload.publicationId
+                        }
+                        backoff.reset("artwork-catalogue")
+                        break
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        onFailure(error)
+                        delay(backoff.nextDelay("artwork-catalogue", ServiceIssue.from(error).retryAfterSeconds) * 1_000L)
+                    }
                 }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                // Decorative: a failed catalogue read leaves the plain background.
             }
-        }
+        }.also { loading = it }
+    }
+
+    private fun adoptPublication(id: Int) {
+        if (id <= (publicationFlow.value ?: 0)) return
+        publicationFlow.value = id
+        coversFlow.value = emptyList()
+        loadedPublication = null
+        onPublicationChanged()
     }
 
     /**

@@ -172,6 +172,38 @@ enum PinnedHeaderEdgeFade {
         return cut > -max(depth, 0) && (cut > 0 || depth > 0) ? cut : nil
     }
 
+    /// How far below the edge a row's bottom may end and still count as wholly in the
+    /// cut: layout rounding, never a visible strip.
+    static let hiddenRowTolerance: CGFloat = 0.5
+
+    /// Whether a row lies wholly in the cut above a pinned title's bottom edge while it
+    /// is still inside the scroll view, so nobody can see it (scroll-edge R7, issue #459;
+    /// Android `SongHeaderEdgeFade.cutRows`, #417). VoiceOver must skip such a row. A row
+    /// with any part below the edge, even inside the fade, stays a stop (R5 reads it after
+    /// the title); a row wholly above `visibleTop` has left the scroll view, and the
+    /// platform's own off-screen handling keeps it reachable by scrolling.
+    ///
+    /// - Parameters:
+    ///   - rowTop: The row's top edge.
+    ///   - rowHeight: The row's height.
+    ///   - edge: The pinned title's bottom edge, in the same coordinates.
+    ///   - visibleTop: The scroll view's top, in the same coordinates.
+    /// - Returns: True when the row's bottom ends at or above the edge but below
+    ///   `visibleTop`; false for non-finite readings or an empty row.
+    static func hiddenInCut(rowTop: CGFloat, rowHeight: CGFloat, edge: CGFloat, visibleTop: CGFloat) -> Bool {
+        guard rowTop.isFinite, rowHeight.isFinite, rowHeight > 0, edge.isFinite, visibleTop.isFinite else {
+            return false
+        }
+        let bottom = rowTop + rowHeight
+        return bottom <= edge + hiddenRowTolerance && bottom > visibleTop
+    }
+
+    /// One row's global top and height, as a row mask reads it near the edge.
+    struct RowSpan: Equatable {
+        let top: CGFloat
+        let height: CGFloat
+    }
+
     /// Thickness of a row separator, in points: the system List separator's (1 pt on iOS
     /// 26 and macOS 26 alike, measured on both).
     static let separatorThickness: CGFloat = 1
@@ -697,29 +729,37 @@ private struct MacHeaderSeparator: ViewModifier {
 /// only the rows near the header (issue #553). The mask keeps the same structure in every
 /// state (a gradient band under a shape that covers everything below it, or the whole
 /// row when the row is clear of the edge), so a row crossing the edge never rebuilds.
+/// A row wholly in the cut leaves the accessibility tree
+/// (``PinnedHeaderEdgeFade/hiddenInCut(rowTop:rowHeight:edge:visibleTop:)``).
 private struct PinnedHeaderRowMask: ViewModifier {
     let state: PinnedHeaderEdgeFadeState
     /// Whether this view hands the List's platform scroll view to the state on the legacy
     /// path (the row content does; its background need not).
     var locatesScrollView = true
-    @State private var rowTop: CGFloat?
+    @State private var row: PinnedHeaderEdgeFade.RowSpan?
 
     func body(content: Content) -> some View {
         let limit = state.rowLimit
-        let mask = rowTop.map { top in
+        let mask = row.map { row in
             let depth = state.depth
-            return (cut: PinnedHeaderEdgeFade.cut(rowTop: top - state.origin, edge: state.edge, depth: depth), depth: depth)
+            let top = row.top - state.origin
+            return (
+                cut: PinnedHeaderEdgeFade.cut(rowTop: top, edge: state.edge, depth: depth), depth: depth,
+                hidden: PinnedHeaderEdgeFade.hiddenInCut(rowTop: top, rowHeight: row.height, edge: state.edge, visibleTop: 0)
+            )
         }
         let depth = mask?.depth ?? PinnedHeaderEdgeFade.height
         let cut = mask?.cut
         content
-            .onGeometryChange(for: CGFloat?.self) { proxy in
-                let top = proxy.frame(in: .global).minY
-                return top < limit.value ? top : nil
-            } action: { top in
-                rowTop = top
+            .onGeometryChange(for: PinnedHeaderEdgeFade.RowSpan?.self) { proxy in
+                let frame = proxy.frame(in: .global)
+                return frame.minY < limit.value ? .init(top: frame.minY, height: frame.height) : nil
+            } action: { span in
+                row = span
             }
             .mask { PinnedHeaderFadeMask(cut: cut, depth: depth) }
+            // Wholly in the cut: no VoiceOver stop (scroll-edge R7, issue #459).
+            .accessibilityHidden(while: mask?.hidden ?? false)
             .background {
                 if locatesScrollView && state.legacyScrollTracking {
                     ListScrollViewLocator { state.attachLegacyScrollView($0) }
@@ -756,11 +796,18 @@ extension View {
     ///   - rowLimit: Box shared by the List's rows: a row reports its global top only
     ///     above this line (``PinnedHeaderEdgeFade/rowLimit(edge:active:)``), read from a
     ///     lock box because SwiftUI may keep an earlier geometry closure.
+    ///   - hidesWhenCut: Leave the accessibility tree while wholly in the cut on screen
+    ///     (``PinnedHeaderEdgeFade/hiddenInCut(rowTop:rowHeight:edge:visibleTop:)``,
+    ///     scroll-edge R7). False for an in-list section title, which keeps its heading
+    ///     under the bar (`section-headers`).
     /// - Returns: The masked row.
     func pinnedHeaderEdgeFadeRowMask(
-        edge: CGFloat, active: Bool, depthLimit: PinnedHeaderEdgeFade.RowMaskDepth, rowLimit: TopInset
+        edge: CGFloat, active: Bool, depthLimit: PinnedHeaderEdgeFade.RowMaskDepth, rowLimit: TopInset,
+        hidesWhenCut: Bool = true
     ) -> some View {
-        modifier(PinnedTitleRowMask(edge: edge, active: active, depthLimit: depthLimit, rowLimit: rowLimit))
+        modifier(PinnedTitleRowMask(
+            edge: edge, active: active, depthLimit: depthLimit, rowLimit: rowLimit, hidesWhenCut: hidesWhenCut
+        ))
     }
 }
 
@@ -821,26 +868,34 @@ private struct PinnedTitleRowMask: ViewModifier {
     /// The depth limit (``PinnedHeaderEdgeFade/RowMaskDepth``), read only near the edge.
     let depthLimit: PinnedHeaderEdgeFade.RowMaskDepth
     let rowLimit: TopInset
-    @State private var rowTop: CGFloat?
+    /// Leave the accessibility tree while wholly in the cut (rows, not titles).
+    let hidesWhenCut: Bool
+    @State private var row: PinnedHeaderEdgeFade.RowSpan?
     @ScrollEdgeHardEdge private var hardEdge
 
     func body(content: Content) -> some View {
         let fade = PinnedHeaderEdgeFade.height(hardEdge: hardEdge)
-        let near = active ? rowTop : nil
+        let near = active ? row : nil
         let depth = PinnedHeaderEdgeFade.rowMaskDepth(near: near != nil, fade: fade, limit: depthLimit.read)
         let cut = near.flatMap {
-            PinnedHeaderEdgeFade.cut(rowTop: $0, edge: edge, depth: depth)
+            PinnedHeaderEdgeFade.cut(rowTop: $0.top, edge: edge, depth: depth)
         }
+        // Global coordinates: the window's top is the visible top.
+        let hidden = hidesWhenCut && near.map {
+            PinnedHeaderEdgeFade.hiddenInCut(rowTop: $0.top, rowHeight: $0.height, edge: edge, visibleTop: 0)
+        } == true
         let limit = rowLimit
         let _ = limit.value = PinnedHeaderEdgeFade.rowLimit(edge: edge, active: active)
         content
-            .onGeometryChange(for: CGFloat?.self) { proxy in
-                let top = proxy.frame(in: .global).minY
-                return top < limit.value ? top : nil
-            } action: { top in
-                rowTop = top
+            .onGeometryChange(for: PinnedHeaderEdgeFade.RowSpan?.self) { proxy in
+                let frame = proxy.frame(in: .global)
+                return frame.minY < limit.value ? .init(top: frame.minY, height: frame.height) : nil
+            } action: { span in
+                row = span
             }
             .mask { PinnedHeaderFadeMask(cut: cut, depth: depth) }
+            // Wholly in the cut: no VoiceOver stop (scroll-edge R7, issue #459).
+            .accessibilityHidden(while: hidden)
     }
 }
 

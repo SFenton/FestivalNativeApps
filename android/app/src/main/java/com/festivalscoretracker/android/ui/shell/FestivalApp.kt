@@ -186,6 +186,9 @@ import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import com.festivalscoretracker.android.ui.whatsnew.WhatsNewHost
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.festivalscoretracker.android.ui.common.isLargeText
 
 // region Root
@@ -207,9 +210,13 @@ fun FestivalApp(container: AppContainer, launch: DebugLaunch, shortcuts: ShellSh
         appReduceMotion = settings?.reduceMotion == true,
         appReduceTransparency = settings?.reduceTransparency == true,
     ) {
-        LaunchedEffect(Unit) { container.background.start(this) }
         LaunchedEffect(Unit) { container.selectedProfile.start(this, shellViewModel.settings.map { it?.selectedPlayer }) }
         LaunchedEffect(Unit) { container.songsPreferences.watchDeselection(this, shellViewModel.settings.map { it?.selectedPlayer }) }
+        val lifecycle = LocalLifecycleOwner.current.lifecycle
+        LaunchedEffect(container.liveUpdates, lifecycle) {
+            val live = container.liveUpdates ?: return@LaunchedEffect
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { live.run() }
+        }
         // Compose test tags double as UIAutomator resource ids for `device.py drive` journeys.
         Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
             ArtworkBackground(container.background, forceStill = launch.stillBackground || settings?.disableAnimatedArtwork == true)

@@ -315,6 +315,7 @@ class FadeInWindow(private val thresholdPx: Float, private val closesOnScroll: B
      * once the entrance has finished, so a later scroll never replays one (R5).
      */
     fun rush() {
+        FadeInWindowProbe.onRush?.invoke(animating)
         if (animating && !rushRequested) rushRequested = true
     }
 
@@ -429,6 +430,17 @@ class FadeInWindow(private val thresholdPx: Float, private val closesOnScroll: B
         /** Content waiting to load (drawn transparent). */
         const val PENDING = Long.MIN_VALUE
     }
+}
+
+/**
+ * Test hook on [FadeInWindow.rush] (null outside tests): `SelectedRowArrivalUiTest` installs it
+ * to check that a programmatic scroll's real call site (a selected-row reveal) rushes its page's
+ * fades before it scrolls, frame by frame on a paused clock (issue #470).
+ */
+internal object FadeInWindowProbe {
+    /** Called on every [FadeInWindow.rush] with whether an entrance was running. */
+    @Volatile
+    var onRush: ((animating: Boolean) -> Unit)? = null
 }
 
 /** The enclosing page's fade window; null outside a page (each [FestivalScreen], modal sheet and dialog provides one). */

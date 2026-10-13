@@ -15,6 +15,7 @@ import com.festivalscoretracker.android.data.CatalogPayload
 import com.festivalscoretracker.android.data.songs.SongsPreferencesState
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.SongsViewModel
+import com.festivalscoretracker.android.presentation.valueOrNull
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileState
 import com.festivalscoretracker.android.presentation.profile.SelectedProfileStatus
 import com.festivalscoretracker.android.presentation.shop.ShopStore
@@ -182,6 +183,69 @@ class SongsViewModelTest {
         advanceUntilIdle()
         assertTrue(vm.uiState.value.invalidSavedFilter)
         assertTrue(vm.uiState.value.rows.isEmpty())
+    }
+
+    @Test
+    fun newerPublicationRefreshesInPlaceKeepingFiltersSortAndScores() = runTest(main.dispatcher) {
+        // Issue #616: the bell (or the live socket) observes 8 and the profile store re-reads the
+        // scores for 8. Songs must catch up instead of pausing every row.
+        val inputs = Inputs()
+        inputs.settings.value = AppSettings(selectedPlayer = player, songSort = SongSortMode.Year, songSortAscending = false)
+        inputs.prefs.value = SongsPreferencesState(playerFilter = SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead)))
+        inputs.profile.value = available(SongsFixtures.score("a", Instrument.Lead, 1000), SongsFixtures.score("b", Instrument.Lead, 900))
+        var served = 7
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val reads = mutableListOf<Boolean>()
+        val vm = viewModel(inputs) { refresh ->
+            reads += refresh
+            if (served == 8) gate.await()
+            CatalogPayload(SongsResponse(3, 15, songs), served)
+        }
+        advanceUntilIdle()
+        assertEquals(listOf("a", "b"), vm.uiState.value.rows.map { it.song.songId })
+
+        served = 8
+        inputs.publication.value = 8
+        inputs.profile.value = available(SongsFixtures.score("a", Instrument.Lead, 1000), SongsFixtures.score("b", Instrument.Lead, 900), observed = 8)
+        advanceUntilIdle()
+        val refreshing = vm.uiState.value
+        assertTrue(refreshing.publicationRefreshing)
+        assertTrue(refreshing.rows.isEmpty())
+        assertTrue(refreshing.notices.isEmpty())
+        assertTrue(refreshing.rows.none { it.scoreState == "Player scores paused until songs update" })
+        assertEquals(3, refreshing.totalSongs)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        val live = vm.uiState.value
+        assertFalse(live.publicationRefreshing)
+        assertEquals(8, live.catalog.valueOrNull?.publicationId)
+        assertEquals(listOf("a", "b"), live.rows.map { it.song.songId })
+        assertEquals(SongSortMode.Year, live.effectiveSort)
+        assertTrue(live.filtersApplied)
+        assertTrue(live.notices.isEmpty())
+        assertTrue(live.rows.none { it.scoreState == "Player scores paused until songs update" })
+        // One plain catch-up read, not a forced publication re-read.
+        assertEquals(listOf(false, false), reads)
+    }
+
+    @Test
+    fun failedPublicationCatchUpFallsBackToThePausedNotice() = runTest(main.dispatcher) {
+        val inputs = Inputs()
+        inputs.settings.value = AppSettings(selectedPlayer = player)
+        inputs.profile.value = available(SongsFixtures.score("a", Instrument.Lead, 1000))
+        var fail = false
+        val vm = viewModel(inputs) { if (fail) throw FestivalApiException.HttpStatus(503) else payload }
+        advanceUntilIdle()
+        fail = true
+        inputs.publication.value = 8
+        inputs.profile.value = available(SongsFixtures.score("a", Instrument.Lead, 1000), observed = 8)
+        advanceUntilIdle()
+        val paused = vm.uiState.value
+        assertFalse(paused.publicationRefreshing)
+        assertTrue(paused.catalog is LoadState.Loaded)
+        assertEquals(3, paused.rows.size)
+        assertEquals("Player scores paused until songs update", paused.rows[0].scoreState)
     }
 
     @Test

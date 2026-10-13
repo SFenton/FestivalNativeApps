@@ -506,12 +506,56 @@ def pose_screenshot_policy() -> tuple[float, int]:
     """How long one Duo panel screenshot may take, and how many tries it gets.
 
     A GitHub Actions runner is a slow VM: its first ``simctl io screenshot`` after boot
-    took over 30 s (#432), which read as an ``unknown`` pose and stopped the run.
+    took over 30 s (#432), which read as an ``unknown`` pose and stopped the run. A busy
+    shared Mac is slow too: a freshly booted Duo's first screenshot timed out at 30 s on
+    every try there (#444), so a Mac waits 120 s for its one try.
 
     Returns:
-        ``(timeout seconds, attempts)``: ``(30, 1)`` on a Mac, ``(180, 3)`` on a CI runner.
+        ``(timeout seconds, attempts)``: ``(120, 1)`` on a Mac, ``(180, 3)`` on a CI runner.
     """
-    return (180.0, 3) if os.environ.get("GITHUB_ACTIONS") == "true" else (30.0, 1)
+    return (180.0, 3) if os.environ.get("GITHUB_ACTIONS") == "true" else (120.0, 1)
+
+
+def screenshot_panel(udid: str, display: str, path: Path, attempts: int | None = None,
+                     timeout: float | None = None, pause: float = 10.0) -> bool:
+    """Screenshot one Duo panel as BMP, retrying. Call under the simulator lock.
+
+    The first screenshot after a fresh boot can fail or stall, above all on the
+    slow CI runner just after it installed a new runtime (apple-ci run
+    37913520235, #432), so each failed attempt is logged with its reason and retried.
+
+    Args:
+        udid: A booted iPhone Duo simulator.
+        display: ``simctl io --display`` name (a ``DUO_PANELS`` value).
+        path: Where to write the BMP.
+        attempts: Screenshots to try; ``None`` uses ``pose_screenshot_policy``.
+        timeout: Seconds one attempt may take; ``None`` uses ``pose_screenshot_policy``.
+        pause: Seconds between attempts.
+
+    Returns:
+        Whether a screenshot was written.
+    """
+    policy_timeout, policy_attempts = pose_screenshot_policy()
+    attempts = policy_attempts if attempts is None else attempts
+    timeout = policy_timeout if timeout is None else timeout
+    for attempt in range(1, attempts + 1):
+        path.unlink(missing_ok=True)
+        try:
+            result = _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
+                           f"--display={display}", str(path)], check=False, capture_output=True,
+                          timeout=timeout)
+        except subprocess.TimeoutExpired:
+            reason = f"timed out after {timeout:.0f}s"
+        else:
+            if not result.returncode and path.exists():
+                return True
+            stderr = result.stderr.decode(errors="replace") if isinstance(result.stderr, bytes) else result.stderr
+            reason = (stderr or "").strip()[-300:] or f"exit {result.returncode}"
+        print(f"duo pose: {display} screenshot failed ({reason}), attempt {attempt}/{attempts}",
+              file=sys.stderr)
+        if attempt < attempts:
+            time.sleep(pause)
+    return False
 
 
 def detect_pose(udid: str) -> str:
@@ -524,25 +568,40 @@ def detect_pose(udid: str) -> str:
         ``"folded"``, ``"unfolded"`` or ``"unknown"`` (also for non-Duo devices, or when a
         panel screenshot fails every attempt; see ``pose_screenshot_policy``).
     """
-    timeout, attempts = pose_screenshot_policy()
     dark = {}
     with tempfile.TemporaryDirectory() as folder:
         for panel, display in DUO_PANELS.items():
             path = Path(folder) / f"{panel}.bmp"
-            for _ in range(attempts):
-                path.unlink(missing_ok=True)
-                try:
-                    result = _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
-                                   f"--display={display}", str(path)], check=False, capture_output=True,
-                                  timeout=timeout)
-                except subprocess.TimeoutExpired:
-                    continue
-                if not result.returncode and path.exists():
-                    break
-            else:
+            if not screenshot_panel(udid, display, path):
                 return "unknown"
             dark[panel] = bmp_is_dark(path.read_bytes())
     return classify_pose(dark["outer"], dark["inner"])
+
+
+def settled_pose(udid: str, attempts: int = 4, pause: float = 15.0) -> str:
+    """Detect the Duo pose, re-checking while it reads ``unknown``. Call under the simulator lock.
+
+    Just after a fresh boot (above all on the CI runner) neither panel, or a
+    stale frame on both, may be lit yet, so an ``unknown`` result is re-detected
+    a few times before it counts. A definite pose returns at once.
+
+    Args:
+        udid: A booted iPhone Duo simulator.
+        attempts: Detections to try.
+        pause: Seconds between detections.
+
+    Returns:
+        ``"folded"``, ``"unfolded"`` or ``"unknown"`` after every attempt.
+    """
+    actual = "unknown"
+    for attempt in range(1, attempts + 1):
+        actual = detect_pose(udid)
+        if actual != "unknown":
+            break
+        print(f"duo pose: unknown, attempt {attempt}/{attempts}", file=sys.stderr)
+        if attempt < attempts:
+            time.sleep(pause)
+    return actual
 
 
 def require_pose(udid: str, pose: str | None, set_pose: bool = False) -> str | None:
@@ -561,7 +620,7 @@ def require_pose(udid: str, pose: str | None, set_pose: bool = False) -> str | N
     if pose is None:
         return None
     expected = POSE_EXPECTED_CLASS[pose]
-    actual = detect_pose(udid)
+    actual = settled_pose(udid)
     print(f"duo pose: {actual}", file=sys.stderr)
     if actual == expected and not (set_pose and pose != "folded"):
         return None
@@ -1841,6 +1900,7 @@ def cmd_uitest(args: argparse.Namespace) -> int:
                 udid=udid, derived=derived, selectors=batch, timeout=args.timeout,
                 a11y=getattr(args, "a11y", None), pose=getattr(args, "pose", None),
                 set_pose=getattr(args, "set_pose", False), rotate=getattr(args, "rotate", None),
+                diagnostics=not getattr(args, "no_test_diagnostics", False),
             )
             if not should_retry_batch(returncode, attempt, retries):
                 break
@@ -1985,7 +2045,7 @@ def should_retry_batch(returncode: int, attempt: int, retries: int) -> bool:
 def _run_uitest_batch(
     *, udid: str, derived: Path, selectors: list[str], timeout: float,
     a11y: list[str] | None = None, pose: str | None = None, set_pose: bool = False,
-    rotate: list[str] | None = None,
+    rotate: list[str] | None = None, diagnostics: bool = True,
 ) -> tuple[int, float, Path, Path]:
     """Run one bounded batch of ``-only-testing:`` selectors under one lock hold.
 
@@ -2003,6 +2063,9 @@ def _run_uitest_batch(
         selectors: One batch's ``Class``/``Class/testMethod`` selectors.
         timeout: Seconds before killing this batch's run.
         a11y: ``A11Y_SETTINGS`` keys switched on for this batch and restored after it.
+        diagnostics: Let ``xcodebuild`` collect its sysdiagnose-like failure
+            diagnostics (False passes ``-collect-test-diagnostics never``: on a CI
+            runner that collection alone has waited 600 s after a failure).
 
     Returns:
         ``(returncode, elapsed_seconds, log_path, result_bundle_path)``.
@@ -2051,6 +2114,8 @@ def _run_uitest_batch(
         ]
         for selector in selectors:
             cmd.append(f"-only-testing:{product().uitest_target}/{selector}")
+        if not diagnostics:
+            cmd += ["-collect-test-diagnostics", "never"]
         cmd += ["test-without-building", "-quiet"]
         print("+", " ".join(cmd), file=sys.stderr)
         with open(log_path, "w") as log, simulator_accessibility(udid, a11y):
@@ -2365,6 +2430,11 @@ def main(argv: list[str] | None = None) -> int:
                              "the lock is released between batches for other lanes")
     uitest.add_argument(
         "--rebuild", action="store_true", help="force a fresh build-for-testing"
+    )
+    uitest.add_argument(
+        "--no-test-diagnostics", action="store_true",
+        help="skip xcodebuild's failure diagnostics collection (-collect-test-diagnostics never), "
+             "which can hold a CI batch for 600 s after a failure",
     )
     uitest.add_argument("--a11y", action="append", choices=sorted(A11Y_SETTINGS),
                         help="switch a simulator accessibility setting on for each batch, "

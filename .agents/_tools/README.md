@@ -4,8 +4,8 @@
 
 | Command | Does |
 |---|---|
-| `python3 .agents/_tools/check_docs.py` | Checks routers, links, contract coverage, platform mixing, headers, generated tables; exit 1 on errors |
-| `python3 .agents/_tools/check_docs.py --fix` | Scaffolds missing `spec.md` stubs from `contracts/*.json`, regenerates the `pages/` and `controls/` tables, then checks |
+| `python3 .agents/_tools/check_docs.py` | Checks routers, links, contract coverage, platform mixing, headers, generated tables, unique pattern rule numbers; exit 1 on errors |
+| `python3 .agents/_tools/check_docs.py --fix` | Scaffolds missing `spec.md` stubs from `contracts/*.json`, regenerates the `pages/` and `controls/` tables, then checks; conflicting pattern rules still fail and require an authoritative manual merge |
 | `python3 -m unittest discover -s .agents/_tools` | Self-tests for the checker |
 
 Rules it enforces: [workflow/docs-conventions.md](../workflow/docs-conventions.md). Source: `check_docs.py` (stdlib only).

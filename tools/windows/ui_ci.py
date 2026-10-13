@@ -325,6 +325,15 @@ RUNS: tuple[Run, ...] = (
     Run("song-pinned-reveal-reduced", "a11y-song-pinned-reveal.json", sizes="medium", mode="app-reduced", tabs=0),
     Run("song-pinned-reveal-no-animations", "a11y-song-pinned-reveal.json", sizes="medium", mode="no-animations",
         tabs=0),
+    # Selected-row reveal (issues #323, #470): Song Details' "your score" row and the Leaderboards card's "your rank" row
+    # open their boards by keyboard and the reveal centres the player's row after its entrance: "Your rank, …" names,
+    # purple fill, a 40 epx target clear of the pinned row, rows -> pinned row -> pager order, Down/Up/Tab in place.
+    # With motion off (app-reduced, no-animations) the reveal still lands on the row and nothing moves.
+    Run("selected-row-reveal", "a11y-selected-row-reveal.json", tabs=0),
+    Run("selected-row-reveal-text-225", "a11y-selected-row-reveal.json", sizes="compact", mode="text-225", tabs=0),
+    Run("selected-row-reveal-reduced", "a11y-selected-row-reveal.json", sizes="medium", mode="app-reduced", tabs=0),
+    Run("selected-row-reveal-no-animations", "a11y-selected-row-reveal.json", sizes="medium", mode="no-animations",
+        tabs=0),
     # Board load swap (issues #71, #431): spinner "Busy Loading …, ProgressRing", stale rows leave UIA, selectors ->
     # spinner -> pager order, enabled 40x40 selectors and pager, focus kept on the pager, mid-load Axe scans; then the
     # same swap at 225% text and with Windows' Animation effects off. Every page is medium-only (pager plus spinner).
@@ -353,6 +362,18 @@ RUNS: tuple[Run, ...] = (
         only="frrd-infinite-scroll-static"),
     Run("first-run-real-demos-no-transparency", "a11y-first-run-real-demos.json", sizes="compact",
         mode="no-transparency", only="frrd-infinite-scroll-no-transparency"),
+    # Songs live publication refresh (issue #616, load-transition R9): a loopback /api/ws pushes publication_changed and
+    # the filtered, Artist-sorted list refreshes in place with scores (no paused notice), Narrator hears "Loading new
+    # scores" once, focus parks on Songs search while the rows hide and returns to the first row, under app Reduce Motion
+    # and at 200% and 225% text too.
+    Run("songs-publication-refresh", "a11y-songs-publication-refresh.json", sizes="medium", tabs=0,
+        only="songs-publication-refresh"),
+    Run("songs-publication-refresh-reduced", "a11y-songs-publication-refresh.json", sizes="medium", mode="app-reduced",
+        tabs=0, only="songs-publication-refresh-modes"),
+    Run("songs-publication-refresh-text-200", "a11y-songs-publication-refresh.json", sizes="medium", mode="text-200",
+        tabs=0, only="songs-publication-refresh-modes"),
+    Run("songs-publication-refresh-text-225", "a11y-songs-publication-refresh.json", sizes="medium", mode="text-225",
+        tabs=0, only="songs-publication-refresh-modes"),
     # Full boards as one grouped card (issue #543): song board, Full Rankings, Band Rankings and the song band board rows
     # touch (0 epx), each stays one 40+ epx Button stop in visual order, rows -> pinned row -> pager, Up/Down and Tab.
     Run("grouped-boards", "a11y-grouped-boards.json", tabs=0),
