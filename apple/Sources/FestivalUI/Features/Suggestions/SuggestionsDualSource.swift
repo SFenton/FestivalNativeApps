@@ -159,7 +159,7 @@ struct SuggestionsCarouselPane: View {
             case .loaded where !categories.isEmpty:
                 carousel
             default:
-                FestivalLoadingView(accessibilityLabel: "Loading \(title)")
+                FestivalLoadingView(accessibilityLabel: "Loading \(title)", placement: .fill)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }

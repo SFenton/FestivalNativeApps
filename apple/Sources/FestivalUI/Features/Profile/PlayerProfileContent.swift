@@ -309,7 +309,7 @@ struct PlayerProfileContent: View {
     @ViewBuilder private var content: some View {
         switch shownPhase {
         case .loading:
-            FestivalLoadingView(accessibilityLabel: "Loading Profile")
+            FestivalLoadingView(accessibilityLabel: "Loading Profile", placement: .fill)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .accessibilityIdentifier("fst.player.loading")
         case .syncing:

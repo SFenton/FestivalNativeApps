@@ -77,7 +77,7 @@ private struct RivalDualDetailContent: View {
         DualSourcePane(displayName, systemImage: "person.2.fill", seeAll: route, identifier: "rivals.detail") {
             switch state {
             case .loading:
-                FestivalLoadingView(accessibilityLabel: "Loading rival detail")
+                FestivalLoadingView(accessibilityLabel: "Loading rival detail", placement: .fill)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case let .failed(issue):
                 ServiceStatusInline(issue, scope: "dual.rival.\(rivalId)") { Task { await load() } }

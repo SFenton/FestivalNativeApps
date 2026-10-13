@@ -169,7 +169,7 @@ struct SongDetailScreen: View {
             if ready {
                 loadedScroll
             } else {
-                FestivalLoadingView(accessibilityLabel: "Loading \(song.title)")
+                FestivalLoadingView(accessibilityLabel: "Loading \(song.title)", placement: .fill)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityIdentifier("fst.song-detail.loading")
             }

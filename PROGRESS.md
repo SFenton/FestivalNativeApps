@@ -344,6 +344,7 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 
 ## 5. Known issues / decisions
 
+- **Apple loading placement (SFenton/festival-report-tracker#624):** page/result indicators use the canonical `FestivalLoadingView(placement: .fill)` and the existing empty-state fold policy ([load-transition](.agents/patterns/load-transition.md) R13). Ordinary phone, flat Duo, tablet and Mac region centres remain unchanged; active vertical/horizontal folds use the larger usable side. Inline/card indicators and Paths are unchanged.
 - **Android loading regions (#624):** page gates and reload spinners share `LoadingRegion` and the existing `HingeSide` policy; lazy spinners measure the result area rather than a viewport fraction. Song Details keeps its scroll viewport and supplies chrome padding only to the gate's spinner. Other platform checks remain in their own worker lanes.
 
 - **App versions and What's New (operator, 2026-10-01):** every platform is `YYMM.DD.NN` (UTC date + daily counter) from `<platform>/v<version>` tags; only a version bump starts a build; user-visible changes carry `Release-Note:`/`Release-Note-<Platform>:` trailers and nobody hand-edits `WhatsNew.json`. See `.agents/workflow/release-machine.md#versions-notes-and-whats-new`.

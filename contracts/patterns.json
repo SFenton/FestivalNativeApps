@@ -1956,6 +1956,10 @@
             "symbol": "FestivalReloadGate"
           },
           {
+            "path": "apple/Sources/FestivalUI/Common/FestivalLoadingView.swift",
+            "symbol": "FestivalLoadingView"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Common/FadeInOnLoad.swift",
             "symbol": "FestivalFadeInScope"
           },
@@ -2479,6 +2483,10 @@
           {
             "path": "apple/Sources/FestivalUI/Common/FestivalLoadingView.swift",
             "symbol": "FestivalLoadingView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/FestivalEmptyState.swift",
+            "symbol": "FoldAvoidingPlacement"
           },
           {
             "path": "apple/Sources/FestivalUI/Common/ServiceStatusViews.swift",
@@ -3989,6 +3997,14 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Profile/PlayerStatGrid.swift",
             "symbol": "StatTileGridLayout"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/FestivalEmptyState.swift",
+            "symbol": "FoldAvoidingPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/FestivalLoadingView.swift",
+            "symbol": "FestivalLoadingView"
           }
         ],
         "android": [

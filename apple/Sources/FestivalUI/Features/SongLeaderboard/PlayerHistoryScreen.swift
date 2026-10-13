@@ -258,7 +258,7 @@ struct PlayerHistoryScreen: View {
         } else {
             switch state {
             case .loading:
-                FestivalLoadingView(accessibilityLabel: "Loading Score History")
+                FestivalLoadingView(accessibilityLabel: "Loading Score History", placement: .fill)
                     .accessibilityIdentifier("fst.history.loading")
             case let .failed(issue):
                 ServiceStatusView(issue, title: "History Unavailable") {
