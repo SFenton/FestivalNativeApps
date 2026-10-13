@@ -241,6 +241,23 @@ class FailOnSkipTests(unittest.TestCase):
         self.assertIn("failed", skip_problem({"passedTests": 2, "skippedTests": 0, "failedTests": 1}))
 
 
+class FailureLinesTests(unittest.TestCase):
+    """A failed batch prints each failure's message, which the log tail drops (#620)."""
+
+    def test_lists_each_failure_with_its_message(self):
+        summary = {"testFailures": [
+            {"testIdentifierString": "A/testOne()", "failureText": "XCTAssertTrue failed - No footer"},
+            {"testName": "testTwo()", "failureText": "Footer reads x"},
+        ]}
+        self.assertEqual(ios_sim.failure_lines(summary), [
+            "A/testOne(): XCTAssertTrue failed - No footer", "testTwo(): Footer reads x",
+        ])
+
+    def test_an_unreadable_or_green_summary_lists_nothing(self):
+        self.assertEqual(ios_sim.failure_lines(None), [])
+        self.assertEqual(ios_sim.failure_lines({"passedTests": 3}), [])
+
+
 class ResultSummaryTests(unittest.TestCase):
     """`uitest` reads a batch's summary with retries, so one failed read cannot fail a green batch (#620)."""
 

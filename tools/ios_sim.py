@@ -1862,6 +1862,9 @@ def cmd_uitest(args: argparse.Namespace) -> int:
             log_text = log_path.read_text(encoding="utf-8", errors="replace")
             print(f"uitest {label} FAILED after {elapsed:.1f}s; last lines of {log_path}:", file=sys.stderr)
             print("\n".join(log_text.splitlines()[-60:]), file=sys.stderr)
+            if returncode != 124:
+                for line in failure_lines(_result_summary(result_bundle)):
+                    print(f"  failure: {line}", file=sys.stderr)
             print(f"result bundle: {result_bundle}", file=sys.stderr)
             continue
         # One (retried) summary read per batch, reused for the skip check and the counts:
@@ -1974,6 +1977,25 @@ def _result_counts(summary: dict | None) -> str:
         return ""
     return (f": {summary.get('passedTests', 0)} passed, {summary.get('skippedTests', 0)} skipped, "
             f"{summary.get('failedTests', 0)} failed")
+
+
+def failure_lines(summary: dict | None) -> list[str]:
+    """List each failed test with its first failure message from a batch's summary.
+
+    ``-quiet`` and the log tail keep only "Failing tests:", so a CI job cancelled before
+    its artifact upload kept no message at all (#620).
+
+    Args:
+        summary: The batch's ``_result_summary``, or ``None`` when unreadable.
+
+    Returns:
+        One ``"<test>: <message>"`` line per failure, in the summary's order.
+    """
+    failures = (summary or {}).get("testFailures") or []
+    return [
+        f"{failure.get('testIdentifierString') or failure.get('testName', '?')}: {failure.get('failureText', '')}"
+        for failure in failures if isinstance(failure, dict)
+    ]
 
 
 def skip_problem(summary: dict | None) -> str | None:
