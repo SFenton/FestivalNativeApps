@@ -17,6 +17,7 @@
 | Lane ownership, integrate, simulator | [workflow/lanes.md](workflow/lanes.md) |
 | CI, App Store Connect builds/submission, release credentials | [workflow/release-machine.md](workflow/release-machine.md) |
 | Edit these docs | [workflow/docs-conventions.md](workflow/docs-conventions.md); check with `python3 .agents/_tools/check_docs.py` |
+| Settle a bounded question fast (`fst-decide`, decision model) | [workflow/decision-models.md](workflow/decision-models.md) |
 | Web source, snapshots, parity backlog | [workflow/source-of-truth.md](workflow/source-of-truth.md) |
 
 ## By platform
