@@ -24,15 +24,17 @@ PR checks (required by the release machine): `inventory` (`contracts.yml`), `app
 
 ## Release train
 
-Operator, 2026-10-10. Master stays fast; a weekly branch gets the full suites and ships.
+Operator, 2026-10-10, revised 2026-10-13. Master stays fast; a weekly branch gets fixes, daily full suites and ships. Times are Los Angeles local.
 
 | When | What (tracker `fstmachine/releasetrain.py`, design §8c) |
 |---|---|
-| Every PR / master merge | Fast checks only: build, unit tests, `inventory`. **Workers run the device, UI and accessibility tests they add or touch locally** (simulator, emulator, UIA) before finishing and report them in `tests`; PR CI no longer runs them |
-| Monday | The machine cuts `releases/YYMM.DD` (UTC date) from `master`. The push runs `version-bump --release`: release-candidate builds go to TestFlight and Play internal testing. The machine dispatches full CI on the branch: `apple-ci` (with simulator journeys), `android-device`, `android-fold`, `windows-ui` |
-| Full CI fails | One **Priority** tracker issue per failing check (`[Bug] releases/YYMM.DD: <check> fails`, label `Release Fix`). It is worked and merged to `master` like any fix, ahead of other work |
-| A release fix merges | The machine cherry-picks its merge commit onto the release branch (`-x`; doc-only conflicts keep both sides; code conflicts go to a port session that resolves them on a `port/<n>-<branch>` branch, which then fast-forwards the release branch). The push builds new candidates and full CI runs again |
-| Thursday (until the next cut) | The release step submits the current release branch's latest builds for store review/release on each platform. Builds from older branches or `master` are never submitted |
+| Every PR / master merge | Fast checks only: build, unit tests, `inventory`. Nothing builds or ships from `master`. **Workers run the device, UI and accessibility tests they add or touch locally** (simulator, emulator, UIA) before finishing and report them in `tests`; PR CI no longer runs them |
+| Monday 03:00 | The machine cuts `releases/YYMM.DD` (UTC date) from `master`. The push runs `version-bump --release`: release-candidate builds go to TestFlight and Play internal testing |
+| A fix merges to `master` | Bug, accessibility, check/validate and test fixes (title `[Bug]`, `[Accessibility]`, `[Check…]`, or triage kind `bug`; plus every `Release Fix`) merged after the cut are cherry-picked onto the release branch in merge order (`-x -m 1`; the merge commit keeps its `Release-Note` trailers; doc-only conflicts keep both sides; code conflicts go to a port session on `port/<n>-<branch>`, which then fast-forwards the release branch). **Features (`[Feature]`, triage kind `feature`) are never cherry-picked**: they ship with the next cut. Each push with app changes builds new candidates (TestFlight) |
+| Daily 04:00 | Complete CI on the release branch head: `apple-ci` (unit, simulator journeys, accessibility), `android-device`, `android-fold`, `windows-ui`, `native` (Windows/Android unit tests) |
+| Complete CI fails | One **Priority** tracker issue per failing check (`[Bug] releases/YYMM.DD: <check> fails`, label `Release Fix`). It is fixed on `master` ahead of other work and cherry-picked like any fix; the next daily run checks it |
+| Thursday (after that day's CI, at the latest 16:00) | Each enabled store gets the **newest build whose platform checks all passed in one daily run** (the newest `<platform>/v*` tag in the passing commit). A submission still in review or approved but unreleased is replaced (`store-release submit --replace`). Windows submissions are scheduled to publish Monday 04:00. One submission per platform per train |
+| Monday 04:00 | A low-cost agent session (`gpt-6-luna`) runs `fst-machine release-publish status`, then `release-publish apply` for each platform whose review passed: iOS releases the approved version (`store-release release`); Windows reports its scheduled publication (the Store API has no "Publish now"). The machine runs the same guarded step itself if the agent hasn't finished within 3 hours |
 
 `version-bump --release` versions a release-branch head even though it doesn't descend from last week's tags (the new branch is cut from `master`, not from last week's cherry-picks); an older commit of the tagged history is still skipped.
 
@@ -41,13 +43,13 @@ Operator, 2026-10-10. Master stays fast; a weekly branch gets the full suites an
 Builds, signing, TestFlight uploads and store submissions run only in GitHub-hosted Actions jobs; no mesh machine (Linux host, MacBook, Windows host) runs any build/release job, holds signing material for it, or calls a store. iOS archive, signing and upload use the hosted `xcode-27` image with the released Xcode 27.0 (27A266a) selected, because App Store Connect rejects beta Xcode/SDK builds (`BUILD_SDK_NOT_ALLOWED_FOR_APP_STORE_SUBMISSION`); Xcode 27.1 (27A9269) is still beta 1. With an iOS SDK older than 27.1, `ios_appstore_build.sh` defines `FST_IOS_SDK_BEFORE_27_1`, which compiles out the iOS 27.1 Duo hinge/reserved-region probes. CI (apple-ci) keeps Xcode 27.1. Switch the release Toolchain step to `Xcode_27.1.app` once 27.1 ships (`macos-26` tops out at Xcode 26.6). Every store status read and submission uses `store-release` on hosted `ubuntu-latest`. The only credential store is the `store-release` environment (deployment branch policy: `master` only). Public release is off:
 
 - `actions_job.py` refuses iOS App Store review submission (`blocked:"app_store_review_disabled"`) unless the repository variable `FST_APPSTORE_REVIEW_ENABLED=true`. Approved versions wait for a manual release (`releaseType=MANUAL`) while broad release is disabled. Set the variable `FST_APPSTORE_RELEASE_TYPE=AFTER_APPROVAL` to auto-release on approval.
-- Windows submissions are always Manual publish (certification only).
+- Windows submissions are Manual publish (certification only) unless `publish_at` schedules them (`SpecificDate`, the release train's Monday release).
 
 ## Pipelines
 
 1. PR → `apple-ci` on hosted `xcode-27` (installs xcodegen with Homebrew). Compile and unit tests never boot a simulator; only the iPhone and iPad journey steps (each on its own throwaway runner simulator, one at a time) and the Songs Filter journey legs (one simulator per leg runner) do, on release-branch dispatches ([CI journeys](../testing/apple/xcuitest.md#ci-journeys)). Swift coverage gates and `verify_product.py --strict` do not pass yet ([coverage](../testing/apple/coverage.md)), so those steps are informational.
 2. Push to `releases/YYMM.DD` (the weekly cut or a cherry-picked fix) → `version-bump --release` tags `ios/v<YYMM.DD.NN>` when iOS app files changed and dispatches `ios-release-build` (pushes touching no app code build nothing). It writes the ASC key from secrets to `$RUNNER_TEMP`, imports `IOS_DIST_P12_BASE64` into a throwaway keychain (or, without it, sets `FST_ALLOW_CLOUD_SIGNING=1` so Xcode uses cloud-managed distribution signing with an **Admin** key), archives and uploads, then deletes the keychain and key. The `testflight-notes` job then waits (≤45 min) for the build in ASC and sets its TestFlight notes. Exit code 4 (`{"blocked":"missing_signing"}`) becomes a neutral "skipped" job summary, not a failure. Only the archive/upload job holds the `ios-release-build` concurrency group (one build at a time; a newer queued tag replaces an older queued one). The notes job is outside it, because a wedged `store-release` deployment on that job once held every later build for 30 h (2026-10-06/07). If a run sits "waiting" on `store-release` with no protection rule pending, cancel it: its build is already uploaded. `workflow_dispatch` has a `dry_run` input.
-3. From Thursday, the orchestrator dispatches `store-release` with `status`, reads `result.json`, picks the latest `VALID` build built from the current release branch and newer than the last released version (gate-checked), then dispatches `submit` with that build and base64 notes. In Actions, `FST_RELEASE_SHA_FROM_ARTIFACTS=1` maps build numbers to commits through `fst-ios-build_<build>` marker artifacts (uploaded by `ios-release-build`, 90 days) and the MSIX artifact names.
+3. On Thursday, the orchestrator picks the newest release version whose platform checks passed in one daily complete-CI run (and newer than the last released version, gate-checked), then dispatches `store-release submit` with `version`, `replace=true` and base64 notes (Windows also `publish_at`). The job resolves the version to its newest `VALID` build. On Monday it dispatches `store-release release`. In Actions, `FST_RELEASE_SHA_FROM_ARTIFACTS=1` maps build numbers to commits through `fst-ios-build_<build>` marker artifacts (uploaded by `ios-release-build`, 90 days) and the MSIX artifact names.
 
 ## `fst_release.py`
 
@@ -60,6 +62,9 @@ Builds, signing, TestFlight uploads and store submissions run only in GitHub-hos
 | `ios create-certificate --csr-file F --out C [--type DEVELOPMENT]` | Creates a certificate from a CSR and writes the public DER certificate; the private key never leaves whoever made the CSR. Run by `ios-signing-cert.yml` |
 | `ios beta-notes --build N (--notes-file F\|--notes-stdin) [--wait S]` | Sets the build's en-US TestFlight "What to Test" (≤4000), waiting up to `S` seconds for the build to appear |
 | `ios submit --build N (--notes-file F\|--notes-stdin) [--whats-new-baseline V\|none] [--dry-run]` | Refuses (exit 3) when any version or review submission is in review. After an App Review rejection it resubmits the still-open `UNRESOLVED_ISSUES` submission that owns the version instead of creating a new one (which fails with `ITEM_PART_OF_ANOTHER_SUBMISSION`); or with `refused:"stale_whats_new"` when a version newer than the baseline has been released since the build was made; requires a `VALID`, unexpired build; creates/reuses the editable version, sets en-US What's New, attaches the build, sets `releaseType` from `FST_APPSTORE_RELEASE_TYPE` (default `MANUAL`), creates/reuses a review submission, adds the item, `submitted=true`. `--dry-run` performs GETs only and prints the planned writes |
+| `ios submit … --replace` | Release train: a version in review or approved-but-unreleased is removed from review first (its review submission is PATCHed `canceled: true`, after which it is `DEVELOPER_REJECTED`; waits ≤180 s), then this build is submitted on the reused version (`replaced` in the result). The same build already in review is `refused:"already_submitted"`; a refused cancellation blocks (`cannot_cancel_review`). The build, baseline and notes are checked before anything is cancelled |
+| `ios build-for-version --version V` | `{version, build, found}`: the newest `VALID`, unexpired build of marketing version `V` (exit 3 when none) |
+| `ios release [--version V] [--dry-run]` | Releases the `PENDING_DEVELOPER_RELEASE` version (`POST appStoreVersionReleaseRequests`); `nothing_approved` when none, `version_mismatch` (exit 3) when `V` isn't the approved version |
 | `ios record-build --build N --version V --sha S` | Writes `~/.local/state/fst-release/builds.json` (`FST_RELEASE_LEDGER` overrides) |
 | `ios creds` | Prints key id/issuer/key path (never key material); exit 4 when missing |
 
@@ -147,16 +152,18 @@ Builds run for every `windows/v<YYMM.DD.NN>` tag that `version-bump` creates (ho
 
 `windows status --json` returns the shared status shape. `state` is the pending submission's status (or `Published`), `version` its package version, and `latest_build.build` = `version` = the newest successful master artifact (`processing_state` `VALID`, `PLACEHOLDER_IDENTITY` or `EXPIRED`). `released_sha` comes from the ledger (`WINDOWS`), falling back to artifact names. In review means a pending submission in `CommitStarted`, `PreProcessing`, `Certification`, `PendingPublication`, `Publishing` or `Release`.
 
-`windows submit --build V (--notes-file F|--notes-stdin) [--dry-run]`:
+`windows submit --build V (--notes-file F|--notes-stdin) [--replace] [--publish-at T] [--dry-run]` (`V` is an MSIX version or a `YYMM.DD.NN` release version):
 
-- Refuses (exit 3) while a submission is in review.
+- Refuses (exit 3) while a submission is in review, unless `--replace`: then it deletes that submission (`refused:"already_submitted"` when it carries `V`). The API has no "cancel certification", so the Store may refuse; that blocks with `cannot_cancel_<status>`.
 - Deletes a failed submission or one it created itself (`notesForCertification` starts with `[fst-release]`; no local state).
 - Blocks on a draft someone else is editing (`foreign_pending_submission`).
-- Requires `V` to be the latest valid artifact, and downloads it with `gh run download`.
-- Clones the last published submission, marks the old packages `PendingDelete`, adds the new one, and sets every listing's release notes (≤1500 characters), the certification notes and `targetPublishMode: Manual`.
+- Finds `V`'s artifact among the 20 newest successful builds (`build_artifact_not_found` otherwise), and downloads it with `gh run download`.
+- Clones the last published submission, marks the old packages `PendingDelete`, adds the new one, and sets every listing's release notes (≤1500 characters), the certification notes and `targetPublishMode: Manual`, or `SpecificDate` with `targetPublishDate` `T` (`--publish-at`).
 - Uploads the zip to the SAS URL, which is never printed, then commits.
 
-The mode is always **Manual** (there is no option): certification runs, and the package waits in `PendingPublication` until someone presses *Publish now*. That state counts as in review, so a newer build waits too.
+Without `--publish-at` the mode is **Manual**: certification runs, and the package waits in `PendingPublication` until someone presses *Publish now*. With it the Store publishes the certified package at `T` (or as soon as it is certified, when that is later). `PendingPublication` counts as in review, so a newer build waits unless `--replace`.
+
+`windows build-for-version --version V` finds the artifact (`{version, build, found}`); `windows release` reports `{released, state, version, publish_mode, scheduled}` and blocks with `manual_publish_required` when a certified Manual submission needs Partner Center.
 
 ## Service feature flags
 
