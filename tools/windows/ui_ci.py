@@ -353,6 +353,18 @@ RUNS: tuple[Run, ...] = (
         only="frrd-infinite-scroll-static"),
     Run("first-run-real-demos-no-transparency", "a11y-first-run-real-demos.json", sizes="compact",
         mode="no-transparency", only="frrd-infinite-scroll-no-transparency"),
+    # Songs live publication refresh (issue #616, load-transition R9): a loopback /api/ws pushes publication_changed and
+    # the filtered, Artist-sorted list refreshes in place with scores (no paused notice), Narrator hears "Loading new
+    # scores" once, focus parks on Songs search while the rows hide and returns to the first row, under app Reduce Motion
+    # and at 200% and 225% text too.
+    Run("songs-publication-refresh", "a11y-songs-publication-refresh.json", sizes="medium", tabs=0,
+        only="songs-publication-refresh"),
+    Run("songs-publication-refresh-reduced", "a11y-songs-publication-refresh.json", sizes="medium", mode="app-reduced",
+        tabs=0, only="songs-publication-refresh-modes"),
+    Run("songs-publication-refresh-text-200", "a11y-songs-publication-refresh.json", sizes="medium", mode="text-200",
+        tabs=0, only="songs-publication-refresh-modes"),
+    Run("songs-publication-refresh-text-225", "a11y-songs-publication-refresh.json", sizes="medium", mode="text-225",
+        tabs=0, only="songs-publication-refresh-modes"),
     # Full boards as one grouped card (issue #543): song board, Full Rankings, Band Rankings and the song band board rows
     # touch (0 epx), each stays one 40+ epx Button stop in visual order, rows -> pinned row -> pager, Up/Down and Tab.
     Run("grouped-boards", "a11y-grouped-boards.json", tabs=0),
