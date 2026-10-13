@@ -216,3 +216,28 @@ func bandBestWorstSongsSurviveAScrapeFreezeAfterTheyLoaded(reason: String) async
     #expect(FestivalAPI.scrapeFreezeFallback(ok("{}"), cached: entry, publicationId: 7) == nil)
     #expect(FestivalAPI.scrapeFreezeFallback(frozen(""), cached: entry, publicationId: 7) == nil)
 }
+
+/// Service #189 keeps one headerless per-publication row for band Best & Worst Songs
+/// (`combo`, `limit` 1–20) and band song rows (`combo`) and serves it during a scrape, so
+/// a band first opened in a freeze still loads. These reads must use exactly those query
+/// keys, or a native read misses the shared row.
+@Test(arguments: [nil, "03"] as [String?])
+func bandSongReadsMatchTheServiceSharedFreezeKey(combo: String?) throws {
+    let base = try #require(URL(string: "https://fixture.invalid"))
+    let songs = try PublicEndpoint.bandSongExtremes(
+        bandType: "Band_Duets", teamKey: "fixture-a:fixture-b", combo: combo, limit: 5
+    ).url(relativeTo: base)
+    let rows = try PublicEndpoint.bandSongRows(
+        bandType: "Band_Duets", teamKey: "fixture-a:fixture-b", combo: combo
+    ).url(relativeTo: base)
+    func keys(_ url: URL) -> Set<String> {
+        Set(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.map(\.name) ?? [])
+    }
+    #expect(Array(songs.pathComponents.dropFirst()) == ["api", "rankings", "bands", "Band_Duets", "fixture-a:fixture-b", "songs"])
+    #expect(Array(rows.pathComponents.dropFirst()) == ["api", "rankings", "bands", "Band_Duets", "fixture-a:fixture-b", "song-rows"])
+    #expect(keys(songs).isSubset(of: ["combo", "limit"]))
+    #expect(keys(rows).isSubset(of: ["combo"]))
+    let limit = URLComponents(url: songs, resolvingAgainstBaseURL: false)?
+        .queryItems?.first { $0.name == "limit" }?.value.flatMap(Int.init)
+    #expect(limit.map { (1...20).contains($0) } == true)
+}
