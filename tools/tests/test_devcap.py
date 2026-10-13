@@ -272,6 +272,36 @@ class CliTests(DevcapTestCase):
         self.assertIn("device-ABC: 1/1 held", text)
         self.assertIn("journey", text)
 
+    def test_shutdown_runs_after_the_command_inside_the_hold(self):
+        calls = []
+
+        def record(udids):
+            calls.append((list(udids), [h["purpose"] for h in Gate("simulator", self.root).holders()]))
+
+        with unittest.mock.patch.object(devcap, "shutdown_sims", record):
+            code = devcap.main(["run", "--sim", "abc", "--shutdown", "--purpose", "p", "--",
+                                sys.executable, "-c", "pass"])
+            devcap.main(["run", "--sim", "abc", "--", sys.executable, "-c", "pass"])
+        self.assertEqual(code, 0)
+        self.assertEqual(calls, [(["abc"], ["p"])])  # once, while the slot was still held
+
+    def test_shutdown_runs_when_the_hold_overruns(self):
+        calls = []
+        held = Hold(["simulator"], "x", wait_seconds=1, hold_seconds=0.2, root=self.root)
+        held.acquire()
+        with unittest.mock.patch.object(devcap.os, "_exit", lambda code: calls.append(code)):
+            code = devcap.run_command(held, [sys.executable, "-c", "import time; time.sleep(30)"],
+                                      cleanup=lambda: calls.append("shutdown"))
+            deadline = time.monotonic() + 10
+            while len(calls) < 2 and time.monotonic() < deadline:  # the watchdog finishes
+                time.sleep(0.05)
+        self.assertEqual(code, devcap.HOLD_TIMEOUT_EXIT)
+        self.assertEqual(calls, ["shutdown", devcap.HOLD_TIMEOUT_EXIT])
+
+    def test_shutdown_sims_survives_missing_xcrun(self):
+        with unittest.mock.patch.object(devcap.subprocess, "run", side_effect=FileNotFoundError):
+            devcap.shutdown_sims(["abc"])
+
     def test_slots_and_version(self):
         os.environ["DEVCAP_SLOTS_SIMULATOR"] = "2"
         self.assertIn("simulator=2", self.cli("slots").stdout)

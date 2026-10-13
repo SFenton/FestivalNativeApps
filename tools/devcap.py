@@ -52,8 +52,9 @@ Usage
 -----
 ::
 
-    # Run a command while holding a simulator (device + simulator slot).
-    python3 tools/devcap.py run --sim "$UDID" --purpose "uitest iphone" -- \\
+    # Run a command while holding a simulator (device + simulator slot), and
+    # shut the simulator down before the slot is released.
+    python3 tools/devcap.py run --sim "$UDID" --shutdown --purpose "uitest iphone" -- \\
         xcodebuild test-without-building ...
 
     # Compile under a build slot.
@@ -88,7 +89,7 @@ from typing import Callable, Iterable, Iterator, Sequence
 # region Configuration
 
 #: Bump when the on-disk layout or the CLI changes; vendored copies must match.
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 
 #: Exit code when a wait gives up (``EX_TEMPFAIL``).
 WAIT_TIMEOUT_EXIT = 75
@@ -649,11 +650,20 @@ def hold(pools: Sequence[str] = (), sims: Sequence[str] = (), devices: Sequence[
 # region CLI
 
 
-def run_command(held: Hold, command: list[str]) -> int:
+def shutdown_sims(udids: Sequence[str]) -> None:
+    """Shut simulators down (best effort), so they stop using memory once a hold ends."""
+    for udid in udids:
+        try:
+            subprocess.run(["xcrun", "simctl", "shutdown", udid], capture_output=True, timeout=120)
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+
+def run_command(held: Hold, command: list[str], cleanup: Callable[[], None] | None = None) -> int:
     """Run ``command`` in its own process group while ``held`` is held.
 
     SIGINT, SIGTERM and SIGHUP are forwarded to the whole group; a hold overrun
-    terminates it.
+    terminates it and then runs ``cleanup`` before the gates are released.
 
     Returns:
         The command's exit code: 128 + signal number when it was signalled,
@@ -678,12 +688,17 @@ def run_command(held: Hold, command: list[str]) -> int:
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             stop_group(getattr(signal, "SIGKILL", signal.SIGTERM))
+        if cleanup:
+            cleanup()
 
     held.on_overrun = kill_after_grace
-    if os.name != "nt":
-        for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
-            signal.signal(sig, lambda signum, _frame: stop_group(signum))
-    code = proc.wait()
+    forwarded = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP) if os.name != "nt" else ()
+    previous = {sig: signal.signal(sig, lambda signum, _frame: stop_group(signum)) for sig in forwarded}
+    try:
+        code = proc.wait()
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
     if held.overran:
         return HOLD_TIMEOUT_EXIT
     return 128 - code if code < 0 else code
@@ -705,9 +720,12 @@ def cmd_run(args: argparse.Namespace) -> int:
     except WaitTimeout as error:
         print(f"devcap: {error}", file=sys.stderr)
         return WAIT_TIMEOUT_EXIT
+    cleanup = (lambda: shutdown_sims(args.sim)) if args.shutdown and args.sim else None
     try:
-        return run_command(held, command)
+        return run_command(held, command, cleanup)
     finally:
+        if cleanup and not held.overran:
+            cleanup()
         held.release()
 
 
@@ -758,6 +776,8 @@ def build_parser() -> argparse.ArgumentParser:
                      help="simulator: its device gate plus a 'simulator' slot (repeatable)")
     run.add_argument("--device", action="append", default=[], metavar="UDID",
                      help="physical device: its device gate only (repeatable)")
+    run.add_argument("--shutdown", action="store_true",
+                     help="shut the --sim simulators down before releasing, even after a hold timeout")
     run.add_argument("--purpose", default="", help="what this hold is for (shown to waiters)")
     run.add_argument("--wait", type=float, default=DEFAULT_WAIT_SECONDS,
                      help=f"seconds to queue before exiting {WAIT_TIMEOUT_EXIT} (default %(default)s)")
