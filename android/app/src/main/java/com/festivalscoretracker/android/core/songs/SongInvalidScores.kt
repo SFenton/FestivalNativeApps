@@ -140,6 +140,34 @@ object InvalidScorePolicy {
         return legacy(score, raw)
     }
 
+    /**
+     * A wire score as Filter Invalid Scores leaves it: the raw score when valid, a copy
+     * carrying the substituted score, accuracy, FC, stars, filtered rank and filtered
+     * population when invalid with a fallback, or null when nothing valid remains.
+     *
+     * @param score Raw wire score.
+     * @param song Catalogue row (CHOpt maximum and population tiers).
+     * @param chart Chart.
+     * @param leeway Leeway percent.
+     * @param filteredRule Use web `filterPlayerScores` (R4: Song Details and Player Profile)
+     *   instead of the Songs substitution (R3, without Over CHOpt Threshold).
+     * @return The same instance when valid, a substituted copy, or null.
+     */
+    fun effectiveScore(score: PlayerScore, song: Song?, chart: Instrument, leeway: Double, filteredRule: Boolean): PlayerScore? {
+        val raw = SongScoreDetail(score.score.toLong(), score.accuracy, score.isFullCombo, score.stars, rank = score.rank, totalEntries = score.totalEntries)
+        val resolution = if (filteredRule) resolveFiltered(score, raw, song, chart, leeway) else resolve(score, raw, song, chart, leeway, showOverThreshold = false)
+        val detail = resolution.detail ?: return null
+        if (resolution.reason == null) return score
+        return score.copy(
+            score = detail.score.toInt(),
+            rawAccuracy = detail.accuracy?.div(1_000),
+            isFullCombo = detail.isFullCombo,
+            stars = detail.stars,
+            rank = detail.rank,
+            totalEntries = detail.totalEntries,
+        )
+    }
+
     private fun variant(score: PlayerScore, raw: SongScoreDetail, song: Song?, chart: Instrument, leeway: Double): InvalidScoreResolution {
         val fallback = score.validScores.orEmpty().firstOrNull { it.minLeeway <= leeway }
             ?: return InvalidScoreResolution(null, InvalidScoreReason.NoFallback)

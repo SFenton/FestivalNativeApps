@@ -3619,7 +3619,7 @@
       "title": "Invalid scores (Filter Invalid Scores)",
       "status": "current",
       "doc": ".agents/patterns/invalid-scores.md",
-      "summary": "With Settings > Filter Invalid Scores on and a player selected, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details uses the web's filterPlayerScores rule.",
+      "summary": "With Settings > Filter Invalid Scores on and a player selected, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details uses the web's filterPlayerScores rule. Player Profile and Statistics apply filterPlayerScores to any shown player's visible scores (web PlayerContent effectiveScores): every tile, percentile and Top Songs list uses effective scores; only the Over CHOpt Threshold tile counts raw scores above the ceiling.",
       "keywords": [
         "filter invalid scores",
         "invalid score",
@@ -3647,6 +3647,10 @@
         {
           "path": "pages/songs/modals/FilterModal.tsx",
           "symbol": "overThreshold"
+        },
+        {
+          "path": "pages/leaderboard/player/components/PlayerContent.tsx",
+          "symbol": "effectiveScores"
         }
       ],
       "canonical": {
@@ -3696,6 +3700,18 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt",
             "symbol": "InvalidScoreIcon"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt",
+            "symbol": "effectiveScore"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/profile/PlayerProfile.kt",
+            "symbol": "filtered"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/profile/PlayerProfileViewModel.kt",
+            "symbol": "effectiveProfile"
           }
         ],
         "windows": [
@@ -3737,7 +3753,9 @@
         "pages": [
           "songs",
           "song-detail",
-          "settings"
+          "settings",
+          "player-profile",
+          "statistics"
         ],
         "controls": [
           "songs-filter",

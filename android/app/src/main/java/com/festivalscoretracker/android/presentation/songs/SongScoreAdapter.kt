@@ -102,19 +102,8 @@ fun SelectedProfileState.songScoreSource(catalogPublication: Int?, current: Int?
  * @param leeway Leeway percent.
  * @return Effective score or null.
  */
-fun PlayerScore.effective(song: Song?, chart: Instrument, leeway: Double): PlayerScore? {
-    val resolution = InvalidScorePolicy.resolve(this, toSongDetail(), song, chart, leeway, showOverThreshold = false)
-    val detail = resolution.detail ?: return null
-    if (resolution.reason == null) return this
-    return copy(
-        score = detail.score.toInt(),
-        rawAccuracy = detail.accuracy?.div(1_000),
-        isFullCombo = detail.isFullCombo,
-        stars = detail.stars,
-        rank = detail.rank,
-        totalEntries = detail.totalEntries,
-    )
-}
+fun PlayerScore.effective(song: Song?, chart: Instrument, leeway: Double): PlayerScore? =
+    InvalidScorePolicy.effectiveScore(this, song, chart, leeway, filteredRule = false)
 
 private fun resolve(score: PlayerScore, songId: String, chart: Instrument, invalid: InvalidScoreContext?): InvalidScoreResolution {
     val raw = score.toSongDetail()

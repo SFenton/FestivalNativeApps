@@ -2,6 +2,8 @@ package com.festivalscoretracker.android.core.profile
 
 import com.festivalscoretracker.android.core.model.FestivalApiException
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.model.PopulationTiers
+import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
@@ -132,6 +134,82 @@ class PlayerProfileCoreTest {
         assertEquals("Top 1%: 1 song", bars.first().announcement)
         assertEquals("Top 5%: 2 songs", PercentileBar("Top 5%", 2, 1f, true).announcement)
         assertTrue(PercentileBar.build(emptyList()).isEmpty())
+    }
+
+    @Test
+    fun filteredProfileUsesWebFilterPlayerScoresForAnyPlayer() {
+        val lead = Instrument.Lead
+        val song = { id: String -> Song(id, id, "A", maxScores = mapOf(lead.wireId to 100_000)) }
+        val songs = mapOf(
+            "valid" to song("valid"),
+            "variant" to song("variant").copy(
+                populationTiers = mapOf(lead.wireId to PopulationTiers(400, doubleArrayOf(0.5), intArrayOf(450))),
+            ),
+            "legacy" to song("legacy"),
+            "dropped" to song("dropped"),
+            "variantNoMl" to song("variantNoMl"),
+        )
+        val code = PlayerInstrumentCode.encode(lead)
+        val rows = listOf(
+            PlayerScore("valid", code, 99_000, rank = 40, totalEntries = 500, minLeeway = 0.2),
+            // `ml` over the leeway: the first variant at the leeway, its filtered rank and the catalogue's filtered population.
+            PlayerScore(
+                "variant", code, 105_000, rawAccuracy = 100.0, isFullCombo = true, stars = 6, rank = 1, totalEntries = 500, minLeeway = 5.0,
+                validScores = listOf(
+                    PlayerValidScoreVariant(103_000, minLeeway = 3.0, rankTiers = listOf(PlayerRankTier(3.0, 2))),
+                    PlayerValidScoreVariant(100_500, rawAccuracy = 98.0, isFullCombo = false, stars = 5, minLeeway = 0.5, rankTiers = listOf(PlayerRankTier(0.5, 9), PlayerRankTier(1.0, 7))),
+                ),
+            ),
+            // No `ml`: the CHOpt ceiling decides and the legacy fields replace it.
+            PlayerScore("legacy", code, 120_000, rank = 2, totalEntries = 500, validScore = 99_500, validRank = 30, validTotalEntries = 480),
+            // `ml` over the leeway with no variant: dropped (web omits it).
+            PlayerScore("dropped", code, 110_000, rank = 3, totalEntries = 500, minLeeway = 9.0),
+            // No `ml`, over the ceiling, no legacy fallback: a `vs` array is ignored (R4), so it is dropped.
+            PlayerScore("variantNoMl", code, 130_000, rank = 4, totalEntries = 500, validScores = listOf(PlayerValidScoreVariant(90_000))),
+        )
+        val profile = PlayerProfileResponse(Fixtures.ACCOUNT_A, "Viewed", rows.size, rows)
+
+        assertTrue(PlayerStatistics.filtered(profile, songs, null) === profile)
+        val filtered = PlayerStatistics.filtered(profile, songs, 1.0)
+        assertEquals(listOf("valid", "variant", "legacy"), filtered.scores.map { it.songId })
+        assertEquals(3, filtered.totalScores)
+        assertTrue(filtered.scores[0] === rows[0])
+        with(filtered.scores[1]) {
+            assertEquals(100_500, score)
+            assertEquals(7, rank)
+            assertEquals(450, totalEntries)
+            assertEquals(98_000.0, accuracy!!, 0.0)
+            assertEquals(false, isFullCombo)
+            assertEquals(5, stars)
+        }
+        with(filtered.scores[2]) {
+            assertEquals(99_500, score)
+            assertEquals(30, rank)
+            assertEquals(480, totalEntries)
+        }
+        // Best Rank and percentiles come from the effective scores, not the raw rank 1.
+        val stats = PlayerStatistics.forInstrument(filtered, lead)
+        assertEquals(3, stats.songsPlayed)
+        assertEquals(7, stats.bestRank)
+        assertEquals("variant", stats.bestRankSongId)
+        assertEquals(1, PlayerStatistics.forInstrument(profile, lead).bestRank)
+        assertEquals(listOf(PlayerPercentileBucket(2, 1), PlayerPercentileBucket(10, 2)), PlayerStatistics.percentileBuckets(filtered, lead))
+        // A leeway that accepts every `ml` score keeps them raw; without `ml` the legacy row still exceeds its ceiling.
+        val wide = PlayerStatistics.filtered(profile, songs, 10.0)
+        assertEquals(listOf("valid", "variant", "legacy", "dropped"), wide.scores.map { it.songId })
+        assertTrue(wide.scores[1] === rows[1] && wide.scores[3] === rows[3])
+        assertEquals(99_500, wide.scores[2].score)
+    }
+
+    @Test
+    fun overThresholdCountUsesTheUnroundedCeilingNotMinLeeway() {
+        val lead = Instrument.Lead
+        val songs = mapOf("a" to Song("a", "A", "B", maxScores = mapOf(lead.wireId to 100_000)))
+        val code = PlayerInstrumentCode.encode(lead)
+        // 101,040 is over the 101,000 ceiling at 1.0 even though the service rounds its `ml` to 1.0 (R8).
+        val profile = PlayerProfileResponse(Fixtures.ACCOUNT_A, null, 1, listOf(PlayerScore("a", code, 101_040, minLeeway = 1.0)))
+        assertEquals(1, PlayerStatistics.overThresholdCount(profile, lead, songs, 1.0))
+        assertEquals(0, PlayerStatistics.overThresholdCount(profile, lead, songs, 1.1))
     }
 
     // endregion

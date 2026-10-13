@@ -63,7 +63,7 @@ class ProfileActionsTest {
     @After
     fun tearDown() = storeJob.cancel()
 
-    private val rows = listOf(
+    private var rows = listOf(
         ProfileFixtures.score("s-alpha", "01", fc = true, stars = 6, rank = 1, total = 200),
         ProfileFixtures.score("s-beta", "01", rank = 30, total = 200),
         ProfileFixtures.score("s-gamma", "02", rank = 9, total = 10),
@@ -127,13 +127,17 @@ class ProfileActionsTest {
         assertEquals("1", tile.value)
         assertEquals(StatTints.RED, tile.tint)
         assertEquals(PlayerTileAction.FilterSongs(SongsPreset.OverThreshold(Instrument.Lead)), tile.action)
-        // Web order: after FCs, before the star tiles. Bass (no maximum) gets no tile.
-        assertEquals(listOf("songs-played", "full-combos", "over-threshold"), lead().take(3).map { it.id })
+        // Web order: after Songs Played and FCs, before the star tiles. Alpha's invalid 90,000 has no
+        // fallback, so the filtered profile drops it and its FC (web `effectiveScores`); the tile counts raw.
+        assertEquals(listOf("songs-played", "over-threshold", "stars-5"), lead().take(3).map { it.id })
+        assertEquals("1", lead().first().value)
+        // Bass (no maximum) gets no tile.
         assertTrue(vm.state.value.instruments.first { it.instrument == Instrument.Bass }.stats.none { it.id == "over-threshold" })
-        // A leeway wide enough to accept the score drops the tile again.
+        // A leeway wide enough to accept the score drops the tile and restores the FC.
         settings.value = settings.value?.copy(leeway = 5.0)
         advanceUntilIdle()
         assertTrue(lead().none { it.id == "over-threshold" })
+        assertEquals(listOf("songs-played", "full-combos"), lead().take(2).map { it.id })
     }
 
     @Test
@@ -306,6 +310,59 @@ class ProfileActionsTest {
         assertNull(vm.bands.value)
         assertEquals(failedReads + 3, bandReads.size)
         assertTrue(bandReads.all { it.startsWith(Fixtures.ACCOUNT_A) })
+    }
+
+    @Test
+    fun filterInvalidScoresAppliesToViewedAndSelectedProfilesAlike() = runTest(main.dispatcher) {
+        // Issue #619: Alpha Lead's raw 105,000 (#1 of 200) is invalid below 5.0 leeway; its 99,000 variant
+        // is valid from 0.5 and ranks #12 there. Web `PlayerContent` filters any viewed player's scores.
+        leadMaximum = 100_000
+        rows = listOf(
+            """{"si":"s-alpha","ins":"01","sc":105000,"acc":1000,"fc":true,"st":6,"sn":9,"pct":-1,"rk":1,"te":200,"ml":5.0,""" +
+                """"vs":[{"sc":99000,"acc":980,"fc":false,"st":5,"ml":0.5,"rt":[{"l":0.5,"r":12}]}]}""",
+            ProfileFixtures.score("s-beta", "01", rank = 30, total = 200),
+            ProfileFixtures.score("s-gamma", "02", rank = 9, total = 10),
+        )
+        settings.value = AppSettings(filterInvalidScores = true, leeway = 1.0)
+        val viewed = viewModel(this, Fixtures.ACCOUNT_A)
+        advanceUntilIdle()
+        assertFalse(viewed.state.value.isSelected)
+        fun PlayerProfileViewModel.lead() = state.value.instruments.first { it.instrument == Instrument.Lead }
+        fun PlayerProfileViewModel.tile(id: String) = lead().stats.firstOrNull { it.id == id }?.value
+        fun PlayerProfileViewModel.overall(id: String) = state.value.overview.first { it.id == id }.value
+        fun PlayerProfileViewModel.buckets() = lead().percentiles.map { it.bucket.topPercent to it.bucket.count }
+
+        assertEquals("#12", viewed.tile("best-rank"))
+        assertEquals("#9", viewed.overall("best-rank"))
+        assertEquals("0", viewed.overall("gold-stars"))
+        assertNull(viewed.tile("full-combos"))
+        assertEquals(listOf(10 to 1, 15 to 1), viewed.buckets())
+        assertEquals(12, viewed.state.value.topSongs.first { it.instrument == Instrument.Lead }.top.first { it.songId == "s-alpha" }.rank)
+        // Over CHOpt Threshold still counts the raw score (web `rawByInstrument`).
+        assertEquals("1", viewed.tile("over-threshold"))
+
+        // The selected player's Statistics shows the same filtered figures for the same scores.
+        settings.value = settings.value?.copy(selectedPlayer = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"))
+        val statistics = viewModel(this, null)
+        advanceUntilIdle()
+        assertTrue(statistics.state.value.isSelected)
+        assertEquals(viewed.state.value.overview, statistics.state.value.overview)
+        assertEquals(viewed.state.value.instruments, statistics.state.value.instruments)
+
+        // Leeway and the setting re-resolve the open profile in place.
+        settings.value = settings.value?.copy(selectedPlayer = null, leeway = 0.4)
+        advanceUntilIdle()
+        assertEquals("#30", viewed.tile("best-rank"))
+        assertEquals(listOf(15 to 1), viewed.buckets())
+        settings.value = settings.value?.copy(leeway = 6.0)
+        advanceUntilIdle()
+        assertEquals("#1", viewed.tile("best-rank"))
+        settings.value = settings.value?.copy(leeway = 1.0, filterInvalidScores = false)
+        advanceUntilIdle()
+        assertEquals("#1", viewed.tile("best-rank"))
+        assertEquals("#1", viewed.overall("best-rank"))
+        assertEquals(listOf(1 to 1, 15 to 1), viewed.buckets())
+        assertNull(viewed.tile("over-threshold"))
     }
 
     @Test

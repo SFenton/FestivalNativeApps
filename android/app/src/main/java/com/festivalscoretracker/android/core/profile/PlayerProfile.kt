@@ -383,18 +383,41 @@ object PlayerStatistics {
     }
 
     /**
-     * Raw scores over the CHOpt threshold on one chart (web `overThresholdCount` client
-     * fallback: `score > 0 && !isScoreValid`). Player stats tiers are a blocked read, so
-     * natives always count from the profile.
+     * The scores the player page aggregates (web `PlayerContent` `effectiveScores` via
+     * `filterPlayerScores`, pattern invalid-scores R4) for any viewed player, selected or
+     * not: with Filter Invalid Scores on, each invalid score becomes its first `validScores`
+     * variant at the leeway (filtered rank and population), else the legacy `validScore`
+     * when it has no `minLeeway`, else it is dropped.
      *
-     * @param profile Player profile.
+     * @param profile Validated profile.
+     * @param songs Catalogue by ID (CHOpt maxima, population tiers).
+     * @param leeway Filter Invalid Scores leeway percent, or null when the setting is off.
+     * @return [profile] itself when off or nothing changed, else a copy with the effective scores.
+     */
+    fun filtered(profile: PlayerProfileResponse, songs: Map<String, Song>, leeway: Double?): PlayerProfileResponse {
+        if (leeway == null) return profile
+        var changed = false
+        val scores = profile.scores.mapNotNull { row ->
+            val chart = row.instrument ?: return@mapNotNull row
+            InvalidScorePolicy.effectiveScore(row, songs[row.songId], chart, leeway, filteredRule = true).also { if (it !== row) changed = true }
+        }
+        return if (changed) profile.copy(totalScores = scores.size, scores = scores) else profile
+    }
+
+    /**
+     * Raw scores over the CHOpt threshold on one chart (web `overThresholdCount` client
+     * fallback: `score > 0 && !isScoreValid`, the unrounded ceiling of pattern R8, never
+     * `minLeeway`). Player stats tiers are a blocked read, so natives always count from
+     * the unfiltered profile.
+     *
+     * @param profile Player profile (raw, not [filtered]).
      * @param instrument Chart.
      * @param songs Catalogue by ID (CHOpt maxima).
      * @param leeway Filter Invalid Scores leeway percent.
      * @return Count.
      */
     fun overThresholdCount(profile: PlayerProfileResponse, instrument: Instrument, songs: Map<String, Song>, leeway: Double): Int =
-        profile.scores.count { it.instrument == instrument && it.score > 0 && !InvalidScorePolicy.isValid(it, songs[it.songId], instrument, leeway) }
+        profile.scores.count { it.instrument == instrument && InvalidScorePolicy.exceedsCeiling(it.score.toLong(), songs[it.songId], instrument, leeway) }
 
     /**
      * One chart's summary.

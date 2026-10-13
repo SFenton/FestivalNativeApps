@@ -112,8 +112,9 @@ TalkBack (FST_Phone, `tools/android/talkback_walk.py`): Overview heading → til
 
 ## Gaps
 
-- **Over CHOpt Threshold** tile (web `overThresholdCount`): only while Filter Invalid Scores is on and the count is non-zero, after FCs, red; counted client-side from the profile and catalogue maxima (`PlayerStatistics.overThresholdCount`; the stats tiers the web prefers come from the blocked player-stats read). Tap → Songs on that chart with Over CHOpt Threshold checked, Score descending (`SongsPreset.OverThreshold`, web `instOverThresholdUpdater`).
+- **Over CHOpt Threshold** tile (web `overThresholdCount`): only while Filter Invalid Scores is on and the count is non-zero, after FCs, red; counted client-side from the raw (unfiltered) profile above the unrounded CHOpt ceiling ([invalid-scores](../../patterns/invalid-scores.md) R8, `PlayerStatistics.overThresholdCount`; the stats tiers the web prefers come from the blocked player-stats read). Tap → Songs on that chart with Over CHOpt Threshold checked, Score descending (`SongsPreset.OverThreshold`, web `instOverThresholdUpdater`).
+- With Filter Invalid Scores on, every other tile, percentile row, percentile tile and Top Songs list reads the effective scores of [invalid-scores](../../patterns/invalid-scores.md) R9 (web `PlayerContent` `effectiveScores`), for a viewed player and for the selected player's Statistics alike (#619). Changing the setting or leeway re-resolves the open page in place.
 - Best Rank tiles and top-song rows open Song Detail with the web `?instrument=` focus (`SongDetailRoute(songId, instrument)`).
 - No family (pad/pro strings/pro drums) Global Statistics cards: they need player-stats (blocked, [service-safety](../../platforms/service-safety.md)). The bands preview reads the keyless per-group list instead of player-stats (see Bands section).
-- Rank History has no instrument picker (each card is one chart) and no metric picker; stats ignore the invalid-score leeway filter (as before).
+- Rank History has no instrument picker (each card is one chart) and no metric picker.
 - Web behaviour was taken from source: the production web player page itself calls player-stats and sync-status, so it is not captured from the installed PWA.
