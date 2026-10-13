@@ -7,7 +7,7 @@ Machine-readable twin: [`contracts/patterns.json`](../../contracts/patterns.json
 ## How to use a pattern
 
 1. **Find it.** `python3 tools/pattern_guard.py index` lists every pattern, `python3 tools/pattern_guard.py which <path>` names the patterns owning a file, and `grep -l <keyword> .agents/patterns/*.md` searches the docs.
-2. **Obey the Rules block.** Each rule is numbered (`R1`…) so issues, PRs and reviews can cite it (`scroll-edge R3`).
+2. **Obey the Rules block.** Each rule is numbered (`R1`…) so issues, PRs and reviews can cite it (`scroll-edge R3`). A number holds exactly one rule: when resolving a merge, combine both copies into one rule, and give a new rule the next free number rather than reusing one (`check_docs.py` fails on a repeated number, #621).
 3. **Fix the pattern, not the instance.** Change the canonical component so every consumer gets the fix. A new local mechanism for a behavior a pattern already owns is a review failure unless the pattern doc records it as an approved variant.
 4. **Changing a rule is a design decision.** Decide and document it ([design-decision](../skills/design-decision/SKILL.md)), and update the doc and `patterns.json` in the same PR (`Agent decision (#n, date)`; the owner may override). Mark the old rule with `Supersedes:` and sweep every platform listed under *Canonical implementation*.
 5. **Known debt** lists the places that don't follow the rules yet. The guard allows them until they are fixed; never add new entries without a documented decision.
@@ -41,6 +41,7 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [stat-tile-grid](stat-tile-grid.md) | Profile and Band stat tile grids: a tile whose text would wrap in one slot spans two, one height for every tile, web order, wrap never truncate |
 | [invalid-scores](invalid-scores.md) | Filter Invalid Scores: effective (raw, valid fallback or none) player scores on Songs and Song Details, the row's invalid-score indicator and Filtered Score alert, Over CHOpt Threshold |
 | [settings-value-row](settings-value-row.md) | Read-only Settings title/value rows (Version, Service Info state): inline when it fits, otherwise the value stacks under the title |
+| [settings-toggle-row](settings-toggle-row.md) | Settings switches: the whole row is one switch element and touch target (44 pt / 56 dp), one flip per tap, disabled rows ignore taps; the Mac keeps the system switch |
 | [rival-rows](rival-rows.md) | Rivals rows: hub rival rows and song comparison rows, the shared red/green status pill and the song rows' album art |
 | [hinge-columns](hinge-columns.md) | Foldable book pose: grid and two-up row gutters on the fold, full-width titles kept on their side, flat layout when unfolded |
 | [wide-columns](wide-columns.md) | When rows and cards show two columns: wide landscape only (iPad, unfolded Duo, wide Mac), row-major under full-width headings, meeting at the Duo hinge; the page audit |

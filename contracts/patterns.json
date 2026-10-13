@@ -3453,6 +3453,84 @@
       ]
     },
     {
+      "id": "settings-toggle-row",
+      "title": "Settings toggle row",
+      "status": "current",
+      "doc": ".agents/patterns/settings-toggle-row.md",
+      "summary": "A Settings on/off row (title, description, disabled reason, trailing switch) is one switch element whose whole row is the touch target: at least 44 pt on iOS/iPadOS and 56 dp on Android, one flip per tap, no flip while disabled, applied once per platform so new switches inherit it. The Mac keeps the system switch at its control size.",
+      "keywords": [
+        "toggle",
+        "switch",
+        "toggle row",
+        "whole row",
+        "touch target",
+        "hit target",
+        "tap title",
+        "settings switch",
+        "disabled reason",
+        "toggleable"
+      ],
+      "web": [
+        {
+          "path": "components/common/ToggleRow.tsx",
+          "symbol": "ToggleRow"
+        },
+        {
+          "path": "pages/settings/SettingsPage.tsx",
+          "symbol": "ToggleRow"
+        },
+        {
+          "path": "components/modals/modalStyles.ts",
+          "symbol": "toggleRow"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsRowToggleStyle.swift",
+            "symbol": "SettingsRowToggleStyle"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsRowToggleStyle.swift",
+            "symbol": "settingsRowToggles"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/SettingsScreen.kt",
+            "symbol": "ToggleRow"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Pages/SettingsPage.xaml",
+            "symbol": "SettingSwitchStyle"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "settings-value-row",
+          "accordion"
+        ],
+        "pages": [
+          "settings"
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-switch-style",
+          "glob": "apple/Sources/FestivalUI/Features/Settings/**/*.swift",
+          "regex": "\\.toggleStyle\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/Settings/SettingsRowToggleStyle.swift"
+          ],
+          "debt": [],
+          "message": "Settings switches get their whole-row target from settingsRowToggles() at the page root; a per-switch toggleStyle would replace it (settings-toggle-row R1, R6)."
+        }
+      ]
+    },
+    {
       "id": "back-keeps-place",
       "title": "Back keeps place",
       "status": "current",
@@ -3698,6 +3776,14 @@
           {
             "path": "apple/Sources/FestivalCore/SongPlayerScoreFilter.swift",
             "symbol": "overThreshold"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/PlayerProfile.swift",
+            "symbol": "filteringInvalidScores"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerProfileContent.swift",
+            "symbol": "effective"
           }
         ],
         "android": [

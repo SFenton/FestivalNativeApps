@@ -128,6 +128,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 "sysset" => SysSet(request),
                 "scan" => Scan(FindWindow(request), (string)request["out"]!, (string?)request["scanid"] ?? "scan"),
                 "ellipsis" => Ellipsis((string)request["image"]!, request["rect"]?.AsArray()),
+                "transient" => Transient((string)request["kind"]!, (int?)(long?)request["hresult"]),
                 _ => throw new ArgumentException($"unknown command {command}"),
             };
         }
@@ -266,23 +267,72 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         foreach (var (key, value) in request["env"]?.AsObject() ?? []) start.Environment[key] = (string?)value;
         var process = Process.Start(start) ?? throw new InvalidOperationException("process did not start");
         var timeout = TimeSpan.FromSeconds((double?)request["timeout"] ?? 30);
-        var window = WaitForWindow(process.Id, timeout)
-            ?? throw new TimeoutException($"no top-level window for pid {process.Id} within {timeout.TotalSeconds}s");
+        Window? window;
+        try
+        {
+            window = WaitForWindow(process.Id, timeout);
+        }
+        catch
+        {
+            StopLaunched(process);
+            throw;
+        }
+        if (window is null)
+        {
+            StopLaunched(process);
+            throw new TimeoutException($"no top-level window for pid {process.Id} within {timeout.TotalSeconds}s");
+        }
         var result = Describe(window).AsObject();
         result["pid"] = process.Id;
         return result;
     }
 
+    /// <summary>
+    /// Ends an app this request launched but could not attach to, so a failed launch leaves no stray instance for the
+    /// next page (the caller never learns its pid and cannot close it).
+    /// </summary>
+    /// <param name="process">The launched process.</param>
+    private static void StopLaunched(Process process)
+    {
+        try
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+        }
+        catch (Exception error) when (error is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            // It exited on its own, or can't be ended; the launch error is what the caller needs.
+        }
+    }
+
+    /// <summary>
+    /// Polls for the process's largest visible top-level window. A freshly launched app, or a busy desktop, can time
+    /// out one UIA call (0x80131505) or drop a window mid-search; like <see cref="Find"/> (#552) the search runs again
+    /// within the timeout, at least once (#618: a launch failed on one timed-out desktop search).
+    /// </summary>
+    /// <param name="pid">App process ID.</param>
+    /// <param name="timeout">How long to poll.</param>
+    /// <returns>The window, or <see langword="null"/> when none appeared.</returns>
+    /// <exception cref="Exception">The last search's transient UIA error, when it persists to the timeout.</exception>
     private Window? WaitForWindow(int pid, TimeSpan timeout)
     {
         var until = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < until)
+        var retried = false;
+        while (true)
         {
-            var window = TopWindow(pid);
-            if (window is not null) return window;
+            try
+            {
+                var window = TopWindow(pid);
+                if (window is not null) return window;
+            }
+            catch (Exception error) when (IsTransientUia(error) && (!retried || DateTime.UtcNow < until))
+            {
+                retried = true;
+                Thread.Sleep(250);
+                continue;
+            }
+            if (DateTime.UtcNow >= until) return null;
             Thread.Sleep(250);
         }
-        return null;
     }
 
     private Window? TopWindow(int pid)
@@ -1430,11 +1480,39 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         }
     }
 
+    /// <summary>HRESULT of a UIA call that timed out (<c>UIA_E_TIMEOUT</c>, the same value as <c>COR_E_TIMEOUT</c>).</summary>
+    internal const int UiaTimeoutHResult = unchecked((int)0x80131505);
+
     /// <summary>Whether a UI Automation error is a passing provider state worth searching again for.</summary>
     /// <param name="error">The error a UIA call threw.</param>
-    /// <returns>True for a UIA call timeout (<c>UIA_E_TIMEOUT</c>, 0x80131505) or an element that went away.</returns>
+    /// <returns>
+    /// True for a UIA call timeout (<c>UIA_E_TIMEOUT</c>, 0x80131505), whether .NET mapped it to a
+    /// <see cref="TimeoutException"/> or FlaUI's <c>FindAll</c> let it through as a raw <see cref="COMException"/>
+    /// (#622), or for an element that went away. Any other <see cref="COMException"/> is not transient.
+    /// </returns>
     internal static bool IsTransientUia(Exception error) =>
-        error is TimeoutException or FlaUI.Core.Exceptions.ElementNotAvailableException;
+        error is TimeoutException or FlaUI.Core.Exceptions.ElementNotAvailableException
+            or COMException { HResult: UiaTimeoutHResult };
+
+    /// <summary>
+    /// Offline check of <see cref="IsTransientUia"/> for a synthetic error (the <c>transient</c> command), so tests can
+    /// pin which UIA failures the step retries without a live provider.
+    /// </summary>
+    /// <param name="kind"><c>com</c>, <c>timeout</c>, <c>element-not-available</c> or <c>invalid-operation</c>.</param>
+    /// <param name="hresult">The <c>com</c> error's HRESULT.</param>
+    /// <returns><c>transient</c>: whether a step searches again after this error.</returns>
+    private static JsonNode Transient(string kind, int? hresult)
+    {
+        Exception error = kind switch
+        {
+            "com" => new COMException("synthetic UIA error", hresult ?? throw new ArgumentException("com needs hresult")),
+            "timeout" => new TimeoutException(),
+            "element-not-available" => new FlaUI.Core.Exceptions.ElementNotAvailableException(),
+            "invalid-operation" => new InvalidOperationException(),
+            _ => throw new ArgumentException($"unknown error kind {kind}"),
+        };
+        return new JsonObject { ["transient"] = IsTransientUia(error) };
+    }
 
     /// <summary>
     /// Waits until the step's element is on screen with exactly the step's UIA Name; each <c>*</c> in the text matches

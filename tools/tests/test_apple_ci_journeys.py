@@ -8,9 +8,11 @@ the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape)
 and the drawer's Reduce Motion and closing journeys (#489, iPhone only); ``HISTORY_JOURNEYS``/``HISTORY_IPAD_JOURNEYS``
 (iPad bundle, on the iPhone and the iPad) must keep the Score History AX5 journeys (#385, the region #302 changed);
 ``PLAIN_JOURNEYS`` (iPhone bundle, on the iPhone in the plain-fixture step) must keep the Filter Invalid Scores score-check
-journey (#615) and the Songs deselect-reset accessibility journeys (#487, the region #359 changed); ``UNPINNED_JOURNEYS`` (iPhone bundle, on its own unpinned listener) must keep the player
-profile's pause-notice AX5 journey (#446, the region #97 changed). The Songs Filter journeys (#432) must run on
-the iPhone, the iPad and the folded iPhone Duo on release-branch dispatches, gated by the required ``apple-ci`` job.
+journey (#615) and the Songs deselect-reset accessibility journeys (#487, the region #359 changed); ``UNPINNED_JOURNEYS``
+(iPhone bundle, on its own unpinned listener) must keep the player profile's pause-notice AX5 journey (#446, the region
+#97 changed); ``RIVAL_JOURNEYS`` (iPhone bundle, on an iPad, an iPhone and a folded iPhone Duo) must keep the Rival
+Detail frozen-state journeys (#444, the region #95 changed). The Songs Filter journeys (#432) must run on the iPhone,
+the iPad and the folded iPhone Duo on release-branch dispatches, gated by the required ``apple-ci`` job.
 The scroll-edge fade journeys (#462: the sheet header and every R9 board on the iPhone and the iPad, the Duo windows
 on the iPhone; ``SCROLL_EDGE_JOURNEYS``/``SCROLL_EDGE_IPAD_JOURNEYS``) run in their own gated job, likewise.
 """
@@ -41,6 +43,7 @@ BLOCKS = {
     "HISTORY_JOURNEYS": IPAD_UITESTS,
     "HISTORY_IPAD_JOURNEYS": IPAD_UITESTS,
     "UNPINNED_JOURNEYS": UITESTS,
+    "RIVAL_JOURNEYS": UITESTS,
     "SCROLL_EDGE_JOURNEYS": UITESTS,
     "SCROLL_EDGE_IPAD_JOURNEYS": UITESTS,
 }
@@ -290,9 +293,9 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split, board, band, cards, split_band])
         self.assertEqual(self.workflow.count("uitest --app ipad"), 2)
         # iPhone journeys, the unpinned profile-notice run (#446), two Score History runs, the plain-fixture iPhone run
-        # (#615), the iPad journeys, the iPad keyboard batches (#473, #442), the Songs Filter legs (#432) and the
-        # scroll-edge job's iPhone and iPad runs (#462).
-        self.assertEqual(self.workflow.count("--fail-on-skip"), 11)
+        # (#615), the iPad journeys, the iPad keyboard batches (#473, #442), the Rival Detail device loop (#444), the
+        # Songs Filter legs (#432) and the scroll-edge job's iPhone and iPad runs (#462).
+        self.assertEqual(self.workflow.count("--fail-on-skip"), 12)
 
     def test_split_band_journey_runs_on_the_ipad(self) -> None:
         # #480: the iPad's split band (#344) at AX5 under Increase Contrast, with Close's 44 pt hit region.
@@ -340,6 +343,35 @@ class AppleCIJourneysTests(unittest.TestCase):
             "            --timeout 900 --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter",
             self.workflow,
         )
+
+    def test_ipad_whats_new_batches_outlast_a_cold_simulator(self) -> None:
+        # The first iPad batch runs on a just-created simulator: >900 s on slow runners (runs 37924278904, 37942308616).
+        step = self.workflow.split("name: iPad simulator journeys", 1)[1].split("\n      - name:", 1)[0]
+        timeout = re.search(r"--batch-size 1 --fail-on-skip --timeout (\d+)", step)
+        self.assertIsNotNone(timeout, "iPad step runs one selector per batch with a timeout")
+        self.assertGreaterEqual(int(timeout.group(1)), 1500)
+
+    def test_rival_detail_frozen_journeys_run_on_every_touch_form_factor(self) -> None:
+        # #444: the only device evidence for Rival Detail's frozen-service state (#95) on iPhone, iPad and Duo.
+        sys.path.insert(0, str(ROOT / "tools"))
+        import ios_sim
+
+        rivals = ci_journeys(self.workflow, "RIVAL_JOURNEYS")
+        for method in (
+            "testFrozenRivalDetailNamesOrdersSizesAndGrowsItsRows",
+            "testFrozenRivalDetailWithoutSnapshotOffersRetry",
+        ):
+            self.assertIn(f"RivalDetailFrozenAccessibilityJourneyTests/{method}", rivals)
+        for device in (f'"{ios_sim.CI_IPAD_DEVICE_TYPE}|"', f'"{ios_sim.CI_DEVICE_TYPE}|"', '"iPhone Duo|folded"'):
+            self.assertIn(device, self.workflow)
+        step = self.workflow.split("name: Rival Detail accessibility journeys", 1)[1].split("\n      - name:", 1)[0]
+        condition = re.search(r"\n        if: (.+)", step)
+        self.assertIsNotNone(condition, "the step has a condition")
+        for clause in ("github.event_name == 'workflow_dispatch'", "!cancelled()", "steps.unit.outcome == 'success'"):
+            # Release-train only, like the other journeys; an earlier journey step's failure must not skip it,
+            # but a failed build or unit-test step does.
+            self.assertIn(clause, condition.group(1))
+        self.assertIn("\n        id: unit\n", self.workflow.split("name: Swift unit tests", 1)[1].split("\n      - name:", 1)[0])
 
     def test_page_tools_keyboard_journey_runs_in_ci(self) -> None:
         # #442 (for #89): hardware-keyboard focus on Songs' page tools, its own --a11y invocation.

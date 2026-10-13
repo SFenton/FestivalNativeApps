@@ -529,7 +529,7 @@ public static class RivalDetailText
     public static string Subtitle(RivalScope? scope, IReadOnlyList<Instrument> visible) =>
         scope?.Resolve(visible) is { SingleInstrument: not null } single ? single.ListTitle : "Rivals";
 
-    /// <summary>The decorative icon leading <see cref="Subtitle"/> (page-tools-and-nav-chrome R18).</summary>
+    /// <summary>The decorative icon leading <see cref="Subtitle"/> (page-tools-and-nav-chrome R23).</summary>
     /// <param name="scope">Route scope (<see langword="null"/> = every visible chart).</param>
     /// <param name="visible">Settings-visible charts.</param>
     /// <returns>The chart's icon file, or empty when the scope spans several charts.</returns>

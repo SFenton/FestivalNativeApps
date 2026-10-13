@@ -41,7 +41,7 @@
                            AutomationProperties.HeadingLevel="Level1" AutomationProperties.AutomationId="fst.rival-detail.title" />
                 <!-- Subtitle (#604): "Rivals", or "{icon} {Instrument} Rivals" for a single-instrument scope. The icon is
                      decorative (Raw) and sized to the body line like SongLeaderboardHeader's board line, so Narrator
-                     reads the subtitle once (page-tools-and-nav-chrome R18). The gap is the icon's margin, not ColumnSpacing, so plain
+                     reads the subtitle once (page-tools-and-nav-chrome R23). The gap is the icon's margin, not ColumnSpacing, so plain
                      "Rivals" stays aligned with the title when the icon is collapsed. -->
                 <Grid>
                     <Grid.ColumnDefinitions>
