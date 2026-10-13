@@ -4,7 +4,9 @@ import XCTest
 /// Accessibility at the largest text size for Full Rankings' pinned player footer on the
 /// player's own page (issue #466, for #318). #318 kept the selected player's row pinned
 /// above the pager even when the page shows it, where the footer opens Statistics
-/// (`RankingSpotlight.pinnedFooter`, leaderboard-row R5/R7). macOS has no Dynamic Type,
+/// (`RankingSpotlight.pinnedFooter`, leaderboard-row R5/R7). Since #386 (R12) a footer
+/// that would cover more than a third of the board at AX5 follows the rows instead, as it
+/// does on an iPhone: the journey then scrolls to it (#620). macOS has no Dynamic Type,
 /// so the hosted `FullRankingsFooterAccessibilityTests` check the stacked layout only;
 /// this journey opens Lead Full Rankings at AX5 with `fixture-player-1` (rank 1 of 3, the
 /// only page) and checks the footer is one named 44 pt button on screen whose text grew,
@@ -27,8 +29,10 @@ final class FullRankingsFooterJourneyTests: XCTestCase {
 
     // MARK: - Journey
 
-    /// At AX5 on the player's own page the footer stays pinned, named, full size and in
-    /// reading order between the rows and the pager; the audit passes; it opens Statistics.
+    /// At AX5 on the player's own page the footer is pinned, or follows the rows when it is
+    /// too tall to pin (R12); either way it is named, full size, on screen above the pager
+    /// and in reading order between the rows and the pager; the audit passes; it opens
+    /// Statistics.
     @MainActor
     func testFooterOnThePlayersPageIsAccessibleAtLargestText() throws {
         continueAfterFailure = false
@@ -41,9 +45,29 @@ final class FullRankingsFooterJourneyTests: XCTestCase {
         XCTAssertEqual(ownRow.label, "Your rank, 1st. Fixture Player 1.", "The page's own row")
 
         let footer = app.buttons[Self.openID]
-        XCTAssertTrue(footer.waitForExistence(timeout: FestivalApp.budget(10)), "No pinned footer on the player's page")
+        XCTAssertTrue(footer.waitForExistence(timeout: FestivalApp.budget(10)), "No footer on the player's page")
         XCTAssertEqual(footer.label, Self.openLabel)
         XCTAssertFalse(app.descendants(matching: .any)[Self.jumpID].exists, "One footer action at a time")
+        let info = app.descendants(matching: .any)[Self.pageInfo]
+        XCTAssertTrue(info.exists, "No page badge")
+        // The footer pins until it is measured, then follows the rows if it is too tall (R12).
+        let unpinned = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in !footer.isHittable }, object: nil
+        )
+        if XCTWaiter().wait(for: [unpinned], timeout: FestivalApp.budget(3)) == .completed {
+            scrollToFooter(footer, above: info, in: app, window: window)
+            let rowsBottom = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "identifier BEGINSWITH %@", Self.rowPrefix))
+                .allElementsBoundByIndex.map(\.frame.maxY).max()
+            let bottom = try XCTUnwrap(rowsBottom, "No row is realized at the page's end")
+            XCTAssertGreaterThanOrEqual(
+                footer.frame.minY, bottom - 0.5, "The unpinned footer does not follow the rows: \(footer.frame) vs \(bottom)"
+            )
+        } else {
+            XCTAssertLessThanOrEqual(
+                footer.frame.height, window.height / 3, "A pinned footer covers over a third of the board (R12): \(footer.frame)"
+            )
+        }
         XCTAssertTrue(footer.isHittable, "The footer is not reachable")
         XCTAssertTrue(window.contains(footer.frame), "The footer is off screen: \(footer.frame)")
         XCTAssertGreaterThanOrEqual(footer.frame.height, Self.minimumTarget - 0.5, "Footer target \(footer.frame)")
@@ -54,8 +78,6 @@ final class FullRankingsFooterJourneyTests: XCTestCase {
         ).lineHeight
         XCTAssertGreaterThanOrEqual(footer.frame.height, bodyLine * 2, "Footer not at AX5: \(footer.frame)")
 
-        let info = app.descendants(matching: .any)[Self.pageInfo]
-        XCTAssertTrue(info.exists, "No page badge")
         XCTAssertEqual(info.value as? String, "1 of 1")
         XCTAssertLessThanOrEqual(footer.frame.maxY, info.frame.minY + 0.5, "The footer rests above the pager")
         XCTAssertTrue(window.contains(info.frame), "The pager is off screen: \(info.frame)")
@@ -106,6 +128,29 @@ final class FullRankingsFooterJourneyTests: XCTestCase {
     }
 
     // MARK: - Helpers
+
+    /// Flick the rows up until the footer that follows them rests whole on screen above
+    /// the pager.
+    ///
+    /// - Parameters:
+    ///   - footer: The footer's Open button.
+    ///   - info: The pager's page badge.
+    ///   - app: The running app.
+    ///   - window: The app window's frame.
+    @MainActor
+    private func scrollToFooter(_ footer: XCUIElement, above info: XCUIElement, in app: XCUIApplication, window: CGRect) {
+        let origin = app.windows.firstMatch.coordinate(withNormalizedOffset: .zero)
+        let startY = info.frame.minY - 16
+        let distance = min(window.height * 0.3, max(startY - window.minY - 160, 60))
+        for _ in 0..<12 {
+            if footer.isHittable, window.contains(footer.frame), footer.frame.maxY <= info.frame.minY + 0.5 { return }
+            let start = origin.withOffset(CGVector(dx: window.midX - window.minX, dy: startY - window.minY))
+            start.press(
+                forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -distance)),
+                withVelocity: .fast, thenHoldForDuration: 0
+            )
+        }
+    }
 
     /// Launch Lead Full Rankings at AX5 with `fixture-player-1` selected, against the fixture.
     ///
