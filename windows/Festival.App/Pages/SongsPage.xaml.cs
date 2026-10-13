@@ -110,6 +110,7 @@ public sealed partial class SongsPage : Page, IPageBack
         ViewModel = new SongsViewModel(App.Session);
         InitializeComponent();
         ViewModel.PropertyChanged += OnViewModelChanged;
+        ViewModel.PublicationSwap.ContentRevealed += OnPublicationRefreshRevealed;
         ScreenReader.Attach(this, [ViewModel], () => ViewModel.IsLoading,
             () => ViewModel.ShowList || ViewModel.ShowEmpty ? ViewModel.CountText : null, "Loading songs");
         Loaded += (_, _) => UpdateButtonTints();
@@ -215,7 +216,59 @@ public sealed partial class SongsPage : Page, IPageBack
             case nameof(SongsViewModel.IsSortChanged) or nameof(SongsViewModel.IsFilterActive):
                 UpdateButtonTints();
                 break;
+            case nameof(SongsViewModel.IsPublicationRefreshing) when ViewModel.IsPublicationRefreshing:
+                BeginPublicationRefresh();
+                break;
         }
+    }
+
+    /// <summary>Keyboard focus the publication refresh moved off the hidden list, to return when it reveals.</summary>
+    private Control? refreshFocusHolder;
+
+    /// <summary>
+    /// A new publication refreshes the list in place (load-transition R9, issue #616): it fades with the motion policy,
+    /// Narrator hears "Loading new scores", and keyboard focus inside the list (which the gate disables while hidden)
+    /// moves one step up to the search box rather than falling to the window.
+    /// </summary>
+    private void BeginPublicationRefresh()
+    {
+        ViewModel.AnimatePublicationRefresh = Motion.Allowed;
+        if (!IsLoaded || XamlRoot is null) return;
+        ScreenReader.Announce(this, new Announcement(SongsViewModel.PublicationRefreshText, AnnouncementKind.Progress));
+        refreshFocusHolder = null;
+        if (FocusManager.GetFocusedElement(XamlRoot) is DependencyObject focused && IsWithin(focused, PublicationGate) &&
+            SearchBox.Focus(FocusState.Programmatic))
+            refreshFocusHolder = SearchBox;
+    }
+
+    /// <summary>Returns keyboard focus to the list after a refresh moved it, unless the user has moved it since.</summary>
+    /// <param name="sender">Swap.</param>
+    /// <param name="e">Unused.</param>
+    private void OnPublicationRefreshRevealed(object? sender, EventArgs e)
+    {
+        var holder = refreshFocusHolder;
+        refreshFocusHolder = null;
+        if (holder is null || !IsLoaded || XamlRoot is null || !ViewModel.ShowList) return;
+        if (FocusManager.GetFocusedElement(XamlRoot) is not DependencyObject focused || !IsWithin(focused, holder)) return;
+        // The commit just rebound the rows: focus once they are realized, or the list has nothing to take it.
+        void Realized(object? _, object __)
+        {
+            SongList.LayoutUpdated -= Realized;
+            if (XamlRoot is not null && FocusManager.GetFocusedElement(XamlRoot) is DependencyObject now && IsWithin(now, holder))
+                SongList.Focus(FocusState.Keyboard);
+        }
+        SongList.LayoutUpdated += Realized;
+    }
+
+    /// <summary>Whether <paramref name="element"/> is <paramref name="ancestor"/> or inside it.</summary>
+    /// <param name="element">Element.</param>
+    /// <param name="ancestor">Possible ancestor.</param>
+    /// <returns>Whether it is within.</returns>
+    private static bool IsWithin(DependencyObject element, DependencyObject ancestor)
+    {
+        for (DependencyObject? node = element; node is not null; node = VisualTreeHelper.GetParent(node))
+            if (ReferenceEquals(node, ancestor)) return true;
+        return false;
     }
 
     /// <summary>Rebuilds the grouped source and the sticky header's section offsets.</summary>

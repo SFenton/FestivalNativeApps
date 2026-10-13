@@ -40,12 +40,15 @@ extension View {
     /// shape, Return as well as Space, and the hover tint (issue #461); iPhone and iPad
     /// keep the plain style. Then the page margins and one container identifier.
     ///
-    /// - Parameter identifier: The footer container's identifier
-    ///   (`fst.<board>.spotlight-footer`).
+    /// - Parameters:
+    ///   - identifier: The footer container's identifier
+    ///     (`fst.<board>.spotlight-footer`).
+    ///   - horizontalPadding: 16 pinned; 0 when the row follows the rows at accessibility
+    ///     text sizes (R12), where the page already insets it.
     /// - Returns: The styled footer.
-    func pinnedFooterControl(identifier: String) -> some View {
+    func pinnedFooterControl(identifier: String, horizontalPadding: CGFloat = 16) -> some View {
         festivalRowButtonStyle()
-            .padding(.horizontal, 16)
+            .padding(.horizontal, horizontalPadding)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier(identifier)
     }
@@ -141,5 +144,18 @@ struct PinnedFooterBacking: ViewModifier {
                     .fill(BrandTokens.appBackground)
             }
         }
+    }
+}
+
+// MARK: - Pinned placement
+
+extension View {
+    /// Report the selected row's height wherever the board draws it (pinned above the
+    /// pager or after the rows), for ``SelectedRowPinning`` (leaderboard-row R12, #386).
+    ///
+    /// - Parameter height: Receives the row's height.
+    /// - Returns: The row, measured.
+    func reportsSelectedRowHeight(_ height: Binding<CGFloat>) -> some View {
+        onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height.wrappedValue = $0 }
     }
 }

@@ -23,8 +23,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -71,6 +73,8 @@ data class RankingsReads(
  *   survives turning the setting off and on (experimental-ranks R2).
  * @param persistRankBy Persist a new metric.
  * @param backoff Shared retry backoff.
+ * @param publications Observed publication stream (`FestivalApi.publicationChanges`): a newer
+ *   generation re-reads every card in place, content kept (issue #616, load-transition R9).
  */
 class LeaderboardsViewModel(
     private val reads: RankingsReads,
@@ -78,6 +82,7 @@ class LeaderboardsViewModel(
     rankBy: Flow<RankingMetric>,
     private val persistRankBy: suspend (RankingMetric) -> Unit,
     private val backoff: ServiceRetryBackoff,
+    publications: Flow<Int?> = flowOf(null),
 ) : ViewModel() {
     private val permits = Semaphore(MAX_CONCURRENT)
     private val metricFlow = MutableStateFlow(RankingMetric.DEFAULT)
@@ -127,6 +132,11 @@ class LeaderboardsViewModel(
                     current.experimentalRanks,
                 )
             }.distinctUntilChanged().collect(::apply)
+        }
+        viewModelScope.launch {
+            publications.filterNotNull().distinctUntilChanged().drop(1).collect {
+                (cards.values + bands.values + spotlights.values + histories.values).forEach { it.catchUp() }
+            }
         }
     }
 
