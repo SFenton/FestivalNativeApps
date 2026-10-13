@@ -245,7 +245,8 @@ class UitestDiagnosticsTests(unittest.TestCase):
     def run_batch(self, **kwargs):
         with TemporaryDirectory() as tmp, \
                 unittest.mock.patch.object(ios_sim, "LOCK_PATH", Path(tmp) / "sim.lock"), \
-                unittest.mock.patch.dict(ios_sim.os.environ, {"DEVCAP_DIR": tmp}), \
+                unittest.mock.patch.dict(ios_sim.os.environ, {"DEVCAP_DIR": tmp, "DEVCAP_HUB": "off",
+                                                            "DEVCAP_REAP_GRACE": "off"}), \
                 unittest.mock.patch.object(ios_sim, "_run") as run, \
                 unittest.mock.patch.object(ios_sim, "boot_exclusive"), \
                 unittest.mock.patch.object(ios_sim.subprocess, "run") as xcodebuild:
@@ -254,7 +255,8 @@ class UitestDiagnosticsTests(unittest.TestCase):
             ios_sim._run_uitest_batch(
                 udid="UDID", derived=Path(tmp), selectors=["Journey"], timeout=5, **kwargs
             )
-        return xcodebuild.call_args.args[0]
+        # The last subprocess call can be devcap's simulator sweep; return the xcodebuild run.
+        return next(c.args[0] for c in reversed(xcodebuild.call_args_list) if "xcodebuild" in c.args[0])
 
     def test_collects_diagnostics_by_default(self):
         self.assertNotIn("-collect-test-diagnostics", self.run_batch())
