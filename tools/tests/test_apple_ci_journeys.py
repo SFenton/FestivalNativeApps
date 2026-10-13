@@ -349,6 +349,13 @@ class AppleCIJourneysTests(unittest.TestCase):
         source = (ROOT / "apple/Apps/iOSUITests/GlobalSearchJourneyTests.swift").read_text()
         self.assertIn('environment["FST_FIXTURE_URL"]', source)
 
+    def test_search_spinner_journey_runs_on_the_plain_fixture(self) -> None:
+        # #624: the only iPhone-device evidence that Search's spinner is one named native busy indicator centred in
+        # the result region (load-transition R13). It needs the fixture's delayed `slowpoke` account search.
+        journey = "GlobalSearchJourneyTests/testSearchingSpinnerIsCentredBelowScopeBar"
+        self.assertIn(journey, ci_journeys(self.workflow, "PLAIN_JOURNEYS"))
+        self.assertNotIn(journey, self.journeys)
+
     def test_board_footer_fade_keyboard_journey_runs_in_ci(self) -> None:
         # #473: the iPad hardware-keyboard form needs its own invocation, because --a11y applies to a whole run.
         self.assertIn(
