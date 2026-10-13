@@ -25,6 +25,7 @@ _APP = _REPO / "windows" / "Festival.App"
 _CALLERS = {
     "Controls/FeedbackDialog.cs": ("modal-feedback-bug", "modal-feedback-feature"),
     "Controls/FirstRunCarousel.xaml.cs": ("modal-first-run",),
+    "Controls/InvalidScoreIndicator.cs": ("modal-invalid-score",),
     "Controls/PlayerProfileView.xaml.cs": ("modal-profile-switch", "modal-profile-deselect"),
     "Controls/PrivacyPolicyDialog.cs": ("modal-privacy-policy",),
     "Controls/SongPathsView.xaml.cs": ("modal-paths", "modal-paths-warning"),
@@ -44,13 +45,13 @@ def _steps(page: dict) -> list[str]:
 
 
 def _close(page: dict) -> str:
-    """The selector of a page's dismissing command (Close, Cancel or Dismiss), from its ``assertname`` step."""
+    """The selector of a page's dismissing command (Close, Cancel, Dismiss or OK), from its ``assertname`` step."""
     for step in page["ready"]:
         verb, _, rest = step.partition(":")
         sel, _, text = rest.partition("|")
-        if verb == "assertname" and text in ("Close", "Cancel", "Dismiss"):
+        if verb == "assertname" and text in ("Close", "Cancel", "Dismiss", "OK"):
             return sel
-    raise AssertionError(f"{page['name']}: no Close/Cancel/Dismiss assertname")
+    raise AssertionError(f"{page['name']}: no Close/Cancel/Dismiss/OK assertname")
 
 
 class ModalJourneyTests(unittest.TestCase):

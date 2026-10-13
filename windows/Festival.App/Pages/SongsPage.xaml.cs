@@ -666,6 +666,8 @@ public sealed partial class SongsPage : Page, IPageBack
                 trailing.Children.Add(text);
             }
         }
+        // Web SongRow: the indicator follows the chips/metadata (top row when they wrap), and explains a dropped score too.
+        if (row.Warning is { } warning) trailing.Children.Add(new InvalidScoreIndicator(warning, row.Song.SongId));
         var wrapped = secondary.Children.Count > 0;
         card.SetWrapped(wrapped);
     }

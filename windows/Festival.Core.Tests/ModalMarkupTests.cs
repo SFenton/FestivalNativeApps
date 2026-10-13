@@ -50,6 +50,7 @@ public class ModalMarkupTests
     [Theory]
     [InlineData("Controls/FeedbackDialog.cs")]
     [InlineData("Controls/FirstRunCarousel.xaml.cs")]
+    [InlineData("Controls/InvalidScoreIndicator.cs")]
     [InlineData("Controls/PlayerProfileView.xaml.cs")]
     [InlineData("Controls/PrivacyPolicyDialog.cs")]
     [InlineData("Controls/SongPathsView.xaml.cs")]
@@ -69,7 +70,7 @@ public class ModalMarkupTests
         // A new modal must be added to EveryModal_UsesTheSharedFactory (and tools/windows/journeys/a11y-modals.json).
         var callers = Matching(".cs", @"FestivalDialog\.Create\(").Where(path => path != "Controls/FestivalDialog.cs");
         Assert.Equal(
-            ["Controls/FeedbackDialog.cs", "Controls/FirstRunCarousel.xaml.cs", "Controls/PlayerProfileView.xaml.cs",
+            ["Controls/FeedbackDialog.cs", "Controls/FirstRunCarousel.xaml.cs", "Controls/InvalidScoreIndicator.cs", "Controls/PlayerProfileView.xaml.cs",
              "Controls/PrivacyPolicyDialog.cs", "Controls/SongPathsView.xaml.cs", "MainWindow.WhatsNew.cs",
              "Pages/LicensesPage.xaml.cs", "Pages/SettingsPage.xaml.cs"],
             callers);
@@ -83,6 +84,7 @@ public class ModalMarkupTests
     [Theory]
     [InlineData("Controls/FeedbackDialog.cs")]
     [InlineData("Controls/FirstRunCarousel.xaml")]
+    [InlineData("Controls/InvalidScoreIndicator.cs")]
     [InlineData("Controls/PrivacyPolicyDialog.cs")]
     [InlineData("Controls/SongPathsView.xaml")]
     [InlineData("MainWindow.WhatsNew.cs")]

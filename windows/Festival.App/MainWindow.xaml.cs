@@ -141,6 +141,9 @@ public sealed partial class MainWindow : Window
         frames[current].Navigate(PageFor(route), route);
     }
 
+    /// <summary>Opens the Settings section (alerts' "Settings" actions, e.g. the Songs invalid-score indicator).</summary>
+    public void ShowSettings() => Show(AppSection.Settings);
+
     /// <summary>Opens the title-bar profile picker (pages' "Select Player" actions, the context menu and Ctrl+Shift+P).</summary>
     public void OpenProfilePicker() => ProfileFlyout.ShowAt(ProfileButton);
 
