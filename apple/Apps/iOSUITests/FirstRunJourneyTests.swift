@@ -411,7 +411,7 @@ final class FirstRunJourneyTests: XCTestCase {
     /// UIKit caps the inline navigation title (`system-bar-title-size`): its ink measured
     /// 36 → 44 px ("Leaderboards") and 43 → 53 px ("Songs") on an iPhone 17 Pro, 1.22–1.23×.
     /// The floor fails a title drawn at a fixed size (1.0×) with room for a pixel of rounding.
-    static let guideTitleMinimumGrowth: CGFloat = 1.15
+    static let guideTitleMinimumGrowth: CGFloat = RecognizedText.minimumBarTitleGrowth
 
     /// Launch the fixture app at `contentSize` with the guide of `tab` forced open.
     ///

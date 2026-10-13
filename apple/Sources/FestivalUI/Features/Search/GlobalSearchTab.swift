@@ -67,6 +67,7 @@ struct GlobalSearchTab: View {
                 }
                 .coordinateSpace(.named(Self.pageSpace))
                 .navigationTitle("Search")
+                .modifier(SearchTitleDisplayMode(style: GlobalSearchTitleStyle.resolve(asTab: asTab)))
                 .festivalBackground(.carousel, session: session, visible: isSelected)
                 .modifier(GlobalSearchSystemField(
                     text: $model.query, isPresented: $fieldPresented,
@@ -160,6 +161,50 @@ private struct KeepSearchTitleWhileSearching: ViewModifier {
             content.searchPresentationToolbarBehavior(.avoidHidingContent)
         } else {
             content
+        }
+        #else
+        content
+        #endif
+    }
+}
+
+// MARK: - Title style
+
+/// How the Search page draws its large "Search" title (issue #611).
+///
+/// The transient phone Search tab has nothing in its navigation bar (no drawer, bell or
+/// Profile; HIG Search fields: a Search tab is "fast, transient search that returns to
+/// the previous tab on exit"), so the standard large title left that bar's whole row
+/// empty above it: a 54 pt dead band between the status bar and "Search" that every
+/// other root fills with its drawer and Profile buttons. The tab draws the same large
+/// system title inside that row instead (`ToolbarTitleDisplayMode.inlineLarge`), so the
+/// scope bar sits directly under it. The iPad sidebar's Search page keeps the standard
+/// large title: its row holds the bell and Profile.
+enum GlobalSearchTitleStyle: Equatable {
+    /// The large title inside the navigation bar's row (the phone Search tab).
+    case inlineLarge
+    /// The system default: the large title below the bar's row (iPad sidebar page).
+    case standard
+
+    /// The title style for a Search page.
+    ///
+    /// - Parameter asTab: Whether search is the phone Search tab (false: the iPad
+    ///   sidebar page, whose bar row holds the account items).
+    /// - Returns: `.inlineLarge` for the Search tab, else `.standard`.
+    nonisolated static func resolve(asTab: Bool) -> GlobalSearchTitleStyle {
+        asTab ? .inlineLarge : .standard
+    }
+}
+
+/// Applies ``GlobalSearchTitleStyle`` (iOS; macOS shows search in a sheet).
+private struct SearchTitleDisplayMode: ViewModifier {
+    let style: GlobalSearchTitleStyle
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        switch style {
+        case .inlineLarge: content.toolbarTitleDisplayMode(.inlineLarge)
+        case .standard: content
         }
         #else
         content
