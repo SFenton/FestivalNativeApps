@@ -118,7 +118,8 @@ object InvalidScorePolicy {
     }
 
     /**
-     * Resolve one raw score for Song Details (web `filterPlayerScores`, pattern R4):
+     * Resolve one raw score for Song Details or any viewed Player Profile (web
+     * `filterPlayerScores`, pattern R4):
      * with `minLeeway`, only a `validScores` variant can replace it; without it, the
      * CHOpt ceiling decides and only the legacy `validScore` fields can replace it.
      * There is no Over CHOpt Threshold here.

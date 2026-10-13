@@ -127,13 +127,15 @@ class ProfileActionsTest {
         assertEquals("1", tile.value)
         assertEquals(StatTints.RED, tile.tint)
         assertEquals(PlayerTileAction.FilterSongs(SongsPreset.OverThreshold(Instrument.Lead)), tile.action)
-        // Web order: after FCs, before the star tiles. Bass (no maximum) gets no tile.
-        assertEquals(listOf("songs-played", "full-combos", "over-threshold"), lead().take(3).map { it.id })
+        // The invalid FC is dropped by R4; the raw Over CHOpt Threshold count remains before stars.
+        assertEquals(listOf("songs-played", "over-threshold", "stars-5"), lead().take(3).map { it.id })
+        assertTrue(lead().none { it.id == "full-combos" })
         assertTrue(vm.state.value.instruments.first { it.instrument == Instrument.Bass }.stats.none { it.id == "over-threshold" })
         // A leeway wide enough to accept the score drops the tile again.
         settings.value = settings.value?.copy(leeway = 5.0)
         advanceUntilIdle()
         assertTrue(lead().none { it.id == "over-threshold" })
+        assertEquals(listOf("songs-played", "full-combos", "stars-6"), lead().take(3).map { it.id })
     }
 
     @Test

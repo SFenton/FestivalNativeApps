@@ -3619,7 +3619,7 @@
       "title": "Invalid scores (Filter Invalid Scores)",
       "status": "current",
       "doc": ".agents/patterns/invalid-scores.md",
-      "summary": "With Settings > Filter Invalid Scores on and a player selected, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details uses the web's filterPlayerScores rule.",
+      "summary": "With Settings > Filter Invalid Scores on, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details and every viewed Player Profile use the web's filterPlayerScores rule (R4); Statistics agrees with the same account's profile. Global ranking ranks and Rank History stay independent of leeway.",
       "keywords": [
         "filter invalid scores",
         "invalid score",
@@ -3639,6 +3639,10 @@
         {
           "path": "hooks/data/useScoreFilter.ts",
           "symbol": "filterPlayerScores"
+        },
+        {
+          "path": "pages/leaderboard/player/components/PlayerContent.tsx",
+          "symbol": "effectiveScores"
         },
         {
           "path": "pages/songs/components/InvalidScoreIcon.tsx",
@@ -3694,6 +3698,10 @@
             "symbol": "songDetails"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/profile/PlayerProfileViewModel.kt",
+            "symbol": "sections"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt",
             "symbol": "InvalidScoreIcon"
           }
@@ -3737,6 +3745,8 @@
         "pages": [
           "songs",
           "song-detail",
+          "player-profile",
+          "statistics",
           "settings"
         ],
         "controls": [

@@ -34,6 +34,7 @@ import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.core.songs.SongScoreFilterKind
 import com.festivalscoretracker.android.presentation.LoadState
+import com.festivalscoretracker.android.presentation.songs.effective
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -471,8 +472,7 @@ class PlayerProfileViewModel(
     private val bandsLoad = MutableStateFlow<BandsLoad?>(null)
     private val sectionJobs = mutableMapOf<String, Job>()
     private var sectionKey: String? = null
-    private var memo: Pair<SectionsKey, Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>>>? = null
-    private var topMemo: Triple<PlayerProfileResponse, Set<Instrument>, Pair<Map<String, Song>, List<PlayerTopSongs>>>? = null
+    private var memo: Pair<SectionsKey, ScoreSections>? = null
     private val catalog = MutableStateFlow<Map<String, Song>>(emptyMap())
     private var catalogJob: Job? = null
 
@@ -795,9 +795,11 @@ class PlayerProfileViewModel(
         val profile = payload?.profile?.takeIf { phase == ProfilePhase.Loaded }
         if (profile != null) ensureCatalog()
         val leeway = current?.leeway?.takeIf { current.filterInvalidScores }
-        val (overview, instruments) = if (profile != null) sections(SectionsKey(profile, visible, songs, leeway)) else emptyList<PlayerStatTile>() to emptyList()
-        val topSongs = if (profile != null) topSongs(profile, visible, songs) else emptyList()
-        return PlayerProfileUiState(account, name, isSelected, phase, identity, overview, instruments, error, topSongs, current?.experimentalRanks == true)
+        val figures = profile?.let { sections(SectionsKey(it, visible, songs, leeway)) }
+        return PlayerProfileUiState(
+            account, name, isSelected, phase, identity, figures?.overview.orEmpty(),
+            figures?.instruments.orEmpty(), error, figures?.topSongs.orEmpty(), current?.experimentalRanks == true,
+        )
     }
 
     private fun resetSections(key: String) {
@@ -815,16 +817,29 @@ class PlayerProfileViewModel(
      *
      * @property profile Loaded profile.
      * @property visible Settings-visible charts.
-     * @property songs Catalogue (total songs, CHOpt maxima).
-     * @property leeway Filter Invalid Scores leeway, or null when off (no Over CHOpt Threshold tiles).
+     * @property songs Catalogue (total songs, CHOpt maxima and population tiers).
+     * @property leeway Filter Invalid Scores leeway, or null when off (raw scores).
      */
     private data class SectionsKey(val profile: PlayerProfileResponse, val visible: Set<Instrument>, val songs: Map<String, Song>, val leeway: Double?)
 
-    private fun sections(key: SectionsKey): Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>> {
+    /** All score-derived figures share one effective profile and memo key. */
+    private data class ScoreSections(
+        val overview: List<PlayerStatTile>,
+        val instruments: List<PlayerInstrumentSection>,
+        val topSongs: List<PlayerTopSongs>,
+    )
+
+    private fun sections(key: SectionsKey): ScoreSections {
         memo?.let { (last, result) -> if (last.profile === key.profile && last.visible == key.visible && last.songs === key.songs && last.leeway == key.leeway) return result }
         val (profile, visible, songs, leeway) = key
+        val effective = if (leeway == null) profile else {
+            val scores = profile.scores.mapNotNull { score ->
+                score.instrument?.let { chart -> score.effective(songs[score.songId], chart, leeway, songDetails = true) }
+            }
+            profile.copy(scores = scores, totalScores = scores.size)
+        }
         val totalSongs = songs.size
-        val stats = PlayerStatistics.overall(profile, visible)
+        val stats = PlayerStatistics.overall(effective, visible)
         // Web `buildOverallSummaryItems`.
         val overview = listOf(
             PlayerStatTile(
@@ -846,18 +861,19 @@ class PlayerProfileViewModel(
             PlayerStatTile("best-rank", "Best Song Rank", stats.bestRank?.let(ProfileFormatting::rank) ?: "—", action = bestRankAction(stats)),
         )
         val instruments = Instrument.entries.filter { it in visible }.map { instrument ->
-            val chart = PlayerStatistics.forInstrument(profile, instrument)
+            val chart = PlayerStatistics.forInstrument(effective, instrument)
             PlayerInstrumentSection(
                 instrument = instrument,
                 hasScores = chart.songsPlayed > 0,
                 stats = instrumentTiles(chart, instrument, totalSongs, leeway?.let { PlayerStatistics.overThresholdCount(profile, instrument, songs, it) }),
-                percentiles = PlayerStatistics.percentileBuckets(profile, instrument).map { bucket ->
+                percentiles = PlayerStatistics.percentileBuckets(effective, instrument).map { bucket ->
                     PercentileRow(bucket, PlayerTileAction.FilterSongs(SongsPreset.PercentileBucket(instrument, bucket.topPercent)))
                 },
                 trailing = percentileTiles(chart, instrument, totalSongs),
             )
         }
-        val result = overview to instruments
+        val topSongs = Instrument.entries.filter { it in visible }.map { PlayerTopSongs.build(effective, it, songs, artworkUrl) }
+        val result = ScoreSections(overview, instruments, topSongs)
         memo = key to result
         return result
     }
@@ -944,13 +960,6 @@ class PlayerProfileViewModel(
                 spokenLabel = "Songs Played percentile",
             ),
         )
-    }
-
-    private fun topSongs(profile: PlayerProfileResponse, visible: Set<Instrument>, songs: Map<String, Song>): List<PlayerTopSongs> {
-        topMemo?.let { (p, v, cached) -> if (p === profile && v == visible && cached.first === songs) return cached.second }
-        val result = Instrument.entries.filter { it in visible }.map { PlayerTopSongs.build(profile, it, songs, artworkUrl) }
-        topMemo = Triple(profile, visible, songs to result)
-        return result
     }
 
     /** Web "Avg Stars": five gold star images at a perfect 6, else two trimmed decimals. */

@@ -51,6 +51,25 @@ object ProfileFixtures {
         score("s-eta", "01", rank = 120, total = 200),
     ) + defaultRows.drop(3)
 
+    /** R4 variants, a dropped modern score, a legacy fallback and a valid raw score. */
+    fun invalidScoresProfile(account: String = Fixtures.ACCOUNT_A) = profile(account, rows = listOf(
+        """{"si":"s-alpha","ins":"01","sc":120000,"acc":1000,"fc":true,"st":6,"rk":1,"te":1000,"ml":5,
+          "vs":[{"sc":100500,"acc":900,"fc":false,"st":4,"ml":0.5,"rt":[{"l":0,"r":50},{"l":1,"r":40},{"l":2,"r":30}]}]}""",
+        """{"si":"s-beta","ins":"01","sc":120000,"acc":1000,"fc":true,"st":6,"rk":2,"te":1000,"ml":4,
+          "validScore":90000,"validRank":1,"validTotalEntries":1000}""",
+        """{"si":"s-gamma","ins":"01","sc":120000,"acc":1000,"fc":true,"st":6,"rk":3,"te":1000,
+          "validScore":95000,"validAccuracy":800,"validIsFullCombo":false,"validStars":3,"validRank":6,"validTotalEntries":300}""",
+        score("s-delta", score = 90000, acc = 1000, fc = true, stars = 5, rank = 10, total = 1000),
+    ))
+
+    /** Synthetic catalogue maxima and population changepoints for the R4 profile fixture. */
+    val invalidScoresSongs = """{"count":4,"songs":[${
+        listOf("s-alpha", "s-beta", "s-gamma", "s-delta").joinToString(",") { id ->
+            """{"songId":"$id","title":"$id","artist":"Synthetic Artist","difficulty":{"guitar":3},
+              "maxScores":{"Solo_Guitar":100000},"populationTiers":{"Solo_Guitar":{"bc":500,"t":[{"l":1,"t":600},{"l":2,"t":800}]}}}"""
+        }
+    }]}"""
+
     /**
      * A 202 syncing body.
      *

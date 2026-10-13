@@ -92,7 +92,7 @@ fun SelectedProfileState.songScoreSource(catalogPublication: Int?, current: Int?
 }
 
 /**
- * The score a leaderboard spotlight may show under Filter Invalid Scores: the raw
+ * The score a leaderboard spotlight or profile may show under Filter Invalid Scores: the raw
  * score when valid, the next valid score (with its filtered rank and population)
  * when invalid, or null when no valid score exists at this leeway.
  *
@@ -100,10 +100,17 @@ fun SelectedProfileState.songScoreSource(catalogPublication: Int?, current: Int?
  * @param song Catalogue row (CHOpt maximum and population tiers).
  * @param chart Chart.
  * @param leeway Leeway percent.
+ * @param songDetails Use R4 (`filterPlayerScores`) for Song Details and Player Profile,
+ *   instead of the full leaderboard's default R3.
  * @return Effective score or null.
  */
-fun PlayerScore.effective(song: Song?, chart: Instrument, leeway: Double): PlayerScore? {
-    val resolution = InvalidScorePolicy.resolve(this, toSongDetail(), song, chart, leeway, showOverThreshold = false)
+fun PlayerScore.effective(song: Song?, chart: Instrument, leeway: Double, songDetails: Boolean = false): PlayerScore? {
+    val raw = toSongDetail()
+    val resolution = if (songDetails) {
+        InvalidScorePolicy.resolveFiltered(this, raw, song, chart, leeway)
+    } else {
+        InvalidScorePolicy.resolve(this, raw, song, chart, leeway, showOverThreshold = false)
+    }
     val detail = resolution.detail ?: return null
     if (resolution.reason == null) return this
     return copy(
