@@ -89,10 +89,12 @@ import json
 import os
 import re
 import signal
+import stat
 import subprocess
 import sys
 import threading
 import time
+import types
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1012,8 +1014,12 @@ def scan_unmanaged(root: Path | None = None, exclude: Sequence[str] = (), reap: 
         window_seen = state.get("windows", {})
         if reap and grace is not None and debugged is not None and (hub := hub_windows(root)):
             helper, windows = hub
-            to_close, window_seen = windows_to_close(windows, in_use, window_seen, now, grace,
-                                                     {sim["name"] for sim in sims})
+            sim_udids = {sim["udid"].upper() for sim in sims}
+            physical_in_use = any(p.name.startswith("device-") and p.name[7:] not in sim_udids
+                                  and Gate(p.name, root).holders() for p in root.iterdir() if p.is_dir())
+            # A held physical device's name could match a simulator's: then close only empty windows.
+            closable = set() if physical_in_use else {sim["name"] for sim in sims}
+            to_close, window_seen = windows_to_close(windows, in_use, window_seen, now, grace, closable)
             for window in to_close:
                 try:
                     subprocess.run([str(helper), "close", str(window["pid"]), str(window["window"])],
@@ -1233,6 +1239,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 #: Set to skip deferring to the shared install (tests, or debugging an old copy).
 NO_DEFER_ENV = "DEVCAP_NO_DEFER"
 
+#: The copy that was actually run, when a newer shared install took over its definitions.
+CALLER_FILE: str | None = None
+
 
 def installed_path(root: Path | None = None) -> Path:
     """The machine-wide copy every repository's devcap defers to when it is newer."""
@@ -1248,9 +1257,29 @@ def file_version(path: Path) -> str | None:
     """``VERSION`` of a devcap file, or None if it is missing or unreadable."""
     try:
         match = re.search(r'^VERSION = "([0-9.]+)"', path.read_text(encoding="utf-8"), re.M)
-    except OSError:
+    except (OSError, UnicodeDecodeError, ValueError):
         return None
     return match.group(1) if match else None
+
+
+def trusted_file(path: Path) -> bool:
+    """Whether ``path`` and its directory are this user's and writable by nobody else.
+
+    The shared install is executed by every devcap copy, so it must be a
+    regular file (not a symlink) owned by the current user, in a directory
+    owned by the current user, neither group- nor world-writable.
+    """
+    if os.name == "nt":
+        return False
+    try:
+        for entry in (path, path.parent):
+            info = os.lstat(entry)
+            kind_ok = stat.S_ISREG(info.st_mode) if entry == path else stat.S_ISDIR(info.st_mode)
+            if not kind_ok or info.st_uid != os.getuid() or info.st_mode & (stat.S_IWGRP | stat.S_IWOTH):
+                return False
+    except OSError:
+        return False
+    return True
 
 
 def defer_to_installed(namespace: dict) -> bool:
@@ -1258,32 +1287,62 @@ def defer_to_installed(namespace: dict) -> bool:
 
     Repositories and worktrees carry their own copies, and an old worktree
     must not bypass newer rules. Every copy from 1.2.1 on runs the newest
-    version installed with ``devcap install``.
+    version installed with ``devcap install``. The install must pass
+    ``trusted_file``; it runs in its own namespace first, and only a clean
+    run replaces this module's definitions, so a broken install falls back
+    to the local copy.
 
     Returns:
         True when the shared install took over.
     """
     path = installed_path()
-    if os.environ.get(NO_DEFER_ENV) or not path.exists() or Path(__file__).resolve() == path.resolve():
+    try:
+        if os.environ.get(NO_DEFER_ENV) or Path(__file__).resolve() == path.resolve():
+            return False
+    except OSError:
         return False
     installed = file_version(path)
-    if not installed or version_key(installed) <= version_key(VERSION):
+    if not installed or version_key(installed) <= version_key(VERSION) or not trusted_file(path):
         return False
-    exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), namespace)
+    name = f"{namespace.get('__name__', 'devcap')}_installed"
+    module = types.ModuleType(name)
+    module.__file__ = str(path)
+    sys.modules[name] = module  # dataclasses look their module up here
+    try:
+        code = compile(path.read_text(encoding="utf-8"), str(path), "exec")
+        exec(code, module.__dict__)
+        if not callable(getattr(module, "main", None)) or getattr(module, "VERSION", None) != installed:
+            raise ImportError("shared install did not define devcap")
+        module.CALLER_FILE = namespace.get("__file__")
+    except Exception as error:  # a broken install must never break every copy on the Mac
+        sys.modules.pop(name, None)
+        print(f"devcap: ignoring shared install {path} ({error.__class__.__name__}: {error}); "
+              f"running {VERSION}", file=sys.stderr)
+        return False
+    namespace.update({key: value for key, value in module.__dict__.items()
+                      if key not in ("__name__", "__file__", "__builtins__", "__doc__", "__spec__",
+                                     "__loader__", "__package__")})
     return True
 
 
 def cmd_install(args: argparse.Namespace) -> int:
     path = installed_path()
+    source = Path(CALLER_FILE or __file__)  # the copy that was run, even when a newer install took over
+    mine = file_version(source)
     current = file_version(path)
-    if current and version_key(current) > version_key(VERSION) and not args.force:
-        print(f"devcap install: {path} already has newer {current}; this copy is {VERSION}", file=sys.stderr)
+    if not mine:
+        print(f"devcap install: cannot read VERSION from {source}", file=sys.stderr)
+        return 1
+    if current and version_key(current) > version_key(mine) and not args.force:
+        print(f"devcap install: {path} already has newer {current}; this copy is {mine}", file=sys.stderr)
         return 1
     path.parent.mkdir(parents=True, exist_ok=True)
+    os.chmod(path.parent, 0o700)
     temporary = path.with_suffix(".tmp")
-    temporary.write_text(Path(__file__).read_text(encoding="utf-8"), encoding="utf-8")
+    temporary.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    os.chmod(temporary, 0o644)
     temporary.replace(path)
-    print(f"devcap install: {path} is now {VERSION} (was {current or 'not installed'})")
+    print(f"devcap install: {path} is now {mine} (was {current or 'not installed'})")
     return 0
 
 # endregion
