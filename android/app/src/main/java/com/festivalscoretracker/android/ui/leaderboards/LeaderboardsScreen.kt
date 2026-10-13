@@ -155,7 +155,7 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
                     }
                 }
                 if (swap.showsSpinner) {
-                    LoadSwapSpinner(swap, "Loading leaderboards", Modifier.fillMaxSize(), "fst.leaderboards.loading")
+                    LoadSwapSpinner(swap, "Loading leaderboards", Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding()), "fst.leaderboards.loading")
                 }
             }
         }

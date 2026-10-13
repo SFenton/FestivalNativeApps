@@ -81,6 +81,7 @@ import com.festivalscoretracker.android.presentation.profile.RankLoad
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoading
+import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.FoldLane
 import com.festivalscoretracker.android.ui.common.LocalShellActions
@@ -272,9 +273,7 @@ fun PlayerProfileContent(
             padding,
             Modifier.testTag("fst.player.no-profile"),
         )
-        ProfilePhase.Loading -> Box(Modifier.fillMaxSize().padding(padding).testTag("fst.player.loading"), contentAlignment = Alignment.Center) {
-            FestivalLoading("Loading player")
-        }
+        ProfilePhase.Loading -> LoadingView("Loading player", Modifier.padding(padding).testTag("fst.player.loading"))
         ProfilePhase.Syncing -> Message(
             "Still Syncing",
             "${state.displayName}'s public scores are still syncing. Try again shortly.",

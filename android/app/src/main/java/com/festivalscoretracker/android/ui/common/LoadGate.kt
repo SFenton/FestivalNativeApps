@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -75,6 +76,8 @@ class LoadGateScope internal constructor(val revealed: Boolean) {
  * @param composeWhileLoading Compose the content invisibly (and hidden from accessibility)
  *   under the spinner, for pages whose own children start loading when composed (e.g. lazy
  *   cards that fetch as they appear); it is revealed with the same entrance once ready.
+ * @param spinnerPadding Chrome padding not applied to the gate itself, because the content
+ *   clears it inside its scroll viewport (Song Details and Licenses).
  * @param content Page content.
  */
 @Composable
@@ -83,6 +86,7 @@ fun FestivalLoadGate(
     modifier: Modifier = Modifier,
     label: String = "Loading",
     composeWhileLoading: Boolean = false,
+    spinnerPadding: PaddingValues = PaddingValues(),
     content: @Composable LoadGateScope.() -> Unit,
 ) {
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
@@ -113,13 +117,14 @@ fun FestivalLoadGate(
             }
         }
         if (!contentIn) {
-            Box(
+            LoadingRegion(
+                label,
                 Modifier
                     .fillMaxSize()
+                    .padding(spinnerPadding)
                     .graphicsLayer { alpha = spinnerAlpha.value }
                     .testTag("fst.load-gate.spinner"),
-                contentAlignment = Alignment.Center,
-            ) { FestivalLoading(label) }
+            )
         }
     }
 }

@@ -134,6 +134,8 @@ targets:
       - path: Apps/iOSUITests/RecognizedText.swift
       # Issue #473 board footer fade at AX5, run on iPad too.
       - path: Apps/iOSUITests/BoardFooterFadeJourneyTests.swift
+      # Issue #480: the split band and Close's 44 pt hit region, shared with the Duo journey.
+      - path: Apps/iOSUITests/SplitBandUITestSupport.swift
     dependencies:
       - target: FestivalMobile
     settings:
