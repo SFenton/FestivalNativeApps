@@ -349,6 +349,26 @@ def _linked_targets(readme: Path) -> set[Path]:
     return targets
 
 
+def check_pattern_rules(report: Report) -> None:
+    """Warn when a pattern doc numbers two rules the same (usually a merge kept both versions of one rule).
+
+    Args:
+        report: Findings collector.
+    """
+    for path in sorted((AGENTS / "patterns").glob("*.md")):
+        seen: dict[str, int] = {}
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            match = re.match(r"\s*- \*\*(R\d+)\.", line)
+            if not match:
+                continue
+            rule = match.group(1)
+            if rule in seen:
+                report.warn(path, f"{rule} appears twice (lines {seen[rule]} and {number}): keep one authoritative "
+                                  "copy (merge leftovers conflict, tracker #621)")
+            else:
+                seen[rule] = number
+
+
 def check_routers(report: Report) -> None:
     """Require a README router per folder that links all its children.
 
@@ -623,6 +643,7 @@ def run(fix: bool = False) -> Report:
     check_routers(report)
     check_skills(report)
     check_contracts(report)
+    check_pattern_rules(report)
     return report
 
 
