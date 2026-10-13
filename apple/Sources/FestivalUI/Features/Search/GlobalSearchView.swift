@@ -568,13 +568,8 @@ struct GlobalSearchField: View {
     /// Return/Search was pressed (re-runs a failed or empty search, issue #299).
     var submit: () -> Void = {}
     @FocusState private var focused: Bool
-
-    /// Clear Search's hit region: HIG Accessibility's 44 × 44 pt iOS control minimum
-    /// (issue #475; the bare glyph was 13–17 pt).
+    /// The clear button's minimum square hit target: the HIG's 44×44 pt default control size.
     static let clearTarget: CGFloat = 44
-    /// How far Clear Search's target reaches into the capsule's 12 pt end padding, so the
-    /// glyph stays near the trailing end (its target ends 2 pt inside the capsule).
-    static let clearOutset: CGFloat = 10
 
     var body: some View {
         HStack(spacing: 8) {
@@ -597,30 +592,31 @@ struct GlobalSearchField: View {
                 Button {
                     text = ""
                 } label: {
+                    // At least a 44 pt target around the glyph, growing with it at large
+                    // text (HIG Accessibility, issue #474); the field's trailing padding
+                    // narrows so the glyph stays centred in the capsule's end.
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(FestivalText.deemphasized)
                         .frame(minWidth: Self.clearTarget, minHeight: Self.clearTarget)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .padding(.trailing, -Self.clearOutset)
                 .accessibilityLabel("Clear Search")
                 .accessibilityIdentifier(clearIdentifier)
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.leading, 12)
+        .padding(.trailing, text.isEmpty ? 12 : 4)
         .frame(minHeight: minHeight)
-        // The text line is ~22 pt; a tap anywhere else on the capsule (above or below the
-        // text, or on the magnifier) focuses the field, so its touch target is the whole
-        // 44–48 pt capsule (HIG Buttons, issue #475). A hidden layer behind the content,
-        // so the field's and Clear Search's own frames and taps are unchanged.
+        #if os(iOS)
+        // The whole capsule focuses the field, not just its text line (issue #474).
         .background {
-            Capsule()
-                .fill(.clear)
+            Color.clear
                 .contentShape(Capsule())
                 .onTapGesture { focused = true }
                 .accessibilityHidden(true)
         }
+        #endif
         .modifier(GlobalSearchFieldSurface(surface: surface))
         .onAppear {
             guard focusesOnAppear else { return }

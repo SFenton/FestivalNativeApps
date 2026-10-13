@@ -85,3 +85,10 @@ import Testing
     #expect(DrawerMotion.debugTimeScale("nan") == 1)
     #expect(DrawerMotion.timeScale == 1)
 }
+
+/// VoiceOver focus moves to the panel's title only after the whole open sequence (scrim,
+/// then panel) has ended, so it never lands on a title still sliding in or still
+/// transparent (#489, for #362).
+@Test func drawerFocusMovesAfterTheOpenSequence() {
+    #expect(Duration.seconds(DrawerMotion.totalDuration) < AccessibilityFocusRequest.firstAttemptDelay)
+}

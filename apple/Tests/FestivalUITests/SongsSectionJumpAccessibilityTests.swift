@@ -69,7 +69,7 @@ private struct SongsJumpHost {
             VStack(spacing: 0) {
                 NavigationStack {
                     SongsScreen(session: session, initialState: .loaded(catalogue), isVisible: false)
-                        .pageToolsScope()
+                        .pageToolsScope(inSelectedTab: true)
                 }
                 PageToolsAccessoryBar(registry: registry)
                     .frame(height: NavButtonAccessibilityTests.accessoryHeight)

@@ -15,9 +15,11 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.shell.LoadSwapPhase
+import com.festivalscoretracker.android.core.shell.LoadSwapPolicy
 import com.festivalscoretracker.android.ui.common.FestivalLoadSwap
 import com.festivalscoretracker.android.ui.common.LOAD_SWAP_SPINNER_TAG
 import com.festivalscoretracker.android.ui.common.LoadSwap
+import com.festivalscoretracker.android.ui.common.LoadSwapSpinner
 import com.festivalscoretracker.android.ui.common.loadSwapSpinnerItem
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.theme.FestivalAccessibility
@@ -182,6 +184,119 @@ class LoadSwapUiTest {
         assertTrue(shows("Page 1 refreshed") && !spinner())
     }
 
+    // region Held spinner (publication refresh, load-transition R3, issue #616)
+
+    /** One frame of a held-spinner timeline. */
+    private data class Frame(val ms: Long, val phase: LoadSwapPhase, val spinnerAlpha: Float)
+
+    private fun setHeld(): () -> LoadSwap<String?> {
+        var held: LoadSwap<String?>? = null
+        rule.setContent {
+            FestivalTheme {
+                CompositionLocalProvider(LocalFestivalAccessibility provides FestivalAccessibility(reduceMotion = reduce)) {
+                    val swap = rememberLoadSwap(data, data != null, holdSpinner = true)
+                    held = swap
+                    if (swap.showsContent) with(swap) { Text(swap.shown.orEmpty(), Modifier.staggered(0).testTag("row")) }
+                    if (swap.showsSpinner) LoadSwapSpinner(swap)
+                }
+            }
+        }
+        return { held!! }
+    }
+
+    /** Steps frame by frame for [millis], recording the phase and spinner opacity after each. */
+    private fun record(swap: () -> LoadSwap<String?>, millis: Long, from: Long): List<Frame> {
+        val frames = mutableListOf<Frame>()
+        val start = rule.mainClock.currentTime
+        while (rule.mainClock.currentTime - start < millis) {
+            rule.mainClock.advanceTimeByFrame()
+            frames += Frame(from + rule.mainClock.currentTime - start, swap().phase, swap().spinnerAlpha.value)
+        }
+        return frames
+    }
+
+    @Test
+    fun heldSpinnerFadesInAndHoldsWhenTheDataIsReadyDuringTheFadeOut() {
+        rule.mainClock.autoAdvance = false
+        data = "Page 1"; Snapshot.sendApplyNotifications()
+        val swap = setHeld()
+        rule.mainClock.advanceTimeByFrame()
+        assertTrue(shows("Page 1") && !spinner())
+
+        // The catch-up starts and its data is ready 100 ms later, well before the 300 ms fade-out ends.
+        data = null; Snapshot.sendApplyNotifications()
+        val timeline = record(swap, 96, 0).toMutableList()
+        data = "Page 2"; Snapshot.sendApplyNotifications()
+        timeline += record(swap, 2_000, timeline.last().ms)
+
+        val outStart = timeline.first { it.phase == LoadSwapPhase.ContentOut }
+        val outEnd = timeline.first { it.ms > outStart.ms && it.phase != LoadSwapPhase.ContentOut }
+        assertEquals("ready data during the fade-out must still show the spinner", LoadSwapPhase.Loading, outEnd.phase)
+        assertTrue("content fades out for 300 ms first (${outEnd.ms - outStart.ms})", outEnd.ms - outStart.ms >= LoadSwapPolicy.CONTENT_OUT_MS - FRAME_MS)
+        val spinnerStart = outEnd.ms
+        val fadeOutStart = timeline.first { it.phase == LoadSwapPhase.SpinnerOut }
+        val spinnerIn = timeline.filter { it.ms >= spinnerStart && it.ms < fadeOutStart.ms }
+        // Spinner in (150 ms): it starts transparent and is partly faded in midway.
+        assertTrue("the spinner starts its fade-in transparent: ${spinnerIn.first()}", spinnerIn.first().spinnerAlpha < 0.5f)
+        assertTrue(
+            "the spinner fades in rather than appearing at full opacity",
+            spinnerIn.any { it.ms - spinnerStart in 1 until LoadSwapPolicy.SPINNER_IN_MS && it.spinnerAlpha > 0f && it.spinnerAlpha < 1f },
+        )
+        // Then full opacity until the hold ends.
+        assertTrue(
+            "the spinner holds at full opacity after its fade-in",
+            spinnerIn.filter { it.ms - spinnerStart >= LoadSwapPolicy.SPINNER_IN_MS + FRAME_MS }.all { it.spinnerAlpha == 1f },
+        )
+        // Minimum 400 ms from its appearance, and no longer once the data is ready.
+        val held = fadeOutStart.ms - spinnerStart
+        assertTrue("the spinner faded out after $held ms, before its 400 ms minimum", held >= LoadSwapPolicy.MIN_SPINNER_MS)
+        assertTrue("the spinner waited $held ms past ready data", held <= LoadSwapPolicy.MIN_SPINNER_MS + 3 * FRAME_MS)
+        // Spinner out (500 ms), then the new content.
+        val contentIn = timeline.first { it.ms > fadeOutStart.ms && it.phase == LoadSwapPhase.ContentIn }
+        assertTrue("spinner-out lasts 500 ms", contentIn.ms - fadeOutStart.ms >= LoadSwapPolicy.SPINNER_FADE_MS)
+        assertTrue(shows("Page 2") && !shows("Page 1") && !spinner())
+    }
+
+    @Test
+    fun heldSpinnerUnderReduceMotionShowsAtOnceAndStillHolds() {
+        rule.mainClock.autoAdvance = false
+        reduce = true; data = "Page 1"; Snapshot.sendApplyNotifications()
+        val swap = setHeld()
+        rule.mainClock.advanceTimeByFrame()
+        data = null; Snapshot.sendApplyNotifications()
+        val timeline = record(swap, 96, 0).toMutableList()
+        data = "Page 2"; Snapshot.sendApplyNotifications()
+        timeline += record(swap, 1_000, timeline.last().ms)
+
+        assertTrue("no fades under Reduce Motion", timeline.none { it.phase == LoadSwapPhase.ContentOut || it.phase == LoadSwapPhase.SpinnerOut })
+        val loading = timeline.filter { it.phase == LoadSwapPhase.Loading }
+        assertTrue("the spinner shows at once at full opacity", loading.isNotEmpty() && loading.all { it.spinnerAlpha == 1f } && loading.first().ms <= 2 * FRAME_MS)
+        val contentIn = timeline.first { it.ms > loading.first().ms && it.phase == LoadSwapPhase.ContentIn }
+        val held = contentIn.ms - loading.first().ms
+        assertTrue("the spinner left after $held ms, before its 400 ms minimum (R6)", held >= LoadSwapPolicy.MIN_SPINNER_MS)
+        assertTrue("the spinner waited $held ms past ready data", held <= LoadSwapPolicy.MIN_SPINNER_MS + 3 * FRAME_MS)
+        assertTrue(shows("Page 2") && !spinner())
+    }
+
+    @Test
+    fun heldSpinnerWaitsForSlowDataPastTheHold() {
+        rule.mainClock.autoAdvance = false
+        data = "Page 1"; Snapshot.sendApplyNotifications()
+        val swap = setHeld()
+        rule.mainClock.advanceTimeByFrame()
+        data = null; Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(1_500)
+        assertEquals(LoadSwapPhase.Loading, swap().phase)
+        assertEquals(1f, swap().spinnerAlpha.value)
+        data = "Page 2"; Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(100)
+        assertEquals("ready after the hold: the spinner fades out at once", LoadSwapPhase.SpinnerOut, swap().phase)
+        rule.mainClock.advanceTimeBy(1_000)
+        assertTrue(shows("Page 2") && !spinner())
+    }
+
+    // endregion
+
     // region Pinned content (load-transition R2, issue #190)
 
     private var pinnedKey by mutableStateOf<Any?>("Guitar")
@@ -269,3 +384,6 @@ class LoadSwapUiTest {
 
     // endregion
 }
+
+/** Compose test clock frame (16 ms). */
+private const val FRAME_MS = 16L

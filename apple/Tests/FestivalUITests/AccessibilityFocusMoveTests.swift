@@ -60,5 +60,6 @@ struct SongDetailCardColumnsTests {
         #expect(columns(343) == 1)   // ⅓ window / iPhone
         #expect(columns(1178) == 3)  // iPad landscape
         #expect(columns(0) == 1)
+        #expect(columns(.infinity) == 1)
     }
 }

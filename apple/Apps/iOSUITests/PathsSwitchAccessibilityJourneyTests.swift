@@ -41,8 +41,9 @@ final class PathsSwitchAccessibilityJourneyTests: XCTestCase {
     /// The selectors, in reading order.
     private static let selectors = ["fst.paths.instrument", "fst.paths.difficulty", "fst.paths.display"]
 
-    /// Longest hold a journey asks for (the fixture's limit is 60 s).
-    private static let holdSeconds = 60
+    /// Longest hold a journey asks for: 60 s, scaled ×4 in a VM, where one form's hold
+    /// outlasted 60 s before its audit ended (#386; the fixture's limit is 240 s).
+    private static let holdSeconds = Int(FestivalApp.budget(60))
 
     /// One form of the sheet.
     private enum Form: String {
@@ -348,56 +349,22 @@ final class PathsSwitchAccessibilityJourneyTests: XCTestCase {
 
     // MARK: - App helpers
 
-    /// Filter Songs to `fixture-pulse` (the large catalogue lists it under F), open it, then
-    /// its Paths sheet from the page tools (the tab-bar accessory), dismissing the Karaoke
-    /// notice.
+    /// Open `fixture-pulse`'s Paths sheet (``PathsUITestSupport/openPaths(in:)``).
     @MainActor
     private func openPaths(in app: XCUIApplication) {
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
-        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(20)), "No Songs rows")
-        let field = SongsUITestSupport.songsSearchField(in: app)
-        XCTAssertTrue(field.waitForExistence(timeout: FestivalApp.budget(5)), "No Filter Songs field")
-        let song = app.buttons["fst.songs.row.fixture-pulse"]
-        // The live filter can drop a keystroke while it re-renders, so retype once.
-        for _ in 0..<2 where !song.exists {
-            field.tap()
-            if let typed = field.value as? String, !typed.isEmpty, typed != field.placeholderValue {
-                field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: typed.count))
-            }
-            field.typeText("Pulse")
-            _ = song.waitForExistence(timeout: FestivalApp.budget(5))
-        }
-        XCTAssertTrue(song.exists, "No fixture-pulse row")
-        for _ in 0..<20 where !song.isHittable {
-            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
-        }
-        song.tap()
-        let open = app.buttons["fst.song-detail.paths"]
-        XCTAssertTrue(open.waitForExistence(timeout: FestivalApp.budget(20)), "No Paths button")
-        open.tap()
-        let warning = app.alerts["Some Instruments Unavailable"]
-        if warning.waitForExistence(timeout: FestivalApp.budget(3)) { warning.buttons["OK"].tap() }
-        XCTAssertTrue(element("fst.paths.display", in: app).waitForExistence(timeout: FestivalApp.budget(10)),
-                      "No Paths sheet")
+        PathsUITestSupport.openPaths(in: app)
     }
 
     /// The first element with an identifier, of any type.
     @MainActor
     private func element(_ identifier: String, in app: XCUIApplication) -> XCUIElement {
-        app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        PathsUITestSupport.element(identifier, in: app)
     }
 
     /// Open a menu picker and pick an option.
     @MainActor
     private func choose(_ option: String, in menu: XCUIElement, app: XCUIApplication) {
-        XCTAssertTrue(menu.waitForExistence(timeout: FestivalApp.budget(10)))
-        menu.tap()
-        let item = app.buttons.matching(
-            NSPredicate(format: "label == %@ AND identifier != %@", option, menu.identifier)
-        ).firstMatch
-        XCTAssertTrue(item.waitForExistence(timeout: FestivalApp.budget(5)), "Menu option \(option) missing")
-        item.tap()
-        XCTAssertTrue(item.waitForNonExistence(timeout: FestivalApp.budget(5)), "Menu \(option) did not close")
+        PathsUITestSupport.choose(option, in: menu, app: app)
     }
 
     /// Attach a screenshot.
