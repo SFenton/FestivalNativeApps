@@ -20,7 +20,7 @@
   {"name": "songs-publication-refresh-modes", "route": "/songs", "profile": "fixture-player-1:Fixture Player 1",
    "fixture": ["publication_live_fixture.py", "--rollover-after", "20"], "env": {"FST_LIVE_PUBLICATION_UPDATES": "1"},
    "settings": {"songSort": "Artist", "songSortAscending": false, "songFilter": {"Instrument": "Lead"}},
-   "tabs": 0, "scan": true, "sizes": ["medium"], "modes": ["app-reduced", "text-200"],
+   "tabs": 0, "scan": true, "sizes": ["medium"], "modes": ["app-reduced", "text-200", "text-225"],
    "ready": ["listen:announcements",
              "waitfor:id=fst.songs.row.fixture-pulse@30",
              "focus:id=fst.songs.row.fixture-pulse"],

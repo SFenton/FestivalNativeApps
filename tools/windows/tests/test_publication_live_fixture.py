@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import mock_service  # noqa: E402
 import publication_live_fixture as f  # noqa: E402  (sibling module)
+import ui_ci  # noqa: E402
 
 JOURNEY = Path(__file__).resolve().parents[1] / "journeys" / "a11y-songs-publication-refresh.json"
 
@@ -129,7 +130,12 @@ class JourneyTests(unittest.TestCase):
     def test_pages_use_the_live_socket_and_assert_the_announcement(self):
         pages = json.loads(JOURNEY.read_text(encoding="utf-8"))
         modes = {mode for page in pages for mode in page["modes"]}
-        self.assertEqual(modes, {"normal", "app-reduced", "text-200"})
+        self.assertEqual(modes, {"normal", "app-reduced", "text-200", "text-225"})
+        runs = {run.mode: run for run in ui_ci.RUNS if run.pages == JOURNEY.name}
+        self.assertEqual(set(runs), {"normal", "app-reduced", "text-200", "text-225"})
+        self.assertEqual(runs["normal"].only, "songs-publication-refresh")
+        for mode in ("app-reduced", "text-200", "text-225"):
+            self.assertEqual(runs[mode].only, "songs-publication-refresh-modes")
         for page in pages:
             self.assertEqual(page["fixture"][0], "publication_live_fixture.py")
             self.assertEqual(page["env"], {"FST_LIVE_PUBLICATION_UPDATES": "1"})
