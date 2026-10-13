@@ -74,14 +74,15 @@ class CheckDocsTests(unittest.TestCase):
         self.assertIn("needs a `description`", errors)
         self.assertIn("skills live in `<name>/SKILL.md` folders", errors)
 
-    def test_duplicate_pattern_rule_numbers_warn(self) -> None:
+    def test_duplicate_pattern_rule_numbers_error(self) -> None:
+        """Calling the check directly records a duplicate as an error, never a warning (#621)."""
         _write(check_docs.AGENTS / "patterns/demo.md",
                "# T\n\n> x\n\n- **R1. One.** a\n- **R2. Two.** b\n- **R1. One.** a, newer\n")
         report = check_docs.Report()
         check_docs.check_pattern_rules(report)
-        self.assertEqual(len(report.warnings), 1)
-        self.assertIn("R1 appears twice (lines 5 and 7)", report.warnings[0])
-        self.assertEqual(report.errors, [])
+        self.assertEqual(len(report.errors), 1)
+        self.assertIn("rule R1 is defined 2 times (lines 5, 7)", report.errors[0])
+        self.assertEqual(report.warnings, [])
 
     def test_spec_naming_a_platform_fails(self) -> None:
         """Platform-neutral specs cannot carry platform headings."""
