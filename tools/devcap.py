@@ -89,7 +89,7 @@ from typing import Callable, Iterable, Iterator, Sequence
 # region Configuration
 
 #: Bump when the on-disk layout or the CLI changes; vendored copies must match.
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 
 #: Exit code when a wait gives up (``EX_TEMPFAIL``).
 WAIT_TIMEOUT_EXIT = 75
@@ -635,7 +635,7 @@ class Hold:
             try:
                 if self.on_overrun:
                     self.on_overrun()
-                if self.cleanup:
+                if self.cleanup and self.gates:  # never clean up a parent's inherited gates
                     self.cleanup()
             finally:
                 self.release()
@@ -754,13 +754,13 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 2
     hold_seconds = None if args.hold <= 0 else min(args.hold, MAX_HOLD_SECONDS)
     held = Hold(names, args.purpose or " ".join(command)[:120], args.wait, hold_seconds)
+    if args.shutdown and args.sim:  # before acquire() starts the watchdog
+        held.cleanup = lambda: shutdown_sims(args.sim)
     try:
         held.acquire()
     except WaitTimeout as error:
         print(f"devcap: {error}", file=sys.stderr)
         return WAIT_TIMEOUT_EXIT
-    if args.shutdown and args.sim:
-        held.cleanup = lambda: shutdown_sims(args.sim)
     try:
         return run_command(held, command)
     finally:
