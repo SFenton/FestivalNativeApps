@@ -19,8 +19,8 @@ Rules enforced (see `.agents/workflow/docs-conventions.md`):
    read" header line.
 6. The generated tables in `pages/README.md` and `controls/README.md` match
    the contracts and the files on disk.
-7. Each numbered rule (`- **R<n>.`) appears once in its pattern doc under
-   `patterns/`: a duplicated or conflicting rule number is an error.
+7. Each pattern doc under `patterns/` numbers every rule (`- **R<n>. …**`)
+   once, so a merge cannot keep two conflicting copies of one rule.
 
 Usage::
 

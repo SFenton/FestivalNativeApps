@@ -27,6 +27,6 @@
 
 ## Checks (`python3 .agents/_tools/check_docs.py`)
 
-Routers exist and link all children · relative links resolve (also `AGENTS.md`, `README.md`) · every contract page/control has `spec.md` and every `product.json` `spec` path exists · headings do not mix platforms (`spec.md`: none; platform files: own platform only; others: at most one) · header line present · generated tables fresh · each pattern rule number (`- **R<n>.`) appears once per pattern doc (#621). Warnings: >200 lines, topic folders not in contracts, unexpected file names.
+Routers exist and link all children · relative links resolve (also `AGENTS.md`, `README.md`) · every contract page/control has `spec.md` and every `product.json` `spec` path exists · headings do not mix platforms (`spec.md`: none; platform files: own platform only; others: at most one) · header line present · generated tables fresh · each pattern doc numbers every rule (`- **R<n>. …**`) once (#621: a merge that keeps two copies of a rule fails; merge them, or give a distinct rule the next free number and update its citations). Warnings: >200 lines, topic folders not in contracts, unexpected file names.
 
 CI runs `python3 .agents/_tools/check_docs.py` and its self-tests (`.github/workflows/contracts.yml`).
