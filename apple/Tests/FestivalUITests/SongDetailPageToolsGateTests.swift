@@ -124,7 +124,7 @@ private func hostSongDetailWithAccessory(
         VStack(spacing: 0) {
             NavigationStack {
                 SongDetailScreen(song: song, session: session, visibleInstruments: [.lead, .bass])
-                    .pageToolsScope()
+                    .pageToolsScope(inSelectedTab: true)
             }
             PageToolsAccessoryBar(registry: registry)
                 .frame(height: NavButtonAccessibilityTests.accessoryHeight)

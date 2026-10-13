@@ -52,6 +52,11 @@ struct FeedbackAttachmentStrip: View {
 // MARK: - Tile
 
 /// One thumbnail button plus its remove button, each at least 44 pt.
+///
+/// The remove button is centred on the thumbnail's top-trailing corner, so its target
+/// overhangs the thumbnail by half its height; the tile's top inset keeps all of it
+/// inside the strip's scroll view, which clips (#486). Each tile is one accessibility
+/// container that reads the thumbnail before its remove button, whatever their frames.
 private struct FeedbackAttachmentTile: View {
     let attachment: FeedbackAttachment
     let position: Int
@@ -90,6 +95,7 @@ private struct FeedbackAttachmentTile: View {
             .accessibilityLabel(attachment.accessibilityLabel(position: position))
             .accessibilityHint(openHint)
             .accessibilityIdentifier("fst.settings.feedback.attachment.\(position)")
+            .accessibilitySortPriority(1)
 
             Button(action: onRemove) {
                 Image(systemName: "xmark.circle.fill")
@@ -105,7 +111,8 @@ private struct FeedbackAttachmentTile: View {
             .accessibilityIdentifier("fst.settings.feedback.attachment.\(position).remove")
         }
         .padding(.trailing, 12)
-        .padding(.top, 2)
+        .padding(.top, 8)
+        .accessibilityElement(children: .contain)
         .task(id: attachment.fileURL) { await loadThumbnail() }
     }
 

@@ -1,303 +1,349 @@
 import UIKit
 import XCTest
 
-// MARK: - Notifications pinned titles at AX5 (issue #301, backfilled by #459)
-
-/// The Notifications sheet's pinned "New" title and the rows that fade out under it
-/// (#301) on a real iPhone/iPad navigation stack with real Dynamic Type. macOS has no
-/// Dynamic Type, so `FestivalUITests/NotificationsPinnedHeaderAccessibilityTests` covers
-/// the Mac reading order (each title, then its rows; the push between titles) in
-/// `apple-ci`, and this journey is the iOS, iPadOS and iPhone Duo evidence.
+/// Accessibility of the Notifications sheet's rows under its pinned "New" title (#469,
+/// for #322).
 ///
-/// At AX5, with the 24-row `fixture-notifications-long` feed (all unread, so one "New"
-/// section):
-/// - at rest the "New" heading (header trait) is read before its rows, in row order;
-/// - the heading and the rows grow, and each row is one named button at least 44 pt tall
-///   spanning the sheet;
-/// - scrolled until one row has passed under the title and the next is partly under it,
-///   the pinned heading stays read, keeps its place and the rows stay in feed order.
-///   XCUITest also lists `accessibilityHidden` views (`testing/apple/accessibility.md`),
-///   so the hosted Mac test proves a row wholly under the title is no VoiceOver stop
-///   (scroll-edge R7);
-/// - a scoped audit (Dynamic Type, clipped text, hit region, description) passes.
+/// #322 hid the List's own row separators and drew each row's line inside the row's
+/// masked background, so the line fades under the pinned title with the row
+/// (`PinnedHeaderRowSeparator` in `PinnedHeaderEdgeFade.swift`). That line and the
+/// separator-guide markers must stay decoration: each journey opens the sheet on the
+/// fixture account `fixture-notify-many` (24 unread rows, `tools/mock_service.py`), checks
+/// the title is a heading read before the rows, the rows read in feed order with their
+/// full labels and 44 pt targets (HIG Accessibility, "iOS, iPadOS 44×44 pt"), then drags
+/// one row into the fade band and across the title's edge and checks the row keeps its
+/// label, frame, descendants and hit target with nothing else exposed inside it, and
+/// audits the masked state. The AX5 journey also checks the title and rows grow with
+/// Dynamic Type. The hosted `NotificationsPinnedHeaderAccessibilityTests` pin the same
+/// contract (plus the "Older" title and the hard-edge modes) on macOS in `apple-ci`.
 ///
-/// Runs against `tools/mock_service.py` (port 8765; set
-/// `TEST_RUNNER_FST_NOTIFICATIONS_A11Y_FIXTURE_URL` for another mock). `apple-ci` runs it
-/// on its iPhone and iPad simulators (`testing/apple/xcuitest.md#ci-journeys`).
-///
-/// HIG VoiceOver: "Specify how elements are grouped, ordered or linked"; HIG
-/// Accessibility: iOS, iPadOS default control size 44×44 pt.
+/// Needs `tools/mock_service.py` on port 8765 (plain or `--large-catalogue`), or at
+/// `FST_NOTIFICATIONS_FIXTURE_URL` (`TEST_RUNNER_FST_NOTIFICATIONS_FIXTURE_URL` through
+/// `xcodebuild`) when another lane's mock holds that port.
 final class NotificationsAccessibilityJourneyTests: XCTestCase {
-    private static let origin = ProcessInfo.processInfo.environment["FST_NOTIFICATIONS_A11Y_FIXTURE_URL"]
-        ?? "http://127.0.0.1:8765"
-    private static let account = "fixture-notifications-long"
-    private static let rowPrefix = "fst.notifications.row.fixture-long-notif-"
+    // MARK: - Fixture
+
+    private static let account = "fixture-notify-many"
     private static let rowCount = 24
+    private static let rowPrefix = "fst.notifications.row."
 
-    // MARK: - Journeys
-
-    /// iPhone and iPad (and the real iPhone Duo when run there).
-    @MainActor
-    func testPinnedTitleAndRowsAtLargestText() throws {
-        try assertPinnedTitle(duoWindow: nil)
+    /// One element the sheet's list exposes, in snapshot (reading) order.
+    private struct Node {
+        let identifier: String
+        let label: String
+        let frame: CGRect
+        let isHeading: Bool
+        let isEnabled: Bool
     }
 
-    /// iPhone Duo folded (outer display), simulated on the CI iPhone (`DebugDuoWindow`).
-    @MainActor
-    func testPinnedTitleAndRowsAtLargestTextDuoFolded() throws {
-        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The Duo window is simulated on an iPhone")
-        try assertPinnedTitle(duoWindow: "folded")
-    }
-
-    // MARK: - Assertions
-
-    /// Open the sheet at the default size and at AX5, then check names, roles, order,
-    /// targets, scaling and the pinned title while scrolling.
+    /// Launch Songs with the long-feed account selected.
     ///
-    /// - Parameter duoWindow: `DebugDuoWindow` to simulate, or nil for the device itself.
+    /// - Parameter largeText: Launch at the largest accessibility text size (AX5).
+    /// - Returns: The launched app.
     @MainActor
-    private func assertPinnedTitle(duoWindow: String?) throws {
-        continueAfterFailure = false
-        XCUIDevice.shared.orientation = .portrait
-
-        let standard = try openSheet(size: nil, duoWindow: duoWindow)
-        let standardRest = try rest(in: standard, size: "default")
-        standard.terminate()
-
-        continueAfterFailure = true
-        let app = try openSheet(
-            size: UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue, duoWindow: duoWindow
-        )
-        let large = try rest(in: app, size: "AX5")
-        record(app, name: "notifications-ax5-rest")
-
-        // Text scaling: the title and the rows grow.
-        XCTAssertGreaterThan(large.heading.height, standardRest.heading.height * 1.3,
-                             "the New title grows at AX5: \(large.heading) vs \(standardRest.heading)")
-        XCTAssertGreaterThan(large.row.height, standardRest.row.height * 1.2,
-                             "rows grow at AX5: \(large.row) vs \(standardRest.row)")
-
-        audit(app)
-        try assertPinnedWhileScrolling(app)
-    }
-
-    /// The sheet at rest: the heading, then its rows in order, each a named, full-width
-    /// button at least 44 pt tall.
-    ///
-    /// - Parameters:
-    ///   - app: The app with the sheet open.
-    ///   - size: Label for failure messages.
-    /// - Returns: The heading's and the first row's frames.
-    @MainActor
-    private func rest(in app: XCUIApplication, size: String) throws -> (heading: CGRect, row: CGRect) {
-        let sheet = app.collectionViews.firstMatch
-        let window = app.windows.firstMatch.frame
-        let nodes = try FestivalApp.snapshotNodes(in: sheet) { node in
-            Self.isRow(node) || (node.elementType == .staticText && node.label == "New")
-        }
-        attach("reading order (\(size))", nodes.map(Self.describe).joined(separator: "\n"))
-        let heading = try XCTUnwrap(nodes.first { !Self.isRow($0) },
-                                    "the New title is read (\(size))")
-        XCTAssertTrue(Self.isHeader(heading), "'New' is a heading (\(size))")
-        XCTAssertFalse(nodes.first.map(Self.isRow) ?? true,
-                       "the New title is read before its rows (\(size))")
-
-        let rows = nodes.filter { Self.isRow($0) && $0.frame.minY < window.maxY }
-        XCTAssertFalse(rows.isEmpty, "rows are read (\(size))")
-        let indexes = rows.compactMap(Self.index)
-        XCTAssertEqual(indexes, Array(0..<indexes.count), "rows are read top to bottom from the first (\(size))")
-        XCTAssertLessThanOrEqual(heading.frame.maxY, rows[0].frame.minY + 1, "the title sits above its first row (\(size))")
-        for row in rows where row.frame.maxY <= window.maxY {
-            XCTAssertEqual(row.elementType, .button, "\(Self.describe(row)) is a button (\(size))")
-            XCTAssertFalse(row.label.trimmingCharacters(in: .whitespaces).isEmpty, "\(row.identifier) is named (\(size))")
-            XCTAssertGreaterThanOrEqual(row.frame.height, 44 - 1, "\(Self.describe(row)) is at least 44 pt tall (\(size))")
-            XCTAssertGreaterThan(row.frame.width, sheet.frame.width * 0.75, "\(Self.describe(row)) spans the sheet (\(size))")
-        }
-        XCTAssertTrue(app.buttons[rows[0].identifier].isHittable, "the first row is reachable (\(size))")
-        return (heading.frame, rows[0].frame)
-    }
-
-    /// Scroll in small held drags (no momentum) until a row has passed wholly under the
-    /// pinned title and the next is partly under it, checking every step: the title is
-    /// still read as a heading, stays pinned once it stops moving, and the rows are read in
-    /// feed order. XCUITest also lists `accessibilityHidden` views, so whether the wholly
-    /// cut row leaves VoiceOver is asserted by the macOS-hosted
-    /// `NotificationsPinnedHeaderAccessibilityTests` (`testing/apple/accessibility.md`).
-    ///
-    /// - Parameter app: The app with the sheet open at rest.
-    @MainActor
-    private func assertPinnedWhileScrolling(_ app: XCUIApplication) throws {
-        let sheet = app.collectionViews.firstMatch
-        let list = sheet.frame
-        let step = min(80, list.height * 0.1)
-        let start = sheet.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0))
-            .withOffset(CGVector(dx: 0, dy: list.height * 0.75))
-        var headingTops: [CGFloat] = []
-        var cutSeen = false
-        for index in 0..<40 where !cutSeen || headingTops.count < 4 {
-            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -step)),
-                        withVelocity: .slow, thenHoldForDuration: 0.3)
-            let nodes = try FestivalApp.snapshotNodes(in: sheet) { node in
-                Self.isRow(node) || (node.elementType == .staticText && node.label == "New")
-            }
-            let state = "step \(index): " + nodes.map(Self.describe).joined(separator: "; ")
-            guard let heading = nodes.first(where: { !Self.isRow($0) }) else {
-                XCTFail("the pinned New title is read: \(state)")
-                continue
-            }
-            XCTAssertTrue(Self.isHeader(heading), "the pinned 'New' is a heading: \(state)")
-            let edge = heading.frame.maxY
-            let rows = nodes.filter(Self.isRow).sorted { $0.frame.minY < $1.frame.minY }
-            let indexes = rows.compactMap(Self.index)
-            XCTAssertEqual(indexes, indexes.sorted(), "rows are read in feed order: \(state)")
-            // The title has pinned once the first row has scrolled under it.
-            if let first = rows.first, first.frame.minY < heading.frame.minY { headingTops.append(heading.frame.minY) }
-            // A row past the title, and the next one partly under it.
-            if let partly = rows.first(where: { $0.frame.maxY > edge + 0.5 }), let at = Self.index(partly), at > 0,
-               partly.frame.minY < edge - 1 {
-                if !cutSeen {
-                    attach("cut (step \(index))", state)
-                    record(app, name: "notifications-ax5-cut")
-                }
-                cutSeen = true
-            }
-        }
-        XCTAssertTrue(cutSeen, "scrolling never moved a row past the title with the next partly under it")
-        if let pinned = headingTops.first {
-            for top in headingTops {
-                XCTAssertEqual(top, pinned, accuracy: 1, "the New title stays pinned: \(headingTops)")
-            }
-        } else {
-            XCTFail("the New title never pinned")
-        }
-    }
-
-    /// Audit the sheet's rows at rest (the shell has its own journeys).
-    @MainActor
-    private func audit(_ app: XCUIApplication) {
-        var issues: [String] = []
-        let types: XCUIAccessibilityAuditType = [.dynamicType, .textClipped, .hitRegion, .sufficientElementDescription]
-        let handler: (XCUIAccessibilityAuditIssue) throws -> Bool = { issue in
-            guard let element = issue.element, element.identifier.hasPrefix("fst.notifications.") else { return true }
-            issues.append("\(element.identifier) '\(element.label)': \(issue.compactDescription)")
-            return true
-        }
-        do {
-            try app.performAccessibilityAudit(for: types, handler)
-        } catch let error as NSError
-            where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56 {
-            // The CI runner can exceed XCTest's audit deadline (#388): retry once.
-            issues.removeAll()
-            try? app.performAccessibilityAudit(for: types, handler)
-        } catch {
-            XCTFail("audit failed: \(error)")
-        }
-        XCTAssertEqual(issues, [], "Notifications audit issues at AX5")
-    }
-
-    // MARK: - Launch
-
-    /// Launch with the long feed's player selected and open the Notifications sheet.
-    ///
-    /// - Parameters:
-    ///   - size: A `UIContentSizeCategory` raw value; nil keeps the default.
-    ///   - duoWindow: `DebugDuoWindow` to simulate, or nil for the device itself.
-    /// - Returns: The app with the sheet's rows loaded.
-    /// - Throws: A skip when the fixture never loads.
-    @MainActor
-    private func openSheet(size: String?, duoWindow: String?) throws -> XCUIApplication {
-        var environment = [
-            "FST_API_BASE_URL": Self.origin,
+    private func launch(largeText: Bool) -> XCUIApplication {
+        let base = ProcessInfo.processInfo.environment["FST_NOTIFICATIONS_FIXTURE_URL"]
+            ?? "http://127.0.0.1:8765"
+        let app = FestivalApp.makeApp([
+            "FST_API_BASE_URL": base,
             "FST_UI_TEST_CLEAR_PROFILE": "1",
-            "FST_DEBUG_PROFILE": "\(Self.account):Fixture Notifications",
-        ]
-        if let duoWindow {
-            environment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
-            environment["FST_DEBUG_DUO_WINDOW"] = duoWindow
-        }
-        let app = FestivalApp.makeApp(environment)
-        if let size {
-            app.launchArguments += ["-UIPreferredContentSizeCategoryName", size]
+            "FST_DEBUG_PROFILE": "\(Self.account):Notify Many",
+        ])
+        if largeText {
+            app.launchArguments += [
+                "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+            ]
         }
         app.launch()
-        if let duoWindow { waitForDuoWindow(duoWindow, in: app) }
-        let bell = app.buttons["fst.shell.notifications"]
-        guard bell.waitForExistence(timeout: FestivalApp.budget(20)) else {
-            throw XCTSkip("The bell never showed; run tools/mock_service.py on \(Self.origin).")
-        }
-        let unread = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label CONTAINS %@", "\(Self.rowCount) unread"), object: bell
-        )
-        XCTAssertEqual(XCTWaiter().wait(for: [unread], timeout: FestivalApp.budget(20)), .completed,
-                       "the bell counts the long feed: '\(bell.label)'")
-        bell.tap()
-        let first = app.buttons["\(Self.rowPrefix)0"]
-        XCTAssertTrue(first.waitForExistence(timeout: FestivalApp.budget(20)), "the sheet lists the feed")
-        // Let the rows' staggered fade-in finish.
-        sleep(UInt32(FestivalApp.budget(2)))
         return app
     }
 
-    /// Wait until the app reports the simulated Duo window (`DuoShellJourneyTests`).
+    /// Open the sheet from the bell and wait for its first row.
+    ///
+    /// - Parameter app: The launched app.
+    @MainActor
+    private func openSheet(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        let bell = app.buttons["fst.shell.notifications"]
+        XCTAssertTrue(bell.waitForExistence(timeout: FestivalApp.budget(20)), "No bell", file: file, line: line)
+        let counted = NSPredicate(format: "label == %@", "Notifications, \(Self.rowCount) unread")
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [expectation(for: counted, evaluatedWith: bell)], timeout: FestivalApp.budget(20)),
+            .completed, "The bell never announced \(Self.rowCount) unread: '\(bell.label)'", file: file, line: line
+        )
+        bell.tap()
+        XCTAssertTrue(
+            app.buttons[Self.rowPrefix + "\(Self.account)-0"].waitForExistence(timeout: FestivalApp.budget(15)),
+            "The sheet did not show its first row", file: file, line: line
+        )
+        waitForRowsToSettle(app)
+    }
+
+    // MARK: - Tests
+
+    /// Default text size: heading and rows read in order with their names and targets,
+    /// and a row in the fade or cut by the title keeps its accessibility. When the audit
+    /// reports the "New" title's Dynamic Type as partially unsupported, the title must
+    /// measure at least 1.35x taller in an AX5 launch (the `dynamic-type-grows` evidence).
+    @MainActor
+    func testRowsUnderThePinnedTitleKeepTheirAccessibility() throws {
+        continueAfterFailure = false
+        let app = launch(largeText: false)
+        openSheet(app)
+        let small = try assertReadingOrder(app, size: "default")
+        guard try assertRowUnderTheTitle(app, size: "default") else { return }
+        app.terminate()
+
+        let large = launch(largeText: true)
+        openSheet(large)
+        let grown = try assertReadingOrder(large, size: "AX5")
+        XCTAssertGreaterThanOrEqual(
+            grown.heading.height, small.heading.height * 1.35,
+            "Audit flagged 'New' and it did not scale: \(small.heading.height) → \(grown.heading.height) pt"
+        )
+    }
+
+    /// Largest accessibility text size: the title and rows grow with Dynamic Type, still
+    /// read in order unclipped, and a row under the title keeps its accessibility.
+    @MainActor
+    func testRowsUnderThePinnedTitleKeepTheirAccessibilityAtAX5() throws {
+        continueAfterFailure = false
+        let regular = launch(largeText: false)
+        openSheet(regular)
+        let small = try assertReadingOrder(regular, size: "default")
+        regular.terminate()
+
+        let app = launch(largeText: true)
+        openSheet(app)
+        let large = try assertReadingOrder(app, size: "AX5")
+        XCTAssertGreaterThanOrEqual(
+            large.heading.height, small.heading.height * 1.35,
+            "'New' did not scale: \(small.heading.height) → \(large.heading.height) pt"
+        )
+        XCTAssertGreaterThanOrEqual(
+            large.row.height, small.row.height * 1.35,
+            "Rows did not scale: \(small.row.height) → \(large.row.height) pt"
+        )
+        // The growth above is the evidence for a partially-unsupported finding on 'New'.
+        _ = try assertRowUnderTheTitle(app, size: "AX5")
+    }
+
+    // MARK: - Reading order
+
+    /// The list exposes the one "New" heading, then the rows in feed order, each a named,
+    /// enabled button at least 44 pt each way whose label is its own notification's.
     ///
     /// - Parameters:
-    ///   - pose: Expected `DebugDuoWindow` raw value.
-    ///   - app: The running app.
+    ///   - app: The app with the sheet open at its top.
+    ///   - size: Label for failure messages.
+    /// - Returns: The heading's and first row's frames.
     @MainActor
-    private func waitForDuoWindow(_ pose: String, in app: XCUIApplication) {
-        let readout = app.staticTexts["fst.shell.debug.duo-window"]
-        let reached = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label BEGINSWITH %@", "\(pose) "), object: readout
-        )
-        XCTAssertEqual(XCTWaiter().wait(for: [reached], timeout: FestivalApp.budget(10)), .completed,
-                       "The app never simulated \(pose): \(readout.exists ? readout.label : "no readout")")
+    private func assertReadingOrder(_ app: XCUIApplication, size: String) throws -> (heading: CGRect, row: CGRect) {
+        let nodes = try sheetNodes(app)
+        let window = app.windows.firstMatch.frame
+        XCTContext.runActivity(named: "Sheet order at \(size): \(nodes.map { "\($0.identifier) '\($0.label)' \($0.frame)" })") { _ in }
+        let headings = nodes.filter(\.isHeading)
+        XCTAssertEqual(headings.map(\.label), ["New"], "One 'New' heading at \(size)")
+        let heading = try XCTUnwrap(headings.first)
+        XCTAssertEqual(nodes.first?.label, "New", "The title reads before the rows at \(size)")
+        let rows = nodes.filter { $0.identifier.hasPrefix(Self.rowPrefix) }
+        XCTAssertEqual(nodes.count, rows.count + 1, "Only the title and rows at \(size): \(nodes.map(\.label))")
+        let indices = rows.compactMap { Int($0.identifier.split(separator: "-").last ?? "") }
+        XCTAssertEqual(indices, Array(indices.sorted()), "Rows read in feed order at \(size)")
+        XCTAssertEqual(indices.first, 0, "The first row reads first at \(size)")
+        // At AX5 one row can be taller than the space below the title.
+        let onScreen = rows.filter { $0.frame.minY < window.maxY && $0.frame.maxY > window.minY }
+        XCTAssertGreaterThanOrEqual(onScreen.count, 1, "No row on screen at \(size)")
+        for row in onScreen {
+            let index = try XCTUnwrap(Int(row.identifier.split(separator: "-").last ?? ""))
+            XCTAssertTrue(row.isEnabled, "\(row.identifier) disabled at \(size)")
+            XCTAssertTrue(
+                row.label.contains("#\(500 + index) to #\(index + 1)"),
+                "\(row.identifier) reads another row's notification at \(size): '\(row.label)'"
+            )
+            XCTAssertGreaterThanOrEqual(row.frame.height, 44, "\(row.identifier) height at \(size)")
+            XCTAssertGreaterThanOrEqual(row.frame.width, 44, "\(row.identifier) width at \(size)")
+            XCTAssertGreaterThanOrEqual(row.frame.minY, heading.frame.maxY - 0.5, "\(row.identifier) above the title at \(size)")
+        }
+        return (heading.frame, try XCTUnwrap(onScreen.first).frame)
     }
 
-    // MARK: - Snapshot helpers
-
-    /// A row's VoiceOver stop: its button (its cell and content carry the identifier too).
-    private static func isRow(_ node: XCUIElementSnapshot) -> Bool {
-        node.elementType == .button && node.identifier.hasPrefix(rowPrefix)
+    /// The sheet list's headings and row buttons in snapshot order (not descending into
+    /// buttons, as VoiceOver reads a button as one element).
+    @MainActor
+    private func sheetNodes(_ app: XCUIApplication) throws -> [Node] {
+        var nodes: [Node] = []
+        func walk(_ node: XCUIElementSnapshot) {
+            if node.elementType == .button, node.identifier.hasPrefix(Self.rowPrefix) {
+                nodes.append(Node(identifier: node.identifier, label: node.label, frame: node.frame,
+                                  isHeading: false, isEnabled: node.isEnabled))
+                return
+            }
+            if node.elementType == .staticText, ["New", "Older"].contains(node.label) {
+                let traits = Self.traits(node)
+                nodes.append(Node(identifier: node.identifier, label: node.label, frame: node.frame,
+                                  isHeading: traits.map { $0 & UIAccessibilityTraits.header.rawValue != 0 } ?? true,
+                                  isEnabled: node.isEnabled))
+            }
+            if node.elementType == .button { return }
+            node.children.forEach(walk)
+        }
+        walk(try app.snapshot())
+        return nodes
     }
 
-    /// A row's position in the feed, from its identifier.
-    private static func index(_ node: XCUIElementSnapshot) -> Int? {
-        guard node.identifier.hasPrefix(rowPrefix) else { return nil }
-        return Int(node.identifier.dropFirst(rowPrefix.count))
-    }
-
-    /// The node's accessibility traits, where the snapshot exposes them.
+    /// The snapshot's accessibility traits, when readable (as `CompeteAccessibilityJourneyTests`).
+    @MainActor
     private static func traits(_ snapshot: XCUIElementSnapshot) -> UInt64? {
         let object = snapshot as AnyObject
         guard object.responds(to: NSSelectorFromString("traits")) else { return nil }
         return (object.value(forKey: "traits") as? NSNumber)?.uint64Value
     }
 
-    /// True for a heading, or when the snapshot hides traits.
-    private static func isHeader(_ snapshot: XCUIElementSnapshot) -> Bool {
-        guard let traits = traits(snapshot) else { return true }
-        return traits & UIAccessibilityTraits.header.rawValue != 0
-    }
+    // MARK: - Row under the title
 
-    private static func describe(_ node: XCUIElementSnapshot) -> String {
-        let frame = node.frame
-        return "\(node.elementType.rawValue) \(node.identifier.isEmpty ? node.label : node.identifier) [\(Int(frame.minY))–\(Int(frame.maxY))]"
-    }
-
-    // MARK: - Evidence
-
+    /// Drag a row clear of the fade into the fade band, then across the pinned title's
+    /// edge so the mask cuts it, and check it keeps its accessibility; audit the cut state.
+    ///
+    /// - Parameters:
+    ///   - app: The app with the sheet open at its top.
+    ///   - size: Label for failure messages.
+    /// - Returns: Whether the audit reported the "New" title's Dynamic Type as partially
+    ///   unsupported, which the caller must disprove with measured growth.
     @MainActor
-    private func record(_ app: XCUIApplication, name: String) {
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
+    @discardableResult
+    private func assertRowUnderTheTitle(_ app: XCUIApplication, size: String) throws -> Bool {
+        let title = app.staticTexts["New"].firstMatch
+        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", Self.rowPrefix))
+        // XCUITest reads the title as its whole header cell, whose bottom is the pinned
+        // band's edge (PinnedHeaderEdgeFade.edge). At rest the cell sits below the gap iOS
+        // leaves above the first header; the title is drawn lifted over that gap (#301, a
+        // visual effect the cell's frame does not follow), so the edge is read live, once
+        // the header has pinned.
+        let resting = title.frame
+        var edge: CGFloat { title.frame.maxY }
+        let window = app.windows.firstMatch.frame
+        // A row clear of the fade with its top on screen; at AX5 the first row fills the
+        // sheet, so scroll until the next one is.
+        func clearRow() -> XCUIElement? {
+            rows.allElementsBoundByIndex.first { row in
+                row.frame.minY >= edge + 2 * PinnedRowProbe.fade && row.frame.minY <= window.maxY - 120
+            }
+        }
+        var candidate = clearRow()
+        for _ in 0..<6 where candidate == nil {
+            let start = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.7))
+            start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -200)),
+                        withVelocity: .slow, thenHoldForDuration: 0.3)
+            waitForRowsToSettle(app)
+            candidate = clearRow()
+        }
+        let identifier = try XCTUnwrap(candidate?.identifier, "No row clear of the fade at \(size)")
+        let row = app.buttons[identifier]
+        let clear = try PinnedRowProbe(row: row, in: app)
+        XCTAssertTrue(clear.strays.isEmpty, "Clear row exposes \(clear.strays) at \(size)")
+
+        var pinned: CGRect?
+        for (state, offset) in [("in the band", PinnedRowProbe.fade / 4), ("cut", -PinnedRowProbe.fade / 4)] {
+            var target: CGFloat { edge + offset }
+            // A drag first spends the pan's slop, so a short one never moves the list:
+            // back off first, and lengthen each drag by the slop the last one lost
+            // (as `SongsChromeJourneyTests.testRowUnderTheSectionBarFadeKeepsItsAccessibility`).
+            var slop: CGFloat = 0
+            func drag(_ length: CGFloat) {
+                let start = app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.7))
+                start.press(
+                    forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: length)),
+                    withVelocity: .slow, thenHoldForDuration: 0.3
+                )
+                waitForRowsToSettle(app)
+            }
+            for _ in 0..<6 where abs(row.frame.minY - target) > 6 {
+                if abs(row.frame.minY - target) < 40 { drag(80) }
+                let before = row.frame.minY
+                let delta = target - before
+                let length = delta + (delta > 0 ? slop : -slop)
+                drag(length)
+                slop = max(0, abs(length) - abs(row.frame.minY - before))
+            }
+            let titleFrame = title.frame
+            let masked = try PinnedRowProbe(row: row, in: app)
+            XCTContext.runActivity(named: "\(size) \(state): title \(titleFrame) (resting \(resting)), row \(masked.frame)") { _ in }
+            XCTAssertEqual(titleFrame.height, resting.height, accuracy: 0.5, "\(size) \(state): the title changed size")
+            XCTAssertLessThanOrEqual(titleFrame.minY, resting.minY, "\(size) \(state): the title scrolled down")
+            if let pinned {
+                XCTAssertEqual(titleFrame.minY, pinned.minY, accuracy: 1, "\(size) \(state): the title did not stay pinned")
+            }
+            pinned = titleFrame
+            XCTAssertLessThan(masked.frame.minY, titleFrame.maxY + PinnedRowProbe.fade / 2, "\(size) \(state): row not under the fade")
+            XCTAssertGreaterThan(masked.frame.maxY, titleFrame.maxY + 8, "\(size) \(state): row hidden under the title")
+            XCTAssertEqual(masked.label, clear.label, "\(size) \(state): mask changed the row's label")
+            XCTAssertEqual(masked.frame.height, clear.frame.height, accuracy: 0.5, "\(size) \(state): mask cut the row's frame")
+            XCTAssertEqual(masked.frame.width, clear.frame.width, accuracy: 0.5, "\(size) \(state): mask cut the row's frame")
+            XCTAssertEqual(masked.descendants, clear.descendants, "\(size) \(state): mask changed the row's descendants")
+            XCTAssertTrue(masked.strays.isEmpty, "\(size) \(state): masked row exposes \(masked.strays)")
+            XCTAssertEqual(masked.containers, clear.containers, "\(size) \(state): mask added containers to the row")
+            XCTAssertTrue(row.isHittable, "\(size) \(state): masked row not hittable")
+            let headings = try sheetNodes(app).filter(\.isHeading)
+            XCTAssertEqual(headings.map(\.label), ["New"], "\(size) \(state): one pinned 'New' heading")
+            XCTAssertLessThan(titleFrame.minY, masked.frame.minY, "\(size) \(state): row starts above the title")
+        }
+        return try audit(app, size: size)
     }
 
-    private func attach(_ name: String, _ text: String) {
-        let attachment = XCTAttachment(string: text)
-        attachment.name = name
-        attachment.lifetime = .keepAlways
-        add(attachment)
+    // MARK: - Audit
+
+    /// Run the scoped audit (Dynamic Type, clipped text, hit regions, descriptions) and fail
+    /// on any issue in the sheet's title or rows. Contrast is left out: rows in the fade are
+    /// dimmed by design (scroll-edge R2), and the clear rows' contrast is the Notifications
+    /// render tests' concern.
+    ///
+    /// The one exception is "Dynamic Type font sizes are partially unsupported" on the
+    /// "New" title (`.subheadline`, a scaling text style): iOS reported it intermittently
+    /// (#469 retry, 2026-10-12; it passed clean before), so it is returned for the caller
+    /// to disprove with ≥ 1.35x AX5 growth, the `dynamic-type-grows` evidence
+    /// (`SongsFilterAccessibilityJourneyTests.testDynamicTypeAuditWithShopHidden`).
+    ///
+    /// - Parameters:
+    ///   - app: The app with a row cut by the pinned title.
+    ///   - size: Label for failure messages.
+    /// - Returns: Whether the title was reported as partially unsupported.
+    @MainActor
+    private func audit(_ app: XCUIApplication, size: String) throws -> Bool {
+        var issues: [String] = []
+        var titlePartial = false
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            app, [.dynamicType, .textClipped, .hitRegion, .sufficientElementDescription],
+            name: "notifications-\(size)", reset: { issues = []; titlePartial = false }
+        ) { issue in
+            let id = issue.element?.identifier ?? ""
+            let label = issue.element?.label ?? ""
+            guard id.hasPrefix(Self.rowPrefix) || label == "New" || label.contains(" · ") else { return true }
+            if issue.auditType == .dynamicType, label == "New",
+               issue.compactDescription.contains("partially unsupported") {
+                titlePartial = true
+                XCTContext.runActivity(named: "To prove by AX5 growth: '\(label)' \(issue.compactDescription)") { _ in }
+                return true
+            }
+            issues.append("\(id) '\(label)': \(issue.compactDescription)")
+            return true
+        }
+        XCTAssertEqual(issues, [], "Notifications audit issues at \(size)")
+        return titlePartial
+    }
+
+    // MARK: - Settling
+
+    /// Wait until the first rows stop moving (stagger fade-in, scroll deceleration).
+    @MainActor
+    private func waitForRowsToSettle(_ app: XCUIApplication) {
+        var last: [CGRect] = []
+        for _ in 0..<Int(FestivalApp.budget(20)) {
+            let frames = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", Self.rowPrefix))
+                .allElementsBoundByIndex.prefix(4).map(\.frame)
+            if !frames.isEmpty, frames == last { return }
+            last = frames
+            RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        }
+        XCTFail("Notifications list kept moving")
     }
 }

@@ -2355,7 +2355,7 @@
       "title": "Empty and error states",
       "status": "current",
       "doc": ".agents/patterns/empty-error-states.md",
-      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator, exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls; a score-update scrape freeze 503 for a URL the shared pinned-read client already verified in the same, still-current publication returns that kept body instead of the service status (R9, #554); cold reads, outages, non-score freezes and other publications still fail with Retry, and kept bodies are in-memory and byte-bounded. An inline service status is one container whose message, countdown and Retry stay separately reachable; Retry keeps its own identifier and an iOS 44×44 pt target, and a consumer tagging the wrapper contains its children first (R10, #463).",
+      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile, whose prominent fill and label stay paired and legible under Increase Contrast, #477); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator, exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls; a score-update scrape freeze 503 for a URL the shared pinned-read client already verified in the same, still-current publication returns that kept body instead of the service status (R9, #554); cold reads, outages, non-score freezes and other publications still fail with Retry, and kept bodies are in-memory and byte-bounded. An inline service status is one container whose message, countdown and Retry stay separately reachable; Retry keeps its own identifier and an iOS 44×44 pt target, and a consumer tagging the wrapper contains its children first (R10, #463).",
       "keywords": [
         "empty",
         "no results",
@@ -2393,6 +2393,10 @@
           {
             "path": "apple/Sources/FestivalUI/Common/FestivalEmptyState.swift",
             "symbol": "FestivalEmptyState"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Design/AccentText.swift",
+            "symbol": "FestivalProminentButtonColors"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchEmptyState.swift",
@@ -3758,7 +3762,7 @@
       "title": "Hinge columns",
       "status": "current",
       "doc": ".agents/patterns/hinge-columns.md",
-      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; fully unfolded (flat), splits and page rows divide at the midpoint of the free content area, never on the flat hinge line (owner-approved, #361); cells sharing a row start at its top edge (#365; Android card grids are row-major LazyVerticalGrids and Band Detail pairs its sections in top-aligned rows under a full-width header, never masonry lanes, #584); two-pane viewers (Paths Side by Side) use HingePanes, meeting at the fold in book pose and as equal halves when flat (owner-approved, #368).",
+      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; fully unfolded (flat), splits and page rows divide at the midpoint of the free content area, never on the flat hinge line (owner-approved, #361); cells sharing a row start at its top edge (#365) and a card of several elements is one accessibility container read whole (#490; Android card grids are row-major LazyVerticalGrids and Band Detail pairs its sections in top-aligned rows under a full-width header, never masonry lanes, #584); two-pane viewers (Paths Side by Side) use HingePanes, meeting at the fold in book pose and as equal halves when flat (owner-approved, #368).",
       "keywords": [
         "hinge",
         "fold",
@@ -3881,6 +3885,7 @@
         366,
         368,
         373,
+        490,
         583,
         584
       ]

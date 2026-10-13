@@ -245,8 +245,8 @@ struct FestivalTabStack<Root: View>: View {
         NavigationStack(path: $path) {
             root
                 // Each page's tools show in the iPhone tab-bar accessory only while it
-                // is the front page (issue #92).
-                .pageToolsScope()
+                // is the front page of the selected tab (issues #92, #487).
+                .pageToolsScope(inSelectedTab: isVisible)
                 .modifier(TopEdgeScrim())
                 .menuBarColumn(isTop: isVisible && path.isEmpty, isList: isListPane)
                 .splitPaneContext(paneContext)
@@ -258,7 +258,7 @@ struct FestivalTabStack<Root: View>: View {
                 )
                 // The bell and profile on every pushed page (issue #92).
                 .pageTrailingItems()
-                .pageToolsScope()
+                .pageToolsScope(inSelectedTab: isVisible)
                 .modifier(TopEdgeScrim())
                 .menuBarColumn(isTop: isVisible && path.last == route, isList: isListPane)
                 .splitPaneContext(paneContext)

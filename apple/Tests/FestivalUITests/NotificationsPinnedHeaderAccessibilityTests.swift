@@ -1,242 +1,208 @@
 #if os(macOS)
 import AppKit
-import Foundation
 import SwiftUI
 import Testing
 @testable import FestivalCore
 @testable import FestivalUI
 import FestivalDesign
 
-// MARK: - Notifications pinned titles, accessibility (issue #459, for #301)
+// MARK: - Notifications pinned header accessibility (issues #322, #469)
 
-/// VoiceOver over the Notifications sheet's pinned "New" / "Older" titles and the rows
-/// that fade out under them (issue #301, pattern `scroll-edge` R5 and R7): at rest, while
-/// scrolled under each pinned title, during the push and with the hard edge (in-app Less
-/// Transparency). The titles are headings read before the rows beneath them; rows are
-/// named, enabled buttons with their identifiers and at least 44 pt tall; a row partly
-/// under a title stays one; a row wholly in the cut is no VoiceOver stop.
+/// What assistive technologies get from the Notifications sheet's rows while they scroll
+/// under the pinned "New"/"Older" titles (`.agents/patterns/scroll-edge.md` R2, R5, R7;
+/// `.agents/controls/notifications/ios.md`).
 ///
-/// The fixture lists 8 unread ("New") and 24 seen ("Older") 93 pt rows (85 pt buttons
-/// inside 4 pt insets) under a 28 pt title band, in a 420 × 640 pt sheet; offsets below
-/// are measured from the List's top in those units.
+/// Issue #322 made each row hide the system separator and draw its own line, with two
+/// zero-size guide markers, inside its masked row background
+/// (``View/pinnedHeaderEdgeFadeRow(_:first:background:)``). These tests host the real
+/// ``NotificationsSheet`` over a keyless fixture feed and sweep the List through "New" and
+/// past the push of "Older", in VoiceOver's reading order (``macListReadingOrder(_:table:)``):
+/// - the titles are headings, each read before its own rows;
+/// - every row is one enabled, named button with its test ID, read in feed order, at
+///   least 44 pt tall, and a row in the fade or cut by the title keeps the frame it has
+///   clear of it (the mask is drawing only);
+/// - the drawn separator, its guide markers and the mask expose nothing;
+/// - no separator line draws under the pinned title, with the fade and with every
+///   setting that turns it into a hard edge (R7).
+///
+/// macOS keeps the font size under `dynamicTypeSize`, so these are not text-scaling
+/// evidence: the iPhone journey `NotificationsAccessibilityJourneyTests` runs the same
+/// checks at AX5 (`apple-ci`).
 @MainActor
 struct NotificationsPinnedHeaderAccessibilityTests {
-    /// A hosted Notifications sheet and its List.
+    static let size = CGSize(width: 420, height: 640)
+    static let newCount = 8
+    static let olderCount = 24
+    static let rowPrefix = "fst.notifications.row."
+    /// The rows' fade depth under the pinned title (`PinnedHeaderEdgeFade.height`).
+    static let fade: CGFloat = 40
+    /// Scroll offsets through "New" (its title pinned) and past the push of "Older".
+    static let offsets: [Double] = [0] + Array(stride(from: 60.0, through: 720.0, by: 30.0))
+        + Array(stride(from: 820.0, through: 1_240.0, by: 30.0))
+
+    /// The hosted sheet, its List and the feed it shows.
     @MainActor
-    struct Hosted {
-        let host: NSView
+    struct Sheet {
+        let host: NSHostingView<NativeHostedRoot<AnyView>>
         let window: NSWindow
         let scroll: NSScrollView
         let table: NSTableView
-        let accountId: String
-        let suite: String
-        /// Settles the hosting view until the given texts are drawn.
-        let settle: @MainActor ([String]) async throws -> Void
+        /// Feed rows by notification ID, in feed order.
+        let notifications: [AppNotification]
+        let cleanup: () -> Void
 
-        /// Scroll the List so `offset` points of content lie above its top, then settle
-        /// until `title` is drawn.
-        func scroll(to offset: CGFloat, showing title: String) async throws {
+        /// The pinned title's top: the List's scroll-view top below its content inset.
+        var pinTop: CGFloat {
+            let frame = scroll.convert(scroll.bounds, to: host)
+            return (host.isFlipped ? frame.minY : host.bounds.height - frame.maxY) + scroll.contentInsets.top
+        }
+
+        /// The pinned title's bottom edge, where the rows' fade starts.
+        var pinBottom: CGFloat { pinTop + table.rect(ofRow: 0).height }
+
+        /// Scroll the List to `offset` and wait for `title` to be in the tree.
+        func scroll(to offset: Double, showing title: String) async throws -> CGImage {
             let clip = scroll.contentView
-            clip.scroll(to: NSPoint(x: 0, y: offset - scroll.contentInsets.top))
+            clip.scroll(to: NSPoint(x: 0, y: CGFloat(offset) - scroll.contentInsets.top))
             scroll.reflectScrolledClipView(clip)
-            try await settle([title])
-        }
-
-        /// The List's frame in screen coordinates (y up), as accessibility frames are.
-        var listScreenFrame: CGRect {
-            window.convertToScreen(scroll.convert(scroll.bounds, to: nil))
-        }
-
-        func close() {
-            window.orderOut(nil)
-            forgetScrollingAccount(accountId)
-            UserDefaults.standard.removePersistentDomain(forName: suite)
+            return try await nativeHostedSettle(host, untilText: [title])
         }
     }
 
-    /// The fixture's notifications by section.
-    static let newCount = 8
-    static let olderCount = 24
-    /// HIG Accessibility: a 44 × 44 pt minimum target (iOS); Mac rows share the layout.
-    static let minimumTarget: CGFloat = 44
-    /// Identifier prefix of the rows.
-    static let rowPrefix = "fst.notifications.row."
-
-    /// Host the sheet over the scrolling fixture.
-    ///
-    /// - Parameter lessTransparency: Turn the in-app Less Transparency on (scroll-edge R7:
-    ///   the fade becomes a hard edge).
-    /// - Returns: The hosted sheet.
-    func host(lessTransparency: Bool = false) async throws -> Hosted {
+    /// The real sheet over a scrolling feed, in `mode`'s accessibility setting, settled.
+    private func hostSheet(_ mode: BottomChromeFadeMode) async throws -> Sheet {
         let (session, accountId) = await scrollingNotificationsSession(
             newCount: Self.newCount, olderCount: Self.olderCount
         )
-        let suite = "fst.tests.notifications-a11y.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.set(lessTransparency, forKey: "fst.accessibility.lessTransparency")
-        let size = CGSize(width: 420, height: 640)
+        let (defaults, suite) = mode.storage()
         let host = nativeHostedView(
-            NotificationsSheet(session: session)
-                .frame(width: size.width, height: size.height)
-                .preferredColorScheme(.dark)
-                .background(BrandTokens.appBackground)
-                .defaultAppStorage(defaults),
-            size: size
+            AnyView(mode.system(
+                NotificationsSheet(session: session)
+                    .frame(width: Self.size.width, height: Self.size.height)
+                    .preferredColorScheme(.dark)
+                    .background(BrandTokens.appBackground)
+                    .defaultAppStorage(defaults)
+            )),
+            size: Self.size, forceGlassFallback: false
         )
-        let window = nativeHostedWindow(host, size: size)
+        let window = nativeHostedWindow(host, size: Self.size)
         _ = try await nativeHostedSettle(host, untilText: ["New"])
         let scroll = try #require(listScrollView(in: host))
         let table = try #require(scroll.documentView as? NSTableView)
-        return Hosted(
-            host: host, window: window, scroll: scroll, table: table, accountId: accountId, suite: suite,
-            settle: { _ = try await nativeHostedSettle(host, untilText: $0) }
+        return Sheet(
+            host: host, window: window, scroll: scroll, table: table,
+            notifications: session.notificationsCenter.notifications,
+            cleanup: {
+                window.orderOut(nil)
+                forgetScrollingAccount(accountId)
+                UserDefaults.standard.removePersistentDomain(forName: suite)
+            }
         )
     }
 
-    // MARK: - Reading order
+    /// A row's place in the feed and the title it belongs under.
+    private func feedIndex(_ node: MacAXNode, in sheet: Sheet) -> Int? {
+        guard node.identifier.hasPrefix(Self.rowPrefix) else { return nil }
+        let id = String(node.identifier.dropFirst(Self.rowPrefix.count))
+        return sheet.notifications.firstIndex { $0.id == id }
+    }
 
-    /// The sheet's on-screen elements in VoiceOver's reading order, as the Songs section
-    /// bar tests read it (`SongsSectionBarAccessibilityTests.readingOrder`): what sits
-    /// outside the List's rows in tree order (a pinned title floats above the table),
-    /// then the rows on screen by row index (an outline reads its rows in index order;
-    /// AppKit reorders recycled row views). Off-screen elements and duplicates (the
-    /// floating title is also its own row view at rest) are dropped.
-    func readingOrder(_ hosted: Hosted) -> [MacAXNode] {
-        let list = hosted.listScreenFrame
-        func onScreen(_ node: MacAXNode) -> Bool {
-            node.isElement && node.frame.width > 0 && node.frame.height > 0 && node.frame.intersects(list)
-        }
-        let tree = macAccessibilityTree(hosted.host, navigationOrder: true)
-        var outside: [MacAXNode] = []
-        var outlineDepth: Int?
-        for node in tree {
-            if let depth = outlineDepth, node.depth > depth { continue }
-            outlineDepth = nil
-            if node.role == "AXOutline" {
-                outlineDepth = node.depth
-                continue
+    // MARK: Reading order, names, roles and targets
+
+    /// Swept through "New" and past the push of "Older": the List reads only the two
+    /// headings and the rows, each row after its own section's heading and in feed order,
+    /// named with its spoken label, an enabled button ≥ 44 pt tall; a row in the fade or
+    /// cut by the pinned title keeps its clear frame; nothing else is exposed and nothing
+    /// is unnamed. The same with the fade and with each hard-edge setting.
+    @Test(arguments: [
+        BottomChromeFadeMode.standard, .systemReduceTransparency, .lessTransparency, .moreContrast,
+    ])
+    func rowsUnderThePinnedTitleKeepTheirAccessibility(mode: BottomChromeFadeMode) async throws {
+        let sheet = try await hostSheet(mode)
+        defer { sheet.cleanup() }
+        var clearFrames: [String: CGRect] = [:]
+        var faded = Set<String>(), cut = Set<String>()
+        for offset in Self.offsets {
+            _ = try await sheet.scroll(to: offset, showing: offset < 800 ? "New" : "Older")
+            let order = macListReadingOrder(sheet.host, table: sheet.table)
+            macAccessibilityDump(order.all, name: "notifications-pinned-\(mode.rawValue)-\(Int(offset))")
+            let context = "\(mode.rawValue) at \(Int(offset)) pt: \(order.rows)"
+            #expect(macAccessibilityFindings(order.all).isEmpty, "\(context)")
+
+            var heading: String?
+            var lastIndex = -1
+            for node in order.rows {
+                if node.role == "AXHeading" {
+                    #expect(["New", "Older"].contains(node.spokenName), "\(context)")
+                    heading = node.spokenName
+                    continue
+                }
+                let index = try #require(
+                    feedIndex(node, in: sheet), "not a heading or row (separator or marker exposed?): \(node); \(context)"
+                )
+                let notification = sheet.notifications[index]
+                #expect(node.role == "AXButton", "\(node)")
+                #expect(node.isEnabled, "\(node)")
+                #expect(node.spokenName == NotificationRow.accessibilityLabel(notification), "\(node)")
+                #expect(index > lastIndex, "rows out of feed order: \(context)")
+                lastIndex = index
+                // Every row after the first visible heading reads under its own section.
+                if let heading {
+                    #expect(heading == (index < Self.newCount ? "New" : "Older"), "\(node) under \(heading)")
+                }
+                let frame = try #require(nativeHostedAccessibilityFrame(node.identifier, in: sheet.host))
+                #expect(frame.height >= 44, "\(node) is \(frame.height) pt tall")
+                if frame.minY >= sheet.pinBottom + Self.fade {
+                    clearFrames[node.identifier] = clearFrames[node.identifier] ?? frame
+                } else if frame.maxY > sheet.pinBottom, let clear = clearFrames[node.identifier] {
+                    if frame.minY < sheet.pinBottom { cut.insert(node.identifier) } else { faded.insert(node.identifier) }
+                    #expect(abs(frame.height - clear.height) <= 0.5 && abs(frame.width - clear.width) <= 0.5,
+                            "the mask changed \(node.identifier)'s frame: \(clear) → \(frame) (\(context))")
+                }
             }
-            if onScreen(node), node.role != "AXScrollBar", node.role != "AXValueIndicator",
-               node.subrole.isEmpty || !node.subrole.hasSuffix("Arrow") && !node.subrole.hasSuffix("Page") {
-                outside.append(node)
+            // At rest both visible titles read, "New" first; scrolled, at most one of each.
+            let headings = order.rows.filter { $0.role == "AXHeading" }.map(\.spokenName)
+            if offset == 0 { #expect(headings.first == "New", "\(context)") }
+            #expect(Set(headings).count == headings.count, "a title read twice: \(context)")
+        }
+        #expect(!faded.isEmpty, "no row was read inside the fade band")
+        #expect(!cut.isEmpty, "no row was read while the pinned title cut it")
+    }
+
+    // MARK: Separators
+
+    /// Issue #322 in every edge mode: swept through "New" and past the push of "Older", no
+    /// separator line (dim ink, unlike the title's bright text) draws in the pinned title's
+    /// band, with the fade (R2) and with each hard-edge setting (R7), while separators
+    /// lower down still draw.
+    @Test(arguments: [
+        BottomChromeFadeMode.standard, .systemReduceTransparency, .lessTransparency, .moreContrast,
+    ])
+    func separatorsNeverDrawUnderThePinnedTitle(mode: BottomChromeFadeMode) async throws {
+        let sheet = try await hostSheet(mode)
+        defer { sheet.cleanup() }
+        // App background mean ≈ 27; a separator ≈ 49 (system separator color over it).
+        let separatorInk = 40
+        let headerRow = sheet.table.rect(ofRow: 0).height
+        var leaks: [Double] = []
+        var separatorsBelow = 0
+        for offset in Self.offsets.dropFirst() {
+            let image = try await sheet.scroll(to: offset, showing: offset < 800 ? "New" : "Older")
+            // Right of the title, above the header's own bottom hairline.
+            let band = CGRect(x: 90, y: sheet.pinTop + 1, width: Self.size.width - 110, height: headerRow - 5)
+            if nativeHostedBrightSamples(in: band, of: image, hostSize: Self.size, threshold: separatorInk) > 0 {
+                leaks.append(offset)
+                _ = try nativeHostedPNG(
+                    image, filename: "notifications-separator-\(mode.rawValue)-\(Int(offset)).png",
+                    environment: "FST_HISTORY_RENDER_OUT"
+                )
             }
+            // A thin strip between the rows' text and their chevrons: only separators draw there.
+            let strip = CGRect(x: 340, y: sheet.pinTop + 100, width: 28, height: 300)
+            separatorsBelow += nativeHostedBrightSamples(in: strip, of: image, hostSize: Self.size, threshold: separatorInk)
         }
-        let visible = hosted.table.rows(in: hosted.table.visibleRect)
-        let rows = (visible.lowerBound..<visible.upperBound).flatMap { index in
-            hosted.table.rowView(atRow: index, makeIfNecessary: false).map {
-                macAccessibilityTree($0, navigationOrder: true).filter(onScreen)
-            } ?? []
-        }
-        var seen: Set<String> = []
-        return (outside + rows).filter { node in
-            seen.insert("\(node.role)|\(node.spokenName)|\(node.identifier)|\(node.frame)").inserted
-        }
-    }
-
-    /// The row's index in the fixture (`<account>-<index>`), or nil for anything else.
-    static func rowIndex(_ node: MacAXNode) -> Int? {
-        guard node.identifier.hasPrefix(rowPrefix) else { return nil }
-        return node.identifier.split(separator: "-").last.flatMap { Int($0) }
-    }
-
-    /// The title a row is read under.
-    static func section(ofRow index: Int) -> String { index < newCount ? "New" : "Older" }
-
-    /// The rows' and titles' rules for one state.
-    ///
-    /// - Titles are headings named "New" / "Older"; the pinned one is read first.
-    /// - Every row is read after its own section's title, in fixture order, and is a
-    ///   named, enabled button with its identifier, at least 44 pt tall.
-    /// - R7: no element is a row wholly hidden under the pinned title band (its bottom
-    ///   at or above the band's bottom edge); a row with any part below the edge stays.
-    ///
-    /// - Parameters:
-    ///   - order: The reading order.
-    ///   - hosted: The sheet.
-    ///   - pinned: The title expected first.
-    ///   - state: Names the state in failures.
-    /// - Returns: The rows read, by fixture index.
-    @discardableResult
-    func expectRules(_ order: [MacAXNode], in hosted: Hosted, pinned: String, state: String) -> [Int] {
-        #expect(macAccessibilityFindings(order).isEmpty, "\(state): \(macAccessibilityFindings(order))")
-        let headings = order.filter { $0.role == "AXHeading" }
-        #expect(headings.first?.spokenName == pinned, "\(state): \(order)")
-        #expect(order.first { $0.role == "AXHeading" || Self.rowIndex($0) != nil }?.role == "AXHeading",
-                "\(state): a row is read before the pinned title: \(order)")
-        #expect(Set(headings.map(\.spokenName)).isSubset(of: ["New", "Older"]), "\(state): \(headings)")
-        #expect(headings.count == Set(headings.map(\.spokenName)).count, "\(state): a title read twice: \(headings)")
-
-        // The pinned band is the title's whole table row; screen coordinates are y up, so
-        // its bottom edge (where the row cut is) lies one header row below the List's top.
-        let edge = hosted.listScreenFrame.maxY - hosted.table.rect(ofRow: 0).height
-        var current: String?
-        var rows: [Int] = []
-        for node in order {
-            if node.role == "AXHeading" {
-                current = node.spokenName
-                continue
-            }
-            guard let index = Self.rowIndex(node) else { continue }
-            rows.append(index)
-            #expect(current == Self.section(ofRow: index), "\(state): row \(index) is read under \(current ?? "nothing")")
-            #expect(node.role == "AXButton" && node.isEnabled, "\(state): \(node)")
-            #expect(node.label.contains("Fixture Anthem") && node.label.contains("Rank Up"), "\(state): \(node)")
-            #expect(node.frame.height >= Self.minimumTarget, "\(state): row \(index) target \(node.frame)")
-            // A row's bottom is its minY.
-            #expect(node.frame.minY < edge - 0.5,
-                    "\(state): row \(index) is wholly under the pinned title (\(node.frame), edge \(edge)) yet read")
-        }
-        #expect(rows == rows.sorted(), "\(state): rows out of order \(rows)")
-        return rows
-    }
-
-    // MARK: - Tests
-
-    /// At rest: "New", its eight rows, then "Older" and its rows, every row a named,
-    /// enabled 44 pt button.
-    @Test func restingSheetReadsEachTitleThenItsRows() async throws {
-        let hosted = try await host()
-        defer { hosted.close() }
-        let order = readingOrder(hosted)
-        macAccessibilityDump(order, name: "notifications-pinned-rest")
-        let rows = expectRules(order, in: hosted, pinned: "New", state: "rest")
-        #expect(rows.first == 0, "rest: \(order)")
-        #expect(rows.count >= 5, "rest: \(order)")
-    }
-
-    /// Scrolled under each pinned title, with the fade and with the hard edge (R7): the
-    /// pinned title is read first; a row wholly in the cut is no stop, and the row
-    /// partly under the title is read next, still a named button.
-    @Test(arguments: [false, true])
-    func scrolledRowsWhollyUnderAPinnedTitleAreNoStop(lessTransparency: Bool) async throws {
-        let hosted = try await host(lessTransparency: lessTransparency)
-        defer { hosted.close() }
-        // Row n's button spans 32 + 93n … 117 + 93n; the pinned band covers offset … offset + 28.
-        // 100: "New" row 0 (… 117) lies wholly in the band, row 1 (125 …) partly under it.
-        // 870: "Older" row 8 (804 … 889) lies wholly in the band, row 9 (897 …) partly.
-        for (offset, pinned, hidden, partial) in [(100.0, "New", 0, 1), (870.0, "Older", 8, 9)] {
-            let state = "\(pinned) pinned at \(offset)\(lessTransparency ? ", Less Transparency" : "")"
-            try await hosted.scroll(to: offset, showing: pinned)
-            let order = readingOrder(hosted)
-            macAccessibilityDump(order, name: "notifications-pinned-\(pinned.lowercased())-\(lessTransparency)")
-            let rows = expectRules(order, in: hosted, pinned: pinned, state: state)
-            #expect(!rows.contains(hidden), "\(state): row \(hidden) is read: \(order)")
-            #expect(rows.first == partial, "\(state): \(rows)")
-        }
-    }
-
-    /// While "Older" pushes "New" out, "New" is still read first, its last rows (wholly
-    /// under the band excepted) follow it, then "Older" and its rows.
-    @Test func pushReadsTheOutgoingTitleThenTheIncomingOne() async throws {
-        let hosted = try await host()
-        defer { hosted.close() }
-        // "Older" is laid out at 772 … 800: at 760 it pushes "New" 12 pt up.
-        try await hosted.scroll(to: 760, showing: "Older")
-        let order = readingOrder(hosted)
-        macAccessibilityDump(order, name: "notifications-pinned-push")
-        let rows = expectRules(order, in: hosted, pinned: "New", state: "push")
-        #expect(order.filter { $0.role == "AXHeading" }.map(\.spokenName) == ["New", "Older"], "push: \(order)")
-        #expect(rows.contains(Self.newCount), "push: the first Older row is not read: \(rows)")
+        #expect(leaks.isEmpty, "\(mode.rawValue): separator drawn under the pinned title at offsets \(leaks)")
+        #expect(separatorsBelow > 0, "\(mode.rawValue): no separators drew below the title")
     }
 }
 #endif
