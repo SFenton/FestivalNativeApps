@@ -527,6 +527,23 @@ public sealed record FirstRunDemoRival(string AccountId, string DisplayName, int
 /// <param name="Difficulty">Game difficulty index.</param>
 public sealed record FirstRunDemoMetadata(long Score, int Accuracy, bool FullCombo, int Stars, string Percentile, int Season, int Difficulty);
 
+/// <summary>How a first-run metadata demo pill is drawn.</summary>
+public enum FirstRunDemoPillKind
+{
+    /// <summary>A plain demo label.</summary>
+    Text,
+    /// <summary>The shared percentile pill.</summary>
+    Percentile,
+    /// <summary>The shared season pill.</summary>
+    Season,
+}
+
+/// <summary>One first-run metadata demo pill.</summary>
+/// <param name="Kind">How it is drawn.</param>
+/// <param name="Text">Visible text.</param>
+/// <param name="Season">Season number for a season pill, else 0.</param>
+public sealed record FirstRunDemoPill(FirstRunDemoPillKind Kind, string Text, int Season = 0);
+
 /// <summary>Two-pill metadata layouts.</summary>
 public enum FirstRunDemoMetadataLayout
 {
@@ -801,25 +818,29 @@ public static class FirstRunDemos
         new("Top 1%", "", "31"), new("Gold Stars", "", "189"), new("Best Rank", "", "#42"),
     ];
 
-    /// <summary>Formats score metadata.</summary>
+    /// <summary>
+    /// Formats score metadata. Percentile and season pills are typed so the app draws them with the shared metadata pills
+    /// (pattern <c>metadata-pills</c>, web <c>MetadataDemo</c> uses <c>PercentilePill</c> and <c>SeasonPill</c>).
+    /// </summary>
     /// <param name="metadata">Metadata sample.</param>
     /// <param name="layout">Two-pill layout.</param>
     /// <returns>Two display pills.</returns>
-    public static IReadOnlyList<string> MetadataPillsFor(FirstRunDemoMetadata metadata, FirstRunDemoMetadataLayout layout)
+    public static IReadOnlyList<FirstRunDemoPill> MetadataPillsFor(FirstRunDemoMetadata metadata, FirstRunDemoMetadataLayout layout)
     {
-        var score = metadata.Score.ToString("N0", CultureInfo.InvariantCulture);
-        var accuracy = metadata.FullCombo ? "100% FC" : $"{metadata.Accuracy / 10000.0:0.#}%";
-        var stars = metadata.Stars == 6 ? "Gold ★" : $"{metadata.Stars}★";
-        var difficulty = $"Difficulty {metadata.Difficulty}";
-        var season = $"Season {metadata.Season}";
+        FirstRunDemoPill score = new(FirstRunDemoPillKind.Text, metadata.Score.ToString("N0", CultureInfo.InvariantCulture));
+        FirstRunDemoPill accuracy = new(FirstRunDemoPillKind.Text, metadata.FullCombo ? "100% FC" : $"{metadata.Accuracy / 10000.0:0.#}%");
+        FirstRunDemoPill stars = new(FirstRunDemoPillKind.Text, metadata.Stars == 6 ? "Gold ★" : $"{metadata.Stars}★");
+        FirstRunDemoPill difficulty = new(FirstRunDemoPillKind.Text, $"Difficulty {metadata.Difficulty}");
+        FirstRunDemoPill season = new(FirstRunDemoPillKind.Season, MetadataPillStyle.SeasonText(metadata.Season), metadata.Season);
+        FirstRunDemoPill percentile = new(FirstRunDemoPillKind.Percentile, metadata.Percentile);
         return layout switch
         {
             FirstRunDemoMetadataLayout.ScoreAccuracy => [score, accuracy],
             FirstRunDemoMetadataLayout.StarsDifficulty => [stars, difficulty],
-            FirstRunDemoMetadataLayout.PercentileSeason => [metadata.Percentile, season],
+            FirstRunDemoMetadataLayout.PercentileSeason => [percentile, season],
             FirstRunDemoMetadataLayout.ScoreStars => [score, stars],
             FirstRunDemoMetadataLayout.AccuracyDifficulty => [accuracy, difficulty],
-            _ => [metadata.Percentile, score],
+            _ => [percentile, score],
         };
     }
 

@@ -72,11 +72,11 @@ public static class SongMetadataLayout
         samples.Add(new(MetadataField.Percentage, settings.MetadataPercentage ? $"{ScoreFormatting.Accuracy(1_000_000)} FC" : "FC", "")
             { FullCombo = true });
         if (settings.MetadataPercentile)
-            samples.Add(new(MetadataField.Percentile, "Top 100%", "") { Percentile = SongPercentileTier.TopOne });
+            samples.Add(new(MetadataField.Percentile, "Top 100%", "") { Percentile = PercentileTier.Top1 });
         if (settings.MetadataStars)
             samples.Add(new(MetadataField.Stars, new string('★', 5), "") { Stars = (5, true) });
         if (settings.MetadataSeason)
-            samples.Add(new(MetadataField.Season, "S99", "") { CurrentSeason = true });
+            samples.Add(new(MetadataField.Season, "S99", "") { Season = 99, CurrentSeason = true });
         if (settings.MetadataIntensity)
             samples.Add(new(MetadataField.Intensity, "", "") { IntensityRaw = 6 });
         if (settings.MetadataDifficulty)

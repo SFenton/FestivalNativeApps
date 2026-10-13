@@ -559,6 +559,9 @@ public sealed partial class PlayerPercentileRow(PlayerPercentileBucket bucket, I
     /// <summary>Top-5% band: gold pill (web <c>goldOutline</c>).</summary>
     public bool Gold => Bucket.IsTopFive;
 
+    /// <summary>Shared percentile pill tier (pattern <c>metadata-pills</c>): the top 1% is also skewed (web <c>goldOutlineSkew</c>).</summary>
+    public PercentileTier Tier => MetadataPillStyle.TierFor(Label);
+
     /// <summary>Destination, or <see langword="null"/> while native Songs has no percentile filter.</summary>
     public PlayerStatLink? Link { get; init; }
 

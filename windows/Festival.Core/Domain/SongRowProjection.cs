@@ -122,17 +122,6 @@ public static class SongInstrumentStatusPolicy
 #endregion
 
 #region Metadata
-/// <summary>Percentile emphasis tier.</summary>
-public enum SongPercentileTier
-{
-    /// <summary>Top 1% (gold fill).</summary>
-    TopOne,
-    /// <summary>Top 5% (gold outline).</summary>
-    TopFive,
-    /// <summary>Everything else (neutral).</summary>
-    Ordinary,
-}
-
 /// <summary>One renderable metadata pill with its visible and spoken text.</summary>
 /// <param name="Kind">Field.</param>
 /// <param name="Text">Visible text.</param>
@@ -143,10 +132,12 @@ public sealed record SongMetadataField(MetadataField Kind, string Text, string A
     public (byte R, byte G, byte B)? Tint { get; init; }
     /// <summary>Accuracy pill is a full combo (gold outline and visible FC).</summary>
     public bool FullCombo { get; init; }
-    /// <summary>Percentile tier.</summary>
-    public SongPercentileTier Percentile { get; init; } = SongPercentileTier.Ordinary;
+    /// <summary>Percentile tier (shared percentile pill, <see cref="MetadataPillStyle"/>).</summary>
+    public PercentileTier Percentile { get; init; } = PercentileTier.Default;
     /// <summary>Star count (1–5) and whether they are gold.</summary>
     public (int Count, bool Gold) Stars { get; init; }
+    /// <summary>Season number for the shared season pill.</summary>
+    public int Season { get; init; }
     /// <summary>Season equals the current catalogue season (inverted pill).</summary>
     public bool CurrentSeason { get; init; }
     /// <summary>Raw chart intensity for the meter.</summary>
@@ -203,7 +194,7 @@ public static class SongMetadataPolicy
         if (settings.MetadataPercentile && PercentileBucket(detail.Rank, detail.TotalEntries) is { } bucket)
         {
             var pct = Math.Min((double)detail.Rank!.Value / detail.TotalEntries!.Value * 100, 100);
-            var tier = pct <= 1 ? SongPercentileTier.TopOne : pct <= 5 ? SongPercentileTier.TopFive : SongPercentileTier.Ordinary;
+            var tier = MetadataPillStyle.Tier(pct);
             byKind[MetadataField.Percentile] = new(MetadataField.Percentile, bucket, bucket) { Percentile = tier };
         }
         if (settings.MetadataStars && detail.Stars is > 0 and <= 6 && detail.Stars is { } stars)
@@ -215,10 +206,9 @@ public static class SongMetadataPolicy
         }
         if (settings.MetadataSeason && detail.Season is > 0 and { } season)
         {
-            var current = season == currentSeason;
-            var number = season.ToString(CultureInfo.CurrentCulture);
-            byKind[MetadataField.Season] = new(MetadataField.Season, $"S{number}", current ? $"Current season {number}" : $"Season {number}")
-            { CurrentSeason = current };
+            var current = MetadataPillStyle.IsCurrentSeason(season, currentSeason);
+            byKind[MetadataField.Season] = new(MetadataField.Season, MetadataPillStyle.SeasonText(season), MetadataPillStyle.SeasonAnnouncement(season, current))
+            { Season = season, CurrentSeason = current };
         }
         if (settings.MetadataIntensity && song.Difficulty?.ChartedValue(chart) is { } raw)
             byKind[MetadataField.Intensity] = new(MetadataField.Intensity, "", $"Song intensity {DifficultyScale.BarsForRaw(raw)} of 7") { IntensityRaw = raw };

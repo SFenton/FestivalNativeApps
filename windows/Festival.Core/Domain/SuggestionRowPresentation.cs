@@ -22,17 +22,6 @@ public enum SuggestionRowLayout
     Rival,
 }
 
-/// <summary>Visual tier of a percentile pill (web <c>PercentilePill</c>).</summary>
-public enum PercentileTier
-{
-    /// <summary>Neutral pill.</summary>
-    Default,
-    /// <summary>Top 5% (gold outline).</summary>
-    Top5,
-    /// <summary>Top 1% (filled gold).</summary>
-    Top1,
-}
-
 /// <summary>One instrument status chip (played / full combo) for the <see cref="SuggestionRowLayout.InstrumentChips"/> layout.</summary>
 /// <param name="Instrument">Chart.</param>
 /// <param name="HasScore">Whether the player has at least one star on it.</param>
@@ -62,6 +51,10 @@ public sealed record SuggestionRowPresentation
     public double? AccuracyExpanded { get; init; }
     /// <summary>Season pill text (e.g. "S6").</summary>
     public string? SeasonText { get; init; }
+    /// <summary>Season pill number, drawn with the shared season pill.</summary>
+    public int? Season { get; init; }
+    /// <summary>Whether <see cref="Season"/> is the catalogue's current season (inverted pill, web <c>SeasonPill</c>).</summary>
+    public bool IsCurrentSeason { get; init; }
     /// <summary>Percentile pill text (e.g. "Top 3%").</summary>
     public string? PercentileText { get; init; }
     /// <summary>Percentile pill tier.</summary>
@@ -132,22 +125,18 @@ public sealed record SuggestionRowPresentation
     /// <summary>Tier of a "Top N%" label.</summary>
     /// <param name="display">Label.</param>
     /// <returns>Tier (default for an unparsable label).</returns>
-    public static PercentileTier TierFor(string? display)
-    {
-        if (display is null || !display.StartsWith("Top ", StringComparison.Ordinal) || !display.EndsWith('%') ||
-            !double.TryParse(display[4..^1].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out var pct))
-            return PercentileTier.Default;
-        return pct <= 1 ? PercentileTier.Top1 : pct <= 5 ? PercentileTier.Top5 : PercentileTier.Default;
-    }
+    public static PercentileTier TierFor(string? display) => MetadataPillStyle.TierFor(display);
 
     /// <summary>Builds the presentation for one row.</summary>
     /// <param name="category">Owning category.</param>
     /// <param name="item">Row.</param>
     /// <param name="scores">Selected player's score index (season pills, instrument chips).</param>
     /// <param name="chipInstruments">Instruments to show chips for (Settings-visible, in display order).</param>
+    /// <param name="currentSeason">Catalogue season, which inverts a matching season pill (web <c>SeasonPill</c> context).</param>
     /// <returns>Presentation.</returns>
     public static SuggestionRowPresentation Create(SuggestionCategory category, SuggestionSongItem item,
-        IReadOnlyDictionary<string, IReadOnlyDictionary<Instrument, SuggestionScore>>? scores, IReadOnlyList<Instrument> chipInstruments)
+        IReadOnlyDictionary<string, IReadOnlyDictionary<Instrument, SuggestionScore>>? scores, IReadOnlyList<Instrument> chipInstruments,
+        int? currentSeason = null)
     {
         var layout = LayoutFor(category.Key);
         var song = item.Song;
@@ -199,7 +188,11 @@ public sealed record SuggestionRowPresentation
                 }
                 if (season > 0)
                 {
-                    result = result with { SeasonText = $"S{season.ToString(CultureInfo.InvariantCulture)}" };
+                    result = result with
+                    {
+                        SeasonText = MetadataPillStyle.SeasonText(season), Season = season,
+                        IsCurrentSeason = MetadataPillStyle.IsCurrentSeason(season, currentSeason),
+                    };
                     details.Add($"last played season {season}");
                 }
                 break;

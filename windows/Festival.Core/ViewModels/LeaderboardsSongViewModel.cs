@@ -375,6 +375,9 @@ public sealed record SongLeaderboardRowViewModel(LeaderboardEntry Entry, bool Is
     /// <summary>Season text (<c>S15</c>), or empty.</summary>
     public string Season => Entry.Season is { } s ? string.Create(CultureInfo.InvariantCulture, $"S{s}") : "";
 
+    /// <inheritdoc />
+    public int? SeasonNumber => Entry.Season;
+
     /// <summary>Statistics for the selected player, the profile otherwise, or <see langword="null"/> without a usable ID.</summary>
     public AppRoute? Route => IsSelected ? new AppRoute.Statistics() :
         ProfileText.IsValidAccountId(Entry.AccountId) ? new AppRoute.Player(Entry.AccountId, Entry.DisplayName) : null;

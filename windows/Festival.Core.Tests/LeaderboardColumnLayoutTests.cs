@@ -31,7 +31,7 @@ public class LeaderboardColumnLayoutTests
         {
             var plan = LeaderboardColumnLayout.Fit(Scores, width, pinSeason: true);
             Assert.True(plan.ShowMeta);
-            Assert.Equal(26, plan.MetaWidth);
+            Assert.Equal(39, plan.MetaWidth); // the shared season pill: ceil(3 × 7.5) + 2 × (6 + 2)
         }
         Assert.True(LeaderboardColumnLayout.Fit(Scores, 360, textScale: 2.25, pinSeason: true).ShowMeta);
         var noSeason = Scores with { MetaChars = 0 };
@@ -48,7 +48,7 @@ public class LeaderboardColumnLayoutTests
         Assert.False(plan.Compact);
         Assert.Equal(12, plan.Gap);
         Assert.True(plan.ShowMeta);
-        Assert.Equal(26, plan.MetaWidth); // ceil(3 × 8.5)
+        Assert.Equal(MetadataPillStyle.SeasonWidth(3), plan.MetaWidth); // the shared season pill (issue #606)
         Assert.False(plan.ShowStars);
     }
 
@@ -80,7 +80,7 @@ public class LeaderboardColumnLayoutTests
     [Fact]
     public void LargeText_DropsStarsThenSeasonUntilTheNameFits()
     {
-        // 225% text at 720 epx: everything needs ~831 epx, without stars ~733, without the season too ~674.
+        // 225% text at 720 epx: everything needs ~860 epx, without stars ~762, without the season too ~674.
         var squeezed = LeaderboardColumnLayout.Fit(Scores, 720, 2.25);
         Assert.Equal((false, false, true), (squeezed.ShowMeta, squeezed.ShowStars, squeezed.ShowAccuracy));
         Assert.Equal(76.5, squeezed.RankWidth);
@@ -177,10 +177,10 @@ public class LeaderboardColumnLayoutTests
         Assert.False(squeezed.MetaBelowName || squeezed.ValueBelowName);
         Assert.False(LeaderboardColumnLayout.Fit(Scores, 470).Stacked);
         // A pinned season (Score History detail) goes under the name too, and splits from the score when both don't
-        // fit side by side: 470 - 24 - 76.5 - 4 × 12 - 130.5 - 27 = 164 < 58.5 + 12 + 182.25.
+        // fit side by side: 470 - 24 - 76.5 - 4 × 12 - 130.5 - 27 = 164 < 87.75 + 12 + 182.25.
         var pinned = LeaderboardColumnLayout.Fit(Scores, 470, 2.25, pinSeason: true);
         Assert.Equal((true, true, true), (pinned.ShowMeta, pinned.Stacked, pinned.SplitValues));
-        // 300 - 24 - 34 - 4 × 8 - 58 - 12 = 140 ≥ 26 + 8 + 81: stacked on two lines only.
+        // 300 - 24 - 34 - 4 × 8 - 58 - 12 = 140 ≥ 39 + 8 + 81: stacked on two lines only.
         var twoLines = LeaderboardColumnLayout.Fit(Scores, 300, 1, pinSeason: true);
         Assert.Equal((true, false), (twoLines.Stacked, twoLines.SplitValues));
         Assert.False(LeaderboardColumnLayout.Fit(Scores, 1200, 2, pinSeason: true).SplitValues); // only stacked rows split

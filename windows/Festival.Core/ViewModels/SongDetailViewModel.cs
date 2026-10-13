@@ -594,6 +594,9 @@ public sealed record LeaderboardRow(LeaderboardEntry Entry) : ILeaderboardScoreR
     /// <summary>Season text (<c>S15</c>), or empty (web <c>SeasonPill</c>; shown on wide cards).</summary>
     public string Season => Entry.Season is { } s ? string.Create(System.Globalization.CultureInfo.InvariantCulture, $"S{s}") : "";
 
+    /// <inheritdoc />
+    public int? SeasonNumber => Entry.Season;
+
     /// <summary>Song Detail previews show no stars (web <c>InstrumentCard</c>).</summary>
     public int StarCount => 0;
 

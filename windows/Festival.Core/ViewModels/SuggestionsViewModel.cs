@@ -87,6 +87,7 @@ public sealed partial class SuggestionsViewModel : ObservableObject
     private object? sourceIdentity;
     private string? sourceAccount;
     private IReadOnlyDictionary<string, IReadOnlyDictionary<Instrument, SuggestionScore>>? scores;
+    private int? catalogSeason;
     private CancellationTokenSource? rivalsLoad;
 
     /// <summary>Latest best-effort rivals read (the view awaits nothing; exposed so tests can wait deterministically).</summary>
@@ -258,6 +259,7 @@ public sealed partial class SuggestionsViewModel : ObservableObject
         sourceIdentity = identity;
         sourceAccount = accountId;
         scores = SuggestionScore.Index(index);
+        catalogSeason = catalog.CurrentSeason;
         var season = SuggestionSeason.Effective(catalog.CurrentSeason, scores);
         generator = new SuggestionGenerator(new SuggestionGenerator.Options(seeds(), CurrentSeason: season));
         generator.SetSource(catalog.Songs, scores);
@@ -296,6 +298,7 @@ public sealed partial class SuggestionsViewModel : ObservableObject
         sourceIdentity = null;
         sourceAccount = null;
         scores = null;
+        catalogSeason = null;
         generated.Clear();
         mix = 0;
         Cards.Clear();
@@ -381,7 +384,7 @@ public sealed partial class SuggestionsViewModel : ObservableObject
         var visible = VisibleInstruments;
         if (SuggestionCategoryFilter.Visible(category, Filter.EffectiveInstruments(visible), Filter) is not { } shown) return null;
         var rows = shown.Songs.Select((item, index) => new SuggestionRowItem(
-            SuggestionRowPresentation.Create(shown, item, scores, visible),
+            SuggestionRowPresentation.Create(shown, item, scores, visible, catalogSeason),
             SuggestionRowPresentation.RouteFor(shown, item),
             item.Song.AlbumArt,
             $"fst.suggestions.row.{item.Id}",

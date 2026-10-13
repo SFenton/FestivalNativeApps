@@ -151,6 +151,9 @@ public interface ILeaderboardScoreRow : ILeaderboardEntryRow
     /// <summary><c>S15</c>, or empty (column hidden).</summary>
     string Season { get; }
 
+    /// <summary>Season number for the shared season pill (pattern <c>metadata-pills</c>), or <see langword="null"/>.</summary>
+    int? SeasonNumber { get; }
+
     /// <summary>Grouped score.</summary>
     string Score { get; }
 
@@ -201,7 +204,7 @@ public static class LeaderboardScoreRowIds
     /// <summary>Accuracy badge ID prefix (score-accuracy control).</summary>
     public const string AccuracyPrefix = "fst.score.accuracy.";
 
-    /// <summary>Season text ID prefix (issue #262).</summary>
+    /// <summary>Season pill ID prefix (issue #262; the shared season pill since issue #606).</summary>
     public const string SeasonPrefix = "fst.score.season.";
 
     /// <summary>

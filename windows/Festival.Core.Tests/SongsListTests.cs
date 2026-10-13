@@ -331,7 +331,7 @@ public class SongRowProjectionTests
         Assert.Equal("Score 123,456", fields[0].Announcement);
         Assert.Equal(("98.5%", "Accuracy 98.5%"), (fields[1].Text, fields[1].Announcement));
         Assert.NotNull(fields[1].Tint);
-        Assert.Equal(("Top 2%", SongPercentileTier.TopFive), (fields[2].Text, fields[2].Percentile));
+        Assert.Equal(("Top 2%", PercentileTier.Top5), (fields[2].Text, fields[2].Percentile));
         Assert.Equal(("★★★★★", "5 gold stars", true), (fields[3].Text, fields[3].Announcement, fields[3].Stars.Gold));
         Assert.Equal(("S9", "Current season 9", true), (fields[4].Text, fields[4].Announcement, fields[4].CurrentSeason));
         Assert.Equal(3, fields[5].IntensityRaw);
@@ -357,7 +357,7 @@ public class SongRowProjectionTests
         Assert.Equal(("M", "Medium difficulty"), (fields[5].Text, fields[5].Announcement));
         Assert.Equal("3 stars", fields[0].Announcement);
         Assert.Equal("Season 8", fields[1].Announcement);
-        Assert.Equal(SongPercentileTier.TopOne, fields[2].Percentile);
+        Assert.Equal(PercentileTier.Top1, fields[2].Percentile);
         Assert.Equal("Last played date unavailable", fields[^1].Text);
 
         var shown = SongMetadataPolicy.Fields(detail, Instrument.Lead, Song, 8, new AppSettings());
@@ -366,7 +366,7 @@ public class SongRowProjectionTests
         Assert.Equal("Full combo, accuracy unavailable", noAccuracy[1].Announcement);
         var sparse = SongMetadataPolicy.Fields(new SongScoreDetail(5, Stars: 1, Difficulty: 1.5, Rank: 5, TotalEntries: 100), Instrument.Drums, Song, null, new AppSettings());
         Assert.Equal([MetadataField.Score, MetadataField.Percentile, MetadataField.Stars], sparse.Select(f => f.Kind));
-        Assert.Equal(("1 star", SongPercentileTier.TopFive), (sparse[2].Announcement, sparse[1].Percentile));
+        Assert.Equal(("1 star", PercentileTier.Top5), (sparse[2].Announcement, sparse[1].Percentile));
         var none = new AppSettings { MetadataScore = false, MetadataPercentage = false, MetadataPercentile = false, MetadataSeason = false,
             MetadataIntensity = false, MetadataDifficulty = false, MetadataStars = false, MetadataLastPlayed = false };
         Assert.Empty(SongMetadataPolicy.Fields(detail with { IsFullCombo = false }, Instrument.Lead, Song, 8, none));
