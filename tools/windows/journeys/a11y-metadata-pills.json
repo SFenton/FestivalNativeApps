@@ -1,0 +1,57 @@
+[
+  {"name": "pills-songs", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
+   "settings": {"showInstrumentIcons": false}, "tabs": 0,
+   "note": "Issue #606 (pattern metadata-pills): Songs rows draw the shared season and percentile pills. The current season (9) is inverted (web SeasonPill: #D7DEE8 fill, #162133 text and outline) with ItemStatus current and is read 'Current season 9'; an older season is #162133 with no status; Top 1% is the gold-outlined skewed pill. Pills keep the shared minimum sizes at every text size.",
+   "ready": ["waitfor:raw=fst.songs.metadata.season.fixture-song-1@40", "wait:1"],
+   "after_ready": [
+     "assertname:raw=fst.songs.metadata.season.fixture-song-1|Current season 9",
+     "assertstatus:raw=fst.songs.metadata.season.fixture-song-1|current",
+     "assertsize:raw=fst.songs.metadata.season.fixture-song-1|36x22",
+     "assertsize:raw=fst.songs.metadata.percentile.fixture-song-1|66x22",
+     "assertpaint:raw=fst.songs.metadata.season.fixture-song-1|L3,M0=#D7DEE8~10|L0,M-3,L2,M3=#162133~12",
+     "assertpaint:raw=fst.songs.metadata.percentile.fixture-song-1|L0,M-4,L4,M4=#CFA500~24",
+     "shot:{stem}-top.png",
+     "scrollinto:raw=fst.songs.metadata.season.fixture-song-2@10", "wait:1",
+     "assertname:raw=fst.songs.metadata.season.fixture-song-2|Season 4",
+     "assertstatus:raw=fst.songs.metadata.season.fixture-song-2|~^$",
+     "assertsize:raw=fst.songs.metadata.season.fixture-song-2|36x22",
+     "assertsize:raw=fst.songs.metadata.percentile.fixture-song-2|66x22",
+     "assertpaint:raw=fst.songs.metadata.season.fixture-song-2|L3,M0=#162133~10",
+     "shot:{stem}.png"
+   ]},
+  {"name": "pills-song-board", "route": "/songs/fixture-pulse/Solo_Guitar", "profile": "fixture-player-1:Fixture Player 1", "tabs": 0,
+   "sizes": ["medium"], "skip_modes": ["text-150", "text-200", "text-225"],
+   "note": "Issue #606: song leaderboard rows and the pinned row draw the shared season pill (the same size as Songs), inverted for the catalogue's current season 9; the row name still reads 'season 9'.",
+   "ready": ["waitfor:raw=fst.score.season.fixture-player-3@30", "waitfor:id=fst.song-leaderboard.spotlight-footer@15", "wait:1"],
+   "after_ready": [
+     "assertname:raw=fst.score.season.fixture-player-3|Current season 9",
+     "assertstatus:raw=fst.score.season.fixture-player-3|current",
+     "assertsize:raw=fst.score.season.fixture-player-3|36x22",
+     "assertpaint:raw=fst.score.season.fixture-player-3|L3,M0=#D7DEE8~10",
+     "assertsize:raw=fst.score.season.spotlight-footer|36x22",
+     "assertaligned:raw=fst.score.season.fixture-player-2|raw=fst.score.season.fixture-player-3",
+     "assertname:id=fst.song-leaderboard.row.fixture-player-3|Rank #3, Fixture Player 3, 99,700 points, season 9, 5 stars",
+     "shot:{stem}.png"
+   ]},
+  {"name": "pills-song-history", "route": "/songs/fixture-pulse", "profile": "fixture-player-1:Fixture Player 1", "sizes": ["compact"], "tabs": 0, "axe_allow": ["framework-popup"],
+   "note": "Issue #606: the Score History detail row draws the shared season pill: season 40 is not the current season (9), so it is the #162133 pill with no status, read 'Season 40'.",
+   "ready": ["scrollinto:id=fst.history.bar.1@40", "scrollinset:id=fst.history.bar.1|id=fst.song-detail|72",
+             "toggle:id=fst.history.bar.1", "scrollinto:id=fst.history.detail@10",
+             "waitfor:raw=fst.score.season.history.20240105000000.detail@5"],
+   "after_ready": ["wait:1",
+     "assertname:raw=fst.score.season.history.20240105000000.detail|Season 40",
+     "assertstatus:raw=fst.score.season.history.20240105000000.detail|~^$",
+     "assertsize:raw=fst.score.season.history.20240105000000.detail|36x22",
+     "assertpaint:raw=fst.score.season.history.20240105000000.detail|L3,M0=#162133~10",
+     "shot:{stem}.png"
+   ]},
+  {"name": "pills-profile-percentile", "route": "/player/fixture-player-1", "sizes": ["compact"], "tabs": 0,
+   "note": "Issue #606: the Profile percentile table draws the shared percentile pill (the same minimum size as Songs and Suggestions).",
+   "ready": ["waitfor:id=fst.player.overview@20", "reveal:id=fst.player.percentile.Solo_Guitar.4@5", "wait:1"],
+   "after_ready": [
+     "assertname:raw=fst.player.percentile.Solo_Guitar.4.pill|Top 4%",
+     "assertsize:raw=fst.player.percentile.Solo_Guitar.4.pill|66x22",
+     "assertpaint:raw=fst.player.percentile.Solo_Guitar.4.pill|L0,M-4,L4,M4=#FFD700~60",
+     "shot:{stem}.png"
+   ]}
+]

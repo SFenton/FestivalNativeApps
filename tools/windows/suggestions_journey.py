@@ -52,6 +52,8 @@ SPOTLIGHT_CARD = "fst.suggestions.category.song_rival_spotlight_rival-below-1"
 SPOTLIGHT_ROW_NAME = "Track 41, Artist B · 1968, Pro Lead, 2 ranks behind Rival B1"
 MIXED_CARD = "fst.suggestions.category.song_rival_pct_push"
 MIXED_ROW_NAME = "Track 34, Artist O · 1999, Lead, rival Rival B4, behind by 2 ranks"
+# Shared season pill of ROW (issue #606; pill IDs replace the row ID's "|" so step arguments can name them).
+SEASON_PILL = "raw=fst.suggestions.season.s044.Solo_PeripheralGuitar"
 TYPES = ("nearFC", "starProgress", "unplayed", "varietyPack", "artistEssentials", "artistDiscover", "sameName",
          "almostElite", "percentilePush", "stale", "pctImprove", "nearMax", "songRivals")
 LOADED = [f"waitfor:{ROW}@30", f"waitfor:{CARD}@5", "waitfor:id=fst.suggestions.filter-button@5"]
@@ -69,6 +71,21 @@ SCENARIOS: dict[str, tuple[str | None, dict[str, str], list[str]]] = {
             *[step for preset in ("compact", "wide", "maximized", "snap-left", "snap-right", "medium")
               for step in (f"resize:{preset}", f"waitfor:{CARD}@10", "waitfor:id=fst.suggestions.filter-button@5",
                            f"{{shot:resize-{preset}}}")],
+        ],
+    ),
+    # Issue #606 (pattern metadata-pills): stale rows draw the shared season pill, the same size and colours as Songs
+    # and leaderboards (season 8 is older than the catalogue's season 12, so it is the #162133 pill with no status).
+    "metadata-pills": (
+        PROFILE,
+        {},
+        [
+            *LOADED,
+            f"waitfor:{SEASON_PILL}@10",
+            f"assertname:{SEASON_PILL}|Season 8",
+            f"assertstatus:{SEASON_PILL}|~^$",
+            f"assertsize:{SEASON_PILL}|36x22",
+            f"assertpaint:{SEASON_PILL}|L3,M0=#162133~10",
+            "{shot:metadata-pills}",
         ],
     ),
     "keyboard": (
