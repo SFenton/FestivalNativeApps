@@ -43,7 +43,9 @@ jobs:
   build:
     name: apple-ci build, unit tests and iPhone/iPad journeys
     runs-on: xcode-27
-    timeout-minutes: 190
+    # A release dispatch runs some 34 journey batches at about 5 min each on the runner, then the iPad and Rival
+    # Detail steps (#620: 2610.12 reached batch 21/26 at 160 min); hosted jobs may run 360.
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
         with:
@@ -376,7 +378,8 @@ jobs:
             python3 tools/ios_sim.py shutdown --device "$udid"
           done
       - name: Upload simulator journey results
-        if: failure() && github.event_name == 'workflow_dispatch'
+        # Also when the job times out (cancelled), so its failed batches can be diagnosed (#620).
+        if: (failure() || cancelled()) && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: apple-ci-journeys
@@ -431,8 +434,9 @@ jobs:
     name: apple-ci Songs Filter journeys (${{ matrix.leg }})
     if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
     runs-on: xcode-27
-    # The runner is 2-4x slower than a Mac: the folded Duo's three methods took 19 min on a Mac, plus build and boot.
-    timeout-minutes: 120
+    # The runner is 2-4x slower than a Mac: the folded Duo's three methods took 19 min on a Mac, plus build and boot;
+    # on the runner one AX5 method took up to 27 min (#620), so the folded Duo runs them in a leg of their own.
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -452,13 +456,17 @@ jobs:
               SongsFilterAccessibilityJourneyTests/testDynamicTypeAuditWithShopHidden
               SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
               SongsFilterKeyboardJourneyTests/testCommandPeriodClosesFilter
-          - leg: duo-folded
+          - leg: duo-folded-filter
             device_type: iPhone Duo
             uitest_args: --pose folded
             journeys: >-
               SongsFilterAccessibilityJourneyTests/testNoProfileGeneralFiltersPassAccessibilityAudit
               SongsFilterAccessibilityJourneyTests/testDynamicTypeAuditWithShopHidden
               SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
+          - leg: duo-folded
+            device_type: iPhone Duo
+            uitest_args: --pose folded
+            journeys: >-
               SongsBottomFilterFieldJourneyTests/testBottomFilterFieldIsAccessibleDuoFolded
               SongsBottomFilterFieldJourneyTests/testBottomFilterFieldGrowsAtAX5DuoFolded
               TopEdgeScrimDuoJourneyTests/testScrimUnderTheVerticalBarKeepsTheTopAccessibleAtAX5
