@@ -24,6 +24,9 @@
       "assertstate:id=fst.songs.section-header|name=~^[P-T]$@5",
       "scrollto:id=fst.songs.list,50",
       "assertstate:id=fst.songs.section-header|name=~^[H-N]$@5",
+      "scrollinto:id=fst.songs.row.fixture-song-49@5",
+      "scrollinset:id=fst.songs.row.fixture-song-49|id=fst.songs.list|8",
+      "assertstate:id=fst.songs.section-header|name=L@5",
       "assertstate:id=fst.songs.section-header|heading=2",
       "assertstate:id=fst.songs.section-header|type=text",
       "assertorder:id=fst.songs.section-index-button|id=fst.songs.section-header|id=fst.songs.list"
