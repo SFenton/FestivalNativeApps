@@ -89,7 +89,7 @@ from typing import Callable, Iterable, Iterator, Sequence
 # region Configuration
 
 #: Bump when the on-disk layout or the CLI changes; vendored copies must match.
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 #: Exit code when a wait gives up (``EX_TEMPFAIL``).
 WAIT_TIMEOUT_EXIT = 75
@@ -554,7 +554,9 @@ class Hold:
         wait_seconds: Queue limit per gate.
         hold_seconds: Hard hold limit; None disables the watchdog.
         root: State directory.
-        on_overrun: Called when the hold overruns (default: exit 124).
+        on_overrun: Called first when the hold overruns, e.g. to stop the command.
+        cleanup: Runs once before the gates are released (``finish`` or an
+            overrun), e.g. to shut a simulator down while its slot is held.
     """
 
     names: list[str]
@@ -563,9 +565,11 @@ class Hold:
     hold_seconds: float | None = DEFAULT_HOLD_SECONDS
     root: Path = field(default_factory=lock_root)
     on_overrun: Callable[[], None] | None = None
+    cleanup: Callable[[], None] | None = None
     gates: list[Gate] = field(default_factory=list, init=False)
     overran: bool = field(default=False, init=False)
     _release_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
+    _finish_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
     _done: threading.Event = field(default_factory=threading.Event, init=False, repr=False)
 
     def acquire(self) -> None:
@@ -597,6 +601,22 @@ class Hold:
                 gate.release()
             self.gates.clear()
 
+    def finish(self) -> None:
+        """Run ``cleanup`` and release, unless the watchdog is already doing so.
+
+        Serialized with the watchdog: after an overrun only the watchdog runs
+        ``cleanup`` and releases, and this call blocks until it has (the
+        watchdog then exits the process), so a slot is never freed before its
+        cleanup finishes.
+        """
+        with self._finish_lock:
+            if not self.overran:
+                try:
+                    if self.cleanup and self.gates:
+                        self.cleanup()
+                finally:
+                    self.release()
+
     def environment(self) -> dict[str, str]:
         """Environment for children: ``DEVCAP_HELD`` lists every held gate."""
         held = inherited() | {g.name for g in self.gates}
@@ -605,21 +625,28 @@ class Hold:
     def _watchdog(self) -> None:
         if self._done.wait(self.hold_seconds):
             return
-        print(f"\ndevcap: HOLD TIMEOUT: held {','.join(self.names)} longer than "
-              f"{describe_age(self.hold_seconds)}; releasing.", file=sys.stderr, flush=True)
-        log_event(f"hold timeout {','.join(self.names)} purpose={self.purpose!r}", self.root)
-        self.overran = True
-        if self.on_overrun:
-            self.on_overrun()
-        self.release()
-        os._exit(HOLD_TIMEOUT_EXIT)
+        with self._finish_lock:
+            if self._done.is_set():
+                return  # finished normally while this thread woke up
+            print(f"\ndevcap: HOLD TIMEOUT: held {','.join(self.names)} longer than "
+                  f"{describe_age(self.hold_seconds)}; releasing.", file=sys.stderr, flush=True)
+            log_event(f"hold timeout {','.join(self.names)} purpose={self.purpose!r}", self.root)
+            self.overran = True
+            try:
+                if self.on_overrun:
+                    self.on_overrun()
+                if self.cleanup:
+                    self.cleanup()
+            finally:
+                self.release()
+            os._exit(HOLD_TIMEOUT_EXIT)
 
     def __enter__(self) -> "Hold":
         self.acquire()
         return self
 
     def __exit__(self, *exc) -> None:
-        self.release()
+        self.finish()
 
 
 @contextmanager
@@ -643,27 +670,38 @@ def hold(pools: Sequence[str] = (), sims: Sequence[str] = (), devices: Sequence[
             os.environ.pop(HELD_ENV, None)
         else:
             os.environ[HELD_ENV] = previous
-        held.release()
+        held.finish()
 
 # endregion
 
 # region CLI
 
 
+#: A simulator UDID; ``--sim`` accepts nothing else, so ``--shutdown`` can never
+#: become ``simctl shutdown all`` or hit a device by name.
+SIM_UDID = re.compile(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}")
+
+
 def shutdown_sims(udids: Sequence[str]) -> None:
-    """Shut simulators down (best effort), so they stop using memory once a hold ends."""
+    """Shut simulators down (best effort), so they stop using memory once a hold ends.
+
+    Args:
+        udids: Simulator UDIDs; anything that is not a UDID is skipped.
+    """
     for udid in udids:
+        if not SIM_UDID.fullmatch(udid):
+            continue
         try:
             subprocess.run(["xcrun", "simctl", "shutdown", udid], capture_output=True, timeout=120)
         except (OSError, subprocess.SubprocessError):
             pass
 
 
-def run_command(held: Hold, command: list[str], cleanup: Callable[[], None] | None = None) -> int:
+def run_command(held: Hold, command: list[str]) -> int:
     """Run ``command`` in its own process group while ``held`` is held.
 
     SIGINT, SIGTERM and SIGHUP are forwarded to the whole group; a hold overrun
-    terminates it and then runs ``cleanup`` before the gates are released.
+    terminates it (the watchdog then runs ``held.cleanup`` and releases).
 
     Returns:
         The command's exit code: 128 + signal number when it was signalled,
@@ -688,8 +726,6 @@ def run_command(held: Hold, command: list[str], cleanup: Callable[[], None] | No
             proc.wait(timeout=10)
         except subprocess.TimeoutExpired:
             stop_group(getattr(signal, "SIGKILL", signal.SIGTERM))
-        if cleanup:
-            cleanup()
 
     held.on_overrun = kill_after_grace
     forwarded = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP) if os.name != "nt" else ()
@@ -709,6 +745,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     if not command:
         print("devcap run: missing command after --", file=sys.stderr)
         return 2
+    if bad := [udid for udid in args.sim if not SIM_UDID.fullmatch(udid)]:
+        print(f"devcap run: --sim takes a simulator UDID, not {', '.join(map(repr, bad))}", file=sys.stderr)
+        return 2
     names = gate_names(args.pool, args.sim, args.device)
     if not names:
         print("devcap run: name at least one --pool, --sim or --device", file=sys.stderr)
@@ -720,13 +759,12 @@ def cmd_run(args: argparse.Namespace) -> int:
     except WaitTimeout as error:
         print(f"devcap: {error}", file=sys.stderr)
         return WAIT_TIMEOUT_EXIT
-    cleanup = (lambda: shutdown_sims(args.sim)) if args.shutdown and args.sim else None
+    if args.shutdown and args.sim:
+        held.cleanup = lambda: shutdown_sims(args.sim)
     try:
-        return run_command(held, command, cleanup)
+        return run_command(held, command)
     finally:
-        if cleanup and not held.overran:
-            cleanup()
-        held.release()
+        held.finish()  # after an overrun, blocks until the watchdog has cleaned up and exited
 
 
 def known_gates(root: Path) -> list[str]:

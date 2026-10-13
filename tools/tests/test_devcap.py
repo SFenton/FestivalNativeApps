@@ -21,6 +21,25 @@ from tools import devcap
 from tools.devcap import Gate, Hold, WaitTimeout, gate_names, parse_ticket, queue_order
 
 TOOL = Path(devcap.__file__)
+UDID = "0D77CC23-71D3-46F4-B491-EDAA73B6B65A"
+
+#: Stands in for ``xcrun``: logs its arguments and which simulator slots are
+#: still held at that moment (probed with the same OS lock devcap uses).
+FAKE_XCRUN = """#!/usr/bin/env python3
+import fcntl, os, sys
+gate = os.path.join(os.environ["DEVCAP_DIR"], "simulator")
+held = []
+for name in sorted(os.listdir(gate)):
+    if name.endswith(".lock"):
+        handle = open(os.path.join(gate, name), "a+b")
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            held.append(name)
+        handle.close()
+with open(os.environ["FAKE_XCRUN_LOG"], "a") as log:
+    log.write(" ".join(sys.argv[1:]) + " held=" + ",".join(held) + "\\n")
+"""
 
 
 class DevcapTestCase(unittest.TestCase):
@@ -219,11 +238,11 @@ class CliTests(DevcapTestCase):
                               env={**os.environ}, timeout=30, **kwargs)
 
     def test_run_passes_exit_code_and_held_gates(self):
-        result = self.cli("run", "--sim", "abc", "--pool", "build", "--purpose", "t", "--",
+        result = self.cli("run", "--sim", UDID, "--pool", "build", "--purpose", "t", "--",
                           sys.executable, "-c",
                           "import os, sys; print(os.environ['DEVCAP_HELD']); sys.exit(3)")
         self.assertEqual(result.returncode, 3, result.stderr)
-        self.assertEqual(result.stdout.strip(), "build,device-ABC,simulator")
+        self.assertEqual(result.stdout.strip(), f"build,device-{UDID},simulator")
 
     def test_run_requires_a_gate_and_a_command(self):
         self.assertEqual(self.cli("run", "--", "true").returncode, 2)
@@ -279,19 +298,19 @@ class CliTests(DevcapTestCase):
             calls.append((list(udids), [h["purpose"] for h in Gate("simulator", self.root).holders()]))
 
         with unittest.mock.patch.object(devcap, "shutdown_sims", record):
-            code = devcap.main(["run", "--sim", "abc", "--shutdown", "--purpose", "p", "--",
+            code = devcap.main(["run", "--sim", UDID, "--shutdown", "--purpose", "p", "--",
                                 sys.executable, "-c", "pass"])
-            devcap.main(["run", "--sim", "abc", "--", sys.executable, "-c", "pass"])
+            devcap.main(["run", "--sim", UDID, "--", sys.executable, "-c", "pass"])
         self.assertEqual(code, 0)
-        self.assertEqual(calls, [(["abc"], ["p"])])  # once, while the slot was still held
+        self.assertEqual(calls, [([UDID], ["p"])])  # once, while the slot was still held
 
     def test_shutdown_runs_when_the_hold_overruns(self):
         calls = []
         held = Hold(["simulator"], "x", wait_seconds=1, hold_seconds=0.2, root=self.root)
+        held.cleanup = lambda: calls.append("shutdown")
         held.acquire()
         with unittest.mock.patch.object(devcap.os, "_exit", lambda code: calls.append(code)):
-            code = devcap.run_command(held, [sys.executable, "-c", "import time; time.sleep(30)"],
-                                      cleanup=lambda: calls.append("shutdown"))
+            code = devcap.run_command(held, [sys.executable, "-c", "import time; time.sleep(30)"])
             deadline = time.monotonic() + 10
             while len(calls) < 2 and time.monotonic() < deadline:  # the watchdog finishes
                 time.sleep(0.05)
@@ -300,7 +319,49 @@ class CliTests(DevcapTestCase):
 
     def test_shutdown_sims_survives_missing_xcrun(self):
         with unittest.mock.patch.object(devcap.subprocess, "run", side_effect=FileNotFoundError):
-            devcap.shutdown_sims(["abc"])
+            devcap.shutdown_sims([UDID])
+
+    def test_shutdown_sims_never_passes_a_non_udid(self):
+        with unittest.mock.patch.object(devcap.subprocess, "run") as run:
+            devcap.shutdown_sims(["all", "booted", "iPhone 17 Pro"])
+        run.assert_not_called()
+
+    def test_sim_must_be_a_udid(self):
+        for value in ("all", "booted", "abc"):
+            result = self.cli("run", "--sim", value, "--shutdown", "--", "true")
+            self.assertEqual(result.returncode, 2, value)
+            self.assertIn("simulator UDID", result.stderr)
+
+    def fake_xcrun(self):
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir()
+        xcrun = bin_dir / "xcrun"
+        xcrun.write_text(FAKE_XCRUN.replace("/usr/bin/env python3", sys.executable))
+        xcrun.chmod(0o755)
+        log = self.root / "xcrun.log"
+        os.environ["PATH"] = f"{bin_dir}{os.pathsep}{os.environ['PATH']}"
+        os.environ["FAKE_XCRUN_LOG"] = str(log)
+        os.environ["DEVCAP_SLOTS_SIMULATOR"] = "1"
+        return log
+
+    @unittest.skipIf(os.name == "nt", "simulators are macOS-only")
+    def test_cli_shutdown_runs_while_the_slot_is_held(self):
+        log = self.fake_xcrun()
+        result = self.cli("run", "--sim", UDID, "--shutdown", "--", sys.executable, "-c", "pass")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(log.read_text(), f"simctl shutdown {UDID} held=slot-0.lock\n")
+
+    @unittest.skipIf(os.name == "nt", "simulators are macOS-only")
+    def test_cli_shutdown_runs_after_a_hold_timeout_before_the_slot_frees(self):
+        log = self.fake_xcrun()
+        for _ in range(3):
+            log.unlink(missing_ok=True)
+            result = self.cli("run", "--sim", UDID, "--shutdown", "--hold", "1", "--",
+                              sys.executable, "-c", "import time; time.sleep(30)")
+            self.assertEqual(result.returncode, devcap.HOLD_TIMEOUT_EXIT, result.stderr)
+            self.assertTrue(log.exists(), "xcrun was never called")
+            self.assertEqual(log.read_text(), f"simctl shutdown {UDID} held=slot-0.lock\n")
+            self.assertEqual(Gate("simulator", self.root).holders(), [])
 
     def test_slots_and_version(self):
         os.environ["DEVCAP_SLOTS_SIMULATOR"] = "2"
