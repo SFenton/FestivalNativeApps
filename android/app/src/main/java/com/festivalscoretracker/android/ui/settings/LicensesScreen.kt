@@ -165,7 +165,12 @@ private fun LicensesBody(
     // List-detail always populated (operator 2026-09-28): the package picked last, else the
     // first one; a sheet otherwise.
     // Shared load gate (batch 6.41): spinner until the manifest is read, then the rows stagger in.
-    FestivalLoadGate(ready = manifest != null, modifier = Modifier.fillMaxSize(), label = "Loading licenses") {
+    FestivalLoadGate(
+        ready = manifest != null,
+        modifier = Modifier.fillMaxSize(),
+        label = "Loading licenses",
+        spinnerPadding = padding,
+    ) {
         val current = manifest ?: return@FestivalLoadGate
         val open = current.packages.firstOrNull { it.id == openId }
         val shown = open ?: current.packages.firstOrNull()?.takeIf { wide }

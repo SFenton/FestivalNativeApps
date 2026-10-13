@@ -204,7 +204,7 @@ private fun HubBody(
     val issue = shown.fullPageIssue
     val pageRevealed = swap.revealed
     if (swap.showsSpinner) {
-        LoadSwapSpinner(swap, "Loading rivals", Modifier.fillMaxSize(), "fst.rivals.loading")
+        LoadSwapSpinner(swap, "Loading rivals", Modifier.fillMaxSize().padding(bottom = bottomPadding), "fst.rivals.loading")
         return
     }
     Box(Modifier.fillMaxSize().then(swap.contentModifier)) { HubContent(viewModel, shownTab, shown, issue, pageRevealed, visibleCount, gridState, bottomPadding, navigate) }

@@ -1,6 +1,8 @@
 package com.festivalscoretracker.android
 
 import android.content.Context
+import android.util.Log
+import coil3.SingletonImageLoader
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
@@ -86,7 +88,14 @@ class AppContainer(
     val rivals = RivalsRepository(api)
 
     /** Shared animated backdrop state. */
-    val background = BackgroundController(loadCatalog = { api.catalog() }, artworkUrl = api::artworkUrl)
+    val background = BackgroundController(
+        loadCatalog = { api.catalog() },
+        artworkUrl = api::artworkUrl,
+        publications = api.publicationChanges,
+        backoff = backoff,
+        onFailure = { Log.w("FST_ART", "Artwork catalogue failed; retrying", it) },
+        onPublicationChanged = { SingletonImageLoader.get(context).memoryCache?.clear() },
+    )
 
     /** App-wide first-run arbiter (seen-state in the settings DataStore). */
     val firstRun = FirstRunCenter(

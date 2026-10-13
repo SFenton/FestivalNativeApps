@@ -205,7 +205,7 @@ private let cardIds = ["fixture.card.0", "fixture.card.1", "fixture.card.2"]
 /// columns.
 ///
 /// - Parameters:
-///   - typeSize: The Dynamic Type size (accessibility sizes use the eager grid).
+///   - typeSize: The Dynamic Type size (the eager grid at every size, #500).
 ///   - pose: A book-pose layout.
 ///   - leadingEnd: Where the leading card must end (the hinge clearance's leading edge).
 ///   - trailingStart: Where the trailing card must start.
@@ -257,9 +257,9 @@ private func assertSongDetailCardsSplitAtTheFold(
     try await assertSongDetailCardsSplitAtTheFold(.large)
 }
 
-/// Book pose with no reported division: Song Detail's standard (`HingeGrid`) and
-/// accessibility (`HingeEagerGrid`) card grids straddle the synthesized middle line that
-/// the on-demand split and page rows divide on (R7, #361 review).
+/// Book pose with no reported division: Song Detail's card grid (`HingeEagerGrid` at every
+/// text size, #500) straddles the synthesized middle line that the on-demand split and
+/// page rows divide on, at Large and accessibility sizes (R7, #361 review).
 @MainActor @Test func songDetailCardsSplitAtTheSynthesizedHingeInBookPose() async throws {
     let half = SongDetailCardColumns.spacing / 2
     for typeSize in [DynamicTypeSize.large, .accessibility3] {

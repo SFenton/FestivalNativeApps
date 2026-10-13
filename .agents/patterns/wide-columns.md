@@ -92,7 +92,7 @@ Status per page: **adopts** (follows R1–R5), **exempt** (a layout the rule doe
 |---|---|---|
 | Search results (`global-search`) | adopts | Two columns per R1, at the hinge (R3); Mac sheet R6. |
 | Songs | adopts | `SongGridPolicy` → `WideColumns`, `HingeRow`. The Mac keeps one row per song, a sortable table ([songs-section-index](../controls/songs-section-index/spec.md) owns its layout). Android adopts it through the owner-approved variant (#581). |
-| Song Detail | exempt | Content-sized adaptive grids (`HingeGrid`, Intensity, instrument cards and, since #366, the Duos/Trios/Quads previews in `SongDetailCardGrid`) already fill width in any orientation. |
+| Song Detail | exempt | Content-sized adaptive grids (`HingeGrid` for Intensity; `HingeEagerGrid` in `SongDetailCardGrid` for the instrument cards and, since #366, the Duos/Trios/Quads previews) already fill width in any orientation. |
 | Item Shop | adopts (list, #378); grid exempt | List mode pairs its Song rows row-major per R1–R4 through `WideColumnsRow` and `.wideColumnsCount` (one column at accessibility sizes, `WideColumns.readable`); the disclosures span both columns; Mac arrow keys step by row. Switching List and Grid replays the web view transition but never reads the Shop again. The grid is an adaptive even-column card grid (`ShopGridPolicy`, [hinge-columns](hinge-columns.md) R2). |
 | Statistics | exempt | Adaptive stat tile grid (`StatTileGridLayout`). |
 | Leaderboards | follow-up | Two `HingeGrid` columns whenever the width class is regular, including iPad portrait. Should switch to R1. |

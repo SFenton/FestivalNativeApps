@@ -10,7 +10,7 @@ Every screen converts a thrown read error into one issue; screens never interpre
 
 | Issue | Wire trigger | Heading | Behavior |
 |---|---|---|---|
-| `scrapeInProgress(retryAfter)` | 503 with a score-update `X-FST-Public-Read-Freeze-Reason`, when the client holds no verified same-publication body for that URL | "Scores are updating" | Auto-retry countdown + "Retry Now" |
+| `scrapeInProgress(retryAfter)` | 503 with a score-update `X-FST-Public-Read-Freeze-Reason`, when the client holds no verified same-publication body for that URL (otherwise the client serves that body, [empty-error-states](../../patterns/empty-error-states.md) R9) | "Scores are updating" | Auto-retry countdown + "Retry Now" |
 | `unavailable(retryAfter)` | 503 without one, or a non-lifecycle freeze reason | screen title ("… unavailable") | Manual Retry; message names `Retry-After` seconds when sent |
 | `syncing` | 202 on an endpoint without a syncing envelope | "Still syncing" | Manual Retry |
 | `notFound` | 404 not normalized to an empty result | screen title | Manual Retry |

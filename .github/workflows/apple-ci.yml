@@ -118,6 +118,10 @@ jobs:
             FirstRunJourneyTests/testSongsGuideRealControlDemosAccessibleAtLargestText
             FirstRunJourneyTests/testSongsGuideRealControlDemosAccessibleAtLargestTextDuoFolded
             RivalsViewAllAccessibilityJourneyTests/testViewAllRivalsIsReadableAtAX5
+            InCardViewAllAccessibilityJourneyTests/testLeaderboardsViewAllRankingsIsReadableAtAX5
+            InCardViewAllAccessibilityJourneyTests/testRivalDetailCategoryViewAllIsReadableAtAX5
+            InCardViewAllAccessibilityJourneyTests/testSongPreviewViewFullLeaderboardIsReadableAtAX5
+            InCardViewAllAccessibilityJourneyTests/testScoreHistoryViewAllScoresIsReadableAtAX5
             ProfileBandsAccessibilityJourneyTests/testProfileBandsSectionIsReadableAtAX5
             ProfileBandsAccessibilityJourneyTests/testFailedBandsRetryIsANamed44PointTarget
             FirstRunJourneyTests/testGuideTitleIsReadFirstAtLargestText
@@ -176,6 +180,8 @@ jobs:
             PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButtonDuoFolded
             SongSeasonAccessibilityJourneyTests/testTappedScoreSeasonIsReadableAtLargestText
             RivalsAccessibilityJourneyTests/testRivalRowsAreReadableAtAX5
+            NotificationsPinnedTitleJourneyTests/testPinnedTitleAndRowsAtLargestText
+            NotificationsPinnedTitleJourneyTests/testPinnedTitleAndRowsAtLargestTextDuoFolded
             GroupedCardAccessibilityJourneyTests/testLeaderboardsGroupedCardIsReadableAtAX5
             ModalHeaderAccessibilityJourneyTests/testNotificationsHeaderAtDefaultSize
             ModalHeaderAccessibilityJourneyTests/testNotificationsHeaderAtAX5
@@ -249,8 +255,9 @@ jobs:
         # region, at the default and the largest text size; #611: the Search tab title in its bar row, no empty band
         # above it, and its AX5 audit; the plain fixture serves band search). HISTORY_IPAD_JOURNEYS also holds the song
         # board's split-pane title at AX5 (#478, the #342 region), Song Detail's Duos link selected beside its board
-        # (#492, the #367 region) and Song Detail's first instrument-card row at AX5 (#490, the #365 region: one top
-        # edge, each card read whole); iPad only, so not in HISTORY_JOURNEYS.
+        # (#492, the #367 region), Song Detail's first instrument-card row at AX5 (#490, the #365 region: one top
+        # edge, each card read whole) and #480's split-band journey (#344: in-app Increase Contrast at AX5, no
+        # splitter, row before pane); iPad only, so not in HISTORY_JOURNEYS.
         # testing/apple/xcuitest.md#ci-journeys.
         env:
           PLAIN_JOURNEYS: >-
@@ -267,6 +274,7 @@ jobs:
             SongBoardSplitAccessibilityJourneyTests/testSongBoardSplitTitleAtAX5
             SongBandBoardSplitAccessibilityJourneyTests/testSongBandBoardSplitLinkAtAX5
             SongDetailCardRowAccessibilityJourneyTests/testInstrumentCardRowAtAX5
+            IPadShellAccessibilityTests/testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5
         run: |
           log="$RUNNER_TEMP/mock_service_history.log"
           python3 tools/mock_service.py --port 0 > "$log" 2>&1 &
@@ -292,9 +300,14 @@ jobs:
         # simulator, after shutting the iPhone down so one simulator runs at a time. One selector per batch: each What's
         # New or board-footer form takes ~70-80 s on a Mac and several times that here. The first batch also pays the
         # iPad's cold first test launch (~8 min on the runner; 748-988 s in total), so the batch limit is 1500 s.
-        # testing/apple/xcuitest.md#ci-journeys.
+        # testing/apple/xcuitest.md#ci-journeys. The iPhone Duo's split band (#344, backfilled by #480) runs here too:
+        # its flat-midpoint and book-hinge states need a landscape window at least 720 pt wide, which the
+        # portrait-only iPhone never has and the CI Duo (folded only, no Device Hub scripting) cannot reach, so the
+        # Debug Duo window simulation drives the split on this landscape iPad.
         env:
           JOURNEYS: >-
+            DuoSplitBandAccessibilityJourneyTests/testFlatMidpointBandIsAccessibleAtAX5WithMoreContrastDuoUnfolded
+            DuoSplitBandAccessibilityJourneyTests/testBookHingeBandIsAccessibleAtAX5WithMoreContrastDuoBook
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Landscape
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestText
@@ -304,6 +317,10 @@ jobs:
             WideBoardColumnsJourneyTests/testFullRankingsTwoColumnsAreAccessibleAtLargestText
             WideBoardColumnsJourneyTests/testBandRankingsTwoColumnsAreAccessibleAtLargestText
             SongDetailBandColumnsJourneyTests/testBandPreviewColumnsAreAccessibleAtLargestText
+            InCardViewAllAccessibilityJourneyTests/testLeaderboardsViewAllRankingsIsReadableAtAX5
+            InCardViewAllAccessibilityJourneyTests/testRivalDetailCategoryViewAllIsReadableAtAX5
+            InCardViewAllAccessibilityJourneyTests/testSongPreviewViewFullLeaderboardIsReadableAtAX5
+            InCardViewAllAccessibilityJourneyTests/testScoreHistoryViewAllScoresIsReadableAtAX5
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
@@ -313,6 +330,7 @@ jobs:
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
             PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButton
             SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestText
+            NotificationsPinnedTitleJourneyTests/testPinnedTitleAndRowsAtLargestText
             QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRow
             QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRowAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5

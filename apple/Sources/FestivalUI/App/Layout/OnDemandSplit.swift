@@ -268,8 +268,8 @@ private struct SplitPaneContextModifier: ViewModifier {
 /// the leading pane fills the container until an item opens, then springs to the
 /// leading half while the trailing pane slides in from the trailing edge (Reduce
 /// Motion: a crossfade). The panes meet at a band at the exact midpoint, or the iPhone
-/// Duo hinge, with no drawn divider (#344; a hairline only under Increase Contrast at a
-/// midpoint, ``OnDemandSplitPolicy/drawsDividerLine(_:increasedContrast:)``). Shared by
+/// Duo hinge, with no drawn divider (#344; a hairline only under the system's or the app's
+/// Increase Contrast at a midpoint, ``OnDemandSplitPolicy/drawsDividerLine(_:increasedContrast:)``). Shared by
 /// iPad, iPhone Duo and the Mac content area.
 ///
 /// With a `backdrop` it draws the session's one backdrop behind both panes and the
@@ -295,6 +295,7 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
+    @AppStorage("fst.accessibility.moreContrast") private var appMoreContrast = false
 
     /// Create the layout.
     ///
@@ -320,6 +321,9 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
 
     private var reduceMotion: Bool { systemReduceMotion || appReduceMotion }
 
+    /// System or in-app Increase Contrast (#480: the app's toggle had left the band clear).
+    private var increasedContrast: Bool { colorSchemeContrast == .increased || appMoreContrast }
+
     /// Spring resize, or a short crossfade under Reduce Motion (HIG Motion).
     static func animation(reduceMotion: Bool) -> Animation {
         reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.42, dampingFraction: 0.88)
@@ -341,7 +345,7 @@ struct OnDemandSplitLayout<Leading: View, Trailing: View>: View {
                     SplitDivider(
                         width: geometry.dividerWidth, topScrimHeight: topScrimHeight,
                         drawsLine: OnDemandSplitPolicy.drawsDividerLine(
-                            geometry, increasedContrast: colorSchemeContrast == .increased
+                            geometry, increasedContrast: increasedContrast
                         )
                     )
                     .opacity(covered ? 0 : 1)

@@ -4,6 +4,42 @@
   "webRoot": "FortniteFestivalWeb/src",
   "patterns": [
     {
+      "id": "artwork-background",
+      "title": "Artwork background",
+      "status": "current",
+      "doc": ".agents/patterns/artwork-background.md",
+      "summary": "One decorative dimmed carousel behind the shell and splits, static focused song covers, reduced-motion still art and Data Saver no-art. Catalogue and cover failures recover with paced retries; known publication changes reset the pool, render/failure state and bounded ephemeral image cache even for identical URLs.",
+      "keywords": ["artwork", "backdrop", "carousel", "album art", "background", "reduced motion", "data saver", "cover retry"],
+      "web": [
+        {"path": "components/shell/AnimatedBackground.tsx", "symbol": "AnimatedBackground"},
+        {"path": "components/page/BackgroundImage.tsx", "symbol": "BackgroundImage"}
+      ],
+      "canonical": {
+        "apple": [
+          {"path": "apple/Sources/FestivalUI/Background/ArtworkBackground.swift", "symbol": "ArtworkCarouselEngine"},
+          {"path": "apple/Sources/FestivalUI/Background/FestivalBackgroundCoordinator.swift", "symbol": "FestivalBackgroundCoordinator"}
+        ],
+        "android": [
+          {"path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/BackgroundController.kt", "symbol": "BackgroundController"},
+          {"path": "android/app/src/main/java/com/festivalscoretracker/android/ui/background/ArtworkBackground.kt", "symbol": "ArtworkBackground"},
+          {"path": "android/app/src/main/java/com/festivalscoretracker/android/ui/background/SongCoverBackdrop.kt", "symbol": "SongCoverBackdrop"}
+        ],
+        "windows": [
+          {"path": "windows/Festival.Core/Domain/ArtworkCarousel.cs", "symbol": "ArtworkCarousel"},
+          {"path": "windows/Festival.App/Controls/ArtworkBackground.cs", "symbol": "ArtworkBackground"}
+        ]
+      },
+      "guards": [],
+      "related": {
+        "patterns": ["song-leaderboard-header", "split-panes", "modal-shell"],
+        "controls": ["artwork-background"],
+        "pages": ["songs", "song-detail", "song-leaderboard", "song-band-leaderboard", "settings"]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [623]
+    },
+    {
       "id": "scroll-edge",
       "title": "Scroll edge: content under pinned chrome",
       "status": "current",
@@ -207,7 +243,8 @@
         319,
         322,
         335,
-        393
+        393,
+        459
       ]
     },
     {
@@ -828,7 +865,7 @@
       "title": "Page tools and navigation chrome",
       "status": "current",
       "doc": ".agents/patterns/page-tools-and-nav-chrome.md",
-      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android, Windows and Apple Rival pages name the rival and the section in the bar (Windows: the page header; Apple: R18's in-list InstrumentPageTitle with a subtitle line, pinned title over subtitle once it scrolls away): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too.",
+      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android, Windows and Apple Rival pages name the rival and the section in the bar (Windows: the page header; Apple: R18's in-list InstrumentPageTitle with a subtitle line, pinned title over subtitle once it scrolls away): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too. Apple system bar items (the iPhone Duo rail's board switchers, Choose Profile) keep their system metrics, and tests prove their 44 pt target by hit region, not by element frame (R27, agent decision #625).",
       "keywords": [
         "navigation",
         "page tools",
@@ -1177,7 +1214,8 @@
         597,
         578,
         604,
-        611
+        611,
+        625
       ]
     },
     {
@@ -1992,6 +2030,10 @@
             "symbol": "FestivalLoadGate"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt",
+            "symbol": "LoadingRegion"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongPathsViewModel.kt",
             "symbol": "PathSwapPhase"
           },
@@ -2387,7 +2429,7 @@
       "title": "Empty and error states",
       "status": "current",
       "doc": ".agents/patterns/empty-error-states.md",
-      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile, whose prominent fill and label stay paired and legible under Increase Contrast, #477); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator, exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls; a score-update scrape freeze 503 for a URL the shared pinned-read client already verified in the same, still-current publication returns that kept body instead of the service status (R9, #554); cold reads, outages, non-score freezes and other publications still fail with Retry, and kept bodies are in-memory and byte-bounded. An inline service status is one container whose message, countdown and Retry stay separately reachable; Retry keeps its own identifier and an iOS 44×44 pt target, and a consumer tagging the wrapper contains its children first (R10, #463).",
+      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile, whose prominent fill and label stay paired and legible under Increase Contrast, #477); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator, exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls; a score-update scrape freeze 503 for a URL the shared pinned-read client already verified in the same, still-current publication returns that kept body instead of the service status (R9, #554); cold reads, outages, non-score freezes and other publications still fail with Retry. Kept bodies are in-memory: Android uses a byte-bounded LRU; Apple's verified JSON entries are cleared on every publication change but currently have no byte budget (R9 Known debt). An inline service status is one container whose message, countdown and Retry stay separately reachable; Retry keeps its own identifier and an iOS 44×44 pt target, and a consumer tagging the wrapper contains its children first (R10, #463).",
       "keywords": [
         "empty",
         "no results",
@@ -2445,6 +2487,10 @@
           {
             "path": "apple/Sources/FestivalUI/Common/ServiceStatusView.swift",
             "symbol": "ServiceStatusInline"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/FestivalAPI.swift",
+            "symbol": "scrapeFreezeFallback"
           }
         ],
         "android": [
@@ -4162,7 +4208,7 @@
       "title": "Split panes",
       "status": "current",
       "doc": ".agents/patterns/split-panes.md",
-      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band. Owner-approved variant R6 (#371; iPad, iPhone Duo inner landscape and Android tablets/foldables): Settings always splits, showing a vertically centred placeholder (Settings icon, \"Settings\", \"Select a setting to see more options here\") until a chevron row opens its options on the right; plain toggles act in the list. Owner-approved Android variant R7 (#583): Android tablets, foldables and wide windows use the iPhone Duo's on-demand split: Rivals/All Rivals/Compete open Rival Detail, Leaderboards opens Full/Band Rankings and Song Detail opens its boards and Score History in a trailing pane when the window is landscape, regular and leaves 360 dp a pane, or at the fold in book posture; everything else stays one page, and Back closes the pane first.",
+      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under the system's or the app's Increase Contrast (the band is never an accessibility element), and the split's one backdrop and top gradient run unbroken across the band. Owner-approved variant R6 (#371; iPad, iPhone Duo inner landscape and Android tablets/foldables): Settings always splits, showing a vertically centred placeholder (Settings icon, \"Settings\", \"Select a setting to see more options here\") until a chevron row opens its options on the right; plain toggles act in the list. Owner-approved Android variant R7 (#583): Android tablets, foldables and wide windows use the iPhone Duo's on-demand split: Rivals/All Rivals/Compete open Rival Detail, Leaderboards opens Full/Band Rankings and Song Detail opens its boards and Score History in a trailing pane when the window is landscape, regular and leaves 360 dp a pane, or at the fold in book posture; everything else stays one page, and Back closes the pane first.",
       "keywords": [
         "split view",
         "split",
