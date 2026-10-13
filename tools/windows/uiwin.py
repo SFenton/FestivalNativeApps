@@ -949,6 +949,9 @@ def run_driver(request: dict, lock: HostLock, budget: float = 120.0) -> dict:
     for line in data.get("log") or []:
         print(line, file=sys.stderr)
     if not data.get("ok"):
+        if data.get("detail"):
+            # The driver's stack trace names the call that failed (#618: a timeout before any step logged).
+            print(f"driver error detail: {data['detail']}", file=sys.stderr)
         raise RuntimeError(f"driver: {data.get('error')}")
     return data["result"]
 

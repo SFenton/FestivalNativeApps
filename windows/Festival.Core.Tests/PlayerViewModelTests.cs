@@ -370,6 +370,76 @@ public class PlayerProfileViewModelTests
         Assert.Equal(8, vm.Instruments.Count);
     }
 
+    /// <summary>Lead s1 replaced by a rank-20 variant, s2 valid at rank 50, s3 valid only from 5% leeway; Bass s1 dropped below 3%.</summary>
+    private static string InvalidScoresProfile(string id) => PlayerWire.Profile(id, "Fixture",
+        PlayerWire.Score("s1", score: 2000, rk: 1, te: 100, extra: ",\"ml\":2,\"vs\":[{\"sc\":950,\"ml\":0,\"rt\":[{\"l\":0,\"r\":20}]}]"),
+        PlayerWire.Score("s2", score: 900, rk: 50, te: 100, extra: ",\"ml\":0"),
+        PlayerWire.Score("s3", score: 3000, rk: 2, te: 100, extra: ",\"ml\":5"),
+        PlayerWire.Score("s1", "02", score: 2000, rk: 1, te: 100, extra: ",\"ml\":3"));
+
+    private static string Tile(IEnumerable<PlayerStatTile> tiles, string key) => tiles.Single(t => t.Key == key).Value;
+
+    [Fact]
+    public async Task InvalidScores_NonSelectedProfileShowsFilteredRanksAndUpdatesInPlace()
+    {
+        var fake = new PlayerFakeService();
+        fake.Service.SongsBody = Wire.DefaultSongs().Replace("\"bc\":1", "\"bc\":200", StringComparison.Ordinal);
+        fake.Profiles[PlayerWire.Id] = (HttpStatusCode.OK, InvalidScoresProfile(PlayerWire.Id));
+        fake.Profiles[PlayerWire.Other] = (HttpStatusCode.OK, InvalidScoresProfile(PlayerWire.Other));
+        var session = fake.Session(One, new AppSettings { FilterInvalidScores = true, Leeway = 1 });
+        using var vm = new PlayerProfileViewModel(session, PlayerWire.Other);
+        await vm.LoadAsync();
+        Assert.False(vm.IsSelected);
+        var lead = vm.Instruments.Single(i => i.Instrument == Instrument.Lead);
+        var bass = vm.Instruments.Single(i => i.Instrument == Instrument.Bass);
+        // The filter loads the catalogue for its maxima and population curves, then re-aggregates (s1: rank 20 of 200).
+        await Async.Until(() => session.Catalog is not null && lead.Percentiles.Select(p => p.Bucket.TopPercent).SequenceEqual([10, 50]));
+        Assert.Equal(("2", "#20"), (Tile(vm.Overview, "songs-played"), Tile(vm.Overview, "best-rank")));
+        Assert.Equal("#20", Tile(lead.Stats, "best-rank"));
+        Assert.True(lead.HasScores);
+        Assert.True(bass.IsEmpty);
+        Assert.Empty(bass.Stats.Intersect(bass.RankTiles));
+        await lead.EnsureLoadedAsync();
+        await bass.EnsureLoadedAsync();
+        await Async.Until(() => vm.Bands!.ShowGroups);
+        var reads = fake.Service.Handler.Requests.Count;
+        var raised = new List<string?>();
+        lead.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        // Off: raw ranks again, in place, nothing re-read for the profile or the lead chart's rank.
+        session.UpdateSettings(s => s with { FilterInvalidScores = false });
+        Assert.Same(lead, vm.Instruments.Single(i => i.Instrument == Instrument.Lead));
+        Assert.Contains(nameof(PlayerInstrumentViewModel.Stats), raised);
+        Assert.Contains(nameof(PlayerInstrumentViewModel.Percentiles), raised);
+        Assert.Equal(("3", "#1"), (Tile(vm.Overview, "songs-played"), Tile(vm.Overview, "best-rank")));
+        Assert.Equal([1, 2, 50], lead.Percentiles.Select(p => p.Bucket.TopPercent));
+        Assert.Equal("Global Rank", lead.Stats[^3].Label);
+        Assert.Same(lead.RankTiles[0], lead.Stats[^3]);
+        Assert.Empty(fake.Service.Handler.To($"/api/player/{PlayerWire.Other}").Skip(1));
+        // Bass gained scores after it was realized: its rank reads start now (empty before).
+        Assert.True(bass.HasScores);
+        Assert.False(bass.IsEmpty);
+        await Async.Until(() => !bass.RankLoading && !bass.RankHistoryLoading);
+        Assert.Equal(reads + 2, fake.Service.Handler.Requests.Count);
+
+        // A leeway change while filtering re-aggregates in place too.
+        session.UpdateSettings(s => s with { FilterInvalidScores = true, Leeway = 6 });
+        Assert.Equal(("3", "#1"), (Tile(vm.Overview, "songs-played"), Tile(vm.Overview, "best-rank")));
+        session.UpdateSettings(s => s with { Leeway = 1 });
+        Assert.Equal("#20", Tile(lead.Stats, "best-rank"));
+        Assert.Equal(reads + 2, fake.Service.Handler.Requests.Count);
+
+        // The selected player's Statistics agrees with the viewed profile for the same scores.
+        using var statistics = new PlayerProfileViewModel(session, null);
+        await statistics.LoadAsync();
+        await Async.Until(() => statistics.ShowContent);
+        Assert.True(statistics.IsSelected);
+        Assert.Equal(vm.Overview.Select(t => t.Value), statistics.Overview.Select(t => t.Value));
+        var selectedLead = statistics.Instruments.Single(i => i.Instrument == Instrument.Lead);
+        Assert.Equal(lead.Percentiles.Select(p => p.Bucket), selectedLead.Percentiles.Select(p => p.Bucket));
+        Assert.Equal(Tile(lead.Stats, "best-rank"), Tile(selectedLead.Stats, "best-rank"));
+    }
+
     [Fact]
     public async Task Dispose_StopsFollowingSession()
     {

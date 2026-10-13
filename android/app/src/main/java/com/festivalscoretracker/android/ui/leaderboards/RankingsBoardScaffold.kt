@@ -21,10 +21,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -120,6 +123,7 @@ internal fun RankingsBoardLayout(
     // Already one standard gap above the chrome actually shown (FestivalScreen, issue #578): the
     // pager or pinned row rests there, and a hinge pane's rows end there.
     val bottom = padding.calculateBottomPadding()
+    KeepPageInformationOnLayoutSwitch(split = hinge != null, listState = listState)
     Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).then(measure)) {
         if (hinge != null) {
             Row(Modifier.fillMaxSize()) {
@@ -290,6 +294,30 @@ private const val ROW_GAP_DP = 12
 
 /** Space between the "your rank" row and the pager. */
 private const val FOOTER_PAGER_GAP_DP = 8
+
+/**
+ * Keeps the page information in view when the board switches between the hinge layout and one
+ * column (large text, a fold opening flat; issue #617). The hinge layout lists the rows alone,
+ * with the page information in the other pane, while one column lists it first; the keyed list
+ * would otherwise keep the first row on top and leave the population line scrolled away above
+ * it. Only a board at its very top moves; a reader further down keeps their row.
+ *
+ * @param split Whether the board is split around a hinge.
+ * @param listState Row list state.
+ */
+@Composable
+private fun KeepPageInformationOnLayoutSwitch(split: Boolean, listState: LazyListState) {
+    // The layout the list last showed (written by the effect only, never read in composition).
+    val shown = remember { mutableStateOf(split) }
+    // Read once per switch, without observing, so scrolling never recomposes the board.
+    val atTop = remember(split) {
+        Snapshot.withoutReadObservation { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
+    }
+    LaunchedEffect(split) {
+        if (shown.value != split && atTop) listState.scrollToItem(0)
+        shown.value = split
+    }
+}
 
 @Composable
 private fun BoardList(
