@@ -394,16 +394,19 @@ class RebootWedgedTests(unittest.TestCase):
         self.assertIsNone(ios_sim.simulator_wedged("XCTAssertTrue failed - No player footer\n** TEST FAILED **"))
         self.assertIsNone(ios_sim.simulator_wedged('caught error: "Audit failed to complete in time"'))
 
-    def test_a_timeout_before_xcodebuild_printed_anything_is_a_hang(self):
-        self.assertEqual(ios_sim.simulator_wedged("\n\nTIMEOUT after 2400.0s; killed.\n"), ios_sim.SILENT_TIMEOUT)
-
-    def test_a_timeout_after_the_run_started_is_not_a_hang(self):
+    def test_a_batch_killed_at_its_timeout_is_a_hang(self):
+        self.assertEqual(ios_sim.simulator_wedged("\n\nTIMEOUT after 2400.0s; killed.\n"), ios_sim.TIMED_OUT)
         started = ("Writing result bundle at path:\n\t/tmp/r.xcresult\n"
                    "\nTIMEOUT after 2400.0s; killed.\n")
-        self.assertIsNone(ios_sim.simulator_wedged(started))
+        self.assertEqual(ios_sim.simulator_wedged(started), ios_sim.TIMED_OUT)
         self.assertIsNone(ios_sim.simulator_wedged(""))
 
-    def test_a_silent_timeout_reboots_the_simulator_and_reruns_the_batch(self):
+    def test_a_second_timeout_fails_the_batch(self):
+        timeout = "\nTIMEOUT after 10s; killed.\n"
+        code, runs, locks = self._run([timeout, timeout], [124, 124])
+        self.assertEqual((code, runs, len(locks)), (124, 2, 1))
+
+    def test_a_timed_out_batch_reboots_the_simulator_and_reruns(self):
         code, runs, locks = self._run(["\nTIMEOUT after 10s; killed.\n", "ok"], [124, 0])
         self.assertEqual((code, runs), (0, 2))
         self.assertEqual([call.args for call in locks], [("UDID", ios_sim._shutdown_simulator)])

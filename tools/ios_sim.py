@@ -1904,8 +1904,8 @@ def cmd_uitest(args: argparse.Namespace) -> int:
             )
             if (returncode and not rebooted and getattr(args, "reboot_wedged", False)
                     and (wedge := simulator_wedged(log_path.read_text(encoding="utf-8", errors="replace")))):
-                # No verdict: the simulator (or its accessibility server) hung before any test ran.
-                # Reboot it and run the batch again, once, keeping the stuck attempt's result bundle (#620).
+                # No verdict: the simulator (or its accessibility server) hung. Reboot it and run the
+                # batch again, once, keeping the stuck attempt's result bundle (#620).
                 rebooted = True
                 print(f"uitest {label}: simulator wedged ({wedge}) after {elapsed:.1f}s; rebooting it and "
                       f"running the batch again; result bundle (kept): {result_bundle}", file=sys.stderr)
@@ -2146,11 +2146,12 @@ WEDGED_SIMULATOR_SIGNATURES = (
 #: The line ``_run_uitest_batch`` appends to a batch's log when it kills a run at its timeout.
 TIMEOUT_MARKER = "TIMEOUT after"
 
-#: ``simulator_wedged``'s reason for a batch that timed out before ``xcodebuild`` printed a line.
-#: A run that reaches its test action logs within seconds (on a runner, its first stderr lines
-#: come in about 10 s); on the folded-Duo leg ``xcodebuild`` printed nothing for 2400 s and the
-#: `simctl terminate` after it hung too (#620).
-SILENT_TIMEOUT = "xcodebuild printed nothing before the batch timed out"
+#: ``simulator_wedged``'s reason for a batch killed at its own timeout. That is no verdict: an
+#: XCUITest query or audit that runs too long fails the test long before. On the folded-Duo legs
+#: (#620) one batch's ``xcodebuild`` printed nothing for 2400 s, and another's runner went silent
+#: inside its first audit for 25 minutes after the same journey had passed in the previous run;
+#: the `simctl terminate` after each hung too.
+TIMED_OUT = "the batch timed out before a verdict"
 
 #: Seconds to wait for `simctl shutdown` before a wedged batch's rerun.
 SHUTDOWN_TIMEOUT = 300
@@ -2163,14 +2164,13 @@ def simulator_wedged(log_text: str) -> str | None:
         log_text: The batch's log.
 
     Returns:
-        The first matching ``WEDGED_SIMULATOR_SIGNATURES`` entry, ``SILENT_TIMEOUT`` when the
-        batch timed out with nothing logged before ``TIMEOUT_MARKER``, or ``None`` for an
-        ordinary failure (which ``--reboot-wedged`` leaves alone).
+        The first matching ``WEDGED_SIMULATOR_SIGNATURES`` entry, ``TIMED_OUT`` when the batch
+        was killed at its timeout (``TIMEOUT_MARKER``), or ``None`` for an ordinary failure
+        (which ``--reboot-wedged`` leaves alone).
     """
     if signature := next((s for s in WEDGED_SIMULATOR_SIGNATURES if s in log_text), None):
         return signature
-    before, marker, _ = log_text.partition(TIMEOUT_MARKER)
-    return SILENT_TIMEOUT if marker and not before.strip() else None
+    return TIMED_OUT if TIMEOUT_MARKER in log_text else None
 
 
 def _shutdown_simulator(udid: str) -> int:
@@ -2194,9 +2194,10 @@ def should_retry_batch(returncode: int, attempt: int, retries: int) -> bool:
     """Decide whether ``uitest --retries`` runs a failed batch again.
 
     Only a test failure is retried: the CI runner's simulator is 2-4x slower than a Mac and
-    an XCUITest query can time out there ("Timed out while evaluating UI query"). A timed-out
-    batch (124), a setup error or a pose mismatch would only fail again, and a deterministic
-    test failure fails every attempt, so it still fails the run.
+    an XCUITest query can time out there ("Timed out while evaluating UI query"). A setup error
+    or a pose mismatch would only fail again, and a deterministic test failure fails every
+    attempt, so it still fails the run. A timed-out batch (124) is not retried here:
+    ``--reboot-wedged`` reruns it once on a rebooted simulator (``simulator_wedged``).
 
     Args:
         returncode: The attempt's exit code.
@@ -2620,8 +2621,8 @@ def main(argv: list[str] | None = None) -> int:
     uitest.add_argument("--reboot-wedged", action="store_true",
                         default=os.environ.get("FST_UITEST_REBOOT_WEDGED") == "1",
                         help="CI: when a batch reached no verdict (its test runner failed to initialize, or it "
-                             "timed out before xcodebuild printed anything: the simulator hung, so no test ran), "
-                             "reboot the simulator and run that batch once more; "
+                             "was killed at --timeout: the simulator hung), reboot the simulator and run that "
+                             "batch once more; "
                              "test failures are never rerun (default on when FST_UITEST_REBOOT_WEDGED=1, as "
                              "apple-ci sets it)")
     uitest.add_argument("--retries", type=int, default=0,
