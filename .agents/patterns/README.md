@@ -7,7 +7,7 @@ Machine-readable twin: [`contracts/patterns.json`](../../contracts/patterns.json
 ## How to use a pattern
 
 1. **Find it.** `python3 tools/pattern_guard.py index` lists every pattern, `python3 tools/pattern_guard.py which <path>` names the patterns owning a file, and `grep -l <keyword> .agents/patterns/*.md` searches the docs.
-2. **Obey the Rules block.** Each rule is numbered (`R1`…) so issues, PRs and reviews can cite it (`scroll-edge R3`).
+2. **Obey the Rules block.** Each rule is numbered (`R1`…) so issues, PRs and reviews can cite it (`scroll-edge R3`). A number names exactly one rule: when a merge leaves two copies of a rule, merge them into one that keeps every current requirement (record dropped wording with `Supersedes:`), and give a different rule the next free number, updating its references in docs, `contracts/patterns.json`, code comments and tests. `check_docs.py` fails on a number defined twice (#621).
 3. **Fix the pattern, not the instance.** Change the canonical component so every consumer gets the fix. A new local mechanism for a behavior a pattern already owns is a review failure unless the pattern doc records it as an approved variant.
 4. **Changing a rule is a design decision.** Decide and document it ([design-decision](../skills/design-decision/SKILL.md)), and update the doc and `patterns.json` in the same PR (`Agent decision (#n, date)`; the owner may override). Mark the old rule with `Supersedes:` and sweep every platform listed under *Canonical implementation*.
 5. **Known debt** lists the places that don't follow the rules yet. The guard allows them until they are fixed; never add new entries without a documented decision.
