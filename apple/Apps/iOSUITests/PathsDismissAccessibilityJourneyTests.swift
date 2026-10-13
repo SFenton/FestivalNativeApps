@@ -31,11 +31,15 @@ import XCTest
 ///   activation-table text passes only once its rendered contrast measures 4.5:1 or more;
 ///   a selector clipped or not growing in the simulated inner display passes only there
 ///   at Large (the iPhone's real window is narrower); at AX5 a selector flagged clipped
-///   there passes only once Vision reads its value whole in the same run.
-/// - **Text scaling:** the Difficulty value ("Expert", named in every form) draws whole
-///   (Vision) and, at AX5, its rendered glyphs (`SongsUITestSupport.brightGlyphHeight`) are
-///   over 1.35× as tall as in a paired Large launch of the same form, with Close, the zoom
-///   group and the stacked selectors still on screen and hittable.
+///   there passes only once Vision reads its value whole in the same run. A Large Dynamic
+///   Type flag on the Difficulty value or an activation-table text (iOS 27.0 intermittently
+///   flags every text on the folded Duo's sheet, #626) passes only once the same text reads
+///   whole and over 1.35× as tall in an AX5 launch of the same form (`dynamic-type-grows`).
+/// - **Text scaling:** the Difficulty value ("Expert", named in every form) and the first
+///   activation's time ("00:02:750") draw whole (Vision) and, at AX5, are over 1.35× as tall
+///   as in a paired Large launch of the same form (glyphs by
+///   `SongsUITestSupport.brightGlyphHeight`; the time's recognized line), with Close, the
+///   zoom group and the stacked selectors still on screen and hittable.
 ///
 /// Forms, each at Large and AX5: the iPhone sheet; the iPhone Duo folded sheet and the
 /// inner display's full-window cover (`DebugDuoWindow` simulation, as CI has no Duo device
@@ -85,6 +89,36 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
     /// for Dynamic Type growth. Every form names it (Instrument and View go icon-only on a
     /// phone and folded Duo), and it is white body text on the dark capsule.
     private static let measuredValue = "Expert"
+
+    /// The first activation's time on the fixture's chart (`activationSeconds` 2.75): the
+    /// activation table's widest value, measured for Dynamic Type growth with ``measuredValue``
+    /// (#626: the folded Duo's Large audit flagged both).
+    private static let measuredTime = "00:02:750"
+
+    /// The Large launch's measurements an AX5 run compares against.
+    private struct Baseline {
+        /// The Difficulty value's glyph height in screenshot pixels.
+        let difficulty: Int
+        /// The first activation's time line height in points.
+        let time: CGFloat
+    }
+
+    /// A Large-size "partially unsupported" flag on the Difficulty selector or a text in the
+    /// activation table, accepted only once the same text draws whole and ≥ 1.35× taller in
+    /// the same form's AX5 launch (`dynamic-type-grows`, `testing/apple/accessibility.md`).
+    private struct Growth {
+        /// The flagged text.
+        let label: String
+        /// Whether it sits in the activation table (else it is the Difficulty value).
+        let inTable: Bool
+        /// Its recognized line height at Large, in points.
+        let height: CGFloat
+        /// The audit line, for evidence.
+        let summary: String
+    }
+
+    /// Large-size flags awaiting the AX5 proof, gathered by ``audit(_:run:_:)``.
+    private var pendingGrowth: [Growth] = []
 
     // MARK: - Journeys
 
@@ -160,7 +194,7 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
                                  "Fitted image wider than its viewport (\(run.name))")
         assertCloseReachable(in: app, run: run, "image at fit")
         assertSelectorsReachable(in: app, run: run)
-        try assertMeasuredValue(in: app, run: run, baseline: baseline)
+        try assertMeasuredValue(in: app, run: run, baseline: baseline?.difficulty)
         assertOrder(["fst.paths.zoom-out", "fst.paths.zoom-in", "fst.paths.close", "fst.paths.image"]
                     + Self.selectors, in: app, "image at fit (\(run.name))")
         record(app, name: "paths-dismiss-\(run.name)-image-fit")
@@ -197,12 +231,15 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         XCTAssertFalse(app.buttons["fst.paths.zoom-in"].exists, "Zoom controls without the image (\(run.name))")
         assertCloseReachable(in: app, run: run, "text")
         assertSelectorsReachable(in: app, run: run)
+        assertMeasuredTime(in: app, run: run, baseline: baseline?.time)
         assertOrder(["fst.paths.close", "fst.paths.text.Solo_Guitar.expert", "fst.paths.activation.1"]
                     + Self.selectors, in: app, "text (\(run.name))")
         record(app, name: "paths-dismiss-\(run.name)-text")
         try audit(app, run: run, "text")
         closeWithCloseButton(in: app, run: run, "from the table")
         XCTAssertTrue(open.isHittable, "Paths is reachable again after Close (\(run.name))")
+        app.terminate()
+        try resolveGrowth(run)
     }
 
     // MARK: - Launch
@@ -249,22 +286,33 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         return app
     }
 
-    /// The Difficulty value's rendered glyph height at Large in the AX5 run's form, on the
-    /// fitted image (the state the AX5 run measures).
+    /// The Large measurements in the AX5 run's form: the Difficulty value's rendered glyph
+    /// height on the fitted image and the first activation time's line height on Text (the
+    /// states the AX5 run measures).
     ///
     /// - Parameter run: The Large twin of the AX5 run (``Run/large``).
-    /// - Returns: The glyph height in screenshot pixels.
+    /// - Returns: Both baselines.
     /// - Throws: A skip without the fixture, or a missing measurement.
     @MainActor
-    private func measureBaseline(_ run: Run) throws -> Int {
+    private func measureBaseline(_ run: Run) throws -> Baseline {
         let app = try launchOnPaths(run)
         defer { app.terminate() }
-        PathsUITestSupport.choose("Image", in: element("fst.paths.display", in: app), app: app)
+        let display = element("fst.paths.display", in: app)
+        PathsUITestSupport.choose("Image", in: display, app: app)
         XCTAssertTrue(app.images["fst.paths.image"].waitForExistence(timeout: FestivalApp.budget(15)),
                       "No path image (\(run.name))")
         XCTAssertTrue(app.staticTexts["Zoom 100 percent"].waitForExistence(timeout: FestivalApp.budget(5)),
                       "The image never settled at fit (\(run.name))")
-        return try measuredGlyphs(in: app, run: run)
+        let difficulty = try measuredGlyphs(in: app, run: run)
+        PathsUITestSupport.choose("Text", in: display, app: app)
+        let card = element("fst.paths.activation.1", in: app)
+        XCTAssertTrue(card.waitForExistence(timeout: FestivalApp.budget(15)), "No first activation (\(run.name))")
+        let time = RecognizedText.recognizeLine(Self.measuredTime, in: card)
+        attach("paths-dismiss-\(run.name)-time-text",
+               "read '\(time.text ?? "")', line \(time.lineHeight.map { "\($0)" } ?? "-") pt")
+        return Baseline(difficulty: difficulty, time: try XCTUnwrap(
+            time.lineHeight, "'\(Self.measuredTime)' unread in the first activation (\(run.name))"
+        ))
     }
 
     // MARK: - Assertions
@@ -330,6 +378,33 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         if let baseline {
             XCTAssertGreaterThan(CGFloat(glyphs), CGFloat(baseline) * RecognizedText.minimumGrowth,
                                  "'\(Self.measuredValue)' grows at AX5: \(glyphs) px vs \(baseline) px at Large (\(run.name))")
+        }
+    }
+
+    /// Text scaling on the first activation's time (``measuredTime``), the activation table's
+    /// widest value: it draws whole on one recognized line and, in an AX5 run, that line is
+    /// over 1.35× as tall as at Large in the same form (#626). As with ``measuredValue``, the
+    /// simulated inner display at Large takes only the baseline.
+    ///
+    /// - Parameters:
+    ///   - app: The viewer on Text.
+    ///   - run: Launch settings.
+    ///   - baseline: The Large launch's line height, for an AX5 run.
+    @MainActor
+    private func assertMeasuredTime(in app: XCUIApplication, run: Run, baseline: CGFloat?) {
+        let card = element("fst.paths.activation.1", in: app)
+        XCTAssertTrue(card.waitForExistence(timeout: FestivalApp.budget(5)), "No first activation (\(run.name))")
+        let reading = RecognizedText.recognizeLine(Self.measuredTime, in: card)
+        attach("paths-dismiss-\(run.name)-time-text",
+               "read '\(reading.text ?? "")', line \(reading.lineHeight.map { "\($0)" } ?? "-") pt, "
+               + "baseline \(baseline.map { "\($0)" } ?? "-") pt; card \(card.frame)")
+        if run.isAX5 || !simulatesInnerDisplay(run, in: app.windows.firstMatch.frame) {
+            XCTAssertNotNil(reading.text, "'\(Self.measuredTime)' draws whole in the first activation (\(run.name))")
+        }
+        if let baseline {
+            XCTAssertGreaterThan(reading.lineHeight ?? 0, baseline * RecognizedText.minimumGrowth,
+                                 "'\(Self.measuredTime)' grows at AX5: \(reading.lineHeight ?? 0) pt vs "
+                                 + "\(baseline) pt at Large (\(run.name))")
         }
     }
 
@@ -445,10 +520,12 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
     private func audit(_ app: XCUIApplication, run: Run, _ state: String) throws {
         var issues: [String] = []
         var accepted: [String] = []
+        var pending: [Growth] = []
         let window = app.windows.firstMatch.frame
         let table = element("fst.paths.text.Solo_Guitar.expert", in: app)
         try SongsUITestSupport.performAuditRetryingTimeout(
-            app, run.auditTypes, name: "paths dismiss \(run.name) \(state)", reset: { issues.removeAll(); accepted.removeAll() }
+            app, run.auditTypes, name: "paths dismiss \(run.name) \(state)",
+            reset: { issues.removeAll(); accepted.removeAll(); pending.removeAll() }
         ) { issue in
             let node = issue.element
             let line = "\(node?.identifier ?? "nil") '\(node?.label ?? "")' \(String(describing: node?.frame)): "
@@ -503,12 +580,84 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
                 issues.append("\(line); Vision read '\(reading.text ?? "")' for '\(value)'")
                 return true
             }
+            // At Large, iOS 27's audit intermittently reports every text on the folded Duo's
+            // sheet as "partially unsupported" (#626: the Difficulty value, the activation
+            // values and their plain `.caption` labels at once; the same build passes the next
+            // run). Accept that only for the Difficulty value or a text in the activation
+            // table, only when Vision reads it whole here, and only once the same text draws
+            // whole and ≥ 1.35× taller in this form's AX5 launch (``resolveGrowth(_:)``).
+            if issue.auditType == .dynamicType, !run.isAX5, let node, !node.frame.isEmpty,
+               !node.label.isEmpty {
+                let centre = CGPoint(x: node.frame.midX, y: node.frame.midY)
+                let inTable = node.elementType == .staticText && table.exists && table.frame.contains(centre)
+                if inTable || selector?.identifier == "fst.paths.difficulty" {
+                    let reading = RecognizedText.recognizeLine(node.label, in: node)
+                    if let height = reading.lineHeight {
+                        pending.append(Growth(label: node.label, inTable: inTable, height: height, summary: line))
+                        accepted.append("dynamic-type-grows pending AX5, '\(reading.text ?? "")' \(height) pt: \(line)")
+                        return true
+                    }
+                    issues.append("\(line); Vision did not read '\(node.label)' whole")
+                    return true
+                }
+            }
             issues.append(line)
             return true
         }
+        pendingGrowth += pending
         attach("paths-dismiss-\(run.name)-\(state)-audit", (issues + accepted.map { "accepted, \($0)" })
             .joined(separator: "\n"))
         XCTAssertEqual(issues, [], "Audit issues, \(state) (\(run.name))")
+    }
+
+    /// Resolve the Large audits' pending Dynamic Type flags (``pendingGrowth``) on an AX5
+    /// launch of the same form: the Difficulty value and each flagged table text must draw
+    /// whole and ≥ 1.35× taller (`RecognizedText.minimumGrowth`) than they read at Large.
+    /// Table texts are read from the activation table, scrolling it up to find one below
+    /// the fold. Does nothing when nothing is pending.
+    ///
+    /// - Parameter run: The Large run whose audits gathered the flags.
+    /// - Throws: A skip without the fixture.
+    @MainActor
+    private func resolveGrowth(_ run: Run) throws {
+        var seen = Set<String>()
+        let pending = pendingGrowth.filter { seen.insert("\($0.inTable) \($0.label)").inserted }
+        pendingGrowth.removeAll()
+        guard !pending.isEmpty else { return }
+        let twin = Run.ax5(name: "\(run.name)-ax5-growth", duoWindow: run.duoWindow)
+        let app = try launchOnPaths(twin)
+        defer { app.terminate() }
+        var evidence: [String] = []
+        var open: [String] = []
+        func check(_ flag: Growth, _ reading: RecognizedText.Reading) {
+            guard let height = reading.lineHeight, height >= flag.height * RecognizedText.minimumGrowth else {
+                open.append("\(flag.summary); AX5 read '\(reading.text ?? "")', "
+                    + "\(reading.lineHeight.map { "\($0)" } ?? "unread") pt vs \(flag.height) pt at Large")
+                return
+            }
+            evidence.append("dynamic-type-grows: \(flag.summary) → '\(reading.text ?? "")' \(flag.height) → \(height) pt")
+        }
+        let display = element("fst.paths.display", in: app)
+        for flag in pending where !flag.inTable {
+            check(flag, RecognizedText.recognizeLine(flag.label, in: element("fst.paths.difficulty", in: app)))
+        }
+        let tableFlags = pending.filter(\.inTable)
+        if !tableFlags.isEmpty {
+            PathsUITestSupport.choose("Text", in: display, app: app)
+            let table = element("fst.paths.text.Solo_Guitar.expert", in: app)
+            XCTAssertTrue(table.waitForExistence(timeout: FestivalApp.budget(15)), "No Expert table (\(twin.name))")
+            for flag in tableFlags {
+                var reading = RecognizedText.recognizeLine(flag.label, in: table)
+                for _ in 0..<4 where reading.lineHeight == nil {
+                    table.swipeUp(velocity: .slow)
+                    reading = RecognizedText.recognizeLine(flag.label, in: table)
+                }
+                check(flag, reading)
+            }
+        }
+        record(app, name: "paths-dismiss-\(twin.name)")
+        attach("paths-dismiss-\(run.name)-audit-ax5-growth", evidence.joined(separator: "\n"))
+        XCTAssertEqual(open, [], "Large-size Dynamic Type flags that do not grow whole at AX5 (\(run.name))")
     }
 
     // MARK: - App helpers

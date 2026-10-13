@@ -10,13 +10,17 @@ import XCTest
 ///
 /// For Band Rankings (`RankingsFloatingBar`, which shows the pager alone on the vertical
 /// bar while the band-size menu moves to the rail) and the song board
-/// (`RankingsPagerView`, with `fixture-player-2` pinned), folded and unfolded:
+/// (`RankingsPagerView`, with `fixture-player-2` selected), folded and unfolded:
 ///
 /// - each pager control is exactly one element, in the board and not in a toolbar,
 ///   navigation bar or tab bar (no rail copy), with the page laid out for the vertical bar;
 /// - the arrows are named buttons with their page-1 states, the badge reads "Page" with
 ///   "1 of N", and the controls run left to right as 44 pt targets wholly on screen;
-/// - VoiceOver reads the rows, then the pinned row, then the pager in visual order (fixed:
+/// - the selected player's row is one named, reachable 44 pt button above the pager: pinned
+///   only while it takes at most a third of the window, else after the page's rows, where
+///   the journey scrolls to it (leaderboard-row R12, #386; as `SongLeaderboardEndJourneyTests`
+///   since #620);
+/// - VoiceOver reads the rows, then the selected row, then the pager in visual order (fixed:
 ///   `RankingsPagerView`'s controls were loose among the pinned row, so iOS read the
 ///   taller AX5 badge before First and, unfolded, the pinned row after the pager);
 /// - Band Rankings' band-size menu stays one named rail button ("Band size", "Duos");
@@ -51,7 +55,7 @@ final class DuoBoardPagerAccessibilityJourneyTests: XCTestCase {
         let prefix: String
         /// Identifier prefix of the board's rows.
         let rowPrefix: String
-        /// The pinned selected row, where one shows.
+        /// The selected player's row (pinned, or after the rows under R12), where one shows.
         let footer: String?
         /// The fixture board's page count.
         let totalPages: Int
@@ -65,7 +69,7 @@ final class DuoBoardPagerAccessibilityJourneyTests: XCTestCase {
         )
 
         /// `fixture-pulse` Lead's song board (26 entries, two pages), `fixture-player-2`
-        /// (ranked 2nd) selected: an Open pinned row.
+        /// (ranked 2nd) selected: an Open row.
         static let song = Board(
             prefix: "fst.song-leaderboard.", rowPrefix: "fst.song-leaderboard.row.",
             footer: "fst.song-leaderboard.spotlight-open", totalPages: 2,
@@ -104,13 +108,13 @@ final class DuoBoardPagerAccessibilityJourneyTests: XCTestCase {
         try assertPagerOnBoard(.bandRankings, duoWindow: "unfolded-landscape")
     }
 
-    /// The song board, with a pinned selected row, on the folded outer display.
+    /// The song board, with a selected player's row, on the folded outer display.
     @MainActor
     func testSongBoardPagerIsAccessibleOnTheDuoFoldedBoardAtAX5() throws {
         try assertPagerOnBoard(.song, duoWindow: "folded")
     }
 
-    /// The song board, with a pinned selected row, on the unfolded inner display.
+    /// The song board, with a selected player's row, on the unfolded inner display.
     @MainActor
     func testSongBoardPagerIsAccessibleOnTheDuoUnfoldedBoardAtAX5() throws {
         try assertPagerOnBoard(.song, duoWindow: "unfolded-landscape")
@@ -118,7 +122,7 @@ final class DuoBoardPagerAccessibilityJourneyTests: XCTestCase {
 
     // MARK: - Assertions
 
-    /// Launch `board` at AX5 in the simulated Duo window and check its pager, pinned
+    /// Launch `board` at AX5 in the simulated Duo window and check its pager, selected
     /// row, reading order, rail item and audit.
     ///
     /// - Parameters:
@@ -174,18 +178,87 @@ final class DuoBoardPagerAccessibilityJourneyTests: XCTestCase {
 
         let pagerTop = frames.map(\.minY).min() ?? window.maxY
         if let footerID = board.footer {
-            let footer = app.buttons[footerID]
-            XCTAssertTrue(footer.exists, "No pinned row (\(context))")
-            XCTAssertFalse(footer.label.isEmpty, "The pinned row has no name (\(context))")
-            XCTAssertTrue(footer.isHittable, "The pinned row is not reachable (\(context)): \(footer.frame)")
-            XCTAssertGreaterThanOrEqual(footer.frame.height, Self.minimumTarget - 0.5, "Pinned row target \(footer.frame)")
-            XCTAssertLessThanOrEqual(footer.frame.maxY, pagerTop + 0.5, "Pinned row under the pager (\(context))")
+            try assertSelectedRow(board, footerID: footerID, rows: rows, pagerTop: pagerTop, in: app, window: window,
+                                  context: context)
         }
         if board.prefix == Board.bandRankings.prefix {
             try assertBandSizeRailItem(in: app, pager: frames, context: context)
         }
         try assertReadingOrder(board, in: app, context: context)
         try audit(board, in: app, context: context)
+    }
+
+    /// The selected player's row under leaderboard-row R12: it pins until measured, then
+    /// stays pinned only if it takes at most a third of the window; otherwise it follows the
+    /// page's rows, so the journey flicks to the end of the page to find it. Either way it is
+    /// one named, reachable 44 pt button wholly on screen above the pager.
+    ///
+    /// - Parameters:
+    ///   - board: The board.
+    ///   - footerID: The selected row's button identifier.
+    ///   - rows: The board's rows.
+    ///   - pagerTop: Top of the pager's controls.
+    ///   - app: The running app.
+    ///   - window: The app window's frame.
+    ///   - context: Label for failure messages.
+    @MainActor
+    private func assertSelectedRow(
+        _ board: Board, footerID: String, rows: XCUIElementQuery, pagerTop: CGFloat, in app: XCUIApplication,
+        window: CGRect, context: String
+    ) throws {
+        let footer = app.buttons[footerID]
+        let unpinned = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in !footer.exists || !footer.isHittable }, object: nil
+        )
+        let pinned = footer.waitForExistence(timeout: FestivalApp.budget(10))
+            && XCTWaiter().wait(for: [unpinned], timeout: FestivalApp.budget(3)) == .timedOut
+        if pinned {
+            XCTAssertLessThanOrEqual(
+                footer.frame.height, window.height / 3,
+                "A pinned row covers over a third of the board (R12, \(context)): \(footer.frame)"
+            )
+        } else {
+            // Too tall to pin at AX5, the row follows the page's rows (R12): only the end
+            // of the page shows it, after the last row.
+            scrollToEndOfPage(rows, above: pagerTop, in: app, window: window)
+            XCTAssertTrue(footer.waitForExistence(timeout: FestivalApp.budget(10)),
+                          "No selected row after the rows (\(context))")
+        }
+        let endPagerTop = app.descendants(matching: .any)[board.id("page-first")].frame.minY
+        let frame = footer.frame
+        XCTAssertFalse(footer.label.isEmpty, "The selected row has no name (\(context))")
+        XCTAssertTrue(footer.isHittable, "The selected row is not reachable (\(context)): \(frame)")
+        XCTAssertGreaterThanOrEqual(frame.height, Self.minimumTarget - 0.5, "Selected row target \(frame) (\(context))")
+        XCTAssertTrue(window.contains(frame), "Selected row off screen: \(frame) (\(context))")
+        XCTAssertLessThanOrEqual(frame.maxY, endPagerTop + 0.5, "Selected row under the pager: \(frame) vs \(endPagerTop) (\(context))")
+    }
+
+    /// Flick to the end of the page, until two flicks leave the bottom row in place (as
+    /// `SongLeaderboardEndJourneyTests`: at AX5 plain drags took dozens of gestures).
+    ///
+    /// - Parameters:
+    ///   - rows: The rows.
+    ///   - chromeTop: Top of the pinned chrome: flicks start just above it, inside the rows.
+    ///   - app: The running app.
+    ///   - window: The app window's frame.
+    @MainActor
+    private func scrollToEndOfPage(_ rows: XCUIElementQuery, above chromeTop: CGFloat, in app: XCUIApplication, window: CGRect) {
+        let origin = app.windows.firstMatch.coordinate(withNormalizedOffset: .zero)
+        let startY = chromeTop - 16
+        let distance = min(window.height * 0.3, max(startY - window.minY - 160, 60))
+        var lastFrame = CGRect.null
+        var unchanged = 0
+        for _ in 0..<60 where unchanged < 2 {
+            let start = origin.withOffset(CGVector(dx: window.midX - window.minX, dy: startY - window.minY))
+            start.press(
+                forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -distance)),
+                withVelocity: .fast, thenHoldForDuration: 0
+            )
+            let bottom = rows.allElementsBoundByIndex.map(\.frame).filter { window.intersects($0) }
+                .max { $0.maxY < $1.maxY } ?? .null
+            unchanged = bottom == lastFrame ? unchanged + 1 : 0
+            lastFrame = bottom
+        }
     }
 
     /// Band Rankings' band-size menu: one named rail button, not part of the pager.
@@ -210,8 +283,8 @@ final class DuoBoardPagerAccessibilityJourneyTests: XCTestCase {
         XCTAssertFalse(span.intersects(menu.frame), "the band-size menu \(menu.frame) sits in the pager \(span) (\(context))")
     }
 
-    /// VoiceOver reaches every realized row, then the pinned row, then the pager left to
-    /// right (`boardBottomChrome`, leaderboard-row R5).
+    /// VoiceOver reaches every realized row, then the selected row, then the pager left to
+    /// right (`boardBottomChrome`, leaderboard-row R5 and R12).
     ///
     /// - Parameters:
     ///   - board: The board.
@@ -236,7 +309,7 @@ final class DuoBoardPagerAccessibilityJourneyTests: XCTestCase {
             try XCTUnwrap(identifiers.firstIndex(of: id), "\(id) not in the tree (\(context))")
         }
         XCTAssertTrue(positions.allSatisfy { $0 > lastRow }, "The chrome \(positions) reads before a row \(lastRow) (\(context))")
-        XCTAssertEqual(positions, positions.sorted(), "Pinned row, then the pager left to right (\(context)): \(chrome)\n\(tree.joined(separator: "\n"))")
+        XCTAssertEqual(positions, positions.sorted(), "Selected row, then the pager left to right (\(context)): \(chrome)\n\(tree.joined(separator: "\n"))")
     }
 
     /// The system audit at AX5 for the board's own elements (the shell has its own).

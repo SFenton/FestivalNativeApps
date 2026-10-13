@@ -17,6 +17,11 @@ import XCTest
 /// part of the row's label, so it has no element of its own: its size is read from the
 /// row's pixels, as `SongBarCaptionIconJourneyTests` does.
 ///
+/// iOS 27 menus drop their rows' identifiers and read only the row's title `Text`
+/// (`QuickLinkLabel` names that Text, #626): there a row is the one unidentified button
+/// whose VoiceOver label is exactly its section's spoken title, and the audit covers every
+/// unidentified element inside the menu.
+///
 /// Forms, each at the default size and AX5: the iPhone accessory sheet, the folded
 /// iPhone Duo's menu (simulated on the iPhone, `FST_DEBUG_DUO_WINDOW`) and the iPad
 /// navigation-bar menu. Hosted macOS twins: `QuickLinksInstrumentIconAccessibilityTests`.
@@ -116,11 +121,13 @@ final class QuickLinksIconAccessibilityJourneyTests: XCTestCase {
         let open = app.buttons["fst.quick-links.open"]
         XCTAssertTrue(open.waitForExistence(timeout: FestivalApp.budget(20)), "No Quick Links button")
         open.tap()
-        let lead = app.buttons[Self.lead]
-        let symbol = app.buttons[Self.symbol]
+        let leadQuery = rows(app, id: Self.lead, label: "Lead")
+        let symbolQuery = rows(app, id: Self.symbol, label: "Lead Rank History")
+        let lead = leadQuery.firstMatch
+        let symbol = symbolQuery.firstMatch
         XCTAssertTrue(lead.waitForExistence(timeout: FestivalApp.budget(10)), "The chooser did not open")
         // At AX5 the rows are tall: scroll the chooser until both rows are on screen.
-        let list = app.collectionViews.containing(.button, identifier: Self.lead).firstMatch
+        let list = app.collectionViews.containing(Self.rowPredicate(id: Self.lead, label: "Lead")).firstMatch
         for _ in 0..<4 where !(lead.isHittable && symbol.exists && symbol.isHittable) && list.exists {
             list.swipeUp(velocity: .slow)
         }
@@ -128,6 +135,8 @@ final class QuickLinksIconAccessibilityJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: name)
 
         // Name and role: one button named by the instrument, not by its artwork.
+        XCTAssertEqual(leadQuery.count, 1, "One chooser row reads 'Lead'")
+        XCTAssertEqual(symbolQuery.count, 1, "One chooser row reads 'Lead Rank History'")
         XCTAssertEqual(lead.label, "Lead")
         XCTAssertEqual(symbol.label, "Lead Rank History")
         XCTAssertTrue(lead.isHittable, "Lead row unreachable: \(lead.frame)")
@@ -172,20 +181,48 @@ final class QuickLinksIconAccessibilityJourneyTests: XCTestCase {
             }
         }
 
+        // The chooser's rows: identified rows, and in a native menu that drops identifiers
+        // (iOS 27) every unidentified element inside the menu's list.
+        let chooser = list.exists ? list.frame : lead.frame.union(symbol.frame)
         var issues: [String] = []
         try SongsUITestSupport.performAuditRetryingTimeout(
             app, [.dynamicType, .textClipped, .hitRegion, .sufficientElementDescription], name: name,
             reset: { issues = [] }
         ) { issue in
             let id = issue.element?.identifier ?? ""
-            guard id.hasPrefix(Self.itemPrefix) else { return true }
-            issues.append("\(id): \(issue.compactDescription)")
+            let frame = issue.element?.frame ?? .null
+            let inMenu = menu && id.isEmpty && chooser.contains(CGPoint(x: frame.midX, y: frame.midY))
+            guard id.hasPrefix(Self.itemPrefix) || inMenu else { return true }
+            issues.append("\(id.isEmpty ? "'\(issue.element?.label ?? "")'" : id): \(issue.compactDescription)")
             return true
         }
         XCTAssertEqual(issues, [], "Quick Links chooser audit issues")
     }
 
     // MARK: - Helpers
+
+    /// A chooser row: its identifier, or in a native menu that drops its rows' identifiers
+    /// (iOS 27, #626) an unidentified button whose VoiceOver label is exactly `label`.
+    ///
+    /// - Parameters:
+    ///   - id: The row's `fst.quick-links.item.*` identifier.
+    ///   - label: The row's full VoiceOver label.
+    /// - Returns: The matching predicate.
+    private static func rowPredicate(id: String, label: String) -> NSPredicate {
+        NSPredicate(format: "identifier == %@ OR (identifier == '' AND label == %@)", id, label)
+    }
+
+    /// The buttons matching ``rowPredicate(id:label:)``; the journey requires exactly one.
+    ///
+    /// - Parameters:
+    ///   - app: The running app with the chooser open.
+    ///   - id: The row's identifier.
+    ///   - label: The row's full VoiceOver label.
+    /// - Returns: The query.
+    @MainActor
+    private func rows(_ app: XCUIApplication, id: String, label: String) -> XCUIElementQuery {
+        app.buttons.matching(Self.rowPredicate(id: id, label: label))
+    }
 
     /// Launch the fixture player's profile with nested sections.
     ///

@@ -216,7 +216,7 @@ struct QuickLinkLabel: View {
 
     var body: some View {
         Label {
-            Text(indent + section.title)
+            title
         } icon: {
             switch section.icon {
             case let .system(name):
@@ -230,6 +230,14 @@ struct QuickLinkLabel: View {
             }
         }
         .accessibilityLabel(section.accessibilityTitle)
+    }
+
+    /// The row's title, named by its spoken title on the text itself: iOS 27 menus read a
+    /// row's title text and drop the row's own label, so VoiceOver said "Rank History" for
+    /// "Lead Rank History" (#626).
+    var title: some View {
+        Text(indent + section.title)
+            .accessibilityLabel(section.accessibilityTitle)
     }
 
     /// Menus cannot indent rows, so nested sections get a leading figure space per level.
