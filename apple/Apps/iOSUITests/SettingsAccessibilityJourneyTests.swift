@@ -40,6 +40,9 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
     /// The trailing switch and its spacing, left out of a title's contrast crop.
     private static let switchWidth: CGFloat = 72
 
+    /// From the row's trailing edge to the centre of the system switch's track.
+    private static let switchTrackCentreInset: CGFloat = 32
+
     private static let region: [Entry] = [
         Entry(kind: .heading, key: "Accessibility", title: "Accessibility"),
         Entry(kind: .toggle, key: "fst.settings.reduce-motion", title: "Reduce Motion"),
@@ -229,18 +232,32 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
         let toggle = app.switches[id]
         XCTAssertTrue(toggle.isHittable, "\(id) is not on screen after the landing at \(size)", file: file, line: line)
         let original = toggle.value as? String ?? ""
+        let width = max(toggle.frame.width, 1)
+        // The switch's own tap lands on its track's centre (the system switch is about 63 pt
+        // wide at the row's trailing edge), not on the thumb's outer rim (#626).
         let steps: [(place: String, dx: CGFloat, expected: String)] = [
-            ("title", 0.1, original == "1" ? "0" : "1"), ("switch", 0.97, original),
+            ("title", 0.1, original == "1" ? "0" : "1"),
+            ("switch", max(0.5, (width - Self.switchTrackCentreInset) / width), original),
         ]
         for step in steps {
             toggle.coordinate(withNormalizedOffset: CGVector(dx: step.dx, dy: 0.5)).tap()
             let flipped = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "value == %@", step.expected), object: toggle
             )
+            let result = XCTWaiter.wait(for: [flipped], timeout: FestivalApp.budget(3))
+            if result != .completed {
+                SongsUITestSupport.record(app, name: "settings-missed-\(step.place)-tap-\(size)")
+            }
             XCTAssertEqual(
-                XCTWaiter.wait(for: [flipped], timeout: FestivalApp.budget(3)), .completed,
+                result, .completed,
                 "A tap on \(id)'s \(step.place) did not flip it once at \(size) (frame \(toggle.frame))",
                 file: file, line: line
+            )
+            // Exactly once: a late second flip (the row's tap doubling the switch's) fails too.
+            Thread.sleep(forTimeInterval: 0.5)
+            XCTAssertEqual(
+                toggle.value as? String, step.expected,
+                "A tap on \(id)'s \(step.place) flipped it more than once at \(size)", file: file, line: line
             )
         }
     }
@@ -344,6 +361,13 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
     /// Audit the screen with Accessibility landed at the top and fail on any issue in the
     /// region's own elements (its headings, descriptions and switches).
     ///
+    /// The audit can flag region text over the glass card's artwork backdrop, or text it
+    /// reads under the tab bar and Quick Links accessory. A contrast flag on a region title,
+    /// heading or description is accepted only once that text, scrolled clear of the bottom
+    /// chrome, measures at least 4.5:1 rendered (testing/apple/accessibility.md
+    /// `contrast-rendered`; precedent `PathsSwitchAccessibilityJourneyTests`); a weaker
+    /// reading, or any other issue, fails the test.
+    ///
     /// - Parameters:
     ///   - app: Settings, Accessibility landed at the top.
     ///   - size: Label for failure messages.
@@ -352,29 +376,34 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
         let ids = Set(Self.region.filter { $0.kind == .toggle }.map(\.key))
         let labels = Set(Self.region.map(\.title) + Self.descriptions)
         var issues: [String] = []
-        var measured: [String] = []
+        var flagged: [(element: XCUIElement, leadingTextWidth: CGFloat?, name: String)] = []
         try app.performAccessibilityAudit(for: .all) { issue in
             let id = issue.element?.identifier ?? ""
             let label = issue.element?.label ?? ""
-            let ours = ids.contains(id) || labels.contains(label)
-                || Self.region.contains { $0.kind == .toggle && label.hasPrefix($0.title) }
-            guard ours else { return true }
-            // The audit can flag a switch's title over the glass card's artwork backdrop. Accept
-            // that only once the title's rendered contrast measures at least 4.5:1 (precedent
-            // `PathsSwitchAccessibilityJourneyTests`); a weaker reading fails the test.
-            if issue.auditType == .contrast,
-               let entry = Self.region.first(where: { $0.kind == .toggle && ($0.key == id || label.hasPrefix($0.title)) }) {
-                let toggle = app.switches[entry.key]
-                try SongsUITestSupport.assertHeaderContrast(
-                    toggle, in: app, leadingTextWidth: max(toggle.frame.width - Self.switchWidth, 44)
-                )
-                measured.append("\(entry.key) '\(label)'")
+            let toggle = Self.region.first { $0.kind == .toggle && ($0.key == id || label.hasPrefix($0.title)) }
+            guard toggle != nil || ids.contains(id) || labels.contains(label) else { return true }
+            guard issue.auditType == .contrast else {
+                issues.append("\(id) '\(label)': \(issue.compactDescription)")
                 return true
             }
-            issues.append("\(id) '\(label)': \(issue.compactDescription)")
+            if let toggle {
+                let element = app.switches[toggle.key]
+                flagged.append((element, max(element.frame.width - Self.switchWidth, 44), toggle.key))
+            } else {
+                let element = app.staticTexts.matching(NSPredicate(format: "label == %@", label)).firstMatch
+                flagged.append((element, nil, "'\(label)'"))
+            }
             return true
         }
-        XCTContext.runActivity(named: "Contrast measured ≥ 4.5:1 at \(size): \(measured)") { _ in }
         XCTAssertEqual(issues, [], "Settings region audit issues at \(size)")
+        guard !flagged.isEmpty else { return }
+        for entry in flagged {
+            SongsUITestSupport.reveal(entry.element, in: app, scrollingUp: true)
+            try SongsUITestSupport.assertHeaderContrast(entry.element, in: app, leadingTextWidth: entry.leadingTextWidth)
+        }
+        XCTContext.runActivity(named: "Contrast measured ≥ 4.5:1 at \(size): \(flagged.map(\.name))") { _ in }
+        // Hand the region back to the reading-order walk with its heading on screen.
+        let heading = app.staticTexts.matching(NSPredicate(format: "label == %@", "Accessibility")).firstMatch
+        SongsUITestSupport.reveal(heading, in: app, scrollingUp: false)
     }
 }
