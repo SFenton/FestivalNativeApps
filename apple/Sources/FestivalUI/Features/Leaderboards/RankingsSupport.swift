@@ -191,7 +191,8 @@ struct RankingRowLayout: View {
                     }
                 }
                 // Fill the row like the one-line layout's name column, so the whole band is the
-                // target and the selected player's purple band spans the card (#493).
+                // target and the selected player's purple band spans the card (#493, #499;
+                // `ScoreHistoryListRow` stacks the same way).
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 HStack(spacing: Self.columnSpacing) {

@@ -78,6 +78,25 @@ class CheckDocsTests(SyntheticTreeTestCase):
         self.assertIn("needs a `description`", errors)
         self.assertIn("skills live in `<name>/SKILL.md` folders", errors)
 
+    def test_duplicate_pattern_rule_numbers_fail(self) -> None:
+        """A pattern doc that numbers two rules the same is an error, so the run exits non-zero."""
+        _write(check_docs.AGENTS / "patterns/demo.md",
+               "# T\n\n> x\n\n- **R1. One.** a\n- **R2. Two.** b\n- **R1. One.** a, newer\n")
+        report = check_docs.Report()
+        check_docs.check_pattern_rules(report)
+        self.assertEqual(len(report.errors), 1)
+        self.assertIn("rule R1 is defined 2 times (lines 5, 7)", report.errors[0])
+        self.assertEqual(report.warnings, [])
+        self.assertTrue(any("rule R1 is defined 2 times" in e for e in check_docs.run().errors))
+
+    def test_distinct_pattern_rule_numbers_in_any_order_pass(self) -> None:
+        """Unique rule numbers, in any order, and prose that cites a rule are fine."""
+        _write(check_docs.AGENTS / "patterns/demo.md",
+               "# T\n\n> x\n\n- **R2. Two.** b, see R1\n- **R1. One.** a\n- Guard (R1): x\n")
+        report = check_docs.Report()
+        check_docs.check_pattern_rules(report)
+        self.assertEqual(report.errors, [])
+
     def test_spec_naming_a_platform_fails(self) -> None:
         """Platform-neutral specs cannot carry platform headings."""
         _write(check_docs.AGENTS / "pages/songs/spec.md", "# T\n\n> x\n## iPad layout\n")
@@ -128,6 +147,37 @@ class CheckDocsTests(SyntheticTreeTestCase):
         self.assertTrue(any("stale" in e for e in check_docs.run().errors))
         self.assertEqual(check_docs.run(fix=True).errors, [])
 
+    def _write_pattern(self, rules: str) -> None:
+        """Add a routed pattern doc with the given rule lines.
+
+        Args:
+            rules: Markdown for the doc's `## Rules` section.
+        """
+        a = check_docs.AGENTS
+        header = "# T\n\n> **What:** x. **Read when:** y.\n"
+        _write(a / "README.md", header + "[p](pages/README.md) [c](controls/README.md) [pt](patterns/README.md)\n")
+        _write(a / "patterns/README.md", header + "[s](scroll.md)\n")
+        _write(a / "patterns/scroll.md", header + "## Rules\n\n" + rules)
+
+    def test_distinct_pattern_rule_numbers_pass(self) -> None:
+        """Each rule number once, with mentions of other rules in the text, is clean."""
+        self._write_pattern("- **R1. One.** See R2.\n- **R2. Two.** Unlike R1.\n- **R10. Ten.**\n")
+        self.assertEqual(check_docs.run().errors, [])
+
+    def test_duplicated_pattern_rule_number_is_an_error(self) -> None:
+        """A merge that keeps two copies of a rule fails the run, naming every line (#621)."""
+        self._write_pattern("- **R1. Old.**\n- **R2. Two.**\n- **R1. New.**\n- **R2. Other.**\n- **R2. Third.**\n")
+        report = check_docs.run()
+        self.assertIn("patterns/scroll.md: rule R1 is defined 2 times (lines 6, 8)", "\n".join(report.errors))
+        self.assertTrue(any("rule R2 is defined 3 times (lines 7, 9, 10)" in e for e in report.errors))
+        self.assertFalse(any("rule R" in w for w in report.warnings))
+        self.assertEqual(check_docs.main(["--quiet"]), 1)
+
+    def test_rule_numbers_inside_code_fences_are_ignored(self) -> None:
+        """An example rule in a fenced block is not a second definition."""
+        self._write_pattern("- **R1. One.**\n\n```md\n- **R1. Example.**\n```\n")
+        self.assertEqual(check_docs.run().errors, [])
+
 
 class PatternRuleTests(SyntheticTreeTestCase):
     """Pattern docs define each rule number once (#621)."""
@@ -167,6 +217,18 @@ class PatternRuleTests(SyntheticTreeTestCase):
         errors = check_docs.run().errors
         self.assertEqual(len(errors), 1)
         self.assertIn("rule R5 is defined 3 times (lines 7, 8, 9)", errors[0])
+
+    def test_fix_preserves_duplicate_rules_and_still_fails(self) -> None:
+        """--fix never chooses between conflicting requirements or downgrades errors."""
+        self._pattern("- **R7. Old placement.** under the card\n+ **R7. New placement.** inside the card\n")
+        doc = check_docs.AGENTS / "patterns/scroll.md"
+        original = doc.read_text(encoding="utf-8")
+        self.assertEqual(check_docs.main(["--fix", "--quiet"]), 1)
+        self.assertEqual(doc.read_text(encoding="utf-8"), original)
+        report = check_docs.run()
+        self.assertEqual(len(report.errors), 1)
+        self.assertIn("rule R7 is defined 2 times (lines 7, 8)", report.errors[0])
+        self.assertEqual(report.warnings, [])
 
 
 class RepositoryTests(unittest.TestCase):

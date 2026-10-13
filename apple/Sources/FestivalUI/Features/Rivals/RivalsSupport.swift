@@ -250,14 +250,18 @@ struct RivalSongRowContent: View {
     private var standing: RivalSongStanding { RivalSongStanding(rankDelta: song.rankDelta) }
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// The row's single VoiceOver label: song, both ranks and who leads.
+    /// The row's single VoiceOver label: song, instrument, both ranks and who leads.
+    ///
+    /// The instrument is spoken, like the web icon's alt text, because a combo scope lists one
+    /// song once per instrument (#444); an unknown chart is left out.
     ///
     /// - Parameters:
     ///   - song: The comparison.
     ///   - rivalName: Rival display name.
-    /// - Returns: For example "Song, you rank 12, Rival ranks 13, you lead".
-    static func accessibilityLabel(for song: RivalSongComparison, rivalName: String) -> String {
-        "\(song.title ?? song.songId), you rank \(song.userRank), "
+    /// - Returns: For example "Song, Lead, you rank 12, Rival ranks 13, you lead".
+    nonisolated static func accessibilityLabel(for song: RivalSongComparison, rivalName: String) -> String {
+        let instrumentPart = Instrument(rawValue: song.instrument).map { ", \($0.label)" } ?? ""
+        return "\(song.title ?? song.songId)\(instrumentPart), you rank \(song.userRank), "
             + "\(rivalName) ranks \(song.rivalRank), "
             + RivalSongStanding(rankDelta: song.rankDelta).spokenLeader(rivalName: rivalName)
     }

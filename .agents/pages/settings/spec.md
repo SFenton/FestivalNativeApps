@@ -21,7 +21,7 @@ App · debug-only Diagnostics (web only; native apps omit it, owner #374) · Sho
 
 ## Native accessibility section (all platforms)
 
-Per-app **additive** preferences — reduce motion, less transparency, more contrast, disable artwork animation — default to system behavior when off and can only make the app more accessible. Never promise to switch VoiceOver/TalkBack/Narrator. Every toggle announces name, on/off and any disabled reason, with keyboard focus and explicit grouping; reading order follows visible section order.
+Per-app **additive** preferences — reduce motion, less transparency, more contrast, disable artwork animation — default to system behavior when off and can only make the app more accessible. Never promise to switch VoiceOver/TalkBack/Narrator. Every toggle announces name, on/off and any disabled reason, with keyboard focus and explicit grouping; reading order follows visible section order. Switch rows follow [settings-toggle-row](../../patterns/settings-toggle-row.md): the whole row is one switch element and its touch target.
 
 ## Test matrix
 

@@ -136,6 +136,8 @@ struct SettingsScreen: View {
                     fullPage
                 }
             }
+            // The whole row is each switch's touch target, as on the web (#496).
+            .settingsRowToggles()
             .padding(.horizontal, 16)
             .padding(.top, pane == nil ? 8 : 20)
             .padding(.bottom, 32)
