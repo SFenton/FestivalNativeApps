@@ -23,10 +23,6 @@ public sealed partial class SuggestionSongRow : Button
 
     private const double ArtSize = 44;
     private const double NarrowWidth = 440;
-    private static readonly SolidColorBrush Gold = new(Color.FromArgb(0xFF, 0xFF, 0xD7, 0x00));
-    private static readonly SolidColorBrush GoldStroke = new(Color.FromArgb(0xFF, 0xCF, 0xA5, 0x00));
-    private static readonly SolidColorBrush GoldBackground = new(Color.FromArgb(0xFF, 0x33, 0x29, 0x15));
-    private static readonly SolidColorBrush SubtleFill = new(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF));
     private static readonly SolidColorBrush RivalFill = new(Color.FromArgb(0x33, 0x42, 0x85, 0xF4));
     private static readonly SolidColorBrush RivalText = new(Color.FromArgb(0xFF, 0x6E, 0xA8, 0xFF));
 
@@ -157,18 +153,13 @@ public sealed partial class SuggestionSongRow : Button
                     ? NeutralPill(p.AccuracyText!)
                     : Pill(p.AccuracyText!, new SolidColorBrush(Color.FromArgb(0x40, r, g, b)), null, null));
                 break;
-            case SuggestionRowLayout.Season when p.SeasonText is { } season:
-                metadata.Children.Add(Pill(season, (Brush)Application.Current.Resources["FSTSurfaceMutedBrush"], null, null));
+            // The shared season and percentile pills (pattern metadata-pills, issue #606): the same size and colours as
+            // Songs rows and leaderboards, with the current season inverted like the web's SeasonPill.
+            case SuggestionRowLayout.Season when p.Season is { } season:
+                metadata.Children.Add(MetadataPills.Season(season, p.IsCurrentSeason ? season : null, PillId(item, "season")));
                 break;
             case SuggestionRowLayout.Percentile when p.PercentileText is { } percentile:
-                metadata.Children.Add(p.PercentileTier switch
-                {
-                    PercentileTier.Top1 when Services.ContrastTheme.IsOn => Pill(percentile, Role("FSTTopOneFillBrush"), null, Role("FSTTopOneTextBrush"), italic: true),
-                    PercentileTier.Top1 => Pill(percentile, GoldBackground, GoldStroke, Gold, italic: true),
-                    PercentileTier.Top5 => Pill(percentile, null, Role("FSTEmphasisStrokeBrush"), Role("FSTEmphasisBrush")),
-                    _ when Services.ContrastTheme.IsOn => NeutralPill(percentile),
-                    _ => Pill(percentile, SubtleFill, null, null),
-                });
+                metadata.Children.Add(MetadataPills.Percentile(percentile, p.PercentileTier, PillId(item, "percentile")));
                 break;
             case SuggestionRowLayout.SingleInstrument when p.StarCount > 0:
                 metadata.Children.Add(new StarRow { Stars = p.GoldStars ? StarRating.GoldValue : p.StarCount, StarSize = 20 });
@@ -195,6 +186,20 @@ public sealed partial class SuggestionSongRow : Button
         metadata.Visibility = metadata.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ApplyWidth(ActualWidth);
         if (IsLoaded) LoadArt();
+    }
+
+    /// <summary>
+    /// Test ID of a row's shared metadata pill: <c>fst.suggestions.&lt;kind&gt;.&lt;songId&gt;[.&lt;Solo_X&gt;]</c>. The row's
+    /// own ID separates the chart with <c>|</c>, which journey steps use as their argument separator.
+    /// </summary>
+    /// <param name="item">Row.</param>
+    /// <param name="kind"><c>season</c> or <c>percentile</c>.</param>
+    /// <returns>Automation ID.</returns>
+    private static string PillId(SuggestionRowItem item, string kind)
+    {
+        const string row = "fst.suggestions.row.";
+        var id = item.AutomationId.StartsWith(row, StringComparison.Ordinal) ? item.AutomationId[row.Length..] : item.AutomationId;
+        return $"fst.suggestions.{kind}." + id.Replace('|', '.');
     }
 
     /// <summary>Contrast role brush (<see cref="Services.ContrastTheme"/>).</summary>

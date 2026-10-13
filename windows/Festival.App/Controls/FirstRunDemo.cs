@@ -166,17 +166,17 @@ public sealed partial class FirstRunDemo : UserControl
         for (var slot = 0; slot < demo.Songs.Count; slot++)
         {
             var row = SongRow(out var setter);
-            var pill = Pill(FirstRunTopSongsDemo.Pill(slot));
-            var label = (TextBlock)pill.Child;
-            AutomationProperties.SetAutomationId(label, $"fst.first-run.demo.{SlideId}.pill.{slot}");
-            AutomationProperties.SetAccessibilityView(label, AccessibilityView.Raw);
-            AutomationProperties.SetItemStatus(label, "initial");
+            // The shared percentile pill (pattern metadata-pills; web TopSongsDemo uses PercentilePill).
+            var text = FirstRunTopSongsDemo.Pill(slot);
+            var pill = MetadataPills.Percentile(text, MetadataPillStyle.TierFor(text), $"fst.first-run.demo.{SlideId}.pill.{slot}");
+            pill.HorizontalAlignment = HorizontalAlignment.Left;
+            AutomationProperties.SetItemStatus(pill, "initial");
             ((StackPanel)((Grid)row.Child).Children[2]).Children.Add(pill);
             setter(slot);
             AddSlot(row, poolIndex =>
             {
                 setter(poolIndex);
-                AutomationProperties.SetItemStatus(label, "rotated");
+                AutomationProperties.SetItemStatus(pill, "rotated");
             });
         }
         advance = _ =>
@@ -601,7 +601,7 @@ public sealed partial class FirstRunDemo : UserControl
                     trailing.Children.Clear();
                     var metadata = FirstRunDemos.MetaData[poolIndex % FirstRunDemos.MetaData.Count];
                     var layout = FirstRunDemos.MetadataLayouts[(poolIndex + index) % FirstRunDemos.MetadataLayouts.Count];
-                    foreach (var pill in FirstRunDemos.MetadataPillsFor(metadata, layout)) trailing.Children.Add(Pill(pill));
+                    foreach (var pill in FirstRunDemos.MetadataPillsFor(metadata, layout)) trailing.Children.Add(DemoPill(pill));
                 }
             };
             set(i);
@@ -982,6 +982,16 @@ public sealed partial class FirstRunDemo : UserControl
             _ => Color.FromArgb(0xFF, 0xEF, 0x44, 0x44),
         }),
         Child = new InstrumentIcon { File = instrument.IconFile(), Label = instrument.Label(), Width = 18, Height = 18 },
+    };
+
+    /// <summary>A metadata demo pill: the shared season and percentile pills (pattern metadata-pills), else a demo label.</summary>
+    /// <param name="pill">Pill sample.</param>
+    /// <returns>Pill.</returns>
+    private static FrameworkElement DemoPill(FirstRunDemoPill pill) => pill.Kind switch
+    {
+        FirstRunDemoPillKind.Season => MetadataPills.Season(pill.Season, MetadataPills.CatalogSeason, null),
+        FirstRunDemoPillKind.Percentile => MetadataPills.Percentile(pill.Text, MetadataPillStyle.TierFor(pill.Text), null),
+        _ => Pill(pill.Text),
     };
 
     /// <summary>A small rounded label.</summary>

@@ -67,10 +67,21 @@
             <SolidColorBrush x:Key="FSTEmphasisStrokeBrush" Color="#FFCFA500" />
             <SolidColorBrush x:Key="FSTStatBlueBrush" Color="#FF2D82E6" />
             <SolidColorBrush x:Key="FSTStatGreenBrush" Color="#FF2ECC71" />
-            <SolidColorBrush x:Key="FSTTopOneFillBrush" Color="#FFFFD700" />
-            <SolidColorBrush x:Key="FSTTopOneTextBrush" Color="#FF000000" />
-            <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="#FFFFFFFF" />
-            <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="#FF000000" />
+            <!-- Metadata pills (pattern metadata-pills, issue #606): web SeasonPill / iOS ScoreSeasonPill colours.
+                 Season: textSecondary on surfaceSubtle with a borderSubtle outline; the current season inverts.
+                 Top 1%: the web goldOutlineSkew (gold text, CFA500 outline, no fill); neutral percentile: textSecondary on
+                 surfaceWhiteSubtle. -->
+            <SolidColorBrush x:Key="FSTTopOneFillBrush" Color="#00000000" />
+            <SolidColorBrush x:Key="FSTTopOneTextBrush" Color="#FFFFD700" />
+            <SolidColorBrush x:Key="FSTTopOneStrokeBrush" Color="#FFCFA500" />
+            <SolidColorBrush x:Key="FSTSeasonPillFillBrush" Color="#FF162133" />
+            <SolidColorBrush x:Key="FSTSeasonPillTextBrush" Color="#FFD7DEE8" />
+            <SolidColorBrush x:Key="FSTSeasonPillStrokeBrush" Color="#FF1E2A3A" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="#FFD7DEE8" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="#FF162133" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonStrokeBrush" Color="#FF162133" />
+            <SolidColorBrush x:Key="FSTMetadataPillFillBrush" Color="#1AFFFFFF" />
+            <SolidColorBrush x:Key="FSTMetadataPillTextBrush" Color="#FFD7DEE8" />
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="#1FFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="#00000000" />
@@ -221,10 +232,19 @@
             <SolidColorBrush x:Key="FSTEmphasisStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTStatBlueBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTStatGreenBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <!-- Metadata pills: Top 1% and the current season are Highlight pills; other seasons and percentiles are
+                 outlined ButtonFace pills, so the pill's word (not its hue) carries the meaning. -->
             <SolidColorBrush x:Key="FSTTopOneFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTTopOneTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTTopOneStrokeBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FSTSeasonPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FSTSeasonPillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTSeasonPillStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonStrokeBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FSTMetadataPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FSTMetadataPillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />

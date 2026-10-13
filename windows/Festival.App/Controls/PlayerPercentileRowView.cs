@@ -10,8 +10,8 @@ namespace Festival.App.Controls;
 
 #region Player percentile row
 /// <summary>
-/// One row of the player page's percentile table (web <c>PlayerPercentileRow</c>): a "Top N%" pill (gold outline for the
-/// top 5%) on the left, the song count on the right and, when the row filters Songs, a trailing chevron. Rows are
+/// One row of the player page's percentile table (web <c>PlayerPercentileRow</c>): the shared "Top N%" pill
+/// (<see cref="MetadataPills"/>) on the left, the song count on the right and, when the row filters Songs, a trailing chevron. Rows are
 /// separated by a hairline like the web's <c>borderBottom</c>.
 /// </summary>
 public sealed partial class PlayerPercentileRowView : ContentControl
@@ -20,8 +20,8 @@ public sealed partial class PlayerPercentileRowView : ContentControl
     public static readonly DependencyProperty RowProperty = DependencyProperty.Register(
         nameof(Row), typeof(PlayerPercentileRow), typeof(PlayerPercentileRowView), new PropertyMetadata(null, (d, e) => ((PlayerPercentileRowView)d).OnRowChanged(e)));
 
-    private readonly TextBlock pill = new() { FontSize = 13, FontWeight = FontWeights.SemiBold, TextAlignment = TextAlignment.Center };
-    private readonly Border pillBox = new() { CornerRadius = new CornerRadius(4), Padding = new Thickness(8, 3, 8, 3), MinWidth = 76, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Border pillBox = new() { HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
+    private string? builtPillKey;
     private readonly TextBlock count = new() { FontSize = 14, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
     private readonly FontIcon chevron = new() { Glyph = "", FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
     private readonly Grid layout = new() { Padding = new Thickness(16, 10, 16, 10), MinHeight = 44 };
@@ -33,7 +33,6 @@ public sealed partial class PlayerPercentileRowView : ContentControl
     {
         IsTabStop = false;
         HorizontalContentAlignment = HorizontalAlignment.Stretch;
-        pillBox.Child = pill;
         layout.ColumnDefinitions.Add(new ColumnDefinition());
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -44,7 +43,7 @@ public sealed partial class PlayerPercentileRowView : ContentControl
         Grid.SetColumn(chevron, 2);
         AutomationProperties.SetAccessibilityView(chevron, AccessibilityView.Raw);
         // The row (button or named group) carries "Top N%: count songs"; its texts would make Narrator read it twice.
-        AutomationProperties.SetAccessibilityView(pill, AccessibilityView.Raw);
+        AutomationProperties.SetAccessibilityView(pillBox, AccessibilityView.Raw);
         AutomationProperties.SetAccessibilityView(count, AccessibilityView.Raw);
     }
 
@@ -74,13 +73,13 @@ public sealed partial class PlayerPercentileRowView : ContentControl
     private void Render()
     {
         if (Row is not { } row) return;
-        var resources = Application.Current.Resources;
-        var gold = (Brush)resources["FSTEmphasisBrush"];
-        pill.Text = row.Label;
-        pill.Foreground = row.Gold ? gold : (Brush)resources["FSTNeutralPillTextBrush"];
-        pillBox.Background = (Brush)resources[row.Gold ? "FSTGoldPillFillBrush" : "FSTNeutralPillFillBrush"];
-        pillBox.BorderBrush = row.Gold ? gold : (Brush)resources["FSTNeutralPillStrokeBrush"];
-        pillBox.BorderThickness = new Thickness(row.Gold ? 1.5 : 1);
+        // The shared percentile pill (pattern metadata-pills, issue #606; web PercentilePill's tier from "Top N%").
+        var pillKey = row.Label + "\n" + row.AutomationId;
+        if (builtPillKey != pillKey)
+        {
+            builtPillKey = pillKey;
+            pillBox.Child = MetadataPills.Percentile(row.Label, row.Tier, row.AutomationId + ".pill");
+        }
         count.Text = row.CountText;
         chevron.Visibility = row.IsLinked ? Visibility.Visible : Visibility.Collapsed;
         if (builtLinked != row.IsLinked)

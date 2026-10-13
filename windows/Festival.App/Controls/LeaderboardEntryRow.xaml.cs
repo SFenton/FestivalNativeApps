@@ -26,6 +26,7 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
     private string? rowAutomationId;
     private Rectangle[]? bars;
     private System.Windows.Input.ICommand? command;
+    private (int Season, int? Current, string Id)? seasonKey;
 
     /// <summary>Row model: any <see cref="ILeaderboardEntryRow"/>.</summary>
     public static readonly DependencyProperty RowProperty = DependencyProperty.Register(
@@ -200,18 +201,19 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
         switch (row)
         {
             case ILeaderboardScoreRow score:
-                MetaText.Text = score.Season;
-                MetaText.FontSize = 14;
+                MetaText.Text = "";
+                MetaText.ClearValue(AutomationProperties.AutomationIdProperty);
+                ShowSeason(score.SeasonNumber, LeaderboardScoreRowIds.Season(BadgeAutomationId(score)));
                 ValueText.Text = score.Score;
                 BayesianText.Visibility = Visibility.Collapsed;
                 PillText.Text = score.BadgeText;
                 AutomationProperties.SetAutomationId(PillText, BadgeAutomationId(score));
-                AutomationProperties.SetAutomationId(MetaText, LeaderboardScoreRowIds.Season(BadgeAutomationId(score)));
                 Pill.RenderTransform = ScoreBadge.Skew(score.IsFullCombo);
                 PillText.FontStyle = ScoreBadge.Style(score.IsFullCombo);
                 StarsView.Stars = score.StarCount;
                 break;
             case ILeaderboardRankingRow ranking:
+                ShowSeason(null, null);
                 MetaText.Text = ranking.SongsText;
                 MetaText.FontSize = 12;
                 ValueText.Text = ranking.RatingText;
@@ -247,6 +249,20 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
             : "fst.score.accuracy." + rowAutomationId[(rowAutomationId.LastIndexOf('.') + 1)..];
 
     /// <summary>
+    /// Puts the shared season pill (pattern <c>metadata-pills</c>, issue #606) in the season cell, or empties it. A
+    /// recycled row keeps its pill when the season, highlight and ID are unchanged.
+    /// </summary>
+    /// <param name="season">Season number, or <see langword="null"/> for no pill.</param>
+    /// <param name="automationId">The pill's <c>fst.score.season.*</c> ID.</param>
+    private void ShowSeason(int? season, string? automationId)
+    {
+        (int, int?, string)? key = season is { } s && automationId is not null ? (s, MetadataPills.CatalogSeason, automationId) : null;
+        if (key == seasonKey) return;
+        seasonKey = key;
+        SeasonHost.Child = key is { } k ? MetadataPills.Season(k.Item1, k.Item2, k.Item3) : null;
+    }
+
+    /// <summary>
     /// A loading placeholder (<see cref="LeaderboardSkeletonRow"/>, issue #281) lays out exactly like a loaded row, so it
     /// is as tall at every text size and width, but its text is invisible, it is raw-view only (Narrator skips it; the
     /// card's loading is conveyed by its rows arriving) and it draws static placeholder bars in the text's cells. A
@@ -257,7 +273,7 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
     {
         if (skeleton is null) RowButton.ClearValue(AutomationProperties.AccessibilityViewProperty);
         else AutomationProperties.SetAccessibilityView(RowButton, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
-        RankText.Opacity = NameText.Opacity = MetaText.Opacity = ValueStack.Opacity = skeleton is null ? 1 : 0;
+        RankText.Opacity = NameText.Opacity = MetaText.Opacity = SeasonHost.Opacity = ValueStack.Opacity = skeleton is null ? 1 : 0;
         if (skeleton is { ShowBars: true } && bars is null)
         {
             bars = [Bar(28, HorizontalAlignment.Left), Bar(0, HorizontalAlignment.Left), Bar(48, HorizontalAlignment.Left),
@@ -391,9 +407,12 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
         RankColumn.MinWidth = RankText.Text.Length == 0 ? 0 : plan.RankWidth;
         MetaColumn.MinWidth = plan.Stacked ? 0 : plan.MetaWidth;
         MetaText.Visibility = (plan.ShowMeta || plan.MetaBelowName) && MetaText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SeasonHost.Visibility = score is not null && plan.ShowMeta && SeasonHost.Child is not null ? Visibility.Visible : Visibility.Collapsed;
+        // One width for every season pill of the section, like the web's fixed-width pill, so they line up.
+        if (SeasonHost.Child is MetadataPill season) season.MinWidth = Math.Max(MetadataPillStyle.SeasonMinWidth, plan.MetaWidth);
         // The row is one UIA stop with Raw parts, so a season on screen must be in its name (issue #262).
         AutomationProperties.SetName(RowButton,
-            score is not null && MetaText.Visibility == Visibility.Visible ? score.SeasonShownAnnouncement : row.Announcement);
+            score is not null && SeasonHost.Visibility == Visibility.Visible ? score.SeasonShownAnnouncement : row.Announcement);
         ValueColumn.MinWidth = plan.Stacked ? 0 : plan.ValueWidth;
         PillColumn.MinWidth = plan.AccuracyWidth;
         if (plan.ShowAccuracy) Pill.Width = plan.AccuracyWidth;
@@ -434,6 +453,9 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
         var left = below || scoreStack;
         MetaText.HorizontalAlignment = left ? HorizontalAlignment.Left : HorizontalAlignment.Right;
         MetaText.TextAlignment = left ? TextAlignment.Left : TextAlignment.Right;
+        // A score row's season pill shares the songs label's cell (score rows never move it below the name alone).
+        Place(SeasonHost, Grid.GetRow(MetaText), Grid.GetRowSpan(MetaText), Grid.GetColumn(MetaText), Grid.GetColumnSpan(MetaText), VerticalAlignment.Center);
+        SeasonHost.HorizontalAlignment = MetaText.HorizontalAlignment;
 
         if (scoreStack) Place(ValueStack, valueLine, 1, nameColumn, underSpan, VerticalAlignment.Center);
         else if (rankingStack) Place(ValueStack, 1, 1, 3, 1, VerticalAlignment.Top);

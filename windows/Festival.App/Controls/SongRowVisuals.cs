@@ -70,6 +70,12 @@ public static class SongRowVisuals
     /// <returns>Pill element.</returns>
     public static FrameworkElement Pill(SongMetadataField field, string? songId = null)
     {
+        var id = songId is null ? null : SongMetadataLayout.AutomationId(field.Kind, songId);
+        // The season and percentile pills are the shared ones (pattern metadata-pills, issue #606).
+        if (field.Kind == MetadataField.Season)
+            return MetadataPills.Season(field.Season, field.CurrentSeason ? field.Season : null, id, field.Announcement);
+        if (field.Kind == MetadataField.Percentile)
+            return MetadataPills.Percentile(field.Text, field.Percentile, id, field.Announcement);
         var element = field.Kind switch
         {
             MetadataField.Score => Plain(Text(field.Text, 14, FontWeights.SemiBold, null)),
@@ -78,18 +84,8 @@ public static class SongRowVisuals
             MetadataField.Percentage when Services.ContrastTheme.IsOn => Neutral(field.Text),
             MetadataField.Percentage => Box(Text(field.Text, 12, FontWeights.SemiBold, null),
                 background: field.Tint is { } t ? new SolidColorBrush(Color.FromArgb(0x40, t.R, t.G, t.B)) : Brush("FSTSurfaceMutedBrush"), border: null),
-            MetadataField.Percentile => field.Percentile switch
-            {
-                SongPercentileTier.TopOne => Box(Text(field.Text, 12, FontWeights.Bold, Brush("FSTTopOneTextBrush")), Brush("FSTTopOneFillBrush"), null),
-                SongPercentileTier.TopFive => Box(Text(field.Text, 12, FontWeights.SemiBold, Brush("FSTEmphasisBrush")), null, Brush("FSTEmphasisBrush")),
-                _ when Services.ContrastTheme.IsOn => Neutral(field.Text),
-                _ => Box(Text(field.Text, 12, FontWeights.SemiBold, null), Brush("FSTSurfaceMutedBrush"), null),
-            },
             // Stars and intensity sit in the same 22 epx slot as the text pills so every pill lines up (operator batch 7.18).
             MetadataField.Stars => Slot(new StarRow { Stars = field.Stars.Gold ? StarRating.GoldValue : field.Stars.Count, StarSize = 14 }),
-            MetadataField.Season => field.CurrentSeason
-                ? Box(Text(field.Text, 12, FontWeights.Bold, Brush("FSTCurrentSeasonTextBrush")), Brush("FSTCurrentSeasonFillBrush"), null)
-                : Box(Text(field.Text, 12, FontWeights.SemiBold, null), null, Brush("FSTBorderSubtleBrush")),
             MetadataField.Intensity => Slot(new DifficultyMeter { Raw = field.IntensityRaw ?? 0, VerticalAlignment = VerticalAlignment.Center }),
             MetadataField.Difficulty when Services.ContrastTheme.IsOn => Neutral(field.Text),
             MetadataField.Difficulty => Box(
@@ -100,7 +96,7 @@ public static class SongRowVisuals
         };
         element.VerticalAlignment = VerticalAlignment.Center;
         if (field.Kind is MetadataField.Stars or MetadataField.Intensity) element.ControlType = AutomationControlType.Image;
-        element.Label(field.Announcement, songId is null ? null : SongMetadataLayout.AutomationId(field.Kind, songId));
+        element.Label(field.Announcement, id);
         if (field.Announcement.Length > 0) ToolTipService.SetToolTip(element, field.Announcement);
         return element;
     }

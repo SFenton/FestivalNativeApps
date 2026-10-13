@@ -75,8 +75,11 @@
                 <!-- A name that doesn't fit scrolls inside its column (issue #292, reversing batch 7.14's truncation); it
                      ellipsizes, with the full name as the row's tooltip, when motion is off or the window is hidden. -->
                 <controls:MarqueeText x:Name="NameText" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" Grid.RowSpan="3" VerticalAlignment="Center" />
-                <!-- Season (score rows, ≥ 520 epx like the web) or the small "X / Y" songs label (rankings rows), right-aligned in the shared column. -->
+                <!-- The small "X / Y" songs label (rankings rows), right-aligned in the shared column. -->
                 <TextBlock x:Name="MetaText" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                <!-- Score rows' season (≥ 520 epx like the web, or pinned): the shared season pill (pattern metadata-pills,
+                     issue #606), inverted for the current season, in the same cell. The pill carries the fst.score.season.* ID. -->
+                <Border x:Name="SeasonHost" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right" Visibility="Collapsed" />
                 <StackPanel x:Name="ValueStack" Grid.Column="3" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right">
                     <TextBlock x:Name="ValueText" AutomationProperties.AccessibilityView="Raw" FontWeight="SemiBold" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" />
                     <TextBlock x:Name="BayesianText" AutomationProperties.AccessibilityView="Raw" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Right"
