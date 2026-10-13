@@ -404,8 +404,9 @@ class PresentationTest {
         controller.start(this)
         advanceUntilIdle()
         fail = true
-        controller.start(this)
-        advanceUntilIdle()
+        val retrying = controller.start(backgroundScope)
+        runCurrent()
+        retrying.cancel()
         assertEquals(1, controller.covers.value.size)
 
         assertNull(controller.pushFocus(null))

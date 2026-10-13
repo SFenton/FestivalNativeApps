@@ -118,6 +118,10 @@ jobs:
             FirstRunJourneyTests/testSongsGuideRealControlDemosAccessibleAtLargestText
             FirstRunJourneyTests/testSongsGuideRealControlDemosAccessibleAtLargestTextDuoFolded
             RivalsViewAllAccessibilityJourneyTests/testViewAllRivalsIsReadableAtAX5
+            InCardViewAllAccessibilityJourneyTests/testLeaderboardsViewAllRankingsIsReadableAtAX5
+            InCardViewAllAccessibilityJourneyTests/testRivalDetailCategoryViewAllIsReadableAtAX5
+            InCardViewAllAccessibilityJourneyTests/testSongPreviewViewFullLeaderboardIsReadableAtAX5
+            InCardViewAllAccessibilityJourneyTests/testScoreHistoryViewAllScoresIsReadableAtAX5
             ProfileBandsAccessibilityJourneyTests/testProfileBandsSectionIsReadableAtAX5
             ProfileBandsAccessibilityJourneyTests/testFailedBandsRetryIsANamed44PointTarget
             FirstRunJourneyTests/testGuideTitleIsReadFirstAtLargestText
@@ -176,6 +180,8 @@ jobs:
             PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButtonDuoFolded
             SongSeasonAccessibilityJourneyTests/testTappedScoreSeasonIsReadableAtLargestText
             RivalsAccessibilityJourneyTests/testRivalRowsAreReadableAtAX5
+            NotificationsPinnedTitleJourneyTests/testPinnedTitleAndRowsAtLargestText
+            NotificationsPinnedTitleJourneyTests/testPinnedTitleAndRowsAtLargestTextDuoFolded
             GroupedCardAccessibilityJourneyTests/testLeaderboardsGroupedCardIsReadableAtAX5
             ModalHeaderAccessibilityJourneyTests/testNotificationsHeaderAtDefaultSize
             ModalHeaderAccessibilityJourneyTests/testNotificationsHeaderAtAX5
@@ -304,6 +310,10 @@ jobs:
             WideBoardColumnsJourneyTests/testFullRankingsTwoColumnsAreAccessibleAtLargestText
             WideBoardColumnsJourneyTests/testBandRankingsTwoColumnsAreAccessibleAtLargestText
             SongDetailBandColumnsJourneyTests/testBandPreviewColumnsAreAccessibleAtLargestText
+            InCardViewAllAccessibilityJourneyTests/testLeaderboardsViewAllRankingsIsReadableAtAX5
+            InCardViewAllAccessibilityJourneyTests/testRivalDetailCategoryViewAllIsReadableAtAX5
+            InCardViewAllAccessibilityJourneyTests/testSongPreviewViewFullLeaderboardIsReadableAtAX5
+            InCardViewAllAccessibilityJourneyTests/testScoreHistoryViewAllScoresIsReadableAtAX5
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
@@ -313,6 +323,7 @@ jobs:
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
             PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButton
             SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestText
+            NotificationsPinnedTitleJourneyTests/testPinnedTitleAndRowsAtLargestText
             QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRow
             QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRowAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5

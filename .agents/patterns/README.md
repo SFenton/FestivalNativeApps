@@ -20,6 +20,7 @@ The registry only lists behaviors the native apps have already needed to share. 
 
 | Pattern | Owns |
 |---|---|
+| [artwork-background](artwork-background.md) | Shared decorative carousel and static song covers: motion, dimming, accessibility, failure recovery and ephemeral caches |
 | [scroll-edge](scroll-edge.md) | Content fading under pinned chrome: page headers, sheet headers, pinned section headers and bottom chrome |
 | [scroll-indicators](scroll-indicators.md) | Scroll bars: system indicators on every page, no in-app toggle, and the few views allowed to hide them |
 | [section-jump-landing](section-jump-landing.md) | Where Quick Links and the A–Z index land a section, and which section counts as current |

@@ -25,6 +25,10 @@ import XCTest
 ///   unfolded windows (size classes, hinge, vertical bar) on any iPhone simulator, so the
 ///   fades' consumers are checked in each Duo form `apple-ci` can run. This is layout and
 ///   accessibility evidence, not an inner-display capture (that needs the Duo simulator).
+///   Where the window has a vertical bar (folded, unfolded landscape), Band Rankings' band
+///   size is the system rail item: its 36 pt tall element is not the target, so its 44 pt
+///   hit region is proven by a scoped `.hitRegion` audit and near-miss taps
+///   (`page-tools-and-nav-chrome` R27, #625); elsewhere the floating-bar pill is 44 pt tall.
 ///
 /// macOS hosting cannot scale text or present the iOS sheet header; the hosted
 /// `FestivalUITests/ScrollEdgeFadeAccessibilityTests` cover the same regions on macOS.
@@ -49,6 +53,14 @@ final class ScrollEdgeFadeAccessibilityJourneyTests: XCTestCase {
 
     /// Minimum control size (HIG Accessibility), with half a point of layout rounding.
     private static let minimumTarget: CGFloat = 44 - 0.5
+
+    /// Taps inside a 44 × 44 pt region around a rail item's centre but off its 36 pt tall
+    /// element (`NavButtonHitRegionJourneyTests.nearMisses`).
+    private static let railNearMisses: [CGVector] = [
+        CGVector(dx: -20, dy: 0), CGVector(dx: 20, dy: 0),
+        CGVector(dx: 0, dy: -20), CGVector(dx: 0, dy: 20),
+        CGVector(dx: -15, dy: -15), CGVector(dx: 15, dy: 15),
+    ]
 
     // MARK: - Forms
 
@@ -192,8 +204,10 @@ final class ScrollEdgeFadeAccessibilityJourneyTests: XCTestCase {
             for window in ["folded", "unfolded-landscape", "unfolded-portrait"] {
                 if window != "folded" { DuoWindowSwitch.post(window) }
                 waitForDuoWindow(window, in: app)
-                // The board keeps its scroll position across window changes.
-                assertBoard(board, in: app, presentation: .standard, form: "Duo \(window)", atTop: window == "folded")
+                // The board keeps its scroll position across window changes. Folded and
+                // unfolded landscape have a vertical bar, where the switcher is a rail item.
+                assertBoard(board, in: app, presentation: .standard, form: "Duo \(window)", atTop: window == "folded",
+                            switcherInRail: window != "unfolded-portrait")
             }
             app.terminate()
         }
@@ -234,9 +248,12 @@ final class ScrollEdgeFadeAccessibilityJourneyTests: XCTestCase {
     ///   - presentation: The launch's text size and transparency.
     ///   - form: Label for failure messages and attachments.
     ///   - atTop: Whether the board is freshly loaded, so its first row is rank 1.
+    ///   - switcherInRail: Whether the window has a vertical bar, so the board's switcher is
+    ///     the system rail item rather than the floating-bar pill.
     @MainActor
     private func assertBoard(
-        _ board: Board, in app: XCUIApplication, presentation: Presentation, form: String, atTop: Bool = true
+        _ board: Board, in app: XCUIApplication, presentation: Presentation, form: String, atTop: Bool = true,
+        switcherInRail: Bool = false
     ) {
         let context = "\(board.rawValue) (\(form))"
         let info = app.descendants(matching: .any).matching(identifier: "\(board.pagerPrefix).page-info").firstMatch
@@ -276,7 +293,11 @@ final class ScrollEdgeFadeAccessibilityJourneyTests: XCTestCase {
                 XCTAssertFalse(menu.frame.intersects(control.frame),
                                "\(context): switcher menu \(menu.frame) leaves \(control.id) \(control.frame) uncovered")
             }
-            XCTAssertGreaterThanOrEqual(menu.frame.height, Self.minimumTarget, "\(context): switcher menu height \(menu.frame)")
+            if switcherInRail {
+                assertRailSwitcherTarget(menuID, in: app, context: context)
+            } else {
+                XCTAssertGreaterThanOrEqual(menu.frame.height, Self.minimumTarget, "\(context): switcher menu height \(menu.frame)")
+            }
         }
 
         // Reading order: rows in rank order, all before the pager.
@@ -327,6 +348,62 @@ final class ScrollEdgeFadeAccessibilityJourneyTests: XCTestCase {
         audit(app, presentation: presentation, context: context, fadeBand: pagerTop - Self.fadeBand ... pagerTop) { id, _ in
             id.hasPrefix(board.rowPrefix) || id.hasPrefix(board.pagerPrefix + ".page-")
         }
+    }
+
+    /// Require the board switcher on an iPhone Duo vertical bar to be the system rail item
+    /// with a 44 pt hit region (#625).
+    ///
+    /// The rail item is a system bar button: its element is the 36 pt tall glass capsule and
+    /// the bar extends its hit region, as for the system Choose Profile circle
+    /// (`NavButtonHitRegionJourneyTests`). So its frame cannot prove the target; instead it
+    /// must be a named button in a system bar that speaks its state ("Band size", "Duos",
+    /// `page-tools-and-nav-chrome` R26), a scoped `.hitRegion` audit must report nothing on
+    /// it, and taps 20 pt off its centre (15 pt diagonally) must still open its menu. Each
+    /// menu closes on the current band size, so the board neither changes nor reloads.
+    ///
+    /// - Parameters:
+    ///   - id: The switcher's identifier.
+    ///   - app: The running app showing the board.
+    ///   - context: Label for failure messages.
+    @MainActor
+    private func assertRailSwitcherTarget(_ id: String, in app: XCUIApplication, context: String) {
+        let menu = app.buttons[id]
+        XCTAssertTrue(menu.exists, "\(context): the rail switcher is a button")
+        let inBar = app.navigationBars.buttons[id].exists || app.toolbars.buttons[id].exists
+        let bars = (app.navigationBars.buttons.allElementsBoundByIndex + app.toolbars.buttons.allElementsBoundByIndex)
+            .filter { $0.exists && $0.frame.width > 0 }
+            .map { "'\($0.identifier)' '\($0.label)' \($0.frame)" }
+        attach("rail-switcher-\(context)", "switcher \(menu.frame)\n" + bars.joined(separator: "\n"))
+        XCTAssertTrue(inBar, "\(context): the switcher \(menu.frame) is a system bar item, not the floating pill")
+        XCTAssertTrue(menu.label.hasPrefix("Band size"), "\(context): rail switcher reads '\(menu.label)'")
+        XCTAssertTrue("\(menu.label) \(menu.value as? String ?? "")".contains("Duos"),
+                      "\(context): rail switcher state reads '\(menu.label)' '\(menu.value ?? "")'")
+        XCTAssertTrue(menu.isHittable, "\(context): the rail switcher is not reachable: \(menu.frame)")
+
+        var issues: [String] = []
+        do {
+            try app.performAccessibilityAudit(for: [.hitRegion, .sufficientElementDescription]) { issue in
+                if issue.element?.identifier == id { issues.append(issue.compactDescription) }
+                return true
+            }
+        } catch {
+            XCTFail("\(context): rail switcher audit did not run: \(error)")
+        }
+        XCTAssertEqual(issues, [], "\(context): rail switcher audit issues")
+
+        let frame = menu.frame
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        let choice = app.buttons.matching(NSPredicate(format: "label == %@", "Quads")).firstMatch
+        for offset in Self.railNearMisses {
+            origin.withOffset(CGVector(dx: frame.midX + offset.dx, dy: frame.midY + offset.dy)).tap()
+            XCTAssertTrue(choice.waitForExistence(timeout: FestivalApp.budget(3)),
+                          "\(context): the rail switcher \(frame) ignored a tap at (\(Int(offset.dx)), \(Int(offset.dy))) pt from its centre")
+            app.buttons.matching(NSPredicate(format: "label == %@", "Duos")).firstMatch.tap()
+            XCTAssertTrue(choice.waitForNonExistence(timeout: FestivalApp.budget(5)), "\(context): the band-size menu stayed open")
+            settle(0.6)
+        }
+        XCTAssertTrue(menu.label.hasPrefix("Band size") && "\(menu.label) \(menu.value as? String ?? "")".contains("Duos"),
+                      "\(context): closing the menu on Duos changed the band size: '\(menu.label)'")
     }
 
     /// Fling the list until page 1's rows stop moving (its end).
