@@ -19,6 +19,8 @@ Rules enforced (see `.agents/workflow/docs-conventions.md`):
    read" header line.
 6. The generated tables in `pages/README.md` and `controls/README.md` match
    the contracts and the files on disk.
+7. Each numbered rule (`- **R<n>.`) appears once in its pattern doc under
+   `patterns/`: a duplicated or conflicting rule number is an error.
 
 Usage::
 
@@ -88,6 +90,8 @@ FOLDER_SCOPE: dict[str, frozenset[str]] = {
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 HEADING = re.compile(r"^#{1,6}\s+(.*)$")
 FENCE = re.compile(r"^\s*(```|~~~)")
+#: A numbered rule bullet in a pattern doc: `- **R12. Title.** …`.
+PATTERN_RULE = re.compile(r"^\s*[-*]\s+\*\*R(\d+)\b")
 BEGIN = "<!-- BEGIN GENERATED: check_docs.py --fix -->"
 END = "<!-- END GENERATED -->"
 
@@ -293,6 +297,36 @@ def check_platform_mixing(report: Report) -> None:
         elif extra := named - scope:
             kind = "platform-neutral spec" if not scope else f"scoped to {sorted(scope)}"
             report.error(path, f"{kind} but headings name {sorted(extra)}; move to a platform file")
+
+
+def check_pattern_rules(report: Report) -> None:
+    """Fail when a pattern doc numbers two rules the same.
+
+    A merge that keeps an older and a newer copy of a rule, or two rules that
+    both took the next free number, leaves a conflicting duplicate; each rule
+    number must appear once (#621).
+
+    Args:
+        report: Findings sink.
+    """
+    folder = AGENTS / "patterns"
+    if not folder.is_dir():
+        return
+    for path in sorted(folder.glob("*.md")):
+        seen: dict[int, list[int]] = {}
+        fenced = False
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if FENCE.match(line):
+                fenced = not fenced
+            if fenced:
+                continue
+            if match := PATTERN_RULE.match(line):
+                seen.setdefault(int(match.group(1)), []).append(number)
+        for rule, lines in sorted(seen.items()):
+            if len(lines) > 1:
+                where = ", ".join(str(line) for line in lines)
+                report.error(path, f"rule R{rule} is defined {len(lines)} times (lines {where}); "
+                             "merge the copies or give a distinct rule the next free number")
 
 
 def _linked_targets(readme: Path) -> set[Path]:
@@ -585,6 +619,7 @@ def run(fix: bool = False) -> Report:
     check_headers(report)
     check_links(report)
     check_platform_mixing(report)
+    check_pattern_rules(report)
     check_routers(report)
     check_skills(report)
     check_contracts(report)
