@@ -112,6 +112,8 @@ jobs:
             SongsChromeJourneyTests/testSlowDragsNearTheTopKeepTheTopOfSongsAccessibleAtAX5
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             FirstRunJourneyTests/testSongDemoRotationKeepsSlideAccessibleAtLargestText
+            FirstRunJourneyTests/testSongsGuideRealControlDemosAccessibleAtLargestText
+            FirstRunJourneyTests/testSongsGuideRealControlDemosAccessibleAtLargestTextDuoFolded
             RivalsViewAllAccessibilityJourneyTests/testViewAllRivalsIsReadableAtAX5
             ProfileBandsAccessibilityJourneyTests/testProfileBandsSectionIsReadableAtAX5
             ProfileBandsAccessibilityJourneyTests/testFailedBandsRetryIsANamed44PointTarget
@@ -169,6 +171,10 @@ jobs:
             SongSeasonAccessibilityJourneyTests/testTappedScoreSeasonIsReadableAtLargestText
             RivalsAccessibilityJourneyTests/testRivalRowsAreReadableAtAX5
             GroupedCardAccessibilityJourneyTests/testLeaderboardsGroupedCardIsReadableAtAX5
+            ModalHeaderAccessibilityJourneyTests/testNotificationsHeaderAtDefaultSize
+            ModalHeaderAccessibilityJourneyTests/testNotificationsHeaderAtAX5
+            ModalHeaderAccessibilityJourneyTests/testPathsHeaderAtDefaultSize
+            ModalHeaderAccessibilityJourneyTests/testPathsHeaderAtAX5
             MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleAtDefaultSizeAndAX5
             MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleWithReduceTransparencyAtAX5
             PagerCardContrastJourneyTests/testPagerCardKeepsContrastOnTheMaterial
