@@ -320,6 +320,32 @@ public static class RivalCategorization
         ["dominating_them"] = ("Dominating Them", "You're far ahead — these are your strongest matchups.", RivalCategorySentiment.Positive),
     };
 
+    /// <summary>
+    /// Segoe Fluent Icons glyph per category, from the shared category→icon list (quick-links R9, #605): Closest Battles
+    /// Switch (neck and neck), Almost Passed Up (one run from passing), Slipping Away Down, Barely Winning Shield
+    /// (hold the lead), Pulling Forward SpeedHigh (gauge), Dominating Them FavoriteStar. All are outline glyphs, like
+    /// the other menu icons: Segoe's StockUp/StockDown are solid triangles. Apple and Android use the matching SF
+    /// Symbol and Material Symbol.
+    /// </summary>
+    private static readonly Dictionary<string, string> Glyphs = new(StringComparer.Ordinal)
+    {
+        ["closest_battles"] = "\uE8AB",
+        ["almost_passed"] = "\uE74A",
+        ["slipping_away"] = "\uE74B",
+        ["barely_winning"] = "\uEA18",
+        ["pulling_forward"] = "\uEC4A",
+        ["dominating_them"] = "\uE734",
+    };
+
+    /// <summary>Every category key in web order (closest battles, then the rival's leads, then the player's).</summary>
+    public static IReadOnlyList<string> Keys { get; } =
+        ["closest_battles", "almost_passed", "slipping_away", "barely_winning", "pulling_forward", "dominating_them"];
+
+    /// <summary>Decorative Quick Links glyph for a category (quick-links R9).</summary>
+    /// <param name="key">Category key.</param>
+    /// <returns>A Segoe Fluent Icons glyph, or <see langword="null"/> for an unknown key.</returns>
+    public static string? Glyph(string key) => Glyphs.GetValueOrDefault(key);
+
     /// <summary>Title for a category key, or the key itself when unknown (as on the web).</summary>
     /// <param name="key">Category key.</param>
     /// <returns>Heading.</returns>

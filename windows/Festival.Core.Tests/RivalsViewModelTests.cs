@@ -523,6 +523,11 @@ public class RivalsViewModelTests
         Assert.Equal(["rival-category:closest_battles", "rival-category:almost_passed", "rival-category:barely_winning", "rival-category:pulling_forward"],
             detail.QuickLinkSections.Select(s => s.Id));
         Assert.Equal(detail.Categories[0].Title, detail.QuickLinkSections[0].Title);
+        // Uniform group (quick-links R9, #605): every entry carries its category's glyph, never an instrument icon.
+        Assert.Equal(detail.Categories.Select(c => RivalCategorization.Glyph(c.Category.Key)), detail.QuickLinkSections.Select(s => s.Glyph));
+        Assert.All(detail.QuickLinkSections, s => Assert.False(string.IsNullOrEmpty(s.Glyph)));
+        Assert.All(detail.QuickLinkSections, s => Assert.Null(s.Instrument));
+        Assert.Equal(detail.QuickLinkSections.Count, detail.QuickLinkSections.Select(s => s.Glyph).Distinct().Count());
         var closest = detail.Categories[0];
         // Each category ends with the shared View All button (view-all-cta R6, #321), whatever its song count.
         Assert.Equal(("View All", "View All, Closest Battles"), (closest.ViewAllText, closest.ViewAllName));

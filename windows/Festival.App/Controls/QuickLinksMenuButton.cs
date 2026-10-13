@@ -83,13 +83,16 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
         if (model is null) return;
         foreach (var item in model.Items)
         {
+            IconElement? icon = item.HasIcon ? new ImageIcon { Source = InstrumentIcon.Bitmap(item.IconFile) }
+                : item.Glyph.Length > 0 ? new FontIcon { Glyph = item.Glyph } : null;
+            // Decorative, as in the pane: the item's name already says the section (quick-links R9).
+            if (icon is not null) AutomationProperties.SetAccessibilityView(icon, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
             var entry = new RadioMenuFlyoutItem
             {
                 Text = item.Title,
                 GroupName = "fst-quick-links",
                 IsChecked = item.IsActive,
-                Icon = item.HasIcon ? new ImageIcon { Source = InstrumentIcon.Bitmap(item.IconFile) }
-                    : item.Glyph.Length > 0 ? new FontIcon { Glyph = item.Glyph } : null,
+                Icon = icon,
             };
             AutomationProperties.SetAutomationId(entry, item.AutomationId);
             AutomationProperties.SetName(entry, item.AccessibleName);

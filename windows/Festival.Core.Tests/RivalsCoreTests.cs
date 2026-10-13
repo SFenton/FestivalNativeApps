@@ -420,6 +420,22 @@ public class RivalsCoreTests
         Assert.Equal(["u7"], categories[5].Songs.Select(s => s.SongId));
         Assert.Equal(RivalCategorySentiment.Negative, categories[1].Sentiment);
         Assert.Equal(RivalCategorySentiment.Positive, categories[3].Sentiment);
+        Assert.Equal(RivalCategorization.Keys, categories.Select(c => c.Key));
+    }
+
+    [Fact]
+    public void CategoryGlyphs_AreDistinctSegoeFluentGlyphsForEveryCategory()
+    {
+        // quick-links R9 (#605): the shared category→icon list, one distinct system glyph per category.
+        Assert.Equal(["\uE8AB", "\uE74A", "\uE74B", "\uEA18", "\uEC4A", "\uE734"], RivalCategorization.Keys.Select(RivalCategorization.Glyph));
+        Assert.All(RivalCategorization.Keys, k => Assert.True(RivalCategorization.IsKnown(k)));
+        Assert.Equal(RivalCategorization.Keys.Count, RivalCategorization.Keys.Select(RivalCategorization.Glyph).Distinct().Count());
+        Assert.DoesNotContain(RivalCategorization.Keys.Select(RivalCategorization.Glyph),
+            g => g is null || g.Length != 1 || g[0] < '\uE000' || g[0] > '\uF8FF');
+        // Distinct from the Rivals hub's Common/combo glyphs, so the categories never read as hub sections.
+        Assert.DoesNotContain(Festival.Core.ViewModels.RivalsHubViewModel.CommonGlyph, RivalCategorization.Keys.Select(RivalCategorization.Glyph));
+        Assert.DoesNotContain(Festival.Core.ViewModels.RivalsHubViewModel.ComboGlyph, RivalCategorization.Keys.Select(RivalCategorization.Glyph));
+        Assert.Null(RivalCategorization.Glyph("mystery"));
     }
 
     [Fact]

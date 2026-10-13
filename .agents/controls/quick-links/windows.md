@@ -34,7 +34,7 @@ The breakpoint is page-area width (`QuickLinks.UsesPane`), not window width, so 
 | Rivals (both tabs; also `/compete`) | Done: `common`, `combo`, `<instrumentKey>` per visible section (empty sections drop out, so ≥2 still applies). Replaced the old "Jump To" menu (`fst.rivals.jump*`) |
 | Player / Statistics | Done: `global` "Global Statistics" (Overview), `instrument:<key>` per chart, `bands`. `top-songs` omitted (no Windows section yet). Menu beside Select/Deselect |
 | Band | Done: `members`, `summary`, `statistics`, `rank-history`, `songs`. Replaced the bespoke pill bar/rail (`fst.band.quick-link*`) |
-| Rival Detail | Done, compact only (web: mobile only): `rival-category:<key>` per non-empty category |
+| Rival Detail | Done, compact only (web: mobile only): `rival-category:<key>` per non-empty category, each with its category glyph from `RivalCategorization.Glyph` (quick-links R9, #605; icons decorative) |
 | Song Detail | Done, compact only (web: mobile only): `intensity`, `score-history` (while the history card is visible), `instrument-<key>` per leaderboard card (virtualized cards realized on jump), `band-<type>` per band preview |
 | Songs | Covered by the grouped list's `SemanticZoom` + **Jump** button (`fst.songs.section-index-button`) for every sort with sections: the Windows idiom for a virtualized list (Start, Mail, Photos). No separate menu |
 | Rivalry | Not ported: the web's mobile Rivalry links are unreachable (spec "Known web gaps") |
