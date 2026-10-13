@@ -32,7 +32,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.festivalscoretracker.android.core.model.SelectedPlayer
-import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.nav.ProfileKind
 import com.festivalscoretracker.android.core.shell.DrawerEntry
@@ -54,12 +53,11 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
  * Statistics · Rivals · Leaderboards · Item Shop, then a footer with the profile row (or Select
  * Profile) and Settings last. Used by the modal drawer (bars and rails) and the permanent drawer.
  *
- * @param visible Tabs visible at this width (decides tab switch vs push).
+ * @param visible Tabs visible at this width (decides tab switch, host tab's child or push).
  * @param selected Selected tab.
  * @param profile Selected profile kind.
  * @param player Selected player.
- * @param onSection Select a tab.
- * @param onRoute Push a route.
+ * @param onOpen Open a row's target ([DrawerPolicy.target]; Settings is a [DrawerTarget.Section]).
  * @param onOpenProfile Open profile selection.
  * @param onDeselect Deselect the player.
  * @param showShop False while Settings' Hide Item Shop is on (web/Apple/Windows drop the entry).
@@ -76,18 +74,13 @@ fun DrawerContent(
     selected: FestivalSection,
     profile: ProfileKind,
     player: SelectedPlayer?,
-    onSection: (FestivalSection) -> Unit,
-    onRoute: (AppRoute) -> Unit,
+    onOpen: (DrawerTarget) -> Unit,
     onOpenProfile: () -> Unit,
     onDeselect: () -> Unit,
     showShop: Boolean = true,
     tabTags: Boolean = false,
     permanent: Boolean = false,
 ) {
-    fun open(target: DrawerTarget) = when (target) {
-        is DrawerTarget.Section -> onSection(target.section)
-        is DrawerTarget.Push -> onRoute(target.route)
-    }
     // The footer (player row, Deselect, Settings) sits at the bottom when everything fits; on a
     // short window the whole sheet scrolls as one list (issue #162: pinning the footer left a
     // 2.0× landscape phone less than one destination row, with "Songs" cut in half).
@@ -121,7 +114,7 @@ fun DrawerContent(
             DrawerPolicy.entries(profile, showShop).forEach { entry ->
                 val active = DrawerPolicy.isSelected(entry, selected)
                 DrawerItem(entry.title, entry.icon(active), selected = active, tag = entry.tag(tabTags && entry.section in visible)) {
-                    open(DrawerPolicy.target(entry, visible))
+                    onOpen(DrawerPolicy.target(entry, visible))
                 }
             }
         }
@@ -130,7 +123,7 @@ fun DrawerContent(
             if (player != null) {
                 val profileItem = @Composable {
                     DrawerItem(player.displayName, Icons.Outlined.Person, tag = "fst.nav.drawer.player", spokenLabel = "Profile: ${player.displayName}") {
-                        open(DrawerPolicy.target(DrawerEntry.Statistics, visible))
+                        onOpen(DrawerPolicy.target(DrawerEntry.Statistics, visible))
                     }
                 }
                 val deselect = @Composable { modifier: Modifier ->
@@ -160,7 +153,7 @@ fun DrawerContent(
                 FestivalSection.Settings.icon(selected == FestivalSection.Settings),
                 selected = selected == FestivalSection.Settings,
                 tag = if (tabTags) "fst.nav.tab.settings" else "fst.nav.drawer.settings",
-            ) { onSection(FestivalSection.Settings) }
+            ) { onOpen(DrawerTarget.Section(FestivalSection.Settings)) }
         }
     }
 }

@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.core
 
 import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.nav.FestivalTabPolicy
+import com.festivalscoretracker.android.core.nav.LeaderboardsRoute
 import com.festivalscoretracker.android.core.nav.ProfileKind
 import com.festivalscoretracker.android.core.nav.RivalsRoute
 import com.festivalscoretracker.android.core.nav.ShopRoute
@@ -11,6 +12,7 @@ import com.festivalscoretracker.android.core.shell.DrawerPolicy
 import com.festivalscoretracker.android.core.shell.DrawerTarget
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -33,8 +35,14 @@ class DrawerPolicyTest {
     fun visibleTabsSwitchOthersPush() {
         val phone = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = false)
         val rail = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = true)
-        assertEquals(DrawerTarget.Push(RivalsRoute), DrawerPolicy.target(DrawerEntry.Rivals, phone))
+        // #610: on a phone, Rivals and Leaderboards open as children of Compete; on a rail they are tabs.
+        assertEquals(DrawerTarget.Child(FestivalSection.Compete, RivalsRoute), DrawerPolicy.target(DrawerEntry.Rivals, phone))
+        assertEquals(DrawerTarget.Child(FestivalSection.Compete, LeaderboardsRoute), DrawerPolicy.target(DrawerEntry.Leaderboards, phone))
         assertEquals(DrawerTarget.Section(FestivalSection.Rivals), DrawerPolicy.target(DrawerEntry.Rivals, rail))
+        assertEquals(DrawerTarget.Section(FestivalSection.Leaderboards), DrawerPolicy.target(DrawerEntry.Leaderboards, rail))
+        // Without a player (or for a band) Leaderboards is itself a tab.
+        assertEquals(DrawerTarget.Section(FestivalSection.Leaderboards), DrawerPolicy.target(DrawerEntry.Leaderboards, FestivalTabPolicy.sections(ProfileKind.None, regularWidth = false)))
+        assertEquals(DrawerTarget.Section(FestivalSection.Leaderboards), DrawerPolicy.target(DrawerEntry.Leaderboards, FestivalTabPolicy.sections(ProfileKind.Band, regularWidth = false)))
         assertEquals(DrawerTarget.Push(StatisticsRoute), DrawerPolicy.target(DrawerEntry.Statistics, emptyList()))
         // #601: Item Shop is a tab with a profile, so its row switches to it; otherwise it pushes.
         assertEquals(DrawerTarget.Section(FestivalSection.Shop), DrawerPolicy.target(DrawerEntry.Shop, phone))
@@ -55,9 +63,24 @@ class DrawerPolicyTest {
         assertEquals(DrawerTarget.Push(StatisticsRoute), DrawerPolicy.sectionTarget(FestivalSection.Statistics, phone))
         assertEquals(DrawerTarget.Section(FestivalSection.Shop), DrawerPolicy.sectionTarget(FestivalSection.Shop, phone))
         assertEquals(DrawerTarget.Push(ShopRoute), DrawerPolicy.sectionTarget(FestivalSection.Shop, hidden))
-        assertEquals(DrawerTarget.Push(RivalsRoute), DrawerPolicy.sectionTarget(FestivalSection.Rivals, phone))
+        assertEquals(DrawerTarget.Child(FestivalSection.Compete, RivalsRoute), DrawerPolicy.sectionTarget(FestivalSection.Rivals, phone))
+        assertEquals(DrawerTarget.Child(FestivalSection.Compete, LeaderboardsRoute), DrawerPolicy.sectionTarget(FestivalSection.Leaderboards, hidden))
         assertEquals(DrawerTarget.Section(FestivalSection.Settings), DrawerPolicy.sectionTarget(FestivalSection.Settings, phone))
         assertEquals(null, DrawerPolicy.sectionTarget(FestivalSection.Compete, FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = true)))
+    }
+
+    /** #610: Compete hosts Leaderboards and Rivals only where they are not tabs themselves. */
+    @Test
+    fun competeHostsLeaderboardsAndRivalsOnPhones() {
+        val phone = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = false)
+        val rail = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = true)
+        assertEquals(FestivalSection.Compete, FestivalTabPolicy.hostTab(FestivalSection.Rivals, phone))
+        assertEquals(FestivalSection.Compete, FestivalTabPolicy.hostTab(FestivalSection.Leaderboards, phone))
+        assertNull(FestivalTabPolicy.hostTab(FestivalSection.Rivals, rail))
+        assertNull(FestivalTabPolicy.hostTab(FestivalSection.Leaderboards, rail))
+        assertNull(FestivalTabPolicy.hostTab(FestivalSection.Statistics, phone))
+        assertNull(FestivalTabPolicy.hostTab(FestivalSection.Shop, FestivalTabPolicy.sections(ProfileKind.None, regularWidth = false)))
+        assertNull(FestivalTabPolicy.hostTab(FestivalSection.Rivals, FestivalTabPolicy.sections(ProfileKind.Band, regularWidth = false)))
     }
 }
 

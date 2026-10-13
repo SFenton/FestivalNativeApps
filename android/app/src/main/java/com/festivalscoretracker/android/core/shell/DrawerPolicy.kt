@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.core.shell
 
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.FestivalSection
+import com.festivalscoretracker.android.core.nav.FestivalTabPolicy
 import com.festivalscoretracker.android.core.nav.LeaderboardsRoute
 import com.festivalscoretracker.android.core.nav.ProfileKind
 import com.festivalscoretracker.android.core.nav.RivalsRoute
@@ -27,8 +28,14 @@ sealed interface DrawerTarget {
     /** Switch to a visible tab. */
     data class Section(val section: FestivalSection) : DrawerTarget
 
-    /** Push a route on the current tab (the destination is not a tab at this width). */
+    /** Push a route on the current tab (the destination is not a tab at this width and has no host tab). */
     data class Push(val route: AppRoute) : DrawerTarget
+
+    /**
+     * Switch to [section]'s tab, pop it to its root, then push [route] as its child, so the bar
+     * shows the tab the page belongs to (Rivals and Leaderboards under Compete on a phone, #610).
+     */
+    data class Child(val section: FestivalSection, val route: AppRoute) : DrawerTarget
 }
 
 // endregion
@@ -63,18 +70,19 @@ object DrawerPolicy {
 
     /**
      * Where a row goes: its tab when that tab is visible at this width (e.g. Rivals on a
-     * rail), otherwise the pushed equivalent (e.g. Leaderboards under Compete on a phone).
+     * rail); else, when another tab hosts it, that tab with the page pushed as its child
+     * (Leaderboards and Rivals under Compete on a phone, #610); otherwise the pushed equivalent
+     * on the current tab (Statistics, Item Shop without a profile).
      *
      * @param entry Row.
      * @param visible Tabs visible now ([com.festivalscoretracker.android.core.nav.FestivalTabPolicy.sections]).
      * @return Target.
      */
-    fun target(entry: DrawerEntry, visible: List<FestivalSection>): DrawerTarget =
-        entry.section?.takeIf { it in visible }?.let { DrawerTarget.Section(it) } ?: DrawerTarget.Push(entry.pushed)
+    fun target(entry: DrawerEntry, visible: List<FestivalSection>): DrawerTarget = route(entry.section, entry.pushed, visible)
 
     /**
-     * Where a request for [section] goes (debug launch, a search result): the tab when visible,
-     * else its drawer row's pushed route (Statistics is never a tab since #601, so it pushes).
+     * Where a request for [section] goes (debug launch, a search result): the same target as its
+     * drawer row (tab, host tab's child or push; Statistics is never a tab since #601, so it pushes).
      *
      * @param section Requested section.
      * @param visible Tabs visible now.
@@ -84,8 +92,14 @@ object DrawerPolicy {
         if (section in visible) {
             DrawerTarget.Section(section)
         } else {
-            DrawerEntry.entries.firstOrNull { it.section == section }?.let { DrawerTarget.Push(it.pushed) }
+            DrawerEntry.entries.firstOrNull { it.section == section }?.let { route(section, it.pushed, visible) }
         }
+
+    private fun route(section: FestivalSection?, pushed: AppRoute, visible: List<FestivalSection>): DrawerTarget = when {
+        section == null -> DrawerTarget.Push(pushed)
+        section in visible -> DrawerTarget.Section(section)
+        else -> FestivalTabPolicy.hostTab(section, visible)?.let { DrawerTarget.Child(it, pushed) } ?: DrawerTarget.Push(pushed)
+    }
 
     /**
      * Whether [entry] is the current location.

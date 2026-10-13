@@ -86,10 +86,25 @@ object FestivalTabPolicy {
         if (current in visible) return current
         val equivalent = when (current) {
             FestivalSection.Compete -> FestivalSection.Leaderboards.takeIf { it in visible }
-            FestivalSection.Leaderboards, FestivalSection.Rivals -> FestivalSection.Compete.takeIf { it in visible }
-            else -> null
+            else -> hostTab(current, visible)
         }
         return equivalent ?: FestivalSection.Songs
+    }
+
+    /**
+     * The visible tab a section's page belongs to when the section is not a tab itself: Compete
+     * hosts Leaderboards and Rivals on compact player widths (web `BottomNav`'s Compete
+     * `activeKeys`). Agent decision (#610): the drawer, search and launches open them as
+     * children of Compete, so the bar shows the tab the page belongs to.
+     *
+     * @param section Section whose page is opened.
+     * @param visible Tabs visible now.
+     * @return The hosting tab, or null when [section] is a visible tab or has no host.
+     */
+    fun hostTab(section: FestivalSection, visible: List<FestivalSection>): FestivalSection? = when {
+        section in visible -> null
+        section == FestivalSection.Leaderboards || section == FestivalSection.Rivals -> FestivalSection.Compete.takeIf { it in visible }
+        else -> null
     }
 
     /**

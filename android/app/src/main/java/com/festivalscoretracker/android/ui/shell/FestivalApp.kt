@@ -282,6 +282,27 @@ private fun NavHostController.selectSection(target: FestivalSection, current: Fe
     }
 }
 
+/**
+ * Open a drawer row, profile chip, search result or launch section: a tab switches
+ * ([selectSection]); a push stacks on the current tab; a child switches to its host tab
+ * (the tab left keeps its history), pops that tab to its root and pushes the page, so the bar
+ * shows the tab the page belongs to and Back returns to that tab's root (#610).
+ *
+ * @param target Where to go.
+ * @param current Section shown now.
+ */
+private fun NavHostController.open(target: DrawerTarget, current: FestivalSection) {
+    when (target) {
+        is DrawerTarget.Section -> selectSection(target.section, current)
+        is DrawerTarget.Push -> navigate(target.route) { launchSingleTop = true }
+        is DrawerTarget.Child -> {
+            selectSection(target.section, current)
+            popBackStack(target.section.root, inclusive = false)
+            navigate(target.route) { launchSingleTop = true }
+        }
+    }
+}
+
 /** Hinge bounds in window pixels. */
 private fun HingeInfo.pxRect(): PxRect = PxRect(bounds.left.toInt(), bounds.top.toInt(), bounds.right.toInt(), bounds.bottom.toInt())
 
@@ -344,12 +365,9 @@ private fun FestivalShell(
         }
     }
     LaunchedEffect(Unit) {
-        // A launch section that is not a tab at this width opens its pushed page (Statistics, #601).
-        when (val target = launch.section?.let { DrawerPolicy.sectionTarget(it, sections) }) {
-            is DrawerTarget.Section -> navController.selectSection(target.section, FestivalSection.Songs)
-            is DrawerTarget.Push -> navController.navigate(target.route)
-            null -> Unit
-        }
+        // A launch section that is not a tab at this width opens its pushed page (Statistics, #601),
+        // or its host tab's child (Rivals/Leaderboards under Compete on a phone, #610).
+        launch.section?.let { DrawerPolicy.sectionTarget(it, sections) }?.let { navController.open(it, FestivalSection.Songs) }
         launch.route?.let { navController.navigate(it) }
         launch.songQuery?.let { navController.navigate(SongDetailRoute(it, launch.songInstrument)) }
     }
@@ -441,10 +459,7 @@ private fun FestivalShell(
     val profileChip: () -> Unit = {
         when (val action = ProfileChipPolicy.action(shellViewModel.profileKind(settings), sections)) {
             ProfileChipAction.ChooseProfile -> showProfile = true
-            is ProfileChipAction.Open -> when (val target = action.target) {
-                is DrawerTarget.Section -> navController.selectSection(target.section, selected)
-                is DrawerTarget.Push -> navController.navigate(target.route) { launchSingleTop = true }
-            }
+            is ProfileChipAction.Open -> navController.open(action.target, selected)
         }
     }
     val actions = ShellActions(
@@ -468,11 +483,7 @@ private fun FestivalShell(
     val openDestination: (SearchDestination) -> Unit = { destination ->
         when (destination) {
             is SearchDestination.Push -> navController.navigate(destination.route)
-            is SearchDestination.Section -> when (val target = DrawerPolicy.sectionTarget(destination.section, sections)) {
-                is DrawerTarget.Section -> navController.selectSection(target.section, selected)
-                is DrawerTarget.Push -> navController.navigate(target.route) { launchSingleTop = true }
-                null -> Unit
-            }
+            is SearchDestination.Section -> DrawerPolicy.sectionTarget(destination.section, sections)?.let { navController.open(it, selected) }
         }
     }
 
@@ -487,11 +498,10 @@ private fun FestivalShell(
             selected = selected,
             profile = profileKind,
             player = settings.selectedPlayer,
-            onSection = {
+            onOpen = {
                 scope.launch { drawerState.close() }
-                navController.selectSection(it, selected)
+                navController.open(it, selected)
             },
-            onRoute = actions.navigate,
             onOpenProfile = {
                 scope.launch { drawerState.close() }
                 showProfile = true

@@ -223,6 +223,49 @@ class AppNavigationStatesUiTest {
         assertTrue(rule.onAllNodesWithTag("fst.nav.drawer.shop").fetchSemanticsNodes().isEmpty())
     }
 
+    /**
+     * #610: on a phone, the drawer's Rivals and Leaderboards open as children of the Compete tab:
+     * the bar selects Compete, Back returns to Compete's root, and the tab the user left keeps its place.
+     */
+    @Test
+    fun drawerRivalsAndLeaderboardsOpenUnderCompete() {
+        harness.launch(DebugLaunch(profile = navigationPlayer, stillBackground = true))
+        rule.onNodeWithTag("fst.songs.row.s-alpha").performClick()
+        harness.waitForTag("fst.song-detail.intensity")
+        // The phone drawer opens from a tab root: start from Item Shop's.
+        rule.onNodeWithTag("fst.nav.tab.shop").performClick()
+        harness.waitForTag("fst.shop.sort.open")
+
+        rule.onNodeWithTag("fst.nav.drawer").performClick()
+        harness.waitForTag("fst.nav.drawer.rivals")
+        rule.onNodeWithTag("fst.nav.drawer.rivals").performSemanticsAction(SemanticsActions.OnClick)
+        harness.waitForTag("fst.rivals.findRival")
+        harness.waitForNoTag("fst.shop.sort.open")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.tab.shop").assertIsNotSelected()
+
+        // Back returns to Compete's root, still on the Compete tab.
+        rule.onNodeWithTag("fst.nav.back").performClick()
+        harness.waitForNoTag("fst.rivals.findRival")
+        harness.waitForTag("fst.nav.drawer")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+
+        rule.onNodeWithTag("fst.nav.drawer").performClick()
+        harness.waitForTag("fst.nav.drawer.leaderboards")
+        rule.onNodeWithTag("fst.nav.drawer.leaderboards").performSemanticsAction(SemanticsActions.OnClick)
+        harness.waitForTag("fst.leaderboards")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.back").performClick()
+        harness.waitForNoTag("fst.leaderboards")
+        harness.waitForTag("fst.nav.drawer")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+
+        // Song Detail stays on the Songs tab's history when the drawer switches to Compete.
+        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
+        harness.waitForTag("fst.song-detail.intensity")
+        rule.onNodeWithTag("fst.nav.tab.songs").assertIsSelected()
+    }
+
     @Test
     fun reselectPopsToRootAndSwitchingRestoresHistory() {
         harness.launch(DebugLaunch(stillBackground = true))
