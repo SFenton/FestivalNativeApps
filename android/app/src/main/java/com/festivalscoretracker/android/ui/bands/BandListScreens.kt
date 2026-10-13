@@ -255,7 +255,9 @@ fun PlayerBandsScreen(viewModel: PlayerBandsViewModel, title: String, onNavigate
         ) {
             val current = swap.shown
             if (swap.showsSpinner || current is LoadState.Loading) {
-                fullRow("loading") { LoadSwapSpinner(swap, "Loading bands", Modifier.fillMaxWidth().heightIn(min = 240.dp), "fst.player-bands.loading") }
+                fullRow("loading") {
+                    LoadSwapSpinner(swap, "Loading bands", Modifier.fillMaxWidth().fillEmptyRegion(rememberEmptyRegion(gridState, "loading")), "fst.player-bands.loading")
+                }
             } else when (current) {
                 LoadState.Loading -> Unit
                 is LoadState.Failed -> fullRow("error") {
