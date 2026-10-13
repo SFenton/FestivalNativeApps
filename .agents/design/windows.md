@@ -70,7 +70,8 @@ Artwork motion follows [artwork-background](../controls/artwork-background/windo
 | Status chip missing / no chart | red / muted | Window fill, GrayText ring, 1 epx (no chart also 45% opacity) |
 | Emphasis text and outlines (`FSTEmphasis*`: FC badge, Top 5%, gold stars ring, active Sort/Filter tint, profile notices) | gold | WindowText (the FC badge keeps its skewed italic shape) |
 | Stat tile values (`FSTStatBlue/Green`), ratings | blue / green | WindowText |
-| Top 1% pill, current-season pill | gold / white fill | Highlight / HighlightText |
+| Top 1% pill, current-season pill (`FSTTopOne*`, `FSTCurrentSeason*`; [metadata-pills](../patterns/metadata-pills.md)) | gold outline / inverted `#D7DEE8` fill | Highlight / HighlightText |
+| Season pill (`FSTSeasonPill*`) | `#D7DEE8` on `#162133`, `#1E2A3A` outline | ButtonFace / ButtonText with a ButtonText outline |
 | Accuracy, difficulty and plain percentile pills (incl. Band Detail's purple `FSTPercentilePill*`, issue #212) | red→green tint, difficulty hues, purple | ButtonFace / ButtonText with a ButtonText outline |
 | Shop borders, Songs art bag, Shop badges and pulse (`FSTShop*`) | gold (New) / red (Leaving) | Highlight / HighlightText (the label and UIA name say which) |
 | Destructive buttons (Reset, Reset All Settings, Deselect; `FSTDanger*`) | `#C62828` | ButtonFace / ButtonText; hover and press Highlight / HighlightText |

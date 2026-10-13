@@ -50,3 +50,4 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [band-member-lines](band-member-lines.md) | Band card members: one line each, names leading on one shared edge, value and icons trailing, card-wide stack when any member can't fit |
 | [shop-offer-status](shop-offer-status.md) | Item Shop New / Leaving Tomorrow on Songs rows, Shop rows and cards: gold outline only for New, a visible indicator only for Leaving, both spoken |
 | [search-scopes](search-scopes.md) | Search scopes: global search's kinds and the profile search's All · Players · Bands on one engine, native scope controls, what a result opens |
+| [metadata-pills](metadata-pills.md) | Season ("S9") and percentile ("Top N%") chips on every page: one shared component each, one size, iOS/web contrast with the current season inverted, web percentile tiers, spoken names |

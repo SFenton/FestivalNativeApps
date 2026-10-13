@@ -4644,6 +4644,116 @@
         573,
         600
       ]
+    },
+    {
+      "id": "metadata-pills",
+      "title": "Metadata pills",
+      "status": "current",
+      "doc": ".agents/patterns/metadata-pills.md",
+      "summary": "The season chip ('S9') and percentile chip ('Top N%') on Songs rows, Suggestions, Song Detail, Score History, Player History, song and band leaderboards, the Profile percentile table and first-run demos: one shared component each per platform, the same size everywhere (owner #606); the season pill is secondary text on the subtle surface with a 2-unit subtle border and the catalogue's current season inverts (web SeasonPill, Apple ScoreSeasonPill); percentile tiers use the web thresholds (Top 1% gold italic skewed, Top 5% gold outline, else neutral); spoken 'Season 9' / 'Current season 9'; system colours under contrast themes. Windows pills use Fluent Caption size (agent decision #606, owner may override).",
+      "keywords": [
+        "season pill",
+        "season chip",
+        "current season",
+        "percentile pill",
+        "percentile chip",
+        "top x%",
+        "top 1%",
+        "top 5%",
+        "metadata pill",
+        "chip contrast"
+      ],
+      "web": [
+        {
+          "path": "components/songs/metadata/SeasonPill.tsx",
+          "symbol": "SeasonPill"
+        },
+        {
+          "path": "components/songs/metadata/PercentilePill.tsx",
+          "symbol": "PercentilePill"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/ScoreSeasonPill.swift",
+            "symbol": "ScoreSeasonPill"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerPercentileTable.swift",
+            "symbol": "PercentilePill"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt",
+            "symbol": "MetadataPill"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongRowProjection.kt",
+            "symbol": "SongMetadataPill"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/MetadataPills.cs",
+            "symbol": "MetadataPills"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/MetadataPillStyle.cs",
+            "symbol": "MetadataPillStyle"
+          }
+        ]
+      },
+      "guards": [
+        {
+          "id": "windows-season-brushes",
+          "glob": "windows/**/*.cs",
+          "regex": "FST(SeasonPill|CurrentSeason|TopOne)\\w*Brush",
+          "allow": [
+            "windows/Festival.App/Themes/Styles.xaml",
+            "windows/Festival.Core/Domain/MetadataPillStyle.cs",
+            "windows/**/*Tests*/**"
+          ],
+          "message": "Season and Top 1% pills are drawn by MetadataPills (metadata-pills R1); don't style a private copy with their brushes."
+        },
+        {
+          "id": "windows-season-brushes-xaml",
+          "glob": "windows/**/*.xaml",
+          "regex": "FST(SeasonPill|CurrentSeason|TopOne)\\w*Brush",
+          "allow": [
+            "windows/Festival.App/Themes/Styles.xaml",
+            "windows/Festival.Core/Domain/MetadataPillStyle.cs",
+            "windows/**/*Tests*/**"
+          ],
+          "message": "Season and Top 1% pills are drawn by MetadataPills (metadata-pills R1); don't style a private copy with their brushes."
+        }
+      ],
+      "related": {
+        "patterns": [
+          "leaderboard-row",
+          "surface-materials",
+          "songs-profile-panel"
+        ],
+        "pages": [
+          "songs",
+          "suggestions",
+          "song-detail",
+          "song-leaderboard",
+          "song-band-leaderboard",
+          "player-history",
+          "player-profile",
+          "statistics"
+        ],
+        "controls": [
+          "song-score-metadata",
+          "first-run"
+        ]
+      },
+      "issues": [
+        573,
+        606
+      ]
     }
   ]
 }

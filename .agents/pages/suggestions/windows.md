@@ -94,6 +94,12 @@ Per configuration:
 - **Journeys:** the full `suggestions_journey.py` run passed.
 - **Loading:** `loading` (an 8 s state) kept expiring while it waited behind other sessions on the shared desktop lock (`LOCK_BOUND`). A later retry passed at medium. It doesn't touch rival rows, and it passed at every width in the #205 run.
 
+## Metadata pills (issue #606, 2026-10-10)
+
+- **Problem:** Suggestions drew its own season and "Top N%" chips (14 epx text, 48 epx wide, a muted season fill without the subtle border, no current-season highlight and hard-coded gold brushes), a different size and contrast from the pills on Songs rows and leaderboards (owner: "Suggestions page seems to be using slightly smaller ones").
+- **Change:** rows now draw both chips with the shared `MetadataPills.Season` / `MetadataPills.Percentile` ([metadata-pills](../../patterns/metadata-pills.md) R1–R4). The season pill is secondary text on the subtle surface with a 2 epx border, the catalogue's current season inverts (`SuggestionRowPresentation.SeasonIsCurrent`), and each pill has the raw-view ID `fst.suggestions.{season|percentile}.<songId>.<Solo_X>`.
+- **Evidence:** `suggestions_journey.py --only metadata-pills` asserts the season pill's name, status, 36×22 size and paint; `MetadataPillStyleTests` pins the current-season flag.
+
 ## IDs
 
-`fst.suggestions.{filter-button,list,loading,syncing,choose-profile,error,no-results,start-new-mix}` (the state IDs are on the state titles; `error` is not exposed, see Validation), `fst.suggestions.category.<key>[.<mix>]`, `fst.suggestions.row.<songId|songId|Solo_X>`, `fst.suggestions.filter.{form,title,instruments,general,instrument-specific,instrument-picker.{<Solo_X>,compact,previous,next},instrument.<Solo_X>,type.<type>,type.<Solo_X>.<type>,reset}`.
+`fst.suggestions.{filter-button,list,loading,syncing,choose-profile,error,no-results,start-new-mix}` (the state IDs are on the state titles; `error` is not exposed, see Validation), `fst.suggestions.category.<key>[.<mix>]`, `fst.suggestions.row.<songId|songId|Solo_X>`, `fst.suggestions.{season,percentile}.<songId>.<Solo_X>` (raw view), `fst.suggestions.filter.{form,title,instruments,general,instrument-specific,instrument-picker.{<Solo_X>,compact,previous,next},instrument.<Solo_X>,type.<type>,type.<Solo_X>.<type>,reset}`.
