@@ -26,7 +26,7 @@ public class RivalsCoreTests
 
     #region Page titles
     /// <summary>
-    /// #604 (page-tools-and-nav-chrome R18): only a one-chart scope (song or leaderboard rivals) leads the Rival Detail
+    /// #604 (page-tools-and-nav-chrome R23): only a one-chart scope (song or leaderboard rivals) leads the Rival Detail
     /// subtitle with its icon and names it "{Instrument} Rivals"; every multi-chart or unscoped page reads "Rivals".
     /// </summary>
     [Fact]
