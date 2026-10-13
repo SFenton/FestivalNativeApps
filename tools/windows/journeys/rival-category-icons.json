@@ -1,0 +1,25 @@
+[
+  {
+    "name": "rival-category-icons",
+    "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8?scope=song%3ASolo_Guitar",
+    "preset": "compact",
+    "fixture": ["rival_categories_fixture.py"],
+    "extra": {"FST_DEBUG_PROFILE": "fixture-player-1:Demo Player"},
+    "steps": [
+      "waitfor:id=fst.rival-detail.summary@30",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.rival-category:dominating_them@5",
+      "assertname:id=fst.quick-links.item.rival-category:closest_battles|Closest Battles, current section",
+      "assertname:id=fst.quick-links.item.rival-category:almost_passed|Almost Passed",
+      "assertname:id=fst.quick-links.item.rival-category:slipping_away|Slipping Away",
+      "assertname:id=fst.quick-links.item.rival-category:barely_winning|Barely Winning",
+      "assertname:id=fst.quick-links.item.rival-category:pulling_forward|Pulling Forward",
+      "assertname:id=fst.quick-links.item.rival-category:dominating_them|Dominating Them",
+      "assertorder:id=fst.quick-links.item.rival-category:closest_battles|id=fst.quick-links.item.rival-category:almost_passed|id=fst.quick-links.item.rival-category:slipping_away|id=fst.quick-links.item.rival-category:barely_winning|id=fst.quick-links.item.rival-category:pulling_forward|id=fst.quick-links.item.rival-category:dominating_them",
+      "shot:{shots}\\rival-category-icons.png",
+      "toggle:id=fst.quick-links.item.rival-category:dominating_them",
+      "waitgone:id=fst.quick-links.item.rival-category:dominating_them@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Dominating Them@5"
+    ]
+  }
+]

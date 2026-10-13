@@ -465,7 +465,8 @@ public sealed partial class RivalDetailViewModel : RivalPageViewModel
     private List<RivalCategoryItem> categories = [];
 
     /// <summary>Quick Links: one per non-empty category (web <c>RivalDetailPage.tsx:136-168</c>; the web offers them on mobile only).</summary>
-    public List<QuickLinkSection> QuickLinkSections => [.. Categories.Select(c => new QuickLinkSection(c.QuickLinkId, c.Title))];
+    public List<QuickLinkSection> QuickLinkSections => [.. Categories.Select(c =>
+        new QuickLinkSection(c.QuickLinkId, c.Title, RivalCategorization.QuickLinkGlyph(c.Category.Key)))];
 
     /// <summary>Heading.</summary>
     public string Title => RivalName ?? "Rival";

@@ -57,6 +57,17 @@ public class QuickLinksOrderMarkupTests
     #endregion
 
     [Fact]
+    public void MenuIcons_AreDecorativeAndUseTheNativeIconSlot()
+    {
+        var code = File.ReadAllText(Path.Combine(AppRoot, "Controls", "QuickLinksMenuButton.cs"));
+        Assert.Contains("Icon = item.HasIcon ? new ImageIcon", code);
+        Assert.Contains("new FontIcon { Glyph = item.Glyph }", code);
+        Assert.Contains("if (entry.Icon is { } icon)", code);
+        Assert.Contains("AutomationProperties.SetAccessibilityView(icon, AccessibilityView.Raw)", code);
+        Assert.Contains("AutomationProperties.SetName(entry, item.AccessibleName)", code);
+    }
+
+    [Fact]
     public void Settings_DeclaredOrderMatchesMarkup()
     {
         var vm = new SettingsViewModel(new FestivalSession(new FakeService().Client(), new InMemorySettingsStore()), "0.1.0", true);

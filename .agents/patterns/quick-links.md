@@ -2,7 +2,7 @@
 
 > **What:** the ordered per-page section navigator, including its entry point, jump ownership, icons, and accessible current state. **Read when:** adding section navigation to a page or changing a section list.
 
-Status: **current**, 2026-10-05. Provenance: #6, #11, #12, #15, #286, #303, #313, #389, #392, #416, #545.
+Status: **current**, 2026-10-05. Provenance: #6, #11, #12, #15, #286, #303, #313, #389, #392, #416, #545, #605.
 
 ## Intent
 
@@ -25,6 +25,22 @@ Quick Links presents sections in page order and moves directly to the selected s
 6. **R6. Preserve accessibility and hit targets.** The entry exposes the current section; the selected row has a current/selected state; rows have names and section jumps announce their destination. Apple touch controls meet HIG Accessibility's 44x44 pt default minimum; Android menu actions use 48 dp; Windows page tools, their menu items and the pane rows use 40 epx (menu items through the app-wide `FSTMenuItemMinHeight` style, [page-tools-and-nav-chrome](page-tools-and-nav-chrome.md) R10, #416). Tests: Apple hosted `QuickLinksAccessibilityTests` (in `apple-ci`: chooser and entry (#389); rotor order on Compete, Song Detail and Profile, nested rows, wrapping (#392)) and the iPhone journeys `QuickLinksAccessibilityJourneyTests` (Settings sheet audit, #389) and `QuickLinksOrderJourneyTests.testQuickLinksSheetIsAccessible*` (nested Profile sheet, hit size, AX5 audit, #392); Windows `a11y-quick-links-landing.json` (in `windows-ui`: names, order, 40 epx items and rows, landings, #416) and `HitTargetMarkupTests`; Android `@DeviceCi` ATF journey `ProfileQuickLinksAccessibilityJourneyTest` (in `android-device`: the Profile entry's name, role and 48 dp target; chooser rows in page order on screen and as TalkBack reads them, the current row's selected state; the > 8-section sheet opening fully expanded with no Expand action (`modal-shell` R13, #586) and its lower rows reached by scrolling the list; the Top Songs jump landing and holding 32 dp below the bar at 1.0x and 2.0x; and the closed shell drawer out of the reading order, #501).
 7. **R7. Normalize artwork icons.** Instrument artwork is pre-sized so its *visible* disc matches the adjacent system symbols, and scales with text; it never renders at its 144 pt intrinsic size (#303). The full-bleed artwork's dark outer ring disappears on dark surfaces, so an equal frame reads smaller than the symbols: Apple sizes per chooser (`QuickLinkLabel.Presentation`): 24 pt in the iPhone sheet list beside 20 pt symbols, 17 pt in iOS menus (iPad, Duo) beside 13.5 pt menu symbols, and 16 pt in macOS menus. It follows the row symbols' Dynamic Type curve, which holds from xxxLarge to AX3 while text keeps growing (#313). HIG Icons: "Adjust dimensions for visual weight so they look consistent, rather than forcing equal geometry."
 8. **R8. Owner-approved: no Quick Links on Rivalry (owner, #545).** The Rivalry page (a Rival Detail category's View All, web `RivalryPage`) offers no Quick Links on the native apps: one link per song only repeats the list. Sections stay the unit of navigation, so the other Rivals pages keep theirs (Rivals hub and Leaderboard Rivals cards, Rival Detail categories, Compete groups). See [the variant](#owner-approved-variant-no-quick-links-on-rivalry-545).
+9. **R9. Distinct Rival Detail category icons (#605).** Every non-empty rivalry category has a distinct, meaningful system icon, using the shared category keys below. All rows in this chooser group have icons; the category label/current state alone is spoken, and icons never add screen-reader or keyboard stops. Preserve ordering, IDs, availability and jump behavior. Hub/Compete links continue to identify Common, Combined and instrument scopes, not detail categories.
+
+### Shared rivalry category meanings (#605)
+
+| Category key (page order) | Icon meaning | Windows Segoe glyph |
+|---|---|---|
+| `closest_battles` | Close exchange / positions can switch | Switch (`E8AB`) |
+| `almost_passed` | Moving up to overtake | Up (`E74A`) |
+| `slipping_away` | Falling behind | Down (`E74B`) |
+| `barely_winning` | Holding a narrow lead | Flag (`E7C1`) |
+| `pulling_forward` | Advancing with a solid lead | Forward (`E72A`) |
+| `dominating_them` | Standout strongest matchups | FavoriteStarFill (`E735`) |
+
+Use each platform's system set for these meanings (SF Symbols, Material Symbols, Segoe); do not copy glyphs between platforms. Windows owns the mapping beside the existing category metadata in `RivalCategorization.QuickLinkGlyph`; `QuickLinksMenuButton` renders it through the standard icon slot and marks every menu icon `AccessibilityView.Raw`. The default symbol font supplies Segoe Fluent Icons with the native downlevel fallback. Guidance: WinUI Gallery `gallery-menuflyout-5` uses `MenuFlyoutItem.Icon`; [Segoe Fluent Icons](https://learn.microsoft.com/en-us/windows/apps/design/iconography/segoe-fluent-icons-font) says glyphs "are not intended for use in-line with text".
+
+Windows regression evidence: `RivalsCoreTests.Category_QuickLinkGlyph*`, `RivalsViewModelTests.RivalDetail_QuickLinksHaveDistinctCategoryGlyphsWithoutChangingLabelsOrOrder`, `journeys/rival-category-icons.json`, and `journeys/a11y-rival-category-icons.json` (normal and 225% text in `windows-ui`).
 
 ### Owner-approved variant: no Quick Links on Rivalry (#545)
 

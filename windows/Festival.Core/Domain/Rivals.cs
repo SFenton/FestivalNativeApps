@@ -310,15 +310,21 @@ public static class RivalCategorization
 {
     private const int ClosestBattlesCount = 5;
 
-    private static readonly Dictionary<string, (string Title, string Subtitle, RivalCategorySentiment Sentiment)> Meta = new(StringComparer.Ordinal)
+    private static readonly Dictionary<string, (string Title, string Subtitle, RivalCategorySentiment Sentiment, string QuickLinkGlyph)> Meta = new(StringComparer.Ordinal)
     {
-        ["closest_battles"] = ("Closest Battles", "Songs where you and your rival are neck and neck.", RivalCategorySentiment.Neutral),
-        ["almost_passed"] = ("Almost Passed", "You're just behind — one good run could flip these.", RivalCategorySentiment.Negative),
-        ["slipping_away"] = ("Slipping Away", "They're pulling further ahead on these songs.", RivalCategorySentiment.Negative),
-        ["barely_winning"] = ("Barely Winning", "You're just ahead — don't let them catch up.", RivalCategorySentiment.Positive),
-        ["pulling_forward"] = ("Pulling Forward", "You have a solid lead on these songs.", RivalCategorySentiment.Positive),
-        ["dominating_them"] = ("Dominating Them", "You're far ahead — these are your strongest matchups.", RivalCategorySentiment.Positive),
+        ["closest_battles"] = ("Closest Battles", "Songs where you and your rival are neck and neck.", RivalCategorySentiment.Neutral, "\uE8AB"),
+        ["almost_passed"] = ("Almost Passed", "You're just behind — one good run could flip these.", RivalCategorySentiment.Negative, "\uE74A"),
+        ["slipping_away"] = ("Slipping Away", "They're pulling further ahead on these songs.", RivalCategorySentiment.Negative, "\uE74B"),
+        ["barely_winning"] = ("Barely Winning", "You're just ahead — don't let them catch up.", RivalCategorySentiment.Positive, "\uE7C1"),
+        ["pulling_forward"] = ("Pulling Forward", "You have a solid lead on these songs.", RivalCategorySentiment.Positive, "\uE72A"),
+        ["dominating_them"] = ("Dominating Them", "You're far ahead — these are your strongest matchups.", RivalCategorySentiment.Positive, "\uE735"),
     };
+
+    /// <summary>Distinct Segoe system glyph for a category's decorative Quick Links icon.</summary>
+    /// <param name="key">One of the six shared category keys.</param>
+    /// <returns>Switch, Up, Down, Flag, Forward or FavoriteStarFill in category order.</returns>
+    /// <exception cref="KeyNotFoundException">The category key is unknown.</exception>
+    public static string QuickLinkGlyph(string key) => Meta[key].QuickLinkGlyph;
 
     /// <summary>Title for a category key, or the key itself when unknown (as on the web).</summary>
     /// <param name="key">Category key.</param>

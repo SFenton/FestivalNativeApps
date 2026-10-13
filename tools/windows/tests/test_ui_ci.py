@@ -51,6 +51,12 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(all(run.scan for run in landing.values()))
         self.assertIn("compact", landing["text-225"].sizes.split(","))
 
+    def test_rival_category_icons_run_at_default_and_largest_text(self):
+        """Rival menu icons stay decorative and keyboard reachable at normal and largest text."""
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-rival-category-icons.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan and run.sizes == "compact" for run in runs.values()))
+
     def test_header_flyouts_gate_without_popup_allowance(self):
         """#534: the Rank By, Quick Links, profile and Notifications flyouts scan clean at 100% and 225% text."""
         popups = {run.mode: run for run in ci.RUNS if run.pages == "a11y.json"}

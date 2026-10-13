@@ -7,6 +7,7 @@
 - Rule (#321): a category card ends with the [view-all-cta](../../patterns/view-all-cta.md) button (R6/R7), never an in-card text link, and the copy is "View All", never "See All" (`section-headers/windows-view-all-copy` guard). It replaced the blue "View All N Songs" `HyperlinkButton`; the count went with it, as on Apple and the web card header (`common.viewAll`). Tests: `ViewAllCtaTests` (consumer list, no overrides), `RivalsViewModelTests.RivalDetail_*`, `rivals_journey.py` `populated` (name, type, invoke), `kb-rival-detail-compact` (Tab from the rows lands on the button).
 - View Profile opens `AppRoute.Player(rivalId)`. Song rows open Song Detail on the compared chart; titles/art come from the catalogue when loaded.
 - Header below 640 epx (`Narrow`): View Profile drops under the summary beside the compact-only Quick Links menu. Both are at least 40 epx tall (`FSTMinTargetSize`, issue #72). The profile label is in a `Grid` so it wraps rather than clipping at 200% text.
+- Category Quick Links use the six distinct system glyphs from `RivalCategorization.QuickLinkGlyph`, following [quick-links](../../patterns/quick-links.md) R9 (#605). Icons use the canonical menu's native icon slot, stay decorative, and never change the category name, current marker or jump target.
 
 ## Validation (issue #202, 2026-10)
 

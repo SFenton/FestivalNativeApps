@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Festival.App.Controls;
@@ -91,6 +92,10 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
                 Icon = item.HasIcon ? new ImageIcon { Source = InstrumentIcon.Bitmap(item.IconFile) }
                     : item.Glyph.Length > 0 ? new FontIcon { Glyph = item.Glyph } : null,
             };
+            if (entry.Icon is { } icon)
+            {
+                AutomationProperties.SetAccessibilityView(icon, AccessibilityView.Raw);
+            }
             AutomationProperties.SetAutomationId(entry, item.AutomationId);
             AutomationProperties.SetName(entry, item.AccessibleName);
             var id = item.Section.Id;

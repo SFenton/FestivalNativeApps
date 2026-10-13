@@ -523,6 +523,7 @@ public class RivalsViewModelTests
         Assert.Equal(["rival-category:closest_battles", "rival-category:almost_passed", "rival-category:barely_winning", "rival-category:pulling_forward"],
             detail.QuickLinkSections.Select(s => s.Id));
         Assert.Equal(detail.Categories[0].Title, detail.QuickLinkSections[0].Title);
+        Assert.All(detail.QuickLinkSections, section => Assert.False(string.IsNullOrEmpty(section.Glyph)));
         var closest = detail.Categories[0];
         // Each category ends with the shared View All button (view-all-cta R6, #321), whatever its song count.
         Assert.Equal(("View All", "View All, Closest Battles"), (closest.ViewAllText, closest.ViewAllName));
@@ -534,6 +535,25 @@ public class RivalsViewModelTests
         Assert.Equal(RivalCategorySentiment.Neutral, closest.Sentiment);
         Assert.NotEmpty(closest.Title + closest.Subtitle);
         Assert.Equal("Me Player", closest.Preview[0].PlayerName);
+    }
+
+    [Fact]
+    public void RivalDetail_QuickLinksHaveDistinctCategoryGlyphsWithoutChangingLabelsOrOrder()
+    {
+        var detail = new RivalDetailViewModel(new RivalsFakeService().Session(), new AppRoute.RivalDetail(Rival));
+        var songs = new[] { -1, -50, 1, 20, 500 }
+            .Select((delta, index) => RivalsCoreTests.Song($"battle-{index}", delta)).ToList();
+        detail.Categories = [.. RivalCategorization.Categorize(songs).Select(category =>
+            new RivalCategoryItem(category, [], new AppRoute.Rivalry(Rival, category.Key)))];
+
+        var links = detail.QuickLinkSections;
+        Assert.Equal(["closest_battles", "almost_passed", "slipping_away", "barely_winning", "pulling_forward", "dominating_them"],
+            detail.Categories.Select(category => category.Category.Key));
+        Assert.Equal(["\uE8AB", "\uE74A", "\uE74B", "\uE7C1", "\uE72A", "\uE735"], links.Select(link => link.Glyph));
+        Assert.Equal(6, links.Select(link => link.Glyph).Distinct().Count());
+        Assert.Equal(detail.Categories.Select(category => category.QuickLinkId), links.Select(link => link.Id));
+        Assert.Equal(detail.Categories.Select(category => category.Title), links.Select(link => link.AccessibleTitle));
+        Assert.All(links, link => Assert.Null(link.Instrument));
     }
 
     [Fact]

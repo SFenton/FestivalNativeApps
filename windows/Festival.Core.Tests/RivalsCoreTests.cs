@@ -400,6 +400,20 @@ public class RivalsCoreTests
     #endregion
 
     #region Categories and head to head
+    [Theory]
+    [InlineData("closest_battles", "\uE8AB")]
+    [InlineData("almost_passed", "\uE74A")]
+    [InlineData("slipping_away", "\uE74B")]
+    [InlineData("barely_winning", "\uE7C1")]
+    [InlineData("pulling_forward", "\uE72A")]
+    [InlineData("dominating_them", "\uE735")]
+    public void Category_QuickLinkGlyphMatchesSharedMeaning(string key, string glyph) =>
+        Assert.Equal(glyph, RivalCategorization.QuickLinkGlyph(key));
+
+    [Fact]
+    public void Category_QuickLinkGlyphRejectsUnknownKey() =>
+        Assert.Throws<KeyNotFoundException>(() => RivalCategorization.QuickLinkGlyph("unknown"));
+
     [Fact]
     public void Categorize_MatchesWebBuckets()
     {

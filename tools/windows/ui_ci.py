@@ -102,6 +102,8 @@ POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-f
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
 RUNS: tuple[Run, ...] = (
+    Run("rival-category-icons", "a11y-rival-category-icons.json", sizes="compact", tabs=0),
+    Run("rival-category-icons-text-225", "a11y-rival-category-icons.json", sizes="compact", mode="text-225", tabs=0),
     # Every FestivalDialog modal (issues #23, #239, #400): Narrator phrases, reading order, 40x40 commands, keyboard, Esc.
     Run("modals", "a11y-modals.json"),
     # The same pages at Windows' largest text size: text on screen, commands reachable by Tab and hit-testable.

@@ -2272,7 +2272,7 @@
       "title": "Quick Links",
       "status": "current",
       "doc": ".agents/patterns/quick-links.md",
-      "summary": "One native Quick Links controller per page preserves web section order, uses a 32-unit shared landing/current line, and exposes an accessible current section through the platform chooser.",
+      "summary": "One native Quick Links controller per page preserves web section order, uses a 32-unit shared landing/current line, and exposes an accessible current section through the platform chooser. Rival Detail uses distinct decorative system icons for the shared six rivalry categories.",
       "keywords": [
         "quick links",
         "jump to section",
@@ -2336,6 +2336,10 @@
           {
             "path": "windows/Festival.App/Controls/QuickLinksMenuButton.cs",
             "symbol": "QuickLinksMenuButton"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/Rivals.cs",
+            "symbol": "RivalCategorization"
           }
         ]
       },
