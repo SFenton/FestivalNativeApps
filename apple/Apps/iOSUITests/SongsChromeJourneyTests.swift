@@ -619,9 +619,12 @@ final class SongsChromeJourneyTests: XCTestCase {
     /// row, read clear of the fade, then dragged into the fade band and then across the
     /// bar's edge so the mask cuts it, keeps the same button, label, frame size and
     /// descendants; no state exposes any other element inside the row; the row stays
-    /// hittable; the one bar heading stays above it in reading (top-to-bottom) order; and
-    /// the masked state passes the system audit (the scroll-away audit's documented open
-    /// findings excepted).
+    /// hittable; the one bar heading stays above it in reading (top-to-bottom) order; no
+    /// row shows behind the bar, even once wholly in the cut (`scroll-edge` R7, #459;
+    /// that it is then no VoiceOver stop is proved by the hosted
+    /// `SongsSectionBarAccessibilityTests/composedSongsWhollyUnderTheBarAreNoStop`, as
+    /// XCUITest lists hidden views); and the masked state passes the system audit (the
+    /// scroll-away audit's documented open findings excepted).
     ///
     /// Needs the large fixture like ``testScrollAwaySectionBarAccessibility``.
     @MainActor
@@ -632,35 +635,67 @@ final class SongsChromeJourneyTests: XCTestCase {
         large.terminate()
         let app = try launchScrollAwayFixture(largeText: false)
         let railGrowth = largeRail / railLetterHeight(app)
-        XCTAssertTrue(scrollAway(app), "Section bar never appeared")
+        try assertRowUnderTheSectionBar(in: app, label: "row under fade", railGrowth: railGrowth, hardEdge: false)
+    }
+
+    /// Issue #627 (accessibility backfill for #10, which fades Songs rows under the pinned
+    /// section bar like under the page header): the same row walk as
+    /// ``testRowUnderTheSectionBarFadeKeepsItsAccessibility`` at the largest text size
+    /// (AX5) with the in-app Less Transparency and Increase Contrast on, which turn the
+    /// fade into a hard edge (`scroll-edge` R7). The bar stays one heading above the rows,
+    /// its title renders at least 4.5:1, a row under it keeps its name, button and
+    /// ≥ 44 pt frame, no row content shows behind the bar (also once wholly in the cut,
+    /// which the hosted `composedSongsWhollyUnderTheBarAreNoStop` AX5 hard-edge case
+    /// proves is no VoiceOver stop), and the audit accepts no contrast issue in a ramp
+    /// (there is none).
+    ///
+    /// Needs the large fixture like ``testScrollAwaySectionBarAccessibility``.
+    @MainActor
+    func testRowUnderTheSectionBarAtLargestTextWithHardEdge() throws {
+        continueAfterFailure = false
+        let regular = try launchScrollAwayFixture(largeText: false)
+        let defaultRail = railLetterHeight(regular)
+        regular.terminate()
+        let app = try launchScrollAwayFixture(largeText: true, hardEdge: true)
+        let railGrowth = railLetterHeight(app) / defaultRail
+        try assertRowUnderTheSectionBar(in: app, label: "ax5 hard edge", railGrowth: railGrowth, hardEdge: true)
+    }
+
+    /// Drag one Songs row from clear of the section bar's fade into the fade band, across
+    /// the bar's edge and then wholly into the cut above it, and check what VoiceOver, the
+    /// hit-tester and the screen show at each step (#553, #627).
+    ///
+    /// - Parameters:
+    ///   - app: Songs on the large fixture, at the top.
+    ///   - label: Names the states, attachments and the audit.
+    ///   - railGrowth: The rail letters' measured AX5 / default height
+    ///     (``auditScrollAway(_:_:railGrowth:predictsClipping:ramp:)``).
+    ///   - hardEdge: Less Transparency and Increase Contrast are on, so the fade is a hard
+    ///     cut at the bar's edge (R7): the bar's title must render ≥ 4.5:1 and the audit
+    ///     gets no ramp to accept contrast issues in.
+    /// - Throws: A missing row, snapshot or screenshot, or a failed audit.
+    @MainActor
+    private func assertRowUnderTheSectionBar(
+        in app: XCUIApplication, label: String, railGrowth: CGFloat, hardEdge: Bool
+    ) throws {
+        XCTAssertTrue(scrollAway(app), "\(label): section bar never appeared")
         waitForListToSettle(app)
         let bar = app.staticTexts["fst.songs.section-bar"]
         let list = app.descendants(matching: .any)["fst.songs.list"]
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
-        let titles = app.staticTexts.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.section."))
-        let edge = bar.frame.maxY
+        let window = app.windows.firstMatch.frame
+        let rail = app.descendants(matching: .any)
+            .matching(identifier: "fst.songs.section-index").firstMatch.frame
         let tabs = app.tabBars.firstMatch.frame
-        // A row well below the fade whose previous neighbour is a row, not an in-list
-        // title, so the bar (not a passing title) is what masks it once dragged up.
-        let titleFrames = titles.allElementsBoundByIndex.map(\.frame)
-        let candidate = rows.allElementsBoundByIndex.first { row in
-            let frame = row.frame
-            return frame.minY >= edge + 2 * PinnedRowProbe.fade && frame.maxY <= tabs.minY - 20
-                && !titleFrames.contains { $0.maxY <= frame.minY + 1 && $0.maxY >= frame.minY - 80 }
-        }
-        let identifier = try XCTUnwrap(candidate?.identifier, "No song row clear of the fade")
-        let row = app.buttons[identifier]
-        let clear = try PinnedRowProbe(row: row, in: app)
-        XCTAssertFalse(clear.label.isEmpty, "\(identifier) unnamed")
-        XCTAssertGreaterThanOrEqual(clear.frame.height, 44, "\(identifier) is \(clear.frame.height) pt")
-        XCTAssertTrue(clear.strays.isEmpty, "Clear row exposes \(clear.strays)")
+        let accessory = app.descendants(matching: .any).matching(identifier: "fst.page-tools").firstMatch
+        let chromeTop = accessory.exists && accessory.frame.minY > window.midY
+            ? min(tabs.minY, accessory.frame.minY) : tabs.minY
+        let heading = try isHeading(bar)
+        XCTContext.runActivity(named: "\(label): bar '\(bar.label)' header trait \(String(describing: heading))") { _ in }
+        XCTAssertNotEqual(heading, false, "\(label): the section bar is not a heading")
 
-        // Two mask states: the row's top in the fade band below the bar's edge, then
-        // just above the edge, where the mask cuts the row's top off.
-        for (state, offset) in [("in the band", PinnedRowProbe.fade / 4), ("cut", -PinnedRowProbe.fade / 4)] {
-            let target = bar.frame.maxY + offset
-            // A drag first spends the pan's slop, so a short one never moves the list:
-            // back off first, and lengthen each drag by the slop the last one lost.
+        // A drag first spends the pan's slop, so a short one never moves the list: back
+        // off first, and lengthen each drag by the slop the last one lost.
+        func move(_ element: XCUIElement, to target: () -> CGFloat) {
             var slop: CGFloat = 0
             func drag(_ length: CGFloat) {
                 let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.6))
@@ -670,49 +705,198 @@ final class SongsChromeJourneyTests: XCTestCase {
                 )
                 waitForListToSettle(app)
             }
-            for _ in 0..<6 where abs(row.frame.minY - target) > 6 {
-                if abs(row.frame.minY - target) < 40 { drag(80) }
-                let before = row.frame.minY
-                let delta = target - before
+            for _ in 0..<6 where abs(element.frame.minY - target()) > 6 {
+                if abs(element.frame.minY - target()) < 40 { drag(80) }
+                let before = element.frame.minY
+                let delta = target() - before
                 let length = delta + (delta > 0 ? slop : -slop)
                 drag(length)
-                slop = max(0, abs(length) - abs(row.frame.minY - before))
+                slop = max(0, abs(length) - abs(element.frame.minY - before))
             }
+        }
+
+        // A row well below the fade, its top on screen, whose previous neighbour is a row,
+        // not an in-list title, so the bar (not a passing title) is what masks it once
+        // dragged up. At AX5 a row is tall, so scroll until one's top is below the fade
+        // (as `NotificationsAccessibilityJourneyTests`). One snapshot each: the lazy list
+        // recycles rows (#572).
+        func clearRow() throws -> String? {
+            let edge = bar.frame.maxY
+            let nodes = try FestivalApp.snapshotNodes(in: app) {
+                SongsUITestSupport.isSongsRow($0)
+                    || ($0.elementType == .staticText && $0.identifier.hasPrefix("fst.songs.section."))
+            }
+            let titles = nodes.filter { $0.elementType == .staticText }.map(\.frame)
+            return nodes.first { row in
+                let frame = row.frame
+                return row.elementType == .button
+                    && frame.minY >= edge + 2 * PinnedRowProbe.fade && frame.minY <= chromeTop - 120
+                    && !titles.contains { $0.maxY <= frame.minY + 1 && $0.maxY >= frame.minY - 80 }
+            }?.identifier
+        }
+        var candidate = try clearRow()
+        for _ in 0..<6 where candidate == nil {
+            let start = list.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.7))
+            start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -200)),
+                        withVelocity: .slow, thenHoldForDuration: 0.3)
+            waitForListToSettle(app)
+            candidate = try clearRow()
+        }
+        let identifier = try XCTUnwrap(candidate, "\(label): no song row clear of the fade")
+        let row = app.buttons[identifier]
+        let clear = try PinnedRowProbe(row: row, in: app, visibleBottom: chromeTop)
+        XCTAssertFalse(clear.label.isEmpty, "\(label): \(identifier) unnamed")
+        XCTAssertGreaterThanOrEqual(clear.frame.height, 44, "\(label): \(identifier) is \(clear.frame.height) pt")
+        XCTAssertTrue(clear.strays.isEmpty, "\(label): clear row exposes \(clear.strays)")
+
+        // XCUITest frames only the title's glyphs; the bar's band reaches its padding
+        // above and below them (`SongsScrollChrome.barTitleTopPadding` 8 pt and
+        // `barTitleBottomPadding` 2 pt), from the leading edge to the A–Z rail.
+        func band(_ title: CGRect) -> CGRect {
+            CGRect(x: window.minX + 1, y: title.minY - 7, width: rail.minX - 4 - window.minX - 1, height: title.height + 8)
+        }
+
+        // Two mask states: the row's top in the fade band below the bar's edge, then just
+        // above the edge, where the mask cuts the row's top off.
+        var backdrops: [(state: String, label: String, pixels: [UInt8], image: CGImage)] = []
+        for (state, offset) in [("in the band", PinnedRowProbe.fade / 4), ("cut", -PinnedRowProbe.fade / 4)] {
+            move(row) { bar.frame.maxY + offset }
             let barFrame = bar.frame
-            let masked = try PinnedRowProbe(row: row, in: app)
-            XCTContext.runActivity(named: "\(state): bar \(barFrame), row \(masked.frame)") { _ in }
-            XCTAssertLessThan(masked.frame.minY, barFrame.maxY + PinnedRowProbe.fade / 2, "\(state): row not under the fade")
-            XCTAssertGreaterThan(masked.frame.maxY, barFrame.maxY + 8, "\(state): row hidden under the bar")
-            XCTAssertEqual(masked.label, clear.label, "\(state): mask changed the row's label")
-            XCTAssertEqual(masked.frame.height, clear.frame.height, accuracy: 0.5, "\(state): mask cut the row's frame")
-            XCTAssertEqual(masked.frame.width, clear.frame.width, accuracy: 0.5, "\(state): mask cut the row's frame")
-            XCTAssertEqual(masked.descendants, clear.descendants, "\(state): mask changed the row's descendants")
-            XCTAssertTrue(masked.strays.isEmpty, "\(state): masked row exposes \(masked.strays)")
+            let masked = try PinnedRowProbe(row: row, in: app, visibleBottom: chromeTop)
+            XCTContext.runActivity(named: "\(label) \(state): bar \(barFrame), row \(masked.frame)") { _ in }
+            XCTAssertLessThan(masked.frame.minY, barFrame.maxY + PinnedRowProbe.fade / 2, "\(label) \(state): row not under the fade")
+            XCTAssertGreaterThan(masked.frame.maxY, barFrame.maxY + 8, "\(label) \(state): row hidden under the bar")
+            XCTAssertEqual(masked.label, clear.label, "\(label) \(state): mask changed the row's label")
+            XCTAssertEqual(masked.frame.height, clear.frame.height, accuracy: 0.5, "\(label) \(state): mask cut the row's frame")
+            XCTAssertEqual(masked.frame.width, clear.frame.width, accuracy: 0.5, "\(label) \(state): mask cut the row's frame")
+            XCTAssertEqual(masked.descendants, clear.descendants, "\(label) \(state): mask changed the row's descendants")
+            XCTAssertTrue(masked.strays.isEmpty, "\(label) \(state): masked row exposes \(masked.strays)")
             XCTContext.runActivity(named: "Row containers clear \(clear.containers), \(state) \(masked.containers)") { _ in }
-            XCTAssertEqual(masked.containers, clear.containers, "\(state): mask added containers to the row")
-            XCTAssertTrue(row.isHittable, "\(state): masked row not hittable")
+            XCTAssertEqual(masked.containers, clear.containers, "\(label) \(state): mask added containers to the row")
+            XCTAssertTrue(row.isHittable, "\(label) \(state): masked row not hittable")
             // XCUITest lists the List's rows before its overlays, not in VoiceOver order
             // (songs/ios.md #390; the hosted `SongsSectionBarAccessibilityTests` prove
             // the tree order), so check the top-to-bottom layout VoiceOver reads by.
             XCTAssertEqual(app.staticTexts.matching(identifier: "fst.songs.section-bar").count, 1)
-            XCTAssertLessThan(barFrame.minY, masked.frame.minY, "\(state): row starts above the section bar")
+            XCTAssertLessThan(barFrame.minY, masked.frame.minY, "\(label) \(state): row starts above the section bar")
             if offset > 0 {
-                XCTAssertLessThanOrEqual(barFrame.maxY, masked.frame.minY + 1, "\(state): row overlaps the bar")
+                XCTAssertLessThanOrEqual(barFrame.maxY, masked.frame.minY + 1, "\(label) \(state): row overlaps the bar")
+            }
+            let image = try XCTUnwrap(app.screenshot().image.cgImage)
+            backdrops.append((state, bar.label, try pixels(of: band(barFrame), in: image, window: window), image))
+            if hardEdge {
+                let title = try renderedContrast(of: barFrame, in: image, window: window)
+                XCTContext.runActivity(named: "\(label) \(state): bar title renders \(title)") { _ in }
+                XCTAssertGreaterThanOrEqual(title.ratio, 4.5, "\(label) \(state): bar title \(title.ratio):1")
+                XCTAssertGreaterThanOrEqual(title.brightPixels, 20, "\(label) \(state): bar title not drawn")
             }
         }
-        try auditScrollAway(app, "row under fade", railGrowth: railGrowth)
+
+        // No row content behind the bar: what the bar's band shows does not change while
+        // a row slides from below its edge to across it (R2 clear at the edge, R7 never a
+        // leak). The bar's own title is the same in each state compared.
+        func expectSameBackdrop(_ first: Int, _ second: Int) {
+            guard backdrops[first].label == backdrops[second].label else {
+                XCTFail("\(label): the bar changed section between states: \(backdrops.map(\.label))")
+                return
+            }
+            let (one, two) = (backdrops[first].pixels, backdrops[second].pixels)
+            let changed = stride(from: 0, to: min(one.count, two.count), by: 4).filter { offset in
+                (0..<3).contains { abs(Int(one[offset + $0]) - Int(two[offset + $0])) > 16 }
+            }.count
+            let share = Double(changed) / Double(max(1, one.count / 4))
+            let states = "\(backdrops[first].state) → \(backdrops[second].state)"
+            XCTContext.runActivity(named: "\(label) \(states): \(changed) of \(one.count / 4) pixels behind the bar changed") { _ in }
+            if share >= 0.01 {
+                for shot in [backdrops[first], backdrops[second]] {
+                    let attachment = XCTAttachment(image: UIImage(cgImage: shot.image))
+                    attachment.name = "songs-row-under-bar-\(label)-\(shot.state)"
+                    attachment.lifetime = .keepAlways
+                    add(attachment)
+                }
+            }
+            XCTAssertLessThan(share, 0.01, "\(label) \(states): a row shows behind the section bar (\(changed) pixels changed)")
+        }
+        XCTAssertEqual(backdrops.count, 2)
+        expectSameBackdrop(0, 1)
+
+        // Wholly in the cut: the row's bottom above the bar's edge but still on screen.
+        // Track the next row down, whose frame stays readable once the row leaves the tree.
+        let below = try FestivalApp.snapshotNodes(in: app, where: SongsUITestSupport.isSongsRow)
+            .filter { $0.frame.minY >= row.frame.maxY - 1 }
+            .min { $0.frame.minY < $1.frame.minY }
+        let reference = app.buttons[try XCTUnwrap(below?.identifier, "\(label): no row below \(identifier)")]
+        let gap = reference.frame.minY - row.frame.minY
+        let height = row.frame.height
+        move(reference) { bar.frame.maxY - 16 - height + gap }
+        let edge = bar.frame.maxY
+        let rowBottom = reference.frame.minY - gap + height
+        XCTContext.runActivity(named: "\(label) wholly cut: edge \(edge), row bottom \(rowBottom), next row \(reference.frame)") { _ in }
+        XCTAssertLessThanOrEqual(rowBottom, edge - 2, "\(label): row not wholly in the cut")
+        XCTAssertGreaterThan(rowBottom, window.minY + 2, "\(label): row left the screen")
+        let image = try XCTUnwrap(app.screenshot().image.cgImage)
+        backdrops.append(("wholly cut", bar.label, try pixels(of: band(bar.frame), in: image, window: window), image))
+        if backdrops[2].label == backdrops[0].label {
+            expectSameBackdrop(0, 2)
+        }
+        // XCUITest also lists views hidden by the mask (`testing/apple/accessibility.md`),
+        // so the hosted `composedSongsWhollyUnderTheBarAreNoStop` proves the cut row is
+        // no stop; here the row partly under the bar stays one named, ≥ 44 pt button read
+        // after the bar.
+        let next = try PinnedRowProbe(row: reference, in: app, visibleBottom: chromeTop)
+        XCTAssertFalse(next.label.isEmpty, "\(label): the row below is unnamed")
+        XCTAssertGreaterThanOrEqual(next.frame.height, 44, "\(label): the row below is \(next.frame.height) pt")
+        XCTAssertTrue(next.strays.isEmpty, "\(label): the row below exposes \(next.strays)")
+        XCTAssertLessThan(bar.frame.minY, next.frame.minY, "\(label): the row below starts above the section bar")
+        XCTAssertTrue(reference.isHittable, "\(label): the row below is not hittable")
+
+        try auditScrollAway(app, label, railGrowth: railGrowth, ramp: hardEdge ? 0 : PinnedRowProbe.fade)
+    }
+
+    /// Whether an element carries the header trait, as VoiceOver's rotor finds headings.
+    ///
+    /// - Parameter element: The element to read.
+    /// - Returns: The trait, or nil when the snapshot does not expose traits.
+    /// - Throws: A snapshot failure.
+    @MainActor
+    private func isHeading(_ element: XCUIElement) throws -> Bool? {
+        let object = try element.snapshot() as AnyObject
+        guard object.responds(to: NSSelectorFromString("traits")),
+              let traits = (object.value(forKey: "traits") as? NSNumber)?.uint64Value else { return nil }
+        return traits & UIAccessibilityTraits.header.rawValue != 0
+    }
+
+    /// The RGBA pixels inside one frame of a screenshot.
+    ///
+    /// - Parameters:
+    ///   - frame: The region in points.
+    ///   - image: The app screenshot.
+    ///   - window: The app window's frame.
+    /// - Returns: Four bytes per pixel.
+    /// - Throws: A frame outside the screenshot.
+    @MainActor
+    private func pixels(of frame: CGRect, in image: CGImage, window: CGRect) throws -> [UInt8] {
+        let scaleX = Double(image.width) / window.width
+        let scaleY = Double(image.height) / window.height
+        let crop = CGRect(
+            x: (frame.minX - window.minX) * scaleX, y: (frame.minY - window.minY) * scaleY,
+            width: frame.width * scaleX, height: frame.height * scaleY
+        ).integral.intersection(CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return try SongsUITestSupport.bitmapPixels(XCTUnwrap(image.cropping(to: crop)))
     }
 
     /// Launch Songs on the large fixture with a profile selected, as #5 was reported.
     ///
     /// - Parameters:
     ///   - largeText: Launch at the largest accessibility text size (AX5).
+    ///   - hardEdge: Turn on the in-app Less Transparency and Increase Contrast, which
+    ///     make every scroll-edge ramp a hard edge (`scroll-edge` R7).
     ///   - extra: More launch environment (e.g. `FST_UI_TEST_PAGE_ANCHOR`).
     /// - Returns: The running app on the Songs root.
     /// - Throws: `XCTSkip` when the catalogue is too short to scroll.
     @MainActor
     private func launchScrollAwayFixture(
-        largeText: Bool, environment extra: [String: String] = [:]
+        largeText: Bool, hardEdge: Bool = false, environment extra: [String: String] = [:]
     ) throws -> XCUIApplication {
         let base = ProcessInfo.processInfo.environment["FST_SONGS_SCROLL_FIXTURE_URL"]
             ?? "http://127.0.0.1:8765"
@@ -725,6 +909,11 @@ final class SongsChromeJourneyTests: XCTestCase {
         if largeText {
             app.launchArguments += [
                 "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL",
+            ]
+        }
+        if hardEdge {
+            app.launchArguments += [
+                "-fst.accessibility.lessTransparency", "YES", "-fst.accessibility.moreContrast", "YES",
             ]
         }
         app.launch()
@@ -892,13 +1081,16 @@ final class SongsChromeJourneyTests: XCTestCase {
     ///   - name: Names the activity listing accepted issues.
     ///   - railGrowth: The rail letters' measured AX5 / default height.
     ///   - predictsClipping: Return unattributed "Text clipped" issues as predictions.
+    ///   - ramp: Depth of the top ramp in which dimmed text is accepted; 0 with a hard
+    ///     edge (`scroll-edge` R7), where only text the bar's edge cuts is.
     /// - Returns: The number of unattributed "Text clipped" predictions (0 unless
     ///   `predictsClipping`).
     /// - Throws: Any other audit issue.
     @MainActor
     @discardableResult
     private func auditScrollAway(
-        _ app: XCUIApplication, _ name: String, railGrowth: CGFloat, predictsClipping: Bool = false
+        _ app: XCUIApplication, _ name: String, railGrowth: CGFloat, predictsClipping: Bool = false,
+        ramp: CGFloat = PinnedRowProbe.fade
     ) throws -> Int {
         XCTContext.runActivity(named: "Rail letters grow \(railGrowth)× at AX5") { _ in }
         // The audit cycles text sizes, which re-lays out the list, so the reported frames
@@ -919,7 +1111,7 @@ final class SongsChromeJourneyTests: XCTestCase {
                 "\($0.elementType.rawValue) '\($0.identifier)' '\($0.label)' \($0.frame)"
             } ?? "no element"
             let description = "\(issue.compactDescription) [\(element)]"
-            let current = try page ?? ScrollAwayAuditPage(app)
+            let current = try page ?? ScrollAwayAuditPage(app, ramp: ramp)
             page = current
             if SongsUITestSupport.isSystemSearchPlaceholderContrast(issue) {
                 accepted.append(description)
@@ -940,8 +1132,8 @@ final class SongsChromeJourneyTests: XCTestCase {
                 )
                 if text.frame.maxY > current.chromeTop {
                     accepted.append("under bottom chrome (top \(current.chromeTop)): \(description)")
-                } else if text.frame.minY < current.rampEnd {
-                    accepted.append("in the top ramp (ends \(current.rampEnd)): \(description)")
+                } else if text.frame.minY < current.rampEnd, ramp > 0 || text.identifier != "fst.songs.section-bar" {
+                    accepted.append("\(ramp > 0 ? "in the top ramp" : "cut by the edge") (ends \(current.rampEnd)): \(description)")
                 } else if let measured, measured.ratio >= 4.5, measured.brightPixels >= 20 {
                     accepted.append("renders \(measured.ratio):1: \(description)")
                 } else {
@@ -2013,8 +2205,8 @@ private struct ScrollAwayAuditPage {
     /// The page-tools tab-bar accessory's frame (`.null` when it is not shown). Its text
     /// stops growing at `PageToolsAccessoryBar.maxTypeSize` (`page-tools-and-nav-chrome`).
     let accessory: CGRect
-    /// Where the 40 pt top ramp under the section or navigation bar ends
-    /// (`scroll-edge` R2/R3).
+    /// Where the top ramp under the section or navigation bar ends (`scroll-edge`
+    /// R2/R3): 40 pt below its edge, or the edge itself with a hard edge (R7).
     let rampEnd: CGFloat
     /// The app window's frame.
     let window: CGRect
@@ -2023,9 +2215,11 @@ private struct ScrollAwayAuditPage {
 
     /// Read the page.
     ///
-    /// - Parameter app: Songs, as the audit left it.
+    /// - Parameters:
+    ///   - app: Songs, as the audit left it.
+    ///   - ramp: Depth of the top ramp (0 with a hard edge).
     /// - Throws: A missing screenshot.
-    init(_ app: XCUIApplication) throws {
+    init(_ app: XCUIApplication, ramp: CGFloat) throws {
         rail = app.descendants(matching: .any)
             .matching(identifier: "fst.songs.section-index").firstMatch.frame
         window = app.windows.firstMatch.frame
@@ -2041,7 +2235,7 @@ private struct ScrollAwayAuditPage {
         self.chromeTop = chromeTop
         let sectionBar = app.staticTexts["fst.songs.section-bar"]
         rampEnd = (sectionBar.exists
-            ? sectionBar.frame.maxY : app.navigationBars.firstMatch.frame.maxY) + 40
+            ? sectionBar.frame.maxY : app.navigationBars.firstMatch.frame.maxY) + ramp
         image = try XCTUnwrap(app.screenshot().image.cgImage)
     }
 }
@@ -2074,9 +2268,11 @@ struct PinnedRowProbe {
     /// - Parameters:
     ///   - row: The row button.
     ///   - app: The running app.
+    ///   - visibleBottom: Where page chrome (the tab bar and its accessory) starts over a
+    ///     row taller than the space above it (AX5): strays below it are the chrome's.
     /// - Throws: A snapshot failure or a row missing from it.
     @MainActor
-    init(row: XCUIElement, in app: XCUIApplication) throws {
+    init(row: XCUIElement, in app: XCUIApplication, visibleBottom: CGFloat = .infinity) throws {
         let identifier = row.identifier
         var flat: [XCUIElementSnapshot] = []
         var ends: [Int] = []
@@ -2098,6 +2294,10 @@ struct PinnedRowProbe {
         frame = node.frame
         descendants = flat[own].dropFirst().map { "\($0.elementType.rawValue) '\($0.label)'" }
         let inside = node.frame.insetBy(dx: -1, dy: -1)
+        let shown = CGRect(
+            x: inside.minX, y: inside.minY, width: inside.width,
+            height: max(0, min(inside.maxY, visibleBottom) - inside.minY)
+        )
         let rail = flat.firstIndex { $0.identifier == "fst.songs.section-index" }.map { $0..<ends[$0] } ?? 0..<0
         let overlapping = flat.indices.filter { other in
             let element = flat[other]
@@ -2111,7 +2311,7 @@ struct PinnedRowProbe {
         let isStructural = { (element: XCUIElementSnapshot) in
             element.elementType == .other && element.label.isEmpty && element.identifier.isEmpty
         }
-        strays = overlapping.map { flat[$0] }.filter { !isStructural($0) }.map(describe)
+        strays = overlapping.map { flat[$0] }.filter { !isStructural($0) && shown.contains($0.frame) }.map(describe)
         // At least half the row each way: a rim or mask view spans the card, while the
         // scroll indicator shown after a drag (3 pt wide) only overlaps the row's edge.
         let isRowSized = { (element: XCUIElementSnapshot) in
