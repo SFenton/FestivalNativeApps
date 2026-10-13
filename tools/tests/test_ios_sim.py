@@ -237,6 +237,96 @@ class FailOnSkipTests(unittest.TestCase):
     def test_unreadable_summary_fails(self):
         self.assertIsNotNone(skip_problem(None))
 
+    def test_failed_tests_fail_even_when_some_passed(self):
+        self.assertEqual(
+            skip_problem({"passedTests": 1, "skippedTests": 0, "failedTests": 1}),
+            "1 test(s) failed",
+        )
+
+    def test_all_skipped_fails(self):
+        self.assertEqual(skip_problem({"passedTests": 0, "skippedTests": 1}), "1 test(s) skipped")
+
+
+class ResultSummaryTests(unittest.TestCase):
+    """A transient result-reader failure retries once, with one summary per batch."""
+
+    def test_transient_errors_retry_once(self):
+        import subprocess
+        from unittest import mock
+
+        for failure in (
+            subprocess.TimeoutExpired("xcresulttool", 60),
+            subprocess.CalledProcessError(1, "xcresulttool"),
+            OSError("temporarily unavailable"),
+            subprocess.CompletedProcess([], 0, stdout="{"),
+            subprocess.CompletedProcess([], 0, stdout="[]"),
+        ):
+            with self.subTest(failure=failure), mock.patch.object(
+                ios_sim.subprocess, "run", side_effect=[
+                    failure, subprocess.CompletedProcess([], 0, stdout='{"passedTests": 1}'),
+                ],
+            ) as run:
+                summary = ios_sim._result_summary(Path("test.xcresult"))
+                self.assertEqual(summary, {"passedTests": 1})
+                self.assertEqual(run.call_count, 2)
+                self.assertEqual(run.call_args.kwargs["timeout"], 60)
+
+    def test_permanent_failure_still_fails_closed(self):
+        import subprocess
+        from unittest import mock
+
+        with mock.patch.object(
+            ios_sim.subprocess, "run", side_effect=subprocess.TimeoutExpired("xcresulttool", 60),
+        ) as run:
+            self.assertEqual(skip_problem(ios_sim._result_summary(Path("test.xcresult"))),
+                             "no readable result summary")
+            self.assertEqual(run.call_count, 2)
+
+    def test_success_reads_only_once(self):
+        import subprocess
+        from unittest import mock
+
+        with mock.patch.object(
+            ios_sim.subprocess, "run",
+            return_value=subprocess.CompletedProcess([], 0, stdout='{"passedTests": 1}'),
+        ) as run:
+            self.assertEqual(ios_sim._result_summary(Path("test.xcresult")), {"passedTests": 1})
+            run.assert_called_once()
+
+    def test_batch_checks_and_reports_the_same_summary(self):
+        import argparse
+        import contextlib
+        import io
+        from unittest import mock
+
+        for summary, expected_code in (
+            ({"passedTests": 1, "skippedTests": 0, "failedTests": 0}, 0),
+            ({"passedTests": 0, "skippedTests": 1, "failedTests": 0}, 1),
+            ({"passedTests": 1, "skippedTests": 0, "failedTests": 1}, 1),
+            (None, 1),
+        ):
+            with self.subTest(summary=summary), TemporaryDirectory() as tmp:
+                log = Path(tmp) / "test.log"
+                log.write_text("")
+                bundle = Path(tmp) / "test.xcresult"
+                bundle.mkdir()
+                args = argparse.Namespace(
+                    only=["Journey/test"], device="iphone", rebuild=False,
+                    batch_size=1, timeout=300, fail_on_skip=True,
+                )
+                output = io.StringIO()
+                with mock.patch.object(ios_sim, "scripting_preflight", return_value=0), \
+                        mock.patch.object(ios_sim, "source_hash", return_value="test"), \
+                        mock.patch.object(ios_sim, "driver_build_stale", return_value=False), \
+                        mock.patch.object(ios_sim, "_run_uitest_batch", return_value=(0, 1, log, bundle)), \
+                        mock.patch.object(ios_sim, "_result_summary", return_value=summary) as read, \
+                        mock.patch.dict(ios_sim.os.environ, {"FST_UITEST_KEEP_RESULTS": "1"}), \
+                        contextlib.redirect_stderr(output):
+                    self.assertEqual(ios_sim.cmd_uitest(args), expected_code)
+                    read.assert_called_once_with(bundle)
+                if summary is not None:
+                    self.assertIn(ios_sim._result_counts(summary), output.getvalue())
+
 
 class RetryBatchTests(unittest.TestCase):
     """`uitest --retries` reruns only a batch whose test failed, at most N more times."""

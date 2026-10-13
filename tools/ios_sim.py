@@ -1854,6 +1854,7 @@ def cmd_uitest(args: argparse.Namespace) -> int:
             print(f"result bundle (kept): {result_bundle}", file=sys.stderr)
         if attempt and not returncode:
             label = f"{label} (passed on retry {attempt}: FLAKY)"
+        summary = _result_summary(result_bundle) if not returncode else None
         if returncode == EXIT_POSE_MISMATCH:
             print(f"uitest {label}: iPhone Duo pose not reached; stopping", file=sys.stderr)
             return returncode
@@ -1863,13 +1864,13 @@ def cmd_uitest(args: argparse.Namespace) -> int:
             print(f"uitest {label} FAILED after {elapsed:.1f}s; last lines of {log_path}:", file=sys.stderr)
             print("\n".join(log_text.splitlines()[-60:]), file=sys.stderr)
             print(f"result bundle: {result_bundle}", file=sys.stderr)
-        elif getattr(args, "fail_on_skip", False) and (problem := skip_problem(_result_summary(result_bundle))):
+        elif getattr(args, "fail_on_skip", False) and (problem := skip_problem(summary)):
             failed_batches.append((batch, 1))
             print(f"uitest {label} FAILED (--fail-on-skip: {problem}) after {elapsed:.1f}s"
-                  f"{_result_counts(result_bundle)}; log {log_path}; result bundle: {result_bundle}",
+                  f"{_result_counts(summary)}; log {log_path}; result bundle: {result_bundle}",
                   file=sys.stderr)
         else:
-            print(f"uitest {label} OK in {elapsed:.1f}s ({len(batch)} selector(s)){_result_counts(result_bundle)}",
+            print(f"uitest {label} OK in {elapsed:.1f}s ({len(batch)} selector(s)){_result_counts(summary)}",
                   file=sys.stderr)
             if os.environ.get("FST_UITEST_KEEP_RESULTS") == "1":
                 # Keep green evidence too (attachments, per-test results): an all-skipped
@@ -1897,6 +1898,9 @@ def cmd_uitest(args: argparse.Namespace) -> int:
 def _result_summary(result_bundle: Path) -> dict | None:
     """Read a result bundle's test summary (``xcresulttool get test-results summary``).
 
+    Retry one transient reader error; callers reuse the recovered summary for the gate
+    and the reported counts.
+
     Args:
         result_bundle: The batch's ``.xcresult`` path.
 
@@ -1904,30 +1908,34 @@ def _result_summary(result_bundle: Path) -> dict | None:
         The summary JSON (``passedTests``, ``skippedTests``, ``failedTests``…), or ``None``
         when it cannot be read.
     """
-    try:
-        out = subprocess.run(
-            ["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", str(result_bundle)],
-            env=_env(), capture_output=True, text=True, check=True, timeout=60,
-        ).stdout
-        summary = json.loads(out)
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return None
-    return summary if isinstance(summary, dict) else None
+    for attempt in range(2):
+        try:
+            out = subprocess.run(
+                ["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", str(result_bundle)],
+                env=_env(), capture_output=True, text=True, check=True, timeout=60,
+            ).stdout
+            summary = json.loads(out)
+            if not isinstance(summary, dict):
+                raise ValueError("result summary is not a JSON object")
+            return summary
+        except (OSError, subprocess.SubprocessError, ValueError) as error:
+            action = "retrying once" if attempt == 0 else "no readable result summary"
+            print(f"xcresult summary {result_bundle}: {type(error).__name__}; {action}", file=sys.stderr)
+    return None
 
 
-def _result_counts(result_bundle: Path) -> str:
+def _result_counts(summary: dict | None) -> str:
     """Summarize a result bundle's passed/skipped/failed counts (``-quiet`` hides them).
 
     A green batch can still be all skips (e.g. iPad-only journeys on an iPhone), so print
     the counts before the bundle is deleted.
 
     Args:
-        result_bundle: The batch's ``.xcresult`` path.
+        summary: The batch's already-read test summary, or ``None`` when unavailable.
 
     Returns:
         ``": N passed, N skipped, N failed"``, or an empty string when unavailable.
     """
-    summary = _result_summary(result_bundle)
     if summary is None:
         return ""
     return (f": {summary.get('passedTests', 0)} passed, {summary.get('skippedTests', 0)} skipped, "
@@ -1951,6 +1959,9 @@ def skip_problem(summary: dict | None) -> str | None:
         return "no readable result summary"
     skipped = int(summary.get("skippedTests", 0) or 0)
     passed = int(summary.get("passedTests", 0) or 0)
+    failed = int(summary.get("failedTests", 0) or 0)
+    if failed:
+        return f"{failed} test(s) failed"
     if skipped:
         return f"{skipped} test(s) skipped"
     if not passed:
