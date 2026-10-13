@@ -19,6 +19,8 @@ Rules enforced (see `.agents/workflow/docs-conventions.md`):
    read" header line.
 6. The generated tables in `pages/README.md` and `controls/README.md` match
    the contracts and the files on disk.
+7. Each pattern doc under `patterns/` numbers every rule (`- **R<n>. …**`)
+   once, so a merge cannot keep two conflicting copies of one rule.
 
 Usage::
 
@@ -88,6 +90,8 @@ FOLDER_SCOPE: dict[str, frozenset[str]] = {
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 HEADING = re.compile(r"^#{1,6}\s+(.*)$")
 FENCE = re.compile(r"^\s*(```|~~~)")
+#: A numbered pattern rule bullet, e.g. `- **R5. Reuse the board pager.**`.
+PATTERN_RULE = re.compile(r"\s*- \*\*(R\d+)\.")
 BEGIN = "<!-- BEGIN GENERATED: check_docs.py --fix -->"
 END = "<!-- END GENERATED -->"
 
@@ -316,7 +320,7 @@ def _linked_targets(readme: Path) -> set[Path]:
 
 
 def check_pattern_rules(report: Report) -> None:
-    """Warn when a pattern doc numbers two rules the same (usually a merge kept both versions of one rule).
+    """Fail when a pattern doc numbers two rules the same (usually a merge kept both versions of one rule).
 
     Args:
         report: Findings collector.
@@ -324,13 +328,13 @@ def check_pattern_rules(report: Report) -> None:
     for path in sorted((AGENTS / "patterns").glob("*.md")):
         seen: dict[str, int] = {}
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            match = re.match(r"\s*- \*\*(R\d+)\.", line)
+            match = PATTERN_RULE.match(line)
             if not match:
                 continue
             rule = match.group(1)
             if rule in seen:
-                report.warn(path, f"{rule} appears twice (lines {seen[rule]} and {number}): keep one authoritative "
-                                  "copy (merge leftovers conflict, tracker #621)")
+                report.error(path, f"{rule} appears twice (lines {seen[rule]} and {number}): merge them into one "
+                                   "authoritative rule and give a distinct rule its own number (tracker #621)")
             else:
                 seen[rule] = number
 

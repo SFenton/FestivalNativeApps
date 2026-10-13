@@ -74,13 +74,23 @@ class CheckDocsTests(unittest.TestCase):
         self.assertIn("needs a `description`", errors)
         self.assertIn("skills live in `<name>/SKILL.md` folders", errors)
 
-    def test_duplicate_pattern_rule_numbers_warn(self) -> None:
+    def test_duplicate_pattern_rule_numbers_fail(self) -> None:
+        """A pattern doc that numbers two rules the same is an error, so the run exits non-zero."""
         _write(check_docs.AGENTS / "patterns/demo.md",
                "# T\n\n> x\n\n- **R1. One.** a\n- **R2. Two.** b\n- **R1. One.** a, newer\n")
         report = check_docs.Report()
         check_docs.check_pattern_rules(report)
-        self.assertEqual(len(report.warnings), 1)
-        self.assertIn("R1 appears twice (lines 5 and 7)", report.warnings[0])
+        self.assertEqual(len(report.errors), 1)
+        self.assertIn("R1 appears twice (lines 5 and 7)", report.errors[0])
+        self.assertEqual(report.warnings, [])
+        self.assertTrue(any("R1 appears twice" in e for e in check_docs.run().errors))
+
+    def test_distinct_pattern_rule_numbers_pass(self) -> None:
+        """Unique rule numbers, in any order, and prose that cites a rule are fine."""
+        _write(check_docs.AGENTS / "patterns/demo.md",
+               "# T\n\n> x\n\n- **R2. Two.** b, see R1\n- **R1. One.** a\n- Guard (R1): x\n")
+        report = check_docs.Report()
+        check_docs.check_pattern_rules(report)
         self.assertEqual(report.errors, [])
 
     def test_spec_naming_a_platform_fails(self) -> None:
