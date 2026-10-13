@@ -384,8 +384,9 @@ object PlayerStatistics {
 
     /**
      * Raw scores over the CHOpt threshold on one chart (web `overThresholdCount` client
-     * fallback: `score > 0 && !isScoreValid`). Player stats tiers are a blocked read, so
-     * natives always count from the profile.
+     * fallback: `score > 0 && !isScoreValid`). `isScoreValid` checks only the unrounded CHOpt
+     * ceiling, never the service's rounded `minLeeway` (invalid-scores R8). Player stats tiers
+     * are a blocked read, so natives always count from the profile.
      *
      * @param profile Player profile.
      * @param instrument Chart.
@@ -394,7 +395,7 @@ object PlayerStatistics {
      * @return Count.
      */
     fun overThresholdCount(profile: PlayerProfileResponse, instrument: Instrument, songs: Map<String, Song>, leeway: Double): Int =
-        profile.scores.count { it.instrument == instrument && it.score > 0 && !InvalidScorePolicy.isValid(it, songs[it.songId], instrument, leeway) }
+        profile.scores.count { it.instrument == instrument && InvalidScorePolicy.exceedsCeiling(it.score.toLong(), songs[it.songId], instrument, leeway) }
 
     /**
      * One chart's summary.

@@ -1415,7 +1415,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, whose own row inside a board or preview speaks its rank as \"Your rank, <ordinal>\" (bands \"Your band, …\") so the highlight is never the only cue (#457), with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score, keyboard or screen-reader focus that scrolls a row clear of the floating pinned row and pager (WCAG 2.4.11, #409), and the owner-approved #543 variant that native song boards, Full Rankings, Band Rankings and Song Detail band previews draw a page's rows in one card with separators (the web keeps a card per row), and rank-history rows (Leaderboards, Profile, Band) that draw rank and value in fixed right-aligned tabular columns measured once over every chart day, so the bold newest row and the tapped bar's detail line up, the date moves above the columns at large text and, when even the columns don't fit side by side, each keeps its measured width right-aligned on its own line, in rows at least 48 units tall (#594).",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, whose own row inside a board or preview speaks its rank as \"Your rank, <ordinal>\" (bands \"Your band, …\") so the highlight is never the only cue (#457), a pinned row that follows the rows instead when at accessibility text sizes it would cover more than a third of the board (#386), with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score, keyboard or screen-reader focus that scrolls a row clear of the floating pinned row and pager (WCAG 2.4.11, #409), and the owner-approved #543 variant that native song boards, Full Rankings, Band Rankings and Song Detail band previews draw a page's rows in one card with separators (the web keeps a card per row), and rank-history rows (Leaderboards, Profile, Band) that draw rank and value in fixed right-aligned tabular columns measured once over every chart day, so the bold newest row and the tapped bar's detail line up, the date moves above the columns at large text and, when even the columns don't fit side by side, each keeps its measured width right-aligned on its own line, in rows at least 48 units tall (#594).",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -1438,6 +1438,7 @@
         "season column",
         "multi-row card",
         "trailing pane",
+        "accessibility text size",
         "grouped card",
         "one card",
         "grouped rows",
@@ -1514,6 +1515,10 @@
           {
             "path": "apple/Sources/FestivalCore/SelectedRowNavigation.swift",
             "symbol": "SelectedRowAction"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/SelectedRowNavigation.swift",
+            "symbol": "SelectedRowPinning"
           },
           {
             "path": "apple/Sources/FestivalCore/RankingSpotlight.swift",
@@ -1841,7 +1846,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence, chart swaps keep the card's size and paging a chart slides it to the new window over the web 400 ms (#593 decision); the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant).",
+      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence, chart swaps keep the card's size and paging a chart slides it to the new window over the web 400 ms (#593 decision); the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant); a new publication refreshes open pages in place without pausing their rows (R9; Android one announced Songs spinner and in-place re-reads elsewhere, #616).",
       "keywords": [
         "loading",
         "spinner",
@@ -1972,6 +1977,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadSwap.kt",
             "symbol": "BOARD_CARD_INDEX"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/PublicationCatchUp.kt",
+            "symbol": "PublicationCatchUp"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadSwap.kt",
+            "symbol": "PUBLICATION_REFRESH_LABEL"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadGate.kt",
@@ -2179,7 +2192,8 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandListScreens.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalsScreen.kt",
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/compete/CompeteScreen.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/compete/CompeteScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt"
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
@@ -3629,7 +3643,7 @@
       "title": "Invalid scores (Filter Invalid Scores)",
       "status": "current",
       "doc": ".agents/patterns/invalid-scores.md",
-      "summary": "With Settings > Filter Invalid Scores on and a player selected, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details uses the web's filterPlayerScores rule.",
+      "summary": "With Settings > Filter Invalid Scores on and a player selected, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details uses the web's filterPlayerScores rule. Player Profile and Statistics aggregate the effective scores (R4) of any viewed player, selected or not, and re-aggregate in place when the setting or leeway changes; only the Over CHOpt Threshold count stays raw (R9, web PlayerContent, #619).",
       "keywords": [
         "filter invalid scores",
         "invalid score",
@@ -3657,6 +3671,10 @@
         {
           "path": "pages/songs/modals/FilterModal.tsx",
           "symbol": "overThreshold"
+        },
+        {
+          "path": "pages/leaderboard/player/components/PlayerContent.tsx",
+          "symbol": "filterPlayerScores"
         }
       ],
       "canonical": {
@@ -3694,6 +3712,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt",
             "symbol": "exceedsCeiling"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt",
+            "symbol": "filterPlayerScores"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/profile/PlayerProfileViewModel.kt",
+            "symbol": "effective"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongScoreAdapter.kt",
@@ -3736,6 +3762,14 @@
           {
             "path": "windows/Festival.App/Controls/InvalidScoreIndicator.cs",
             "symbol": "InvalidScoreIndicator"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "FilterPlayerScores"
+          },
+          {
+            "path": "windows/Festival.Core/Data/PlayerProfileModels.cs",
+            "symbol": "Effective"
           }
         ]
       },
@@ -3747,7 +3781,9 @@
         "pages": [
           "songs",
           "song-detail",
-          "settings"
+          "settings",
+          "player-profile",
+          "statistics"
         ],
         "controls": [
           "songs-filter",
