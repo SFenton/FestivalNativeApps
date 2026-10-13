@@ -4,6 +4,7 @@ import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.core.shop.ShopPayload
 import com.festivalscoretracker.android.presentation.LoadState
 import com.festivalscoretracker.android.presentation.RetryingLoader
+import com.festivalscoretracker.android.presentation.followPublications
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -44,9 +45,7 @@ class ShopStore(
         loader.ensureStarted()
         if (watching) return
         watching = true
-        scope.launch {
-            publications.filterNotNull().distinctUntilChanged().drop(1).collect { loader.refresh() }
-        }
+        followPublications(scope, publications) { loader.invalidate() }
     }
 
     /** Retry after a failure. */

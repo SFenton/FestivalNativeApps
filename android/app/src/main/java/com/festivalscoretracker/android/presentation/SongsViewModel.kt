@@ -89,6 +89,10 @@ data class SongsUiState(
     val availableSeasons: List<Int> = emptyList(),
     val availableDecades: List<Int> = emptyList(),
     val durationBuckets: List<Int> = emptyList(),
+    /** Latest API publication; keys the shared in-place load swap. */
+    val currentPublicationId: Int? = null,
+    /** Catalogue and player read have settled for this publication (failures remain explicit). */
+    val publicationReady: Boolean = false,
 ) {
     /** Whether a saved filter applies (gold Filter icon; web `isFilterActive`). */
     val filterActive: Boolean get() = prefs.filterActive(hasPlayer, hideShop)
@@ -184,6 +188,7 @@ class SongsViewModel(
     }.flowOn(computeDispatcher).stateIn(viewModelScope, SharingStarted.Eagerly, SongsUiState())
 
     init {
+        followPublications(viewModelScope, publication) { loader.invalidate() }
         loader.ensureStarted()
     }
 
@@ -204,6 +209,8 @@ class SongsViewModel(
             filterInvalidScores = app.filterInvalidScores, sortChart = filter.scopedTo(app.visibleInstruments).instrument,
             visibleMetadata = app.visibleMetadata,
             availableSeasons = if (app.selectedPlayer == null) emptyList() else seasons(player),
+            currentPublicationId = current,
+            publicationReady = catalog is LoadState.Failed,
         )
         val payload = catalog.valueOrNull ?: return base
         val (decades, durations) = buckets(payload)
@@ -243,6 +250,9 @@ class SongsViewModel(
             app, filter, payload.catalog.currentSeason, match.offers, source, result.effectiveSort, saved.metadataOrder,
         )
         return base.copy(
+            publicationReady = payload.publicationId == observed &&
+                source != SongScoreSource.LOADING &&
+                (source != SongScoreSource.PAUSED || player.observedPublicationId == observed),
             rows = result.songs.map(projector::project),
             sections = result.sections,
             headers = result.headers,

@@ -22,6 +22,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +32,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -39,6 +42,7 @@ import com.festivalscoretracker.android.core.shell.LoadGatePhase
 import com.festivalscoretracker.android.core.shell.LoadGatePolicy
 import com.festivalscoretracker.android.ui.theme.BrandTokens
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
+import kotlinx.coroutines.delay
 
 // region Load gate
 
@@ -86,27 +90,59 @@ fun FestivalLoadGate(
     content: @Composable LoadGateScope.() -> Unit,
 ) {
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
+    val publication = LocalPublicationGeneration.current
+    var observedPublication by remember { mutableStateOf(publication) }
+    var publicationRefresh by remember { mutableStateOf(false) }
+    var refreshHoldDone by remember { mutableStateOf(false) }
+    val currentReady by rememberUpdatedState(ready)
     var phase by remember { mutableStateOf(LoadGatePolicy.initial(ready)) }
     var sawSpinner by remember { mutableStateOf(!ready) }
     val spinnerAlpha = remember { Animatable(1f) }
-    LaunchedEffect(ready, reduceMotion) {
+    LaunchedEffect(ready, reduceMotion, publicationRefresh, refreshHoldDone) {
+        if (publicationRefresh) {
+            phase = if (ready && refreshHoldDone) {
+                if (reduceMotion) LoadGatePhase.ContentIn else LoadGatePhase.SpinnerOut
+            } else LoadGatePhase.Loading
+            if (phase == LoadGatePhase.ContentIn) publicationRefresh = false
+            return@LaunchedEffect
+        }
+        if (publication != null && observedPublication != null && publication > observedPublication!!) return@LaunchedEffect
         phase = LoadGatePolicy.onReady(phase, ready, reduceMotion)
         if (phase == LoadGatePhase.Loading) {
             sawSpinner = true
             spinnerAlpha.snapTo(1f)
         }
     }
-    LaunchedEffect(phase) {
+    LaunchedEffect(publication) {
+        val previous = observedPublication
+        observedPublication = publication
+        if (previous == null || publication == null || publication <= previous) return@LaunchedEffect
+        publicationRefresh = true
+        refreshHoldDone = false
+        sawSpinner = true
+        phase = LoadGatePhase.Loading
+        spinnerAlpha.snapTo(if (reduceMotion) 1f else 0f)
+        if (!reduceMotion) spinnerAlpha.animateTo(1f, tween(PUBLICATION_SPINNER_IN_MS, easing = FadeInEasing))
+        delay(PUBLICATION_SPINNER_HOLD_MS)
+        refreshHoldDone = true
+    }
+    LaunchedEffect(phase, ready, reduceMotion) {
         if (phase == LoadGatePhase.SpinnerOut) {
-            spinnerAlpha.animateTo(0f, tween(LoadGatePolicy.SPINNER_FADE_MS, easing = FadeInEasing))
+            if (publicationRefresh && !currentReady) {
+                phase = LoadGatePhase.Loading
+                spinnerAlpha.snapTo(1f)
+                return@LaunchedEffect
+            }
+            if (!reduceMotion) spinnerAlpha.animateTo(0f, tween(LoadGatePolicy.SPINNER_FADE_MS, easing = FadeInEasing))
             phase = LoadGatePolicy.afterFade(phase)
+            publicationRefresh = false
         }
     }
     Box(modifier.testTag("fst.load-gate")) {
         val contentIn = phase == LoadGatePhase.ContentIn
         if (contentIn || composeWhileLoading) {
             var revealed by remember { mutableStateOf(contentIn && !LoadGatePolicy.animatesEntrance(sawSpinner, reduceMotion)) }
-            LaunchedEffect(contentIn) { if (contentIn) revealed = true }
+            LaunchedEffect(contentIn) { revealed = contentIn }
             // One call site in every phase, so content composed while loading keeps its state.
             Box(if (contentIn) Modifier else Modifier.graphicsLayer { alpha = 0f }.clearAndSetSemantics { }) {
                 LoadGateScope(revealed).content()
@@ -119,7 +155,12 @@ fun FestivalLoadGate(
                     .graphicsLayer { alpha = spinnerAlpha.value }
                     .testTag("fst.load-gate.spinner"),
                 contentAlignment = Alignment.Center,
-            ) { FestivalLoading(label) }
+            ) {
+                FestivalLoading(
+                    if (publicationRefresh) "Loading new scores" else label,
+                    modifier = if (publicationRefresh) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier,
+                )
+            }
         }
     }
 }

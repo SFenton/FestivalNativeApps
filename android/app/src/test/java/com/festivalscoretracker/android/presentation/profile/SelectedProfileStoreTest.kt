@@ -146,6 +146,41 @@ class SelectedProfileStoreTest {
     }
 
     @Test
+    fun publicationAdvanceCancelsAnOlderInFlightScoreRead() = runTest {
+        val h = Harness(this).also { harness = it }
+        val old = CompletableDeferred<Unit>()
+        h.respond = {
+            val observed = h.publications.value!!
+            if (observed == 7) old.await()
+            payload(it, observed = observed)
+        }
+        h.players.value = playerA
+        runCurrent()
+        assertEquals(SelectedProfileStatus.Loading, h.store.state.value.status)
+        h.publications.value = 8
+        advanceUntilIdle()
+        old.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(8, h.store.state.value.observedPublicationId)
+        assertEquals(SelectedProfileStatus.Available, h.store.state.value.status)
+        assertEquals(2, h.reads.size)
+    }
+
+    @Test
+    fun publicationAdvanceRecoversAFailedScoreIndexWithoutRetry() = runTest {
+        val h = Harness(this).also { harness = it }
+        h.respond = { throw FestivalApiException.HttpStatus(403) }
+        h.players.value = playerA
+        advanceUntilIdle()
+        assertEquals(SelectedProfileStatus.Failed, h.store.state.value.status)
+        h.respond = { payload(it, observed = 8) }
+        h.publications.value = 8
+        advanceUntilIdle()
+        assertEquals(SelectedProfileStatus.Available, h.store.state.value.status)
+        assertEquals(8, h.store.state.value.observedPublicationId)
+    }
+
+    @Test
     fun readInterruptedByARecreatedOwnerResumesInTheNextOwner() = runTest {
         val reads = mutableListOf<String>()
         val gate = CompletableDeferred<Unit>()

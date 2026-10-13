@@ -23,6 +23,9 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.semantics
 import com.festivalscoretracker.android.core.shell.LoadSwapPhase
 import com.festivalscoretracker.android.core.shell.LoadSwapPolicy
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
@@ -30,6 +33,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 // region Load swap
 
@@ -57,7 +61,7 @@ import kotlinx.coroutines.launch
  * @param T Value the content is drawn from (usually a `LoadState`).
  */
 @Stable
-class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?, pinnedKey: Any?) {
+class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?, pinnedKey: Any?, publication: Int? = null) {
     /** Current phase. */
     var phase: LoadSwapPhase by mutableStateOf(LoadSwapPolicy.initial(ready))
         internal set
@@ -71,6 +75,10 @@ class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?, pi
 
     internal var committed: T = initial
     internal var committedKey: Any? by mutableStateOf(key)
+    internal var committedPublication: Int? = publication
+    /** A publication-triggered reload, rather than a user selector/pager reload. */
+    var publicationRefresh: Boolean by mutableStateOf(false)
+        internal set
     internal var sawSpinner: Boolean = !ready
     internal val contentAlpha = Animatable(1f)
     internal val spinnerAlpha = Animatable(1f)
@@ -89,7 +97,7 @@ class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?, pi
      * Whether pinned content is stale: the pending reload can change it because its pinned key
      * differs from the committed one (or it re-runs on every reload). False while content is in.
      */
-    val pinnedStale: Boolean get() = phase != LoadSwapPhase.ContentIn && (pinnedKey === EveryReload || pinnedKey != committedPinnedKey)
+    val pinnedStale: Boolean get() = phase != LoadSwapPhase.ContentIn && (publicationRefresh || pinnedKey === EveryReload || pinnedKey != committedPinnedKey)
     /** The value to draw: the latest data while content is in, the stale value while it fades out. */
     val shown: T get() = current
 
@@ -168,24 +176,32 @@ class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?, pi
 @Composable
 fun <T> rememberLoadSwap(target: T, ready: Boolean, key: Any? = null, pinnedKey: Any? = EveryReload): LoadSwap<T> {
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
-    val swap = remember { LoadSwap(target, ready, key, pinnedKey) }
-    val inputs = remember { MutableStateFlow(LoadSwapInputs(target, ready, key, pinnedKey, reduceMotion)) }
-    val live = swap.phase == LoadSwapPhase.ContentIn && ready && key == swap.committedKey && pinnedKey == swap.committedPinnedKey
+    val publication = LocalPublicationGeneration.current
+    val swap = remember { LoadSwap(target, ready, key, pinnedKey, publication) }
+    val inputs = remember { MutableStateFlow(LoadSwapInputs(target, ready, key, pinnedKey, reduceMotion, publication)) }
+    val advanced = publication != null && swap.committedPublication != null && publication > swap.committedPublication!!
+    val live = swap.phase == LoadSwapPhase.ContentIn && ready && !advanced && key == swap.committedKey && pinnedKey == swap.committedPinnedKey
     swap.current = if (live) target else swap.committed
     swap.pinnedKey = pinnedKey
     SideEffect {
+        if (swap.committedPublication == null) swap.committedPublication = publication
+        if (advanced) swap.publicationRefresh = true
         if (live) swap.committed = target
-        inputs.value = LoadSwapInputs(target, ready, key, pinnedKey, reduceMotion)
+        inputs.value = LoadSwapInputs(target, ready, key, pinnedKey, reduceMotion, publication)
     }
     LaunchedEffect(swap) {
-        fun swapped(input: LoadSwapInputs<T>) = input.key != swap.committedKey || input.pinnedKey != swap.committedPinnedKey
+        var heldPublication: Int? = null
+        fun swapped(input: LoadSwapInputs<T>) = input.key != swap.committedKey || input.pinnedKey != swap.committedPinnedKey ||
+            (input.publication != null && swap.committedPublication != null && input.publication > swap.committedPublication!!)
 
         suspend fun commit(animate: Boolean) {
             val latest = inputs.value
             swap.committed = latest.target
             swap.current = latest.target
             swap.committedKey = latest.key
-            swap.pinnedEnters = latest.pinnedKey === EveryReload || latest.pinnedKey != swap.committedPinnedKey
+            swap.committedPublication = latest.publication
+            swap.pinnedEnters = swap.publicationRefresh || latest.pinnedKey === EveryReload || latest.pinnedKey != swap.committedPinnedKey
+            swap.publicationRefresh = false
             swap.committedPinnedKey = latest.pinnedKey
             swap.sawSpinner = false
             swap.contentAlpha.snapTo(1f)
@@ -198,9 +214,15 @@ fun <T> rememberLoadSwap(target: T, ready: Boolean, key: Any? = null, pinnedKey:
         }
 
         suspend fun showSpinner(next: LoadSwapPhase) {
-            if (!swap.showsSpinner) swap.spinnerAlpha.snapTo(1f)
+            val entering = !swap.showsSpinner
+            if (entering) swap.spinnerAlpha.snapTo(if (swap.publicationRefresh && !inputs.value.reduceMotion) 0f else 1f)
             swap.sawSpinner = true
             swap.phase = next
+            if (swap.publicationRefresh && heldPublication != inputs.value.publication) {
+                heldPublication = inputs.value.publication
+                if (!inputs.value.reduceMotion) swap.spinnerAlpha.animateTo(1f, tween(PUBLICATION_SPINNER_IN_MS, easing = FadeInEasing))
+                delay(PUBLICATION_SPINNER_HOLD_MS)
+            }
         }
 
         suspend fun step(next: LoadSwapPhase, animateEntrance: Boolean = false) {
@@ -215,15 +237,18 @@ fun <T> rememberLoadSwap(target: T, ready: Boolean, key: Any? = null, pinnedKey:
             when (swap.phase) {
                 LoadSwapPhase.ContentIn -> {
                     val input = inputs.first { !it.ready || swapped(it) }
-                    step(LoadSwapPolicy.onInputs(LoadSwapPhase.ContentIn, input.ready, swapped(input), input.reduceMotion))
+                    step(if (swap.publicationRefresh && input.reduceMotion) LoadSwapPhase.Loading else
+                        LoadSwapPolicy.onInputs(LoadSwapPhase.ContentIn, input.ready, swapped(input), input.reduceMotion))
                 }
                 LoadSwapPhase.ContentOut -> {
                     if (!inputs.value.reduceMotion) {
                         swap.contentAlpha.animateTo(0f, tween(LoadSwapPolicy.CONTENT_OUT_MS, easing = FadeInEasing))
                     }
-                    step(LoadSwapPolicy.afterContentOut(inputs.value.ready, inputs.value.reduceMotion))
+                    step(if (swap.publicationRefresh) LoadSwapPhase.Loading else
+                        LoadSwapPolicy.afterContentOut(inputs.value.ready, inputs.value.reduceMotion))
                 }
                 LoadSwapPhase.Loading -> {
+                    showSpinner(LoadSwapPhase.Loading)
                     swap.sawSpinner = true
                     swap.spinnerAlpha.snapTo(1f)
                     val input = inputs.first { it.ready }
@@ -231,11 +256,12 @@ fun <T> rememberLoadSwap(target: T, ready: Boolean, key: Any? = null, pinnedKey:
                 }
                 LoadSwapPhase.SpinnerOut -> {
                     var interrupted = false
+                    val fadingPublication = inputs.value.publication
                     if (!inputs.value.reduceMotion) {
                         coroutineScope {
                             val fade = launch { swap.spinnerAlpha.animateTo(0f, tween(LoadSwapPolicy.SPINNER_FADE_MS, easing = FadeInEasing)) }
                             val watch = launch {
-                                inputs.first { !it.ready }
+                                inputs.first { !it.ready || it.publication != fadingPublication }
                                 interrupted = true
                                 fade.cancel()
                             }
@@ -261,7 +287,13 @@ fun <T> rememberLoadSwap(target: T, ready: Boolean, key: Any? = null, pinnedKey:
  * @property pinnedKey What pinned content beside the rows depends on.
  * @property reduceMotion Remove animations / Reduce Motion.
  */
-private data class LoadSwapInputs<T>(val target: T, val ready: Boolean, val key: Any?, val pinnedKey: Any?, val reduceMotion: Boolean)
+private data class LoadSwapInputs<T>(val target: T, val ready: Boolean, val key: Any?, val pinnedKey: Any?, val reduceMotion: Boolean, val publication: Int?)
+
+/** PublicationBoundary's spinner-in duration (load-transition R3). */
+internal const val PUBLICATION_SPINNER_IN_MS = 150
+
+/** PublicationBoundary's minimum spinner hold, including reduced motion (R3/R6). */
+internal const val PUBLICATION_SPINNER_HOLD_MS = 400L
 
 /** Default pinned key: pinned content is stale on every reload. */
 private object EveryReload
@@ -279,7 +311,10 @@ private object NeverCommitted
  */
 @Composable
 fun LoadSwapSpinner(swap: LoadSwap<*>, label: String = "Loading", modifier: Modifier = Modifier.fillMaxSize(), tag: String = LOAD_SWAP_SPINNER_TAG) {
-    Box(modifier.then(swap.spinnerModifier).testTag(tag), contentAlignment = Alignment.Center) { FestivalLoading(label) }
+    val spoken = if (swap.publicationRefresh) "Loading new scores" else label
+    Box(modifier.then(swap.spinnerModifier).testTag(tag), contentAlignment = Alignment.Center) {
+        FestivalLoading(spoken, modifier = if (swap.publicationRefresh) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier)
+    }
 }
 
 /**

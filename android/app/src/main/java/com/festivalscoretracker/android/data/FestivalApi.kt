@@ -254,8 +254,8 @@ class FestivalApi(
                 catalogMemoBody = null
             }
             current = new
+            publicationFlow.value = new.publicationId
         }
-        publicationFlow.value = new.publicationId
     }
 
     // endregion

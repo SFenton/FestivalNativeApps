@@ -154,6 +154,7 @@ import com.festivalscoretracker.android.ui.common.FLOATING_TOOLBAR_MARGIN_DP
 import com.festivalscoretracker.android.ui.common.FloatingToolbar
 import com.festivalscoretracker.android.ui.common.FloatingToolbarHost
 import com.festivalscoretracker.android.ui.common.LocalShellActions
+import com.festivalscoretracker.android.ui.common.LocalPublicationGeneration
 import com.festivalscoretracker.android.ui.common.LocalShellPosture
 import com.festivalscoretracker.android.ui.common.SearchChrome
 import com.festivalscoretracker.android.ui.common.ShellActions
@@ -202,6 +203,7 @@ import com.festivalscoretracker.android.ui.common.isLargeText
 fun FestivalApp(container: AppContainer, launch: DebugLaunch, shortcuts: ShellShortcutBridge = remember { ShellShortcutBridge() }) {
     val shellViewModel: ShellViewModel = viewModel { ShellViewModel(container.settings, launch) }
     val settings by shellViewModel.settings.collectAsStateWithLifecycle()
+    val publication by container.api.publicationChanges.collectAsStateWithLifecycle()
     FestivalTheme(
         appIncreaseContrast = settings?.increaseContrast == true,
         appReduceMotion = settings?.reduceMotion == true,
@@ -211,9 +213,11 @@ fun FestivalApp(container: AppContainer, launch: DebugLaunch, shortcuts: ShellSh
         LaunchedEffect(Unit) { container.selectedProfile.start(this, shellViewModel.settings.map { it?.selectedPlayer }) }
         LaunchedEffect(Unit) { container.songsPreferences.watchDeselection(this, shellViewModel.settings.map { it?.selectedPlayer }) }
         // Compose test tags double as UIAutomator resource ids for `device.py drive` journeys.
-        Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
-            ArtworkBackground(container.background, forceStill = launch.stillBackground || settings?.disableAnimatedArtwork == true)
-            settings?.let { FestivalShell(container, shellViewModel, it, launch, shortcuts) }
+        CompositionLocalProvider(LocalPublicationGeneration provides publication) {
+            Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
+                ArtworkBackground(container.background, forceStill = launch.stillBackground || settings?.disableAnimatedArtwork == true)
+                settings?.let { FestivalShell(container, shellViewModel, it, launch, shortcuts) }
+            }
         }
     }
 }
@@ -383,6 +387,7 @@ private fun FestivalShell(
                 container.api.artworkUrl(art ?: item.payload?.albumArt)
             },
             experimentalRanks = shellViewModel.settings.map { it?.experimentalRanks == true },
+            publications = container.api.publicationChanges,
         )
     }
 

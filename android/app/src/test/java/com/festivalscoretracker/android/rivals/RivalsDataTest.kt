@@ -135,6 +135,34 @@ class RivalsDataTest {
     }
 
     @Test
+    fun aNewPublicationCannotReuseTheOlderRivalsCacheOrFreezeFallback() = runTest {
+        var generation = 7
+        var calls = 0
+        var frozen = false
+        val repository = RivalsRepository(
+            lists = { _, scope ->
+                calls++
+                if (frozen) throw FestivalApiException.PublicReadFrozen("scrape", null)
+                RivalsListResponse.empty(scope)
+            },
+            leaderboardLists = { _, instrument, _ -> LeaderboardRivalsListResponse.empty(instrument) },
+            details = { _, _, id, _ -> RivalDetailResponse.empty(id) },
+            leaderboardDetails = { _, _, id, _ -> RivalDetailResponse.empty(id) },
+            publication = { generation },
+        )
+        repository.list(player, "Solo_Guitar")
+        repository.list(player, "Solo_Guitar")
+        assertEquals(1, calls)
+        generation = 8
+        frozen = true
+        assertThrowsSuspend<FestivalApiException.PublicReadFrozen> { repository.list(player, "Solo_Guitar") }
+        frozen = false
+        repository.list(player, "Solo_Guitar")
+        repository.list(player, "Solo_Guitar")
+        assertEquals(3, calls)
+    }
+
+    @Test
     fun aFrozenRefreshKeepsTheLastGoodRivalForTenMinutes() = runTest {
         // Operator 7.13: the web keeps a rival it already loaded while public reads are frozen.
         var now = 0L

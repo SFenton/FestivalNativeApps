@@ -2,6 +2,8 @@ package com.festivalscoretracker.android.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import com.festivalscoretracker.android.core.bands.BandType
 import com.festivalscoretracker.android.core.bands.SongBandLeaderboardResponse
 import com.festivalscoretracker.android.core.model.FestivalApiException
@@ -53,6 +55,7 @@ object SongResolver {
  * @param loadHistory Song score-history read `(accountId, songId)`, or null when unavailable.
  * @param loadBandBoard Song band leaderboard first page `(songId, bandType, top, accountId)`,
  *   or null to show no band previews.
+ * @param publications Authoritative publication advances.
  */
 class SongDetailViewModel(
     songKey: String,
@@ -62,6 +65,7 @@ class SongDetailViewModel(
     private val leeway: () -> Double? = { null },
     private val loadHistory: (suspend (String, String) -> PlayerHistoryPayload)? = null,
     private val loadBandBoard: (suspend (String, BandType, Int, String?) -> SongBandLeaderboardResponse)? = null,
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     private val catalogPublicationFlow = MutableStateFlow<Int?>(null)
     private val currentSeasonFlow = MutableStateFlow<Int?>(null)
@@ -88,6 +92,12 @@ class SongDetailViewModel(
     val currentSeason: StateFlow<Int?> = currentSeasonFlow.asStateFlow()
 
     init {
+        followPublications(viewModelScope, publications) {
+            songLoader.invalidate()
+            previews.values.forEach { it.invalidate() }
+            histories.values.forEach { it.invalidate() }
+            bandPreviews.values.forEach { it.invalidate() }
+        }
         songLoader.ensureStarted()
     }
 
@@ -191,6 +201,7 @@ class SongDetailViewModel(
  * @param loadCatalog Catalogue read (for the header).
  * @param loadLeaderboard Leaderboard page read.
  * @param backoff Shared retry backoff.
+ * @param publications Authoritative publication advances.
  */
 class SongLeaderboardViewModel(
     songId: String,
@@ -199,6 +210,7 @@ class SongLeaderboardViewModel(
     loadCatalog: suspend (refresh: Boolean) -> CatalogPayload,
     loadLeaderboard: suspend (String, Instrument, Int, Int) -> LeaderboardPayload,
     backoff: ServiceRetryBackoff,
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     private val pageFlow = MutableStateFlow(initialPage.coerceAtLeast(1))
     private val currentSeasonFlow = MutableStateFlow<Int?>(null)
@@ -232,6 +244,10 @@ class SongLeaderboardViewModel(
     val currentSeason: StateFlow<Int?> = currentSeasonFlow.asStateFlow()
 
     init {
+        followPublications(viewModelScope, publications) {
+            songLoader.invalidate()
+            pageLoader.invalidate()
+        }
         songLoader.ensureStarted()
         pageLoader.ensureStarted()
     }

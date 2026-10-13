@@ -2,6 +2,9 @@ package com.festivalscoretracker.android.presentation.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.presentation.followPublications
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import com.festivalscoretracker.android.core.format.ScoreFormatting
 import com.festivalscoretracker.android.core.format.StarRatingSpec
 import com.festivalscoretracker.android.core.model.Instrument
@@ -147,6 +150,7 @@ data class PlayerHistoryUiState(
  * @param backoff Shared scrape-freeze backoff.
  * @param zone Display time zone.
  * @param locale Display locale.
+ * @param publications Authoritative publication advances.
  */
 class PlayerHistoryViewModel(
     val songId: String,
@@ -158,6 +162,7 @@ class PlayerHistoryViewModel(
     private val zone: ZoneId = ZoneId.systemDefault(),
     private val locale: Locale = Locale.getDefault(),
     private val currentSeason: suspend () -> Int? = { null },
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(PlayerHistoryUiState())
     private var entries: List<ScoreHistoryEntry> = emptyList()
@@ -168,7 +173,13 @@ class PlayerHistoryViewModel(
     /** Page state. */
     val state: StateFlow<PlayerHistoryUiState> = mutableState.asStateFlow()
 
+    private var songJob: Job? = null
+
     init {
+        followPublications(viewModelScope, publications) {
+            load()
+            loadSong()
+        }
         viewModelScope.launch {
             settings.map { it?.let { s -> s.selectedPlayer?.accountId ?: "" } }.distinctUntilChanged().collect { selected ->
                 if (selected == null) return@collect
@@ -176,7 +187,13 @@ class PlayerHistoryViewModel(
                 load()
             }
         }
-        viewModelScope.launch {
+        loadSong()
+    }
+
+    /** Refresh optional song and season metadata without allowing an older read to win. */
+    private fun loadSong() {
+        songJob?.cancel()
+        songJob = viewModelScope.launch {
             val song = try {
                 findSong(songId)
             } catch (cancelled: CancellationException) {

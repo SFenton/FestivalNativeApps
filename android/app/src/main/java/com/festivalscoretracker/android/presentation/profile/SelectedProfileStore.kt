@@ -8,6 +8,7 @@ import com.festivalscoretracker.android.core.profile.PlayerScore
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.presentation.LoadState
+import com.festivalscoretracker.android.presentation.followPublications
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -17,6 +18,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 // region State
 
@@ -104,17 +107,9 @@ class SelectedProfileStore(
     fun start(scope: CoroutineScope, players: Flow<SelectedPlayer?>) {
         this.scope = scope
         scope.launch { players.collect(::onPlayer) }
-        scope.launch {
-            publications.collect { id ->
-                val current = mutableState.value
-                val held = current.payload
-                if (id != null && held != null && held.observedPublicationId != id &&
-                    current.status in setOf(SelectedProfileStatus.Available, SelectedProfileStatus.Syncing)
-                ) {
-                    reload()
-                }
-            }
-        }
+        followPublications(scope, publications) { if (mutableState.value.player != null) reload() }
+        val held = mutableState.value.payload
+        if (held != null && publications.value != null && held.observedPublicationId != publications.value) reload()
     }
 
     /**
@@ -185,6 +180,7 @@ class SelectedProfileStore(
             mutableState.value = SelectedProfileState(player = player, status = SelectedProfileStatus.Loading)
             try {
                 val payload = read(player.accountId)
+                currentCoroutineContext().ensureActive()
                 if (!mutableState.value.player?.accountId.equals(player.accountId, ignoreCase = true)) return
                 backoff.reset(key)
                 apply(mutableState.value.player ?: player, payload)
@@ -192,6 +188,7 @@ class SelectedProfileStore(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
+                currentCoroutineContext().ensureActive()
                 val issue = ServiceIssue.from(error)
                 if (!issue.retriesAutomatically) {
                     mutableState.value = SelectedProfileState(player = player, status = SelectedProfileStatus.Failed, issue = issue)

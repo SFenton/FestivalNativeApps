@@ -10,10 +10,14 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.search.ShellShortcuts
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import com.festivalscoretracker.android.ui.shell.ShellShortcutBridge
+import kotlinx.coroutines.launch
 
 // region Activity
 
@@ -34,6 +38,11 @@ class MainActivity : ComponentActivity() {
         setTitle(R.string.app_name)
         val launch = if (BuildConfig.DEBUG_LAUNCH) parseDebugLaunch() else DebugLaunch.NONE
         val container = (application as FestivalApplication).container(launch)
+        container.liveUpdates?.let { updates ->
+            lifecycleScope.launch {
+                repeatOnLifecycle(Lifecycle.State.STARTED) { updates.run() }
+            }
+        }
         setContent {
             FestivalApp(
                 container = container,

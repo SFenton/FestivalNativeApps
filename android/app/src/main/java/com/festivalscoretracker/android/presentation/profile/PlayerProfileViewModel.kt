@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.presentation.profile
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.presentation.followPublications
 import com.festivalscoretracker.android.core.bands.PlayerBandGroup
 import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
 import com.festivalscoretracker.android.core.format.ScoreFormatting
@@ -508,6 +509,20 @@ class PlayerProfileViewModel(
     val bands: StateFlow<BandsLoad?> = bandsLoad.asStateFlow()
 
     init {
+        followPublications(viewModelScope, publications) {
+            val account = target.value
+            if (account.isNotEmpty()) {
+                if (!account.equals(settings.value?.selectedPlayer?.accountId, ignoreCase = true)) {
+                    viewedAccount = null
+                    startViewed(account)
+                }
+                resetSections("$account:refresh")
+                catalogJob?.cancel()
+                catalogJob = null
+                catalog.value = emptyMap()
+                ensureCatalog()
+            }
+        }
         if (followsSelection) {
             viewModelScope.launch {
                 settings.map { it?.selectedPlayer?.accountId ?: "" }.distinctUntilChanged().collect { account ->

@@ -9,6 +9,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -18,9 +20,11 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
 import com.festivalscoretracker.android.ui.common.FestivalLoadGate
+import com.festivalscoretracker.android.ui.common.LocalPublicationGeneration
 import com.festivalscoretracker.android.ui.common.festivalEmptyStateItem
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import org.junit.Assert.assertEquals
@@ -38,6 +42,37 @@ class LoadGateUiTest {
     val rule = createComposeRule()
 
     private fun count(tag: String) = rule.onAllNodesWithTag(tag).fetchSemanticsNodes().size
+
+    @Test
+    fun publicationRefreshHidesOldChildrenUntilTheMinimumHoldAndNewData() {
+        var publication by mutableStateOf<Int?>(7)
+        var ready by mutableStateOf(true)
+        rule.mainClock.autoAdvance = false
+        rule.setContent {
+            FestivalTheme {
+                CompositionLocalProvider(LocalPublicationGeneration provides publication) {
+                    FestivalLoadGate(ready, Modifier.fillMaxSize(), composeWhileLoading = true) {
+                        Text("Row", Modifier.testTag("row"))
+                    }
+                }
+            }
+        }
+        rule.mainClock.advanceTimeByFrame()
+        assertEquals(1, count("row"))
+        publication = 8
+        ready = false
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(200)
+        assertEquals(0, count("row"))
+        rule.onNodeWithContentDescription("Loading new scores").assertIsDisplayed()
+        ready = true
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(200)
+        assertEquals(0, count("row"))
+        rule.mainClock.advanceTimeBy(1_000)
+        assertEquals(1, count("row"))
+        assertEquals(0, count("fst.load-gate.spinner"))
+    }
 
     @Test
     fun spinnerUntilReadyThenFadeThenContent() {

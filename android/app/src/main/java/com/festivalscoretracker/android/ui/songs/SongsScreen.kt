@@ -100,6 +100,7 @@ import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
+import com.festivalscoretracker.android.core.shell.LoadSwapPhase
 import com.festivalscoretracker.android.core.songs.InvalidScoreWarning
 import com.festivalscoretracker.android.core.songs.SongFilterDraft
 import com.festivalscoretracker.android.core.songs.SongListHeader
@@ -113,6 +114,10 @@ import com.festivalscoretracker.android.presentation.SongsViewModel
 import com.festivalscoretracker.android.ui.design.festivalFilledButtonColors
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.LoadingView
+import com.festivalscoretracker.android.ui.common.LoadSwap
+import com.festivalscoretracker.android.ui.common.LoadSwapSpinner
+import com.festivalscoretracker.android.ui.common.rememberLoadSwap
+import com.festivalscoretracker.android.ui.common.LocalPublicationGeneration
 import com.festivalscoretracker.android.ui.common.coveredByModal
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.festivalEmptyStateItem
@@ -175,6 +180,12 @@ fun SongsScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val publication = LocalPublicationGeneration.current
+    val swap = rememberLoadSwap(
+        state, (state.publicationReady || state.invalidSavedFilter) &&
+            (publication == null || state.currentPublicationId == publication), key = state.currentPublicationId,
+    )
+    val shown = swap.shown
     val search by viewModel.searchInput.collectAsStateWithLifecycle()
     var showSort by rememberSaveable { mutableStateOf(false) }
     var showFilter by rememberSaveable { mutableStateOf(false) }
@@ -212,20 +223,25 @@ fun SongsScreen(
                 SongsPageTools(state, quickLinks, windowWidthDp, onSort = { showSort = true }, onFilter = { showFilter = true })
             },
         ) { padding ->
-            when (val catalog = state.catalog) {
-                LoadState.Loading -> LoadingView("Loading songs", Modifier.padding(padding))
-                is LoadState.Failed -> ServiceStatusView(catalog.issue, "Songs unavailable", catalog.countdown, viewModel::retry, contentPadding = padding)
+            when (val catalog = shown.catalog) {
+                LoadState.Loading -> LoadSwapSpinner(swap, "Loading songs", Modifier.fillMaxSize().padding(padding), tag = "fst.songs.loading")
+                is LoadState.Failed -> if (swap.showsSpinner) {
+                    LoadSwapSpinner(swap, "Loading songs", Modifier.fillMaxSize().padding(padding), tag = "fst.songs.loading")
+                } else {
+                    ServiceStatusView(catalog.issue, "Songs unavailable", catalog.countdown, viewModel::retry, contentPadding = padding)
+                }
                 is LoadState.Loaded -> PullToRefreshBox(
                     isRefreshing = catalog.refreshing,
                     onRefresh = viewModel::refresh,
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    if (state.invalidSavedFilter) {
-                        InvalidFilterView(onClearFilters, padding)
+                    if (shown.invalidSavedFilter) {
+                        if (swap.showsSpinner) LoadSwapSpinner(swap, "Loading songs", Modifier.fillMaxSize().padding(padding), tag = "fst.songs.loading")
+                        else InvalidFilterView(onClearFilters, padding)
                     } else {
-                        FirstPaintGate(state, artworkUrl) {
+                        FirstPaintGate(shown, artworkUrl) {
                             SongList(
-                                state, listState, search, viewModel::onSearchChange, artworkUrl, onSongClick, padding,
+                                shown, listState, search, viewModel::onSearchChange, artworkUrl, onSongClick, padding, swap,
                                 onLines = { lines.value = it },
                             ) { warning = it }
                         }
@@ -369,6 +385,7 @@ private fun SongList(
     artworkUrl: (String?) -> String?,
     onSongClick: (Song) -> Unit,
     padding: PaddingValues,
+    swap: LoadSwap<SongsUiState>,
     onLines: (WideColumnLines) -> Unit,
     onWarning: (InvalidScoreWarning) -> Unit,
 ) {
@@ -429,75 +446,82 @@ private fun SongList(
                     FoldLane { SearchField(search, onSearchChange, findFocus) }
                 }
                 Box(Modifier.fillMaxWidth().weight(1f)) {
-                    LazyColumn(
-                        state = listState,
-                        contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = endPadding,
-                            bottom = bottomPadding + endSpace,
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(LIST_SPACING),
-                        modifier = Modifier.fillMaxSize()
-                            .pinnedHeaderEdgeFade(headerEdge, headerStart)
-                            .testTag("fst.songs.list"),
-                    ) {
-                        state.notices.forEachIndexed { index, notice ->
-                            item(key = "notice-$index", contentType = "notice") {
-                                FoldLane { Notice(notice, if (notice == state.sortPaused) "fst.songs.sort-paused" else "fst.songs.notice.$index") }
-                            }
-                        }
-                        // Web full-page EmptyState, vertically centred in the viewport (6.33).
-                        if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty", state = listState)
-                        // A row's key is its song; a two-column line's is its first song's, so narrowing to
-                        // one column keeps the reader's place by key (KeepPlaceAcrossColumnChanges does the rest).
-                        val songRow: @Composable (SongRowModel, Any) -> Unit = { row, lineKey ->
-                            SongRow(
-                                row, artworkUrl(row.song.albumArt), pulse = pulse, breathe = breathe,
-                                onWarning = row.warning?.let { shown -> { onWarning(shown) } },
-                                modifier = rememberHiddenUnderPinnedHeader(headerEdge, lineKey),
-                            ) { onSongClick(row.song) }
-                        }
-                        // Section headers (every sort, Title/Artist's #/A–Z too, issue #582) stick under the pinned
-                        // search field with no backing (issue #91, like iOS): rows passing beneath are hidden behind them and fade out
-                        // just below them (pinnedHeaderEdgeFade, issue #49). They span both columns (wide-columns R2).
-                        grid.lines.forEach { line ->
-                            when (line) {
-                                is WideLine.Header -> {
-                                    val header = state.headers[line.ordinal]
-                                    stickyHeader(key = headerKey(header), contentType = "header") { FoldLane { BucketHeader(header, headerEdge) } }
+                    if (swap.showsSpinner) {
+                        LoadSwapSpinner(swap, "Loading songs", tag = "fst.songs.loading")
+                    } else {
+                        Box(Modifier.fillMaxSize().then(swap.contentModifier).festivalFadeIn(swap.revealed)
+                                .then(if (swap.phase == LoadSwapPhase.ContentOut) Modifier.clearAndSetSemantics { } else Modifier)) {
+                            LazyColumn(
+                                state = listState,
+                                contentPadding = PaddingValues(
+                                    start = 16.dp,
+                                    end = endPadding,
+                                    bottom = bottomPadding + endSpace,
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(LIST_SPACING),
+                                modifier = Modifier.fillMaxSize()
+                                    .pinnedHeaderEdgeFade(headerEdge, headerStart)
+                                    .testTag("fst.songs.list"),
+                            ) {
+                                state.notices.forEachIndexed { index, notice ->
+                                    item(key = "notice-$index", contentType = "notice") {
+                                        FoldLane { Notice(notice, if (notice == state.sortPaused) "fst.songs.sort-paused" else "fst.songs.notice.$index") }
+                                    }
                                 }
-                                is WideLine.Cells -> {
-                                    val first = state.rows[line.start]
-                                    val key = first.song.songId
-                                    if (grid.columns == 1) {
-                                        item(key = key, contentType = "song") { songRow(first, key) }
-                                    } else {
-                                        item(key = key, contentType = "song-line") {
-                                            WideColumnsLine(line.end - line.start, wide) { index -> songRow(state.rows[line.start + index], key) }
+                                // Web full-page EmptyState, vertically centred in the viewport (6.33).
+                                if (state.rows.isEmpty()) festivalEmptyStateItem(state.emptyMessage, subtitle = "Try adjusting your search or filters.", tag = "fst.songs.empty", state = listState)
+                                // A row's key is its song; a two-column line's is its first song's, so narrowing to
+                                // one column keeps the reader's place by key (KeepPlaceAcrossColumnChanges does the rest).
+                                val songRow: @Composable (SongRowModel, Any) -> Unit = { row, lineKey ->
+                                    SongRow(
+                                        row, artworkUrl(row.song.albumArt), pulse = pulse, breathe = breathe,
+                                        onWarning = row.warning?.let { shown -> { onWarning(shown) } },
+                                        modifier = rememberHiddenUnderPinnedHeader(headerEdge, lineKey),
+                                    ) { onSongClick(row.song) }
+                                }
+                                // Section headers (every sort, Title/Artist's #/A–Z too, issue #582) stick under the pinned
+                                // search field with no backing (issue #91, like iOS): rows passing beneath are hidden behind them and fade out
+                                // just below them (pinnedHeaderEdgeFade, issue #49). They span both columns (wide-columns R2).
+                                grid.lines.forEach { line ->
+                                    when (line) {
+                                        is WideLine.Header -> {
+                                            val header = state.headers[line.ordinal]
+                                            stickyHeader(key = headerKey(header), contentType = "header") { FoldLane { BucketHeader(header, headerEdge) } }
+                                        }
+                                        is WideLine.Cells -> {
+                                            val first = state.rows[line.start]
+                                            val key = first.song.songId
+                                            if (grid.columns == 1) {
+                                                item(key = key, contentType = "song") { songRow(first, key) }
+                                            } else {
+                                                item(key = key, contentType = "song-line") {
+                                                    WideColumnsLine(line.end - line.start, wide) { index -> songRow(state.rows[line.start + index], key) }
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
+                            // Fully qualified: the ColumnScope overload would otherwise capture this call.
+                            // Reduce Motion (in-app or Remove animations) shows and hides the rail at once.
+                            val stillRail = LocalFestivalAccessibility.current.reduceMotion
+                            androidx.compose.animation.AnimatedVisibility(
+                                visible = showIndex,
+                                enter = if (stillRail) EnterTransition.None else fadeIn() + slideInHorizontally { it },
+                                exit = if (stillRail) ExitTransition.None else fadeOut() + slideOutHorizontally { it },
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .padding(top = 8.dp, bottom = padding.calculateBottomPadding() + 8.dp)
+                                    .fillMaxHeight(),
+                            ) {
+                                val position = rememberSectionPosition(listState, state.sections, grid)
+                                SectionIndexScrubber(
+                                    sections = state.sections,
+                                    current = position.current,
+                                    onJump = { section -> scope.launch { position.jumpTo(section) } },
+                                )
+                            }
                         }
-                    }
-                    // Fully qualified: the ColumnScope overload would otherwise capture this call.
-                    // Reduce Motion (in-app or Remove animations) shows and hides the rail at once.
-                    val stillRail = LocalFestivalAccessibility.current.reduceMotion
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = showIndex,
-                        enter = if (stillRail) EnterTransition.None else fadeIn() + slideInHorizontally { it },
-                        exit = if (stillRail) ExitTransition.None else fadeOut() + slideOutHorizontally { it },
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .padding(top = 8.dp, bottom = padding.calculateBottomPadding() + 8.dp)
-                            .fillMaxHeight(),
-                    ) {
-                        val position = rememberSectionPosition(listState, state.sections, grid)
-                        SectionIndexScrubber(
-                            sections = state.sections,
-                            current = position.current,
-                            onJump = { section -> scope.launch { position.jumpTo(section) } },
-                        )
                     }
                 }
             }

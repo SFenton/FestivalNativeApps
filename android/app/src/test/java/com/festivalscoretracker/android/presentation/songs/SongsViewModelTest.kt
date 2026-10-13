@@ -105,11 +105,52 @@ class SongsViewModelTest {
     }
 
     @Test
+    fun publicationRefreshesFilteredSortedSongsWithoutUserAction() = runTest(main.dispatcher) {
+        val inputs = Inputs()
+        inputs.settings.value = AppSettings(selectedPlayer = player, songSort = SongSortMode.Year, songSortAscending = false)
+        inputs.prefs.value = SongsPreferencesState(playerFilter = SongPlayerScoreFilter(hasScores = setOf(Instrument.Lead)))
+        inputs.profile.value = available(SongsFixtures.score("a", Instrument.Lead, 1000, fc = true))
+        var loads = 0
+        val vm = viewModel(inputs) {
+            loads++
+            payload.copy(publicationId = inputs.publication.value!!)
+        }
+        vm.onSearchChange("alp")
+        advanceUntilIdle()
+        assertEquals(1, loads)
+        inputs.publication.value = 8
+        inputs.profile.value = available(SongsFixtures.score("a", Instrument.Lead, 2000, fc = true), observed = 8)
+        advanceUntilIdle()
+        assertEquals(2, loads)
+        assertEquals(8, (vm.uiState.value.catalog as LoadState.Loaded).value.publicationId)
+        assertEquals(listOf("a"), vm.uiState.value.rows.map { it.song.songId })
+        assertTrue(vm.uiState.value.notices.isEmpty())
+        assertEquals("alp", vm.searchInput.value)
+        assertEquals(SongSortMode.Year, vm.uiState.value.sort)
+        assertFalse(vm.uiState.value.ascending)
+        assertEquals(inputs.prefs.value, vm.uiState.value.prefs)
+        inputs.publication.value = 8
+        advanceUntilIdle()
+        assertEquals(2, loads)
+    }
+
+    @Test
     fun failureSurfacesIssue() = runTest(main.dispatcher) {
         val vm = viewModel(Inputs()) { throw FestivalApiException.HttpStatus(404) }
         advanceUntilIdle()
         assertEquals(LoadState.Failed(ServiceIssue.NotFound), vm.uiState.value.catalog)
         assertTrue(vm.uiState.value.rows.isEmpty())
+    }
+
+    @Test
+    fun aSettledUnavailableIndexShowsItsPausedStateInsteadOfAnEndlessSpinner() = runTest(main.dispatcher) {
+        val inputs = Inputs()
+        inputs.settings.value = AppSettings(selectedPlayer = player)
+        inputs.profile.value = available().copy(scoreIndex = null)
+        val vm = viewModel(inputs)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.publicationReady)
+        assertTrue(vm.uiState.value.notices.any { it.contains("Player scores paused") })
     }
 
     @Test

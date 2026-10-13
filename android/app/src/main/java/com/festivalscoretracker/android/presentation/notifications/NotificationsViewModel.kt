@@ -2,6 +2,8 @@ package com.festivalscoretracker.android.presentation.notifications
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.presentation.followPublications
+import kotlinx.coroutines.flow.emptyFlow
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.notifications.ImprovementNotification
 import com.festivalscoretracker.android.core.notifications.NotificationDestination
@@ -121,6 +123,7 @@ class NotificationsViewModel(
     private val clock: () -> Instant = Instant::now,
     scope: CoroutineScope? = null,
     experimentalRanks: Flow<Boolean> = flowOf(false),
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     private val work: CoroutineScope = scope ?: viewModelScope
     private val stateFlow = MutableStateFlow<NotificationsState>(NotificationsState.NoPlayer)
@@ -138,6 +141,7 @@ class NotificationsViewModel(
     val unreadCount: StateFlow<Int> = unreadFlow.asStateFlow()
 
     init {
+        followPublications(work, publications) { refresh() }
         work.launch {
             player.map { it?.accountId }.distinctUntilChanged().collect { id ->
                 account = id

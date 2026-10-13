@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.presentation.compete
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.presentation.followPublications
 import com.festivalscoretracker.android.core.compete.CompeteScope
 import com.festivalscoretracker.android.core.compete.CompeteScopes
 import com.festivalscoretracker.android.core.model.Instrument
@@ -219,16 +220,13 @@ class CompeteViewModel(
     init {
         boardLoaders.forEach { it.ensureStarted() }
         rivalLoaders.forEach { it?.ensureStarted() }
-        viewModelScope.launch {
-            // The publication current at creation is what the first loads read; only a newer one refreshes.
-            publications.filterNotNull().distinctUntilChanged().drop(1).collect { refreshAll() }
-        }
+        followPublications(viewModelScope, publications) { refreshAll() }
     }
 
-    /** Reload every read for a newer publication, keeping loaded cards visible (failed ones retry). */
+    /** Reload started reads for a newer publication without keeping old-generation cards visible. */
     private fun refreshAll() {
-        boardLoaders.forEach { it.refresh() }
-        rivalLoaders.forEach { it?.refresh() }
+        boardLoaders.forEach { it.invalidate() }
+        rivalLoaders.forEach { it?.invalidate() }
     }
 
     /** Retry every failed read. */

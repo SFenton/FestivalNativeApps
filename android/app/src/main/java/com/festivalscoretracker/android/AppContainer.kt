@@ -1,6 +1,7 @@
 package com.festivalscoretracker.android
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
@@ -16,6 +17,8 @@ import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.data.ForcedFreezeTransport
 import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.data.OkHttpTransport
+import com.festivalscoretracker.android.data.PublicationLiveConnection
+import com.festivalscoretracker.android.presentation.PublicationLiveUpdates
 import com.festivalscoretracker.android.data.RetiredSettingsMigration
 import com.festivalscoretracker.android.data.SettingsRepository
 import com.festivalscoretracker.android.data.shop.shop
@@ -33,6 +36,7 @@ import com.festivalscoretracker.android.core.whatsnew.WhatsNewMode
 import com.festivalscoretracker.android.presentation.whatsnew.WhatsNewController
 import com.festivalscoretracker.android.presentation.whatsnew.installerPackage
 import okhttp3.OkHttpClient
+import okhttp3.HttpUrl.Companion.toHttpUrl
 
 // region Container
 
@@ -65,6 +69,21 @@ class AppContainer(
         FestivalApi(launch.origin ?: BuildConfig.SERVICE_ORIGIN, effective)
     }
 
+    /** One anonymous live listener; fixture transports and loopback origins never open sockets. */
+    val liveUpdates: PublicationLiveUpdates? = if (transport == null &&
+        api.origin.toHttpUrl().host !in FestivalApi.LOOPBACK_HOSTS
+    ) {
+        val connections = PublicationLiveConnection(httpClient)
+        PublicationLiveUpdates(
+            api.publicationChanges,
+            { api.publication(force = true).publicationId },
+            { id -> connections.open(api.origin, id) },
+            { error -> Log.w("FST_PUBLICATION", "Live publication connection will retry (${error.javaClass.simpleName})") },
+        )
+    } else {
+        null
+    }
+
     /** Persisted settings. */
     val settings = SettingsRepository(settingsStore ?: context.applicationContext.settingsDataStore)
 
@@ -84,7 +103,7 @@ class AppContainer(
     val rivals = RivalsRepository(api)
 
     /** Shared animated backdrop state. */
-    val background = BackgroundController(loadCatalog = { api.catalog() }, artworkUrl = api::artworkUrl)
+    val background = BackgroundController(loadCatalog = { api.catalog() }, artworkUrl = api::artworkUrl, publications = api.publicationChanges)
 
     /** App-wide first-run arbiter (seen-state in the settings DataStore). */
     val firstRun = FirstRunCenter(

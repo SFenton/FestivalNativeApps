@@ -103,6 +103,7 @@ class JourneyHarness(private val rule: JourneyRule) {
      *   after a switch (sheets and dialogs are separate windows) render at it too. The
      *   activity's original scale comes back when the activity is destroyed at the end of the
      *   test, so a journey that ends at 200% does not leak it into the next test's activity.
+     * @param onContainer Receives the fixture-only container for controlled publication advances.
      * @param wrap Wraps the app's composition, e.g. to provide a test-only composition local.
      */
     fun launch(
@@ -110,9 +111,11 @@ class JourneyHarness(private val rule: JourneyRule) {
         transport: FakeTransport,
         preferences: DataStore<Preferences> = MemoryPreferences(),
         fontScale: (() -> Float)? = null,
+        onContainer: (AppContainer) -> Unit = {},
         wrap: @Composable (@Composable () -> Unit) -> Unit = { it() },
     ) {
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = preferences)
+        onContainer(container)
         rule.setContent {
             key(generation) {
                 if (fontScale == null) {

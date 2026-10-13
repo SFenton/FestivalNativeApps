@@ -2,6 +2,9 @@ package com.festivalscoretracker.android.presentation.rivals
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.presentation.followPublications
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.rivals.RivalCategorization
@@ -53,6 +56,7 @@ data class AllRivalsContent(val scope: RivalScope, val entries: List<RivalEntry>
  * @param visible Settings-visible charts.
  * @param repository Rivals reads.
  * @param backoff Shared retry backoff.
+ * @param publications Authoritative publication advances.
  */
 class AllRivalsViewModel(
     private val accountId: String,
@@ -60,6 +64,7 @@ class AllRivalsViewModel(
     visible: Set<Instrument>,
     private val repository: RivalsRepository,
     backoff: ServiceRetryBackoff,
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     /** Concrete scope, or null when the route names no identifiable list. */
     val scope: RivalScope? = RivalScopes.resolveList(routeScope, visible)
@@ -75,6 +80,7 @@ class AllRivalsViewModel(
     val state: StateFlow<LoadState<AllRivalsContent>> = loader?.state ?: MutableStateFlow(LoadState.Loading)
 
     init {
+        followPublications(viewModelScope, publications) { loader?.invalidate() }
         loader?.ensureStarted()
     }
 
@@ -167,6 +173,7 @@ data class RivalDetailContent(
  * @param repository Rivals reads.
  * @param loadCatalog Catalogue read for song lookups.
  * @param backoff Shared retry backoff.
+ * @param publications Authoritative publication advances.
  */
 class RivalDetailViewModel(
     private val accountId: String,
@@ -179,6 +186,7 @@ class RivalDetailViewModel(
     private val repository: RivalsRepository,
     private val loadCatalog: suspend () -> CatalogPayload,
     backoff: ServiceRetryBackoff,
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     private val request = RivalScopes.resolveDetail(scope, visible)
     private val loader = RetryingLoader(viewModelScope, "rival:$accountId:$rivalId:$request", backoff) { refresh ->
@@ -191,6 +199,7 @@ class RivalDetailViewModel(
         )
     }
     private val catalogFlow = MutableStateFlow<Map<String, Song>>(emptyMap())
+    private var catalogJob: kotlinx.coroutines.Job? = null
     private val sortFlow = MutableStateFlow(RivalrySort.Category)
 
     /** Comparison state. */
@@ -208,8 +217,18 @@ class RivalDetailViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, routeName)
 
     init {
+        followPublications(viewModelScope, publications) {
+            loader.invalidate()
+            loadSongs()
+        }
         loader.ensureStarted()
-        viewModelScope.launch {
+        loadSongs()
+    }
+
+    /** Refresh optional catalogue labels, cancelling the older lookup. */
+    private fun loadSongs() {
+        catalogJob?.cancel()
+        catalogJob = viewModelScope.launch {
             try {
                 catalogFlow.value = loadCatalog().catalog.songs.associateBy { it.songId }
             } catch (cancelled: CancellationException) {

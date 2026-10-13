@@ -2,6 +2,8 @@ package com.festivalscoretracker.android.presentation.leaderboards
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.presentation.followPublications
+import kotlinx.coroutines.flow.emptyFlow
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.bands.BandRankingMetric
 import com.festivalscoretracker.android.core.bands.BandType
@@ -71,6 +73,7 @@ data class RankingsReads(
  *   survives turning the setting off and on (experimental-ranks R2).
  * @param persistRankBy Persist a new metric.
  * @param backoff Shared retry backoff.
+ * @param publications Authoritative publication advances.
  */
 class LeaderboardsViewModel(
     private val reads: RankingsReads,
@@ -78,6 +81,7 @@ class LeaderboardsViewModel(
     rankBy: Flow<RankingMetric>,
     private val persistRankBy: suspend (RankingMetric) -> Unit,
     private val backoff: ServiceRetryBackoff,
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     private val permits = Semaphore(MAX_CONCURRENT)
     private val metricFlow = MutableStateFlow(RankingMetric.DEFAULT)
@@ -118,6 +122,9 @@ class LeaderboardsViewModel(
     val historyInstrument: StateFlow<Instrument?> = historyInstrumentFlow.asStateFlow()
 
     init {
+        followPublications(viewModelScope, publications) {
+            (cards.values + bands.values + spotlights.values + histories.values).forEach { it.invalidate() }
+        }
         viewModelScope.launch {
             combine(rankBy, settings.filterNotNull()) { metric, current ->
                 Inputs(

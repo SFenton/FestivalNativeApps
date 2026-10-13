@@ -33,6 +33,7 @@ import kotlinx.coroutines.sync.withLock
  * @param leaderboardDetails Leaderboard detail read.
  * @param clock Milliseconds source.
  * @param all `rivals/all` read `(accountId)` for the detail freeze fallback, or null for none.
+ * @param publication Latest observed API generation; cached results never cross its boundary.
  */
 class RivalsRepository(
     private val lists: suspend (String, String) -> RivalsListResponse,
@@ -41,6 +42,7 @@ class RivalsRepository(
     private val leaderboardDetails: suspend (String, Instrument, String, RivalRankMetric) -> RivalDetailResponse,
     private val clock: () -> Long = System::currentTimeMillis,
     private val all: (suspend (String) -> RivalsAllResponse)? = null,
+    private val publication: () -> Int? = { null },
 ) {
     /**
      * Build over the shared API client.
@@ -53,12 +55,14 @@ class RivalsRepository(
         details = { account, scope, rival, live -> api.rivalDetail(account, scope, rival, allowLiveFallback = live) },
         leaderboardDetails = { account, instrument, rival, rankBy -> api.leaderboardRivalDetail(account, instrument, rival, rankBy) },
         all = api::rivalsAll,
+        publication = { api.publicationChanges.value },
     )
 
     private data class Entry(val value: Any, val atMillis: Long)
 
     private val mutex = Mutex()
     private val cache = LinkedHashMap<String, Entry>()
+    private var cachedPublication: Int? = null
 
     /**
      * One song-scope rivals list.
@@ -159,10 +163,18 @@ class RivalsRepository(
 
     @Suppress("UNCHECKED_CAST")
     private suspend fun <T : Any> cached(key: String, refresh: Boolean, load: suspend () -> T): T {
+        val generation = publication()
+        mutex.withLock {
+            if (cachedPublication != generation) {
+                cache.clear()
+                cachedPublication = generation
+            }
+        }
         if (!refresh) {
             mutex.withLock {
                 val hit = cache[key]
-                if (hit != null && clock() - hit.atMillis < TTL_MILLIS) return hit.value as T
+                if (hit != null && cachedPublication == generation && publication() == generation &&
+                    clock() - hit.atMillis < TTL_MILLIS) return hit.value as T
             }
         }
         val value = try {
@@ -172,9 +184,12 @@ class RivalsRepository(
         } catch (error: Exception) {
             if (!isFreeze(error)) throw error
             // Serve the last good read as is: re-caching it would restart its age.
-            return mutex.withLock { cache[key]?.takeIf { clock() - it.atMillis < STALE_MILLIS }?.value as T? } ?: throw error
+            return mutex.withLock {
+                cache[key]?.takeIf { publication() == generation && clock() - it.atMillis < STALE_MILLIS }?.value as T?
+            } ?: throw error
         }
         mutex.withLock {
+            if (publication() != generation) return@withLock
             cache.remove(key)
             cache[key] = Entry(value, clock())
             while (cache.size > MAX_ENTRIES) cache.remove(cache.keys.first())

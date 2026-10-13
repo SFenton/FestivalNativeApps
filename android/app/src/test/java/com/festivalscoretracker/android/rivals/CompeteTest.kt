@@ -422,14 +422,14 @@ class CompeteLogicTest {
         assertEquals(1, boardReads)
         assertEquals(first, model.content.value.sections.single().board)
 
-        // A newer publication refreshes in place: the loaded card stays visible (never Loading) until new rows land.
+        // R9 hides old-generation results behind the shared swap until the new rows land.
         gate = CompletableDeferred()
         publications.value = 8
         runCurrent()
         assertEquals(2, boardReads)
         val during = model.content.value.sections.single().board
-        assertTrue("refresh replaced the card with a placeholder: $during", during is LoadState.Loaded && during.refreshing)
-        assertEquals(first.valueOrNull, during.valueOrNull)
+        assertEquals(LoadState.Loading, during)
+        assertFalse(model.content.value.ready)
         gate!!.complete(Unit)
         advanceUntilIdle()
         val after = model.content.value.sections.single().board

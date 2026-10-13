@@ -73,6 +73,7 @@ fun playerHistoryViewModel(container: AppContainer, shell: ShellViewModel, route
             settings = shell.settings,
             backoff = container.backoff,
             currentSeason = { api.catalog().catalog.currentSeason },
+            publications = api.publicationChanges,
         )
     }
 }

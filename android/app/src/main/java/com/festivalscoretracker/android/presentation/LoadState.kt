@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 // region Load state
 
@@ -80,24 +82,37 @@ class RetryingLoader<T>(
         start(refresh = true)
     }
 
-    private fun start(refresh: Boolean) {
-        job?.cancel()
-        job = scope.launch { run(refresh) }
+    /** Reload a started read for a publication change, hiding old-generation content. */
+    fun invalidate() {
+        if (job != null) start(refresh = true, keepContent = false)
     }
 
-    private suspend fun run(refresh: Boolean) {
+    private fun start(refresh: Boolean, keepContent: Boolean = refresh) {
+        job?.cancel()
+        val previous = mutableState.value
+        mutableState.value = if (keepContent && previous is LoadState.Loaded) {
+            previous.copy(refreshing = true)
+        } else {
+            LoadState.Loading
+        }
+        job = scope.launch { run(refresh, keepContent) }
+    }
+
+    private suspend fun run(refresh: Boolean, keepContent: Boolean) {
         var isRefresh = refresh
         while (true) {
             val previous = mutableState.value
-            mutableState.value = if (isRefresh && previous is LoadState.Loaded) previous.copy(refreshing = true) else LoadState.Loading
+            mutableState.value = if (isRefresh && keepContent && previous is LoadState.Loaded) previous.copy(refreshing = true) else LoadState.Loading
             try {
                 val value = loader(isRefresh)
+                currentCoroutineContext().ensureActive()
                 backoff.reset(key)
                 mutableState.value = LoadState.Loaded(value)
                 return
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
+                currentCoroutineContext().ensureActive()
                 val issue = ServiceIssue.from(error)
                 if (!issue.retriesAutomatically) {
                     mutableState.value = LoadState.Failed(issue)

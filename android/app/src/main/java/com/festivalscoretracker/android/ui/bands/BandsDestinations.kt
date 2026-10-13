@@ -48,7 +48,7 @@ fun NavGraphBuilder.bandsDestinations(container: AppContainer, settings: Flow<Ap
         val shell = LocalShellActions.current
         val group = PlayerBandGroup.fromWireId(route.group)
         val list: PlayerBandsViewModel = viewModel(key = "player-bands:${route.accountId}:${group.wireId}") {
-            PlayerBandsViewModel(route.accountId, BandPaging.PAGE_SIZE, api::playerBands, container.backoff, group)
+            PlayerBandsViewModel(route.accountId, BandPaging.PAGE_SIZE, api::playerBands, container.backoff, group, api.publicationChanges)
         }
         val state by list.bands.collectAsStateWithLifecycle()
         val entries = (state as? LoadState.Loaded)?.value?.entries.orEmpty()
@@ -67,6 +67,7 @@ fun NavGraphBuilder.bandsDestinations(container: AppContainer, settings: Flow<Ap
                 { api.catalog() },
                 container.backoff,
                 settings.filterNotNull().map { it.experimentalRanks },
+                publications = api.publicationChanges,
             )
         }
         BandDetailScreen(detail, route.name, api::artworkUrl, shell.navigate)
@@ -85,6 +86,7 @@ fun NavGraphBuilder.bandsDestinations(container: AppContainer, settings: Flow<Ap
                 { id, type, page, top -> api.songBandLeaderboard(id, type, page, top, accountId) },
                 container.backoff,
                 initialPage = route.page,
+                publications = api.publicationChanges,
             )
         }
         val routeState = entry.savedStateHandle

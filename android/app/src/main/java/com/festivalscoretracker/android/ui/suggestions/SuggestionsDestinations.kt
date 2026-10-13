@@ -42,6 +42,7 @@ private fun SuggestionsDestination(container: AppContainer, settings: Flow<AppSe
             saveFilter = container.suggestionFilters::save,
             backoff = container.backoff,
             seeds = container.suggestionsSeed?.let { seed -> { seed } } ?: SuggestionsViewModel.RANDOM_SEEDS,
+            publications = api.publicationChanges,
         )
     }
     SuggestionsScreen(viewModel, isRoot, api::artworkUrl) { shell.navigate(SongDetailRoute(it)) }

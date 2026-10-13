@@ -2,6 +2,8 @@ package com.festivalscoretracker.android.presentation.bands
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.presentation.followPublications
+import kotlinx.coroutines.flow.emptyFlow
 import com.festivalscoretracker.android.core.bands.BandDetail
 import com.festivalscoretracker.android.core.bands.BandDetailProjection
 import com.festivalscoretracker.android.core.bands.BandPaging
@@ -61,6 +63,7 @@ internal suspend fun <T> loadClampedPage(requested: Int, load: suspend (Int) -> 
  * @param load Page read `(accountId, group, page, pageSize)`.
  * @param backoff Shared retry backoff.
  * @param initialGroup Group selected on open (web `?group=`; the player page's per-size "View all").
+ * @param publications Authoritative publication advances.
  */
 class PlayerBandsViewModel(
     val accountId: String,
@@ -68,6 +71,7 @@ class PlayerBandsViewModel(
     private val load: suspend (String, PlayerBandGroup, Int, Int) -> PlayerBandListResponse,
     backoff: ServiceRetryBackoff,
     initialGroup: PlayerBandGroup = PlayerBandGroup.All,
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     private val groupFlow = MutableStateFlow(initialGroup)
     private val pageFlow = MutableStateFlow(1)
@@ -86,6 +90,7 @@ class PlayerBandsViewModel(
     val bands: StateFlow<LoadState<PlayerBandListResponse>> = loader.state
 
     init {
+        followPublications(viewModelScope, publications) { loader.invalidate() }
         if (BandText.isValidMemberId(accountId)) loader.ensureStarted()
     }
 
@@ -146,6 +151,7 @@ data class BandSongsState(val response: BandSongExtremesResponse, val songsById:
  * @param backoff Shared retry backoff.
  * @param experimentalRanksSetting Settings → Experimental Ranks: Rank By is offered only when on, and
  *   turning it off returns the page to Total Score (experimental-ranks R1, R3).
+ * @param publications Authoritative publication advances.
  */
 class BandDetailViewModel(
     bandTypeWire: String?,
@@ -156,6 +162,7 @@ class BandDetailViewModel(
     loadCatalog: suspend () -> CatalogPayload,
     backoff: ServiceRetryBackoff,
     experimentalRanksSetting: Flow<Boolean>,
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     /** Parsed band size, or null for an unresolvable route. */
     val bandType: BandType? = BandType.fromWireId(bandTypeWire).takeIf { BandText.isValidTeamKey(teamKey) }
@@ -198,6 +205,11 @@ class BandDetailViewModel(
     val experimentalRanks: StateFlow<Boolean> = experimentalFlow.asStateFlow()
 
     init {
+        followPublications(viewModelScope, publications) {
+            detailLoader.invalidate()
+            historyLoader.invalidate()
+            songsLoader.invalidate()
+        }
         viewModelScope.launch {
             experimentalRanksSetting.collect { enabled ->
                 experimentalFlow.value = enabled
@@ -248,6 +260,7 @@ class BandDetailViewModel(
  * @param loadBoard Page read `(songId, bandType, page, top)`.
  * @param backoff Shared retry backoff.
  * @param initialPage Starting one-based page (route `?page=`; Song Detail's band row jumps here, issue #307).
+ * @param publications Authoritative publication advances.
  */
 class SongBandLeaderboardViewModel(
     songId: String,
@@ -256,6 +269,7 @@ class SongBandLeaderboardViewModel(
     loadBoard: suspend (String, BandType, Int, Int) -> SongBandLeaderboardResponse,
     backoff: ServiceRetryBackoff,
     initialPage: Int = 1,
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     private val typeFlow = MutableStateFlow(initialBandType)
     private val pageFlow = MutableStateFlow(initialPage.coerceAtLeast(1))
@@ -282,6 +296,10 @@ class SongBandLeaderboardViewModel(
     val board: StateFlow<LoadState<SongBandLeaderboardResponse>> = boardLoader.state
 
     init {
+        followPublications(viewModelScope, publications) {
+            songLoader.invalidate()
+            boardLoader.invalidate()
+        }
         songLoader.ensureStarted()
         boardLoader.ensureStarted()
     }

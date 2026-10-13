@@ -20,6 +20,10 @@ import com.festivalscoretracker.android.ui.common.LOAD_SWAP_SPINNER_TAG
 import com.festivalscoretracker.android.ui.common.LoadSwap
 import com.festivalscoretracker.android.ui.common.loadSwapSpinnerItem
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
+import com.festivalscoretracker.android.ui.common.LocalPublicationGeneration
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.assertContentDescriptionEquals
+import androidx.compose.ui.test.onNodeWithContentDescription
 import com.festivalscoretracker.android.ui.theme.FestivalAccessibility
 import com.festivalscoretracker.android.ui.theme.FestivalTheme
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
@@ -46,6 +50,7 @@ class LoadSwapUiTest {
     /** `null` = loading. */
     private var data by mutableStateOf<String?>(null)
     private var reduce by mutableStateOf(false)
+    private var publication by mutableStateOf<Int?>(null)
     private var boxSwap: LoadSwap<String?>? = null
 
     /** Stale content fading out: drawn from the old value but hidden from TalkBack. */
@@ -54,7 +59,10 @@ class LoadSwapUiTest {
     private fun setBox() {
         rule.setContent {
             FestivalTheme {
-                CompositionLocalProvider(LocalFestivalAccessibility provides FestivalAccessibility(reduceMotion = reduce)) {
+                CompositionLocalProvider(
+                    LocalFestivalAccessibility provides FestivalAccessibility(reduceMotion = reduce),
+                    LocalPublicationGeneration provides publication,
+                ) {
                     FestivalLoadSwap(data, data != null, Modifier.fillMaxSize()) { swap, shown ->
                         boxSwap = swap
                         with(swap) { Text(shown.orEmpty(), Modifier.staggered(0).testTag("row")) }
@@ -62,6 +70,47 @@ class LoadSwapUiTest {
                 }
             }
         }
+    }
+
+    @Test
+    fun publicationRefreshHidesStaleRowsAndUsesTheR9SpinnerHold() {
+        publication = 7
+        data = "Old scores"
+        rule.mainClock.autoAdvance = false
+        setBox()
+        rule.mainClock.advanceTimeByFrame()
+        assertTrue(shows("Old scores"))
+        publication = 8
+        data = null
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(400)
+        assertTrue(spinner() && count("row") == 0)
+        rule.onNodeWithContentDescription("Loading new scores").assertContentDescriptionEquals("Loading new scores")
+        data = "New scores"
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(100)
+        assertTrue("new rows cannot skip the 400ms spinner hold", spinner() && !shows("New scores"))
+        rule.mainClock.advanceTimeBy(1_500)
+        assertTrue(shows("New scores") && !spinner() && !shows("Old scores"))
+    }
+
+    @Test
+    fun instantlyReadyPublicationUnderReducedMotionStillHoldsTheSpinner() {
+        publication = 7
+        reduce = true
+        data = "Old scores"
+        rule.mainClock.autoAdvance = false
+        setBox()
+        rule.mainClock.advanceTimeByFrame()
+        publication = 8
+        data = "New scores"
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(100)
+        assertTrue(spinner() && !shows("Old scores") && !shows("New scores"))
+        rule.mainClock.advanceTimeBy(250)
+        assertTrue(spinner())
+        rule.mainClock.advanceTimeBy(150)
+        assertTrue(!spinner() && shows("New scores"))
     }
 
     @Test
@@ -88,6 +137,29 @@ class LoadSwapUiTest {
         assertTrue(spinner() && count("row") == 0)
         rule.mainClock.advanceTimeBy(1_000)
         assertTrue(!spinner() && shows("Page 2") && !shows("Page 1"))
+    }
+
+    @Test
+    fun aReadyNewerPublicationDuringSpinnerOutRestartsTheMinimumHold() {
+        publication = 7
+        data = "Old scores"
+        rule.mainClock.autoAdvance = false
+        setBox()
+        rule.mainClock.advanceTimeByFrame()
+        publication = 8
+        data = "Generation 8"
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(1_000)
+        assertEquals(LoadSwapPhase.SpinnerOut, boxSwap!!.phase)
+        publication = 9
+        data = "Generation 9"
+        Snapshot.sendApplyNotifications()
+        rule.mainClock.advanceTimeBy(100)
+        assertEquals(LoadSwapPhase.Loading, boxSwap!!.phase)
+        rule.mainClock.advanceTimeBy(250)
+        assertTrue(spinner() && !shows("Generation 8") && !shows("Generation 9"))
+        rule.mainClock.advanceTimeBy(1_500)
+        assertTrue(shows("Generation 9") && !spinner())
     }
 
     @Test

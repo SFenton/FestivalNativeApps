@@ -8,7 +8,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 // region Background policy
 
@@ -268,16 +273,19 @@ object BackgroundPolicy {
  * @property loadCatalog Catalogue read.
  * @property artworkUrl Artwork resolver.
  * @property random Shuffle source.
+ * @param publications Authoritative publication advances.
  */
 class BackgroundController(
     private val loadCatalog: suspend () -> CatalogPayload,
     private val artworkUrl: (String?) -> String?,
     private val random: Random = Random.Default,
+    private val publications: Flow<Int?> = emptyFlow(),
 ) {
     private val coversFlow = MutableStateFlow<List<String>>(emptyList())
     private val focusStack = MutableStateFlow<List<Pair<Any, String>>>(emptyList())
     private val focusFlow = MutableStateFlow<String?>(null)
     private var loadedPublication: Int? = null
+    private var coversJob: Job? = null
 
     /** Shuffled carousel covers (empty until the catalogue loads). */
     val covers: StateFlow<List<String>> = coversFlow.asStateFlow()
@@ -291,9 +299,20 @@ class BackgroundController(
      * @param scope Scope to load in.
      */
     fun start(scope: CoroutineScope) {
-        scope.launch {
+        followPublications(scope, publications) {
+            coversFlow.value = emptyList()
+            loadCovers(scope)
+        }
+        loadCovers(scope)
+    }
+
+    /** Replace the decorative cover read, cancelling any older generation's work. */
+    private fun loadCovers(scope: CoroutineScope) {
+        coversJob?.cancel()
+        coversJob = scope.launch {
             try {
                 val payload = loadCatalog()
+                currentCoroutineContext().ensureActive()
                 if (payload.publicationId != loadedPublication) {
                     loadedPublication = payload.publicationId
                     coversFlow.value = BackgroundPolicy.pickCovers(payload.catalog.songs, artworkUrl, random)

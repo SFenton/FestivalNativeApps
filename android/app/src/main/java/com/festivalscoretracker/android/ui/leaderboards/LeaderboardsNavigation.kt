@@ -80,6 +80,7 @@ fun NavGraphBuilder.leaderboardsGraph(container: AppContainer, shellViewModel: S
                 backoff = container.backoff,
                 initialPage = route.page,
                 initialCombo = route.combo,
+                publications = container.api.publicationChanges,
             )
         }
         val instrument by viewModel.instrument.collectAsStateWithLifecycle()
@@ -98,6 +99,7 @@ fun NavGraphBuilder.leaderboardsGraph(container: AppContainer, shellViewModel: S
                 rankingsReads(container),
                 container.backoff,
                 route.page,
+                publications = container.api.publicationChanges,
             )
         }
         val bandType by viewModel.bandType.collectAsStateWithLifecycle()
@@ -123,7 +125,7 @@ fun SyncRouteArguments(handle: SavedStateHandle, vararg values: Pair<String, Any
 @Composable
 private fun Overview(container: AppContainer, shellViewModel: ShellViewModel, preferences: LeaderboardPreferences, isRoot: Boolean) {
     val viewModel: LeaderboardsViewModel = viewModel {
-        LeaderboardsViewModel(rankingsReads(container), shellViewModel.settings, preferences.rankBy, preferences::setRankBy, container.backoff)
+        LeaderboardsViewModel(rankingsReads(container), shellViewModel.settings, preferences.rankBy, preferences::setRankBy, container.backoff, container.api.publicationChanges)
     }
     LeaderboardsScreen(viewModel, isRoot)
 }

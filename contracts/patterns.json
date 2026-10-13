@@ -1970,6 +1970,14 @@
             "symbol": "rememberLoadSwap"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/PublicationLiveUpdates.kt",
+            "symbol": "PublicationLiveUpdates"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/PublicationReloads.kt",
+            "symbol": "followPublications"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadSwap.kt",
             "symbol": "BOARD_CARD_INDEX"
           },
@@ -2171,7 +2179,8 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandListScreens.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalsScreen.kt",
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/compete/CompeteScreen.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/compete/CompeteScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt"
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."

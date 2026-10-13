@@ -142,7 +142,9 @@ class FirstRunDemoSongsSource(
  */
 @Composable
 internal fun rememberFirstRunDemoCatalog(source: FirstRunDemoSongsSource, hideShop: Boolean): FirstRunDemoCatalog {
-    val catalog by produceState<CatalogPayload?>(null, source) {
+    val current by source.publication.collectAsStateWithLifecycle()
+    val catalog by produceState<CatalogPayload?>(null, source, current) {
+        value = null
         value = try {
             source.loadCatalog()
         } catch (cancelled: CancellationException) {
@@ -152,7 +154,6 @@ internal fun rememberFirstRunDemoCatalog(source: FirstRunDemoSongsSource, hideSh
         }
     }
     val shop by source.shop.collectAsStateWithLifecycle()
-    val current by source.publication.collectAsStateWithLifecycle()
     val payload = catalog
     return remember(payload, shop, current, hideShop) {
         val shopIds = if (hideShop) emptyList() else FirstRunDemoSongs.shopPreference(shop.valueOrNull, payload?.publicationId, current)

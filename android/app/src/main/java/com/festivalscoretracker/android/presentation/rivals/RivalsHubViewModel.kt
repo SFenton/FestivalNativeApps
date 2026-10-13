@@ -2,6 +2,9 @@ package com.festivalscoretracker.android.presentation.rivals
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.presentation.followPublications
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.rivals.RivalCombo
 import com.festivalscoretracker.android.core.rivals.LeaderboardRivalsListResponse
@@ -88,6 +91,7 @@ data class RivalsHubContent(
  * @param backoff Shared retry backoff.
  * @param experimentalRanks Settings → Experimental Ranks: offers the Leaderboard Rivals Rank By
  *   (web `RivalsPage`); while off the tab ranks by Total Score only (experimental-ranks R1).
+ * @param publications Authoritative publication advances.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class RivalsHubViewModel(
@@ -96,6 +100,7 @@ class RivalsHubViewModel(
     private val repository: RivalsRepository,
     private val backoff: ServiceRetryBackoff,
     experimentalRanks: Boolean = false,
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     private val charts = Instrument.entries.filter { it in visible }
     private val comboToken = RivalCombo.deriveToken(charts)
@@ -134,6 +139,10 @@ class RivalsHubViewModel(
         .stateIn(viewModelScope, SharingStarted.Eagerly, buildLeaderboardContent(RivalRankMetric.TotalScore, charts.map { LoadState.Loading }))
 
     init {
+        followPublications(viewModelScope, publications) {
+            (songLoaders.values + listOfNotNull(comboLoader) + leaderboardLoaderSets.values.flatMap { it.values })
+                .forEach { it.invalidate() }
+        }
         songLoaders.values.forEach { it.ensureStarted() }
         comboLoader?.ensureStarted()
     }

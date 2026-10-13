@@ -3,6 +3,7 @@
 > **What:** Kotlin/Compose architecture, the emulator device matrix and `tools/android/device.py`. **Read when:** working on the Android app or running it on an emulator (built on `sfenton-music` via [windows-relay](../workflow/windows-relay.md)). Design: [design/android.md](../design/android.md); tests: [testing/android.md](../testing/android.md).
 
 - Kotlin + Jetpack Compose, single activity, domain/data/UI boundaries, lifecycle-aware state.
+- Publication freshness uses one `PublicationLiveUpdates` loop while the activity is STARTED. Its anonymous receive-only `/api/ws?publicationId=N` connection re-reads `/api/publication` before/after upgrading and on `publication_changed`, reconnects with 1–30 second backoff and is disabled for loopback or injected fixture transports. Messages never authorize a generation or profile synchronization. Publication-sensitive loaders use `followPublications` and `RetryingLoader.invalidate`, not navigation-triggered refreshes ([load-transition](../patterns/load-transition.md) R9).
 - Observe fold/display features with Jetpack WindowManager, never product names or pixel checks.
 - Respect system animation scale, dynamic text, contrast, TalkBack traversal, system/predictive back and Android 16 edge-to-edge.
 - Fixture mock server only; no production POSTs ([service safety](service-safety.md)).

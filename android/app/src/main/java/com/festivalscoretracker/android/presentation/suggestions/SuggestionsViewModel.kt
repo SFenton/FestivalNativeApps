@@ -2,6 +2,8 @@ package com.festivalscoretracker.android.presentation.suggestions
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.presentation.followPublications
+import kotlinx.coroutines.flow.emptyFlow
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
@@ -156,6 +158,7 @@ class SuggestionsViewModel(
     backoff: ServiceRetryBackoff,
     private val seeds: () -> Long = RANDOM_SEEDS,
     private val computeDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SuggestionsUiState())
     private val mutex = Mutex()
@@ -176,6 +179,7 @@ class SuggestionsViewModel(
     val uiState: StateFlow<SuggestionsUiState> = mutableState.asStateFlow()
 
     init {
+        followPublications(viewModelScope, publications) { loader.invalidate() }
         viewModelScope.launch {
             settings.filterNotNull()
                 .map { it.selectedPlayer?.accountId to Instrument.entries.filter(it.visibleInstruments::contains) }

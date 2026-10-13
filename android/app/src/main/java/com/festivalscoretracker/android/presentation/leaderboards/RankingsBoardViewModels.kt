@@ -2,6 +2,8 @@ package com.festivalscoretracker.android.presentation.leaderboards
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.festivalscoretracker.android.presentation.followPublications
+import kotlinx.coroutines.flow.emptyFlow
 import com.festivalscoretracker.android.core.compete.CompeteScope
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.LeaderboardPaging
@@ -47,6 +49,7 @@ import kotlinx.coroutines.launch
  * @param initialCombo Routed combo ID (web `?combo=`, #602): a within-group combo shows that
  *   combo's board with no chart switcher, and its own row is re-read per metric (a combo row
  *   carries one rank). Anything else falls back to [initialInstrument]'s board.
+ * @param publications Authoritative publication advances.
  */
 class FullRankingsViewModel(
     initialInstrument: Instrument,
@@ -56,6 +59,7 @@ class FullRankingsViewModel(
     backoff: ServiceRetryBackoff,
     initialPage: Int = 1,
     initialCombo: String? = null,
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     /** The combo board shown instead of one chart's, or null for an instrument board. */
     val combo: CompeteScope.Combo? = RivalCombo.rankingComboInstruments(initialCombo)?.let { CompeteScope.Combo(RivalCombo.comboId(it), it) }
@@ -133,6 +137,10 @@ class FullRankingsViewModel(
     val experimentalRanks: StateFlow<Boolean> = experimentalFlow.asStateFlow()
 
     init {
+        followPublications(viewModelScope, publications) {
+            boardLoader.invalidate()
+            spotlightLoader.invalidate()
+        }
         viewModelScope.launch {
             boardLoader.state.collect {
                 (it as? LoadState.Loaded)?.let { loaded ->
@@ -245,6 +253,7 @@ class FullRankingsViewModel(
  * @param reads Rankings reads.
  * @param backoff Shared retry backoff.
  * @param initialPage One-based starting page (restored from the route).
+ * @param publications Authoritative publication advances.
  */
 class BandRankingsViewModel(
     initialBandType: BandType,
@@ -253,6 +262,7 @@ class BandRankingsViewModel(
     private val reads: RankingsReads,
     backoff: ServiceRetryBackoff,
     initialPage: Int = 1,
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     private val bandTypeFlow = MutableStateFlow(initialBandType)
     private val metricFlow = MutableStateFlow<BandRankingMetric?>(null)
@@ -298,6 +308,7 @@ class BandRankingsViewModel(
     val experimentalRanks: StateFlow<Boolean> = experimentalFlow.asStateFlow()
 
     init {
+        followPublications(viewModelScope, publications) { boardLoader.invalidate() }
         viewModelScope.launch {
             boardLoader.state.collect {
                 (it as? LoadState.Loaded)?.let { loaded ->
