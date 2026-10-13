@@ -210,7 +210,6 @@ fun FestivalApp(container: AppContainer, launch: DebugLaunch, shortcuts: ShellSh
         appReduceMotion = settings?.reduceMotion == true,
         appReduceTransparency = settings?.reduceTransparency == true,
     ) {
-        LaunchedEffect(Unit) { container.background.start(this) }
         LaunchedEffect(Unit) { container.selectedProfile.start(this, shellViewModel.settings.map { it?.selectedPlayer }) }
         LaunchedEffect(Unit) { container.songsPreferences.watchDeselection(this, shellViewModel.settings.map { it?.selectedPlayer }) }
         val lifecycle = LocalLifecycleOwner.current.lifecycle

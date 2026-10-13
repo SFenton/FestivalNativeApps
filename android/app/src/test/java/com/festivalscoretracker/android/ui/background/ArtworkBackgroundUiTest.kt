@@ -10,7 +10,6 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.SemanticsActions
@@ -45,6 +44,7 @@ import java.time.Duration
 import java.util.Collections
 import kotlin.math.abs
 import kotlin.random.Random
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -129,7 +129,6 @@ class ArtworkBackgroundUiTest {
         rule.setContent {
             CompositionLocalProvider(LocalLifecycleOwner provides owner) {
                 FestivalTheme(appReduceMotion = appReduceMotion) {
-                    LaunchedEffect(Unit) { controller.start(this) }
                     ArtworkBackground(controller, forceStill = forceStill, modifier = Modifier.size(200.dp), coverage = coverage, imageLoader = loader)
                 }
             }
@@ -283,6 +282,29 @@ class ArtworkBackgroundUiTest {
     }
 
     @Test
+    fun dataSaverAtLaunchDefersTheCatalogueUntilItIsDisabled() {
+        var reads = 0
+        val controller = BackgroundController(
+            loadCatalog = {
+                reads++
+                CatalogPayload(SongsResponse(songs.size, null, songs), 7)
+            },
+            artworkUrl = artworkUrl,
+        )
+        shadowOf(context.getSystemService(ConnectivityManager::class.java))
+            .setRestrictBackgroundStatus(ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED)
+        setUp(controller)
+        advance(BackgroundPolicy.DWELL_MS + 100)
+        assertEquals(0, reads)
+        assertTrue(requested.isEmpty())
+        setDataSaver(false)
+        advance(1_500)
+        assertEquals(1, reads)
+        assertEquals("animated", state())
+        assertColor(dimmedWhite, centre())
+    }
+
+    @Test
     fun notVisiblePausesAndResumingContinues() {
         val owner = Owner()
         setUp(controller(), owner = owner)
@@ -323,6 +345,106 @@ class ArtworkBackgroundUiTest {
     // endregion
 
     // region Failures
+
+    @Test
+    fun aFailedCatalogueReadRecoversToAnimatedArtWithoutRestarting() {
+        var reads = 0
+        val controller = BackgroundController(
+            loadCatalog = {
+                if (++reads == 1) throw com.festivalscoretracker.android.core.model.FestivalApiException.PublicReadFrozen("scrape", "1")
+                CatalogPayload(SongsResponse(songs.size, null, songs), 7)
+            },
+            artworkUrl = artworkUrl,
+        )
+        setUp(controller)
+        assertEquals("no-art", state())
+        advance(2_500)
+        assertEquals(2, reads)
+        assertEquals("animated", state())
+        assertColor(dimmedWhite, centre())
+        assertHiddenFromAccessibility()
+    }
+
+    @Test
+    fun aFailedSingleStillCoverRetriesWithoutEnablingMotion() {
+        val only = songs.take(1)
+        val url = artworkUrl(only.single().albumArt)!!
+        failing = setOf(url)
+        val controller = BackgroundController(
+            loadCatalog = { CatalogPayload(SongsResponse(1, null, only), 7) },
+            artworkUrl = artworkUrl,
+        )
+        setUp(controller, forceStill = true)
+        advance(500)
+        assertColor(BrandTokens.appBackground, centre())
+        failing = emptySet()
+        advance(BackgroundPolicy.DWELL_MS + 1_500)
+        assertEquals("reduced-motion", state())
+        assertEquals(url, cover())
+        assertColor(dimmedWhite, centre())
+        assertHiddenFromAccessibility()
+    }
+
+    @Test
+    fun aFailedSongCoverRetriesAndDataSaverCancelsTheRetry() {
+        val controller = controller()
+        failing = setOf("https://art.invalid/song.jpg")
+        controller.pushFocus("song.jpg")
+        setUp(controller)
+        advance(500)
+        setDataSaver(true)
+        val count = requested.size
+        failing = emptySet()
+        advance(BackgroundPolicy.DWELL_MS * 2)
+        assertEquals(count, requested.size)
+        assertColor(BrandTokens.appBackground, centre())
+        setDataSaver(false)
+        advance(1_500)
+        assertEquals("song", state())
+        assertEquals("https://art.invalid/song.jpg", cover())
+        assertColor(dimmedWhite, centre())
+        assertHiddenFromAccessibility()
+    }
+
+    @Test
+    fun aStillPoolFindsTheFourthCoverAfterThreeFailures() {
+        failing = order.take(3).toSet()
+        setUp(controller(), appReduceMotion = true)
+        advance(500)
+        assertEquals(order[2], cover())
+        advance(BackgroundPolicy.DWELL_MS + 1_500)
+        assertEquals(order[3], cover())
+        assertEquals("reduced-motion", state())
+        assertColor(dimmedWhite, centre())
+    }
+
+    @Test
+    fun aNewPublicationResetsAnExhaustedPoolEvenWhenUrlsAreUnchanged() {
+        val publications = MutableStateFlow<Int?>(7)
+        val controller = BackgroundController(
+            loadCatalog = { CatalogPayload(SongsResponse(songs.size, null, songs), publications.value!!) },
+            artworkUrl = artworkUrl,
+            random = object : Random() {
+                override fun nextBits(bitCount: Int): Int = 0
+            },
+            publications = publications,
+        )
+        failing = order.toSet()
+        setUp(controller)
+        advance(BackgroundPolicy.DWELL_MS + 1_000)
+        assertColor(BrandTokens.appBackground, centre())
+        val spent = requested.size
+        failing = emptySet()
+        rule.runOnIdle { publications.value = 8 }
+        advance(1_500)
+        assertTrue(requested.size > spent)
+        assertColor(dimmedWhite, centre())
+        assertEquals("animated", state())
+        val recovered = cover()
+        advance(BackgroundPolicy.DWELL_MS)
+        assertNotEquals(recovered, cover())
+        assertColor(dimmedWhite, centre())
+    }
 
     @Test
     fun threeFailedCoversWaitForTheDeadlineThenTheFourthShows() {

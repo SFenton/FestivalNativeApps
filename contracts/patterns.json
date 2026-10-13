@@ -4,6 +4,42 @@
   "webRoot": "FortniteFestivalWeb/src",
   "patterns": [
     {
+      "id": "artwork-background",
+      "title": "Artwork background",
+      "status": "current",
+      "doc": ".agents/patterns/artwork-background.md",
+      "summary": "One decorative dimmed carousel behind the shell and splits, static focused song covers, reduced-motion still art and Data Saver no-art. Catalogue and cover failures recover with paced retries; known publication changes reset the pool, render/failure state and bounded ephemeral image cache even for identical URLs.",
+      "keywords": ["artwork", "backdrop", "carousel", "album art", "background", "reduced motion", "data saver", "cover retry"],
+      "web": [
+        {"path": "components/shell/AnimatedBackground.tsx", "symbol": "AnimatedBackground"},
+        {"path": "components/page/BackgroundImage.tsx", "symbol": "BackgroundImage"}
+      ],
+      "canonical": {
+        "apple": [
+          {"path": "apple/Sources/FestivalUI/Background/ArtworkBackground.swift", "symbol": "ArtworkCarouselEngine"},
+          {"path": "apple/Sources/FestivalUI/Background/FestivalBackgroundCoordinator.swift", "symbol": "FestivalBackgroundCoordinator"}
+        ],
+        "android": [
+          {"path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/BackgroundController.kt", "symbol": "BackgroundController"},
+          {"path": "android/app/src/main/java/com/festivalscoretracker/android/ui/background/ArtworkBackground.kt", "symbol": "ArtworkBackground"},
+          {"path": "android/app/src/main/java/com/festivalscoretracker/android/ui/background/SongCoverBackdrop.kt", "symbol": "SongCoverBackdrop"}
+        ],
+        "windows": [
+          {"path": "windows/Festival.Core/Domain/ArtworkCarousel.cs", "symbol": "ArtworkCarousel"},
+          {"path": "windows/Festival.App/Controls/ArtworkBackground.cs", "symbol": "ArtworkBackground"}
+        ]
+      },
+      "guards": [],
+      "related": {
+        "patterns": ["song-leaderboard-header", "split-panes", "modal-shell"],
+        "controls": ["artwork-background"],
+        "pages": ["songs", "song-detail", "song-leaderboard", "song-band-leaderboard", "settings"]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [623]
+    },
+    {
       "id": "scroll-edge",
       "title": "Scroll edge: content under pinned chrome",
       "status": "current",

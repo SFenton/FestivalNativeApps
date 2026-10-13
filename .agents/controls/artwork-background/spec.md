@@ -4,6 +4,8 @@
 
 Source: `FortniteFestivalWeb/src/components/shell/AnimatedBackground.tsx:7-250`, `FortniteFestivalWeb/src/components/page/BackgroundImage.tsx:16-57`.
 
+Shared recovery, cache and consumer rules: [artwork-background pattern](../../patterns/artwork-background.md).
+
 ## Behavior
 
 - Songs and Settings rotate at most **100 shuffled** album covers; Detail and Solo leaderboard show a **static, dimmed** song cover.
