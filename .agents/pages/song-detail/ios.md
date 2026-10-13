@@ -28,6 +28,8 @@
 
 ## Native decisions
 
+Page loading uses [load-transition](../../patterns/load-transition.md) R13's shared filling spinner, including the split detail pane and Duo active folds; preview-card indicators stay intrinsic (SFenton/festival-report-tracker#624). HIG `references/hig/designing-for-iphone-duo.md` recommends keeping important elements clear of the centre fold, and `layout.md` recommends respecting system safe areas. No iPhone, iPad or Mac chrome changes.
+
 | Web | iPhone | Why |
 |---|---|---|
 | View All after the ten rows | View Full at the card bottom, as on the web (moved back from the top 2026-09-28; the old offscreen-tap stall is re-covered by `testSongDetailShowsTopScorePreviewAndFullChart`) | Parity |

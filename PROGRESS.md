@@ -344,6 +344,8 @@ Order: W1 → (W2 ∥ W3) → W4. Blocker for native evidence: operator time in 
 
 ## 5. Known issues / decisions
 
+- **Apple loading placement (SFenton/festival-report-tracker#624):** page/result indicators use the canonical `FestivalLoadingView(placement: .fill)` and the existing empty-state fold policy ([load-transition](.agents/patterns/load-transition.md) R13). Ordinary phone, flat Duo, tablet and Mac region centres remain unchanged; active vertical/horizontal folds use the larger usable side. Inline/card indicators and Paths are unchanged.
+
 - **App versions and What's New (operator, 2026-10-01):** every platform is `YYMM.DD.NN` (UTC date + daily counter) from `<platform>/v<version>` tags; only a version bump starts a build; user-visible changes carry `Release-Note:`/`Release-Note-<Platform>:` trailers and nobody hand-edits `WhatsNew.json`. See `.agents/workflow/release-machine.md#versions-notes-and-whats-new`.
 - **Release machine (operator, 2026-09-30):** issues filed in private `SFenton/festival-report-tracker` are triaged and implemented autonomously (Mac worker for Apple surfaces, branch `report/<n>`), merged once `apple-ci` + `inventory` pass, and released by gated pipelines. Only the iOS App Store pipeline is active (blocked on ASC key/Distribution cert); Android/Windows/macOS/iPadOS release workflows are disabled scaffolds. See `.agents/workflow/release-machine.md`.
 - **Operator decision (Duo rail, 2026-09-28):** folded Duo with a profile (5 tabs) keeps **Bell + Profile** visible in the vertical rail; hamburger moves into "…".

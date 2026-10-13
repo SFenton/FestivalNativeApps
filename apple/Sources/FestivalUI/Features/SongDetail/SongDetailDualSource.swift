@@ -72,7 +72,7 @@ struct SongHistoryCarouselPane: View {
                 }
                 .padding(.horizontal, 16)
             } else if session.playerLoadState == .loading {
-                FestivalLoadingView(accessibilityLabel: "Loading Your Score History")
+                FestivalLoadingView(accessibilityLabel: "Loading Your Score History", placement: .fill)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if instruments.isEmpty {
                 FestivalEmptyState(

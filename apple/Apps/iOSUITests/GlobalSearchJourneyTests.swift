@@ -374,6 +374,9 @@ final class GlobalSearchJourneyTests: XCTestCase {
         let spinner = app.descendants(matching: .any)
             .matching(identifier: "fst.global-search.loading").firstMatch
         XCTAssertTrue(spinner.waitForExistence(timeout: 5), "No search spinner")
+        XCTAssertEqual(spinner.elementType, .activityIndicator, "The name belongs to the native busy indicator")
+        XCTAssertEqual(spinner.label, "Searching")
+        XCTAssertEqual(app.activityIndicators.matching(identifier: "fst.global-search.loading").count, 1)
         assertNoSectionTitles(in: app)
         let window = app.windows.firstMatch.frame
         XCTAssertEqual(spinner.frame.midX, window.midX, accuracy: 2, "Spinner is not centred horizontally")
