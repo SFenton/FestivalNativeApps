@@ -317,6 +317,26 @@ class CliTests(DevcapTestCase):
         self.assertEqual(code, devcap.HOLD_TIMEOUT_EXIT)
         self.assertEqual(calls, ["shutdown", devcap.HOLD_TIMEOUT_EXIT])
 
+    def test_overrun_skips_cleanup_when_every_gate_is_inherited(self):
+        calls = []
+        os.environ[devcap.HELD_ENV] = "simulator"
+        held = Hold(["simulator"], "nested", wait_seconds=1, hold_seconds=0.1, root=self.root)
+        held.cleanup = lambda: calls.append("shutdown")
+        with unittest.mock.patch.object(devcap.os, "_exit", lambda code: calls.append(code)):
+            held.acquire()
+            deadline = time.monotonic() + 10
+            while not calls and time.monotonic() < deadline:
+                time.sleep(0.05)
+        self.assertEqual(calls, [devcap.HOLD_TIMEOUT_EXIT])
+
+    @unittest.skipIf(os.name == "nt", "simulators are macOS-only")
+    def test_cli_nested_shutdown_leaves_the_parents_simulator_alone(self):
+        log = self.fake_xcrun()
+        inner = f"{sys.executable} {TOOL} run --sim {UDID} --shutdown --hold 1 -- sleep 30"
+        result = self.cli("run", "--sim", UDID, "--", "/bin/sh", "-c", inner)
+        self.assertEqual(result.returncode, devcap.HOLD_TIMEOUT_EXIT, result.stderr)
+        self.assertFalse(log.exists(), "the nested run shut down its parent's simulator")
+
     def test_shutdown_sims_survives_missing_xcrun(self):
         with unittest.mock.patch.object(devcap.subprocess, "run", side_effect=FileNotFoundError):
             devcap.shutdown_sims([UDID])
