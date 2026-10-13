@@ -1066,6 +1066,11 @@ struct RankingsFloatingBar<SwitcherMenu: View>: View {
                 }
             }
         }
+        // The menu is the bar's only child until the first page loads, and iOS kept it
+        // ahead of the pager inserted later: VoiceOver read "Band size" before the page
+        // controls drawn to its left (or above it at AX5). One container with the pager
+        // first reads them as drawn (#620).
+        .accessibilityElement(children: .contain)
         .padding(.horizontal, 16)
         .pagerScreenPlacement()
         .padding(.bottom, 8)
@@ -1075,6 +1080,7 @@ struct RankingsFloatingBar<SwitcherMenu: View>: View {
     private var pagerView: some View {
         if let pager {
             RankingsGlassPager(state: pager, idPrefix: idPrefix, onChange: onChange)
+                .accessibilitySortPriority(1)
         }
     }
 
