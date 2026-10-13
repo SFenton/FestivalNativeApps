@@ -90,8 +90,8 @@ FOLDER_SCOPE: dict[str, frozenset[str]] = {
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 HEADING = re.compile(r"^#{1,6}\s+(.*)$")
 FENCE = re.compile(r"^\s*(```|~~~)")
-#: A numbered pattern rule bullet, e.g. `- **R5. Reuse the board pager.**`.
-PATTERN_RULE = re.compile(r"\s*- \*\*(R\d+)\.")
+#: A numbered rule bullet in a pattern doc: `- **R12. Title.** …`.
+PATTERN_RULE = re.compile(r"^\s*[-*]\s+\*\*R(\d+)\b")
 BEGIN = "<!-- BEGIN GENERATED: check_docs.py --fix -->"
 END = "<!-- END GENERATED -->"
 
@@ -299,6 +299,36 @@ def check_platform_mixing(report: Report) -> None:
             report.error(path, f"{kind} but headings name {sorted(extra)}; move to a platform file")
 
 
+def check_pattern_rules(report: Report) -> None:
+    """Fail when a pattern doc numbers two rules the same.
+
+    A merge that keeps an older and a newer copy of a rule, or two rules that
+    both took the next free number, leaves a conflicting duplicate; each rule
+    number must appear once (#621).
+
+    Args:
+        report: Findings sink.
+    """
+    folder = AGENTS / "patterns"
+    if not folder.is_dir():
+        return
+    for path in sorted(folder.glob("*.md")):
+        seen: dict[int, list[int]] = {}
+        fenced = False
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if FENCE.match(line):
+                fenced = not fenced
+            if fenced:
+                continue
+            if match := PATTERN_RULE.match(line):
+                seen.setdefault(int(match.group(1)), []).append(number)
+        for rule, lines in sorted(seen.items()):
+            if len(lines) > 1:
+                where = ", ".join(str(line) for line in lines)
+                report.error(path, f"rule R{rule} is defined {len(lines)} times (lines {where}); "
+                             "merge the copies or give a distinct rule the next free number")
+
+
 def _linked_targets(readme: Path) -> set[Path]:
     """Return resolved local link targets in a router README.
 
@@ -317,26 +347,6 @@ def _linked_targets(readme: Path) -> set[Path]:
         if resolved.is_dir():
             targets.add(resolved / "README.md")
     return targets
-
-
-def check_pattern_rules(report: Report) -> None:
-    """Fail when a pattern doc numbers two rules the same (usually a merge kept both versions of one rule).
-
-    Args:
-        report: Findings collector.
-    """
-    for path in sorted((AGENTS / "patterns").glob("*.md")):
-        seen: dict[str, int] = {}
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            match = PATTERN_RULE.match(line)
-            if not match:
-                continue
-            rule = match.group(1)
-            if rule in seen:
-                report.error(path, f"{rule} appears twice (lines {seen[rule]} and {number}): merge them into one "
-                                   "authoritative rule and give a distinct rule its own number (tracker #621)")
-            else:
-                seen[rule] = number
 
 
 def check_routers(report: Report) -> None:
@@ -609,10 +619,10 @@ def run(fix: bool = False) -> Report:
     check_headers(report)
     check_links(report)
     check_platform_mixing(report)
+    check_pattern_rules(report)
     check_routers(report)
     check_skills(report)
     check_contracts(report)
-    check_pattern_rules(report)
     return report
 
 
