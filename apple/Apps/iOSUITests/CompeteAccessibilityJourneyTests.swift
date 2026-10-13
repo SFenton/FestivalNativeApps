@@ -22,6 +22,8 @@ import XCTest
 /// least 44 × 44 pt. A scoped audit covers Dynamic Type, clipped text, hit regions and
 /// descriptions on Compete's own elements. A second journey goes Back from View Full
 /// Leaderboard at AX5 and checks that the same page returns without its spinner (#39, #410).
+/// A third launches as `fixture-riv-ranked` (45th of 60 on every board) and checks the
+/// viewer's own "Your rank" row under each board's top rows (#370, backfilled by #493).
 /// macOS hosting cannot scale text, so this journey is
 /// the AX5 evidence; `FestivalUITests/CompeteLoadingAccessibilityTests` covers the spinner's
 /// name, role and the VoiceOver tree in `apple-ci`.
@@ -48,7 +50,8 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
 
     /// One element VoiceOver reads on the page.
     private struct Item: CustomStringConvertible {
-        enum Kind { case heading, row, action }
+        /// `spotlight` is the selected player's own row under a board's top rows (#370).
+        enum Kind { case heading, row, action, spotlight }
         let kind: Kind
         /// Its accessibility label (a row's starts with its rank, e.g. "#1").
         let label: String
@@ -58,6 +61,8 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
         let occurrence: Int
         /// More text it draws, each read back whole on its own (not ordered after `drawn`).
         var also: [String] = []
+        /// Its accessibility identifier, when its label repeats on every board.
+        var identifier: String? = nil
 
         var description: String { "\(label) [\(occurrence)]" }
     }
@@ -103,6 +108,34 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
             ))
         }
         items.append(Item(kind: .heading, label: "Rivals", drawn: "Rivals", occurrence: 0))
+        return items
+    }()
+
+    /// The viewer ranked 45th of 60 on every board, on none of their top rows
+    /// (`tools/mock_service.py` `fixture-riv-ranked`, #493).
+    private static let rankedViewer = "fixture-riv-ranked:Fixture Viewer"
+    /// The viewer's row's name: its rank and where it goes (leaderboard-row R7, #370).
+    private static let jumpLabel = "Your rank, 45th. Jump to your position."
+
+    /// ``readingOrder`` for the ranked viewer: each board's top rows, then the viewer's own
+    /// row (its rank, name and total score; the combo sums both instruments), then its
+    /// View Full Leaderboard.
+    private static let rankedReadingOrder: [Item] = {
+        let boards = [
+            "View Full Leaderboard, Lead + Bass": (id: "03", score: "90,000,000"),
+            "View Full Leaderboard, Lead": (id: "Solo_Guitar", score: "45,000,000"),
+            "View Full Leaderboard, Bass": (id: "Solo_Bass", score: "45,000,000"),
+        ]
+        var items: [Item] = []
+        for item in readingOrder {
+            if item.kind == .action, let board = boards[item.label] {
+                items.append(Item(
+                    kind: .spotlight, label: jumpLabel, drawn: "#45 Fixture Viewer", occurrence: 0,
+                    also: [board.score], identifier: "fst.compete.leaderboard-card.\(board.id).spotlight"
+                ))
+            }
+            items.append(item)
+        }
         return items
     }()
 
@@ -230,6 +263,83 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
         try auditCompete(app, size: "AX5 after Back")
     }
 
+    // MARK: - Your rank row (issue #370, backfilled by #493)
+
+    /// A viewer ranked outside a board's top rows gets their own row under them (#370):
+    /// one button named "Your rank, 45th. Jump to your position.", read after the top rows
+    /// and before View Full Leaderboard on every board, at the default size and at AX5. At AX5
+    /// it draws its rank, name and score whole with glyphs grown like the rest of the page,
+    /// fits between the bars, stays hittable, at least 44 pt tall and as wide as the rows
+    /// above it, and the scoped audit is clean. Pressing it opens that board's full
+    /// leaderboard (the Lead board here).
+    ///
+    /// HIG Accessibility: "offer text enlargement of at least 200%" and a 44×44 pt default
+    /// control size; HIG VoiceOver: labels describe what an element does.
+    @MainActor
+    func testYourRankRowIsAccessibleAtAX5() throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        let items = Self.rankedReadingOrder
+        let spotlights = items.filter { $0.kind == .spotlight }
+        XCTAssertEqual(spotlights.count, 3, "one row per board")
+
+        let standard = launch(contentSize: UIContentSizeCategory.large.rawValue, profile: Self.rankedViewer)
+        assertReadingOrder(standard, size: "default", items: items)
+        var baseline: [CGFloat] = []
+        for item in spotlights {
+            let (element, frame) = reveal(item, in: standard)
+            XCTAssertEqual(element.label, Self.jumpLabel, "\(item) says where it goes")
+            XCTAssertGreaterThanOrEqual(frame.height, 44, "\(item) is at least 44 pt tall: \(frame)")
+            let reading = RecognizedText.recognize(element, label: item.drawn, frame: frame)
+            for text in [item.drawn] + item.also {
+                XCTAssertTrue(RecognizedText.showsWhole(text, in: reading.text),
+                              "\(item) draws \(text) whole at the default size: '\(reading.text ?? "nil")'")
+            }
+            baseline.append(try XCTUnwrap(reading.lineHeight, "\(item) recognized at the default size"))
+        }
+        record(standard, name: "compete-your-rank-default")
+        standard.terminate()
+
+        let app = launch(
+            contentSize: UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue, profile: Self.rankedViewer
+        )
+        assertReadingOrder(app, size: "AX5", items: items)
+        let window = app.windows.firstMatch.frame
+        var growth: [String] = []
+        for (index, item) in spotlights.enumerated() {
+            let (element, frame) = reveal(item, in: app)
+            let region = contentRegion(app)
+            XCTAssertGreaterThanOrEqual(frame.minY, region.minY - 0.5, "\(item) under the navigation bar: \(frame) vs \(region)")
+            XCTAssertLessThanOrEqual(frame.maxY, region.maxY + 0.5, "\(item) under the bottom chrome: \(frame) vs \(region)")
+            XCTAssertGreaterThanOrEqual(frame.minX, window.minX - 0.5, "\(item) cut off at the leading edge: \(frame)")
+            XCTAssertLessThanOrEqual(frame.maxX, window.maxX + 0.5, "\(item) cut off at the trailing edge: \(frame)")
+            XCTAssertTrue(element.isHittable, "\(item) is reachable at AX5")
+            XCTAssertGreaterThanOrEqual(frame.height, 44, "\(item) is at least 44 pt tall at AX5: \(frame)")
+            let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "#3")).element(boundBy: index).frame
+            XCTAssertEqual(frame.width, row.width, accuracy: 1, "\(item) is as wide as the rows above it: \(frame) vs \(row)")
+            let reading = RecognizedText.recognize(element, label: item.drawn, frame: frame)
+            for text in [item.drawn] + item.also {
+                XCTAssertTrue(RecognizedText.showsWhole(text, in: reading.text),
+                              "\(item) draws \(text) whole at AX5: '\(reading.text ?? "nil")'")
+            }
+            let height = try XCTUnwrap(reading.lineHeight, "\(item) recognized at AX5")
+            let ratio = height / baseline[index]
+            growth.append(String(format: "%@ %.2f", item.description, ratio))
+            XCTAssertGreaterThan(ratio, RecognizedText.minimumGrowth,
+                                 "\(item) glyphs grow at AX5: \(height) vs \(baseline[index]) pt")
+        }
+        attach("compete-your-rank-ax5-growth", growth.joined(separator: "\n"))
+        record(app, name: "compete-your-rank-ax5")
+        try auditCompete(app, size: "AX5 (ranked viewer)", items: items)
+
+        let lead = try XCTUnwrap(spotlights.first { $0.identifier?.contains("Solo_Guitar") == true })
+        let (button, _) = reveal(lead, in: app)
+        button.tap()
+        XCTAssertTrue(app.navigationBars["Lead Rankings"].waitForExistence(timeout: FestivalApp.budget(15)),
+                      "\(lead) opens the Lead full leaderboard")
+        record(app, name: "compete-your-rank-ax5-full-leaderboard")
+    }
+
     // MARK: - Audit
 
     /// Run the scoped audit (Dynamic Type, clipped text, hit regions, descriptions) and fail on
@@ -238,10 +348,11 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
     /// - Parameters:
     ///   - app: The launched, loaded app showing Compete.
     ///   - size: Label for failure messages.
+    ///   - items: The page's expected reading order.
     @MainActor
-    private func auditCompete(_ app: XCUIApplication, size: String) throws {
+    private func auditCompete(_ app: XCUIApplication, size: String, items: [Item] = readingOrder) throws {
         var issues: [String] = []
-        let labels = Set(Self.readingOrder.filter { $0.kind != .row }.map(\.label))
+        let labels = Set(items.filter { $0.kind != .row }.map(\.label))
         try app.performAccessibilityAudit(
             for: [.dynamicType, .textClipped, .hitRegion, .sufficientElementDescription]
         ) { issue in
@@ -264,13 +375,14 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
     /// - Parameters:
     ///   - app: The launched, loaded app.
     ///   - size: Label for failure messages.
+    ///   - items: The expected reading order (``rankedReadingOrder`` for the ranked viewer).
     @MainActor
-    private func assertReadingOrder(_ app: XCUIApplication, size: String) {
+    private func assertReadingOrder(_ app: XCUIApplication, size: String, items: [Item] = readingOrder) {
         guard let snapshot = try? app.snapshot() else {
             XCTFail("app snapshot (\(size))")
             return
         }
-        let wanted = Set(Self.readingOrder.map(\.label))
+        let wanted = Set(items.map(\.label))
         var read: [XCUIElementSnapshot] = []
         Self.walk(snapshot) { node in
             if wanted.contains(Self.key(node.label)), [.staticText, .button].contains(node.elementType) {
@@ -278,27 +390,29 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
             }
         }
         let order = read.map { Self.key($0.label) }
-        XCTAssertEqual(order, Self.readingOrder.map(\.label), "reading order at \(size): \(read.map { "\($0.elementType.rawValue) \($0.identifier) \($0.label) \($0.frame)" })")
-        for node in read where Self.readingOrder.contains(where: { $0.kind == .heading && $0.label == node.label }) {
+        XCTAssertEqual(order, items.map(\.label), "reading order at \(size): \(read.map { "\($0.elementType.rawValue) \($0.identifier) \($0.label) \($0.frame)" })")
+        for node in read where items.contains(where: { $0.kind == .heading && $0.label == node.label }) {
             if let traits = Self.traits(node) {
                 XCTAssertNotEqual(traits & UIAccessibilityTraits.header.rawValue, 0, "'\(node.label)' is a heading at \(size)")
             }
         }
-        for node in read where node.label.hasPrefix("View Full Leaderboard") {
+        for node in read where node.label.hasPrefix("View Full Leaderboard") || node.label == Self.jumpLabel {
             XCTAssertEqual(node.elementType, .button, "'\(node.label)' is a button at \(size)")
         }
-        assertOnlyBoardButtons(snapshot, size: size)
+        assertOnlyBoardButtons(snapshot, size: size, allowing: items.contains { $0.kind == .spotlight } ? [Self.jumpLabel] : [])
     }
 
     /// Between the Leaderboards and Rivals headings the only buttons are ranking rows and
-    /// each board's View Full Leaderboard: the Leaderboards Overview #36 removed (web
-    /// parity) must not come back, and nothing reads as an overview.
+    /// each board's View Full Leaderboard (and, for a viewer outside the top rows, their own
+    /// row): the Leaderboards Overview #36 removed (web parity) must not come back, and
+    /// nothing reads as an overview.
     ///
     /// - Parameters:
     ///   - snapshot: The app's snapshot.
     ///   - size: Label for failure messages.
+    ///   - allowing: Other button labels the section may hold.
     @MainActor
-    private func assertOnlyBoardButtons(_ snapshot: XCUIElementSnapshot, size: String) {
+    private func assertOnlyBoardButtons(_ snapshot: XCUIElementSnapshot, size: String, allowing: Set<String> = []) {
         var inSection = false
         var strays: [String] = []
         var overview: [String] = []
@@ -311,7 +425,7 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
             if node.elementType == .staticText, node.label == "Leaderboards" { inSection = true }
             if node.elementType == .staticText, node.label == "Rivals" { inSection = false }
             if inSection, node.elementType == .button, !node.label.hasPrefix("#"),
-               !node.label.hasPrefix("View Full Leaderboard, ") {
+               !node.label.hasPrefix("View Full Leaderboard, "), !allowing.contains(node.label) {
                 strays.append("\(node.identifier) '\(node.label)'")
             }
         }
@@ -331,14 +445,16 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
     /// Launch Compete for `fixture-riv` (Lead and Bass) at `contentSize` and wait until the
     /// page spinner has left and the last board's button is in the tree.
     ///
-    /// - Parameter contentSize: `UIContentSizeCategory` raw value.
+    /// - Parameters:
+    ///   - contentSize: `UIContentSizeCategory` raw value.
+    ///   - profile: The selected player, `accountId:displayName`.
     /// - Returns: The loaded app.
     @MainActor
-    private func launch(contentSize: String) -> XCUIApplication {
+    private func launch(contentSize: String, profile: String = "fixture-riv:Fixture Riv") -> XCUIApplication {
         let app = FestivalApp.makeApp([
             "FST_API_BASE_URL": Self.fixtureService,
             "FST_UI_TEST_CLEAR_PROFILE": "1",
-            "FST_DEBUG_PROFILE": "fixture-riv:Fixture Riv",
+            "FST_DEBUG_PROFILE": profile,
             "FST_DEBUG_TAB": "compete",
         ])
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", contentSize]
@@ -364,6 +480,8 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
                 .element(boundBy: item.occurrence)
         case .action:
             return app.buttons[item.label]
+        case .spotlight:
+            return app.buttons[item.identifier ?? item.label]
         case .heading:
             return app.staticTexts.matching(NSPredicate(format: "label == %@", item.label)).element(boundBy: item.occurrence)
         }

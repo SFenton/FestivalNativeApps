@@ -120,6 +120,15 @@ public class LeaderboardUnifyTests
     }
 
     [Fact]
+    public void NameIds_PairWithTheRowIds()
+    {
+        Assert.Equal("fst.rankings.row.fixture-player-2.name", LeaderboardRowIds.Name("fst.rankings.row.fixture-player-2"));
+        Assert.Equal("fst.full-rankings.spotlight-footer.name", LeaderboardRowIds.Name("fst.full-rankings.spotlight-footer"));
+        Assert.Equal("", LeaderboardRowIds.Name(""));
+        Assert.Equal("", LeaderboardRowIds.Name(null));
+    }
+
+    [Fact]
     public async Task BothPagers_ImplementTheBoardPagerContract()
     {
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;

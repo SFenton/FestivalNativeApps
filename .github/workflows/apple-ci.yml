@@ -1,6 +1,9 @@
 name: apple-ci
-# Apple unit tests, compile check and the simulator journeys (JOURNEYS, and the Score History journeys on an
-# iPhone and an iPad) on a GitHub-hosted Xcode 27 runner (no mesh machine runs CI or release work). The job name is the required check name: keep it `apple-ci`.
+# Apple unit tests, compile check and the simulator journeys (JOURNEYS, the Score History journeys, the Rival Detail
+# journeys on an iPad, an iPhone and a folded iPhone Duo, and the Songs Filter legs below) on GitHub-hosted Xcode 27
+# runners (no mesh machine runs CI or release work). The required check is the `apple-ci` job at the end: it passes
+# only when the build job and, on release dispatches, every Songs Filter journey leg and the scroll-edge journeys pass,
+# so keep its name `apple-ci`.
 # Path-filtered: Android-, Windows- and docs-only changes don't spend the scarce macOS runners (the release machine
 # requires apple-ci only for apple/ and contracts/ changes).
 # Release train: pull requests and master run the build and unit tests; the iPhone/iPad simulator journeys run only
@@ -37,10 +40,10 @@ concurrency:
 env:
   DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
 jobs:
-  apple-ci:
-    name: apple-ci
+  build:
+    name: apple-ci build, unit tests and iPhone/iPad journeys
     runs-on: xcode-27
-    timeout-minutes: 160
+    timeout-minutes: 190
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,6 +71,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/renders"
           for v in BANDS COMPETE DUO FILTER FIRST_RUN HISTORY LEADERBOARDS LICENSES PATH PROFILE RIVALS SECTION_INDEX SETTINGS SHELL SHOP SONG_ROW SONGS SORT SUGGESTIONS WHATS_NEW; do echo "FST_${v}_RENDER_OUT=$RUNNER_TEMP/renders" >> "$GITHUB_ENV"; done
       - name: Swift unit tests (macOS host, no simulator)
+        id: unit
         working-directory: apple
         run: swift test --parallel --enable-code-coverage
       - name: Animation-evidence tests, alone
@@ -76,12 +80,24 @@ jobs:
         # strictly. Reuses the coverage build and leaves its profile alone. Filter: testing/apple/hosted-snapshots.md.
         working-directory: apple
         run: swift test --skip-build --filter 'selectedRowRevealFadesTheRowItReaches|staggeredListRowsFadeInRatherThanPop|serviceInfoIndeterminateBar|songDetailCardsScrolledIntoViewAreReadyAtOnce'
+      - name: Mac keyboard navigation tests, alone
+        # Tab / Shift-Tab and Space through the Songs Filter sheet (#432). They need macOS Keyboard navigation (the
+        # Mac's Full Keyboard Access, `AppleKeyboardUIMode` 2), which the parallel run leaves off so they skip
+        # there, and they swizzle NSApplication's key window, so they run alone. FST_REQUIRE_KEYBOARD_NAVIGATION
+        # turns a skip into a failure. testing/apple/accessibility.md#keyboard.
+        working-directory: apple
+        env:
+          FST_REQUIRE_KEYBOARD_NAVIGATION: "1"
+        run: |
+          defaults write -g AppleKeyboardUIMode -int 2
+          swift test --skip-build --filter SongsFilterKeyboardTests
       - name: iPhone simulator journeys (serialized, loopback fixture)
         if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
         # Evidence only an iOS run gives (real Dynamic Type sizes, performAccessibilityAudit, the production nav bar
-        # and tab-bar accessory reading order, page-tools-and-nav-chrome R17). One throwaway runner
-        # simulator, the large-catalogue loopback fixture, `ios_sim.py uitest`; a skipped journey fails the step.
-        # Add a journey here only if it runs against this fixture: testing/apple/xcuitest.md#ci-journeys.
+        # and tab-bar accessory reading order, page-tools-and-nav-chrome R17). One throwaway runner simulator, two
+        # loopback fixtures (large catalogue on 8765, band boards on 18934), `ios_sim.py uitest` in batches
+        # of three without failure diagnostics; a skipped journey fails the step.
+        # Add a journey here only if it runs against one of these fixtures: testing/apple/xcuitest.md#ci-journeys.
         env:
           JOURNEYS: >-
             SongsChromeJourneyTests/testScrollAwaySectionBarAccessibility
@@ -89,16 +105,34 @@ jobs:
             SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
             SongsChromeJourneyTests/testRowUnderTheSectionBarFadeKeepsItsAccessibility
             SongsChromeJourneyTests/testSectionPushIsAccessibleAtLargestText
+            SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestText
+            SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestTextDuoFolded
             SongsChromeJourneyTests/testFilterFieldReadyAfterBackFromSongDetail
             SongsChromeJourneyTests/testFilterFieldIsGlassAtTopAndScrolled
             SongsChromeJourneyTests/testProgrammaticScrollNeverRestsPartWayThroughTheLargeTitle
             SongsChromeJourneyTests/testProgrammaticScrollNeverRestsPartWayOnTheLegacyScrollPath
+            SongsChromeJourneyTests/testSlowDragsNearTheTopKeepTheTopOfSongsAccessible
+            SongsChromeJourneyTests/testSlowDragsNearTheTopKeepTheTopOfSongsAccessibleAtAX5
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             FirstRunJourneyTests/testSongDemoRotationKeepsSlideAccessibleAtLargestText
+            FirstRunJourneyTests/testSongsGuideRealControlDemosAccessibleAtLargestText
+            FirstRunJourneyTests/testSongsGuideRealControlDemosAccessibleAtLargestTextDuoFolded
             RivalsViewAllAccessibilityJourneyTests/testViewAllRivalsIsReadableAtAX5
+            ProfileBandsAccessibilityJourneyTests/testProfileBandsSectionIsReadableAtAX5
+            ProfileBandsAccessibilityJourneyTests/testFailedBandsRetryIsANamed44PointTarget
+            FirstRunJourneyTests/testGuideTitleIsReadFirstAtLargestText
             SongsJourneyTests/testSongsShopSortSectionTitlesAreAccessibleAtAX5
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestText
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestTextDuoFolded
+            SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestText
+            SongLeaderboardEndJourneyTests/testLastRowRestsAbovePagerAtLargestText
+            SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestTextDuoFolded
+            DuoBoardPagerAccessibilityJourneyTests/testBandRankingsPagerIsAccessibleOnTheDuoFoldedBoardAtAX5
+            DuoBoardPagerAccessibilityJourneyTests/testBandRankingsPagerIsAccessibleOnTheDuoUnfoldedBoardAtAX5
+            DuoBoardPagerAccessibilityJourneyTests/testSongBoardPagerIsAccessibleOnTheDuoFoldedBoardAtAX5
+            DuoBoardPagerAccessibilityJourneyTests/testSongBoardPagerIsAccessibleOnTheDuoUnfoldedBoardAtAX5
+            SongLeaderboardPagingJourneyTests/testPagingKeepsHeaderReadableAtLargestText
+            FullRankingsFooterJourneyTests/testFooterOnThePlayersPageIsAccessibleAtLargestText
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrder
             NavButtonHitRegionJourneyTests/testAccountButtonsReadInProductionChromeOrderOnPushedPage
             NavButtonHitRegionJourneyTests/testChooseProfileReadsAloneInProductionChrome
@@ -106,13 +140,20 @@ jobs:
             NavButtonHitRegionJourneyTests/testProfileStaysTheLastBarButtonOnSongDetail
             NavButtonHitRegionJourneyTests/testProfileStaysTheLastBarButtonOnPushedPagesWithActions
             NavButtonHitRegionJourneyTests/testChooseProfileStaysLastOnSongDetailAtLargestTextSize
+            SongBandRevealAccessibilityJourneyTests/testRevealedBandRowIsAccessibleWithStandardMotion
+            SongBandRevealAccessibilityJourneyTests/testRevealedBandRowIsAccessibleWithReduceMotion
+            SongBandRevealAccessibilityJourneyTests/testRevealedBandRowGrowsAtLargestTextSize
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
             CompeteAccessibilityJourneyTests/testCompeteIsReadableAtAX5
             CompeteAccessibilityJourneyTests/testBackFromFullLeaderboardKeepsCompeteReadableAtAX5
+            CompeteAccessibilityJourneyTests/testYourRankRowIsAccessibleAtAX5
             RivalsJourneyTests/testAllRivalsTitleLeadsTheListAndPinsAfterScroll
             RivalsJourneyTests/testAllRivalsDuoVerticalBarKeepsSystemTitle
             SongBarCaptionIconJourneyTests/testSongLeaderboardCaptionIconScalesWithText
             SongBarCaptionIconJourneyTests/testPlayerHistoryCaptionIconAtLargestText
+            DrawerAccessibilityJourneyTests/testReduceMotionDrawerPassesAccessibilityAudit
+            DrawerAccessibilityJourneyTests/testClosingDrawerHandsThePageBackAtOnce
+            DrawerAccessibilityJourneyTests/testClosingDrawerHandsThePageBackAtOnceDuoFolded
             SuggestionsAccessibilityJourneyTests/testCachedArtRowIsAccessibleAtDefaultSizeAndAX5
             RivalsJourneyTests/testRivalDetailSongCardsAreAccessibleAtAX5
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
@@ -121,16 +162,78 @@ jobs:
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchReadsOneSpinnerBeforeTheSelectors
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchUnderReduceMotion
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchAtAX5
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGestures
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesAtAX5
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoFolded
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoUnfolded
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoFoldedAtAX5
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesDuoUnfoldedAtAX5
+            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterField
+            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
+            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldDuoFolded
+            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5DuoFolded
+            PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButton
+            PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButtonDuoFolded
+            SongSeasonAccessibilityJourneyTests/testTappedScoreSeasonIsReadableAtLargestText
             RivalsAccessibilityJourneyTests/testRivalRowsAreReadableAtAX5
+            GroupedCardAccessibilityJourneyTests/testLeaderboardsGroupedCardIsReadableAtAX5
+            ModalHeaderAccessibilityJourneyTests/testNotificationsHeaderAtDefaultSize
+            ModalHeaderAccessibilityJourneyTests/testNotificationsHeaderAtAX5
+            ModalHeaderAccessibilityJourneyTests/testPathsHeaderAtDefaultSize
+            ModalHeaderAccessibilityJourneyTests/testPathsHeaderAtAX5
+            MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleAtDefaultSizeAndAX5
+            MaterialCardAccessibilityJourneyTests/testBandRankingsFloatingBarIsAccessibleWithReduceTransparencyAtAX5
+            PagerCardContrastJourneyTests/testPagerCardKeepsContrastOnTheMaterial
+            PagerCardContrastJourneyTests/testPagerCardKeepsContrastOpaqueAndIncreasedContrast
+            QuickLinksIconAccessibilityJourneyTests/testSheetInstrumentIconMatchesSymbolRow
+            QuickLinksIconAccessibilityJourneyTests/testSheetInstrumentIconMatchesSymbolRowAtAX5
+            QuickLinksIconAccessibilityJourneyTests/testDuoMenuInstrumentIconMatchesSymbolRow
+            QuickLinksIconAccessibilityJourneyTests/testDuoMenuInstrumentIconMatchesSymbolRowAtAX5
+            GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5
+            GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5DuoFolded
+            DuoPageTitleAccessibilityJourneyTests/testRootTitlesAreAccessibleAtAX5DuoFolded
+            DuoPageTitleAccessibilityJourneyTests/testNoProfileStatisticsTitleIsAccessibleAtAX5DuoFolded
+            DuoPageTitleAccessibilityJourneyTests/testNoProfileStatisticsIsAccessibleAtAX5WithMoreContrastDuoFolded
+            DuoPageTitleAccessibilityJourneyTests/testNoProfileStatisticsTitleIsAccessibleAtAX5
+            NotificationsAccessibilityJourneyTests/testRowsUnderThePinnedTitleKeepTheirAccessibility
+            NotificationsAccessibilityJourneyTests/testRowsUnderThePinnedTitleKeepTheirAccessibilityAtAX5
+            SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderIsAccessibleAtStandardSize
+            SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderGrowsAtAX5
+            SettingsVisualOrderAccessibilityJourneyTests/testSongRowVisualOrderIsReadableAtAX5
         run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service.log" 2>&1 &
           mock=$!
+          python3 tools/mock_service.py --port 18934 > "$RUNNER_TEMP/mock_service_bands.log" 2>&1 &
+          bands=$!
+          trap 'kill "$mock" "$bands" 2>/dev/null || true' EXIT
+          device=$(python3 tools/ios_sim.py ci-device)
+          for log in mock_service.log mock_service_bands.log; do
+            for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/$log" && break; sleep 1; done
+            grep -q "fixture service on" "$RUNNER_TEMP/$log"
+          done
+          only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 1800 --no-test-diagnostics \
+            "${only[@]}"
+      - name: iPhone unpinned-fixture journeys (serialized, loopback fixture)
+        if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
+        # Journeys whose state needs an unpinned read (no proven publication), so they get their own
+        # `mock_service.py --port 18446 --unpinned` listener: the player profile's pause notice at AX5 (#446, #97).
+        # Reuses the iPhone step's simulator and UI-test build, before the plain-fixture step shuts it down; a skipped
+        # journey fails the step.
+        # testing/apple/xcuitest.md#ci-journeys.
+        env:
+          UNPINNED_JOURNEYS: >-
+            ProfileNoticeTextSizeJourneyTests/testUnverifiedNoticeGrowsAndStaysWholeAtLargestText
+          TEST_RUNNER_FST_PROFILE_NOTICE_FIXTURE_URL: http://127.0.0.1:18446
+        run: |
+          python3 tools/mock_service.py --port 18446 --unpinned > "$RUNNER_TEMP/mock_service_unpinned.log" 2>&1 &
+          mock=$!
           trap 'kill "$mock" 2>/dev/null || true' EXIT
           device=$(python3 tools/ios_sim.py ci-device)
-          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log" && break; sleep 1; done
-          grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log"
-          only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
-          python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 1800 "${only[@]}"
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service_unpinned.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service_unpinned.log"
+          only=(); for journey in $UNPINNED_JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$device" --fail-on-skip --timeout 900 "${only[@]}"
       - name: Plain-fixture journeys, iPhone and iPad (serialized, plain loopback fixture)
         if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
         # #385, the region #302 changed: on device at AX5 the rows draw score and accuracy whole on one line, the
@@ -140,15 +243,25 @@ jobs:
         # catalogue) on an OS-assigned port. Runs before the iPad step so the iPad boots once. A skipped journey fails the step.
         # PLAIN_JOURNEYS: iPhone UI-test bundle (`--app phone`) journeys that need `fixture-pulse` and `fixture-orbit` on
         # screen, on the same iPhone before it shuts down (#615: the Filter sheet's score checks under Filter Invalid
-        # Scores, their labels, enabled state and touch height). testing/apple/xcuitest.md#ci-journeys.
+        # Scores, their labels, enabled state and touch height; #487: Songs' reset tools after a deselect, the #359
+        # region, at the default and the largest text size). HISTORY_IPAD_JOURNEYS also holds the song board's
+        # split-pane title at AX5 (#478, the #342 region), Song Detail's Duos link selected beside its board (#492, the
+        # #367 region) and Song Detail's first instrument-card row at AX5 (#490, the #365 region: one top edge, each
+        # card read whole); iPad only, so not in HISTORY_JOURNEYS.
+        # testing/apple/xcuitest.md#ci-journeys.
         env:
           PLAIN_JOURNEYS: >-
             SongsJourneyTests/testPlayerScoreFilterSettingsPauseAndDeselectScope
+            SongsDeselectAccessibilityJourneyTests/testDeselectResetsSongsToolsForVoiceOver
+            SongsDeselectAccessibilityJourneyTests/testDeselectResetIsReachableAtLargestText
           HISTORY_JOURNEYS: >-
             ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5
           HISTORY_IPAD_JOURNEYS: >-
             ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5
             ScoreHistoryAccessibilityJourneyTests/testScoreHistorySplitPaneAtAX5
+            SongBoardSplitAccessibilityJourneyTests/testSongBoardSplitTitleAtAX5
+            SongBandBoardSplitAccessibilityJourneyTests/testSongBandBoardSplitLinkAtAX5
+            SongDetailCardRowAccessibilityJourneyTests/testInstrumentCardRowAtAX5
         run: |
           log="$RUNNER_TEMP/mock_service_history.log"
           python3 tools/mock_service.py --port 0 > "$log" 2>&1 &
@@ -162,7 +275,7 @@ jobs:
           only=(); for journey in $HISTORY_JOURNEYS; do only+=(--only "$journey"); done
           python3 tools/ios_sim.py uitest --app ipad --device "$iphone" --fail-on-skip --timeout 900 "${only[@]}"
           only=(); for journey in $PLAIN_JOURNEYS; do only+=(--only "$journey"); done
-          python3 tools/ios_sim.py uitest --app phone --device "$iphone" --fail-on-skip --timeout 1500 "${only[@]}"
+          python3 tools/ios_sim.py uitest --app phone --device "$iphone" --fail-on-skip --timeout 1500 --batch-size 1 "${only[@]}"
           python3 tools/ios_sim.py shutdown --device "$iphone"
           ipad=$(python3 tools/ios_sim.py ci-device --type "iPad Pro 11-inch (M5)")
           only=(); for journey in $HISTORY_IPAD_JOURNEYS; do only+=(--only "$journey"); done
@@ -181,9 +294,24 @@ jobs:
             WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Landscape
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestText
             BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestTextLandscape
+            SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestText
+            SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestTextLandscape
+            WideBoardColumnsJourneyTests/testFullRankingsTwoColumnsAreAccessibleAtLargestText
+            WideBoardColumnsJourneyTests/testBandRankingsTwoColumnsAreAccessibleAtLargestText
+            SongDetailBandColumnsJourneyTests/testBandPreviewColumnsAreAccessibleAtLargestText
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGestures
+            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesAtAX5
+            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterField
+            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
+            PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButton
+            SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestText
+            QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRow
+            QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRowAtAX5
+            GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5
+            GroupedCardAccessibilityJourneyTests/testLeaderboardsGroupedCardIsReadableAtAX5
         run: |
           python3 tools/ios_sim.py shutdown --device "$(python3 tools/ios_sim.py ci-device)"
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock_service_ipad.log" 2>&1 &
@@ -193,10 +321,52 @@ jobs:
           for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service_ipad.log" && break; sleep 1; done
           grep -q "fixture service on" "$RUNNER_TEMP/mock_service_ipad.log"
           only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
-          python3 tools/ios_sim.py uitest --device "$device" --app phone --batch-size 1 --fail-on-skip --timeout 1500 "${only[@]}"
+          python3 tools/ios_sim.py uitest --device "$device" --app phone --batch-size 1 --fail-on-skip --timeout 1500 \
+            --no-test-diagnostics "${only[@]}"
           # Hardware-keyboard focus on the board (the journey fails when no focus stop exists).
           python3 tools/ios_sim.py uitest --device "$device" --app phone --a11y full-keyboard-access --fail-on-skip \
             --timeout 900 --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter
+          # Hardware-keyboard focus on Songs' page tools and ⌥⌘↓/↑ on Quick Links (#442, for #89).
+          python3 tools/ios_sim.py uitest --device "$device" --app phone --a11y full-keyboard-access --fail-on-skip \
+            --timeout 900 --only PageToolsSearchFieldJourneyTests/testPageToolsAreInTheKeyboardFocusGroupAndOperable
+      - name: Rival Detail accessibility journeys (iPad, iPhone, iPhone Duo simulators)
+        # Full CI only (release branches). It also runs after an earlier journey step fails, so a failure there
+        # never hides this step's result (its own mock and devices; the build steps above must pass).
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && steps.unit.outcome == 'success' }}
+        # #444: Rival Detail while the service freezes publishing (#95) on each Apple touch form factor: labels,
+        # reading order, 44-pt targets, the largest text size and performAccessibilityAudit. Its selected-player
+        # fixtures need their own mock (port 18944). The same universal test build runs on one runner simulator
+        # per device type (`ci-device --type`, named per type), one at a time: the iPad first (still booted from
+        # the step above), then the iPhone, then the Duo, folded (a new Duo boots folded and `--pose folded`
+        # verifies it). The image ships only the iOS 27.0 simulator runtime, which has no iPhone Duo device type,
+        # so when `ci-device` finds no runtime for a device the step downloads the selected Xcode's (27.1) once.
+        # About 20 min in all; each device has a 25-min cap. List and timing: testing/apple/xcuitest.md#ci-journeys.
+        env:
+          RIVAL_JOURNEYS: >-
+            RivalDetailFrozenAccessibilityJourneyTests/testFrozenRivalDetailNamesOrdersSizesAndGrowsItsRows
+            RivalDetailFrozenAccessibilityJourneyTests/testFrozenRivalDetailWithoutSnapshotOffersRetry
+        run: |
+          python3 tools/mock_service.py --port 18944 > "$RUNNER_TEMP/mock_service_rivals.log" 2>&1 &
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service_rivals.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service_rivals.log"
+          only=(); for journey in $RIVAL_JOURNEYS; do only+=(--only "$journey"); done
+          for device in "iPad Pro 11-inch (M5)|" "iPhone 17 Pro|" "iPhone Duo|folded"; do
+            IFS='|' read -r type pose <<< "$device"
+            posed=(); [ -z "$pose" ] || posed=(--pose "$pose")
+            if ! udid=$(python3 tools/ios_sim.py ci-device --type "$type"); then
+              echo "::group::Download the iOS simulator runtime for $type"
+              xcodebuild -downloadPlatform iOS
+              echo "::endgroup::"
+              udid=$(python3 tools/ios_sim.py ci-device --type "$type")
+            fi
+            echo "::group::Rival Detail accessibility journeys ($type)"
+            TEST_RUNNER_FST_FIXTURE_URL=http://127.0.0.1:18944 \
+              python3 tools/ios_sim.py uitest --device "$udid" --app phone --fail-on-skip --timeout 1500 "${posed[@]}" "${only[@]}"
+            echo "::endgroup::"
+            python3 tools/ios_sim.py shutdown --device "$udid"
+          done
       - name: Upload simulator journey results
         if: failure() && github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
@@ -206,8 +376,11 @@ jobs:
             apple/DerivedData/lane-driver/Results
             apple/DerivedData/lane-driver-ipad/Results
             ${{ runner.temp }}/mock_service.log
+            ${{ runner.temp }}/mock_service_bands.log
             ${{ runner.temp }}/mock_service_history.log
+            ${{ runner.temp }}/mock_service_unpinned.log
             ${{ runner.temp }}/mock_service_ipad.log
+            ${{ runner.temp }}/mock_service_rivals.log
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload hosted render captures
@@ -239,3 +412,193 @@ jobs:
           path: apple/.build/out/Products/Debug/codecov/*.json
           if-no-files-found: ignore
           retention-days: 14
+  songs-filter-journeys:
+    # The Songs Filter sheet without a profile (#432, for #77) on each Apple touch form factor: the
+    # accessibility journey (performAccessibilityAudit, 44 pt targets, AX5) on the iPhone, the iPad and the
+    # folded iPhone Duo, and the iPad hardware-keyboard journey; on the folded Duo also the bottom Filter
+    # Songs field (#474, for #333), and the bottom field in the simulated unfolded poses (#475, for #334;
+    # it needs the Duo's vertical bar). The plain loopback fixture (8765), one throwaway simulator per leg,
+    # run in parallel with the build job. Release train: only on release-branch dispatches, like the build
+    # job's journeys: testing/apple/xcuitest.md#ci-journeys.
+    name: apple-ci Songs Filter journeys (${{ matrix.leg }})
+    if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
+    runs-on: xcode-27
+    # The runner is 2-4x slower than a Mac: the folded Duo's three methods took 19 min on a Mac, plus build and boot.
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: iphone
+            device_type: iPhone 17 Pro
+            uitest_args: ""
+            journeys: >-
+              SongsFilterAccessibilityJourneyTests/testNoProfileGeneralFiltersPassAccessibilityAudit
+              SongsFilterAccessibilityJourneyTests/testDynamicTypeAuditWithShopHidden
+              SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
+          - leg: ipad
+            device_type: iPad Pro 11-inch (M5)
+            uitest_args: --app ipad
+            journeys: >-
+              SongsFilterAccessibilityJourneyTests/testNoProfileGeneralFiltersPassAccessibilityAudit
+              SongsFilterAccessibilityJourneyTests/testDynamicTypeAuditWithShopHidden
+              SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
+              SongsFilterKeyboardJourneyTests/testCommandPeriodClosesFilter
+          - leg: duo-folded
+            device_type: iPhone Duo
+            uitest_args: --pose folded
+            journeys: >-
+              SongsFilterAccessibilityJourneyTests/testNoProfileGeneralFiltersPassAccessibilityAudit
+              SongsFilterAccessibilityJourneyTests/testDynamicTypeAuditWithShopHidden
+              SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
+              SongsBottomFilterFieldJourneyTests/testBottomFilterFieldIsAccessibleDuoFolded
+              SongsBottomFilterFieldJourneyTests/testBottomFilterFieldGrowsAtAX5DuoFolded
+              TopEdgeScrimDuoJourneyTests/testScrimUnderTheVerticalBarKeepsTheTopAccessibleAtAX5
+              DuoFilterFieldAccessibilityJourneyTests/testFilterFieldKeepsItsColumnAtAX5DuoUnfolded
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+      - name: Toolchain
+        run: |
+          test -L /Applications/Xcode.app
+          sudo ln -sfn /Applications/Xcode_27.1.app /Applications/Xcode.app
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Generate the Xcode project
+        working-directory: apple
+        run: xcodegen generate -q
+      - name: Runner simulator
+        # The iPhone Duo device type needs the iOS 27.1 runtime; download Xcode's iOS platform when the image
+        # has no runtime for the leg's device type.
+        run: |
+          if ! device=$(python3 tools/ios_sim.py ci-device --type "${{ matrix.device_type }}"); then
+            xcodebuild -downloadPlatform iOS
+            device=$(python3 tools/ios_sim.py ci-device --type "${{ matrix.device_type }}")
+          fi
+          echo "FST_CI_DEVICE=$device" >> "$GITHUB_ENV"
+      - name: Songs Filter journeys (serialized, loopback fixture)
+        # One test method per batch with a long batch timeout: the AX5 journey alone runs for many minutes on
+        # the runner, and no other lane shares its simulator. A skipped journey fails the step. A batch whose
+        # test failed runs once more (`--retries 1`): the runner's simulator can time out an XCUITest query;
+        # a real failure fails both attempts, and the failed attempt's result bundle is uploaded either way.
+        env:
+          JOURNEYS: ${{ matrix.journeys }}
+        run: |
+          python3 tools/mock_service.py > "$RUNNER_TEMP/mock_service.log" 2>&1 &
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service.log"
+          only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$FST_CI_DEVICE" ${{ matrix.uitest_args }} --fail-on-skip \
+            --batch-size 1 --timeout 2400 --retries 1 "${only[@]}"
+      - name: Upload journey results
+        # Also when the job times out (cancelled), so a slow or hung batch can be diagnosed.
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-ci-songs-filter-${{ matrix.leg }}
+          path: |
+            apple/DerivedData/lane-driver/Results
+            apple/DerivedData/lane-driver-ipad/Results
+            ${{ runner.temp }}/mock_service.log
+          if-no-files-found: ignore
+          retention-days: 7
+  scroll-edge-journeys:
+    # Scroll-edge fades (#462, backfilling #308): the Notifications sheet header and every R9 board (Song
+    # Leaderboard, Full Rankings, Band Rankings, band song leaderboard, Player Bands) at AX5 with the hard edge,
+    # and the simulated iPhone Duo windows, on the iPhone and then the iPad. These read multi-page boards from
+    # their own `--large-rankings` fixture on port 8766 and launch about 15 times, so they run beside the build
+    # job rather than in it. Release train: only on release-branch dispatches: testing/apple/xcuitest.md#ci-journeys.
+    name: apple-ci scroll-edge journeys
+    if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
+    runs-on: xcode-27
+    # Build plus nine iPhone and six iPad journeys, one per batch, on a runner 2-4x slower than a Mac.
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: true
+      - name: Toolchain
+        run: |
+          test -L /Applications/Xcode.app
+          sudo ln -sfn /Applications/Xcode_27.1.app /Applications/Xcode.app
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Generate the Xcode project
+        working-directory: apple
+        run: xcodegen generate -q
+      - name: Scroll-edge journeys, iPhone then iPad (serialized, large-rankings loopback fixture)
+        # One selector per batch; a skipped journey fails the step. A batch whose test failed runs once more
+        # (`--retries 1`, as the Songs Filter legs): a real failure fails both attempts. The Duo-window journeys
+        # skip on an iPad, so they run on the iPhone only. The iPad reuses the iPhone's UI-test build
+        # (`--app phone`) after the iPhone shuts down; its first batch pays the cold first launch (#544).
+        env:
+          SCROLL_EDGE_JOURNEYS: >-
+            ScrollEdgeFadeAccessibilityJourneyTests/testNotificationsSheetHeaderAndPinnedTitlesAreAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testNotificationsSheetAtLargestTextWithHardEdge
+            ScrollEdgeFadeAccessibilityJourneyTests/testSongLeaderboardFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testFullRankingsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testBandRankingsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testSongBandLeaderboardFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testPlayerBandsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testBoardFadesInDuoWindows
+            ScrollEdgeFadeAccessibilityJourneyTests/testNotificationsSheetInDuoWindows
+          SCROLL_EDGE_IPAD_JOURNEYS: >-
+            ScrollEdgeFadeAccessibilityJourneyTests/testNotificationsSheetAtLargestTextWithHardEdge
+            ScrollEdgeFadeAccessibilityJourneyTests/testSongLeaderboardFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testFullRankingsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testBandRankingsFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testSongBandLeaderboardFadeKeepsRowsAndPagerAccessible
+            ScrollEdgeFadeAccessibilityJourneyTests/testPlayerBandsFadeKeepsRowsAndPagerAccessible
+        run: |
+          python3 tools/mock_service.py --large-rankings --port 8766 > "$RUNNER_TEMP/mock_service_rankings.log" 2>&1 &
+          mock=$!
+          trap 'kill "$mock" 2>/dev/null || true' EXIT
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock_service_rankings.log" && break; sleep 1; done
+          grep -q "fixture service on" "$RUNNER_TEMP/mock_service_rankings.log"
+          iphone=$(python3 tools/ios_sim.py ci-device)
+          only=(); for journey in $SCROLL_EDGE_JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$iphone" --app phone --fail-on-skip \
+            --batch-size 1 --timeout 1500 --retries 1 "${only[@]}"
+          python3 tools/ios_sim.py shutdown --device "$iphone"
+          ipad=$(python3 tools/ios_sim.py ci-device --type "iPad Pro 11-inch (M5)")
+          only=(); for journey in $SCROLL_EDGE_IPAD_JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --device "$ipad" --app phone --fail-on-skip \
+            --batch-size 1 --timeout 1500 --retries 1 "${only[@]}"
+      - name: Upload journey results
+        # Also when the job times out (cancelled), so a slow or hung batch can be diagnosed.
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-ci-scroll-edge
+          path: |
+            apple/DerivedData/lane-driver/Results
+            ${{ runner.temp }}/mock_service_rankings.log
+          if-no-files-found: ignore
+          retention-days: 7
+  apple-ci:
+    # The required check (the release machine merges once `apple-ci` is green on the head SHA): green only
+    # when the build job succeeded and the journey legs succeeded on a release dispatch, or were skipped on a
+    # pull request or master push (release train). A re-run of failed jobs re-runs this one too.
+    name: apple-ci
+    needs: [build, songs-filter-journeys, scroll-edge-journeys]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every Apple job passed
+        env:
+          EVENT: ${{ github.event_name }}
+          BUILD: ${{ needs.build.result }}
+          JOURNEYS: ${{ needs.songs-filter-journeys.result }}
+          SCROLL_EDGE: ${{ needs.scroll-edge-journeys.result }}
+        run: |
+          echo "event: $EVENT, build: $BUILD, songs-filter-journeys: $JOURNEYS, scroll-edge-journeys: $SCROLL_EDGE"
+          [ "$BUILD" = success ] || exit 1
+          for result in "$JOURNEYS" "$SCROLL_EDGE"; do
+            case "$result/$EVENT" in success/workflow_dispatch | skipped/pull_request | skipped/push) ;; *) exit 1 ;; esac
+          done

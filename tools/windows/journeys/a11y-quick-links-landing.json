@@ -82,7 +82,7 @@
     ],
     "tabs": 0,
     "ready": [
-      "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@20",
+      "waitfor:id=fst.leaderboards.card.0f.view-all@20",
       "assertstate:id=fst.quick-links.open|name=Leaderboards Quick Links, current section Lead + Bass + Drums + Tap Vocals@10"
     ],
     "after_ready": [

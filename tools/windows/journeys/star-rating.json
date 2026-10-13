@@ -1,6 +1,7 @@
 [
   {
     "name": "stars-leaderboard-medium",
+    "note": "Issue #606: where the season pill shows (medium and wider), a row of the catalogue's current season (fixture: 9) reads \"current season 9\"; compact hides the pill and the season clause (#571).",
     "fixture": ["star_rating_fixture.py"],
     "route": "/songs/fixture-pulse/Solo_Guitar",
     "preset": "medium",
@@ -9,17 +10,17 @@
     },
     "steps": [
       "waitfor:id=fst.song-leaderboard.row.fixture-player-1@30",
-      "waitfor:name=Rank #1, Fixture Player 1, 99,900 points, 98% accuracy, season 9, 5 gold stars@5",
-      "assertstatus:id=fst.star-rating.gold-6|gold-6@5",
-      "waitfor:name=Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo, season 9, 5 stars@5",
-      "assertstatus:id=fst.star-rating.white-5|white-5@5",
-      "waitfor:name=Rank #3, Fixture Player 3, 99,700 points, season 9, 1 star@5",
-      "assertstatus:id=fst.star-rating.white-1|white-1@5",
-      "waitfor:name=Rank #4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable, season 9@5",
-      "waitfor:name=Rank #5, Fixture Player 5, 99,500 points, 98% accuracy, season 9, 5 gold stars@5",
-      "waitfor:name=Rank #6, Fixture Player 6, 99,400 points, 98% accuracy, full combo, season 9@5",
-      "waitfor:name=Rank #7, Fixture Player 7, 99,300 points, 98% accuracy, season 9, 3 stars@5",
-      "assertstatus:id=fst.star-rating.white-3|white-3@5",
+      "waitfor:name=Rank #1, Fixture Player 1, 99,900 points, 98% accuracy, current season 9, 5 gold stars@5",
+      "assertstatus:raw=fst.star-rating.gold-6|gold-6@5",
+      "waitfor:name=Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo, current season 9, 5 stars@5",
+      "assertstatus:raw=fst.star-rating.white-5|white-5@5",
+      "waitfor:name=Rank #3, Fixture Player 3, 99,700 points, current season 9, 1 star@5",
+      "assertstatus:raw=fst.star-rating.white-1|white-1@5",
+      "waitfor:name=Rank #4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable, current season 9@5",
+      "waitfor:name=Rank #5, Fixture Player 5, 99,500 points, 98% accuracy, current season 9, 5 gold stars@5",
+      "waitfor:name=Rank #6, Fixture Player 6, 99,400 points, 98% accuracy, full combo, current season 9@5",
+      "waitfor:name=Rank #7, Fixture Player 7, 99,300 points, 98% accuracy, current season 9, 3 stars@5",
+      "assertstatus:raw=fst.star-rating.white-3|white-3@5",
       "shot:{shots}\\stars-leaderboard-medium.png"
     ]
   },
@@ -41,6 +42,7 @@
   },
   {
     "name": "stars-leaderboard-wide",
+    "note": "Issue #606: where the season pill shows (medium and wider), a row of the catalogue's current season (fixture: 9) reads \"current season 9\"; compact hides the pill and the season clause (#571).",
     "fixture": ["star_rating_fixture.py"],
     "route": "/songs/fixture-pulse/Solo_Guitar",
     "preset": "wide",
@@ -49,11 +51,11 @@
     },
     "steps": [
       "waitfor:id=fst.song-leaderboard.row.fixture-player-1@30",
-      "waitfor:name=Rank #1, Fixture Player 1, 99,900 points, 98% accuracy, season 9, 5 gold stars@5",
-      "assertstatus:id=fst.star-rating.gold-6|gold-6@5",
-      "assertstatus:id=fst.star-rating.white-5|white-5@5",
-      "assertstatus:id=fst.star-rating.white-1|white-1@5",
-      "waitfor:name=Rank #4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable, season 9@5",
+      "waitfor:name=Rank #1, Fixture Player 1, 99,900 points, 98% accuracy, current season 9, 5 gold stars@5",
+      "assertstatus:raw=fst.star-rating.gold-6|gold-6@5",
+      "assertstatus:raw=fst.star-rating.white-5|white-5@5",
+      "assertstatus:raw=fst.star-rating.white-1|white-1@5",
+      "waitfor:name=Rank #4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable, current season 9@5",
       "shot:{shots}\\stars-leaderboard-wide.png"
     ]
   },
@@ -67,9 +69,9 @@
     },
     "steps": [
       "waitfor:id=fst.song-leaderboard.row.fixture-player-1@30",
-      "assertstatus:id=fst.star-rating.gold-6|gold-6@5",
-      "assertstatus:id=fst.star-rating.white-5|white-5@5",
-      "assertstatus:id=fst.star-rating.white-1|white-1@5",
+      "assertstatus:raw=fst.star-rating.gold-6|gold-6@5",
+      "assertstatus:raw=fst.star-rating.white-5|white-5@5",
+      "assertstatus:raw=fst.star-rating.white-1|white-1@5",
       "shot:{shots}\\stars-leaderboard-maximized.png"
     ]
   },

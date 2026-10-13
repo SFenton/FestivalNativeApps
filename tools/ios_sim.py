@@ -502,6 +502,62 @@ def classify_pose(outer_dark: bool, inner_dark: bool) -> str:
     return "unknown"
 
 
+def pose_screenshot_policy() -> tuple[float, int]:
+    """How long one Duo panel screenshot may take, and how many tries it gets.
+
+    A GitHub Actions runner is a slow VM: its first ``simctl io screenshot`` after boot
+    took over 30 s (#432), which read as an ``unknown`` pose and stopped the run. A busy
+    shared Mac is slow too: a freshly booted Duo's first screenshot timed out at 30 s on
+    every try there (#444), so a Mac waits 120 s for its one try.
+
+    Returns:
+        ``(timeout seconds, attempts)``: ``(120, 1)`` on a Mac, ``(180, 3)`` on a CI runner.
+    """
+    return (180.0, 3) if os.environ.get("GITHUB_ACTIONS") == "true" else (120.0, 1)
+
+
+def screenshot_panel(udid: str, display: str, path: Path, attempts: int | None = None,
+                     timeout: float | None = None, pause: float = 10.0) -> bool:
+    """Screenshot one Duo panel as BMP, retrying. Call under the simulator lock.
+
+    The first screenshot after a fresh boot can fail or stall, above all on the
+    slow CI runner just after it installed a new runtime (apple-ci run
+    37913520235, #432), so each failed attempt is logged with its reason and retried.
+
+    Args:
+        udid: A booted iPhone Duo simulator.
+        display: ``simctl io --display`` name (a ``DUO_PANELS`` value).
+        path: Where to write the BMP.
+        attempts: Screenshots to try; ``None`` uses ``pose_screenshot_policy``.
+        timeout: Seconds one attempt may take; ``None`` uses ``pose_screenshot_policy``.
+        pause: Seconds between attempts.
+
+    Returns:
+        Whether a screenshot was written.
+    """
+    policy_timeout, policy_attempts = pose_screenshot_policy()
+    attempts = policy_attempts if attempts is None else attempts
+    timeout = policy_timeout if timeout is None else timeout
+    for attempt in range(1, attempts + 1):
+        path.unlink(missing_ok=True)
+        try:
+            result = _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
+                           f"--display={display}", str(path)], check=False, capture_output=True,
+                          timeout=timeout)
+        except subprocess.TimeoutExpired:
+            reason = f"timed out after {timeout:.0f}s"
+        else:
+            if not result.returncode and path.exists():
+                return True
+            stderr = result.stderr.decode(errors="replace") if isinstance(result.stderr, bytes) else result.stderr
+            reason = (stderr or "").strip()[-300:] or f"exit {result.returncode}"
+        print(f"duo pose: {display} screenshot failed ({reason}), attempt {attempt}/{attempts}",
+              file=sys.stderr)
+        if attempt < attempts:
+            time.sleep(pause)
+    return False
+
+
 def detect_pose(udid: str) -> str:
     """Screenshot both Duo panels and report the pose. Call under the simulator lock.
 
@@ -509,21 +565,43 @@ def detect_pose(udid: str) -> str:
         udid: A booted iPhone Duo simulator.
 
     Returns:
-        ``"folded"``, ``"unfolded"`` or ``"unknown"`` (also for non-Duo devices).
+        ``"folded"``, ``"unfolded"`` or ``"unknown"`` (also for non-Duo devices, or when a
+        panel screenshot fails every attempt; see ``pose_screenshot_policy``).
     """
     dark = {}
     with tempfile.TemporaryDirectory() as folder:
         for panel, display in DUO_PANELS.items():
             path = Path(folder) / f"{panel}.bmp"
-            try:
-                result = _run(["xcrun", "simctl", "io", udid, "screenshot", "--type=bmp",
-                               f"--display={display}", str(path)], check=False, capture_output=True, timeout=30)
-            except subprocess.TimeoutExpired:
-                return "unknown"
-            if result.returncode or not path.exists():
+            if not screenshot_panel(udid, display, path):
                 return "unknown"
             dark[panel] = bmp_is_dark(path.read_bytes())
     return classify_pose(dark["outer"], dark["inner"])
+
+
+def settled_pose(udid: str, attempts: int = 4, pause: float = 15.0) -> str:
+    """Detect the Duo pose, re-checking while it reads ``unknown``. Call under the simulator lock.
+
+    Just after a fresh boot (above all on the CI runner) neither panel, or a
+    stale frame on both, may be lit yet, so an ``unknown`` result is re-detected
+    a few times before it counts. A definite pose returns at once.
+
+    Args:
+        udid: A booted iPhone Duo simulator.
+        attempts: Detections to try.
+        pause: Seconds between detections.
+
+    Returns:
+        ``"folded"``, ``"unfolded"`` or ``"unknown"`` after every attempt.
+    """
+    actual = "unknown"
+    for attempt in range(1, attempts + 1):
+        actual = detect_pose(udid)
+        if actual != "unknown":
+            break
+        print(f"duo pose: unknown, attempt {attempt}/{attempts}", file=sys.stderr)
+        if attempt < attempts:
+            time.sleep(pause)
+    return actual
 
 
 def require_pose(udid: str, pose: str | None, set_pose: bool = False) -> str | None:
@@ -542,7 +620,7 @@ def require_pose(udid: str, pose: str | None, set_pose: bool = False) -> str | N
     if pose is None:
         return None
     expected = POSE_EXPECTED_CLASS[pose]
-    actual = detect_pose(udid)
+    actual = settled_pose(udid)
     print(f"duo pose: {actual}", file=sys.stderr)
     if actual == expected and not (set_pose and pose != "folded"):
         return None
@@ -1815,11 +1893,27 @@ def cmd_uitest(args: argparse.Namespace) -> int:
     failed_batches: list[tuple[list[str], int]] = []
     for batch_index, batch in enumerate(batches, start=1):
         label = f"batch {batch_index}/{len(batches)}"
-        returncode, elapsed, log_path, result_bundle = _run_uitest_batch(
-            udid=udid, derived=derived, selectors=batch, timeout=args.timeout,
-            a11y=getattr(args, "a11y", None), pose=getattr(args, "pose", None),
-            set_pose=getattr(args, "set_pose", False), rotate=getattr(args, "rotate", None),
-        )
+        retries = max(0, getattr(args, "retries", 0) or 0)
+        attempt = 0
+        while True:
+            returncode, elapsed, log_path, result_bundle = _run_uitest_batch(
+                udid=udid, derived=derived, selectors=batch, timeout=args.timeout,
+                a11y=getattr(args, "a11y", None), pose=getattr(args, "pose", None),
+                set_pose=getattr(args, "set_pose", False), rotate=getattr(args, "rotate", None),
+                diagnostics=not getattr(args, "no_test_diagnostics", False),
+            )
+            if not should_retry_batch(returncode, attempt, retries):
+                break
+            attempt += 1
+            # Keep the failed attempt's log and result bundle: a retry that passes is still a
+            # flaky journey worth diagnosing from the CI artifact.
+            log_text = log_path.read_text(encoding="utf-8", errors="replace")
+            print(f"uitest {label} attempt {attempt} FAILED after {elapsed:.1f}s; retrying "
+                  f"({attempt}/{retries}); last lines of {log_path}:", file=sys.stderr)
+            print("\n".join(log_text.splitlines()[-30:]), file=sys.stderr)
+            print(f"result bundle (kept): {result_bundle}", file=sys.stderr)
+        if attempt and not returncode:
+            label = f"{label} (passed on retry {attempt}: FLAKY)"
         if returncode == EXIT_POSE_MISMATCH:
             print(f"uitest {label}: iPhone Duo pose not reached; stopping", file=sys.stderr)
             return returncode
@@ -1924,10 +2018,34 @@ def skip_problem(summary: dict | None) -> str | None:
     return None
 
 
+#: ``xcodebuild test-without-building``'s exit code when a test failed (not a timeout, 124,
+#: nor a build, launch or setup error).
+EXIT_TEST_FAILED = 65
+
+
+def should_retry_batch(returncode: int, attempt: int, retries: int) -> bool:
+    """Decide whether ``uitest --retries`` runs a failed batch again.
+
+    Only a test failure is retried: the CI runner's simulator is 2-4x slower than a Mac and
+    an XCUITest query can time out there ("Timed out while evaluating UI query"). A timed-out
+    batch (124), a setup error or a pose mismatch would only fail again, and a deterministic
+    test failure fails every attempt, so it still fails the run.
+
+    Args:
+        returncode: The attempt's exit code.
+        attempt: Zero-based attempt just run.
+        retries: Extra attempts allowed (``--retries``).
+
+    Returns:
+        True when another attempt should run.
+    """
+    return returncode == EXIT_TEST_FAILED and attempt < retries
+
+
 def _run_uitest_batch(
     *, udid: str, derived: Path, selectors: list[str], timeout: float,
     a11y: list[str] | None = None, pose: str | None = None, set_pose: bool = False,
-    rotate: list[str] | None = None,
+    rotate: list[str] | None = None, diagnostics: bool = True,
 ) -> tuple[int, float, Path, Path]:
     """Run one bounded batch of ``-only-testing:`` selectors under one lock hold.
 
@@ -1945,6 +2063,9 @@ def _run_uitest_batch(
         selectors: One batch's ``Class``/``Class/testMethod`` selectors.
         timeout: Seconds before killing this batch's run.
         a11y: ``A11Y_SETTINGS`` keys switched on for this batch and restored after it.
+        diagnostics: Let ``xcodebuild`` collect its sysdiagnose-like failure
+            diagnostics (False passes ``-collect-test-diagnostics never``: on a CI
+            runner that collection alone has waited 600 s after a failure).
 
     Returns:
         ``(returncode, elapsed_seconds, log_path, result_bundle_path)``.
@@ -1993,6 +2114,8 @@ def _run_uitest_batch(
         ]
         for selector in selectors:
             cmd.append(f"-only-testing:{product().uitest_target}/{selector}")
+        if not diagnostics:
+            cmd += ["-collect-test-diagnostics", "never"]
         cmd += ["test-without-building", "-quiet"]
         print("+", " ".join(cmd), file=sys.stderr)
         with open(log_path, "w") as log, simulator_accessibility(udid, a11y):
@@ -2308,6 +2431,11 @@ def main(argv: list[str] | None = None) -> int:
     uitest.add_argument(
         "--rebuild", action="store_true", help="force a fresh build-for-testing"
     )
+    uitest.add_argument(
+        "--no-test-diagnostics", action="store_true",
+        help="skip xcodebuild's failure diagnostics collection (-collect-test-diagnostics never), "
+             "which can hold a CI batch for 600 s after a failure",
+    )
     uitest.add_argument("--a11y", action="append", choices=sorted(A11Y_SETTINGS),
                         help="switch a simulator accessibility setting on for each batch, "
                              "restored afterwards (repeatable)")
@@ -2324,6 +2452,10 @@ def main(argv: list[str] | None = None) -> int:
     uitest.add_argument("--fail-on-skip", action="store_true",
                         help="fail a batch in which any test skipped or none ran (CI: a journey that "
                              "cannot find its fixture skips, and an all-skipped batch otherwise passes)")
+    uitest.add_argument("--retries", type=int, default=0,
+                        help="CI: run a batch whose test failed (exit 65) up to N more times, keeping each "
+                             "failed attempt's result bundle; timeouts and setup errors are not retried "
+                             "(default 0)")
     uitest.set_defaults(func=cmd_uitest)
 
     ci_device = sub.add_parser(

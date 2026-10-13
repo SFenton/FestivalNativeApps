@@ -1,0 +1,38 @@
+[
+  {"name": "rival-titles-detail", "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8", "profile": "fixture-player-1:Demo Player", "scan": true, "tabs": 0,
+   "note": "Issue #604 (page-tools-and-nav-chrome R23): Rival Detail opened without a single-instrument scope is titled with the rival's name (heading 1) over the plain subtitle 'Rivals', read title, subtitle, then the summary.",
+   "ready": ["waitfor:id=fst.rival-detail.summary@30", "wait:1"],
+   "after_ready": [
+     "assertname:id=fst.rival-detail.title|Demo Rival 1",
+     "assertstate:id=fst.rival-detail.title|heading=1",
+     "assertname:id=fst.rival-detail.subtitle|Rivals",
+     "assertstate:id=fst.rival-detail.subtitle|heading=0",
+     "assertbelow:id=fst.rival-detail.subtitle|id=fst.rival-detail.title",
+     "assertorder:id=fst.rival-detail.title|id=fst.rival-detail.subtitle|id=fst.rival-detail.summary",
+     "shot:{stem}.png"
+   ]},
+  {"name": "rival-titles-detail-instrument", "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8?scope=song%3ASolo_Guitar", "profile": "fixture-player-1:Demo Player", "scan": true, "tabs": 0,
+   "note": "Issue #604 (page-tools-and-nav-chrome R23): an instrument rival's page keeps the rival's name as its title and leads the subtitle with the decorative instrument icon: '{icon} Lead Rivals'. The icon is Raw, so Narrator reads the subtitle once, between the title and the summary.",
+   "ready": ["waitfor:id=fst.rival-detail.summary@30", "wait:1"],
+   "after_ready": [
+     "assertname:id=fst.rival-detail.title|Demo Rival 1",
+     "assertstate:id=fst.rival-detail.title|heading=1",
+     "assertname:id=fst.rival-detail.subtitle|Lead Rivals",
+     "assertread:id=fst.rival-detail.subtitle|Lead Rivals, text",
+     "assertorder:id=fst.rival-detail.title|id=fst.rival-detail.subtitle|id=fst.rival-detail.summary",
+     "shot:{stem}.png"
+   ]},
+  {"name": "rival-titles-rivalry", "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8/rivalry", "profile": "fixture-player-1:Demo Player", "scan": true, "tabs": 0,
+   "note": "Issue #604: a Rival Detail sub-page is titled by its section (heading 1, 'Closest Battles') with the rival's name as its subtitle, then the section's description, read in that order before Sort By.",
+   "ready": ["waitfor:id=fst.rivalry.list@30", "waitfor:id=fst.rivalry.subtitle@10", "wait:1"],
+   "after_ready": [
+     "assertname:id=fst.rivalry.title|Closest Battles",
+     "assertstate:id=fst.rivalry.title|heading=1",
+     "assertname:id=fst.rivalry.subtitle|Demo Rival 1",
+     "assertstate:id=fst.rivalry.subtitle|heading=0",
+     "assertbelow:id=fst.rivalry.subtitle|id=fst.rivalry.title",
+     "assertbelow:id=fst.rivalry.description|id=fst.rivalry.subtitle",
+     "assertorder:id=fst.rivalry.title|id=fst.rivalry.subtitle|id=fst.rivalry.description|id=fst.rivalry.sort",
+     "shot:{stem}.png"
+   ]}
+]

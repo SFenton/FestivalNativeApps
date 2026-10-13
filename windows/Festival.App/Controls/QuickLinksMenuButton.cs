@@ -18,6 +18,7 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
     private bool suppressed;
     private bool chosen;
     private string? pendingJump;
+    private readonly ToolTip toolTip = new() { Content = "Quick Links" };
 
     /// <summary>Fluent's minimum touch target in epx, matching the <c>FSTMinTargetSize</c> resource.</summary>
     public const double MinTargetSize = 40;
@@ -47,6 +48,9 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
         };
         Flyout.Opening += (_, _) => Populate();
         Flyout.Closed += OnFlyoutClosed;
+        ToolTipService.SetToolTip(this, toolTip);
+        // A wide page's pane replaces the button (IsSuppressed): an open tooltip must not outlive it (#571).
+        CollapsedToolTip.CloseWhenCollapsed(this);
     }
 
     /// <summary>The page's Quick Links model.</summary>
@@ -149,7 +153,7 @@ public sealed partial class QuickLinksMenuButton : DropDownButton
     {
         Visibility = !suppressed && model?.IsAvailable == true ? Visibility.Visible : Visibility.Collapsed;
         AutomationProperties.SetName(this, model?.EntryName ?? "Quick Links");
-        ToolTipService.SetToolTip(this, model?.ActiveTitle is { Length: > 0 } active ? $"Quick Links: {active}" : "Quick Links");
+        toolTip.Content = model?.ActiveTitle is { Length: > 0 } active ? $"Quick Links: {active}" : "Quick Links";
     }
 }
 #endregion

@@ -152,6 +152,20 @@ public static class ScoreHistoryChartScale
         return (long)Math.Max(4, Math.Round(step * 4));
     }
 
+    /// <summary>
+    /// Rounds a Canvas coordinate to a whole device pixel. Canvas.Left is not layout-rounded, so a chart bar (Score
+    /// History, Rank History) placed at a half pixel smears its 1 epx contrast-theme outline over two grey pixels at
+    /// 100% scale (issue #571).
+    /// </summary>
+    /// <param name="value">Coordinate in effective pixels, relative to a pixel-aligned Canvas.</param>
+    /// <param name="scale">Rasterization scale (device pixels per epx); non-positive or non-finite counts as 1.</param>
+    /// <returns>The nearest effective-pixel value that falls on a device pixel.</returns>
+    public static double SnapToPixel(double value, double scale)
+    {
+        if (!double.IsFinite(scale) || scale <= 0) scale = 1;
+        return Math.Round(value * scale, MidpointRounding.AwayFromZero) / scale;
+    }
+
     /// <summary>Axis tick label (<c>12k</c> above 1,000, as the web's <c>tickFormatter</c>).</summary>
     /// <param name="value">Score.</param>
     /// <returns>Label.</returns>
@@ -252,6 +266,15 @@ public sealed class ScoreHistoryPager
     /// <summary>Clears the selection.</summary>
     public void ClearSelection() => SelectedIndex = -1;
 
+    /// <summary>Selects a point and pages so its bar is visible (unlike <see cref="Toggle"/>, never clears it).</summary>
+    /// <param name="index">Point index; out of range is ignored.</param>
+    public void Select(int index)
+    {
+        if (index < 0 || index >= Count) return;
+        SelectedIndex = index;
+        Reveal(index);
+    }
+
     /// <summary>« : a page back (older), or the selection a page back.</summary>
     public void BackPage() => Step(-MaxBars);
 
@@ -276,6 +299,13 @@ public sealed class ScoreHistoryPager
         }
         var target = Math.Clamp(SelectedIndex + delta, 0, Count - 1);
         SelectedIndex = target;
+        Reveal(target);
+    }
+
+    /// <summary>Pages the least distance that shows a point's bar.</summary>
+    /// <param name="target">Point index.</param>
+    private void Reveal(int target)
+    {
         if (target >= PageStart && target < PageEnd) return;
         offset = target < PageStart ? Math.Min(Count - target - MaxBars, MaxOffset) : Math.Max(Count - target - 1, 0);
     }

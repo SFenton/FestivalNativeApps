@@ -78,11 +78,12 @@ class StepTests(unittest.TestCase):
                 u.parse_step(bad)
 
     def test_assertnoscrollbar_takes_an_element_selector(self):
-        step = u.parse_step("assertnoscrollbar:id=fst.paths.image-scroller")
-        self.assertEqual((step["verb"], step["selector"]), ("assertnoscrollbar", {"kind": "id", "value": "fst.paths.image-scroller"}))
-        for bad in ("assertnoscrollbar:5,6", "assertnoscrollbar:"):
-            with self.assertRaises(ValueError):
-                u.parse_step(bad)
+        for verb in ("assertnoscrollbar", "assertscrollbar"):
+            step = u.parse_step(f"{verb}:id=fst.paths.image-scroller")
+            self.assertEqual((step["verb"], step["selector"]), (verb, {"kind": "id", "value": "fst.paths.image-scroller"}))
+            for bad in (f"{verb}:5,6", f"{verb}:"):
+                with self.assertRaises(ValueError):
+                    u.parse_step(bad)
 
     def test_paths_resize_and_errors(self):
         shot = u.parse_step("shot:out/a.png@screen")
@@ -138,6 +139,11 @@ class StepTests(unittest.TestCase):
                     "assertstate:id=x|heading="):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
+        # Issue #380: a raw-view demo's HelpText census keeps its case and may be a regex (`~`, `|` after the first).
+        census = u.parse_step(r"assertstate:raw=fst.first-run.demo.songs-sort|help=~^controls=(?=.*\bRadioButtons\b)@15")
+        self.assertEqual(census["selector"], {"kind": "raw", "value": "fst.first-run.demo.songs-sort"})
+        self.assertEqual((census["key"], census["value"], census["timeout"]),
+                         ("help", r"~^controls=(?=.*\bRadioButtons\b)", 15.0))
         for bad in ("assertstate:id=x", "assertstate:id=x|toggle", "assertstate:id=x|toggle=maybe", "assertstate:id=x|value=",
                     "assertstate:id=x|enabled=yes", "assertstate:id=x|color=red", "assertstate:@1,2|toggle=on",
                     "assertstate:id=x|name=", "assertstate:id=x|selected=on", "assertstate:id=x|scroll=top",
@@ -359,8 +365,11 @@ class StepTests(unittest.TestCase):
         self.assertEqual(step["selector"], {"kind": "id", "value": "fst.suggestions.category.x"})
         self.assertEqual(step["other"], {"kind": "id", "value": "fst.suggestions.list"})
         self.assertEqual(step["epx"], 8.0)
+        self.assertNotIn("end", step)
+        end = u.parse_step("scrollinset:id=a|id=b|4|end")
+        self.assertEqual((end["other"], end["epx"], end["end"]), ({"kind": "id", "value": "b"}, 4.0, True))
         for bad in ("scrollinset:id=a|id=b", "scrollinset:id=a|id=b|-8", "scrollinset:id=a|1,2|8",
-                    "scrollinset:id=a|id=b|0"):
+                    "scrollinset:id=a|id=b|0", "scrollinset:id=a|id=b|end", "assertinset:id=a|id=b|4|end"):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
@@ -625,6 +634,44 @@ class OcclusionRobustnessTests(unittest.TestCase):
             self.assertIn(f'"{verb}"', verbs)
         self.assertIn("RestoreIsolated();", source.split("finally", 1)[1][:200])
         self.assertIn('"front" => Front(', source)
+
+    def test_driver_resize_parks_pointer_off_window(self):
+        # #571: a cursor left by an earlier run's press slid under the title-bar search box on a resize and opened its
+        # hover tooltip (a windowed PopupHost Axe fails). Every resize must park the cursor before and after the move.
+        source = (u.DRIVER_DIR / "Program.cs").read_text(encoding="utf-8")
+        resize = source.split("private JsonNode Resize(", 1)[1].split("private static void ParkPointer(", 1)[0]
+        self.assertIn("ParkPointer(target, work);\n            Native.MoveVisible(hwnd, target);", resize)
+        self.assertIn("ParkPointer(Native.VisibleBounds(hwnd), monitor.Work);\n        Thread.Sleep(600);", resize)
+        park = source.split("private static void ParkPointer(", 1)[1].split("\n    }\n", 1)[0]
+        self.assertIn("window.Contains(corner)", park)
+        self.assertIn("Native.MouseAt(corner)", park)
+
+    def test_driver_launch_retries_transient_uia_errors(self):
+        # #618: a launch failed with "Operation timed out. (0x80131505)" on one timed-out desktop search before any
+        # step ran. The window poll must search again after a transient UIA error (like Find, #552), rethrow it only
+        # when it persists to the timeout, and end the launched app when it can't attach.
+        source = (u.DRIVER_DIR / "Program.cs").read_text(encoding="utf-8")
+        poll = source.split("private Window? WaitForWindow(", 1)[1].split("private Window? TopWindow(", 1)[0]
+        self.assertIn("catch (Exception error) when (IsTransientUia(error) && (!retried || DateTime.UtcNow < until))",
+                      poll)
+        self.assertIn("retried = true;", poll)
+        launch = source.split("private JsonNode Launch(", 1)[1].split("private Window? WaitForWindow(", 1)[0]
+        self.assertEqual(2, launch.count("StopLaunched(process);"))
+        self.assertIn("process.Kill(entireProcessTree: true)", launch)
+
+    def test_run_driver_logs_failure_detail(self):
+        # #618: the driver's stack trace goes to the log, so a failure before any step still names its UIA call.
+        source = Path(u.__file__).read_text(encoding="utf-8")
+        body = source.split("def run_driver(", 1)[1].split("\ndef ", 1)[0]
+        self.assertIn("driver error detail:", body)
+
+    def test_held_motion_statuses_are_read_without_restoring_the_window(self):
+        # #498: a minimized First Run demo's paused auto-scroll (like a held Shop pulse) must be read while still
+        # minimized; restoring the window first would resume it and the assertion could never pass.
+        source = (u.DRIVER_DIR / "Program.cs").read_text(encoding="utf-8")
+        front = source.split("var front = ", 1)[1].split(";", 1)[0]
+        for token in ("not-visible", "=background", "pulse=held", "scroll=paused"):
+            self.assertIn(f'!expected.Contains("{token}"', front)
 
 
 if __name__ == "__main__":

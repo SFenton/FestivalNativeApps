@@ -166,6 +166,7 @@
                                                TextAlignment="Center" AutomationProperties.LiveSetting="Polite"
                                                AutomationProperties.AutomationId="fst.history.message" />
                                     <Button Content="Retry" HorizontalAlignment="Center" Command="{x:Bind ViewModel.History.RetryCommand}"
+                                            MinHeight="{StaticResource FSTMinTargetSize}"
                                             AutomationProperties.Name="Retry score history" AutomationProperties.AutomationId="fst.history.retry" />
                                 </StackPanel>
                                 <controls:ServiceStatusInline HorizontalAlignment="Center" IsCentered="True"

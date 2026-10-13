@@ -1,0 +1,55 @@
+[
+  {
+    "name": "settings-split-swap-wide",
+    "route": "/settings",
+    "sizes": [
+      "wide"
+    ],
+    "tabs": 0,
+    "setup": [
+      "resize:medium",
+      "wait:1.5",
+      "waitfor:id=fst.settings@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.shop-highlights@10",
+      "focus:id=fst.settings.shop-highlights",
+      "assertfocus:id=fst.settings.shop-highlights@3",
+      "resize:wide",
+      "wait:1.5"
+    ],
+    "ready": [
+      "waitfor:id=fst.settings.detail-row.item-shop@10"
+    ],
+    "after_ready": [
+      "assertfocus:id=fst.settings.detail-row.item-shop@3"
+    ]
+  },
+  {
+    "name": "settings-split-swap-narrow",
+    "route": "/settings",
+    "sizes": [
+      "medium"
+    ],
+    "tabs": 0,
+    "setup": [
+      "resize:medium",
+      "wait:1.5",
+      "waitfor:id=fst.settings@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "resize:wide",
+      "wait:1.5",
+      "waitfor:id=fst.settings.detail.placeholder.title@20",
+      "scrollinto:id=fst.settings.detail-row.item-shop@10",
+      "focus:id=fst.settings.detail-row.item-shop",
+      "assertfocus:id=fst.settings.detail-row.item-shop@3",
+      "resize:medium",
+      "wait:1.5"
+    ],
+    "ready": [
+      "waitfor:id=fst.settings.shop-highlights@10"
+    ],
+    "after_ready": [
+      "assertfocus:id=fst.settings.shop-highlights@3"
+    ]
+  }
+]

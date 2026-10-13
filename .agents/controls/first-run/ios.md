@@ -64,7 +64,19 @@
     (`FirstRunSheetStyle`) so tapping the dimmed page above it, or swiping down, dismisses.
     VoiceOver focus is left to the system on open, so the navigation title is announced first
     (HIG VoiceOver: a screen's title is announced first); `@AccessibilityFocusState` then moves
-    focus to each new slide on a page change. Animations skip under Reduce Motion. Each slide's
+    focus to each new slide on a page change. Accessibility test (#429,
+    `FirstRunJourneyTests.testGuideTitleIsReadFirstAtLargestText`, Songs and Leaderboards guides,
+    in `apple-ci`'s simulator journeys), each guide launched at the default size and at AX5: the
+    title is a heading named by its page; across the whole app snapshot (not just the bar) the
+    guide reads title → Close → first slide, and nothing of the page behind the sheet is in the
+    tree except the system "Sheet Grabber" button, which UIKit orders ahead of every grabber
+    sheet's content (sheet chrome, not body: `modal-shell` R2 holds); the title's ink grows
+    ≥ 1.15× from default to AX5 (measured 1.22× "Leaderboards", 1.23× "Songs"; UIKit caps the
+    inline bar title, `system-bar-title-size` in [accessibility](../../testing/apple/accessibility.md))
+    and reads back whole at both sizes, wholly on screen beside a hittable Close; the AX5 bar
+    audit, Dynamic Type included, is clean. The title is navigation-bar chrome a macOS-hosted view
+    cannot reproduce (a hosted `NavigationStack` bridges no window title), so a simulator journey,
+    not a hosted test, is its evidence. Animations skip under Reduce Motion. Each slide's
     title and description fade up after its demo cascade (`FirstRunMotion.textDelays`).
   - **Seen pages only**: the carousel records every page shown in a `FirstRunViewing` binding;
     the presenter's `onDismiss` marks only those seen (however it closed), so unviewed pages
@@ -201,6 +213,47 @@ app's own interface.
     operator decision).
   - Rejected: a bordered Skip, which competes with Next; and Skip in the toolbar, where Close
     already dismisses.
+- **Accessibility (#380, backfilled by #498).** HIG VoiceOver: "Exclude purely decorative images
+  that convey no useful or actionable information".
+  - Hosted (`FirstRunNativeDemosAccessibilityTests`, the shared SwiftUI of every Apple platform):
+    - All 42 catalogue demos are checked, active with motion on and past their entrance. None
+      exposes an element through `accessibilityChildren`.
+    - The 10 real-control slides (Sort, Navigation, Filter, View All, Paths, Item Shop button,
+      Player History sort, Select Player, both Suggestions filters) each read as one
+      `AXStaticText` "title. description" with no custom actions. They are read before the dots,
+      Next and Skip, with nothing else reachable.
+    - System and app Reduce Motion show the title and description at rest from the first frame;
+      with motion allowed they fade in. Reduce Motion also holds the infinite scroll still.
+    - Reduce Transparency, Less Transparency, Increase Contrast and More Contrast each remove
+      its bottom fade while leaving the top unchanged ([scroll-edge](../../patterns/scroll-edge.md) R7).
+    - Skip's `AccentText.blue` keeps ≥ 4.5:1 on the sheet.
+  - iPhone and the simulated folded Duo at AX5
+    (`FirstRunJourneyTests/testSongsGuideRealControlDemosAccessibleAtLargestText[DuoFolded]`,
+    `apple-ci` journeys). The test walks all six Songs pages:
+    - each slide's exact name;
+    - no button, tab, toggle, cell or text from the real Sort sheet, tab bar or rows inside the
+      slide;
+    - reading order slide → dots → Next/Done → Skip;
+    - named 44 pt Next, Done and Skip, and Back from page two;
+    - `performAccessibilityAudit` on Sort, Navigation and the last page (clipped text, hit
+      regions, descriptions, element detection, contrast), with no issue accepted.
+  - **Rule: a real control's UIKit views need UIKit hiding.** `accessibilityHidden` is a SwiftUI
+    modifier and never reaches a separate UIKit host. Each `Form`/`List` row is its own SwiftUI
+    host in a collection-view cell, and a `TabView` is a `UITabBarController`. On iPhone the Sort
+    Songs slide read the sheet's cells and its Title, Artist, Year and Duration buttons, and the
+    Navigation slide read its tab bar and five tabs (found by #498, shipped since #380). On iOS,
+    `firstRunInert()` therefore adds `FirstRunPlatformAccessibilityHider`, a background probe
+    that marks every UIKit view inside the preview's frame `accessibilityElementsHidden`. It
+    never marks its own ancestors (the carousel pager, the slide's AX5 scroll view). Every demo
+    that shows a real control uses `firstRunInert()`, never a bare `accessibilityHidden`.
+    Hosted macOS tests can't see this leak; only the XCUITest journey does.
+  - **Rule:** `firstRunInert()` collapses the preview (`.accessibilityElement(children: .ignore)`)
+    before `accessibilityHidden`. On macOS a menu-style `Picker`'s title label escaped
+    `accessibilityHidden` alone: the Paths demo read "Instrument", "Difficulty" and "View"
+    (found by #498; the carousel slide's combine had absorbed them). Test a demo's exposure with
+    an `accessibilityChildren` walk: the Navigation demo's macOS `NSTabView` is an AppKit
+    subview the host never lists, so `macAccessibilityTree`'s subview walk reports a tab group
+    that VoiceOver doesn't reach.
 
 ### FREs reviewed (#380)
 

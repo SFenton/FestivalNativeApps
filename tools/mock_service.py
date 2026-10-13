@@ -29,8 +29,9 @@ SONG_LEADERBOARD_PAGING_ENTRIES = 100
 SLOW_SONG_LEADERBOARD_PAGE_SECONDS = 3
 # Longest `/__fixture__/hold-paths` hold (issue #430): a held Paths read is answered when
 # the test releases it or this many seconds after the hold began, so a test that dies
-# mid-hold never leaves the listener stalling path reads.
-PATH_HOLD_LIMIT_SECONDS = 60
+# mid-hold never leaves the listener stalling path reads. 240 s covers the CI runner's
+# ×4 virtual-machine budget for a 60 s hold (#386: a 60 s hold expired mid-audit there).
+PATH_HOLD_LIMIT_SECONDS = 240
 
 
 def load_fixture(name: str) -> tuple[dict, str]:
@@ -129,6 +130,9 @@ SONG_BAND_LEADERBOARDS_ALL = re.compile(r"^/api/leaderboard/(fixture-[a-z0-9-]+)
 PLAYER = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)$")
 PLAYER_HISTORY = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/history$")
 PLAYER_NOTIFICATIONS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/notifications$")
+# The account whose notification feed scrolls under the sheet's pinned title (#469).
+NOTIFY_MANY_ACCOUNT = "fixture-notify-many"
+NOTIFY_MANY_COUNT = 24
 PLAYER_BANDS = re.compile(r"^/api/player/(fixture-[a-z0-9-]+)/bands$")
 RANKINGS = re.compile(r"^/api/rankings/([A-Za-z_]+)$")
 PLAYER_RANK_HISTORY = re.compile(r"^/api/rankings/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
@@ -140,6 +144,12 @@ PLAYER_COMBO_RANKING = re.compile(r"^/api/rankings/combo/(fixture-[a-z0-9-]+)$")
 # Within-group combo bitmasks (bit = the instrument's index in the service order): any
 # two or more of Lead/Bass/Drums/Vocals (bits 0-3), or Pro Lead + Pro Bass (bits 4-5).
 COMBO_GROUP_MASKS = (0x0F, 0x30)
+# The Compete "your rank" viewer (#370, #493): a Rivals viewer like `fixture-riv` (demo scenario) whose own
+# instrument and combo rank reads say 45th of 60, outside every board's Top 5, so Compete appends its row.
+OUTSIDE_VIEWER_ACCOUNT = "fixture-riv-ranked"
+OUTSIDE_VIEWER_NAME = "Fixture Viewer"
+OUTSIDE_VIEWER_RANK = 45
+OUTSIDE_VIEWER_TOTAL = 60
 BAND_RANKINGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)$")
 BAND_HISTORY = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
 BAND_SONGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/songs$")
@@ -524,6 +534,39 @@ RIVAL_DISPLAY_NAMES = {
     "fixture-cpp": "C++",
 }
 
+#: Rival the `-frozen` scenario's `/rivals/all` samples describe (#95, #444).
+FROZEN_RIVAL_ID = "frozenrival9"
+FROZEN_RIVAL_NAME = "Rival Nine"
+
+
+def _frozen_rivals_all(account_id: str) -> dict:
+    """Build `GET /api/player/{id}/rivals/all` for the `-frozen` scenario.
+
+    While the service publishes, rival detail reads answer 503 and the app rebuilds
+    the comparison from these precomputed samples (`RivalDetailFallback`). Rival Nine
+    shares Fixture Pulse on Lead and Bass (so the Lead+Bass combo `03` lists one song
+    twice) and Fixture Orbit on Lead, as `RivalDetailAccessibilityTests` hosts it.
+
+    Args:
+        account_id: The selected (viewing) player.
+
+    Returns:
+        A `RivalsAllResponse` wire body (`s` indexes `songs`, `i` is the instrument).
+    """
+    return {
+        "accountId": account_id,
+        "songs": ["fixture-pulse", "fixture-orbit"],
+        "combos": [{"combo": "03", "above": [{
+            "accountId": FROZEN_RIVAL_ID, "displayName": FROZEN_RIVAL_NAME, "direction": "above",
+            "sharedSongCount": 3, "aheadCount": 1, "behindCount": 2, "rivalScore": 1.0,
+            "samples": [
+                {"s": 0, "i": "Solo_Guitar", "ur": 10, "rr": 11, "us": 900, "rs": 890},
+                {"s": 0, "i": "Solo_Bass", "ur": 12, "rr": 10, "us": 800, "rs": 850},
+                {"s": 1, "i": "Solo_Guitar", "ur": 3, "rr": 20, "us": 990, "rs": 700},
+            ],
+        }], "below": []}],
+    }
+
 
 
 def _multi_instrument_history(account_id: str) -> dict:
@@ -570,12 +613,16 @@ def _rivals_scenario(account_id: str) -> str:
 
     Returns:
         `"empty"` (no rivals/shared songs yet), `"unavailable"` (503, matching
-        the live service's scrape-window freeze) or `"demo"` (populated).
+        the live service's scrape-window freeze, including `/rivals/all`),
+        `"frozen"` (only the detail reads answer the freeze's 503; lists and
+        `/rivals/all` answer, #95) or `"demo"` (populated).
     """
     if account_id.endswith("-empty"):
         return "empty"
     if account_id.endswith("-503"):
         return "unavailable"
+    if account_id.endswith("-frozen"):
+        return "frozen"
     return "demo"
 
 
@@ -1359,6 +1406,27 @@ class FixtureHandler(BaseHTTPRequestHandler):
                         },
                     ][:limit],
                 })
+            elif account_id == NOTIFY_MANY_ACCOUNT:
+                # A feed long enough to scroll under the sheet's pinned "New" title
+                # (#469, the accessibility journey for #322's row separators).
+                instruments = ["Solo_Guitar", "Solo_Bass", "Solo_Drums", "Solo_Vocals"]
+                self._json(200, {
+                    "generatedAt": "2024-01-05T00:00:00Z", "expiresAfterHours": 72,
+                    "sourceRunId": 1, "sourceCompletedAt": "2024-01-05T00:00:00Z",
+                    "notificationsGenerated": True, "items": [
+                        {
+                            "eventId": index + 1,
+                            "notificationGuid": f"{NOTIFY_MANY_ACCOUNT}-{index}",
+                            "accountId": account_id,
+                            "eventKind": "player_song_rank_improved",
+                            "songId": "fixture-pulse", "instrument": instruments[index % 4],
+                            "oldRank": 500 + index, "newRank": index + 1,
+                            "detectedAt": f"2024-01-05T{23 - index % 24:02d}:00:00Z",
+                            "expiresAt": "2024-02-05T00:00:00Z",
+                        }
+                        for index in range(NOTIFY_MANY_COUNT)
+                    ][:limit],
+                })
             else:
                 # An unregistered/unknown account gets an empty *generated* envelope,
                 # never a 404 (`FestivalAPI+Notifications.swift`'s doc comment).
@@ -1552,6 +1620,12 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 if account_id == "fixture-rank-fail":
                     self._json(500, {"status": "internal_error"})
                     return
+                if account_id == OUTSIDE_VIEWER_ACCOUNT:
+                    self._json(200, {
+                        **_combo_ranking_entry(OUTSIDE_VIEWER_RANK, account_id, OUTSIDE_VIEWER_NAME),
+                        "comboId": combo, "rankBy": rank_by, "totalAccounts": max(total, OUTSIDE_VIEWER_TOTAL),
+                    })
+                    return
                 ranks = {account: rank for rank, (account, _) in enumerate(roster, start=1)}
                 if account_id not in ranks:
                     self._json(404, {"status": "account_not_ranked"})
@@ -1600,12 +1674,18 @@ class FixtureHandler(BaseHTTPRequestHandler):
             deep = re.fullmatch(r"fixture-rank-(\d+)", account_id)
             if self.fixture.large_rankings and deep and 3 < int(deep.group(1)) <= total:
                 roster[account_id] = (int(deep.group(1)), f"Fixture Rank {deep.group(1)}")
+            if account_id == OUTSIDE_VIEWER_ACCOUNT:
+                roster[account_id] = (OUTSIDE_VIEWER_RANK, OUTSIDE_VIEWER_NAME)
+                total = max(total, OUTSIDE_VIEWER_TOTAL)
             if account_id not in roster:
                 self._json(404, {"status": "account_not_ranked"})
                 return
             rank, display_name = roster[account_id]
+            entry = _ranking_entry(rank, account_id, display_name)
+            if account_id == OUTSIDE_VIEWER_ACCOUNT:
+                entry["songsPlayed"] = 30  # The rank-seeded count would go negative this deep.
             self._json(200, {
-                **_ranking_entry(rank, account_id, display_name),
+                **entry,
                 "instrument": instrument, "totalRankedAccounts": total,
             })
         elif match := RANKINGS.fullmatch(path):
@@ -2129,7 +2209,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(400, {"status": "invalid_rivals_query"})
                 return
             scenario = _rivals_scenario(account_id)
-            if scenario == "unavailable":
+            if scenario in ("unavailable", "frozen"):
                 self.send_response(503)
                 self.send_header("Retry-After", "30")
                 self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")
@@ -2144,6 +2224,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(400, {"status": "invalid_rivals_query"})
                 return
             scenario = _rivals_scenario(account_id)
+            if token == "all" and scenario == "frozen":
+                self._json(200, _frozen_rivals_all(account_id))
+                return
             if scenario == "unavailable":
                 self.send_response(503)
                 self.send_header("Retry-After", "30")
@@ -2162,7 +2245,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(400, {"status": "invalid_rivals_query"})
                 return
             scenario = _rivals_scenario(account_id)
-            if scenario == "unavailable":
+            if scenario in ("unavailable", "frozen"):
                 self.send_response(503)
                 self.send_header("Retry-After", "30")
                 self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")

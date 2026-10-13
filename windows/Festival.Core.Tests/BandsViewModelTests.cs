@@ -524,6 +524,7 @@ public class SongBandLeaderboardViewModelTests
         Assert.Equal("#1,000", SongBandRow.WidestRank([own.Entry with { Rank = 1 }, own.Entry with { Rank = 1000 }]));
         Assert.Equal(own.AutomationId + ".members", own.MembersAutomationId);
         Assert.Equal(own.AutomationId + ".rank", own.RankAutomationId);
+        Assert.Equal(own.AutomationId + ".accuracy", own.AccuracyAutomationId);
         Assert.True(vm.ShowSpotlight); // Still pinned on the band's own page (web hasSelectedFooter), now opening Band Detail.
         Assert.False(vm.CanJump);
         Assert.StartsWith("Your band's rank, 30th. Open band. ", vm.Spotlight!.Announcement, StringComparison.Ordinal);
@@ -548,6 +549,9 @@ public class SongBandLeaderboardViewModelTests
         Assert.Equal(new AppRoute.Band("a:b", "Band_Duets", "a:b"), first.Route);
         Assert.Equal("", first.Season);
         Assert.Equal(990000, first.AccuracyValue);
+        // #455: one large-text name line per member, like band rankings rows.
+        Assert.Equal(2, ((ILeaderboardEntryRow)first).LargeTextNameLines);
+        Assert.Equal(2, vm.Spotlight!.Section!.NameLines);
         var unranked = first with { Entry = first.Entry with { Rank = 0 } };
         Assert.Equal("—", unranked.RankText);
         Assert.StartsWith("Your band. Open band. Ann + Bo", unranked.Announcement, StringComparison.Ordinal);

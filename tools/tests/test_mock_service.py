@@ -107,6 +107,30 @@ class MockServiceTests(unittest.TestCase):
                 urlopen(detail + query)
             self.assertEqual(error.exception.code, 400)
 
+    def test_frozen_rivals_scenario_freezes_detail_but_serves_rivals_all(self):
+        """`-frozen`: detail reads answer the freeze's 503; lists and `/rivals/all` answer (#95, #444)."""
+        player = self.base + "/api/player/fixture-riv-frozen"
+        for detail in ("/rivals/03/frozenrival9?limit=0&sort=closest",
+                       "/leaderboard-rivals/Solo_Guitar/frozenrival9?rankBy=totalscore&sort=closest"):
+            with self.assertRaises(HTTPError) as error:
+                urlopen(player + detail)
+            self.assertEqual(error.exception.code, 503)
+            self.assertEqual(error.exception.headers["X-Fst-Public-Read-Freeze-Reason"], "scrape")
+        with urlopen(player + "/rivals/03") as response:
+            self.assertEqual(json.load(response)["combo"], "03")
+        with urlopen(player + "/rivals/all") as response:
+            body = json.load(response)
+        self.assertEqual(body["accountId"], "fixture-riv-frozen")
+        self.assertEqual(body["songs"], ["fixture-pulse", "fixture-orbit"])
+        rival = body["combos"][0]["above"][0]
+        self.assertEqual((rival["accountId"], rival["displayName"]), ("frozenrival9", "Rival Nine"))
+        self.assertEqual([(s["s"], s["i"]) for s in rival["samples"]],
+                         [(0, "Solo_Guitar"), (0, "Solo_Bass"), (1, "Solo_Guitar")])
+        # `-503` keeps every Rivals read frozen, `/rivals/all` included (no fallback).
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + "/api/player/fixture-riv-503/rivals/all")
+        self.assertEqual(error.exception.code, 503)
+
     def test_service_info_discovery_fixture_reports_attempt_progress(self):
         """The opt-in discovery body carries the web's schema-1 attempt counts."""
         server = FixtureServer(("127.0.0.1", 0), FixtureHandler, service_info_discovery=True)
@@ -212,6 +236,21 @@ class MockServiceTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as error:
             urlopen(self.base + "/api/rankings/bands/Band_Duets/fixture-team-unavailable/song-rows")
         self.assertEqual(error.exception.code, 503)
+
+    def test_outside_viewer_ranks_outside_every_top_five(self):
+        """`fixture-riv-ranked` (#370, #493) reads 45th of 60 on instrument and combo boards, never on them."""
+        with urlopen(self.base + "/api/rankings/Solo_Guitar/fixture-riv-ranked") as response:
+            row = json.load(response)
+        self.assertEqual((row["accountId"], row["totalScoreRank"], row["totalRankedAccounts"], row["songsPlayed"]),
+                         ("fixture-riv-ranked", 45, 60, 30))
+        with urlopen(self.base + "/api/rankings/combo/fixture-riv-ranked?combo=03&rankBy=totalscore") as response:
+            combo = json.load(response)
+        self.assertEqual((combo["comboId"], combo["rank"], combo["totalAccounts"]), ("03", 45, 60))
+        with urlopen(self.base + "/api/rankings/Solo_Guitar?page=1&pageSize=10") as response:
+            self.assertNotIn("fixture-riv-ranked", [e["accountId"] for e in json.load(response)["entries"]])
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + "/api/rankings/Solo_Guitar/fixture-riv")
+        self.assertEqual(error.exception.code, 404)
 
     def test_combo_rankings_serve_board_and_player_and_reject_cross_group(self):
         """Combo boards (#602) page the roster, rank one player, 400 single charts and 404 cross-group or unranked reads."""
@@ -398,6 +437,21 @@ class MockServiceTests(unittest.TestCase):
             with self.subTest(route=bad), self.assertRaises(HTTPError) as failure:
                 urlopen(self.base + bad)
             self.assertIn(failure.exception.code, {400, 404})
+
+    def test_notify_many_feed_scrolls_newest_first_and_honours_limit(self):
+        """The #469 account's feed is long, unique, newest first and capped by limit."""
+        route = "/api/player/fixture-notify-many/notifications"
+        with urlopen(self.base + route + "?limit=50") as response:
+            items = json.load(response)["items"]
+        self.assertEqual(len(items), 24)
+        self.assertEqual(len({item["notificationGuid"] for item in items}), 24)
+        self.assertEqual(items[0]["notificationGuid"], "fixture-notify-many-0")
+        detected = [item["detectedAt"] for item in items]
+        self.assertEqual(detected, sorted(detected, reverse=True))
+        with urlopen(self.base + route + "?limit=5") as response:
+            self.assertEqual(len(json.load(response)["items"]), 5)
+        with urlopen(self.base + "/api/player/fixture-player-1/notifications?limit=50") as response:
+            self.assertEqual(len(json.load(response)["items"]), 2)
 
     def test_paged_leaderboard_and_original_artwork(self):
         """One page of 25 and one page of one share a 26-entry total."""
@@ -847,7 +901,7 @@ class MockServiceTests(unittest.TestCase):
             pass
         with urlopen(route, timeout=10) as response:
             self.assertEqual(response.status, 200)
-        for bad in ("?seconds=61", "?seconds=-1", "?seconds=x", "?seconds=1&seconds=2", "?other=1"):
+        for bad in ("?seconds=241", "?seconds=-1", "?seconds=x", "?seconds=1&seconds=2", "?other=1"):
             with self.subTest(query=bad), self.assertRaises(HTTPError) as failure:
                 urlopen(control + bad)
             self.assertEqual(failure.exception.code, 400)

@@ -40,19 +40,25 @@ private func songComparison(instrument: String = "Solo_Guitar", delta: Int) -> R
     #expect(RivalSongStanding.tied.rivalTint == FestivalText.primary)
 }
 
-/// Colour is never the only signal: the label names who leads (HIG Color).
+/// Colour is never the only signal: the label names who leads (HIG Color). It names the
+/// instrument too, because a combo scope lists one song once per instrument (#444).
 @Test func rivalSongRowLabelReadsSongRanksAndLeader() {
     #expect(
         RivalSongRowContent.accessibilityLabel(for: songComparison(delta: 1), rivalName: "Ava")
-            == "Pulse, you rank 12, Ava ranks 13, you lead"
+            == "Pulse, Lead, you rank 12, Ava ranks 13, you lead"
     )
     #expect(
         RivalSongRowContent.accessibilityLabel(for: songComparison(delta: -2), rivalName: "Ava")
-            == "Pulse, you rank 12, Ava ranks 10, Ava leads"
+            == "Pulse, Lead, you rank 12, Ava ranks 10, Ava leads"
     )
     #expect(
         RivalSongRowContent.accessibilityLabel(for: songComparison(delta: 0), rivalName: "Ava")
-            == "Pulse, you rank 12, Ava ranks 12, tied"
+            == "Pulse, Lead, you rank 12, Ava ranks 12, tied"
+    )
+    #expect(
+        RivalSongRowContent.accessibilityLabel(for: songComparison(instrument: "Unknown", delta: 1), rivalName: "Ava")
+            == "Pulse, you rank 12, Ava ranks 13, you lead",
+        "an unknown chart is left out"
     )
 }
 

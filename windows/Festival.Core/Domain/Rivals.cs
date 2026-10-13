@@ -173,6 +173,18 @@ public abstract record RivalScope
         _ => "Combined Rivals",
     };
 
+    /// <summary>
+    /// The one chart a single-instrument scope (song or leaderboard rivals) is about, whose icon leads the All Rivals
+    /// title and the Rival Detail subtitle (page-tools-and-nav-chrome R18 and R23, #557, #604); <see langword="null"/> for lists
+    /// spanning several charts (Common, combos, Settings-derived).
+    /// </summary>
+    public Instrument? SingleInstrument => this switch
+    {
+        Song { IsCommon: false, Mask: not 0 } s => s.Instruments[0],
+        Leaderboard l => l.Instrument,
+        _ => null,
+    };
+
     /// <summary>Compact token for <c>?scope=</c> on rival detail and rivalry paths.</summary>
     /// <returns><c>song:A,B</c>, <c>leaderboard:A:metric</c>, <c>combo:03</c> or <c>settings:common</c>.</returns>
     public string ToToken() => this switch
@@ -363,6 +375,12 @@ public static class RivalCategorization
     /// <param name="key">Category key.</param>
     /// <returns><see langword="true"/> for the six web keys.</returns>
     public static bool IsKnown(string? key) => key is not null && Meta.ContainsKey(key);
+
+    /// <summary>A category's description and tone, as the Rival Detail page heads it.</summary>
+    /// <param name="key">Category key.</param>
+    /// <returns>Subtitle and sentiment, or <see langword="null"/> for an unknown key.</returns>
+    public static (string Subtitle, RivalCategorySentiment Sentiment)? Describe(string key) =>
+        Meta.TryGetValue(key, out var meta) ? (meta.Subtitle, meta.Sentiment) : null;
 
     /// <summary>Splits shared songs into non-empty categories in web order.</summary>
     /// <param name="songs">Compared songs.</param>

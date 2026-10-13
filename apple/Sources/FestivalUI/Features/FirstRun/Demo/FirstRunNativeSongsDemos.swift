@@ -128,9 +128,105 @@ private struct FirstRunInertPreview: ViewModifier {
         content
             .environment(\.festivalModalPreview, true)
             .allowsHitTesting(false)
+            // On macOS a menu-style `Picker`'s title label escapes `accessibilityHidden`
+            // alone (the Paths demo read "Instrument", "Difficulty", "View"; #498), so the
+            // preview first collapses to one element without children.
+            .accessibilityElement(children: .ignore)
             .accessibilityHidden(true)
+            #if os(iOS)
+            .background(FirstRunPlatformAccessibilityHider())
+            #endif
     }
 }
+
+#if os(iOS)
+/// Hides the UIKit views inside a preview from VoiceOver.
+///
+/// A real control the preview shows through UIKit is out of reach of the preview's
+/// `accessibilityHidden`: each row of a `Form` or `List` is its own SwiftUI host in a
+/// collection-view cell, and a `TabView` is a `UITabBarController`. On iPhone the Sort Songs
+/// slide exposed the sheet's cells and its Title, Artist, Year and Duration buttons, and the
+/// Navigation slide its tab bar and five tabs (#498). This invisible probe, a background of
+/// the preview, marks every UIKit view lying within the preview's frame
+/// `accessibilityElementsHidden`, never one of its own ancestors: the carousel's pager and the
+/// slide's own scroll view hold the slide and stay readable.
+private struct FirstRunPlatformAccessibilityHider: UIViewRepresentable {
+    func makeUIView(context: Context) -> Probe {
+        let view = Probe()
+        view.isUserInteractionEnabled = false
+        view.isAccessibilityElement = false
+        view.accessibilityElementsHidden = true
+        return view
+    }
+
+    func updateUIView(_ view: Probe, context: Context) {
+        view.hideSoon()
+    }
+
+    /// Finds and hides the preview's UIKit views once they are in the window.
+    final class Probe: UIView {
+        /// How many ancestors up the probe looks for the preview's platform views; they are
+        /// siblings a few levels up in the same hosting view.
+        private static let ancestorLimit = 6
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            hideSoon()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            hide()
+        }
+
+        /// Hides now and again on the next two run-loop turns, since SwiftUI may create the
+        /// preview's platform views after the probe attaches.
+        func hideSoon() {
+            hide()
+            DispatchQueue.main.async { [weak self] in
+                self?.hide()
+                DispatchQueue.main.async { [weak self] in self?.hide() }
+            }
+        }
+
+        /// Marks the UIKit views within the probe's frame hidden from accessibility, from the
+        /// nearest ancestor that holds any.
+        func hide() {
+            guard let window, !bounds.isEmpty else { return }
+            let area = convert(bounds, to: window).insetBy(dx: -1, dy: -1)
+            var ancestor = superview
+            var level = 0
+            while let current = ancestor, level < Self.ancestorLimit {
+                if Self.hideViews(in: current, within: area, window: window, probe: self) { return }
+                ancestor = current.superview
+                level += 1
+            }
+        }
+
+        /// Hides every non-empty view under `root` whose visible frame lies within `area`,
+        /// at every depth (SwiftUI may reset its own platform host; the views inside it keep
+        /// the flag), skipping the probe and its ancestors.
+        ///
+        /// - Returns: Whether any was found.
+        private static func hideViews(
+            in root: UIView, within area: CGRect, window: UIWindow, probe: UIView
+        ) -> Bool {
+            var found = false
+            func visit(_ view: UIView) {
+                guard view !== probe else { return }
+                if !view.bounds.isEmpty, !probe.isDescendant(of: view),
+                   area.contains(view.convert(view.bounds, to: window)) {
+                    view.accessibilityElementsHidden = true
+                    found = true
+                }
+                view.subviews.forEach(visit)
+            }
+            visit(root)
+            return found
+        }
+    }
+}
+#endif
 
 extension View {
     /// Shows real app UI read-only (``FirstRunInertPreview``).
