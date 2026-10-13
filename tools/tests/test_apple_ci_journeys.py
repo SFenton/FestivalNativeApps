@@ -281,7 +281,13 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertEqual(self.history["HISTORY_JOURNEYS"], [page], "the iPhone run: the page only (the split skips)")
         # #478: the song board's split-pane title (#342) at AX5 rides the iPad run; it skips on the iPhone.
         board = "SongBoardSplitAccessibilityJourneyTests/testSongBoardSplitTitleAtAX5"
-        self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"][:3], [page, split, board])
+        # #492: Song Detail's Duos link beside its band board (#367) at AX5; iPad only, like the #478 journey.
+        band = "SongBandBoardSplitAccessibilityJourneyTests/testSongBandBoardSplitLinkAtAX5"
+        # #490: Song Detail's first instrument-card row (#365) needs two card columns, so it rides the iPad run only.
+        cards = "SongDetailCardRowAccessibilityJourneyTests/testInstrumentCardRowAtAX5"
+        # #480: the split band (#344) under Increase Contrast at AX5; asserted in test_split_band_journey_runs_on_the_ipad.
+        split_band = "IPadShellAccessibilityTests/testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5"
+        self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split, board, band, cards, split_band])
         self.assertEqual(self.workflow.count("uitest --app ipad"), 2)
         # iPhone journeys, the unpinned profile-notice run (#446), two Score History runs, the plain-fixture iPhone run
         # (#615), the iPad journeys, the iPad keyboard batches (#473, #442), the Songs Filter legs (#432) and the

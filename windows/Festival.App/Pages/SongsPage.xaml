@@ -340,8 +340,12 @@
                            AutomationProperties.HeadingLevel="Level2" AutomationProperties.AutomationId="fst.songs.section-header" />
             </Grid>
             <!-- The fade source: its composition visual is hidden while ListFadeHost paints the faded copy. Zoom's own XAML
-                 opacity (the reveal) stays independent of it. -->
+                 opacity (the reveal) stays independent of it. PublicationGate fades the list out and back in around a new
+                 publication's in-place refresh (load-transition R9, issue #616); while hidden it drops the stale rows from
+                 UI Automation and the Tab order. It sits between the two so neither opacity fights the other. -->
             <Grid x:Name="ListFadeSource" Grid.Row="1">
+            <controls:LoadSwapGate x:Name="PublicationGate"
+                                   controls:LoadSwapVisual.Swap="{x:Bind ViewModel.PublicationSwap}" controls:LoadSwapVisual.Role="Content">
             <SemanticZoom x:Name="Zoom" Visibility="{x:Bind ViewModel.ShowList, Mode=OneWay}" Opacity="0"
                           CanChangeViews="{x:Bind ViewModel.HasJumpIndex, Mode=OneWay}"
                           IsZoomOutButtonEnabled="{x:Bind ViewModel.HasJumpIndex, Mode=OneWay}">
@@ -428,6 +432,7 @@
                     </GridView>
                 </SemanticZoom.ZoomedOutView>
             </SemanticZoom>
+            </controls:LoadSwapGate>
             </Grid>
             <!-- Paints ListFadeSource with its top edge faded while the fade is on (TopEdgeFade); never hit-testable. Raw-view
                  ItemStatus names the edge state for UI tests (hidden, hard-edge, top, clear, fading). -->
@@ -444,6 +449,11 @@
 
             <ProgressRing Grid.RowSpan="2" x:Name="LoadingRing" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
                           AutomationProperties.Name="Loading songs" />
+            <!-- A new publication's in-place refresh (load-transition R9, issue #616; Apple fst.publication.refreshing). -->
+            <ProgressRing Grid.RowSpan="2" x:Name="PublicationRing" Width="48" Height="48"
+                          controls:LoadSwapVisual.Swap="{x:Bind ViewModel.PublicationSwap}" controls:LoadSwapVisual.Role="Spinner"
+                          AutomationProperties.Name="Loading new scores"
+                          AutomationProperties.AutomationId="fst.publication.refreshing" />
 
             <controls:ServiceStatusView Grid.RowSpan="2" Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                         Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"

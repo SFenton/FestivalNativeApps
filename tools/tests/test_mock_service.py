@@ -213,6 +213,21 @@ class MockServiceTests(unittest.TestCase):
             urlopen(self.base + "/api/rankings/bands/Band_Duets/fixture-team-unavailable/song-rows")
         self.assertEqual(error.exception.code, 503)
 
+    def test_outside_viewer_ranks_outside_every_top_five(self):
+        """`fixture-riv-ranked` (#370, #493) reads 45th of 60 on instrument and combo boards, never on them."""
+        with urlopen(self.base + "/api/rankings/Solo_Guitar/fixture-riv-ranked") as response:
+            row = json.load(response)
+        self.assertEqual((row["accountId"], row["totalScoreRank"], row["totalRankedAccounts"], row["songsPlayed"]),
+                         ("fixture-riv-ranked", 45, 60, 30))
+        with urlopen(self.base + "/api/rankings/combo/fixture-riv-ranked?combo=03&rankBy=totalscore") as response:
+            combo = json.load(response)
+        self.assertEqual((combo["comboId"], combo["rank"], combo["totalAccounts"]), ("03", 45, 60))
+        with urlopen(self.base + "/api/rankings/Solo_Guitar?page=1&pageSize=10") as response:
+            self.assertNotIn("fixture-riv-ranked", [e["accountId"] for e in json.load(response)["entries"]])
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + "/api/rankings/Solo_Guitar/fixture-riv")
+        self.assertEqual(error.exception.code, 404)
+
     def test_combo_rankings_serve_board_and_player_and_reject_cross_group(self):
         """Combo boards (#602) page the roster, rank one player, 400 single charts and 404 cross-group or unranked reads."""
         with urlopen(self.base + "/api/rankings/combo?combo=0F&rankBy=totalscore&page=1&pageSize=10") as response:
@@ -862,7 +877,7 @@ class MockServiceTests(unittest.TestCase):
             pass
         with urlopen(route, timeout=10) as response:
             self.assertEqual(response.status, 200)
-        for bad in ("?seconds=61", "?seconds=-1", "?seconds=x", "?seconds=1&seconds=2", "?other=1"):
+        for bad in ("?seconds=241", "?seconds=-1", "?seconds=x", "?seconds=1&seconds=2", "?other=1"):
             with self.subTest(query=bad), self.assertRaises(HTTPError) as failure:
                 urlopen(control + bad)
             self.assertEqual(failure.exception.code, 400)

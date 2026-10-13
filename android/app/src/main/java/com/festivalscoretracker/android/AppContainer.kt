@@ -16,6 +16,8 @@ import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.data.ForcedFreezeTransport
 import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.data.OkHttpTransport
+import com.festivalscoretracker.android.data.OkHttpPublicationLiveSocket
+import com.festivalscoretracker.android.data.PublicationLiveConnection
 import com.festivalscoretracker.android.data.RetiredSettingsMigration
 import com.festivalscoretracker.android.data.SettingsRepository
 import com.festivalscoretracker.android.data.shop.shop
@@ -112,6 +114,15 @@ class AppContainer(
 
     /** Saved Songs filters and Shop layout. */
     val songsPreferences = SongsPreferences(settings)
+
+    /**
+     * Anonymous receive-only `/api/ws` connection (web `useAppWebSocket`, Apple #304; issue
+     * #616), run while the app is in the foreground. Null for fixture transports and loopback
+     * origins: tests and the mock service have no live socket and drive publication changes
+     * themselves.
+     */
+    val liveUpdates: PublicationLiveConnection? =
+        if (transport == null && !api.usesLoopbackOrigin) PublicationLiveConnection(api, OkHttpPublicationLiveSocket(httpClient)) else null
 }
 
 // endregion

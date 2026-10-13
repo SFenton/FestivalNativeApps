@@ -36,6 +36,12 @@ public partial class App : Application
     /// <summary>Environment lookup for launch hooks: the process environment when <see cref="HooksEnabled"/>, else empty.</summary>
     public static Func<string, string?> LaunchEnvironment { get; private set; } = _ => null;
 
+    /// <summary>
+    /// The one anonymous, receive-only <c>/api/ws</c> connection (issue #616; web <c>useAppWebSocket</c>), which the main
+    /// window holds active while it is shown. <see langword="null"/> for a loopback fixture origin without the opt-in.
+    /// </summary>
+    public static PublicationLiveConnection? LiveUpdates { get; private set; }
+
     /// <summary>Builds services and shows the main window. Never calls a side-effecting endpoint.</summary>
     /// <param name="args">Launch details.</param>
     protected override void OnLaunched(LaunchActivatedEventArgs args)
@@ -75,6 +81,9 @@ public partial class App : Application
             labWindow.Activate();
             return;
         }
+        LiveUpdates = PublicationLiveConnection.IsEnabled(api, environment)
+            ? new PublicationLiveConnection(api, new ClientWebSocketPublicationLiveSocket())
+            : null;
         window = new MainWindow(Session, Options);
         window.Activate();
         PerfLog.Mark("window-activated");

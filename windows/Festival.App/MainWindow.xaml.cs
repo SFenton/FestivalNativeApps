@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Net.NetworkInformation;
 using Festival.App.Controls;
 using Festival.App.Pages;
 using Festival.App.Services;
@@ -73,6 +74,7 @@ public sealed partial class MainWindow : Window
         {
             windowVisible = e.Visible;
             UpdateBackdropPolicy();
+            UpdateLiveUpdates();
             // A first-run check skipped while hidden runs once the window shows again (issue #232).
             if (e.Visible) QueueFirstRun();
         };
@@ -85,7 +87,14 @@ public sealed partial class MainWindow : Window
             // First-run demos rotate only while the app is in the foreground (issue #258).
             Motion.UpdateForeground(e.WindowActivationState != WindowActivationState.Deactivated);
         };
-        Closed += (_, _) => { occlusion?.Dispose(); occlusion = null; };
+        Closed += (_, _) =>
+        {
+            occlusion?.Dispose();
+            occlusion = null;
+            NetworkChange.NetworkAvailabilityChanged -= OnNetworkAvailabilityChanged;
+            App.LiveUpdates?.Dispose();
+        };
+        NetworkChange.NetworkAvailabilityChanged += OnNetworkAvailabilityChanged;
         uiSettings.AdvancedEffectsEnabledChanged += (_, _) => DispatcherQueue.TryEnqueue(ApplyTransparency);
         if (ApiInformation.IsEventPresent("Windows.UI.ViewManagement.UISettings", "AnimationsEnabledChanged"))
             uiSettings.AnimationsEnabledChanged += (_, _) => DispatcherQueue.TryEnqueue(UpdateBackdropPolicy);
@@ -99,6 +108,7 @@ public sealed partial class MainWindow : Window
 
         ApplyTransparency();
         UpdateBackdropPolicy();
+        UpdateLiveUpdates();
         Show(options.Tab ?? AppSection.Songs);
         if (options.Route is { } route) Navigate(route);
         _ = LoadBackdropCatalogAsync();
@@ -532,8 +542,23 @@ public sealed partial class MainWindow : Window
         var wasMinimized = minimized;
         minimized = sender.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Minimized };
         UpdateBackdropPolicy();
+        UpdateLiveUpdates();
         // The visible page's first-run check was skipped while minimized; run it on restore (issue #232).
         if (wasMinimized && !minimized) QueueFirstRun();
+    }
+
+    /// <summary>
+    /// Holds the live publication socket while the window is shown and not minimized, like the web socket's
+    /// visible-document lifetime (issue #616). Showing the window again starts a fresh round, which re-reads the publication.
+    /// </summary>
+    private void UpdateLiveUpdates() => App.LiveUpdates?.SetActive(windowVisible && !minimized);
+
+    /// <summary>The network came back: reconnect now instead of waiting out the backoff (web <c>online</c> recovery).</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Availability.</param>
+    private void OnNetworkAvailabilityChanged(object? sender, NetworkAvailabilityEventArgs e)
+    {
+        if (e.IsAvailable) DispatcherQueue.TryEnqueue(() => App.LiveUpdates?.Restart());
     }
 
     /// <summary>Resolves and applies the background mode.</summary>

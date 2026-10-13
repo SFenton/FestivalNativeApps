@@ -29,8 +29,9 @@ SONG_LEADERBOARD_PAGING_ENTRIES = 100
 SLOW_SONG_LEADERBOARD_PAGE_SECONDS = 3
 # Longest `/__fixture__/hold-paths` hold (issue #430): a held Paths read is answered when
 # the test releases it or this many seconds after the hold began, so a test that dies
-# mid-hold never leaves the listener stalling path reads.
-PATH_HOLD_LIMIT_SECONDS = 60
+# mid-hold never leaves the listener stalling path reads. 240 s covers the CI runner's
+# ×4 virtual-machine budget for a 60 s hold (#386: a 60 s hold expired mid-audit there).
+PATH_HOLD_LIMIT_SECONDS = 240
 
 
 def load_fixture(name: str) -> tuple[dict, str]:
@@ -143,6 +144,12 @@ PLAYER_COMBO_RANKING = re.compile(r"^/api/rankings/combo/(fixture-[a-z0-9-]+)$")
 # Within-group combo bitmasks (bit = the instrument's index in the service order): any
 # two or more of Lead/Bass/Drums/Vocals (bits 0-3), or Pro Lead + Pro Bass (bits 4-5).
 COMBO_GROUP_MASKS = (0x0F, 0x30)
+# The Compete "your rank" viewer (#370, #493): a Rivals viewer like `fixture-riv` (demo scenario) whose own
+# instrument and combo rank reads say 45th of 60, outside every board's Top 5, so Compete appends its row.
+OUTSIDE_VIEWER_ACCOUNT = "fixture-riv-ranked"
+OUTSIDE_VIEWER_NAME = "Fixture Viewer"
+OUTSIDE_VIEWER_RANK = 45
+OUTSIDE_VIEWER_TOTAL = 60
 BAND_RANKINGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)$")
 BAND_HISTORY = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
 BAND_SONGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/songs$")
@@ -1576,6 +1583,12 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 if account_id == "fixture-rank-fail":
                     self._json(500, {"status": "internal_error"})
                     return
+                if account_id == OUTSIDE_VIEWER_ACCOUNT:
+                    self._json(200, {
+                        **_combo_ranking_entry(OUTSIDE_VIEWER_RANK, account_id, OUTSIDE_VIEWER_NAME),
+                        "comboId": combo, "rankBy": rank_by, "totalAccounts": max(total, OUTSIDE_VIEWER_TOTAL),
+                    })
+                    return
                 ranks = {account: rank for rank, (account, _) in enumerate(roster, start=1)}
                 if account_id not in ranks:
                     self._json(404, {"status": "account_not_ranked"})
@@ -1624,12 +1637,18 @@ class FixtureHandler(BaseHTTPRequestHandler):
             deep = re.fullmatch(r"fixture-rank-(\d+)", account_id)
             if self.fixture.large_rankings and deep and 3 < int(deep.group(1)) <= total:
                 roster[account_id] = (int(deep.group(1)), f"Fixture Rank {deep.group(1)}")
+            if account_id == OUTSIDE_VIEWER_ACCOUNT:
+                roster[account_id] = (OUTSIDE_VIEWER_RANK, OUTSIDE_VIEWER_NAME)
+                total = max(total, OUTSIDE_VIEWER_TOTAL)
             if account_id not in roster:
                 self._json(404, {"status": "account_not_ranked"})
                 return
             rank, display_name = roster[account_id]
+            entry = _ranking_entry(rank, account_id, display_name)
+            if account_id == OUTSIDE_VIEWER_ACCOUNT:
+                entry["songsPlayed"] = 30  # The rank-seeded count would go negative this deep.
             self._json(200, {
-                **_ranking_entry(rank, account_id, display_name),
+                **entry,
                 "instrument": instrument, "totalRankedAccounts": total,
             })
         elif match := RANKINGS.fullmatch(path):
