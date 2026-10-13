@@ -104,6 +104,7 @@ jobs:
             SongsChromeJourneyTests/testScrollAwaySectionBarAccessibilityAtAX5
             SongsChromeJourneyTests/testSectionBarHeadingAtLargestText
             SongsChromeJourneyTests/testRowUnderTheSectionBarFadeKeepsItsAccessibility
+            SongsChromeJourneyTests/testRowUnderTheSectionBarAtLargestTextWithHardEdge
             SongsChromeJourneyTests/testSectionPushIsAccessibleAtLargestText
             SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestText
             SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestTextDuoFolded
