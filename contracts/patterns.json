@@ -965,6 +965,10 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
             "symbol": "FestivalBarTitle"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/rivals/RivalPageTitle.kt",
+            "symbol": "RivalPageTitles"
           }
         ],
         "windows": [
@@ -1132,7 +1136,8 @@
         544,
         557,
         576,
-        597
+        597,
+        604
       ]
     },
     {

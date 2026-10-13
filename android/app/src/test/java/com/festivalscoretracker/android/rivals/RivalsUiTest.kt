@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -465,5 +466,51 @@ class RivalsUiTest {
         launch(DebugLaunch(route = RivalRoutes.detail(ids[0], null, RivalScopes.song(listOf(Instrument.Lead))), profile = player, stillBackground = true))
         waitForTag("fst.rival-detail.category.closest_battles")
         assertTrue(rule.onAllNodesWithTag("fst.rivals.song.s-alpha.Solo_Guitar").fetchSemanticsNodes().isNotEmpty())
+    }
+
+    /** The bar's title and subtitle, read from the top app bar only. */
+    private fun barLines(): Pair<String, String?> {
+        val bar = hasAnyAncestor(hasTestTag("fst.nav.top-bar"))
+        val subtitle = rule.onAllNodesWithTag("fst.nav.subtitle", useUnmergedTree = true).fetchSemanticsNodes().singleOrNull()
+            ?.config?.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Text)?.joinToString()
+        val title = rule.onAllNodes(hasTestTag("fst.nav.title") and bar, useUnmergedTree = true).fetchSemanticsNodes().single()
+            .let { node ->
+                node.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Text)?.joinToString()
+                    ?: rule.onAllNodes(hasAnyAncestor(hasTestTag("fst.nav.title")), useUnmergedTree = true).fetchSemanticsNodes()
+                        .firstNotNullOf { it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Text)?.joinToString() }
+            }
+        return title to subtitle
+    }
+
+    /**
+     * #604: Rival Detail names the rival over "Rivals" (or the icon-led "{Instrument} Rivals" for a
+     * single-chart rival); Rivalry names the section over the rival. The subtitle icon adds no label.
+     */
+    @Test
+    fun rivalPagesNameTheRivalAndSectionInTheBar() {
+        launch(DebugLaunch(route = RivalRoutes.detail(ids[0], "Synthetic Rival", RivalScopes.song(listOf(Instrument.Lead))), profile = player, stillBackground = true))
+        waitForTag("fst.rival-detail.category.closest_battles")
+        assertEquals("Synthetic Rival" to "Lead Rivals", barLines())
+        val icon = rule.onNodeWithTag("fst.rival.subtitle-icon.Solo_Guitar", useUnmergedTree = true)
+        icon.assertExists()
+        assertEquals(null, icon.fetchSemanticsNode().config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription))
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.title-icon", useUnmergedTree = true).fetchSemanticsNodes().size)
+        // TalkBack reads the title and subtitle as one stop.
+        rule.onNode(hasTestTag("fst.nav.title-block")).assertTextContains("Synthetic Rival").assertTextContains("Lead Rivals")
+
+        rule.onNodeWithTag("fst.rival-detail.see-all.closest_battles").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.rivalry.title")
+        settle()
+        assertEquals("Closest Battles" to "Synthetic Rival", barLines())
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.subtitle-icon", useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
+    /** #604: a multi-chart (Common) rival keeps the plain "Rivals" subtitle with no icon. */
+    @Test
+    fun commonRivalDetailReadsRivals() {
+        launch(DebugLaunch(route = RivalRoutes.detail(ids[1], "Synthetic Rival", RivalScopes.song(listOf(Instrument.Lead, Instrument.Bass))), profile = player, stillBackground = true))
+        waitForTag("fst.rival-detail.category.closest_battles")
+        assertEquals("Synthetic Rival" to "Rivals", barLines())
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.subtitle-icon", useUnmergedTree = true).fetchSemanticsNodes().size)
     }
 }

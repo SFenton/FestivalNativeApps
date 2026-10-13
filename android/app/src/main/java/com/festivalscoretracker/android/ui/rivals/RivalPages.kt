@@ -32,6 +32,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.festivalscoretracker.android.ui.design.readingGroup
@@ -39,7 +40,10 @@ import com.festivalscoretracker.android.core.model.Song
 import com.festivalscoretracker.android.core.nav.PlayerRoute
 import com.festivalscoretracker.android.core.nav.RivalDetailRoute
 import com.festivalscoretracker.android.core.nav.SongDetailRoute
+import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.rivals.RivalBarTitle
 import com.festivalscoretracker.android.core.rivals.RivalCategorization
+import com.festivalscoretracker.android.core.rivals.RivalPageTitles
 import com.festivalscoretracker.android.core.rivals.RivalQuickLinks
 import com.festivalscoretracker.android.core.rivals.RivalRoutes
 import com.festivalscoretracker.android.core.rivals.RivalScopes
@@ -71,15 +75,33 @@ import com.festivalscoretracker.android.ui.theme.BrandTokens
  * Rival pages without a selected player (web guard: "Track a player to see their rivals.").
  *
  * @param title Screen title.
+ * @param bar The rival page's bar title and subtitle (#604), replacing [title] when given.
  */
 @Composable
-fun RivalsNoPlayerScreen(title: String) {
+fun RivalsNoPlayerScreen(title: String, bar: RivalBarTitle? = null) {
     val shell = LocalShellActions.current
-    FestivalScreen(title = title, isRoot = false) { padding ->
+    FestivalScreen(
+        title = bar?.title ?: title,
+        isRoot = false,
+        subtitle = bar?.subtitle,
+        subtitleIcon = rivalSubtitleIcon(bar?.subtitleInstrument),
+    ) { padding ->
         Box(Modifier.padding(padding)) {
             RivalsMessage(RivalText.NO_PLAYER, null, "fst.rivals.chooseProfile", shell.openProfile, "Select Player")
         }
     }
+}
+
+/**
+ * The decorative chart icon leading a rival page's bar subtitle ("{Instrument} Rivals", #604),
+ * sized by `FestivalScreen` to the subtitle's line. The subtitle text names the chart, so the
+ * icon adds no label.
+ *
+ * @param instrument Chart, or null for no icon.
+ * @return Subtitle icon slot, or null.
+ */
+private fun rivalSubtitleIcon(instrument: Instrument?): (@Composable (size: Dp) -> Unit)? = instrument?.let { chart ->
+    { size -> InstrumentIcon(chart, size = size, decorative = true, modifier = Modifier.testTag("fst.rival.subtitle-icon.${chart.wireId}")) }
 }
 
 // endregion
@@ -185,9 +207,13 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
     val quickLinks = rememberQuickLinks(gridState, "Quick Links", RivalQuickLinks.rivalDetail(categories), fadeInWindow = fadeIn) { id ->
         categories.indexOfFirst { RivalQuickLinks.categoryId(it.key) == id }.takeIf { it >= 0 }?.plus(1)
     }
+    // Owner (#604): the rival's name over "Rivals", or over the icon-led "{Instrument} Rivals".
+    val bar = RivalPageTitles.detail(name, RivalScopes.fromToken(route.scope))
     FestivalScreen(
-        title = name ?: "Rival",
+        title = bar.title,
         isRoot = false,
+        subtitle = bar.subtitle,
+        subtitleIcon = rivalSubtitleIcon(bar.subtitleInstrument),
         fadeInWindow = fadeIn,
         actions = {
             QuickLinksAction(quickLinks, windowWidthDp().toInt())
@@ -297,9 +323,12 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
     val gridState = rememberLazyGridState()
     // No Quick Links: one link per song only repeated the list (owner, #545; quick-links variant).
     val fadeIn = rememberPageFadeInWindow()
+    // Owner (#604): the section (e.g. "Closest Battles") over the rival's name.
+    val bar = RivalPageTitles.rivalry(mode, name)
     FestivalScreen(
-        title = RivalCategorization.title(mode),
+        title = bar.title,
         isRoot = false,
+        subtitle = bar.subtitle,
         fadeInWindow = fadeIn,
         actions = {
             Box {

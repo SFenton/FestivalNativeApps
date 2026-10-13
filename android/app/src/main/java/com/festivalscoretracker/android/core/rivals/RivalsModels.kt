@@ -314,6 +314,7 @@ object RivalText {
     const val NO_RIVALS_PLURAL = "Play more songs on your selected instruments to generate a roster of Rivals."
     const val LEADERBOARD_EMPTY = "No ranking data available."
     const val NO_SONGS = "No song data for this rival."
+    const val RIVALS = "Rivals"
     const val COMMON_RIVALS = "Common Rivals"
     const val COMBINED = "Combined"
     const val PRO_DRUMS_FAMILY = "Pro Drums Family"
