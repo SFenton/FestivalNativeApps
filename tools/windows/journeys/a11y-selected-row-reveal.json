@@ -1,0 +1,171 @@
+[
+  {
+    "name": "reveal-song-score",
+    "note": "Issues #323, #470: Song Details' 'your score' row (rank 17, row eleven) opens the Lead board with navToPlayer by keyboard. The reveal waits for the row's entrance, then centres it: the row reads 'Your rank, 17th.', paints its purple fill, keeps a 40 epx target clear of the pinned row, reads rows 16 -> 17 -> 18 -> pinned row -> Next, and Down/Up/Tab move from it in place.",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-17:Fixture Player 17",
+    "fixture": [
+      "fade_fixture.py",
+      "--large-rankings"
+    ],
+    "scan": true,
+    "tabs": 0,
+    "ready": [
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17@30",
+      "wait:1"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17@10",
+      "assertread:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17|~^Rank 17, Fixture Player 17, 98,300 points, 98% accuracy, you\\. Jump to your position, button$",
+      "assertsize:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17|0x40",
+      "focus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17",
+      "assertfocus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17@3",
+      "key:enter",
+      "waitfor:id=fst.song-leaderboard.list@30",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-17@20",
+      "wait:1",
+      "assertread:id=fst.song-leaderboard.row.fixture-player-17|~^Your rank, 17th\\. Fixture Player 17, 98,300 points, 98% accuracy, .+, button$",
+      "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 17th\\. Open your statistics\\. Fixture Player 17, .+, button$",
+      "assertsize:id=fst.song-leaderboard.row.fixture-player-17|0x40",
+      "assertapart:id=fst.song-leaderboard.row.fixture-player-17|id=fst.song-leaderboard.spotlight-footer",
+      "assertorder:id=fst.song-leaderboard.row.fixture-player-16|id=fst.song-leaderboard.row.fixture-player-17|id=fst.song-leaderboard.row.fixture-player-18|id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-next",
+      "assertpaint:id=fst.song-leaderboard.row.fixture-player-17|above:L40,T-20|L40,T6!=@above~20",
+      "assertmotion:id=fst.song-leaderboard.row.fixture-player-17|still",
+      "focus:id=fst.song-leaderboard.row.fixture-player-17",
+      "assertfocus:id=fst.song-leaderboard.row.fixture-player-17@3",
+      "key:down",
+      "assertfocus:id=fst.song-leaderboard.row.fixture-player-18@3",
+      "key:up",
+      "assertfocus:id=fst.song-leaderboard.row.fixture-player-17@3",
+      "assertapart:id=fst.song-leaderboard.row.fixture-player-17|id=fst.song-leaderboard.spotlight-footer",
+      "key:tab",
+      "assertfocus:id=fst.song-leaderboard.spotlight-footer@3",
+      "key:tab",
+      "assertfocus:id=fst.song-leaderboard.page-next@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.song-leaderboard.spotlight-footer@3",
+      "focus:id=fst.song-leaderboard.row.fixture-player-17",
+      "waitgone:class=ToolTip@5",
+      "shot:{stem}.png"
+    ]
+  },
+  {
+    "name": "reveal-full-rankings-card",
+    "note": "Issues #323, #370, #470: the Lead card's 'your rank' row (60th) opens Full Rankings on page 3 by keyboard and the reveal centres the player's row after its entrance: 'Your rank, 60th.', purple fill, 40 epx, clear of the pinned footer, rows 59 -> 60 -> 61 -> pinned footer -> First, Down/Up/Tab in place.",
+    "route": "/leaderboards",
+    "profile": "fixture-rank-60:Fixture Rank 60",
+    "fixture": [
+      "fade_fixture.py",
+      "--large-rankings"
+    ],
+    "scan": true,
+    "tabs": 0,
+    "ready": [
+      "scrollinto:id=fst.leaderboards.card.Solo_Guitar.view-all@30",
+      "wait:2"
+    ],
+    "after_ready": [
+      "reveal:id=fst.leaderboards.card.Solo_Guitar.spotlight",
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar.spotlight@10",
+      "assertread:id=fst.leaderboards.card.Solo_Guitar.spotlight|~^Your rank, 60th\\. Jump to your position\\. Fixture Rank 60\\. .+, button$",
+      "assertsize:id=fst.leaderboards.card.Solo_Guitar.spotlight|0x40",
+      "focus:id=fst.leaderboards.card.Solo_Guitar.spotlight",
+      "assertfocus:id=fst.leaderboards.card.Solo_Guitar.spotlight@3",
+      "key:enter",
+      "waitfor:id=fst.full-rankings.list@30",
+      "waitfor:id=fst.rankings.row.fixture-rank-60@20",
+      "wait:1",
+      "assertread:id=fst.rankings.row.fixture-rank-60|~^Your rank, 60th\\. Fixture Rank 60\\. Total Score 30,000,000, .+, button$",
+      "assertsize:id=fst.rankings.row.fixture-rank-60|0x40",
+      "assertapart:id=fst.rankings.row.fixture-rank-60|id=fst.full-rankings.spotlight-footer",
+      "assertorder:id=fst.rankings.row.fixture-rank-59|id=fst.rankings.row.fixture-rank-60|id=fst.rankings.row.fixture-rank-61|id=fst.full-rankings.spotlight-footer|id=fst.full-rankings.page-first",
+      "assertpaint:id=fst.rankings.row.fixture-rank-60|above:L40,T-20|L40,T6!=@above~20",
+      "assertmotion:id=fst.rankings.row.fixture-rank-60|still",
+      "focus:id=fst.rankings.row.fixture-rank-60",
+      "assertfocus:id=fst.rankings.row.fixture-rank-60@3",
+      "key:down",
+      "assertfocus:id=fst.rankings.row.fixture-rank-61@3",
+      "key:up",
+      "assertfocus:id=fst.rankings.row.fixture-rank-60@3",
+      "assertapart:id=fst.rankings.row.fixture-rank-60|id=fst.full-rankings.spotlight-footer",
+      "key:tab",
+      "assertfocus:id=fst.full-rankings.spotlight-footer@3",
+      "key:tab",
+      "assertfocus:id=fst.full-rankings.page-first@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.full-rankings.spotlight-footer@3",
+      "focus:id=fst.rankings.row.fixture-rank-60",
+      "waitgone:class=ToolTip@5",
+      "shot:{stem}.png"
+    ]
+  },
+  {
+    "name": "reveal-song-score-still",
+    "modes": [
+      "app-reduced",
+      "no-animations"
+    ],
+    "note": "Issues #323, #470 with in-app Reduce Motion or Windows' Animation effects off: the reveal scrolls at once with no entrance (load-transition R6) and the reached row is named, painted, clear of the pinned row and still.",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-17:Fixture Player 17",
+    "fixture": [
+      "fade_fixture.py",
+      "--large-rankings"
+    ],
+    "tabs": 0,
+    "ready": [
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17@30",
+      "wait:1"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17@10",
+      "assertread:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17|~^Rank 17, Fixture Player 17, 98,300 points, 98% accuracy, you\\. Jump to your position, button$",
+      "assertsize:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17|0x40",
+      "focus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17",
+      "assertfocus:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17@3",
+      "key:enter",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-17@20",
+      "wait:1",
+      "assertread:id=fst.song-leaderboard.row.fixture-player-17|~^Your rank, 17th\\. Fixture Player 17, 98,300 points, 98% accuracy, .+, button$",
+      "assertapart:id=fst.song-leaderboard.row.fixture-player-17|id=fst.song-leaderboard.spotlight-footer",
+      "assertmotion:id=fst.song-leaderboard.row.fixture-player-17|still",
+      "assertpaint:id=fst.song-leaderboard.row.fixture-player-17|above:L40,T-20|L40,T6!=@above~20",
+      "assertorder:id=fst.song-leaderboard.row.fixture-player-16|id=fst.song-leaderboard.row.fixture-player-17|id=fst.song-leaderboard.row.fixture-player-18|id=fst.song-leaderboard.spotlight-footer"
+    ]
+  },
+  {
+    "name": "reveal-full-rankings-still",
+    "modes": [
+      "app-reduced",
+      "no-animations"
+    ],
+    "note": "Issues #323, #470: the Full Rankings reveal with motion off is immediate and still.",
+    "route": "/leaderboards",
+    "profile": "fixture-rank-60:Fixture Rank 60",
+    "fixture": [
+      "fade_fixture.py",
+      "--large-rankings"
+    ],
+    "tabs": 0,
+    "ready": [
+      "scrollinto:id=fst.leaderboards.card.Solo_Guitar.view-all@30",
+      "wait:1"
+    ],
+    "after_ready": [
+      "reveal:id=fst.leaderboards.card.Solo_Guitar.spotlight",
+      "waitfor:id=fst.leaderboards.card.Solo_Guitar.spotlight@10",
+      "assertread:id=fst.leaderboards.card.Solo_Guitar.spotlight|~^Your rank, 60th\\. Jump to your position\\. Fixture Rank 60\\. .+, button$",
+      "assertsize:id=fst.leaderboards.card.Solo_Guitar.spotlight|0x40",
+      "focus:id=fst.leaderboards.card.Solo_Guitar.spotlight",
+      "assertfocus:id=fst.leaderboards.card.Solo_Guitar.spotlight@3",
+      "key:enter",
+      "waitfor:id=fst.rankings.row.fixture-rank-60@20",
+      "wait:1",
+      "assertread:id=fst.rankings.row.fixture-rank-60|~^Your rank, 60th\\. Fixture Rank 60\\. Total Score 30,000,000, .+, button$",
+      "assertapart:id=fst.rankings.row.fixture-rank-60|id=fst.full-rankings.spotlight-footer",
+      "assertmotion:id=fst.rankings.row.fixture-rank-60|still",
+      "assertpaint:id=fst.rankings.row.fixture-rank-60|above:L40,T-20|L40,T6!=@above~20",
+      "assertorder:id=fst.rankings.row.fixture-rank-59|id=fst.rankings.row.fixture-rank-60|id=fst.rankings.row.fixture-rank-61|id=fst.full-rankings.spotlight-footer"
+    ]
+  }
+]
