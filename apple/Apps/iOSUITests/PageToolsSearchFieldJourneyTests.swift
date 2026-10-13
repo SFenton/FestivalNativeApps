@@ -185,7 +185,7 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
 
         // Keyboard operation: Next Section moves Quick Links on; Previous Section returns.
         let open = app.buttons[Self.quickLinks.id]
-        // The section is the value, or in a system bar joined to the label (R17).
+        // The section is the value, or in a system bar joined to the label (R26).
         let spoken = { "\(open.label)|\((open.value as? String) ?? "")" }
         let first = spoken()
         XCTAssertNotEqual(first, "\(Self.quickLinks.label)|", "Quick Links reads no current section")
@@ -344,7 +344,7 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
             XCTAssertEqual(node.elementType, .button, "\(tool.id) role", file: file, line: line)
             let inBar = ancestors(of: index).contains { entries[$0].node.elementType == .navigationBar }
             // A system navigation bar drops a toolbar item's value, so there the tool's
-            // state joins its name ("Sort, Year, ascending"; page-tools-and-nav-chrome R17,
+            // state joins its name ("Sort, Year, ascending"; page-tools-and-nav-chrome R26,
             // `BarItemSpokenState`); the accessory keeps the bare name.
             let named = node.label == tool.label || (inBar && node.label.hasPrefix("\(tool.label), "))
             XCTAssertTrue(named, "\(tool.id) name '\(node.label)'", file: file, line: line)
@@ -366,7 +366,7 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
             // pads its items more at larger text (55 pt on iPad at AX5), so allow 72.
             XCTAssertLessThanOrEqual(node.frame.width, 72,
                                      "Quick Links is wider than one icon button: \(node.frame)", file: file, line: line)
-            // The current section is its value, or in a system bar joined to its name (R17).
+            // The current section is its value, or in a system bar joined to its name (R26).
             let section = (node.value as? String) ?? ""
             XCTAssertTrue(!section.isEmpty || node.label.hasPrefix("\(Self.quickLinks.label), "),
                           "Quick Links reads no current section: '\(node.label)' / '\(section)'",
