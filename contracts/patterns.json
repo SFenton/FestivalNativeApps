@@ -3674,6 +3674,14 @@
           {
             "path": "apple/Sources/FestivalCore/SongPlayerScoreFilter.swift",
             "symbol": "overThreshold"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/PlayerProfile.swift",
+            "symbol": "filteringInvalidScores"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerProfileContent.swift",
+            "symbol": "effective"
           }
         ],
         "android": [
