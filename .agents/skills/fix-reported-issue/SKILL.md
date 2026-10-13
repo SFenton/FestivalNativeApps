@@ -14,7 +14,7 @@ description: End-to-end procedure for fixing a bug or building a feature from a 
 
 ## 2. Find the precedent before the fix (the design ladder)
 
-Follow [consistency-sweep](../consistency-sweep/SKILL.md) rung by rung, starting from the triage JSON's `patterns`, `precedents` and `blast_radius`:
+Follow [consistency-sweep](../consistency-sweep/SKILL.md) rung by rung, starting from the triage JSON's `patterns`, `precedents` and `blast_radius`. The prompt's *Fast pre-read* ranks the registered patterns a decision model thinks the issue touches (the true ones are in its top 8 about 85% of the time): read those docs first, then confirm with `pattern_guard.py which`. For other bounded questions on the way (which candidate component owns a behavior, whether a log shows a harness failure), `fst-decide` answers in under a second ([decision models](../../workflow/decision-models.md)).
 
 1. **Registered pattern?** `python3 tools/pattern_guard.py index` / `which <file>`, then the owning [pattern](../../patterns/README.md) docs.
 2. **Undocumented native pattern?** Search all three platforms and git history for the same behavior. A shared component, or the same behavior solved in several places, gets consolidated and registered.
@@ -49,6 +49,7 @@ Classify the change:
 - An **accessibility test** on every platform you changed UI on: labels/roles/state, reading order, target size and text scaling for the changed region, using that platform's mechanism ([accessibility tests with every change](../../testing/strategy.md#accessibility-tests-with-every-change)). Update existing ones when they already cover the behavior. Report the test names in the status file's `tests`. Exempt only logic, data or copy-only changes, with the reason in the PR.
 - **Run them locally before finishing.** PR CI runs only builds and unit tests (release train); device, UI and accessibility tests run in CI only on the weekly release branch. Run every device/UI/accessibility test you add or touch on your platform (simulator, emulator, UIA) and report each with its `result`. Put them where the release-branch suites pick them up (`apple-ci` journeys, `android-device`/`android-fold`, `windows-ui`).
 - `python3 tools/pattern_guard.py`, `python3 .agents/_tools/check_docs.py --fix`, plus your platform's build and tests.
+- After a design review requests changes, the relaunch prompt groups its findings by kind with a checklist each (tests are half of all historical change requests, docs and duplicated rules a quarter). Work through every group before pushing, so the next round passes.
 
 ## 6. Record rules, not history
 
