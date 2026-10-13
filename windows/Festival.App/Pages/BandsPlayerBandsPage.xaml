@@ -55,9 +55,15 @@
             <!-- Paints BoardFadeSource with its cards faded above the pager; never hit-testable, UIA raw view only. -->
             <controls:EdgeFadeLayer x:Name="BoardFadeHost" AutomationProperties.AutomationId="fst.player-bands.footer-fade" />
 
-            <ProgressRing IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
-                          controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Spinner"
-                          AutomationProperties.Name="Loading bands" />
+            <controls:AccessibleGroup x:Name="LoadingRegion" AutomationProperties.AccessibilityView="Raw"
+                                      AutomationProperties.AutomationId="fst.player-bands.loading-region" IsHitTestVisible="False">
+                <!-- Transparent fill: the Raw region's UI Automation bounds are its layout box, not the ring's. -->
+                <Grid Background="Transparent">
+                    <ProgressRing x:Name="LoadingRing" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
+                                  controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Spinner"
+                                  AutomationProperties.Name="Loading bands" />
+                </Grid>
+            </controls:AccessibleGroup>
 
             <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                         controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"

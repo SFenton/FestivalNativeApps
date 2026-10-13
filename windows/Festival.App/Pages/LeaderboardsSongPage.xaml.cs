@@ -21,6 +21,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
     public LeaderboardsSongPage()
     {
         InitializeComponent();
+        LoadSwapVisual.PlaceSpinner(LoadingRing, LoadingRegion, Header, Footer, Scroller);
         BoardFooter.Inset(Footer, ScrollContent);
         BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Scroller, Footer, FooterPlate);
         reloadFocus = FailedReloadFocus.Attach(Footer, BoardPager, RowsStatus, () => ViewModel?.LoadSwap.Phase == LoadSwapPhase.ContentIn,
