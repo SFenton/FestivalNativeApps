@@ -3619,7 +3619,7 @@
       "title": "Invalid scores (Filter Invalid Scores)",
       "status": "current",
       "doc": ".agents/patterns/invalid-scores.md",
-      "summary": "With Settings > Filter Invalid Scores on and a player selected, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details uses the web's filterPlayerScores rule. Player Profile and Statistics aggregate the effective scores (R4) of any viewed player, selected or not, and re-aggregate in place when the setting or leeway changes (R9, #619).",
+      "summary": "With Settings > Filter Invalid Scores on and a player selected, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details uses the web's filterPlayerScores rule. Player Profile and Statistics aggregate the effective scores (R4) of any viewed player, selected or not, and re-aggregate in place when the setting or leeway changes; only the Over CHOpt Threshold count stays raw (R9, web PlayerContent, #619).",
       "keywords": [
         "filter invalid scores",
         "invalid score",
@@ -3690,6 +3690,14 @@
             "symbol": "exceedsCeiling"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt",
+            "symbol": "filterPlayerScores"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/profile/PlayerProfileViewModel.kt",
+            "symbol": "effective"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongScoreAdapter.kt",
             "symbol": "InvalidScorePolicy"
           },
@@ -3750,7 +3758,8 @@
           "songs",
           "song-detail",
           "settings",
-          "player-profile"
+          "player-profile",
+          "statistics"
         ],
         "controls": [
           "songs-filter",
