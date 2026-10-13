@@ -39,6 +39,9 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
         let env: [String: String]
         /// A Songs row to tap first, for a page only a pushed row reaches.
         var openRow: String?
+        /// The Quick Links section that jumps near the button, and the element that shows
+        /// the jump landed, where the page offers Quick Links.
+        var quickLink: (section: String, landing: String)? = nil
         /// An element that exists once the page has loaded.
         let ready: String
         /// The button's identifier, or a prefix when `idSuffix` is set.
@@ -80,7 +83,8 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
     ]
     private static let songRow = "fst.songs.row.fixture-pulse"
     private static let songPreview = Card(
-        name: "song-preview", env: songDetail, openRow: songRow, ready: "fst.song-detail.intensity",
+        name: "song-preview", env: songDetail, openRow: songRow, quickLink: ("instrument-Solo_Guitar", "fst.song-detail.card-header.Solo_Guitar"),
+        ready: "fst.song-detail.intensity",
         id: "fst.song-detail.leaderboard.Solo_Guitar",
         nameFormat: #"^View Full Leaderboard, Lead$"#, words: ["view", "full", "leaderboard"],
         destination: ["fst.song-leaderboard.header", "fst.song-leaderboard.board-title"]
@@ -146,7 +150,8 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
         // Target size.
         XCTAssertTrue(button.isHittable, "\(card.name): reachable at AX5")
         XCTAssertGreaterThanOrEqual(frame.height, 44 - 1, "\(card.name): at least 44 pt tall: \(frame)")
-        XCTAssertGreaterThan(frame.width, min(window.width, 700) * 0.6, "\(card.name): spans the card: \(frame)")
+        // Full card width: 60% of a phone, or most of a 360 pt minimum grid column on iPad.
+        XCTAssertGreaterThan(frame.width, min(window.width * 0.6, 300), "\(card.name): spans the card: \(frame)")
         XCTAssertGreaterThanOrEqual(frame.minX, window.minX - 0.5, "\(card.name): starts on screen: \(frame)")
         XCTAssertLessThanOrEqual(frame.maxX, window.maxX + 0.5, "\(card.name): ends on screen: \(frame)")
 
@@ -166,19 +171,17 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
         let identifier = button.identifier
         var issues: [String] = []
         let audit: XCUIAccessibilityAuditType = [.dynamicType, .textClipped, .hitRegion, .sufficientElementDescription, .contrast]
+        // One snapshot per issue: resolving each attribute separately re-queries the app, and
+        // on iPad at AX5 that pushed Rival Detail's audit past XCTest's deadline.
         let handler: (XCUIAccessibilityAuditIssue) throws -> Bool = { issue in
-            guard let element = issue.element, element.identifier == identifier else { return true }
+            guard let element = try? issue.element?.snapshot(), element.identifier == identifier else { return true }
             issues.append("\(element.identifier) '\(element.label)': \(issue.compactDescription)")
             return true
         }
-        do {
-            try app.performAccessibilityAudit(for: audit, handler)
-        } catch let error as NSError
-            where error.domain == "com.apple.xcode.xctest.accessibilityAudit" && error.code == -56 {
-            // The CI runner can exceed XCTest's audit deadline (#388): retry once.
-            issues.removeAll()
-            try app.performAccessibilityAudit(for: audit, handler)
-        }
+        // A loaded host can exceed XCTest's audit deadline (#388): retry that once.
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            app, audit, name: card.name, reset: { issues.removeAll() }, handler
+        )
         XCTAssertEqual(issues, [], "\(card.name): audit issues at AX5")
 
         // Operable: it opens the card's full list.
@@ -264,9 +267,42 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
         )).firstMatch
     }
 
+    /// Jump to the card's section through Quick Links, as a reader would and as
+    /// `SongDetailBandColumnsJourneyTests` does, when the page offers them and the button
+    /// is off screen: Lead's button sits several screens down Song Detail at AX5.
+    ///
+    /// - Parameters:
+    ///   - card: The button under test.
+    ///   - app: The app on the card's page.
+    ///   - button: The button to bring near.
+    /// - Returns: Whether the page jumped.
+    @MainActor
+    private func jump(to card: Card, in app: XCUIApplication, unless button: XCUIElement) -> Bool {
+        guard let link = card.quickLink, !button.isHittable else { return false }
+        let open = app.buttons["fst.quick-links.open"]
+        guard open.waitForExistence(timeout: FestivalApp.budget(2)), open.isHittable else { return false }
+        open.tap()
+        let item = app.buttons["fst.quick-links.item.\(link.section)"]
+        guard item.waitForExistence(timeout: FestivalApp.budget(10)) else {
+            XCTFail("\(card.name): Quick Links has no \(link.section)")
+            return false
+        }
+        item.tap()
+        let landing = app.descendants(matching: .any).matching(identifier: link.landing).firstMatch
+        let shown = NSPredicate(format: "exists == true AND isHittable == true")
+        let landed = XCTNSPredicateExpectation(predicate: shown, object: landing)
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [landed], timeout: FestivalApp.budget(15)), .completed,
+            "\(card.name): Quick Links did not bring \(link.landing) into view"
+        )
+        return true
+    }
+
     /// Drag the button into the middle of the screen, clear of the scroll-edge fades and
-    /// the bottom chrome, from the trailing margin (a drag on Score History's chart
-    /// selects a bar).
+    /// the bottom chrome, from the leading margin (a drag on Score History's chart selects
+    /// a bar). Never from the trailing edge: a held drag there grabs the scroll indicator
+    /// and scrubs the page back towards the top. A drag that barely moves the button moves
+    /// the next one to the middle. After a Quick Links jump it pages with system swipes.
     ///
     /// - Parameters:
     ///   - card: The button under test.
@@ -276,18 +312,30 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
     private func reveal(_ card: Card, in app: XCUIApplication) throws -> XCUIElement {
         let button = button(card, in: app)
         XCTAssertTrue(button.waitForExistence(timeout: FestivalApp.budget(20)), "\(card.name): the page shows its button")
+        let jumped = jump(to: card, in: app, unless: button)
         let window = app.windows.firstMatch.frame
-        let start = app.windows.firstMatch.coordinate(withNormalizedOffset: .zero)
-            .withOffset(CGVector(dx: window.width - 12, dy: window.height * 0.5))
+        let origin = app.windows.firstMatch.coordinate(withNormalizedOffset: .zero)
+        let lanes = [12, window.width * 0.5]
+        var lane = 0
         for _ in 0..<20 {
             let frame = button.frame
             if button.isHittable, frame.minY >= window.height * 0.2, frame.maxY <= window.height * 0.7 { break }
             // Move the button's centre towards the middle of the screen, at most 0.4 screens per drag.
             let offset = max(-window.height * 0.4, min(window.height * 0.4, window.height * 0.45 - frame.midY))
-            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: offset)))
+            if jumped {
+                // From a Quick Links landing, page with the system swipe, as the precedent does.
+                if offset < 0 { app.swipeUp(velocity: .slow) } else { app.swipeDown(velocity: .slow) }
+                continue
+            }
+            let start = origin.withOffset(CGVector(dx: lanes[lane], dy: window.height * 0.5))
+            // A slow drag with a hold, as `DriverTests`' `drag:`, scrolls without a fling.
+            start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 0, dy: offset)),
+                        withVelocity: .slow, thenHoldForDuration: 0.3)
+            if abs(button.frame.midY - frame.midY) < abs(offset) / 4 { lane = (lane + 1) % lanes.count }
         }
         // Let the drag's deceleration and the card's fade-in finish before reading pixels.
         sleep(UInt32(FestivalApp.budget(1)))
+        if !button.isHittable { record(app, name: "\(card.name)-not-revealed") }
         XCTAssertTrue(button.isHittable, "\(card.name): scrolls on screen: \(button.frame)")
         return button
     }
