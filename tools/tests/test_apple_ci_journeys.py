@@ -185,13 +185,21 @@ class AppleCIJourneysTests(unittest.TestCase):
                 self.assert_selectors_exist(selectors, roots)
 
     def test_songs_filter_journeys_run_on_every_touch_form_factor(self) -> None:
-        self.assertEqual(set(self.legs), {"iphone", "ipad", "duo-folded"})
+        self.assertEqual(set(self.legs), {"iphone", "ipad", "duo-folded", "duo-folded-field"})
         for leg, selectors in self.legs.items():
+            if leg == "duo-folded-field":
+                continue
             for journey in FILTER_JOURNEYS:
                 self.assertIn(journey, selectors, leg)
         self.assertIn("SongsFilterKeyboardJourneyTests/testCommandPeriodClosesFilter", self.legs["ipad"])
         self.assertRegex(self.workflow, r"leg: ipad\n\s+device_type: iPad[^\n]*\n\s+uitest_args: --app ipad\n")
-        self.assertRegex(self.workflow, r"leg: duo-folded\n\s+device_type: iPhone Duo\n\s+uitest_args: --pose folded\n")
+        for leg in ("duo-folded", "duo-folded-field"):
+            self.assertRegex(self.workflow, rf"leg: {leg}\n\s+device_type: iPhone Duo\n\s+uitest_args: --pose folded\n")
+
+    def test_each_duo_leg_fits_its_job(self) -> None:
+        # One Duo batch took 25-40 min on the runner (#620): three fit a 120-minute job.
+        for leg in ("duo-folded", "duo-folded-field"):
+            self.assertLessEqual(len(self.legs[leg]), 3, leg)
         self.assertIn("--fail-on-skip", self.workflow.split("songs-filter-journeys:", 1)[1])
 
     def test_songs_filter_legs_retry_a_failed_batch_once(self) -> None:

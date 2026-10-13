@@ -363,7 +363,8 @@ jobs:
     name: apple-ci Songs Filter journeys (${{ matrix.leg }})
     if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
     runs-on: xcode-27
-    # The runner is 2-4x slower than a Mac: the folded Duo's three methods took 19 min on a Mac, plus build and boot.
+    # The runner is 2-4x slower than a Mac (a Duo batch up to 13x): the folded Duo's three methods took 19 min on a
+    # Mac, plus build and boot, so each Duo leg keeps at most three.
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -384,6 +385,8 @@ jobs:
               SongsFilterAccessibilityJourneyTests/testDynamicTypeAuditWithShopHidden
               SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
               SongsFilterKeyboardJourneyTests/testCommandPeriodClosesFilter
+          # The folded Duo is split across two runners: on 2610.12 one Duo batch took 25-40 min, so its
+          # five or six journeys could not finish in one job's 120 minutes (#620).
           - leg: duo-folded
             device_type: iPhone Duo
             uitest_args: --pose folded
@@ -391,6 +394,10 @@ jobs:
               SongsFilterAccessibilityJourneyTests/testNoProfileGeneralFiltersPassAccessibilityAudit
               SongsFilterAccessibilityJourneyTests/testDynamicTypeAuditWithShopHidden
               SongsFilterAccessibilityJourneyTests/testGeneralFiltersAtLargestText
+          - leg: duo-folded-field
+            device_type: iPhone Duo
+            uitest_args: --pose folded
+            journeys: >-
               SongsBottomFilterFieldJourneyTests/testBottomFilterFieldIsAccessibleDuoFolded
               SongsBottomFilterFieldJourneyTests/testBottomFilterFieldGrowsAtAX5DuoFolded
               TopEdgeScrimDuoJourneyTests/testScrimUnderTheVerticalBarKeepsTheTopAccessibleAtAX5
