@@ -161,7 +161,7 @@ struct SongDetailCardRowAccessibilityTests {
     ///
     /// - Parameters:
     ///   - scenario: The window and device layout.
-    ///   - typeSize: Dynamic Type size (accessibility sizes use the eager grid).
+    ///   - typeSize: Dynamic Type size (the eager grid at every size, #500).
     /// - Returns: The settled host.
     /// - Throws: Fixture errors or a host that never settles.
     static func host(_ scenario: Scenario, typeSize: DynamicTypeSize) async throws -> Hosted {
