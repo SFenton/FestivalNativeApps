@@ -9,6 +9,7 @@ import SwiftUI
 /// the row's label, value and hint.
 ///
 /// Applied on iOS and iPadOS only: Mac Settings rows keep the 28 pt control size.
+/// Pattern `settings-toggle-row` (`.agents/patterns/settings-toggle-row.md`).
 struct SettingsRowToggleStyle: ToggleStyle {
     /// The row's minimum touch height, the iOS default target size.
     static let minimumHeight: CGFloat = 44
