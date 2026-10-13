@@ -47,7 +47,7 @@
 - **No element (iPhone Duo), contrast:** accepted when every static text in the panel renders ≥ 4.5:1 (`unattributed-contrast-page-floor`).
 - **Unattributed "may be clipped at larger sizes" prediction:** accepted only when the drawer relaunched at AX5 audits clean for clipping.
 
-`app.debugDescription` still prints SwiftUI views hidden with `accessibilityHidden`, such as the page under the drawer. Assert hiding against `app.snapshot()`, never the debug description. On the iPhone Duo simulator, `app.snapshot()` stops after about 11 nodes (depth 6), short of the drawer, and comes back empty after an audit. Before using a snapshot as evidence, check that it reaches the region under test. Element queries still work there. The Duo drawer's modality is proved by `DuoDrawerJourneyTests` (`isModal`).
+`app.debugDescription` still prints SwiftUI views hidden with `accessibilityHidden`, such as the page under the drawer. Assert hiding against `app.snapshot()`, never the debug description. Put `.isModal` on the panel's `.accessibilityElement(children: .contain)` container (`fst.shell.drawer`), never on the glass/padding chain around it: on iOS 27 a modal trait there becomes an empty modal node, and the snapshot (about 8 nodes, depth 6) and VoiceOver lose the rows (#626). On the iPhone Duo simulator, `app.snapshot()` stops after about 11 nodes (depth 6), short of the drawer, and comes back empty after an audit. Before using a snapshot as evidence, check that it reaches the region under test. Element queries still work there. The Duo drawer's modality is proved by `DuoDrawerJourneyTests` (`isModal`).
 
 Allow one pixel of tolerance on target sizes. A fixed 44 pt control reports 43.67 pt (131 px at 3×) when layout lands it off the pixel grid.
 
