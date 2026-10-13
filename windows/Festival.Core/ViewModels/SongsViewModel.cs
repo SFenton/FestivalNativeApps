@@ -340,11 +340,12 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
         var filterRaw = filterChart is { } f ? song.Difficulty?.ChartedValue(f) : null;
         if (!scores.HasPlayer)
             return new SongRowItem(song) { Highlight = highlight, InShop = inShop, Chart = filterRaw is null ? null : filterChart, ChartRaw = filterRaw };
+        var warning = scores.Available ? Warning(song, filterChart) : null;
         if (chips)
         {
             return new SongRowItem(song)
             {
-                Highlight = highlight, InShop = inShop,
+                Highlight = highlight, InShop = inShop, Warning = warning,
                 Chips = SongInstrumentStatusPolicy.Badges(song, settings.VisibleInstruments, chart => scores.Facts!(song.SongId, chart)),
             };
         }
@@ -360,12 +361,27 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
         var fields = detail is null ? [] : SongMetadataPolicy.Fields(detail, chart, song, currentSeason, settings);
         return new SongRowItem(song)
         {
-            Highlight = highlight, InShop = inShop,
+            Highlight = highlight, InShop = inShop, Warning = warning,
             Chart = chart,
             ChartRaw = fields.Count == 0 ? song.Difficulty?.ChartedValue(chart) : null,
             Metadata = fields,
             ScoreState = fields.Count > 0 ? null : song.Supports(chart) ? "No score" : $"No {chart.Label()} chart",
         };
+    }
+
+    /// <summary>
+    /// The row's invalid-score indicator (web <c>SongRow</c> <c>InvalidScoreIcon</c>): Filter Invalid Scores replaced,
+    /// dropped or (Over CHOpt Threshold) kept a raw score on a Settings-visible chart — only that chart under a filter.
+    /// </summary>
+    /// <param name="song">Catalogue row.</param>
+    /// <param name="filterChart">Single-chart filter, if any.</param>
+    /// <returns>Warning, or <see langword="null"/>.</returns>
+    private InvalidScoreWarning? Warning(Song song, Instrument? filterChart)
+    {
+        var reasons = new Dictionary<Instrument, InvalidScoreReason>();
+        foreach (var chart in settings.VisibleInstruments)
+            if (scores.Reason!(song.SongId, chart) is { } reason) reasons[chart] = reason;
+        return reasons.Count == 0 ? null : InvalidScoreWarning.Of(song.Title, reasons, filterChart);
     }
 }
 #endregion

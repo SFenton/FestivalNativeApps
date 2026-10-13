@@ -19,6 +19,7 @@ public sealed partial class SongDetailViewModel : ObservableObject
 
     private readonly FestivalSession session;
     private string? lastAccount;
+    private (bool Filter, double Leeway) lastFilter;
 
     /// <summary>Creates the page model for a route.</summary>
     /// <param name="session">Shared session.</param>
@@ -31,6 +32,7 @@ public sealed partial class SongDetailViewModel : ObservableObject
         SongId = songId;
         InitialInstrument = instrument;
         lastAccount = session.SelectedPlayer?.AccountId;
+        lastFilter = FilterKey();
         History = new SongScoreHistoryViewModel(session, songId, instrument);
         History.PropertyChanged += (_, e) =>
         {
@@ -39,6 +41,10 @@ public sealed partial class SongDetailViewModel : ObservableObject
         Status = new ServiceStatusViewModel("song-detail", "Song unavailable", LoadAsync, session.Time);
         session.PropertyChanged += OnSessionChanged;
     }
+
+    /// <summary>The settings that change which score Song Detail shows (Filter Invalid Scores and its leeway).</summary>
+    /// <returns>Filter key.</returns>
+    private (bool Filter, double Leeway) FilterKey() => (session.Settings.FilterInvalidScores, session.Settings.Leeway);
 
     /// <summary>Stops following the session (page left).</summary>
     public void Detach() => session.PropertyChanged -= OnSessionChanged;
@@ -56,8 +62,11 @@ public sealed partial class SongDetailViewModel : ObservableObject
             // The band read carries the player as accountId (their best band per size), so it re-reads too.
             if (BandPreviews.Count > 0) _ = LoadBandsAsync();
         }
-        if (!SongScoreSource.AffectsRows(e.PropertyName) && e.PropertyName != nameof(FestivalSession.Catalog)) return;
-        var scores = SongScoreSource.For(session);
+        // Filter Invalid Scores and its leeway change the shown score in place (web filterPlayerScores), without a reload.
+        var filterChanged = e.PropertyName == nameof(FestivalSession.Settings) && FilterKey() != lastFilter;
+        if (!filterChanged && !SongScoreSource.AffectsRows(e.PropertyName) && e.PropertyName != nameof(FestivalSession.Catalog)) return;
+        lastFilter = FilterKey();
+        var scores = SongScoreSource.ForDetail(session, Song);
         foreach (var card in Leaderboards) card.UpdatePlayer(scores);
     }
 
@@ -186,14 +195,14 @@ public sealed partial class SongDetailViewModel : ObservableObject
             BandPreviews = bands;
             _ = LoadBandsAsync();
             await SongScoreSource.LoadAsync(session);
-            var scores = SongScoreSource.For(session);
+            var scores = SongScoreSource.ForDetail(session, found);
             var charted = VisibleCharted();
             var cards = charted.Select(i => new LeaderboardPreviewViewModel(session, found, i, scores)).ToList();
             await Task.WhenAll(cards.Count == 0 ? Task.CompletedTask : LoadBoardsAsync(found, cards), History.LoadAsync(found, charted));
             // Publish the cards before the final score read: a score change after this point reaches them through
             // OnSessionChanged, and one before it is covered by the read below (else row eleven could be missed).
             Leaderboards = cards;
-            var latest = SongScoreSource.For(session);
+            var latest = SongScoreSource.ForDetail(session, found);
             foreach (var card in cards) card.UpdatePlayer(latest);
             PathInstruments = [.. charted.Where(i => i.HasPaths())];
             State = LoadState.Loaded;

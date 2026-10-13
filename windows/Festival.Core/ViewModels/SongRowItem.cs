@@ -38,6 +38,9 @@ public sealed class SongRowItem
     /// <summary>Selected-player metadata pills (empty when not applicable).</summary>
     public IReadOnlyList<SongMetadataField> Metadata { get; init; } = [];
 
+    /// <summary>Filter Invalid Scores indicator (web <c>InvalidScoreIcon</c>), or <see langword="null"/>.</summary>
+    public InvalidScoreWarning? Warning { get; init; }
+
     /// <summary>Explicit non-scored text ("No score", "Scores syncing", paused…), or <see langword="null"/>.</summary>
     public string? ScoreState { get; init; }
 
@@ -65,6 +68,7 @@ public sealed class SongRowItem
                 parts.Add($"{chart.Label()}, {DifficultyScale.Announcement(raw)}");
             }
             if (ScoreState is { } state) parts.Add(state);
+            if (Warning is not null) parts.Add(InvalidScoreWarning.Title);
             return string.Join(", ", parts.Where(p => p.Length > 0));
         }
     }
@@ -76,7 +80,8 @@ public sealed class SongRowItem
         ReferenceEquals(this, other) ||
         (Equals(Song, other.Song) && Highlight == other.Highlight && InShop == other.InShop && Chart == other.Chart &&
          ChartRaw == other.ChartRaw && ScoreState == other.ScoreState && Chips.SequenceEqual(other.Chips) &&
-         Metadata.SequenceEqual(other.Metadata));
+         Metadata.SequenceEqual(other.Metadata) &&
+         (Warning is null ? other.Warning is null : Warning.SameContent(other.Warning)));
 }
 
 /// <summary>A grouped list section of row items.</summary>

@@ -75,6 +75,18 @@ public sealed class SongScoreSource
         return For(session, new InvalidScoreContext(songs, settings.Leeway, overThreshold));
     }
 
+    /// <summary>
+    /// Builds the Song Detail source (web <c>SongDetailPage</c> <c>filterPlayerScores</c>): with Filter Invalid Scores on,
+    /// scores resolve through <see cref="InvalidScorePolicy"/> without the Songs-only Over CHOpt Threshold exemption.
+    /// </summary>
+    /// <param name="session">Session.</param>
+    /// <param name="song">Shown song (CHOpt maxima and population), or <see langword="null"/> for raw scores.</param>
+    /// <returns>Score source.</returns>
+    public static SongScoreSource ForDetail(FestivalSession session, Song? song) =>
+        session.Settings.FilterInvalidScores && song is not null
+            ? For(session, new InvalidScoreContext([song], session.Settings.Leeway, []))
+            : For(session, null);
+
     /// <summary>Builds the source, optionally resolving invalid scores.</summary>
     /// <param name="session">Session.</param>
     /// <param name="invalid">Invalid-score context, or <see langword="null"/> for raw scores.</param>

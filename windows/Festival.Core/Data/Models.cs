@@ -82,7 +82,7 @@ public sealed record SongDifficulty
     }
 }
 
-/// <summary>Fields present in the service's <c>/api/songs</c> wire objects (population tiers are ignored).</summary>
+/// <summary>Fields present in the service's <c>/api/songs</c> wire objects.</summary>
 public sealed record Song
 {
     /// <summary>Stable song identifier.</summary>
@@ -109,6 +109,8 @@ public sealed record Song
     [JsonPropertyName("pathArtifactGenerationId")] public string? PathArtifactGenerationId { get; init; }
     /// <summary>Per-chart engine maximum score keyed by service instrument ID.</summary>
     [JsonPropertyName("maxScores")] public IReadOnlyDictionary<string, int>? MaxScores { get; init; }
+    /// <summary>Per-chart filtered-population curves keyed by service instrument ID (Filter Invalid Scores percentiles).</summary>
+    [JsonPropertyName("populationTiers")] public IReadOnlyDictionary<string, PopulationTiers?>? PopulationTiers { get; init; }
 
     /// <summary>Whether Lead/Pro Lead should use the keys icon.</summary>
     [JsonIgnore] public bool UsesKeyboardIcon => Sig == "Keyboard";
@@ -123,6 +125,14 @@ public sealed record Song
     /// <returns>A positive score, or <see langword="null"/>.</returns>
     public int? MaxScore(Instrument instrument) =>
         MaxScores is not null && MaxScores.TryGetValue(instrument.ServiceId(), out var value) && value > 0 ? value : null;
+
+    /// <summary>Chart population left at an invalid-score leeway (web <c>getFilteredTotal</c>).</summary>
+    /// <param name="instrument">Chart.</param>
+    /// <param name="leeway">Leeway percent.</param>
+    /// <returns>Filtered total, or <see langword="null"/> without a well-formed curve for the chart.</returns>
+    public int? FilteredPopulation(Instrument instrument, double leeway) =>
+        PopulationTiers is not null && PopulationTiers.TryGetValue(instrument.ServiceId(), out var tiers) && tiers is { IsWellFormed: true }
+            ? tiers.Total(leeway) : null;
 
     /// <summary>Formats a positive duration as <c>m:ss</c> or <c>h:mm:ss</c>.</summary>
     [JsonIgnore]
