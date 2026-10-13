@@ -409,6 +409,15 @@ class CliTests(DevcapTestCase):
             self.assertEqual(log.read_text(), f"simctl shutdown {UDID} held=slot-0.lock\n")
             self.assertEqual(Gate("simulator", self.root).holders(), [])
 
+    def test_status_skips_non_gate_directories(self):
+        for name in ("lib", "bin", "device-bad name"):
+            (self.root / name).mkdir()
+        text = self.cli("status").stdout
+        self.assertNotIn("lib:", text)
+        self.assertNotIn("bin:", text)
+        self.assertNotIn("bad name", text)
+        self.assertEqual(devcap.known_gates(self.root), ["build", "simulator"])
+
     def test_slots_and_version(self):
         os.environ["DEVCAP_SLOTS_SIMULATOR"] = "2"
         self.assertIn("simulator=2", self.cli("slots").stdout)
@@ -625,7 +634,7 @@ class SharedInstallTests(DevcapTestCase):
         self.assertEqual(self.cli("--version").stdout.strip(), devcap.VERSION)
 
     def test_broken_install_falls_back_to_the_local_copy(self):
-        for body in ("def broken(:\n", "raise RuntimeError('boom')\n", "main = None\n"):
+        for body in ("def broken(:\n", "raise RuntimeError('boom')\n", "main = None\n", "raise SystemExit(3)\n"):
             installed, _ = self.install_newer(body)
             result = self.cli("--version")
             self.assertEqual(result.stdout.strip(), devcap.VERSION, body)
