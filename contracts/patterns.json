@@ -2038,6 +2038,14 @@
             "symbol": "LoadSwap"
           },
           {
+            "path": "windows/Festival.App/Pages/LeaderboardsPage.xaml",
+            "symbol": "ReadyRing"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/LoadingRegion.cs",
+            "symbol": "LoadingRegion"
+          },
+          {
             "path": "windows/Festival.App/Controls/LoadSwapVisual.cs",
             "symbol": "LoadSwapVisual"
           },
