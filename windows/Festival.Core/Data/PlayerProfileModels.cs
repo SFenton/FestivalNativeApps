@@ -308,6 +308,25 @@ public static class PlayerStatistics
     /// <summary>Band upper bounds, matching the web's <c>pctThresholds</c> (<c>playerStats.ts:69</c>).</summary>
     public static IReadOnlyList<int> PercentileThresholds { get; } = [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100];
 
+    /// <summary>
+    /// The scores the profile aggregates (web <c>PlayerContent</c> <c>effectiveScores</c>, #619): the raw profile, or with
+    /// Filter Invalid Scores on, every score through <see cref="InvalidScorePolicy.FilterPlayerScores"/> at the leeway —
+    /// for any viewed player, selected or not.
+    /// </summary>
+    /// <param name="profile">Validated profile.</param>
+    /// <param name="songs">Catalogue rows (CHOpt maxima, population curves), or <see langword="null"/> before it loads.</param>
+    /// <param name="filterInvalidScores">Settings › Filter Invalid Scores.</param>
+    /// <param name="leeway">Settings leeway percent.</param>
+    /// <returns>The profile itself when not filtering, else a copy holding the effective scores.</returns>
+    public static PlayerProfileResponse Effective(PlayerProfileResponse profile, IReadOnlyList<Song>? songs, bool filterInvalidScores, double leeway)
+    {
+        if (!filterInvalidScores) return profile;
+        var lookup = new Dictionary<string, Song>(StringComparer.Ordinal);
+        foreach (var song in songs ?? []) lookup.TryAdd(song.SongId, song);
+        var scores = InvalidScorePolicy.FilterPlayerScores(profile.Scores, id => lookup.GetValueOrDefault(id), leeway);
+        return profile with { Scores = scores, TotalScores = scores.Count };
+    }
+
     /// <summary>Overview across Settings-visible charts; songs are counted once across charts.</summary>
     /// <param name="profile">Validated profile.</param>
     /// <param name="visible">Settings-visible charts.</param>

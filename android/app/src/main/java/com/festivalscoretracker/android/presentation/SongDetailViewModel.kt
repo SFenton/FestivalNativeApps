@@ -12,9 +12,15 @@ import com.festivalscoretracker.android.core.profile.PlayerHistoryPayload
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.data.CatalogPayload
 import com.festivalscoretracker.android.data.LeaderboardPayload
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 
 // region Song resolution
 
@@ -53,6 +59,8 @@ object SongResolver {
  * @param loadHistory Song score-history read `(accountId, songId)`, or null when unavailable.
  * @param loadBandBoard Song band leaderboard first page `(songId, bandType, top, accountId)`,
  *   or null to show no band previews.
+ * @param publications Newest observed generation: a newer one re-reads the song, previews and
+ *   history in place, keeping the page's content visible (issue #616, load-transition R9).
  */
 class SongDetailViewModel(
     songKey: String,
@@ -62,6 +70,7 @@ class SongDetailViewModel(
     private val leeway: () -> Double? = { null },
     private val loadHistory: (suspend (String, String) -> PlayerHistoryPayload)? = null,
     private val loadBandBoard: (suspend (String, BandType, Int, String?) -> SongBandLeaderboardResponse)? = null,
+    publications: Flow<Int?> = flowOf(null),
 ) : ViewModel() {
     private val catalogPublicationFlow = MutableStateFlow<Int?>(null)
     private val currentSeasonFlow = MutableStateFlow<Int?>(null)
@@ -74,6 +83,8 @@ class SongDetailViewModel(
     private val previews = mutableMapOf<Pair<Instrument, Double?>, RetryingLoader<LeaderboardPayload>>()
     private val histories = mutableMapOf<String, RetryingLoader<PlayerHistoryPayload>>()
     private val bandPreviews = mutableMapOf<Pair<BandType, String?>, RetryingLoader<SongBandLeaderboardResponse>>()
+    private val catchUp = PublicationCatchUp(viewModelScope, songLoader, publications) { catalogPublicationFlow.value ?: 0 }
+
 
     /** Band sizes with previews (web `SONG_BAND_TYPES`), or none without a band reader. */
     val bandTypes: List<BandType> = if (loadBandBoard == null) emptyList() else BandType.entries
@@ -89,6 +100,13 @@ class SongDetailViewModel(
 
     init {
         songLoader.ensureStarted()
+        // Previews, history and band previews belong to the generation they were read in (web
+        // `PublicationBoundary` clears every query): re-read them in place on a newer one.
+        viewModelScope.launch {
+            publications.filterNotNull().distinctUntilChanged().drop(1).collect {
+                (previews.values + histories.values + bandPreviews.values).forEach { it.catchUp() }
+            }
+        }
     }
 
     /**

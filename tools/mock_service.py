@@ -29,8 +29,9 @@ SONG_LEADERBOARD_PAGING_ENTRIES = 100
 SLOW_SONG_LEADERBOARD_PAGE_SECONDS = 3
 # Longest `/__fixture__/hold-paths` hold (issue #430): a held Paths read is answered when
 # the test releases it or this many seconds after the hold began, so a test that dies
-# mid-hold never leaves the listener stalling path reads.
-PATH_HOLD_LIMIT_SECONDS = 60
+# mid-hold never leaves the listener stalling path reads. 240 s covers the CI runner's
+# ×4 virtual-machine budget for a 60 s hold (#386: a 60 s hold expired mid-audit there).
+PATH_HOLD_LIMIT_SECONDS = 240
 
 
 def load_fixture(name: str) -> tuple[dict, str]:

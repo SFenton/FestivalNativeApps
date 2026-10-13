@@ -16,6 +16,7 @@ import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.core.songs.SongSortMode
 import com.festivalscoretracker.android.data.CatalogPayload
 import com.festivalscoretracker.android.presentation.LoadState
+import com.festivalscoretracker.android.presentation.PublicationCatchUp
 import com.festivalscoretracker.android.presentation.RetryingLoader
 import com.festivalscoretracker.android.presentation.valueOrNull
 import kotlinx.coroutines.flow.Flow
@@ -25,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -134,18 +136,10 @@ class ShopViewModel(
 
     init {
         catalog.ensureStarted()
-        // A Shop feed from a newer publication re-reads the catalogue once, so the Duration
-        // sort (and Details links) catch up instead of pausing until the page is reopened.
-        viewModelScope.launch {
-            var healed: Int? = null
-            combine(shop, catalog.state) { shopState, catalogState -> shopState.valueOrNull to catalogState.valueOrNull }.collect { (feed, catalogue) ->
-                val observed = feed?.observedPublicationId ?: return@collect
-                if (catalogue != null && catalogue.publicationId < observed && healed != observed) {
-                    healed = observed
-                    catalog.refresh()
-                }
-            }
-        }
+        // A Shop feed from a newer publication re-reads the catalogue once (the shared catch-up,
+        // load-transition R9), so the Duration sort and Details links catch up instead of pausing
+        // until the page is reopened.
+        PublicationCatchUp(viewModelScope, catalog, shop.map { it.valueOrNull?.observedPublicationId }) { it.publicationId }
     }
 
     /** Retry the catalogue for Details links. */
