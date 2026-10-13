@@ -113,6 +113,7 @@ class JourneyHarness(private val rule: JourneyRule) {
         wrap: @Composable (@Composable () -> Unit) -> Unit = { it() },
     ) {
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = preferences)
+        launchedContainer = container
         rule.setContent {
             key(generation) {
                 if (fontScale == null) {
@@ -125,6 +126,13 @@ class JourneyHarness(private val rule: JourneyRule) {
             }
         }
     }
+
+    /**
+     * The container the last [launch] built, so a journey can drive app-wide inputs such as a
+     * new service publication (`container.api.publication(force = true)`).
+     */
+    var launchedContainer: AppContainer? = null
+        private set
 
     /** Bumped by [recreateApp] to dispose and re-create the app's composition. */
     private var generation by mutableIntStateOf(0)
