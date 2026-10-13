@@ -97,6 +97,11 @@ class UiCiTests(unittest.TestCase):
                 self.assertIn("assertstate:id=fst.songs.section-header|heading=2", steps)
         far = pages["songs-scroll-far-jumps"]["after_ready"]
         self.assertGreaterEqual(sum(s.startswith("scrollto:id=fst.songs.list,") for s in far), 4)
+        # #618: a scan after a scroll percent left a row title on the list's bottom edge (zero-height Axe finding) in
+        # some runs; the page pins a known L row 8 epx below the top so its scan sees one fixed position.
+        last_scroll = [s for s in far if s.startswith(("scrollto:", "scrollinto:", "scrollinset:"))][-1]
+        self.assertEqual("scrollinset:id=fst.songs.row.fixture-song-49|id=fst.songs.list|8", last_scroll)
+        self.assertIn("assertstate:id=fst.songs.section-header|name=L@5", far)
         self.assertIn("key:end", pages["songs-scroll-keyboard"]["after_ready"])
 
     def test_song_band_pinned_runs_at_default_and_largest_text(self):

@@ -41,8 +41,9 @@ final class PathsSwitchAccessibilityJourneyTests: XCTestCase {
     /// The selectors, in reading order.
     private static let selectors = ["fst.paths.instrument", "fst.paths.difficulty", "fst.paths.display"]
 
-    /// Longest hold a journey asks for (the fixture's limit is 60 s).
-    private static let holdSeconds = 60
+    /// Longest hold a journey asks for: 60 s, scaled ×4 in a VM, where one form's hold
+    /// outlasted 60 s before its audit ended (#386; the fixture's limit is 240 s).
+    private static let holdSeconds = Int(FestivalApp.budget(60))
 
     /// One form of the sheet.
     private enum Form: String {

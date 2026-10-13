@@ -97,7 +97,7 @@
 
                                 <!-- Empty state (web InstrumentEmptyState) -->
                                 <!-- Shared EmptyStateView, compact in-section variant (issue #377): centred text, no card. -->
-                                <controls:EmptyStateView IsCompact="True" Visibility="{x:Bind IsEmpty}" Title="{x:Bind EmptyText}"
+                                <controls:EmptyStateView IsCompact="True" Visibility="{x:Bind IsEmpty, Mode=OneWay}" Title="{x:Bind EmptyText}"
                                                          TitleAutomationId="{x:Bind controls:PlayerProfileView.EmptyId(AutomationKey)}" />
 
                                 <!-- Rank History card (web RankHistoryChart in GraphCard). Fixed-height placeholder while loading. -->
@@ -128,7 +128,7 @@
                                 </Border>
 
                                 <!-- Stat cards (global-rank tiles included, placeholders until the read lands) -->
-                                <ItemsRepeater controls:TextScaleLayout.ScaleWithText="True" ItemsSource="{x:Bind Stats}" Visibility="{x:Bind HasScores}"
+                                <ItemsRepeater controls:TextScaleLayout.ScaleWithText="True" ItemsSource="{x:Bind Stats, Mode=OneWay}" Visibility="{x:Bind HasScores, Mode=OneWay}"
                                                ItemTemplate="{StaticResource StatTileTemplate}"
                                                TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled">
                                     <ItemsRepeater.Layout>
@@ -142,7 +142,7 @@
                                 </StackPanel>
 
                                 <!-- Percentiles table card (web PlayerPercentileTable) -->
-                                <Border Style="{StaticResource FSTCardStyle}" Padding="0" Visibility="{x:Bind HasPercentiles}">
+                                <Border Style="{StaticResource FSTCardStyle}" Padding="0" Visibility="{x:Bind HasPercentiles, Mode=OneWay}">
                                     <StackPanel>
                                         <Grid Padding="16,12" BorderBrush="{ThemeResource FSTCardStrokeBrush}" BorderThickness="0,0,0,1">
                                             <TextBlock Text="PERCENTILE" FontSize="12" FontWeight="SemiBold" CharacterSpacing="60"
@@ -152,7 +152,7 @@
                                             <TextBlock Text="SONGS" FontSize="12" FontWeight="SemiBold" CharacterSpacing="60" HorizontalAlignment="Right"
                                                        Foreground="{ThemeResource FSTSecondaryTextBrush}" AutomationProperties.AccessibilityView="Raw" />
                                         </Grid>
-                                        <ItemsRepeater ItemsSource="{x:Bind Percentiles}" TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled">
+                                        <ItemsRepeater ItemsSource="{x:Bind Percentiles, Mode=OneWay}" TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled">
                                             <ItemsRepeater.Layout>
                                                 <StackLayout />
                                             </ItemsRepeater.Layout>

@@ -32,6 +32,7 @@ import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.core.settings.AppSettings
+import com.festivalscoretracker.android.core.songs.InvalidScorePolicy
 import com.festivalscoretracker.android.core.songs.SongScoreFilterKind
 import com.festivalscoretracker.android.presentation.LoadState
 import kotlinx.coroutines.CancellationException
@@ -472,6 +473,7 @@ class PlayerProfileViewModel(
     private val sectionJobs = mutableMapOf<String, Job>()
     private var sectionKey: String? = null
     private var memo: Pair<SectionsKey, Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>>>? = null
+    private var effectiveMemo: Pair<SectionsKey, PlayerProfileResponse>? = null
     private var topMemo: Triple<PlayerProfileResponse, Set<Instrument>, Pair<Map<String, Song>, List<PlayerTopSongs>>>? = null
     private val catalog = MutableStateFlow<Map<String, Song>>(emptyMap())
     private var catalogJob: Job? = null
@@ -796,7 +798,7 @@ class PlayerProfileViewModel(
         if (profile != null) ensureCatalog()
         val leeway = current?.leeway?.takeIf { current.filterInvalidScores }
         val (overview, instruments) = if (profile != null) sections(SectionsKey(profile, visible, songs, leeway)) else emptyList<PlayerStatTile>() to emptyList()
-        val topSongs = if (profile != null) topSongs(profile, visible, songs) else emptyList()
+        val topSongs = if (profile != null) topSongs(effective(profile, songs, leeway), visible, songs) else emptyList()
         return PlayerProfileUiState(account, name, isSelected, phase, identity, overview, instruments, error, topSongs, current?.experimentalRanks == true)
     }
 
@@ -816,13 +818,33 @@ class PlayerProfileViewModel(
      * @property profile Loaded profile.
      * @property visible Settings-visible charts.
      * @property songs Catalogue (total songs, CHOpt maxima).
-     * @property leeway Filter Invalid Scores leeway, or null when off (no Over CHOpt Threshold tiles).
+     * @property leeway Filter Invalid Scores leeway, or null when off (raw scores, no Over CHOpt Threshold tiles).
      */
     private data class SectionsKey(val profile: PlayerProfileResponse, val visible: Set<Instrument>, val songs: Map<String, Song>, val leeway: Double?)
 
+    /**
+     * The scores every profile figure reads (web `PlayerContent` `effectiveScores`): under
+     * Filter Invalid Scores, each score as is when valid, else its replacement with the
+     * filtered rank and population, else nothing (pattern invalid-scores R4), for the
+     * selected and any viewed player alike. Memoized so identity-keyed memos hold.
+     *
+     * @param profile Loaded raw profile.
+     * @param songs Catalogue (CHOpt maxima and population tiers).
+     * @param leeway Leeway percent, or null when the setting is off.
+     * @return [profile] itself when off, else a copy holding the effective scores.
+     */
+    private fun effective(profile: PlayerProfileResponse, songs: Map<String, Song>, leeway: Double?): PlayerProfileResponse {
+        if (leeway == null) return profile
+        effectiveMemo?.let { (last, result) -> if (last.profile === profile && last.songs === songs && last.leeway == leeway) return result }
+        val result = profile.copy(scores = InvalidScorePolicy.filterPlayerScores(profile.scores, songs, leeway))
+        effectiveMemo = SectionsKey(profile, emptySet(), songs, leeway) to result
+        return result
+    }
+
     private fun sections(key: SectionsKey): Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>> {
         memo?.let { (last, result) -> if (last.profile === key.profile && last.visible == key.visible && last.songs === key.songs && last.leeway == key.leeway) return result }
-        val (profile, visible, songs, leeway) = key
+        val (raw, visible, songs, leeway) = key
+        val profile = effective(raw, songs, leeway)
         val totalSongs = songs.size
         val stats = PlayerStatistics.overall(profile, visible)
         // Web `buildOverallSummaryItems`.
@@ -850,7 +872,8 @@ class PlayerProfileViewModel(
             PlayerInstrumentSection(
                 instrument = instrument,
                 hasScores = chart.songsPlayed > 0,
-                stats = instrumentTiles(chart, instrument, totalSongs, leeway?.let { PlayerStatistics.overThresholdCount(profile, instrument, songs, it) }),
+                // Web: the over-threshold count reads raw scores; every other figure the effective ones.
+                stats = instrumentTiles(chart, instrument, totalSongs, leeway?.let { PlayerStatistics.overThresholdCount(raw, instrument, songs, it) }),
                 percentiles = PlayerStatistics.percentileBuckets(profile, instrument).map { bucket ->
                     PercentileRow(bucket, PlayerTileAction.FilterSongs(SongsPreset.PercentileBucket(instrument, bucket.topPercent)))
                 },
