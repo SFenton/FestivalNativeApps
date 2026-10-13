@@ -41,6 +41,8 @@ import com.festivalscoretracker.android.core.search.SearchScope
  * @property firstRun `FST_DEBUG_FIRST_RUN=off|on|force` (debug default off so automation is never blocked).
  * @property whatsNew `FST_DEBUG_WHATS_NEW=off|on|fresh|force` (debug default off, like [firstRun]).
  * @property distribution `FST_DEBUG_DISTRIBUTION=store|tester`: which What's New notes to show (default: by installer).
+ * @property liveUpdates `FST_LIVE_PUBLICATION_UPDATES=1|0` forces the `/api/ws` live socket on (e.g. against a
+ *   loopback fixture server) or off; null keeps the default (on for the public service, off for loopback).
  */
 data class DebugLaunch(
     val section: FestivalSection? = null,
@@ -61,6 +63,7 @@ data class DebugLaunch(
     val firstRun: String? = null,
     val whatsNew: String? = null,
     val distribution: String? = null,
+    val liveUpdates: Boolean? = null,
 ) {
     companion object {
         /** An empty launch (release builds, or no extras). */
@@ -98,6 +101,11 @@ data class DebugLaunch(
                 firstRun = extras["FST_DEBUG_FIRST_RUN"],
                 whatsNew = extras["FST_DEBUG_WHATS_NEW"],
                 distribution = extras["FST_DEBUG_DISTRIBUTION"],
+                liveUpdates = when (extras["FST_LIVE_PUBLICATION_UPDATES"]) {
+                    "1" -> true
+                    "0" -> false
+                    else -> null
+                },
             )
         }
 

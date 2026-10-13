@@ -16,6 +16,8 @@ import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.data.ForcedFreezeTransport
 import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.data.OkHttpTransport
+import com.festivalscoretracker.android.data.OkHttpPublicationLiveSocket
+import com.festivalscoretracker.android.data.PublicationLiveConnection
 import com.festivalscoretracker.android.data.RetiredSettingsMigration
 import com.festivalscoretracker.android.data.SettingsRepository
 import com.festivalscoretracker.android.data.shop.shop
@@ -112,6 +114,18 @@ class AppContainer(
 
     /** Saved Songs filters and Shop layout. */
     val songsPreferences = SongsPreferences(settings)
+
+    /**
+     * The anonymous, receive-only `/api/ws` connection (web `useAppWebSocket`), or null when it
+     * is off for this process ([PublicationLiveConnection.enabled]). The shell runs it while the
+     * app is in the foreground.
+     */
+    val liveUpdates: PublicationLiveConnection? =
+        if (PublicationLiveConnection.enabled(launch.liveUpdates, fixtureTransport = transport != null, loopback = api.usesLoopbackOrigin)) {
+            PublicationLiveConnection(api, OkHttpPublicationLiveSocket(httpClient))
+        } else {
+            null
+        }
 }
 
 // endregion

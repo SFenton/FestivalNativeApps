@@ -221,6 +221,31 @@ class FestivalApi(
     /** Validated service origin. */
     val origin: String get() = base.toString()
 
+    /** Whether this client reads a loopback fixture server rather than the public service. */
+    val usesLoopbackOrigin: Boolean get() = base.host in LOOPBACK_HOSTS
+
+    /**
+     * The public live socket for this origin (web `useAppWebSocket`, Apple `liveUpdatesURL`):
+     * `wss` for HTTPS, `ws` only for a loopback fixture server. The only parameter is the
+     * shown generation; the socket is anonymous and receive-only (service-safety.md `/api/ws`).
+     *
+     * @param publicationId The generation the app currently shows.
+     * @return `…/api/ws?publicationId=N`.
+     * @throws FestivalApiException.InvalidResource for a non-positive ID or an unusable origin.
+     */
+    fun liveUpdatesUrl(publicationId: Int): String {
+        if (publicationId <= 0) throw FestivalApiException.InvalidResource()
+        val http = base.newBuilder().encodedPath("/").addPathSegment("api").addPathSegment("ws")
+            .query(null).fragment(null)
+            .addQueryParameter("publicationId", publicationId.toString())
+            .build().toString()
+        return when {
+            base.scheme == "https" -> "wss" + http.removePrefix("https")
+            base.scheme == "http" && usesLoopbackOrigin -> "ws" + http.removePrefix("http")
+            else -> throw FestivalApiException.InvalidResource()
+        }
+    }
+
     // region Publication
 
     /**

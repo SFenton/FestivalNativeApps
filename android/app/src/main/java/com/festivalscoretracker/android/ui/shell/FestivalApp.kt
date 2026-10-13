@@ -81,8 +81,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -210,6 +213,12 @@ fun FestivalApp(container: AppContainer, launch: DebugLaunch, shortcuts: ShellSh
         LaunchedEffect(Unit) { container.background.start(this) }
         LaunchedEffect(Unit) { container.selectedProfile.start(this, shellViewModel.settings.map { it?.selectedPlayer }) }
         LaunchedEffect(Unit) { container.songsPreferences.watchDeselection(this, shellViewModel.settings.map { it?.selectedPlayer }) }
+    // One anonymous /api/ws socket while the app is in the foreground (#616, web useAppWebSocket).
+    val shellLifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(container.liveUpdates, shellLifecycle) {
+        val live = container.liveUpdates ?: return@LaunchedEffect
+        shellLifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { live.run() }
+    }
         // Compose test tags double as UIAutomator resource ids for `device.py drive` journeys.
         Box(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }) {
             ArtworkBackground(container.background, forceStill = launch.stillBackground || settings?.disableAnimatedArtwork == true)
