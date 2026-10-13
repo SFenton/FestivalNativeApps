@@ -245,6 +245,7 @@ class UitestDiagnosticsTests(unittest.TestCase):
     def run_batch(self, **kwargs):
         with TemporaryDirectory() as tmp, \
                 unittest.mock.patch.object(ios_sim, "LOCK_PATH", Path(tmp) / "sim.lock"), \
+                unittest.mock.patch.dict(ios_sim.os.environ, {"DEVCAP_DIR": tmp}), \
                 unittest.mock.patch.object(ios_sim, "_run") as run, \
                 unittest.mock.patch.object(ios_sim, "boot_exclusive"), \
                 unittest.mock.patch.object(ios_sim.subprocess, "run") as xcodebuild:
