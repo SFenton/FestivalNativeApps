@@ -246,16 +246,19 @@ jobs:
         # PLAIN_JOURNEYS: iPhone UI-test bundle (`--app phone`) journeys that need `fixture-pulse` and `fixture-orbit` on
         # screen, on the same iPhone before it shuts down (#615: the Filter sheet's score checks under Filter Invalid
         # Scores, their labels, enabled state and touch height; #487: Songs' reset tools after a deselect, the #359
-        # region, at the default and the largest text size). HISTORY_IPAD_JOURNEYS also holds the song board's
-        # split-pane title at AX5 (#478, the #342 region), Song Detail's Duos link selected beside its board (#492, the
-        # #367 region) and Song Detail's first instrument-card row at AX5 (#490, the #365 region: one top edge, each
-        # card read whole); iPad only, so not in HISTORY_JOURNEYS.
+        # region, at the default and the largest text size; #611: the Search tab title in its bar row, no empty band
+        # above it, and its AX5 audit; the plain fixture serves band search). HISTORY_IPAD_JOURNEYS also holds the song
+        # board's split-pane title at AX5 (#478, the #342 region), Song Detail's Duos link selected beside its board
+        # (#492, the #367 region) and Song Detail's first instrument-card row at AX5 (#490, the #365 region: one top
+        # edge, each card read whole); iPad only, so not in HISTORY_JOURNEYS.
         # testing/apple/xcuitest.md#ci-journeys.
         env:
           PLAIN_JOURNEYS: >-
             SongsJourneyTests/testPlayerScoreFilterSettingsPauseAndDeselectScope
             SongsDeselectAccessibilityJourneyTests/testDeselectResetsSongsToolsForVoiceOver
             SongsDeselectAccessibilityJourneyTests/testDeselectResetIsReachableAtLargestText
+            GlobalSearchJourneyTests/testSearchTabFocusesFieldAndCloseReturnsToSongs
+            GlobalSearchJourneyTests/testSearchTitleSitsInBarRowAtLargestText
           HISTORY_JOURNEYS: >-
             ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5
           HISTORY_IPAD_JOURNEYS: >-

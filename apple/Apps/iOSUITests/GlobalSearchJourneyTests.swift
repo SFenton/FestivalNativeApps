@@ -7,9 +7,13 @@ import XCTest
 /// "Bands unavailable"; start the fixture on its own port instead:
 ///
 ///     python3 tools/mock_service.py --port 18936
+///
+/// `apple-ci`'s plain-fixture step starts its own mock on an OS-assigned port and passes
+/// it as `TEST_RUNNER_FST_FIXTURE_URL` (`testing/apple/xcuitest.md#ci-journeys`).
 final class GlobalSearchJourneyTests: XCTestCase {
-    /// The fixture origin every journey here uses.
-    private static let origin = "http://127.0.0.1:18936"
+    /// The fixture origin every journey here uses: `FST_FIXTURE_URL` when set, else `:18936`.
+    private static let origin =
+        ProcessInfo.processInfo.environment["FST_FIXTURE_URL"] ?? "http://127.0.0.1:18936"
 
     /// Skip unless the fixture serves band search (it predates issue #320 otherwise).
     ///
@@ -69,7 +73,12 @@ final class GlobalSearchJourneyTests: XCTestCase {
         XCTAssertTrue(sort.isHittable, "Closing Search did not return to Songs")
     }
 
-    /// Assert the Search page's navigation bar shows its "Search" title on screen.
+    /// Assert the Search page's navigation bar shows its large "Search" title on screen,
+    /// inside the bar's row with the scope bar right under it.
+    ///
+    /// Issue #611: the standard large title sat below an empty 54 pt bar row (the Search
+    /// tab has no bar items), a dead band above the title; the tab now draws it
+    /// `inlineLarge`. A 17 pt inline title would also fail (`title` height).
     ///
     /// - Parameter app: The running app with the Search tab open.
     @MainActor
@@ -80,6 +89,17 @@ final class GlobalSearchJourneyTests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 5), "Search title missing")
         XCTAssertTrue(title.isHittable, "Search title is hidden while searching")
         XCTAssertGreaterThan(title.frame.minY, 0, "Search title is off screen")
+        XCTAssertGreaterThanOrEqual(title.frame.height, 30, "Search title is not large: \(title.frame)")
+        XCTAssertLessThanOrEqual(
+            title.frame.minY - bar.frame.minY, 12,
+            "Empty band above the Search title: bar \(bar.frame), title \(title.frame)"
+        )
+        let scope = app.segmentedControls["fst.global-search.scope"]
+        XCTAssertTrue(scope.waitForExistence(timeout: 5), "Scope bar missing")
+        XCTAssertLessThanOrEqual(
+            scope.frame.minY - title.frame.maxY, 24,
+            "Scope bar is not directly under the Search title: title \(title.frame), scope \(scope.frame)"
+        )
     }
 
     /// Assert no "Songs", "Players" or "Bands" section title shows below the scope bar in
@@ -145,6 +165,33 @@ final class GlobalSearchJourneyTests: XCTestCase {
         )
         assertSearchTitleVisible(in: app)
         closeSearch(in: app)
+    }
+
+    /// At the largest text size (AX5) the Search tab keeps its large title whole inside
+    /// the navigation bar's row, the scope bar right under it, and nothing in that header
+    /// region clips text or shrinks a target (issue #611).
+    @MainActor
+    func testSearchTitleSitsInBarRowAtLargestText() throws {
+        continueAfterFailure = false
+        let app = fixtureApp()
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: FestivalApp.budget(20)))
+        _ = openSearch(in: app)
+        assertSearchTitleVisible(in: app)
+        let title = app.navigationBars["Search"].staticTexts["Search"]
+        XCTAssertEqual(title.label, "Search")
+        let scope = app.segmentedControls["fst.global-search.scope"]
+        let headerBottom = scope.frame.maxY
+        var open: [String] = []
+        try app.performAccessibilityAudit(for: [.textClipped, .hitRegion]) { issue in
+            guard let element = issue.element, element.exists, element.frame.minY < headerBottom else { return true }
+            open.append("\(issue.compactDescription): '\(element.label)' \(element.frame)")
+            return true
+        }
+        XCTAssertEqual(open, [], "Search title or scope bar fails the audit at AX5")
     }
 
     /// Short queries show the hint; a song and a player match; a song opens Song Detail
