@@ -8,12 +8,14 @@ import Testing
 
 // MARK: - Fixtures
 
-/// The reads Song Details' first-load gate waits for that a test can hold back.
+/// Song Details gate reads and the standalone history read a test can hold back.
 private enum HeldRead: Sendable {
     /// The cards' top-ten leaderboard reads.
     case leaderboard
     /// The Item Shop feed.
     case shop
+    /// The standalone selected player's Score History read.
+    case history
 
     /// Which held read `request` is, if any.
     ///
@@ -23,16 +25,16 @@ private enum HeldRead: Sendable {
         let path = request.url?.path ?? ""
         if path.hasPrefix("/api/leaderboard/") { return .leaderboard }
         if path == "/api/shop" { return .shop }
+        if path.hasPrefix("/api/player/"), path.hasSuffix("/history") { return .history }
         return nil
     }
 }
 
-/// Forwards to the loopback fixture service, holding leaderboard and Item Shop reads
-/// (the reads Song Details' first-load gate waits for) until they are released, and
-/// optionally failing the Shop read (the gate's completed-no-offer state).
+/// Forwards to the loopback fixture service, holding leaderboard, Item Shop and history
+/// reads until released, and optionally failing Shop (the gate's completed-no-offer state).
 private actor HeldGateTransport: HTTPTransport {
     private let base = URLSessionHTTPTransport()
-    private var holding: Set<HeldRead> = [.leaderboard, .shop]
+    private var holding: Set<HeldRead> = [.leaderboard, .shop, .history]
     private var held: [HeldRead: [CheckedContinuation<Void, Never>]] = [:]
     private var heldReads: [HeldRead: Int] = [:]
     private var finishedReads: [HeldRead: Int] = [:]
@@ -77,6 +79,7 @@ private actor HeldGateTransport: HTTPTransport {
     func releaseAll() {
         release(.leaderboard)
         release(.shop)
+        release(.history)
     }
 
     /// `kind` reads held so far.
@@ -154,6 +157,101 @@ private let songDetailToolIDs = ["fst.song-detail.shop", "fst.song-detail.paths"
 /// control size"), and stay while the cards reload.
 @MainActor
 @Suite(.serialized) struct SongDetailPageToolsGateTests {
+    /// Score History's loading row fills the visible List space below its real header;
+    /// it never falls back to GeometryReader's intrinsic ten-point row height.
+    @Test(arguments: [DynamicTypeSize.large, .accessibility5])
+    func scoreHistoryLoadingRowCentresBelowItsHeader(_ textSize: DynamicTypeSize) async throws {
+        let transport = HeldGateTransport()
+        let (_, storage, suite) = try await makeSession(transport)
+        defer { storage.removePersistentDomain(forName: suite) }
+        storage.set(
+            Data(#"{"accountId":"fixture-player-1","displayName":"Fixture Player 1"}"#.utf8),
+            forKey: SelectedPlayerIdentity.storageKey
+        )
+        let baseURL = try await RivalsMockService.shared.baseURL()
+        let client = try FestivalAPI(baseURL: baseURL, transport: transport)
+        let session = FestivalSession(factory: { client }, selectionStorage: storage)
+        let song = try #require(try await session.catalog().catalog.songs.first { $0.songId == "fixture-pulse" })
+        let size = CGSize(width: 402, height: 874)
+        let host = nativeHostedView(
+            PlayerHistoryScreen(session: session, song: song, instrument: .lead)
+                .environment(\.dynamicTypeSize, textSize)
+                .defaultAppStorage(storage),
+            size: size
+        )
+        let window = nativeHostedWindow(host, size: size)
+        defer { window.orderOut(nil) }
+        do {
+            try await nativeHostedSettle(host) {
+                nativeHostedAccessibilityElement("fst.history.loading", in: host) != nil
+            }
+            let scroll = try #require(listScrollView(in: host))
+            let table = try #require(scroll.documentView as? NSTableView)
+            try await nativeHostedSettle(host) { table.numberOfRows >= 2 }
+            let row = try #require(table.rowView(atRow: 1, makeIfNecessary: true))
+            let local = host.convert(row.bounds, from: row)
+            let region = host.isFlipped ? local : CGRect(
+                x: local.minX, y: host.bounds.height - local.maxY,
+                width: local.width, height: local.height
+            )
+            let spinner = try #require(nativeHostedAccessibilityFrame("fst.history.loading", in: host))
+            #expect(region.height > size.height / 2, "The state occupies the remaining viewport: \(region)")
+            #expect(abs(spinner.midX - region.midX) < 1)
+            #expect(abs(spinner.midY - region.midY) < 1, "\(spinner) in \(region)")
+            let busy = ReloadGateAccessibilityTests.busyIndicators(ReloadGateAccessibilityTests.reachable(row))
+            #expect(busy.count == 1 && busy.first?.label == "Loading Score History", "\(busy)")
+            await transport.releaseAll()
+        } catch {
+            await transport.releaseAll()
+            throw error
+        }
+    }
+
+    /// The reported Song Details first load uses the same visible-region placement as
+    /// reload gates, including a separate detail pane and both active fold directions.
+    @Test(arguments: FillingLoadingAccessibilityTests.cases, [DynamicTypeSize.large, .accessibility5])
+    func songDetailFirstLoadCentresItsNamedSpinnerOutsideTheFold(
+        _ state: FillingLoadingAccessibilityTests.RegionCase, _ textSize: DynamicTypeSize
+    ) async throws {
+        let transport = HeldGateTransport()
+        let (session, storage, suite) = try await makeSession(transport)
+        defer { storage.removePersistentDomain(forName: suite) }
+        let song = try #require(try await session.catalog().catalog.songs.first { $0.songId == "fixture-pulse" })
+        let host = nativeHostedView(
+            SongDetailScreen(song: song, session: session, visibleInstruments: [.lead])
+                .frame(width: state.content.width, height: state.content.height)
+                .position(x: state.content.midX, y: state.content.midY)
+                .frame(width: state.size.width, height: state.size.height)
+                .environment(\.deviceLayout, state.layout)
+                .environment(\.dynamicTypeSize, textSize)
+                .environment(\.festivalSession, session)
+                .defaultAppStorage(storage),
+            size: state.size
+        )
+        let window = nativeHostedWindow(host, size: state.size)
+        defer { window.orderOut(nil) }
+        do {
+            try await nativeHostedSettle(host) {
+                nativeHostedAccessibilityElement("fst.song-detail.loading", in: host) != nil
+            }
+            let spinner = try #require(nativeHostedAccessibilityElement("fst.song-detail.loading", in: host))
+            #expect(nativeHostedAccessibilityString(spinner, "accessibilityRole") == "AXBusyIndicator")
+            #expect(nativeHostedAccessibilityString(spinner, "accessibilityLabel") == "Loading Fixture Pulse")
+            #expect(ReloadGateAccessibilityTests.busyIndicators(ReloadGateAccessibilityTests.reachable(host)).count == 1)
+            let frame = try #require(nativeHostedAccessibilityFrame(of: spinner, in: host))
+            #expect(abs(frame.midX - state.expected.midX) < 1, "\(state.name): \(frame)")
+            #expect(abs(frame.midY - state.expected.midY) < 1, "\(state.name): \(frame)")
+            #expect(state.expected.contains(frame))
+            if state.hinge == .partiallyOpen, let fold = state.fold {
+                #expect(!frame.intersects(fold))
+            }
+            await transport.releaseAll()
+        } catch {
+            await transport.releaseAll()
+            throw error
+        }
+    }
+
     /// Opens Song Details with the Shop unknown (as from a deep link), holding the Shop
     /// response past the card reads: no tool shows early, then all three in one update.
     @Test func songDetailToolsWaitForTheLoadGateAndStayThroughReloads() async throws {

@@ -354,7 +354,7 @@ final class GlobalSearchJourneyTests: XCTestCase {
                 && Date().timeIntervalSince(started) >= 3
             probe.fulfill()
         }.resume()
-        wait(for: [probe], timeout: 10)
+        wait(for: [probe], timeout: 15)
         try XCTSkipUnless(delayed, "Start `mock_service.py --port 18936` from this revision")
         let app = FestivalApp.makeApp([
             "FST_API_BASE_URL": origin,
@@ -362,28 +362,33 @@ final class GlobalSearchJourneyTests: XCTestCase {
             "FST_DEBUG_STILL_BACKGROUND": "1",
         ])
         app.launch()
-        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: FestivalApp.budget(20)))
         _ = openSearch(in: app)
         let scope = app.segmentedControls["fst.global-search.scope"]
-        XCTAssertTrue(scope.waitForExistence(timeout: 5))
+        XCTAssertTrue(scope.waitForExistence(timeout: FestivalApp.budget(5)))
         scope.buttons["Players"].tap()
         let scopedField = app.searchFields.firstMatch
         scopedField.tap()
-        // The fixture holds this account search for a few seconds.
+        // The fixture holds this account search for 8 s.
         scopedField.typeText("slowpoke")
         let spinner = app.descendants(matching: .any)
             .matching(identifier: "fst.global-search.loading").firstMatch
-        XCTAssertTrue(spinner.waitForExistence(timeout: 5), "No search spinner")
-        assertNoSectionTitles(in: app)
+        XCTAssertTrue(spinner.waitForExistence(timeout: FestivalApp.budget(5)), "No search spinner")
+        // One snapshot reads type, name and frame together, inside the fixture's window. The
+        // scope bar and the field above the keyboard stay put after it, so measure them next.
+        let shown = try spinner.snapshot()
         let window = app.windows.firstMatch.frame
-        XCTAssertEqual(spinner.frame.midX, window.midX, accuracy: 2, "Spinner is not centred horizontally")
+        let regionMid = (scope.frame.maxY + scopedField.frame.minY) / 2
+        XCTAssertEqual(app.activityIndicators.matching(identifier: "fst.global-search.loading").count, 1)
+        XCTAssertEqual(shown.elementType, .activityIndicator, "The name belongs to the native busy indicator")
+        XCTAssertEqual(shown.label, "Searching")
+        XCTAssertEqual(shown.frame.midX, window.midX, accuracy: 2, "Spinner is not centred horizontally")
         // Centred in the area between the scope bar and the search field above the keyboard.
-        let bottom = scopedField.frame.minY
-        let areaMid = (scope.frame.maxY + bottom) / 2
-        XCTAssertEqual(spinner.frame.midY, areaMid, accuracy: 40, "Spinner is not centred vertically")
+        XCTAssertEqual(shown.frame.midY, regionMid, accuracy: 40, "Spinner is not centred vertically")
+        assertNoSectionTitles(in: app)
         // The empty envelope then replaces it with the centred empty state, no Retry.
         let empty = app.descendants(matching: .any).matching(identifier: "fst.global-search.hint").firstMatch
-        XCTAssertTrue(empty.waitForExistence(timeout: 10))
+        XCTAssertTrue(empty.waitForExistence(timeout: FestivalApp.budget(15)))
         XCTAssertFalse(spinner.exists)
         XCTAssertFalse(app.buttons["Retry"].exists, "Empty search offered Retry")
     }

@@ -378,8 +378,47 @@ fun ServiceStatusInline(issue: ServiceIssue, fallbackTitle: String, countdown: I
  */
 @Composable
 fun LoadingView(label: String, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        FestivalLoading(label)
+    LoadingRegion(label, modifier.fillMaxSize())
+}
+
+/**
+ * Centres one named busy indicator in its supplied content region, excluding a separating
+ * hinge through the same [HingeSide] policy as [ServiceStatusView]. Window coordinates keep
+ * an already-separated pane unchanged; flat folds are ignored.
+ *
+ * @param label Accessible description.
+ * @param modifier Region size and chrome padding, or a measured lazy-list result region.
+ * @param indicatorModifier Indicator semantics (a publication refresh's live region).
+ * @param avoidHinge False for an in-card spinner whose card already owns its placement.
+ */
+@Composable
+internal fun LoadingRegion(
+    label: String,
+    modifier: Modifier,
+    indicatorModifier: Modifier = Modifier,
+    avoidHinge: Boolean = true,
+) {
+    var origin by rememberMeasuredOffset(Offset.Unspecified)
+    var width by rememberMeasuredPx(0f)
+    var height by rememberMeasuredPx(0f)
+    val side = if (avoidHinge) rememberHingeSide(origin, width, height) else HingeSide.Padding.NONE
+    val density = LocalDensity.current
+    Box(
+        modifier.onGloballyPositioned {
+            origin = it.positionInWindow()
+            width = it.size.width.toFloat()
+            height = it.size.height.toFloat()
+        },
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            if (avoidHinge) Modifier.fillMaxSize().then(with(density) {
+                Modifier.absolutePadding(side.left.toDp(), side.top.toDp(), side.right.toDp(), side.bottom.toDp())
+            }) else Modifier,
+            contentAlignment = Alignment.Center,
+        ) {
+            FestivalLoading(label, indicatorModifier)
+        }
     }
 }
 

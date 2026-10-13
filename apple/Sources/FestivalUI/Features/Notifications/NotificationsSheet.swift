@@ -52,7 +52,7 @@ struct NotificationsSheet: View {
                 accessibilityIdentifier: "fst.notifications.no-player"
             )
         case (_, .loading), (_, .idle):
-            FestivalLoadingView(accessibilityLabel: "Loading Notifications")
+            FestivalLoadingView(accessibilityLabel: "Loading Notifications", placement: .fill)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case let (_, .failed(issue)):
             ServiceStatusView(issue, title: "Notifications unavailable") {

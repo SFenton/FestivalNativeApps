@@ -28,7 +28,6 @@ Examples::
 from __future__ import annotations
 
 import argparse
-import fcntl
 import json
 import os
 import shutil
@@ -109,7 +108,7 @@ def ensure_driver_build(rebuild: bool) -> int:
 
 
 class SimLock:
-    """Hold ``~/.fst-sim.lock`` and boot one FST simulator exclusively.
+    """Hold ``~/.fst-sim.lock`` plus machine-wide capacity, and boot one FST simulator exclusively.
 
     Args:
         udid: Simulator to boot.
@@ -117,23 +116,23 @@ class SimLock:
 
     def __init__(self, udid: str):
         self.udid = udid
-        self.handle = None
+        self.hold = None
 
     def __enter__(self) -> "SimLock":
-        ios_sim.LOCK_PATH.touch(exist_ok=True)
-        self.handle = open(ios_sim.LOCK_PATH, "w")
-        print(f"waiting for simulator lock {ios_sim.LOCK_PATH} ...", file=sys.stderr)
-        fcntl.flock(self.handle, fcntl.LOCK_EX)
-        self.handle.write(f"{os.getpid()} {ios_sim.REPO_ROOT} pwa\n")
-        self.handle.flush()
-        ios_sim.boot_exclusive(self.udid)
-        ios_sim._run(["xcrun", "simctl", "bootstatus", self.udid, "-b"], capture_output=True)
+        self.hold = ios_sim.sim_lock(self.udid, "pwa")
+        self.hold.__enter__()
+        try:
+            ios_sim.boot_exclusive(self.udid)
+            ios_sim._run(["xcrun", "simctl", "bootstatus", self.udid, "-b"], capture_output=True)
+        except BaseException:
+            self.__exit__(*sys.exc_info())
+            raise
         return self
 
     def __exit__(self, *exc) -> None:
-        if self.handle:
-            fcntl.flock(self.handle, fcntl.LOCK_UN)
-            self.handle.close()
+        if self.hold:
+            hold, self.hold = self.hold, None
+            hold.__exit__(*exc)
 
 
 def form_factor(udid: str) -> str:

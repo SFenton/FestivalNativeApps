@@ -22,8 +22,11 @@ fi
 verify() {
   local log
   log="$(mktemp)"
-  # One heavy SwiftPM build at a time across lanes (10-core Mac thrashes otherwise).
-  if ! (cd "$ROOT/apple" && /usr/bin/lockf -k "$HOME/.fst-build.lock" swift build --build-tests >"$log" 2>&1); then
+  # One heavy SwiftPM build at a time across FST lanes (10-core Mac thrashes otherwise), inside a
+  # machine-wide devcap `build` slot shared with other repositories (tools/devcap.py).
+  if ! (cd "$ROOT/apple" && /usr/bin/lockf -k "$HOME/.fst-build.lock" \
+      python3 "$ROOT/tools/devcap.py" run --pool build --hold 0 --purpose "FST lane_integrate ($(basename "$ROOT"))" -- \
+      swift build --build-tests >"$log" 2>&1); then
     grep -E "error:" "$log" | head -30 >&2
     echo "swift build failed" >&2
     return 1

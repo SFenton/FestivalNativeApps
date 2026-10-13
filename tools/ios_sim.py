@@ -66,6 +66,9 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Iterable, Iterator
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import devcap  # noqa: E402  (machine-wide simulator/build capacity shared with other repos)
+
 # region Configuration
 
 DEVELOPER_DIR = "/Applications/Xcode.app/Contents/Developer"
@@ -211,9 +214,39 @@ def build_lock():
         try:
             lock.write(f"{os.getpid()} {REPO_ROOT}\n")
             lock.flush()
-            yield
+            with devcap.hold(pools=["build"], purpose=f"FST build ({REPO_ROOT.name})", hold_seconds=None,
+                             wait_seconds=float("inf")):
+                yield
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+@contextmanager
+def sim_lock(udid: str, purpose: str) -> Iterator[None]:
+    """Hold ``~/.fst-sim.lock``, then ``udid``'s machine-wide capacity, for one block.
+
+    ``~/.fst-sim.lock`` keeps FST lanes to one product simulator at a time;
+    ``devcap`` (``tools/devcap.py``) then waits for the device gate and a
+    machine-wide ``simulator`` slot shared with every other repository on the
+    Mac (Fenton-HASS-Native lanes included). Both are released when the block
+    exits; a crashed holder releases them through the OS.
+
+    Args:
+        udid: Simulator the block boots and drives.
+        purpose: What the hold is for, shown to waiting lanes.
+
+    Yields:
+        Nothing.
+    """
+    LOCK_PATH.touch(exist_ok=True)
+    with open(LOCK_PATH, "w") as lock:
+        print(f"waiting for simulator lock {LOCK_PATH} ...", file=sys.stderr)
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        lock.write(f"{os.getpid()} {REPO_ROOT}\n")
+        lock.flush()
+        with devcap.hold(sims=[udid], purpose=f"FST {purpose} ({REPO_ROOT.name})", hold_seconds=None,
+                         wait_seconds=float("inf")):
+            yield
 
 
 def derived_data() -> Path:
@@ -1638,12 +1671,7 @@ def cmd_shot(args: argparse.Namespace) -> int:
     app = app_path()
     if code := scripting_preflight(args.set_pose or bool(args.rotate)):
         return code
-    LOCK_PATH.touch(exist_ok=True)
-    with open(LOCK_PATH, "w") as lock:
-        print(f"waiting for simulator lock {LOCK_PATH} ...", file=sys.stderr)
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        lock.write(f"{os.getpid()} {REPO_ROOT}\n")
-        lock.flush()
+    with sim_lock(udid, "shot"):
         boot_exclusive(udid)
         _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
         if args.clean_status_bar:
@@ -1759,14 +1787,9 @@ def cmd_drive(args: argparse.Namespace) -> int:
     result_bundle.parent.mkdir(parents=True, exist_ok=True)
     log_path = Path(tempfile.gettempdir()) / f"fst-driver-log-{uuid.uuid4().hex}.txt"
 
-    LOCK_PATH.touch(exist_ok=True)
     start = time.time()
     try:
-        with open(LOCK_PATH, "w") as lock:
-            print(f"waiting for simulator lock {LOCK_PATH} ...", file=sys.stderr)
-            fcntl.flock(lock, fcntl.LOCK_EX)
-            lock.write(f"{os.getpid()} {REPO_ROOT}\n")
-            lock.flush()
+        with sim_lock(udid, "drive"):
             boot_exclusive(udid)
             _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
             if args.clean_status_bar:
@@ -2074,13 +2097,8 @@ def _run_uitest_batch(
     result_bundle.parent.mkdir(parents=True, exist_ok=True)
     log_path = Path(tempfile.gettempdir()) / f"fst-uitest-log-{uuid.uuid4().hex}.txt"
 
-    LOCK_PATH.touch(exist_ok=True)
     start = time.time()
-    with open(LOCK_PATH, "w") as lock:
-        print(f"waiting for simulator lock {LOCK_PATH} ...", file=sys.stderr)
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        lock.write(f"{os.getpid()} {REPO_ROOT}\n")
-        lock.flush()
+    with sim_lock(udid, "uitest batch"):
         state = _run(["xcrun", "simctl", "list", "devices", udid], check=False, capture_output=True, text=True)
         was_booted = "(Booted)" in (state.stdout or "")
         boot_exclusive(udid)
@@ -2262,12 +2280,7 @@ def _with_sim_lock(udid: str, action) -> int:
     Returns:
         ``action``'s exit code.
     """
-    LOCK_PATH.touch(exist_ok=True)
-    with open(LOCK_PATH, "w") as lock:
-        print(f"waiting for simulator lock {LOCK_PATH} ...", file=sys.stderr)
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        lock.write(f"{os.getpid()} {REPO_ROOT}\n")
-        lock.flush()
+    with sim_lock(udid, "pose/shutdown"):
         return action(udid)
 
 

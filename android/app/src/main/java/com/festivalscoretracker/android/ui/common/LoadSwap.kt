@@ -5,8 +5,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -16,7 +16,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -316,6 +315,7 @@ private object NeverCommitted
  * @param tag Test tag.
  * @param announce Make the spinner a polite live region, so TalkBack speaks [label] when it
  *   appears without moving focus (the publication refresh, load-transition R9).
+ * @param avoidHinge False for an in-card loading region.
  */
 @Composable
 fun LoadSwapSpinner(
@@ -324,10 +324,11 @@ fun LoadSwapSpinner(
     modifier: Modifier = Modifier.fillMaxSize(),
     tag: String = LOAD_SWAP_SPINNER_TAG,
     announce: Boolean = false,
+    avoidHinge: Boolean = true,
 ) {
     // The progress indicator is its own merged node, so the live region sits on it with the label.
     val live = if (announce) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier
-    Box(modifier.then(swap.spinnerModifier).testTag(tag), contentAlignment = Alignment.Center) { FestivalLoading(label, live) }
+    LoadingRegion(label, modifier.then(swap.spinnerModifier).testTag(tag), live, avoidHinge)
 }
 
 /** Spoken label of the in-place publication refresh spinner (load-transition R9, Apple `PublicationRefreshBoundary`). */
@@ -337,21 +338,26 @@ const val PUBLICATION_REFRESH_LABEL = "Loading new scores"
 const val PUBLICATION_REFRESH_TAG = "fst.publication.refreshing"
 
 /**
- * [LoadSwapSpinner] as a lazy-list item centred in most of the list's viewport, for pages whose
- * selectors or header rows stay in the same list above the swapped content.
+ * [LoadSwapSpinner] as a lazy-list item centred in the visible region left by headers,
+ * controls and lower chrome, using the same sizing as an empty result.
  *
  * @param swap Swap state.
  * @param label Accessible description.
  * @param tag Test tag.
  * @param key Item key.
+ * @param state List state for measuring the result region.
  */
-fun LazyListScope.loadSwapSpinnerItem(swap: LoadSwap<*>, label: String = "Loading", tag: String = LOAD_SWAP_SPINNER_TAG, key: Any = "load-swap-spinner") {
-    item(key = key, contentType = "load-swap-spinner") { SpinnerItem(swap, label, tag) }
-}
-
-@Composable
-private fun LazyItemScope.SpinnerItem(swap: LoadSwap<*>, label: String, tag: String) {
-    LoadSwapSpinner(swap, label, Modifier.fillParentMaxWidth().fillParentMaxHeight(SPINNER_ITEM_HEIGHT_FRACTION), tag)
+fun LazyListScope.loadSwapSpinnerItem(
+    swap: LoadSwap<*>,
+    label: String = "Loading",
+    tag: String = LOAD_SWAP_SPINNER_TAG,
+    key: Any = "load-swap-spinner",
+    state: LazyListState,
+) {
+    item(key = key, contentType = "load-swap-spinner") {
+        val height = Modifier.fillEmptyRegion(rememberEmptyRegion(state, key))
+        LoadSwapSpinner(swap, label, Modifier.fillParentMaxWidth().then(height), tag)
+    }
 }
 
 /**
@@ -405,8 +411,5 @@ const val BOARD_CARD_INDEX = 0
 
 /** Default test tag of the swap spinner. */
 const val LOAD_SWAP_SPINNER_TAG = "fst.load-swap.spinner"
-
-/** Share of a list's viewport the spinner item centres in (below a page's header rows). */
-private const val SPINNER_ITEM_HEIGHT_FRACTION = 0.6f
 
 // endregion

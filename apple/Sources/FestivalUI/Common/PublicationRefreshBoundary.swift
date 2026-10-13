@@ -308,7 +308,7 @@ private struct PublicationRefreshFocusLayer: View {
     var body: some View {
         ZStack(alignment: .top) {
             if showsSpinner {
-                FestivalLoadingView(accessibilityLabel: PublicationPageAnchor.loadingLabel)
+                FestivalLoadingView(accessibilityLabel: PublicationPageAnchor.loadingLabel, placement: .fill)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityIdentifier("fst.publication.refreshing")
                     .accessibilityFocused($focusedElement, equals: .spinner)
