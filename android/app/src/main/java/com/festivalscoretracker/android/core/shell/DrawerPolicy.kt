@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.core.shell
 
 import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.FestivalSection
+import com.festivalscoretracker.android.core.nav.FestivalTabPolicy
 import com.festivalscoretracker.android.core.nav.LeaderboardsRoute
 import com.festivalscoretracker.android.core.nav.ProfileKind
 import com.festivalscoretracker.android.core.nav.RivalsRoute
@@ -26,6 +27,9 @@ enum class DrawerEntry(val title: String, val section: FestivalSection?, val pus
 sealed interface DrawerTarget {
     /** Switch to a visible tab. */
     data class Section(val section: FestivalSection) : DrawerTarget
+
+    /** Select the owning tab at its root, then push its child page. */
+    data class Child(val section: FestivalSection, val route: AppRoute) : DrawerTarget
 
     /** Push a route on the current tab (the destination is not a tab at this width). */
     data class Push(val route: AppRoute) : DrawerTarget
@@ -63,18 +67,22 @@ object DrawerPolicy {
 
     /**
      * Where a row goes: its tab when that tab is visible at this width (e.g. Rivals on a
-     * rail), otherwise the pushed equivalent (e.g. Leaderboards under Compete on a phone).
+     * rail), its owning tab's child (Rivals/Leaderboards under Compete), or a current-tab push.
      *
      * @param entry Row.
      * @param visible Tabs visible now ([com.festivalscoretracker.android.core.nav.FestivalTabPolicy.sections]).
      * @return Target.
      */
-    fun target(entry: DrawerEntry, visible: List<FestivalSection>): DrawerTarget =
-        entry.section?.takeIf { it in visible }?.let { DrawerTarget.Section(it) } ?: DrawerTarget.Push(entry.pushed)
+    fun target(entry: DrawerEntry, visible: List<FestivalSection>): DrawerTarget {
+        val section = entry.section
+        if (section != null && section in visible) return DrawerTarget.Section(section)
+        val parent = section?.let { FestivalTabPolicy.parent(it, visible) }
+        return if (parent != null) DrawerTarget.Child(parent, entry.pushed) else DrawerTarget.Push(entry.pushed)
+    }
 
     /**
      * Where a request for [section] goes (debug launch, a search result): the tab when visible,
-     * else its drawer row's pushed route (Statistics is never a tab since #601, so it pushes).
+     * else the same parent-child or pushed target as its drawer row (Statistics pushes, #601).
      *
      * @param section Requested section.
      * @param visible Tabs visible now.
@@ -84,7 +92,7 @@ object DrawerPolicy {
         if (section in visible) {
             DrawerTarget.Section(section)
         } else {
-            DrawerEntry.entries.firstOrNull { it.section == section }?.let { DrawerTarget.Push(it.pushed) }
+            DrawerEntry.entries.firstOrNull { it.section == section }?.let { target(it, visible) }
         }
 
     /**

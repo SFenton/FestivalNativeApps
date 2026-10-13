@@ -961,6 +961,10 @@
             "symbol": "DrawerPolicy"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/shell/FestivalApp.kt",
+            "symbol": "openTarget"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalScreen.kt",
             "symbol": "FestivalBarTitle"
           }
@@ -1104,6 +1108,8 @@
           "songs",
           "shop",
           "leaderboards",
+          "compete",
+          "rivals",
           "suggestions",
           "band-detail"
         ]
@@ -1131,7 +1137,8 @@
         557,
         576,
         597,
-        578
+        578,
+        610
       ]
     },
     {

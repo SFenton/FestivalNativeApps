@@ -3,6 +3,11 @@ package com.festivalscoretracker.android.journeys
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasContentDescriptionExactly
@@ -17,11 +22,14 @@ import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.testing.RankingsFixtures
+import com.festivalscoretracker.android.testing.CompeteFixtures
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.dp
 
 /**
  * Accessibility journeys over the shell: navigation drawer, profile sheet, global search,
@@ -60,6 +68,89 @@ class ShellAccessibilityJourneyTest {
         h.launch(DebugLaunch(profile = player, opensDrawer = true, stillBackground = true), transport)
         h.waitForTag("fst.songs.list")
         h.readingOrder(if (h.exists("fst.nav.drawer-sheet")) "drawer" else "navigation")
+        h.assertAccessible()
+    }
+
+    @Test
+    @DeviceCi
+    fun drawerCompetitivePagesReadTheirOwningTabAndBackKeepsPlace() = competitiveDrawerJourney(1f)
+
+    @Test
+    @DeviceCi
+    fun drawerCompetitivePagesAtDoubleTextKeepLabelsTargetsAndOrder() = competitiveDrawerJourney(2f)
+
+    @Test
+    @DeviceCi
+    fun compactWindowDrawerCompetitivePagesKeepTheirParentAndPlace() = competitiveDrawerJourney(1f, compactWindow = true)
+
+    @Test
+    @DeviceCi
+    fun compactWindowDrawerCompetitivePagesAtDoubleTextStayAccessible() = competitiveDrawerJourney(2f, compactWindow = true)
+
+    /**
+     * Compact drawer routes belong to Compete; regular-width routes remain independent roots.
+     * Both modes preserve the originating Songs filter and the selected navigation semantics.
+     *
+     * @param scale System text scale for this composition and its drawer.
+     * @param compactWindow Compose's 411 x 600 dp test viewport exercises compact navigation
+     *   on a shared unfolded AVD without changing its display or posture.
+     */
+    private fun competitiveDrawerJourney(scale: Float, compactWindow: Boolean = false) {
+        val fixture = CompeteFixtures.transport().apply { ProfileFixtures.register(this, CompeteFixtures.PLAYER) }
+        h.enableAccessibilityChecks()
+        h.launch(
+            DebugLaunch(profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true),
+            fixture,
+            fontScale = { scale },
+            size = if (compactWindow) DpSize(411.dp, 600.dp) else null,
+        )
+        h.waitForTag("fst.songs.row.s-beta")
+        h.publishTalkBackTree()
+        rule.onNodeWithTag("fst.songs.search").performTextInput("beta")
+        h.waitGone("fst.songs.row.s-alpha")
+        val compact = h.exists("fst.nav.tab.compete")
+        if (compactWindow) assertTrue("the activity must actually have a compact navigation window", compact)
+        listOf("rivals" to "fst.rivals.tab.song", "leaderboards" to "fst.leaderboards").forEach { (section, page) ->
+            if (h.exists("fst.nav.drawer")) {
+                h.tap("fst.nav.drawer")
+                h.waitForTag("fst.nav.drawer.$section")
+            }
+            val row = if (h.exists("fst.nav.permanent-drawer")) "fst.nav.tab.$section" else "fst.nav.drawer.$section"
+            rule.onNodeWithTag(row).performScrollTo()
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+                .assert(hasText(if (section == "rivals") "Rivals" else "Leaderboards"))
+            h.assertFullTouchTarget(row)
+            val drawerOrder = h.readingOrder("drawer-$section-${scale}x", fresh = true)
+            assertTrue("drawer destinations read in order: $drawerOrder", drawerOrder.indexOf("Rivals") in 0 until drawerOrder.indexOf("Leaderboards"))
+            h.tap(row)
+            h.waitForTag(page)
+            val tab = "fst.nav.tab.${if (compact) "compete" else section}"
+            rule.onNodeWithTag(tab).assertIsSelected()
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))
+                .assert(hasText(if (compact) "Compete" else if (section == "rivals") "Rivals" else "Leaderboards") or
+                    hasContentDescription(if (compact) "Compete" else if (section == "rivals") "Rivals" else "Leaderboards"))
+            h.assertFullTouchTarget(tab)
+            h.awaitAccessibilityTree(page)
+            val order = h.readingOrder("drawer-$section-page-${scale}x", fresh = true)
+            if (compact) {
+                rule.onNodeWithTag("fst.nav.back").assert(hasContentDescriptionExactly("Back"))
+                    .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+                h.assertFullTouchTarget("fst.nav.back")
+                assertTrue("Back before title: $order", order.indexOf("Back") in 0 until order.indexOf(if (section == "rivals") "Rivals" else "Leaderboards"))
+                if (section == "rivals") h.tap("fst.nav.back") else rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
+                h.waitForTag("fst.compete.grid")
+                h.waitGone(page)
+                rule.onNodeWithTag(tab).assertIsSelected()
+                assertFalse(h.exists("fst.nav.back"))
+                h.readingOrder("drawer-$section-back-${scale}x", fresh = true)
+            } else {
+                assertFalse(h.exists("fst.nav.back"))
+            }
+            h.tap("fst.nav.tab.songs")
+            h.waitForTag("fst.songs.row.s-beta")
+            rule.onNodeWithTag("fst.songs.search").assert(hasText("beta"))
+            assertFalse(h.exists("fst.songs.row.s-alpha"))
+        }
         h.assertAccessible()
     }
 

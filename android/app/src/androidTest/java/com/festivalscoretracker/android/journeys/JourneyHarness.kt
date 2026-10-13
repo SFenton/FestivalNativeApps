@@ -8,12 +8,18 @@ import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.ViewRootForTest
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.platform.WindowInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -24,6 +30,7 @@ import androidx.compose.ui.test.ComposeAccessibilityValidator
 import androidx.compose.ui.test.ComposeTimeoutException
 import androidx.compose.ui.test.DeviceConfigurationOverride
 import androidx.compose.ui.test.FontScale
+import androidx.compose.ui.test.ForcedSize
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasAnyAncestor
@@ -37,6 +44,8 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntSize
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -101,22 +110,44 @@ class JourneyHarness(private val rule: JourneyRule) {
      *   after a switch (sheets and dialogs are separate windows) render at it too. The
      *   activity's original scale comes back when the activity is destroyed at the end of the
      *   test, so a journey that ends at 200% does not leak it into the next test's activity.
+     * @param size Optional Compose test viewport for both layout and window-size policy;
+     *   never resizes or changes the shared AVD.
      */
     fun launch(
         debug: DebugLaunch,
         transport: FakeTransport,
         preferences: DataStore<Preferences> = MemoryPreferences(),
         fontScale: (() -> Float)? = null,
+        size: DpSize? = null,
     ) {
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = preferences)
         rule.setContent {
             key(generation) {
-                if (fontScale == null) {
-                    FestivalApp(container, debug)
+                val content: @Composable () -> Unit = {
+                    if (fontScale == null) {
+                        FestivalApp(container, debug)
+                    } else {
+                        val scale = fontScale()
+                        SideEffect { applyWindowFontScale(scale) }
+                        DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(scale)) { FestivalApp(container, debug) }
+                    }
+                }
+                if (size == null) {
+                    content()
                 } else {
-                    val scale = fontScale()
-                    SideEffect { applyWindowFontScale(scale) }
-                    DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(scale)) { FestivalApp(container, debug) }
+                    DeviceConfigurationOverride(DeviceConfigurationOverride.ForcedSize(size)) {
+                        val window = LocalWindowInfo.current
+                        val density = LocalDensity.current
+                        // This Compose version's ForcedSize does not override currentWindowSize.
+                        val viewport = remember(window, density, size) {
+                            object : WindowInfo by window {
+                                override val containerSize = with(density) {
+                                    IntSize(size.width.roundToPx(), size.height.roundToPx())
+                                }
+                            }
+                        }
+                        CompositionLocalProvider(LocalWindowInfo provides viewport, content = content)
+                    }
                 }
             }
         }

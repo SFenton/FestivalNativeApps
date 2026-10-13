@@ -118,6 +118,7 @@ import com.festivalscoretracker.android.core.search.SearchScope
 import com.festivalscoretracker.android.core.search.ShellShortcut
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.core.shell.DrawerPolicy
+import com.festivalscoretracker.android.core.shell.DrawerEntry
 import com.festivalscoretracker.android.core.shell.DrawerTarget
 import com.festivalscoretracker.android.core.shell.FloatingToolbarPlacement
 import com.festivalscoretracker.android.core.shell.ProfileChipAction
@@ -282,6 +283,24 @@ private fun NavHostController.selectSection(target: FestivalSection, current: Fe
     }
 }
 
+/**
+ * Open a shell destination through the same policy for drawer, search and debug launches.
+ *
+ * @param target Tab, child of an owning tab, or current-tab push.
+ * @param current Selected tab before navigation.
+ */
+private fun NavHostController.openTarget(target: DrawerTarget, current: FestivalSection) {
+    when (target) {
+        is DrawerTarget.Section -> selectSection(target.section, current)
+        is DrawerTarget.Push -> navigate(target.route) { launchSingleTop = true }
+        is DrawerTarget.Child -> {
+            selectSection(target.section, current)
+            popBackStack(target.section.root, inclusive = false)
+            navigate(target.route) { launchSingleTop = true }
+        }
+    }
+}
+
 /** Hinge bounds in window pixels. */
 private fun HingeInfo.pxRect(): PxRect = PxRect(bounds.left.toInt(), bounds.top.toInt(), bounds.right.toInt(), bounds.bottom.toInt())
 
@@ -344,11 +363,8 @@ private fun FestivalShell(
         }
     }
     LaunchedEffect(Unit) {
-        // A launch section that is not a tab at this width opens its pushed page (Statistics, #601).
-        when (val target = launch.section?.let { DrawerPolicy.sectionTarget(it, sections) }) {
-            is DrawerTarget.Section -> navController.selectSection(target.section, FestivalSection.Songs)
-            is DrawerTarget.Push -> navController.navigate(target.route)
-            null -> Unit
+        launch.section?.let { DrawerPolicy.sectionTarget(it, sections) }?.let {
+            navController.openTarget(it, FestivalSection.Songs)
         }
         launch.route?.let { navController.navigate(it) }
         launch.songQuery?.let { navController.navigate(SongDetailRoute(it, launch.songInstrument)) }
@@ -441,10 +457,7 @@ private fun FestivalShell(
     val profileChip: () -> Unit = {
         when (val action = ProfileChipPolicy.action(shellViewModel.profileKind(settings), sections)) {
             ProfileChipAction.ChooseProfile -> showProfile = true
-            is ProfileChipAction.Open -> when (val target = action.target) {
-                is DrawerTarget.Section -> navController.selectSection(target.section, selected)
-                is DrawerTarget.Push -> navController.navigate(target.route) { launchSingleTop = true }
-            }
+            is ProfileChipAction.Open -> navController.openTarget(action.target, selected)
         }
     }
     val actions = ShellActions(
@@ -468,10 +481,8 @@ private fun FestivalShell(
     val openDestination: (SearchDestination) -> Unit = { destination ->
         when (destination) {
             is SearchDestination.Push -> navController.navigate(destination.route)
-            is SearchDestination.Section -> when (val target = DrawerPolicy.sectionTarget(destination.section, sections)) {
-                is DrawerTarget.Section -> navController.selectSection(target.section, selected)
-                is DrawerTarget.Push -> navController.navigate(target.route) { launchSingleTop = true }
-                null -> Unit
+            is SearchDestination.Section -> DrawerPolicy.sectionTarget(destination.section, sections)?.let {
+                navController.openTarget(it, selected)
             }
         }
     }
@@ -484,14 +495,13 @@ private fun FestivalShell(
     val drawer = @Composable { tabTags: Boolean ->
         DrawerContent(
             visible = sections,
-            selected = selected,
+            selected = DrawerEntry.entries.firstOrNull { topDestination?.hasRoute(it.pushed::class) == true }?.section ?: selected,
             profile = profileKind,
             player = settings.selectedPlayer,
-            onSection = {
+            onTarget = {
                 scope.launch { drawerState.close() }
-                navController.selectSection(it, selected)
+                navController.openTarget(it, selected)
             },
-            onRoute = actions.navigate,
             onOpenProfile = {
                 scope.launch { drawerState.close() }
                 showProfile = true

@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -27,6 +28,8 @@ import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.testing.CompeteFixtures
+import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.ui.common.formatCountdown
 import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
@@ -180,6 +183,105 @@ class ShellUiTest {
         waitForTag("fst.statistics")
         rule.onNodeWithTag("fst.nav.tab.songs").performClick()
         waitForTag("fst.songs.list")
+    }
+
+    @Test
+    fun drawerCompetitivePagesBelongToCompeteAndKeepSongsPlace() {
+        val fixture = CompeteFixtures.transport().apply { ProfileFixtures.register(this, CompeteFixtures.PLAYER) }
+        launch(DebugLaunch(profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true), fixture)
+        waitForTag("fst.songs.row.s-beta")
+        rule.onNodeWithTag("fst.songs.search").performTextInput("beta")
+        rule.waitUntil(5_000) { settle(100); rule.onAllNodesWithTag("fst.songs.row.s-alpha").fetchSemanticsNodes().isEmpty() }
+        rule.onNodeWithTag("fst.songs.row.s-beta").performClick()
+        waitForTag("fst.song-detail.intensity")
+        rule.onNodeWithTag("fst.nav.tab.shop").performClick()
+        waitForTag("fst.shop.list")
+
+        rule.onNodeWithTag("fst.nav.drawer").performClick()
+        waitForTag("fst.nav.drawer.rivals")
+        rule.onNodeWithTag("fst.nav.drawer.rivals").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.rivals.tab.song")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.back").performClick()
+        waitForTag("fst.compete.grid")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.back").fetchSemanticsNodes().size)
+
+        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
+        waitForTag("fst.song-detail.intensity")
+        rule.onNodeWithTag("fst.nav.back").performClick()
+        waitForTag("fst.songs.row.s-beta")
+        rule.onNodeWithTag("fst.songs.search").assert(hasText("beta"))
+        assertEquals(0, rule.onAllNodesWithTag("fst.songs.row.s-alpha").fetchSemanticsNodes().size)
+
+        rule.onNodeWithTag("fst.nav.drawer").performClick()
+        waitForTag("fst.nav.drawer.leaderboards")
+        rule.onNodeWithTag("fst.nav.drawer.leaderboards").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.leaderboards")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+        rule.runOnIdle { rule.activity.onBackPressedDispatcher.onBackPressed() }
+        waitForTag("fst.compete.grid")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.back").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
+        waitForTag("fst.songs.row.s-beta")
+        rule.onNodeWithTag("fst.songs.search").assert(hasText("beta"))
+    }
+
+    @Test
+    fun drawerShortcutReplacesCompeteChildrenAndKeepsTheRootScroll() {
+        val fixture = CompeteFixtures.transport().apply { ProfileFixtures.register(this, CompeteFixtures.PLAYER) }
+        launch(DebugLaunch(section = com.festivalscoretracker.android.core.nav.FestivalSection.Compete, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true), fixture)
+        waitForTag("fst.compete.grid")
+        val opener = hasTestTag("fst.compete.view-full-leaderboards") and hasAnyAncestor(hasTestTag("fst.compete.leaderboard-card.Solo_Guitar"))
+        rule.onNodeWithTag("fst.compete.grid").performScrollToNode(opener)
+        settle()
+        val before = rule.onNode(opener).fetchSemanticsNode().boundsInRoot
+        rule.onNode(opener).performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.full-rankings.list")
+        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
+        waitForTag("fst.songs.row.s-alpha")
+        rule.onNodeWithTag("fst.nav.drawer").performClick()
+        settle()
+        rule.onNodeWithTag("fst.nav.drawer.rivals").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.rivals.tab.song")
+        rule.onNodeWithTag("fst.nav.back").performClick()
+        waitForTag("fst.compete.grid")
+        settle()
+        assertEquals(before, rule.onNode(opener).fetchSemanticsNode().boundsInRoot)
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.back").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.full-rankings.list").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    @Config(qualifiers = "w900dp-h1000dp-xhdpi")
+    fun regularDrawerCompetitivePagesStayIndependentTabs() {
+        val fixture = CompeteFixtures.transport().apply { ProfileFixtures.register(this, CompeteFixtures.PLAYER) }
+        launch(DebugLaunch(profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true), fixture)
+        waitForTag("fst.songs.row.s-beta")
+        rule.onNodeWithTag("fst.songs.row.s-beta").performClick()
+        waitForTag("fst.song-detail.intensity")
+        listOf("rivals" to "fst.rivals.tab.song", "leaderboards" to "fst.leaderboards").forEach { (section, page) ->
+            rule.onNodeWithTag("fst.nav.drawer").performClick()
+            settle()
+            rule.onNodeWithTag("fst.nav.drawer.$section").performSemanticsAction(SemanticsActions.OnClick)
+            waitForTag(page)
+            rule.onNodeWithTag("fst.nav.tab.$section").assertIsSelected()
+            assertEquals(0, rule.onAllNodesWithTag("fst.nav.back").fetchSemanticsNodes().size)
+        }
+        rule.onNodeWithTag("fst.nav.tab.songs").performClick()
+        waitForTag("fst.song-detail.intensity")
+    }
+
+    @Test
+    fun compactSectionLaunchUsesCompeteAsParent() {
+        val fixture = CompeteFixtures.transport().apply { ProfileFixtures.register(this, CompeteFixtures.PLAYER) }
+        launch(DebugLaunch(section = com.festivalscoretracker.android.core.nav.FestivalSection.Rivals, profile = SelectedPlayer(CompeteFixtures.PLAYER, "Synthetic Player"), stillBackground = true), fixture)
+        waitForTag("fst.rivals.tab.song")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
+        rule.onNodeWithTag("fst.nav.back").performClick()
+        waitForTag("fst.compete.grid")
+        rule.onNodeWithTag("fst.nav.tab.compete").assertIsSelected()
     }
 
     @Test

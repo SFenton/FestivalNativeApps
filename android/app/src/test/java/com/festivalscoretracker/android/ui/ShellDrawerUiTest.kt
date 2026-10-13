@@ -30,13 +30,13 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
-import com.festivalscoretracker.android.core.nav.AppRoute
 import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.nav.FestivalTabPolicy
 import com.festivalscoretracker.android.core.nav.LeaderboardsRoute
 import com.festivalscoretracker.android.core.nav.ProfileKind
 import com.festivalscoretracker.android.core.nav.ShopRoute
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
+import com.festivalscoretracker.android.core.shell.DrawerTarget
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.ui.shell.DrawerContent
 import com.festivalscoretracker.android.ui.shell.FestivalRail
@@ -56,8 +56,7 @@ class ShellDrawerUiTest {
 
     @Test
     fun noProfileShowsSongsLeaderboardsShopThenSelectProfileAndSettings() {
-        val sections = mutableListOf<FestivalSection>()
-        val routes = mutableListOf<AppRoute>()
+        val targets = mutableListOf<DrawerTarget>()
         var profileOpened = false
         rule.setContent {
             DrawerContent(
@@ -65,8 +64,7 @@ class ShellDrawerUiTest {
                 selected = FestivalSection.Songs,
                 profile = ProfileKind.None,
                 player = null,
-                onSection = { sections += it },
-                onRoute = { routes += it },
+                onTarget = { targets += it },
                 onOpenProfile = { profileOpened = true },
                 onDeselect = {},
             )
@@ -79,14 +77,13 @@ class ShellDrawerUiTest {
         rule.onNodeWithTag("fst.nav.drawer.shop").performClick()
         rule.onNodeWithTag("fst.nav.drawer.select-profile").performClick()
         rule.onNodeWithTag("fst.nav.drawer.settings").performClick()
-        assertEquals(listOf(FestivalSection.Leaderboards, FestivalSection.Settings), sections)
-        assertEquals(listOf<AppRoute>(ShopRoute), routes)
+        assertEquals(listOf(DrawerTarget.Section(FestivalSection.Leaderboards), DrawerTarget.Push(ShopRoute), DrawerTarget.Section(FestivalSection.Settings)), targets)
         assertTrue(profileOpened)
     }
 
     @Test
-    fun playerOnPhonePushesLeaderboardsAndDeselects() {
-        val routes = mutableListOf<AppRoute>()
+    fun playerOnPhoneOpensLeaderboardsUnderCompeteAndDeselects() {
+        val targets = mutableListOf<DrawerTarget>()
         var deselected = false
         rule.setContent {
             DrawerContent(
@@ -94,8 +91,7 @@ class ShellDrawerUiTest {
                 selected = FestivalSection.Compete,
                 profile = ProfileKind.Player,
                 player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"),
-                onSection = {},
-                onRoute = { routes += it },
+                onTarget = { targets += it },
                 onOpenProfile = {},
                 onDeselect = { deselected = true },
                 showShop = false,
@@ -105,31 +101,28 @@ class ShellDrawerUiTest {
         assertEquals(0, rule.onAllNodesWithTag("fst.nav.drawer.shop").fetchSemanticsNodes().size)
         rule.onNodeWithTag("fst.nav.drawer.leaderboards").performClick()
         rule.onNodeWithTag("fst.nav.drawer.deselect").performClick()
-        assertEquals(listOf<AppRoute>(LeaderboardsRoute), routes)
+        assertEquals(listOf(DrawerTarget.Child(FestivalSection.Compete, LeaderboardsRoute)), targets)
         assertTrue(deselected)
     }
 
     /** #601: with a profile, Item Shop is a tab, so its row selects the tab and shows it selected. */
     @Test
     fun playerShopRowSelectsTheItemShopTab() {
-        val sections = mutableListOf<FestivalSection>()
-        val routes = mutableListOf<AppRoute>()
+        val targets = mutableListOf<DrawerTarget>()
         rule.setContent {
             DrawerContent(
                 visible = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = false),
                 selected = FestivalSection.Shop,
                 profile = ProfileKind.Player,
                 player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"),
-                onSection = { sections += it },
-                onRoute = { routes += it },
+                onTarget = { targets += it },
                 onOpenProfile = {},
                 onDeselect = {},
             )
         }
         rule.onNodeWithTag("fst.nav.drawer.shop").assertIsSelected().performClick()
         rule.onNodeWithTag("fst.nav.drawer.statistics").assertIsNotSelected().performClick()
-        assertEquals(listOf(FestivalSection.Shop), sections)
-        assertEquals(listOf<AppRoute>(StatisticsRoute), routes)
+        assertEquals(listOf(DrawerTarget.Section(FestivalSection.Shop), DrawerTarget.Push(StatisticsRoute)), targets)
     }
 
     /**
@@ -146,8 +139,7 @@ class ShellDrawerUiTest {
                 selected = FestivalSection.Songs,
                 profile = ProfileKind.Player,
                 player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"),
-                onSection = { opened++ },
-                onRoute = { opened++ },
+                onTarget = { opened++ },
                 onOpenProfile = {},
                 onDeselect = {},
             )
@@ -197,8 +189,7 @@ class ShellDrawerUiTest {
                         selected = FestivalSection.Songs,
                         profile = ProfileKind.Player,
                         player = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"),
-                        onSection = {},
-                        onRoute = {},
+                        onTarget = {},
                         onOpenProfile = {},
                         onDeselect = {},
                     )

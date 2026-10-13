@@ -86,11 +86,23 @@ object FestivalTabPolicy {
         if (current in visible) return current
         val equivalent = when (current) {
             FestivalSection.Compete -> FestivalSection.Leaderboards.takeIf { it in visible }
-            FestivalSection.Leaderboards, FestivalSection.Rivals -> FestivalSection.Compete.takeIf { it in visible }
-            else -> null
+            else -> parent(current, visible)
         }
         return equivalent ?: FestivalSection.Songs
     }
+
+    /**
+     * Owning tab for a section omitted from the compact destination set.
+     *
+     * @param section Requested section.
+     * @param visible Tabs visible now.
+     * @return Compete for its omitted Leaderboards/Rivals children, otherwise null.
+     */
+    fun parent(section: FestivalSection, visible: List<FestivalSection>): FestivalSection? =
+        FestivalSection.Compete.takeIf {
+            section !in visible && it in visible &&
+                section in listOf(FestivalSection.Leaderboards, FestivalSection.Rivals)
+        }
 
     /**
      * Whether leaving a section discards its nested history (web: Statistics only).

@@ -4,6 +4,7 @@ import com.festivalscoretracker.android.core.nav.FestivalSection
 import com.festivalscoretracker.android.core.nav.FestivalTabPolicy
 import com.festivalscoretracker.android.core.nav.ProfileKind
 import com.festivalscoretracker.android.core.nav.RivalsRoute
+import com.festivalscoretracker.android.core.nav.LeaderboardsRoute
 import com.festivalscoretracker.android.core.nav.ShopRoute
 import com.festivalscoretracker.android.core.nav.StatisticsRoute
 import com.festivalscoretracker.android.core.shell.DrawerEntry
@@ -30,11 +31,13 @@ class DrawerPolicyTest {
     }
 
     @Test
-    fun visibleTabsSwitchOthersPush() {
+    fun visibleTabsSwitchCompetitivePagesUseTheirParentAndOthersPush() {
         val phone = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = false)
         val rail = FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = true)
-        assertEquals(DrawerTarget.Push(RivalsRoute), DrawerPolicy.target(DrawerEntry.Rivals, phone))
+        assertEquals(DrawerTarget.Child(FestivalSection.Compete, RivalsRoute), DrawerPolicy.target(DrawerEntry.Rivals, phone))
+        assertEquals(DrawerTarget.Child(FestivalSection.Compete, LeaderboardsRoute), DrawerPolicy.target(DrawerEntry.Leaderboards, phone))
         assertEquals(DrawerTarget.Section(FestivalSection.Rivals), DrawerPolicy.target(DrawerEntry.Rivals, rail))
+        assertEquals(DrawerTarget.Section(FestivalSection.Leaderboards), DrawerPolicy.target(DrawerEntry.Leaderboards, rail))
         assertEquals(DrawerTarget.Push(StatisticsRoute), DrawerPolicy.target(DrawerEntry.Statistics, emptyList()))
         // #601: Item Shop is a tab with a profile, so its row switches to it; otherwise it pushes.
         assertEquals(DrawerTarget.Section(FestivalSection.Shop), DrawerPolicy.target(DrawerEntry.Shop, phone))
@@ -55,9 +58,36 @@ class DrawerPolicyTest {
         assertEquals(DrawerTarget.Push(StatisticsRoute), DrawerPolicy.sectionTarget(FestivalSection.Statistics, phone))
         assertEquals(DrawerTarget.Section(FestivalSection.Shop), DrawerPolicy.sectionTarget(FestivalSection.Shop, phone))
         assertEquals(DrawerTarget.Push(ShopRoute), DrawerPolicy.sectionTarget(FestivalSection.Shop, hidden))
-        assertEquals(DrawerTarget.Push(RivalsRoute), DrawerPolicy.sectionTarget(FestivalSection.Rivals, phone))
+        assertEquals(DrawerTarget.Child(FestivalSection.Compete, RivalsRoute), DrawerPolicy.sectionTarget(FestivalSection.Rivals, phone))
+        assertEquals(DrawerTarget.Child(FestivalSection.Compete, LeaderboardsRoute), DrawerPolicy.sectionTarget(FestivalSection.Leaderboards, phone))
         assertEquals(DrawerTarget.Section(FestivalSection.Settings), DrawerPolicy.sectionTarget(FestivalSection.Settings, phone))
         assertEquals(null, DrawerPolicy.sectionTarget(FestivalSection.Compete, FestivalTabPolicy.sections(ProfileKind.Player, regularWidth = true)))
+    }
+
+    @Test
+    fun competitiveChildrenRequireAVisibleParentAndMatchSectionRequests() {
+        ProfileKind.entries.forEach { profile ->
+            listOf(false, true).forEach { regular ->
+                listOf(false, true).forEach { shop ->
+                    val visible = FestivalTabPolicy.sections(profile, regular, shop)
+                    DrawerEntry.entries.forEach { entry ->
+                        assertEquals(DrawerPolicy.target(entry, visible), DrawerPolicy.sectionTarget(requireNotNull(entry.section), visible))
+                    }
+                    val rivals = DrawerPolicy.target(DrawerEntry.Rivals, visible)
+                    if (profile == ProfileKind.Player && !regular) {
+                        assertEquals(DrawerTarget.Child(FestivalSection.Compete, RivalsRoute), rivals)
+                    } else if (profile == ProfileKind.Player) {
+                        assertEquals(DrawerTarget.Section(FestivalSection.Rivals), rivals)
+                    } else {
+                        assertEquals(DrawerTarget.Push(RivalsRoute), rivals)
+                    }
+                }
+            }
+        }
+        assertEquals(DrawerTarget.Push(LeaderboardsRoute), DrawerPolicy.target(DrawerEntry.Leaderboards, emptyList()))
+        assertEquals(null, FestivalTabPolicy.parent(FestivalSection.Statistics, listOf(FestivalSection.Compete)))
+        assertEquals(null, FestivalTabPolicy.parent(FestivalSection.Songs, listOf(FestivalSection.Compete)))
+        assertEquals(null, FestivalTabPolicy.parent(FestivalSection.Rivals, listOf(FestivalSection.Rivals, FestivalSection.Compete)))
     }
 }
 
