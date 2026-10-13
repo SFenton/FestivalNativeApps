@@ -37,8 +37,12 @@
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
     </Grid.ColumnDefinitions>
-    <ScrollViewer x:Name="Scroller" AutomationProperties.AutomationId="fst.leaderboards">
-        <StackPanel x:Name="PageContent" Padding="24,12,24,32" Spacing="12" MaxWidth="1800">
+    <ScrollViewer x:Name="Scroller" VerticalContentAlignment="Stretch" AutomationProperties.AutomationId="fst.leaderboards">
+        <Grid x:Name="PageContent" Padding="24,12,24,32" RowSpacing="12" MaxWidth="1800">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
             <!-- Title and the page action (Rank By). -->
             <Grid ColumnSpacing="12" RowSpacing="8">
                 <Grid.ColumnDefinitions>
@@ -50,7 +54,8 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <TextBlock Text="Leaderboards" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1"
-                           VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                           VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                           AutomationProperties.AutomationId="fst.leaderboards.title" />
                 <StackPanel x:Name="HeaderActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <DropDownButton x:Name="RankByButton" VerticalAlignment="Center" MinHeight="{StaticResource FSTMinTargetSize}"
                                 Visibility="{x:Bind ViewModel.ShowRankBy, Mode=OneWay}"
@@ -68,12 +73,20 @@
                 </StackPanel>
             </Grid>
 
-            <!-- One ring until the first cards settle, then the cards stagger in (web page-ready gate, operator batch 6.41). -->
-            <ProgressRing x:Name="ReadyRing" Width="48" Height="48" Margin="0,96,0,0" HorizontalAlignment="Center"
-                          IsActive="{x:Bind pages:LeaderboardsPage.Not(ViewModel.IsReady), Mode=OneWay}"
-                          controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Spinner"
-                          Visibility="{x:Bind pages:LeaderboardsPage.Collapsed(ViewModel.IsReady), Mode=OneWay}"
-                          AutomationProperties.Name="Loading leaderboards" />
+            <!-- The scroll presenter fills at least the viewport; this star row is the region below the retained header. -->
+            <controls:AccessibleGroup Grid.Row="1" AutomationProperties.AccessibilityView="Raw"
+                                      AutomationProperties.AutomationId="fst.leaderboards.loading-region"
+                                      Visibility="{x:Bind pages:LeaderboardsPage.Collapsed(ViewModel.IsReady), Mode=OneWay}" IsHitTestVisible="False">
+                <!-- Transparent fill: the Raw region's UI Automation bounds are its layout box, not the ring's. -->
+                <Grid Background="Transparent">
+                    <ProgressRing x:Name="ReadyRing" Width="48" Height="48" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  IsActive="{x:Bind pages:LeaderboardsPage.Not(ViewModel.IsReady), Mode=OneWay}"
+                                  controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Spinner"
+                                  Visibility="{x:Bind pages:LeaderboardsPage.Collapsed(ViewModel.IsReady), Mode=OneWay}"
+                                  AutomationProperties.Name="Loading leaderboards" AutomationProperties.AutomationId="fst.leaderboards.loading" />
+                </Grid>
+            </controls:AccessibleGroup>
+            <StackPanel Grid.Row="1" Spacing="12">
             <ItemsRepeater x:Name="InstrumentRepeater" TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.InstrumentCards, Mode=OneWay}"
                            Visibility="{x:Bind ViewModel.IsReady, Mode=OneWay}"
                            controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
@@ -172,7 +185,8 @@
                     </DataTemplate>
                 </ItemsRepeater.ItemTemplate>
             </ItemsRepeater>
-        </StackPanel>
+            </StackPanel>
+        </Grid>
     </ScrollViewer>
     <controls:QuickLinksPane x:Name="Pane" Grid.Column="1" Width="240" Margin="0,64,24,24" Visibility="Collapsed" />
     </Grid>

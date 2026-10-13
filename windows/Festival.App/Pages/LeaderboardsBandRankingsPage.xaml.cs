@@ -33,6 +33,7 @@ public sealed partial class LeaderboardsBandRankingsPage : Page, IRouteHost
     public LeaderboardsBandRankingsPage()
     {
         InitializeComponent();
+        LoadSwapVisual.PlaceSpinner(LoadingRing, LoadingRegion, footer: Footer);
         BoardFooter.Inset(Footer, RowsRepeater);
         BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Scroller, Footer, FooterPlate);
         reloadFocus = FailedReloadFocus.Attach(Footer, Footer, RowsStatus, () => ViewModel?.LoadSwap.Phase == LoadSwapPhase.ContentIn,

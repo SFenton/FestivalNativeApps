@@ -14,6 +14,7 @@ public sealed partial class BandsPlayerBandsPage : Page
     public BandsPlayerBandsPage()
     {
         InitializeComponent();
+        LoadSwapVisual.PlaceSpinner(LoadingRing, LoadingRegion, footer: Footer);
         Controls.BoardFooter.Inset(Footer, Cards);
         BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Scroller, Footer, FooterPlate);
     }
