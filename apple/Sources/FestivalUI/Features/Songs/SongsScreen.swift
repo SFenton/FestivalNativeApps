@@ -1471,7 +1471,7 @@ struct SongsScreen: View, Equatable {
             accessibilityID: group.accessibilityID, chrome: scrollChrome
         )
         // Inside the jump anchor, so the anchor stays the row's outermost identity.
-        .modifier(SectionBarRowFade(chrome: scrollChrome, enabled: true))
+        .modifier(SectionBarRowFade(chrome: scrollChrome, enabled: true, hidesWhenCut: false))
         // The row traits go outside the anchor: under `QuickLinkSectionModifier` the
         // List no longer read them, so Duration, Year, Shop and score titles got the
         // default opaque row backing, separator and insets (issue #91).
@@ -2258,10 +2258,14 @@ struct SongsInlineSectionTitle: View {
 /// the List (issue #8). At the top it observes only the scroll-away state
 /// (``SongsScrollChrome/rowEdge(enabled:)``), so the expanding large title re-renders no
 /// row; once scrolled, only rows near the bar read the moving depth limit (issue #553).
-private struct SectionBarRowFade: ViewModifier {
+struct SectionBarRowFade: ViewModifier {
     let chrome: SongsScrollChrome
     /// False for a row with no section bar above it (no sections, or before iOS 26).
     let enabled: Bool
+    /// Leave the accessibility tree while wholly under the bar (scroll-edge R7, #459):
+    /// true for songs and banners, false for an in-list section title, which keeps its
+    /// heading under the bar (`SongsSectionBarAccessibilityTests`).
+    var hidesWhenCut = true
 
     func body(content: Content) -> some View {
         if enabled {
@@ -2270,7 +2274,8 @@ private struct SectionBarRowFade: ViewModifier {
             content.pinnedHeaderEdgeFadeRowMask(
                 edge: edge.edge, active: edge.active,
                 depthLimit: PinnedHeaderEdgeFade.RowMaskDepth { chrome.rowFadeLimit },
-                rowLimit: chrome.rowMaskLimit
+                rowLimit: chrome.rowMaskLimit,
+                hidesWhenCut: hidesWhenCut
             )
         } else {
             content

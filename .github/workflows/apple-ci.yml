@@ -176,6 +176,8 @@ jobs:
             PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButtonDuoFolded
             SongSeasonAccessibilityJourneyTests/testTappedScoreSeasonIsReadableAtLargestText
             RivalsAccessibilityJourneyTests/testRivalRowsAreReadableAtAX5
+            NotificationsPinnedTitleJourneyTests/testPinnedTitleAndRowsAtLargestText
+            NotificationsPinnedTitleJourneyTests/testPinnedTitleAndRowsAtLargestTextDuoFolded
             GroupedCardAccessibilityJourneyTests/testLeaderboardsGroupedCardIsReadableAtAX5
             ModalHeaderAccessibilityJourneyTests/testNotificationsHeaderAtDefaultSize
             ModalHeaderAccessibilityJourneyTests/testNotificationsHeaderAtAX5
@@ -313,6 +315,7 @@ jobs:
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
             PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButton
             SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestText
+            NotificationsPinnedTitleJourneyTests/testPinnedTitleAndRowsAtLargestText
             QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRow
             QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRowAtAX5
             GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5
