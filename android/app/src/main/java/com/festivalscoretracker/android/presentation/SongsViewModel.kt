@@ -66,6 +66,9 @@ import kotlinx.coroutines.flow.stateIn
  * @property availableSeasons Seasons in the selected player's scores (Filter Season buckets).
  * @property availableDecades Catalogue release decades (General Year toggles).
  * @property durationBuckets Catalogue duration buckets (General Duration toggles).
+ * @property publicationRefreshing A newer publication was observed and the catalogue is re-reading
+ *   for it: the list shows the in-place refresh spinner ("Loading new scores", load-transition R9)
+ *   instead of rows the player's newer scores could not be paired with (issue #616).
  */
 data class SongsUiState(
     val catalog: LoadState<CatalogPayload> = LoadState.Loading,
@@ -89,6 +92,7 @@ data class SongsUiState(
     val availableSeasons: List<Int> = emptyList(),
     val availableDecades: List<Int> = emptyList(),
     val durationBuckets: List<Int> = emptyList(),
+    val publicationRefreshing: Boolean = false,
 ) {
     /** Whether a saved filter applies (gold Filter icon; web `isFilterActive`). */
     val filterActive: Boolean get() = prefs.filterActive(hasPlayer, hideShop)
@@ -141,6 +145,8 @@ internal data class ShopMatch(val offers: Map<String, com.festivalscoretracker.a
  * Songs list logic: catalogue load with service-status retry, 250 ms debounced
  * search, persisted sort/filters, same-publication Shop membership and
  * selected-player chips/metadata. List derivation runs off the main thread.
+ * A newer observed publication re-reads the catalogue in place ([PublicationCatchUp],
+ * issue #616), so rows never wait on a pull to refresh to pair with the player's new scores.
  *
  * @param loadCatalog Catalogue read (`FestivalApi.catalog`).
  * @param settings Effective settings stream.
@@ -165,12 +171,17 @@ class SongsViewModel(
     computeDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
     private val loader = RetryingLoader(viewModelScope, "songs", backoff, loadCatalog)
+    private val catchUp = PublicationCatchUp(viewModelScope, loader, publication) { it.publicationId }
     private val searchText = MutableStateFlow("")
 
     /** Raw (undebounced) search field text. */
     val searchInput: StateFlow<String> = searchText.asStateFlow()
 
-    private val related = combine(shop, profile, publication) { shopState, player, current -> Triple(shopState, player, current) }
+    private val related = combine(shop, profile, publication, catchUp.settled) { shopState, player, current, settled ->
+        Related(shopState, player, current, settled)
+    }
+
+    private data class Related(val shop: LoadState<ShopPayload>, val player: SelectedProfileState, val current: Int?, val settled: Int?)
 
     /** Derived screen state. */
     val uiState: StateFlow<SongsUiState> = combine(
@@ -179,8 +190,8 @@ class SongsViewModel(
         settings.filterNotNull(),
         prefs,
         related,
-    ) { catalog, text, app, saved, (shopState, player, current) ->
-        build(catalog, text, app, saved, shopState, player, current)
+    ) { catalog, text, app, saved, (shopState, player, current, settled) ->
+        build(catalog, text, app, saved, shopState, player, current, settled)
     }.flowOn(computeDispatcher).stateIn(viewModelScope, SharingStarted.Eagerly, SongsUiState())
 
     init {
@@ -195,6 +206,7 @@ class SongsViewModel(
         shopState: LoadState<ShopPayload>,
         player: SelectedProfileState,
         current: Int?,
+        settled: Int?,
     ): SongsUiState {
         // Selected Instrument Filters are player-only (web hides them without a profile).
         val filter = if (app.selectedPlayer == null) SongFilter() else saved.filter
@@ -210,6 +222,9 @@ class SongsViewModel(
         val playerFilter = saved.playerFilter ?: return base.copy(
             invalidSavedFilter = true, totalSongs = payload.catalog.songs.size, availableDecades = decades, durationBuckets = durations,
         )
+        if (PublicationCatchUp.pending(payload.publicationId, current, settled)) {
+            return base.copy(publicationRefreshing = true, totalSongs = payload.catalog.songs.size, availableDecades = decades, durationBuckets = durations)
+        }
         val observed = current ?: payload.publicationId
         val match = if (app.hideShop) ShopMatch(null, false) else ShopMatch.of(shopState, payload.publicationId, observed)
         val invalid = if (app.filterInvalidScores) {

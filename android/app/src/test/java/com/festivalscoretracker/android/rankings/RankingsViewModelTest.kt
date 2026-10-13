@@ -33,6 +33,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -246,6 +247,29 @@ class RankingsViewModelTest {
         val all = listOf(viewModel.card(Instrument.Lead).value) + BandType.entries.map { viewModel.bandCard(it).value }
         assertTrue(all.all { it is LoadState.Loaded })
         assertEquals(5, fake.calls.size)
+    }
+
+    @Test
+    fun newerPublicationReReadsEveryCardInPlaceWithoutThePullIndicator() = runTest(main.dispatcher) {
+        // Issue #616 (load-transition R9): cards stay visible while they re-read.
+        settings.value = AppSettings(selectedPlayer = SelectedPlayer(RankingsFixtures.accountId(55), "Outside"), visibleInstruments = setOf(Instrument.Lead))
+        val publications = MutableStateFlow<Int?>(7)
+        val viewModel = LeaderboardsViewModel(fake.reads, settings, rankBy, { rankBy.value = it }, ServiceRetryBackoff(), publications)
+        advanceUntilIdle()
+        fake.calls.clear()
+        publications.value = 7
+        advanceUntilIdle()
+        assertTrue(fake.calls.isEmpty())
+        publications.value = 8
+        runCurrent()
+        assertFalse(viewModel.refreshing.value)
+        assertEquals(true, (viewModel.card(Instrument.Lead).value as LoadState.Loaded).refreshing)
+        advanceUntilIdle()
+        assertEquals(1, fake.count("rankings:Solo_Guitar:"))
+        assertEquals(3, fake.count("bands:"))
+        assertEquals(1, fake.count("own:Solo_Guitar:"))
+        assertTrue(viewModel.card(Instrument.Lead).value is LoadState.Loaded)
+        assertFalse((viewModel.card(Instrument.Lead).value as LoadState.Loaded).refreshing)
     }
 
     @Test

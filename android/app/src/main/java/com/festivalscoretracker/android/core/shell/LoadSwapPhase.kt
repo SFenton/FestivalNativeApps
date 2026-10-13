@@ -36,6 +36,25 @@ object LoadSwapPolicy {
     /** Spinner fade-out (web `SPINNER_FADE_MS`). */
     const val SPINNER_FADE_MS = LoadGatePolicy.SPINNER_FADE_MS
 
+    /** Fade-in of a held spinner (web `QUICK_FADE_MS`; Apple `ReloadTransition.Timing.spinnerInDuration`). */
+    const val SPINNER_IN_MS = 150
+
+    /**
+     * Shortest time a held spinner stays, counted from its appearance, so it never blinks (web
+     * `MIN_SPINNER_MS`, measured from the spinner's start like `PathsModal`'s `elapsed`; Apple
+     * `ReloadTransition.Timing.minimumSpinnerDuration`).
+     */
+    const val MIN_SPINNER_MS = 400
+
+    /**
+     * Spinner fade-in for a held spinner (load-transition R3): none under Reduce Motion, where
+     * the spinner shows at once and still keeps [MIN_SPINNER_MS] (R6).
+     *
+     * @param reduceMotion Remove animations / Reduce Motion.
+     * @return Fade-in in milliseconds (0 = show at once).
+     */
+    fun spinnerInMs(reduceMotion: Boolean): Int = if (reduceMotion) 0 else SPINNER_IN_MS
+
     /**
      * Phase for the first composition: data that is already available shows at once without a
      * spinner, as the web skips the transition for a page returned to with cached data.
@@ -52,17 +71,19 @@ object LoadSwapPolicy {
      * @param ready Whether the latest data is ready.
      * @param swapped Whether ready data belongs to another selection than the shown content.
      * @param reduceMotion Remove animations / Reduce Motion: no fades, content swaps at once.
+     * @param holdsSpinner Publication refresh (load-transition R3, R9): content never leaves
+     *   without the spinner, which fades in and holds before it may go (see [afterContentOut]).
      * @return New phase; [LoadSwapPhase.ContentIn] with [swapped] under Reduce Motion means
      *   "commit the new data in place".
      */
-    fun onInputs(current: LoadSwapPhase, ready: Boolean, swapped: Boolean, reduceMotion: Boolean): LoadSwapPhase = when (current) {
+    fun onInputs(current: LoadSwapPhase, ready: Boolean, swapped: Boolean, reduceMotion: Boolean, holdsSpinner: Boolean = false): LoadSwapPhase = when (current) {
         LoadSwapPhase.ContentIn -> when {
             ready && !swapped -> LoadSwapPhase.ContentIn
-            reduceMotion -> if (ready) LoadSwapPhase.ContentIn else LoadSwapPhase.Loading
+            reduceMotion -> if (ready && !holdsSpinner) LoadSwapPhase.ContentIn else LoadSwapPhase.Loading
             else -> LoadSwapPhase.ContentOut
         }
         // The fade-out always finishes first ([afterContentOut]).
-        LoadSwapPhase.ContentOut -> if (reduceMotion) afterContentOut(ready, reduceMotion = true) else LoadSwapPhase.ContentOut
+        LoadSwapPhase.ContentOut -> if (reduceMotion) afterContentOut(ready, reduceMotion = true, holdsSpinner = holdsSpinner) else LoadSwapPhase.ContentOut
         LoadSwapPhase.Loading -> when {
             !ready -> LoadSwapPhase.Loading
             reduceMotion -> LoadSwapPhase.ContentIn
@@ -80,13 +101,19 @@ object LoadSwapPolicy {
      * Phase after stale content finished fading out: the spinner shows (web goes through
      * `Loading` even when the data is cached, so the spinner always fades out before content).
      *
+     * A held spinner (the publication refresh, load-transition R3) always goes to
+     * [LoadSwapPhase.Loading], even for data that landed during the fade-out: there it fades in
+     * ([SPINNER_IN_MS]) and stays at least [MIN_SPINNER_MS] before [onInputs] lets it fade out.
+     *
      * @param ready Whether the latest data is ready.
      * @param reduceMotion Remove animations / Reduce Motion.
+     * @param holdsSpinner Whether the spinner fades in and holds (publication refresh).
      * @return [LoadSwapPhase.SpinnerOut] when ready, else [LoadSwapPhase.Loading] (or
-     *   [LoadSwapPhase.ContentIn] for ready data under Reduce Motion).
+     *   [LoadSwapPhase.ContentIn] for ready data under Reduce Motion); always
+     *   [LoadSwapPhase.Loading] with [holdsSpinner].
      */
-    fun afterContentOut(ready: Boolean, reduceMotion: Boolean): LoadSwapPhase = when {
-        !ready -> LoadSwapPhase.Loading
+    fun afterContentOut(ready: Boolean, reduceMotion: Boolean, holdsSpinner: Boolean = false): LoadSwapPhase = when {
+        holdsSpinner || !ready -> LoadSwapPhase.Loading
         reduceMotion -> LoadSwapPhase.ContentIn
         else -> LoadSwapPhase.SpinnerOut
     }

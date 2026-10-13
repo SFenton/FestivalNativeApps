@@ -113,6 +113,7 @@ class JourneyHarness(private val rule: JourneyRule) {
         wrap: @Composable (@Composable () -> Unit) -> Unit = { it() },
     ) {
         val container = AppContainer(rule.activity, OkHttpClient(), debug, transport = transport, settingsStore = preferences)
+        launched = container
         rule.setContent {
             key(generation) {
                 if (fontScale == null) {
@@ -128,6 +129,13 @@ class JourneyHarness(private val rule: JourneyRule) {
 
     /** Bumped by [recreateApp] to dispose and re-create the app's composition. */
     private var generation by mutableIntStateOf(0)
+
+    private var launched: AppContainer? = null
+
+    /**
+     * The container [launch] built, e.g. to re-read `/api/publication` as the live socket does.
+     */
+    val container: AppContainer get() = checkNotNull(launched) { "launch() first" }
 
     /**
      * Re-create the app as an activity recreation does (a font-size change: font scale is not in
