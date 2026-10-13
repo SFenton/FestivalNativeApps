@@ -48,3 +48,4 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [band-member-lines](band-member-lines.md) | Band card members: one line each, names leading on one shared edge, value and icons trailing, card-wide stack when any member can't fit |
 | [shop-offer-status](shop-offer-status.md) | Item Shop New / Leaving Tomorrow on Songs rows, Shop rows and cards: gold outline only for New, a visible indicator only for Leaving, both spoken |
 | [search-scopes](search-scopes.md) | Search scopes: global search's kinds and the profile search's All · Players · Bands on one engine, native scope controls, what a result opens |
+| [invalid-scores](invalid-scores.md) | Filter Invalid Scores: effective (raw, fallback or dropped) player scores, filtered rank and population, and the invalid-score indicator with its Filtered Score alert |

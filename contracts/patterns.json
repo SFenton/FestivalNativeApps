@@ -688,7 +688,6 @@
             "path": "windows/Festival.App/Controls/LeaderboardsPager.xaml.cs",
             "symbol": "LeaderboardsPager"
           },
-
           {
             "path": "windows/Festival.App/Controls/GroupedRows.cs",
             "symbol": "GroupedRows"
@@ -4372,6 +4371,101 @@
         573,
         600
       ]
+    },
+    {
+      "id": "invalid-scores",
+      "title": "Invalid scores (Filter Invalid Scores)",
+      "status": "current",
+      "doc": ".agents/patterns/invalid-scores.md",
+      "summary": "With Settings > Filter Invalid Scores on, every selected-player score surface shows the web's effective score: raw if valid at the leeway, else the best validScores variant (filtered rank from rankTiers, filtered total from the catalogue populationTiers), else legacy validScore, else none. Filters, sorts, chips, metadata and Song Detail's player row read one per-platform policy; nothing pauses. Songs keeps raw scores on Over CHOpt Threshold charts and marks replaced/dropped scores with the invalid-score indicator, a spoken button opening the Filtered Score alert (Settings, OK). Leeway/toggle changes update in place.",
+      "keywords": [
+        "filter invalid scores",
+        "invalid score",
+        "leeway",
+        "valid score",
+        "fallback score",
+        "filtered score",
+        "filtered population",
+        "population tiers",
+        "rank tiers",
+        "over chopt threshold",
+        "invalid score indicator",
+        "filterPlayerScores"
+      ],
+      "web": [
+        {
+          "path": "hooks/data/useScoreFilter.ts",
+          "symbol": "filterPlayerScores"
+        },
+        {
+          "path": "hooks/data/useScoreFilter.ts",
+          "symbol": "getFilteredTotal"
+        },
+        {
+          "path": "pages/songs/SongsPage.tsx",
+          "symbol": "effectiveScores"
+        },
+        {
+          "path": "pages/songs/components/InvalidScoreIcon.tsx",
+          "symbol": "InvalidScoreIcon"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalCore/InvalidScoreFilter.swift",
+            "symbol": "InvalidScoreFilter"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt",
+            "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongScoreAdapter.kt",
+            "symbol": "songScoreSource"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt",
+            "symbol": "InvalidScoreIcon"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "InvalidScorePolicy"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "InvalidScoreWarning"
+          },
+          {
+            "path": "windows/Festival.Core/Data/PopulationTiers.cs",
+            "symbol": "PopulationTiers"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongScoreSource.cs",
+            "symbol": "ForDetail"
+          },
+          {
+            "path": "windows/Festival.App/Controls/InvalidScoreIndicator.cs",
+            "symbol": "InvalidScoreIndicator"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "songs-profile-panel",
+          "modal-shell"
+        ],
+        "pages": [
+          "songs",
+          "song-detail"
+        ],
+        "controls": []
+      },
+      "guards": []
     }
   ]
 }
