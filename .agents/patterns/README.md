@@ -41,6 +41,7 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [stat-tile-grid](stat-tile-grid.md) | Profile and Band stat tile grids: a tile whose text would wrap in one slot spans two, one height for every tile, web order, wrap never truncate |
 | [invalid-scores](invalid-scores.md) | Filter Invalid Scores: effective (raw, valid fallback or none) player scores on Songs and Song Details, the row's invalid-score indicator and Filtered Score alert, Over CHOpt Threshold |
 | [settings-value-row](settings-value-row.md) | Read-only Settings title/value rows (Version, Service Info state): inline when it fits, otherwise the value stacks under the title |
+| [settings-toggle-row](settings-toggle-row.md) | Settings switches: the whole row is one switch element and touch target (44 pt / 56 dp), one flip per tap, disabled rows ignore taps; the Mac keeps the system switch |
 | [rival-rows](rival-rows.md) | Rivals rows: hub rival rows and song comparison rows, the shared red/green status pill and the song rows' album art |
 | [hinge-columns](hinge-columns.md) | Foldable book pose: grid and two-up row gutters on the fold, full-width titles kept on their side, flat layout when unfolded |
 | [wide-columns](wide-columns.md) | When rows and cards show two columns: wide landscape only (iPad, unfolded Duo, wide Mac), row-major under full-width headings, meeting at the Duo hinge; the page audit |
