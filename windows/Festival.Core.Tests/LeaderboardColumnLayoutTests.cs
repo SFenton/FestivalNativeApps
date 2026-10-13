@@ -31,7 +31,7 @@ public class LeaderboardColumnLayoutTests
         {
             var plan = LeaderboardColumnLayout.Fit(Scores, width, pinSeason: true);
             Assert.True(plan.ShowMeta);
-            Assert.Equal(26, plan.MetaWidth);
+            Assert.Equal(MetadataPillMetrics.SeasonWidth, plan.MetaWidth);
         }
         Assert.True(LeaderboardColumnLayout.Fit(Scores, 360, textScale: 2.25, pinSeason: true).ShowMeta);
         var noSeason = Scores with { MetaChars = 0 };
@@ -48,7 +48,7 @@ public class LeaderboardColumnLayoutTests
         Assert.False(plan.Compact);
         Assert.Equal(12, plan.Gap);
         Assert.True(plan.ShowMeta);
-        Assert.Equal(26, plan.MetaWidth); // ceil(3 × 8.5)
+        Assert.Equal(MetadataPillMetrics.SeasonWidth, plan.MetaWidth);
         Assert.False(plan.ShowStars);
     }
 
@@ -80,12 +80,12 @@ public class LeaderboardColumnLayoutTests
     [Fact]
     public void LargeText_DropsStarsThenSeasonUntilTheNameFits()
     {
-        // 225% text at 720 epx: everything needs ~831 epx, without stars ~733, without the season too ~674.
+        // At 225% the shared season pill takes 108 epx; drop stars, then season before squeezing the name.
         var squeezed = LeaderboardColumnLayout.Fit(Scores, 720, 2.25);
         Assert.Equal((false, false, true), (squeezed.ShowMeta, squeezed.ShowStars, squeezed.ShowAccuracy));
         Assert.Equal(76.5, squeezed.RankWidth);
-        // 780 epx: dropping stars is enough.
-        var partial = LeaderboardColumnLayout.Fit(Scores, 780, 2.25);
+        // 820 epx: dropping stars is enough.
+        var partial = LeaderboardColumnLayout.Fit(Scores, 820, 2.25);
         Assert.Equal((true, false), (partial.ShowMeta, partial.ShowStars));
         // Wide enough for everything at the same text size.
         var roomy = LeaderboardColumnLayout.Fit(Scores, 1000, 2.25);

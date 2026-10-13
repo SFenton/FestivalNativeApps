@@ -1,0 +1,107 @@
+[
+  {
+    "name": "metadata-season-detail",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "sizes": ["compact"],
+    "tabs": 0,
+    "scan": true,
+    "axe_allow": ["framework-popup"],
+    "ready": [
+      "scrollinto:id=fst.history.bar.1@40",
+      "scrollinset:id=fst.history.bar.1|id=fst.song-detail|72",
+      "toggle:id=fst.history.bar.1",
+      "scrollinto:id=fst.history.detail@10",
+      "waitfor:raw=fst.score.season.history.20240105000000.detail@5"
+    ],
+    "after_ready": [
+      "assertstate:id=fst.history.detail|type=text",
+      "assertstate:id=fst.history.detail|invoke=false",
+      "assertsize:raw=fst.score.season.history.20240105000000.detail|48x24",
+      "assertname:raw=fst.score.season.history.20240105000000.detail|S40",
+      "assertread:id=fst.history.detail|~^.+, score 850,000, accuracy 99\\.1%, full combo, season 40, text$",
+      "assertapart:raw=fst.score.season.history.20240105000000.detail|raw=fst.score.accuracy.history.20240105000000.detail",
+      "assertorder:id=fst.history.bar.1|id=fst.history.detail",
+      "assertsize:id=fst.history.bar.1|40x40",
+      "assertstate:id=fst.history.detail|focusable=false"
+    ]
+  },
+  {
+    "name": "metadata-current-season",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "sizes": ["medium"],
+    "tabs": 0,
+    "scan": true,
+    "ready": ["waitfor:id=fst.song-leaderboard.row.fixture-player-2@30", "wait:1"],
+    "after_ready": [
+      "assertname:raw=fst.score.season.fixture-player-2|S9",
+      "assertsize:raw=fst.score.season.fixture-player-2|48x24",
+      "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, current season 9)?, 5 stars, button$",
+      "assertsize:id=fst.song-leaderboard.row.fixture-player-2|40x40",
+      "assertorder:id=fst.song-leaderboard.row.fixture-player-1|id=fst.song-leaderboard.row.fixture-player-2",
+      "focus:id=fst.song-leaderboard.row.fixture-player-1",
+      "key:down",
+      "assertfocus:id=fst.song-leaderboard.row.fixture-player-2@3",
+      "assertapart:raw=fst.score.season.fixture-player-2|raw=fst.score.accuracy.fixture-player-2"
+    ]
+  },
+  {
+    "name": "metadata-suggestions",
+    "route": "/suggestions",
+    "profile": "fixture-suggest:Fixture Player",
+    "fixture": ["suggestions_fixture_server.py"],
+    "env": {"FST_DEBUG_SUGGESTIONS_SEED": "1"},
+    "sizes": ["medium"],
+    "tabs": 0,
+    "scan": true,
+    "ready": [
+      "waitfor:id=fst.suggestions.row.s044|Solo_PeripheralGuitar@30",
+      "reveal:id=fst.suggestions.row.s044|Solo_PeripheralGuitar@10"
+    ],
+    "after_ready": [
+      "assertsize:raw=fst.suggestions.row.s044.Solo_PeripheralGuitar.season|48x24",
+      "assertname:raw=fst.suggestions.row.s044.Solo_PeripheralGuitar.season|S8",
+      "assertread:name=Track 44, Artist E · 2012, last played season 8|Track 44, Artist E · 2012, last played season 8, button",
+      "assertsize:name=Track 44, Artist E · 2012, last played season 8|40x40",
+      "focus:id=fst.suggestions.row.s044|Solo_PeripheralGuitar",
+      "key:down",
+      "assertfocus:id=fst.suggestions.row.s032|Solo_PeripheralGuitar@3"
+    ]
+  },
+  {
+    "name": "metadata-profile-percentile",
+    "route": "/player/fixture-player-1",
+    "fixture": ["profile_fixture.py"],
+    "sizes": ["medium"],
+    "tabs": 0,
+    "scan": true,
+    "ready": ["waitfor:id=fst.player.overview@30", "reveal:id=fst.player.percentile.Solo_Guitar.4@10"],
+    "after_ready": [
+      "assertname:raw=fst.player.percentile.Solo_Guitar.4.pill|Top 4%",
+      "assertsize:raw=fst.player.percentile.Solo_Guitar.4.pill|77x24",
+      "assertread:id=fst.player.percentile.Solo_Guitar.4|Top 4%: 2 songs, button, Opens Lead songs in the Top 4%",
+      "assertsize:id=fst.player.percentile.Solo_Guitar.4|40x40",
+      "assertstate:id=fst.player.percentile.Solo_Guitar.4|focusable=true"
+    ]
+  },
+  {
+    "name": "metadata-songs",
+    "tab": "songs",
+    "profile": "fixture-meta:Metadata Player",
+    "fixture": ["song_metadata_fixture.py"],
+    "settings": {"showInstrumentIcons": false},
+    "sizes": ["medium"],
+    "tabs": 0,
+    "scan": true,
+    "ready": ["reveal:id=fst.songs.row.fixture-song-1@40"],
+    "after_ready": [
+      "assertname:raw=fst.songs.metadata.season.fixture-song-1|Current season 9",
+      "assertsize:raw=fst.songs.metadata.season.fixture-song-1|48x24",
+      "assertname:raw=fst.songs.metadata.percentile.fixture-song-1|Top 1%",
+      "assertsize:raw=fst.songs.metadata.percentile.fixture-song-1|77x24",
+      "assertread:id=fst.songs.row.fixture-song-1|~^1 Beat, Synthetic Artist 2 .+, Top 1%, .+, Current season 9, .+, list item",
+      "assertsize:id=fst.songs.row.fixture-song-1|40x40"
+    ]
+  }
+]

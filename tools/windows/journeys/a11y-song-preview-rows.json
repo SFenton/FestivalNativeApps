@@ -11,11 +11,11 @@
       "wait:1"
     ],
     "after_ready": [
-      "assertread:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|Rank 3, Unknown player, 99,700 points, text",
+      "assertread:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|~^Rank 3, Unknown player, 99,700 points(, current season 9)?, text$",
       "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|type=text",
       "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|invoke=false",
       "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.rank-3|focusable=false",
-      "assertread:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2|~^Rank 2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, season 9)?, button$",
+      "assertread:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2|~^Rank 2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, current season 9)?, button$",
       "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-2|invoke=true",
       "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4|type=button",
       "assertstate:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4|invoke=true",

@@ -77,6 +77,9 @@
                 <controls:MarqueeText x:Name="NameText" AutomationProperties.AccessibilityView="Raw" Grid.Column="1" Grid.RowSpan="3" VerticalAlignment="Center" />
                 <!-- Season (score rows, ≥ 520 epx like the web) or the small "X / Y" songs label (rankings rows), right-aligned in the shared column. -->
                 <TextBlock x:Name="MetaText" AutomationProperties.AccessibilityView="Raw" Grid.Column="2" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                <ContentControl x:Name="SeasonHost" Grid.Column="2" Grid.RowSpan="3" IsTabStop="False"
+                                AutomationProperties.AccessibilityView="Raw" VerticalAlignment="Center"
+                                HorizontalAlignment="Right" Visibility="Collapsed" />
                 <StackPanel x:Name="ValueStack" Grid.Column="3" Grid.RowSpan="3" VerticalAlignment="Center" HorizontalAlignment="Right">
                     <TextBlock x:Name="ValueText" AutomationProperties.AccessibilityView="Raw" FontWeight="SemiBold" HorizontalAlignment="Right" TextAlignment="Right" TextWrapping="NoWrap" />
                     <TextBlock x:Name="BayesianText" AutomationProperties.AccessibilityView="Raw" Style="{StaticResource CaptionTextBlockStyle}" HorizontalAlignment="Right"

@@ -55,13 +55,13 @@
    "note": "Row names from 520 epx read the season shown on screen (issue #262).", "ready": [
     "waitfor:raw=fst.score.accuracy.fixture-player-1@30",
     "waitfor:raw=fst.score.season.fixture-player-3@5",
-    "assertname:id=fst.song-leaderboard.row.fixture-player-3|Rank #3, Fixture Player 3, 99,700 points, season 9, 5 stars",
+    "assertname:id=fst.song-leaderboard.row.fixture-player-3|Rank #3, Fixture Player 3, 99,700 points, current season 9, 5 stars",
     "scrollinto:raw=fst.score.accuracy.fixture-player-4@10",
-    "assertname:id=fst.song-leaderboard.row.fixture-player-4|Rank #4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable, season 9, 5 stars",
+    "assertname:id=fst.song-leaderboard.row.fixture-player-4|Rank #4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable, current season 9, 5 stars",
     "scrollinto:raw=fst.score.accuracy.fixture-player-6@10",
-    "assertname:id=fst.song-leaderboard.row.fixture-player-6|Rank #6, Fixture Player 6, 99,400 points, 12% accuracy, season 9, 5 stars",
+    "assertname:id=fst.song-leaderboard.row.fixture-player-6|Rank #6, Fixture Player 6, 99,400 points, 12% accuracy, current season 9, 5 stars",
     "scrollinto:raw=fst.score.accuracy.fixture-player-20@15",
-    "assertname:id=fst.song-leaderboard.row.fixture-player-20|Rank #20, Fixture Player 20, 98,000 points, 98% accuracy, full combo, season 9, 5 stars"
+    "assertname:id=fst.song-leaderboard.row.fixture-player-20|Rank #20, Fixture Player 20, 98,000 points, 98% accuracy, full combo, current season 9, 5 stars"
   ]},
   {"name": "score-accuracy-preview-names", "fixture": ["score_accuracy_fixture.py"], "route": "/songs/fixture-pulse", "sizes": ["compact", "medium", "wide", "maximized"],
    "note": "Preview rows under 520 epx (one narrow column or two cards per row): no season in the name (issue #262).", "ready": [
@@ -75,7 +75,7 @@
     "waitfor:id=fst.song-detail.title@30",
     "scrollinto:raw=fst.score.accuracy.preview.Solo_Guitar.fixture-player-4@20",
     "scrollinto:raw=fst.score.season.preview.Solo_Guitar.fixture-player-4@10",
-    "assertname:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4|Rank 4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable, season 9"
+    "assertname:id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-4|Rank 4, Fixture Player 4, 99,600 points, full combo, accuracy unavailable, current season 9"
   ]},
   {"name": "score-accuracy-keyboard", "fixture": ["score_accuracy_fixture.py"], "route": "/songs/fixture-pulse/Solo_Guitar", "tabs": 0, "ready": [
     "waitfor:raw=fst.score.accuracy.fixture-player-1@30",

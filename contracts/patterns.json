@@ -4,6 +4,47 @@
   "webRoot": "FortniteFestivalWeb/src",
   "patterns": [
     {
+      "id": "metadata-pills",
+      "title": "Season and percentile metadata pills",
+      "status": "current",
+      "doc": ".agents/patterns/metadata-pills.md",
+      "summary": "One season and one Top X% pill per platform; iOS season contrast, current-season inversion, page-independent minimum sizing and live system-colour contrast repaint.",
+      "keywords": ["season", "percentile", "Top X%", "metadata pill"],
+      "web": [
+        {"path": "components/songs/metadata/SeasonPill.tsx", "symbol": "SeasonPill"},
+        {"path": "components/songs/metadata/PercentilePill.tsx", "symbol": "PercentilePill"}
+      ],
+      "canonical": {
+        "apple": [
+          {"path": "apple/Sources/FestivalUI/Features/SongLeaderboard/ScoreSeasonPill.swift", "symbol": "ScoreSeasonPill"},
+          {"path": "apple/Sources/FestivalUI/Features/Profile/PlayerPercentileTable.swift", "symbol": "PercentilePill"}
+        ],
+        "android": [],
+        "windows": [
+          {"path": "windows/Festival.App/Controls/MetadataPills.cs", "symbol": "MetadataPills"},
+          {"path": "windows/Festival.App/Controls/MetadataPill.cs", "symbol": "MetadataPill"},
+          {"path": "windows/Festival.App/Controls/PercentilePillView.cs", "symbol": "PercentilePillView"},
+          {"path": "windows/Festival.Core/Domain/MetadataPillMetrics.cs", "symbol": "MetadataPillMetrics"}
+        ]
+      },
+      "guards": [
+        {
+          "id": "windows-season-style",
+          "glob": "windows/Festival.App/**/*.cs",
+          "regex": "FST(Current)?Season(Fill|Text|Stroke)Brush",
+          "allow": ["windows/Festival.App/Controls/MetadataPills.cs"],
+          "message": "Season styling belongs to MetadataPills.Season, not private page or row implementations (metadata-pills R1)."
+        },
+        {
+          "id": "windows-private-percentile-xaml",
+          "glob": "windows/Festival.App/**/*.xaml",
+          "regex": "FSTPercentilePill(Fill|Text)Brush",
+          "allow": ["windows/Festival.App/Themes/Styles.xaml"],
+          "message": "Percentile content uses PercentilePillView/MetadataPills.Percentile, not a private XAML badge (metadata-pills R1)."
+        }
+      ]
+    },
+    {
       "id": "scroll-edge",
       "title": "Scroll edge: content under pinned chrome",
       "status": "current",

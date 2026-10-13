@@ -7,7 +7,7 @@
      "assertgap:id=fst.song-leaderboard.row.fixture-player-2|id=fst.song-leaderboard.row.fixture-player-3|0",
      "assertsize:id=fst.song-leaderboard.row.fixture-player-1|0x40",
      "assertsize:id=fst.song-leaderboard.row.fixture-player-2|0x40",
-     "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, current season 9)?, 5 stars, button$",
      "assertorder:id=fst.song-leaderboard.row.fixture-player-1|id=fst.song-leaderboard.row.fixture-player-2|id=fst.song-leaderboard.row.fixture-player-3|id=fst.song-leaderboard.spotlight-footer|id=fst.song-leaderboard.page-next",
      "focus:id=fst.song-leaderboard.row.fixture-player-1",
      "assertfocus:id=fst.song-leaderboard.row.fixture-player-1@3",

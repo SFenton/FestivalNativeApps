@@ -29,7 +29,7 @@ public enum PercentileTier
     Default,
     /// <summary>Top 5% (gold outline).</summary>
     Top5,
-    /// <summary>Top 1% (filled gold).</summary>
+    /// <summary>Top 1% (italic gold outline).</summary>
     Top1,
 }
 

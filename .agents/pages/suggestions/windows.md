@@ -4,6 +4,8 @@
 
 ## Implemented
 
+- Season and Top X% badges use `MetadataPills.Season` and `MetadataPills.Percentile`, the same geometry as Songs and score rows ([metadata-pills](../../patterns/metadata-pills.md), SFenton/festival-report-tracker#606). Stale seasons retain their last-played meaning and neutral treatment.
+
 | Piece | File (under `windows/`) |
 |---|---|
 | Generator: line-for-line C# port of the Apple `SuggestionGenerator` (Mulberry32, pipeline list order, emit table + skip streaks, `selectNewFirst`, decade variants, `near_max_*`, all ten `song_rival_*` families, late rival splice) | `Festival.Core/Domain/SuggestionGenerator.cs`, `SuggestionRng.cs` |

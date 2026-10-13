@@ -69,8 +69,11 @@
             <SolidColorBrush x:Key="FSTStatGreenBrush" Color="#FF2ECC71" />
             <SolidColorBrush x:Key="FSTTopOneFillBrush" Color="#FFFFD700" />
             <SolidColorBrush x:Key="FSTTopOneTextBrush" Color="#FF000000" />
-            <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="#FFFFFFFF" />
-            <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="#FF000000" />
+            <SolidColorBrush x:Key="FSTSeasonFillBrush" Color="#FF162133" />
+            <SolidColorBrush x:Key="FSTSeasonTextBrush" Color="#FFD7DEE8" />
+            <SolidColorBrush x:Key="FSTSeasonStrokeBrush" Color="#FF1E2A3A" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="#FFD7DEE8" />
+            <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="#FF162133" />
             <SolidColorBrush x:Key="FSTNeutralPillFillBrush" Color="#1FFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillTextBrush" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="FSTNeutralPillStrokeBrush" Color="#00000000" />
@@ -179,6 +182,9 @@
             <SolidColorBrush x:Key="AccentButtonBorderBrushPressed" Color="Transparent" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
+            <SolidColorBrush x:Key="FSTSeasonFillBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FSTSeasonTextBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
+            <SolidColorBrush x:Key="FSTSeasonStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="FSTCardSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="FSTCardStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <!-- The card keeps its Window surface (its texts are WindowText) and shows interaction with a Highlight outline. -->

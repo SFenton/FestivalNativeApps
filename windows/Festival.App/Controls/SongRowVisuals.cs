@@ -78,18 +78,15 @@ public static class SongRowVisuals
             MetadataField.Percentage when Services.ContrastTheme.IsOn => Neutral(field.Text),
             MetadataField.Percentage => Box(Text(field.Text, 12, FontWeights.SemiBold, null),
                 background: field.Tint is { } t ? new SolidColorBrush(Color.FromArgb(0x40, t.R, t.G, t.B)) : Brush("FSTSurfaceMutedBrush"), border: null),
-            MetadataField.Percentile => field.Percentile switch
+            MetadataField.Percentile => MetadataPills.Percentile(field.Text, field.Percentile switch
             {
-                SongPercentileTier.TopOne => Box(Text(field.Text, 12, FontWeights.Bold, Brush("FSTTopOneTextBrush")), Brush("FSTTopOneFillBrush"), null),
-                SongPercentileTier.TopFive => Box(Text(field.Text, 12, FontWeights.SemiBold, Brush("FSTEmphasisBrush")), null, Brush("FSTEmphasisBrush")),
-                _ when Services.ContrastTheme.IsOn => Neutral(field.Text),
-                _ => Box(Text(field.Text, 12, FontWeights.SemiBold, null), Brush("FSTSurfaceMutedBrush"), null),
-            },
+                SongPercentileTier.TopOne => PercentileTier.Top1,
+                SongPercentileTier.TopFive => PercentileTier.Top5,
+                _ => PercentileTier.Default,
+            }),
             // Stars and intensity sit in the same 22 epx slot as the text pills so every pill lines up (operator batch 7.18).
             MetadataField.Stars => Slot(new StarRow { Stars = field.Stars.Gold ? StarRating.GoldValue : field.Stars.Count, StarSize = 14 }),
-            MetadataField.Season => field.CurrentSeason
-                ? Box(Text(field.Text, 12, FontWeights.Bold, Brush("FSTCurrentSeasonTextBrush")), Brush("FSTCurrentSeasonFillBrush"), null)
-                : Box(Text(field.Text, 12, FontWeights.SemiBold, null), null, Brush("FSTBorderSubtleBrush")),
+            MetadataField.Season => MetadataPills.Season(field.Text, field.CurrentSeason),
             MetadataField.Intensity => Slot(new DifficultyMeter { Raw = field.IntensityRaw ?? 0, VerticalAlignment = VerticalAlignment.Center }),
             MetadataField.Difficulty when Services.ContrastTheme.IsOn => Neutral(field.Text),
             MetadataField.Difficulty => Box(

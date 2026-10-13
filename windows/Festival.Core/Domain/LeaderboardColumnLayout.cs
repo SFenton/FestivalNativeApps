@@ -159,7 +159,8 @@ public static class LeaderboardColumnLayout
         var gap = known && rowWidth < CompactBreakpoint ? CompactGap : WideGap;
         var rank = section.RankChars == 0 ? 0 : Math.Max(MinRankWidth, Math.Ceiling(section.RankChars * RankCharWidth)) * scale;
         var value = Math.Ceiling(section.ValueChars * (score ? ScoreCharWidth : RatingCharWidth)) * scale;
-        var meta = Math.Ceiling(section.MetaChars * (score ? SeasonCharWidth : SongsCharWidth)) * scale;
+        var meta = score ? MetadataPillMetrics.SeasonColumnWidth(section.MetaChars, scale)
+            : Math.Ceiling(section.MetaChars * SongsCharWidth) * scale;
         var accuracy = score && section.HasAccuracy ? AccuracyWidth * scale : 0;
         var pinned = score && pinSeason;
         var showMeta = section.HasMeta && (!score || pinned || (known && rowWidth >= SeasonBreakpoint));

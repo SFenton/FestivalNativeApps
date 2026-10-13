@@ -3,9 +3,9 @@
    "note": "Shared section columns (issue #37): the pinned row's badge sits in the listed rows' column, every row is one 40+ epx Button stop read in visual order, rows -> pinned row -> pager (issue #409). Keyboard: the rows are one Tab stop with Up/Down between them (Fluent list model), Tab reaches the pinned row then the pager, Shift+Tab walks back to the song header.",
    "ready": ["waitfor:id=fst.song-leaderboard.row.fixture-player-2@30", "waitfor:id=fst.song-leaderboard.spotlight-footer@15", "wait:1"],
    "after_ready": [
-     "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, season 9)?, 5 stars, button$",
-     "assertread:id=fst.song-leaderboard.row.fixture-player-3|~^Rank #3, Fixture Player 3, 99,700 points(, season 9)?, 5 stars, button$",
-     "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, 99,900 points, 97\\.9% accuracy(, season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, current season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.row.fixture-player-3|~^Rank #3, Fixture Player 3, 99,700 points(, current season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, 99,900 points, 97\\.9% accuracy(, current season 9)?, 5 stars, button$",
      "waitgone:raw=fst.score.accuracy.fixture-player-3",
      "assertaligned:raw=fst.score.accuracy.fixture-player-1|raw=fst.score.accuracy.fixture-player-2",
      "assertaligned:raw=fst.score.accuracy.fixture-player-2|raw=fst.score.accuracy.spotlight-footer",
@@ -70,16 +70,16 @@
      "assertaligned:raw=fst.score.season.fixture-player-2|raw=fst.score.season.fixture-player-3",
      "assertaligned:raw=fst.score.season.fixture-player-2|raw=fst.score.season.spotlight-footer",
      "assertaligned:raw=fst.score.accuracy.fixture-player-2|raw=fst.score.accuracy.spotlight-footer",
-     "assertname:id=fst.song-leaderboard.row.fixture-player-3|Rank #3, Fixture Player 3, 99,700 points, season 9, 5 stars",
-     "assertname:id=fst.song-leaderboard.spotlight-footer|Your rank, 1st. Open your statistics. Fixture Player 1, 99,900 points, 97.9% accuracy, season 9, 5 stars"
+     "assertname:id=fst.song-leaderboard.row.fixture-player-3|Rank #3, Fixture Player 3, 99,700 points, current season 9, 5 stars",
+     "assertname:id=fst.song-leaderboard.spotlight-footer|Your rank, 1st. Open your statistics. Fixture Player 1, 99,900 points, 97.9% accuracy, current season 9, 5 stars"
    ]},
   {"name": "cols-song-board-large-text", "route": "/songs/fixture-pulse/Solo_Guitar", "profile": "fixture-player-1:Fixture Player 1", "scan": true, "tabs": 0,
    "sizes": ["compact", "medium"], "modes": ["text-200", "text-225"],
    "note": "Large text: rows (pinned row included) grow or stack their values under the name rather than clipping, stay 40+ epx targets and keep one badge column; names still read every value.",
    "ready": ["waitfor:id=fst.song-leaderboard.row.fixture-player-2@30", "waitfor:id=fst.song-leaderboard.spotlight-footer@15", "wait:1.5"],
    "after_ready": [
-     "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, season 9)?, 5 stars, button$",
-     "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, 99,900 points, 97\\.9% accuracy(, season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.row.fixture-player-2|~^Rank #2, Fixture Player 2, 99,800 points, 98% accuracy, full combo(, current season 9)?, 5 stars, button$",
+     "assertread:id=fst.song-leaderboard.spotlight-footer|~^Your rank, 1st\\. Open your statistics\\. Fixture Player 1, 99,900 points, 97\\.9% accuracy(, current season 9)?, 5 stars, button$",
      "assertaligned:raw=fst.score.accuracy.fixture-player-1|raw=fst.score.accuracy.fixture-player-2",
      "assertaligned:raw=fst.score.accuracy.fixture-player-2|raw=fst.score.accuracy.spotlight-footer",
      "assertsize:id=fst.song-leaderboard.row.fixture-player-1|0x40",

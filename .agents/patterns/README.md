@@ -24,6 +24,7 @@ The registry only lists behaviors the native apps have already needed to share. 
 | [scroll-indicators](scroll-indicators.md) | Scroll bars: system indicators on every page, no in-app toggle, and the few views allowed to hide them |
 | [section-jump-landing](section-jump-landing.md) | Where Quick Links and the A–Z index land a section, and which section counts as current |
 | [surface-materials](surface-materials.md) | Liquid Glass vs material vs opaque surfaces; cards, rows and custom controls |
+| [metadata-pills](metadata-pills.md) | Shared season and Top X% badges: contrast, current-season emphasis, geometry and theme repaint |
 | [page-tools-and-nav-chrome](page-tools-and-nav-chrome.md) | Where page actions, search, Quick Links, the bell and Profile live on each platform |
 | [modal-shell](modal-shell.md) | Shared sheet and dialog container: header, Close, detents, top fade, dismissal |
 | [leaderboard-row](leaderboard-row.md) | Leaderboard and score rows: height, columns, name marquee, pinned player row and pager |

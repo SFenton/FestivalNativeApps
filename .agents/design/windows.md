@@ -70,8 +70,9 @@ Artwork motion follows [artwork-background](../controls/artwork-background/windo
 | Status chip missing / no chart | red / muted | Window fill, GrayText ring, 1 epx (no chart also 45% opacity) |
 | Emphasis text and outlines (`FSTEmphasis*`: FC badge, Top 5%, gold stars ring, active Sort/Filter tint, profile notices) | gold | WindowText (the FC badge keeps its skewed italic shape) |
 | Stat tile values (`FSTStatBlue/Green`), ratings | blue / green | WindowText |
-| Top 1% pill, current-season pill | gold / white fill | Highlight / HighlightText |
-| Accuracy, difficulty and plain percentile pills (incl. Band Detail's purple `FSTPercentilePill*`, issue #212) | red→green tint, difficulty hues, purple | ButtonFace / ButtonText with a ButtonText outline |
+| Season pills (`metadata-pills`) | secondary text on a subtle fill; current season inverts the pair | ButtonFace / ButtonText; current Highlight / HighlightText |
+| Top 1% and Top 5% pills (`metadata-pills`) | gold outline; Top 1% bold italic and skewed | Window / WindowText |
+| Accuracy, difficulty and plain percentile pills (`metadata-pills`) | red→green tint, difficulty hues, neutral percentile | ButtonFace / ButtonText with a ButtonText outline |
 | Shop borders, Songs art bag, Shop badges and pulse (`FSTShop*`) | gold (New) / red (Leaving) | Highlight / HighlightText (the label and UIA name say which) |
 | Destructive buttons (Reset, Reset All Settings, Deselect; `FSTDanger*`) | `#C62828` | ButtonFace / ButtonText; hover and press Highlight / HighlightText |
 | Settings reorder lists (`FSTReorderRow/Stroke`) | translucent white rows and separators | Window rows, WindowText outline and separators |

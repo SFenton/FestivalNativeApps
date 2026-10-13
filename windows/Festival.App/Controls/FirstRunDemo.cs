@@ -166,17 +166,15 @@ public sealed partial class FirstRunDemo : UserControl
         for (var slot = 0; slot < demo.Songs.Count; slot++)
         {
             var row = SongRow(out var setter);
-            var pill = Pill(FirstRunTopSongsDemo.Pill(slot));
-            var label = (TextBlock)pill.Child;
-            AutomationProperties.SetAutomationId(label, $"fst.first-run.demo.{SlideId}.pill.{slot}");
-            AutomationProperties.SetAccessibilityView(label, AccessibilityView.Raw);
-            AutomationProperties.SetItemStatus(label, "initial");
+            var pill = MetadataPills.Percentile(FirstRunTopSongsDemo.Pill(slot));
+            pill.Label(FirstRunTopSongsDemo.Pill(slot), $"fst.first-run.demo.{SlideId}.pill.{slot}");
+            AutomationProperties.SetItemStatus(pill, "initial");
             ((StackPanel)((Grid)row.Child).Children[2]).Children.Add(pill);
             setter(slot);
             AddSlot(row, poolIndex =>
             {
                 setter(poolIndex);
-                AutomationProperties.SetItemStatus(label, "rotated");
+                AutomationProperties.SetItemStatus(pill, "rotated");
             });
         }
         advance = _ =>
@@ -248,7 +246,13 @@ public sealed partial class FirstRunDemo : UserControl
                     "near_fc_any" => instruments[i % instruments.Length],
                     _ => template.Instrument,
                 };
-                rows.Children.Add(SongLine(song, $" · {value}"));
+                rows.Children.Add(template.Key == "pct_push_bass"
+                    ? new StackPanel
+                    {
+                        Orientation = Orientation.Horizontal, Spacing = 8,
+                        Children = { SongLine(song, ""), MetadataPills.Percentile(value) },
+                    }
+                    : SongLine(song, $" · {value}"));
             }
         }
         Apply(0);
@@ -601,7 +605,10 @@ public sealed partial class FirstRunDemo : UserControl
                     trailing.Children.Clear();
                     var metadata = FirstRunDemos.MetaData[poolIndex % FirstRunDemos.MetaData.Count];
                     var layout = FirstRunDemos.MetadataLayouts[(poolIndex + index) % FirstRunDemos.MetadataLayouts.Count];
-                    foreach (var pill in FirstRunDemos.MetadataPillsFor(metadata, layout)) trailing.Children.Add(Pill(pill));
+                    foreach (var pill in FirstRunDemos.MetadataPillsFor(metadata, layout))
+                        trailing.Children.Add(pill.StartsWith("Top ", StringComparison.Ordinal) ? MetadataPills.Percentile(pill)
+                            : pill.StartsWith("Season ", StringComparison.Ordinal) ? MetadataPills.Season("S" + pill[7..])
+                            : Pill(pill));
                 }
             };
             set(i);

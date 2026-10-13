@@ -202,16 +202,19 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
             case ILeaderboardScoreRow score:
                 MetaText.Text = score.Season;
                 MetaText.FontSize = 14;
+                var season = MetadataPills.Season(score.Season, IsCurrentSeason(score));
+                season.Label(score.Season, LeaderboardScoreRowIds.Season(BadgeAutomationId(score)));
+                SeasonHost.Content = season;
                 ValueText.Text = score.Score;
                 BayesianText.Visibility = Visibility.Collapsed;
                 PillText.Text = score.BadgeText;
                 AutomationProperties.SetAutomationId(PillText, BadgeAutomationId(score));
-                AutomationProperties.SetAutomationId(MetaText, LeaderboardScoreRowIds.Season(BadgeAutomationId(score)));
                 Pill.RenderTransform = ScoreBadge.Skew(score.IsFullCombo);
                 PillText.FontStyle = ScoreBadge.Style(score.IsFullCombo);
                 StarsView.Stars = score.StarCount;
                 break;
             case ILeaderboardRankingRow ranking:
+                SeasonHost.Content = null;
                 MetaText.Text = ranking.SongsText;
                 MetaText.FontSize = 12;
                 ValueText.Text = ranking.RatingText;
@@ -245,6 +248,13 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
     private string BadgeAutomationId(ILeaderboardScoreRow score) =>
         string.IsNullOrEmpty(rowAutomationId) ? score.BadgeAutomationId
             : "fst.score.accuracy." + rowAutomationId[(rowAutomationId.LastIndexOf('.') + 1)..];
+
+    /// <summary>Matches score seasons only to the loaded catalogue's current season.</summary>
+    /// <param name="score">Score row.</param>
+    /// <returns>Whether this season is current.</returns>
+    private static bool IsCurrentSeason(ILeaderboardScoreRow score) =>
+        App.Session.Catalog?.CurrentSeason is > 0 and var currentSeason &&
+        score.Season == $"S{currentSeason}";
 
     /// <summary>
     /// A loading placeholder (<see cref="LeaderboardSkeletonRow"/>, issue #281) lays out exactly like a loaded row, so it
@@ -390,10 +400,14 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
         RowGrid.ColumnSpacing = plan.Gap;
         RankColumn.MinWidth = RankText.Text.Length == 0 ? 0 : plan.RankWidth;
         MetaColumn.MinWidth = plan.Stacked ? 0 : plan.MetaWidth;
-        MetaText.Visibility = (plan.ShowMeta || plan.MetaBelowName) && MetaText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        var metaVisible = (plan.ShowMeta || plan.MetaBelowName) && MetaText.Text.Length > 0;
+        MetaText.Visibility = metaVisible && score is null ? Visibility.Visible : Visibility.Collapsed;
+        SeasonHost.Visibility = metaVisible && score is not null ? Visibility.Visible : Visibility.Collapsed;
         // The row is one UIA stop with Raw parts, so a season on screen must be in its name (issue #262).
-        AutomationProperties.SetName(RowButton,
-            score is not null && MetaText.Visibility == Visibility.Visible ? score.SeasonShownAnnouncement : row.Announcement);
+        var announcement = score is not null && metaVisible ? score.SeasonShownAnnouncement : row.Announcement;
+        if (score is not null && metaVisible && IsCurrentSeason(score))
+            announcement = announcement.Replace(", season ", ", current season ", StringComparison.Ordinal);
+        AutomationProperties.SetName(RowButton, announcement);
         ValueColumn.MinWidth = plan.Stacked ? 0 : plan.ValueWidth;
         PillColumn.MinWidth = plan.AccuracyWidth;
         if (plan.ShowAccuracy) Pill.Width = plan.AccuracyWidth;
@@ -434,6 +448,9 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
         var left = below || scoreStack;
         MetaText.HorizontalAlignment = left ? HorizontalAlignment.Left : HorizontalAlignment.Right;
         MetaText.TextAlignment = left ? TextAlignment.Left : TextAlignment.Right;
+        Place(SeasonHost, Grid.GetRow(MetaText), Grid.GetRowSpan(MetaText),
+            Grid.GetColumn(MetaText), Grid.GetColumnSpan(MetaText), MetaText.VerticalAlignment);
+        SeasonHost.HorizontalAlignment = MetaText.HorizontalAlignment;
 
         if (scoreStack) Place(ValueStack, valueLine, 1, nameColumn, underSpan, VerticalAlignment.Center);
         else if (rankingStack) Place(ValueStack, 1, 1, 3, 1, VerticalAlignment.Top);

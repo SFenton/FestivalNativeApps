@@ -14,6 +14,27 @@ namespace Festival.App.Controls;
 /// </summary>
 public sealed partial class MetadataPill : Grid
 {
+    /// <summary>Creates a host that refreshes code-set role brushes when the system theme changes.</summary>
+    public MetadataPill()
+    {
+        Loaded += (_, _) =>
+        {
+            Services.ContrastTheme.Changed -= OnColorsChanged;
+            Services.ContrastTheme.Changed += OnColorsChanged;
+            RefreshColors?.Invoke();
+        };
+        Unloaded += (_, _) => Services.ContrastTheme.Changed -= OnColorsChanged;
+    }
+
+    /// <summary>Optional role-brush repaint owned by the shared factory.</summary>
+    internal Action? RefreshColors { get; set; }
+
+    /// <summary>Marshals a system colour change to the host's UI thread.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnColorsChanged(object? sender, EventArgs e) =>
+        DispatcherQueue.TryEnqueue(() => { if (IsLoaded) RefreshColors?.Invoke(); });
+
     /// <summary>Control type the peer reports: <see cref="AutomationControlType.Text"/> or an image (stars, meter).</summary>
     public AutomationControlType ControlType { get; set; } = AutomationControlType.Text;
 
