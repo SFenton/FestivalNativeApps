@@ -185,8 +185,13 @@ fun RivalDetailScreen(viewModel: RivalDetailViewModel, route: RivalDetailRoute, 
     val quickLinks = rememberQuickLinks(gridState, "Quick Links", RivalQuickLinks.rivalDetail(categories), fadeInWindow = fadeIn) { id ->
         categories.indexOfFirst { RivalQuickLinks.categoryId(it.key) == id }.takeIf { it >= 0 }?.plus(1)
     }
+    val titleInstrument = RivalScopes.singleInstrument(RivalScopes.fromToken(route.scope))
     FestivalScreen(
         title = name ?: "Rival",
+        subtitle = titleInstrument?.let { RivalText.rivalsTitle(it.label) } ?: "Rivals",
+        subtitleIcon = titleInstrument?.let { instrument ->
+            { size -> InstrumentIcon(instrument, size = size, decorative = true, modifier = Modifier.testTag("fst.rival-detail.subtitle-icon.${instrument.wireId}")) }
+        },
         isRoot = false,
         fadeInWindow = fadeIn,
         actions = {
@@ -299,6 +304,7 @@ fun RivalryScreen(viewModel: RivalDetailViewModel, rivalId: String, mode: String
     val fadeIn = rememberPageFadeInWindow()
     FestivalScreen(
         title = RivalCategorization.title(mode),
+        subtitle = name ?: "Rival",
         isRoot = false,
         fadeInWindow = fadeIn,
         actions = {

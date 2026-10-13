@@ -10,6 +10,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -35,6 +36,7 @@ import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.presentation.InMemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
+import com.festivalscoretracker.android.data.HttpResult
 import com.festivalscoretracker.android.ui.common.spinnerShowsDuring
 import com.festivalscoretracker.android.ui.rivals.RIVALS_CARD_SEGMENT_TAG
 import com.festivalscoretracker.android.ui.rivals.RIVALS_CARD_TAG
@@ -95,6 +97,77 @@ class RivalsUiTest {
     private fun scrollTo(grid: String, tag: String) {
         rule.onNodeWithTag(grid).performScrollToNode(hasTestTag(tag))
         settle(100)
+    }
+
+    @Test
+    fun commonRivalDetailNamesTheRivalOverRivals() {
+        launch(DebugLaunch(
+            route = RivalRoutes.detail(ids[0], "Route Name", RivalScopes.song(listOf(Instrument.Lead, Instrument.Bass))),
+            profile = player,
+            stillBackground = true,
+        ))
+        waitForTag("fst.rival-detail.title")
+        rule.onNodeWithTag("fst.nav.title-block").assertTextEquals("Synthetic Rival", "Rivals")
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.subtitle-icon", useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun songInstrumentRivalDetailNamesTheRivalOverItsInstrument() =
+        assertInstrumentDetailTitle(RivalScopes.song(listOf(Instrument.Lead)))
+
+    @Test
+    fun leaderboardInstrumentRivalDetailNamesTheRivalOverItsInstrument() =
+        assertInstrumentDetailTitle(RivalScope.Leaderboard(Instrument.Lead))
+
+    /** Both instrument-scope details reuse the bar's decorative subtitle-icon slot (#604). */
+    private fun assertInstrumentDetailTitle(scope: RivalScope) {
+        launch(DebugLaunch(
+            route = RivalRoutes.detail(ids[0], "Route Name", scope),
+            profile = player,
+            stillBackground = true,
+        ))
+        waitForTag("fst.rival-detail.title")
+        rule.onNodeWithTag("fst.nav.title-block").assertTextEquals("Synthetic Rival", "Lead Rivals")
+        rule.onNode(
+            hasTestTag("fst.rival-detail.subtitle-icon.Solo_Guitar") and hasAnyAncestor(hasTestTag("fst.nav.subtitle-icon")),
+            useUnmergedTree = true,
+        ).assertIsDisplayed()
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.title-icon", useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun comboRivalDetailKeepsTheGenericRivalsSubtitle() {
+        launch(DebugLaunch(
+            route = RivalRoutes.detail(ids[4], "Route Name", RivalScope.Combo("03")),
+            profile = player,
+            stillBackground = true,
+        ))
+        waitForTag("fst.rival-detail.title")
+        rule.onNodeWithTag("fst.nav.title-block").assertTextEquals("Synthetic Rival", "Rivals")
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.subtitle-icon", useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun rivalSectionNamesTheSectionOverTheResolvedRival() {
+        val detail = RivalRoutes.detail(ids[0], "Route Name", RivalScopes.song(listOf(Instrument.Lead)))
+        launch(DebugLaunch(route = RivalRoutes.rivalry(detail, "closest_battles", "Route Name"), profile = player, stillBackground = true))
+        waitForTag("fst.rivalry.title")
+        rule.onNodeWithTag("fst.nav.title-block").assertTextEquals("Closest Battles", "Synthetic Rival")
+        assertEquals(0, rule.onAllNodesWithTag("fst.nav.subtitle-icon", useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun failedInstrumentDetailKeepsItsRouteNameAndScopeSubtitle() {
+        transport.onRaw("/api/player/${RivalsFixtures.PLAYER}/rivals/Solo_Guitar/${ids[0]}") {
+            HttpResult(403, ByteArray(0))
+        }
+        launch(DebugLaunch(
+            route = RivalRoutes.detail(ids[0], "Route Name", RivalScopes.song(listOf(Instrument.Lead))),
+            profile = player,
+            stillBackground = true,
+        ))
+        waitForTag("fst.service-status.retry")
+        rule.onNodeWithTag("fst.nav.title-block").assertTextEquals("Route Name", "Lead Rivals")
     }
 
     @Test
@@ -209,6 +282,7 @@ class RivalsUiTest {
     fun deepLinkedDetailWithoutSongsAndNoPlayerStates() {
         launch(DebugLaunch(route = RivalRoutes.detail(ids[3], "Synthetic Delta", RivalScope.Leaderboard(Instrument.Bass)), profile = player, stillBackground = true))
         waitForTag("fst.rival-detail.empty")
+        rule.onNodeWithTag("fst.nav.title-block").assertTextEquals("Synthetic Delta", "Bass Rivals")
         rule.onNodeWithText("No song data for this rival.").assertIsDisplayed()
         rule.onNodeWithTag("fst.rival-detail.view-profile").performClick()
         rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithTag("fst.rival-detail.empty").fetchSemanticsNodes().isEmpty() }

@@ -146,12 +146,13 @@ val LocalShellActions = staticCompositionLocalOf { ShellActions() }
  *   given the title's line height so it scales with the font size. It must not add its own
  *   accessibility label: the title already names what it shows.
  * @param subtitle The pinned title's second line (a song board's instrument or band size,
- *   `song-header` R4, issue #580), in Material 3's small-bar subtitle style (Label Medium under
+ *   `song-header` R4, issue #580; a rival's scope or a Rivalry section's rival name,
+ *   `page-tools-and-nav-chrome` R23, issue #604), in Material 3's small-bar subtitle style (Label Medium under
  *   the Title Large title; TalkBack reads both as one stop). It shows
  *   only while [title] is non-empty, so a bar left empty under an in-page header stays empty.
  *   Pass it on every frame of a page (not only once scrolled): the bar then keeps one height,
  *   grown at large text to fit both lines, and never jumps when the title appears.
- * @param subtitleIcon Decorative icon leading [subtitle] (the board's instrument), given the
+ * @param subtitleIcon Decorative icon leading [subtitle] (the board or rival scope's instrument), given the
  *   subtitle's line height so it scales with the text. It must not add its own accessibility
  *   label: the subtitle names the instrument.
  * @param fadeInWindow The page's fade window ([rememberPageFadeInWindow]), provided to [content]
