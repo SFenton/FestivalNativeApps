@@ -394,6 +394,28 @@ class RebootWedgedTests(unittest.TestCase):
         self.assertIsNone(ios_sim.simulator_wedged("XCTAssertTrue failed - No player footer\n** TEST FAILED **"))
         self.assertIsNone(ios_sim.simulator_wedged('caught error: "Audit failed to complete in time"'))
 
+    def test_a_timeout_before_xcodebuild_printed_anything_is_a_hang(self):
+        self.assertEqual(ios_sim.simulator_wedged("\n\nTIMEOUT after 2400.0s; killed.\n"), ios_sim.SILENT_TIMEOUT)
+
+    def test_a_timeout_after_the_run_started_is_not_a_hang(self):
+        started = ("Writing result bundle at path:\n\t/tmp/r.xcresult\n"
+                   "\nTIMEOUT after 2400.0s; killed.\n")
+        self.assertIsNone(ios_sim.simulator_wedged(started))
+        self.assertIsNone(ios_sim.simulator_wedged(""))
+
+    def test_a_silent_timeout_reboots_the_simulator_and_reruns_the_batch(self):
+        code, runs, locks = self._run(["\nTIMEOUT after 10s; killed.\n", "ok"], [124, 0])
+        self.assertEqual((code, runs), (0, 2))
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._shutdown_simulator)])
+
+    def test_the_reboot_never_waits_on_a_stuck_shutdown(self):
+        from unittest import mock
+
+        with mock.patch.object(ios_sim, "run_bounded", return_value=None) as bounded, \
+                contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(ios_sim._shutdown_simulator("UDID"), 0)
+        self.assertEqual(bounded.call_args.args, (["xcrun", "simctl", "shutdown", "UDID"], ios_sim.SHUTDOWN_TIMEOUT))
+
     def _run(self, logs: list[str], codes: list[int], *, reboot: bool = True):
         """Run `cmd_uitest` over one batch whose attempts log `logs` and exit with `codes`."""
         import argparse

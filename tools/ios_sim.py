@@ -1904,8 +1904,8 @@ def cmd_uitest(args: argparse.Namespace) -> int:
             )
             if (returncode and not rebooted and getattr(args, "reboot_wedged", False)
                     and (wedge := simulator_wedged(log_path.read_text(encoding="utf-8", errors="replace")))):
-                # No verdict: the simulator's accessibility server hung. Reboot it and run the
-                # batch again, once, keeping the stuck attempt's result bundle (#620).
+                # No verdict: the simulator (or its accessibility server) hung before any test ran.
+                # Reboot it and run the batch again, once, keeping the stuck attempt's result bundle (#620).
                 rebooted = True
                 print(f"uitest {label}: simulator wedged ({wedge}) after {elapsed:.1f}s; rebooting it and "
                       f"running the batch again; result bundle (kept): {result_bundle}", file=sys.stderr)
@@ -2143,6 +2143,18 @@ WEDGED_SIMULATOR_SIGNATURES = (
     NO_DESTINATION_SIGNATURE,
 )
 
+#: The line ``_run_uitest_batch`` appends to a batch's log when it kills a run at its timeout.
+TIMEOUT_MARKER = "TIMEOUT after"
+
+#: ``simulator_wedged``'s reason for a batch that timed out before ``xcodebuild`` printed a line.
+#: A run that reaches its test action logs within seconds (on a runner, its first stderr lines
+#: come in about 10 s); on the folded-Duo leg ``xcodebuild`` printed nothing for 2400 s and the
+#: `simctl terminate` after it hung too (#620).
+SILENT_TIMEOUT = "xcodebuild printed nothing before the batch timed out"
+
+#: Seconds to wait for `simctl shutdown` before a wedged batch's rerun.
+SHUTDOWN_TIMEOUT = 300
+
 
 def simulator_wedged(log_text: str) -> str | None:
     """Find a hung-simulator signature in a failed batch's ``xcodebuild`` log.
@@ -2151,14 +2163,20 @@ def simulator_wedged(log_text: str) -> str | None:
         log_text: The batch's log.
 
     Returns:
-        The first matching ``WEDGED_SIMULATOR_SIGNATURES`` entry, or ``None`` for an ordinary
-        failure (which ``--reboot-wedged`` leaves alone).
+        The first matching ``WEDGED_SIMULATOR_SIGNATURES`` entry, ``SILENT_TIMEOUT`` when the
+        batch timed out with nothing logged before ``TIMEOUT_MARKER``, or ``None`` for an
+        ordinary failure (which ``--reboot-wedged`` leaves alone).
     """
-    return next((signature for signature in WEDGED_SIMULATOR_SIGNATURES if signature in log_text), None)
+    if signature := next((s for s in WEDGED_SIMULATOR_SIGNATURES if s in log_text), None):
+        return signature
+    before, marker, _ = log_text.partition(TIMEOUT_MARKER)
+    return SILENT_TIMEOUT if marker and not before.strip() else None
 
 
 def _shutdown_simulator(udid: str) -> int:
     """Shut ``udid`` down so the next batch boots it fresh. Call under the simulator lock.
+
+    Bounded by ``SHUTDOWN_TIMEOUT``: the wedge it recovers from can stall CoreSimulator too.
 
     Args:
         udid: The simulator.
@@ -2166,7 +2184,9 @@ def _shutdown_simulator(udid: str) -> int:
     Returns:
         0 (a simulator that is already shut down is fine).
     """
-    _run(["xcrun", "simctl", "shutdown", udid], check=False, capture_output=True)
+    if run_bounded(["xcrun", "simctl", "shutdown", udid], SHUTDOWN_TIMEOUT,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) is None:
+        print(f"simctl shutdown did not return within {SHUTDOWN_TIMEOUT}s; continuing", file=sys.stderr)
     return 0
 
 
@@ -2275,7 +2295,7 @@ def _run_uitest_batch(
                 # so nothing lingers on the simulator.
                 terminate_app(udid)
                 returncode = 124
-                log.write(f"\nTIMEOUT after {timeout}s; killed.\n")
+                log.write(f"\n{TIMEOUT_MARKER} {timeout}s; killed.\n")
             elif returncode == EXIT_NO_DESTINATION:
                 log.write("\nxcodebuild cannot see the simulator; stopped (no test ran).\n")
     elapsed = time.time() - start
@@ -2599,8 +2619,9 @@ def main(argv: list[str] | None = None) -> int:
                              "cannot find its fixture skips, and an all-skipped batch otherwise passes)")
     uitest.add_argument("--reboot-wedged", action="store_true",
                         default=os.environ.get("FST_UITEST_REBOOT_WEDGED") == "1",
-                        help="CI: when a batch's test runner failed to initialize (the simulator's accessibility "
-                             "server hung, so no test ran), reboot the simulator and run that batch once more; "
+                        help="CI: when a batch reached no verdict (its test runner failed to initialize, or it "
+                             "timed out before xcodebuild printed anything: the simulator hung, so no test ran), "
+                             "reboot the simulator and run that batch once more; "
                              "test failures are never rerun (default on when FST_UITEST_REBOOT_WEDGED=1, as "
                              "apple-ci sets it)")
     uitest.add_argument("--retries", type=int, default=0,
