@@ -280,6 +280,75 @@ class RetryBatchTests(unittest.TestCase):
             self.assertFalse(should_retry_batch(code, 0, 3), code)
 
 
+class ResultSummaryReadTests(unittest.TestCase):
+    """One slow or failed ``xcresulttool`` read does not fail a green batch (#620)."""
+
+    @staticmethod
+    def _completed(stdout: str):
+        import subprocess
+
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout=stdout, stderr="")
+
+    def test_a_timed_out_read_is_retried(self):
+        import subprocess
+        from unittest import mock
+
+        reads = [
+            subprocess.TimeoutExpired(cmd="xcresulttool", timeout=1),
+            self._completed('{"passedTests": 1, "skippedTests": 0, "failedTests": 0}'),
+        ]
+        with mock.patch.object(ios_sim.subprocess, "run", side_effect=reads) as run, \
+                mock.patch.object(ios_sim.time, "sleep"):
+            summary = ios_sim._result_summary(Path("/tmp/x.xcresult"))
+        self.assertEqual(run.call_count, 2)
+        self.assertIsNone(skip_problem(summary))
+        self.assertEqual(ios_sim._result_counts(summary), ": 1 passed, 0 skipped, 0 failed")
+
+    def test_an_unreadable_bundle_still_fails_after_every_attempt(self):
+        import subprocess
+        from unittest import mock
+
+        error = subprocess.CalledProcessError(returncode=1, cmd="xcresulttool")
+        with mock.patch.object(ios_sim.subprocess, "run", side_effect=error) as run, \
+                mock.patch.object(ios_sim.time, "sleep"):
+            summary = ios_sim._result_summary(Path("/tmp/x.xcresult"), attempts=3)
+        self.assertEqual(run.call_count, 3)
+        self.assertIsNone(summary)
+        self.assertEqual(skip_problem(summary), "no readable result summary")
+        self.assertEqual(ios_sim._result_counts(summary), "")
+
+    def test_a_non_object_summary_is_retried(self):
+        from unittest import mock
+
+        reads = [self._completed("[]"), self._completed('{"passedTests": 0, "skippedTests": 2}')]
+        with mock.patch.object(ios_sim.subprocess, "run", side_effect=reads), \
+                mock.patch.object(ios_sim.time, "sleep"):
+            summary = ios_sim._result_summary(Path("/tmp/x.xcresult"))
+        self.assertIn("skipped", skip_problem(summary))
+
+
+class TerminateAppTests(unittest.TestCase):
+    """Stopping the app after a timed-out batch never hangs the harness (#620)."""
+
+    def test_a_hung_terminate_gives_up_after_its_timeout(self):
+        import subprocess
+        from unittest import mock
+
+        hang = subprocess.TimeoutExpired(cmd="simctl", timeout=60)
+        with mock.patch.object(ios_sim.subprocess, "run", side_effect=hang) as run:
+            self.assertFalse(ios_sim.terminate_app("UDID"))
+        self.assertEqual(run.call_args.kwargs["timeout"], ios_sim.TERMINATE_TIMEOUT)
+        self.assertIn("terminate", run.call_args.args[0])
+
+    def test_a_terminate_that_returns_succeeds_whatever_its_status(self):
+        import subprocess
+        from unittest import mock
+
+        done = subprocess.CompletedProcess(args=[], returncode=3)
+        with mock.patch.object(ios_sim.subprocess, "run", return_value=done):
+            self.assertTrue(ios_sim.terminate_app("UDID", timeout=5))
+
+
 class SourceHashTests(unittest.TestCase):
     """The driver rebuild cache must react to real edits and nothing else."""
 
