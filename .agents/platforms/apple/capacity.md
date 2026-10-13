@@ -6,6 +6,8 @@ FST lanes and other projects' lanes (Fenton-HASS-Native) share one Mac. `tools/d
 
 This repository holds the **canonical copy** (`tools/devcap.py`, tests in `tools/tests/test_devcap.py`). Other repositories vendor both files byte for byte and keep `VERSION` in step; change the protocol here first, bump `VERSION`, then copy it out.
 
+Worktrees keep whatever copy they branched with, so the Mac also has a **shared install** at `~/.devcap/lib/devcap.py`: every copy from 1.2.1 on runs it instead of itself when it is newer. After merging a devcap change, run `python3 tools/devcap.py install` from an up-to-date default-branch checkout (never from an unmerged branch). Copies older than 1.2.1 can't defer; those worktrees need to rebase.
+
 ## Gates
 
 | Gate | Slots | Taken by |

@@ -18,8 +18,9 @@ import unittest.mock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from tools import devcap
-from tools.devcap import Gate, Hold, WaitTimeout, gate_names, parse_ticket, queue_order
+os.environ["DEVCAP_NO_DEFER"] = "1"  # test this checkout, never the machine's shared install
+from tools import devcap  # noqa: E402
+from tools.devcap import Gate, Hold, WaitTimeout, gate_names, parse_ticket, queue_order  # noqa: E402
 
 TOOL = Path(devcap.__file__)
 REAL_SHUTDOWN_SIMS = devcap.shutdown_sims
@@ -518,6 +519,13 @@ class UnmanagedSimTests(DevcapTestCase):
         self.assertEqual(calls, [["/hub", "close", "7", "1"]])
         self.assertIn("close Device Hub window 'Devices", (self.root / "devcap.log").read_text())
 
+    def test_physical_device_windows_are_never_closed(self):
+        windows = [{"pid": 7, "window": 0, "title": "Stephen's iPhone \u2013 iOS 27.0"},
+                   {"pid": 7, "window": 1, "title": "Old Sim \u2013 iOS 27.0"},
+                   {"pid": 7, "window": 2, "title": "Devices \u2013 No Selection"}]
+        to_close, _ = devcap.windows_to_close(windows, set(), {}, now=0, grace=0, sim_names={"Old Sim"})
+        self.assertEqual([w["window"] for w in to_close], [2, 1])
+
     def test_debugged_from_ps(self):
         app = f"/Users/x/Library/Developer/CoreSimulator/Devices/{LEAKED.lower()}/data/Containers/Bundle/A/App.app/App"
         text = "\n".join([
@@ -554,6 +562,41 @@ class UnmanagedCliTests(DevcapTestCase):
         result = self.cli("reap", "--grace", "0")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.fake_log.read_text(), f"simctl shutdown {LEAKED} held=\n")
+
+
+class SharedInstallTests(DevcapTestCase):
+    """Every copy from 1.2.1 on runs the newest version installed with ``devcap install``."""
+
+    def cli(self, *args, env=None):
+        environment = {k: v for k, v in os.environ.items() if k != devcap.NO_DEFER_ENV}
+        return subprocess.run([sys.executable, str(TOOL), *args], capture_output=True, text=True,
+                              env={**environment, **(env or {})}, timeout=60)
+
+    def test_install_then_older_copies_defer_to_it(self):
+        result = self.cli("install")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        installed = devcap.installed_path(self.root)
+        self.assertEqual(devcap.file_version(installed), devcap.VERSION)
+        newer = devcap.VERSION + "9"
+        installed.write_text(installed.read_text().replace(f'VERSION = "{devcap.VERSION}"', f'VERSION = "{newer}"'))
+        self.assertEqual(self.cli("--version").stdout.strip(), newer)
+        self.assertEqual(self.cli("--version", env={devcap.NO_DEFER_ENV: "1"}).stdout.strip(), devcap.VERSION)
+        no_defer = {devcap.NO_DEFER_ENV: "1"}
+        refused = self.cli("install", env=no_defer)
+        self.assertEqual(refused.returncode, 1)
+        self.assertIn("already has newer", refused.stderr)
+        self.assertEqual(self.cli("install", "--force", env=no_defer).returncode, 0)
+        self.assertEqual(devcap.file_version(installed), devcap.VERSION)
+
+    def test_an_older_install_is_ignored(self):
+        installed = devcap.installed_path(self.root)
+        installed.parent.mkdir(parents=True)
+        installed.write_text('VERSION = "1.0.0"\nraise SystemExit("old install ran")\n')
+        self.assertEqual(self.cli("--version").stdout.strip(), devcap.VERSION)
+
+    def test_version_key(self):
+        self.assertLess(devcap.version_key("1.2.9"), devcap.version_key("1.2.10"))
+        self.assertIsNone(devcap.file_version(self.root / "missing.py"))
 
 
 class AgeTests(unittest.TestCase):

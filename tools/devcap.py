@@ -101,7 +101,7 @@ from typing import Callable, Iterable, Iterator, Sequence
 # region Configuration
 
 #: Bump when the on-disk layout or the CLI changes; vendored copies must match.
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 
 #: Exit code when a wait gives up (``EX_TEMPFAIL``).
 WAIT_TIMEOUT_EXIT = 75
@@ -907,14 +907,16 @@ def hub_device_name(title: str) -> str:
 
 
 def windows_to_close(windows: list[dict], keep_names: set[str], first_seen: dict[str, float],
-                     now: float, grace: float) -> tuple[list[dict], dict[str, float]]:
+                     now: float, grace: float, sim_names: set[str] | None = None) -> tuple[list[dict], dict[str, float]]:
     """Pick Device Hub windows to close.
 
     A window stays open while its device is in use (held, about to be used,
     or under Xcode's debugger). Every other window, including empty "Devices –
     No Selection" ones, closes once it has been open for ``grace`` seconds,
-    so a window a lane is still setting up is never closed. Windows are keyed
-    by pid, title and occurrence, since indices shift as others close.
+    so a window a lane is still setting up is never closed. Only windows of
+    known simulators (``sim_names``) and empty "Devices" windows are ever
+    closed, never a physical device's. Windows are keyed by pid, title and
+    occurrence, since indices shift as others close.
 
     Returns:
         ``(to_close, first_seen)``: windows to close, highest index first, and
@@ -925,7 +927,8 @@ def windows_to_close(windows: list[dict], keep_names: set[str], first_seen: dict
     to_close = []
     for window in sorted(windows, key=lambda w: (w["pid"], w["window"])):
         title = window.get("title", "")
-        if hub_device_name(title) in keep_names:
+        name = hub_device_name(title)
+        if name in keep_names or (sim_names is not None and name not in sim_names and name != "Devices"):
             continue
         counts[title] = counts.get(title, 0) + 1
         key = f"{window['pid']}:{title}#{counts[title]}"
@@ -1009,7 +1012,8 @@ def scan_unmanaged(root: Path | None = None, exclude: Sequence[str] = (), reap: 
         window_seen = state.get("windows", {})
         if reap and grace is not None and debugged is not None and (hub := hub_windows(root)):
             helper, windows = hub
-            to_close, window_seen = windows_to_close(windows, in_use, window_seen, now, grace)
+            to_close, window_seen = windows_to_close(windows, in_use, window_seen, now, grace,
+                                                     {sim["name"] for sim in sims})
             for window in to_close:
                 try:
                     subprocess.run([str(helper), "close", str(window["pid"]), str(window["window"])],
@@ -1208,6 +1212,10 @@ def build_parser() -> argparse.ArgumentParser:
     reap.add_argument("--dry-run", action="store_true", help="only list them")
     reap.set_defaults(func=cmd_reap)
 
+    install = sub.add_parser("install", help="make this copy the machine-wide one every newer copy defers to")
+    install.add_argument("--force", action="store_true", help="replace even a newer installed copy")
+    install.set_defaults(func=cmd_install)
+
     slots = sub.add_parser("slots", help="print configured slot counts")
     slots.add_argument("pool", nargs="*")
     slots.set_defaults(func=cmd_slots)
@@ -1218,8 +1226,71 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     return args.func(args)
 
+# endregion
+
+# region Shared install
+
+#: Set to skip deferring to the shared install (tests, or debugging an old copy).
+NO_DEFER_ENV = "DEVCAP_NO_DEFER"
+
+
+def installed_path(root: Path | None = None) -> Path:
+    """The machine-wide copy every repository's devcap defers to when it is newer."""
+    return (root or lock_root()) / "lib" / "devcap.py"
+
+
+def version_key(version: str) -> tuple[int, ...]:
+    """Comparable form of ``"1.2.10"``."""
+    return tuple(int(part) for part in re.findall(r"\d+", version)[:3])
+
+
+def file_version(path: Path) -> str | None:
+    """``VERSION`` of a devcap file, or None if it is missing or unreadable."""
+    try:
+        match = re.search(r'^VERSION = "([0-9.]+)"', path.read_text(encoding="utf-8"), re.M)
+    except OSError:
+        return None
+    return match.group(1) if match else None
+
+
+def defer_to_installed(namespace: dict) -> bool:
+    """Replace this module's definitions with the shared install's when it is newer.
+
+    Repositories and worktrees carry their own copies, and an old worktree
+    must not bypass newer rules. Every copy from 1.2.1 on runs the newest
+    version installed with ``devcap install``.
+
+    Returns:
+        True when the shared install took over.
+    """
+    path = installed_path()
+    if os.environ.get(NO_DEFER_ENV) or not path.exists() or Path(__file__).resolve() == path.resolve():
+        return False
+    installed = file_version(path)
+    if not installed or version_key(installed) <= version_key(VERSION):
+        return False
+    exec(compile(path.read_text(encoding="utf-8"), str(path), "exec"), namespace)
+    return True
+
+
+def cmd_install(args: argparse.Namespace) -> int:
+    path = installed_path()
+    current = file_version(path)
+    if current and version_key(current) > version_key(VERSION) and not args.force:
+        print(f"devcap install: {path} already has newer {current}; this copy is {VERSION}", file=sys.stderr)
+        return 1
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(Path(__file__).read_text(encoding="utf-8"), encoding="utf-8")
+    temporary.replace(path)
+    print(f"devcap install: {path} is now {VERSION} (was {current or 'not installed'})")
+    return 0
+
+# endregion
+
+
+#: Whether a newer shared install replaced this copy's definitions at import.
+DEFERRED = defer_to_installed(globals())
 
 if __name__ == "__main__":
     sys.exit(main())
-
-# endregion
