@@ -88,7 +88,7 @@ from typing import Callable, Iterable, Iterator, Sequence
 # region Configuration
 
 #: Bump when the on-disk layout or the CLI changes; vendored copies must match.
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 #: Exit code when a wait gives up (``EX_TEMPFAIL``).
 WAIT_TIMEOUT_EXIT = 75
@@ -492,15 +492,16 @@ class Gate:
 
     def release(self) -> None:
         """Release the held slot, if any."""
-        if self._handle is None:
+        handle, slot = self._handle, self._slot
+        if handle is None:
             return
+        self._handle, self._slot = None, None
         try:
-            self.slot_holder(self._slot).unlink(missing_ok=True)
+            self.slot_holder(slot).unlink(missing_ok=True)
         except OSError:
             pass
-        log_event(f"release {self.name} slot {self._slot}", self.root)
-        self._unlock(self._handle)
-        self._handle, self._slot = None, None
+        log_event(f"release {self.name} slot {slot}", self.root)
+        self._unlock(handle)
 
     @property
     def held(self) -> bool:
@@ -563,6 +564,7 @@ class Hold:
     on_overrun: Callable[[], None] | None = None
     gates: list[Gate] = field(default_factory=list, init=False)
     overran: bool = field(default=False, init=False)
+    _release_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
     _done: threading.Event = field(default_factory=threading.Event, init=False, repr=False)
 
     def acquire(self) -> None:
@@ -587,11 +589,12 @@ class Hold:
             threading.Thread(target=self._watchdog, daemon=True).start()
 
     def release(self) -> None:
-        """Release every held gate, newest first."""
+        """Release every held gate, newest first (safe from the watchdog and the caller at once)."""
         self._done.set()
-        for gate in reversed(self.gates):
-            gate.release()
-        self.gates.clear()
+        with self._release_lock:
+            for gate in reversed(self.gates):
+                gate.release()
+            self.gates.clear()
 
     def environment(self) -> dict[str, str]:
         """Environment for children: ``DEVCAP_HELD`` lists every held gate."""

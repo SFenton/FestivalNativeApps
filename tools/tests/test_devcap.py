@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 import unittest
 import unittest.mock
@@ -190,6 +191,16 @@ class HoldTests(DevcapTestCase):
         self.assertEqual(held.gates, [])
         self.assertEqual(Gate("device-X", self.root).holders(), [])
         blocker.release()
+
+    def test_concurrent_release_logs_once(self):
+        held = Hold(["build"], "x", wait_seconds=1, hold_seconds=None, root=self.root)
+        held.acquire()
+        threads = [threading.Thread(target=held.release) for _ in range(4)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual((self.root / "devcap.log").read_text().count("release build"), 1)
 
     def test_watchdog_fires_on_overrun(self):
         fired = []
