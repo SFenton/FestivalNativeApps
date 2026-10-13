@@ -207,8 +207,10 @@ final class SongLeaderboardEndJourneyTests: XCTestCase {
     private func assertLastRowRestsAboveChrome(
         _ rows: XCUIElementQuery, chromeTop: CGFloat, in app: XCUIApplication, window: CGRect
     ) {
-        // Drag up from just above the chrome, inside the rows (at AX5 the footer and
-        // pager fill much of the screen), until two drags leave the bottom row in place.
+        // Flick up from just above the chrome, inside the rows (at AX5 the footer and
+        // pager fill much of the screen), until two flicks leave the bottom row in place.
+        // With a footer only ~64 pt of rows show, so plain drags took some 40 gestures to
+        // reach rank 25 on iPhone; a fast flick carries on with momentum (#620).
         let origin = app.windows.firstMatch.coordinate(withNormalizedOffset: .zero)
         let startY = chromeTop - 16
         let distance = min(window.height * 0.3, max(startY - window.minY - 160, 60))
@@ -216,7 +218,10 @@ final class SongLeaderboardEndJourneyTests: XCTestCase {
         var unchanged = 0
         for _ in 0..<60 where unchanged < 2 {
             let start = origin.withOffset(CGVector(dx: window.midX - window.minX, dy: startY - window.minY))
-            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -distance)))
+            start.press(
+                forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -distance)),
+                withVelocity: .fast, thenHoldForDuration: 0
+            )
             let bottom = rows.allElementsBoundByIndex.map(\.frame).filter { window.intersects($0) }
                 .max { $0.maxY < $1.maxY } ?? .null
             unchanged = bottom == lastFrame ? unchanged + 1 : 0
