@@ -16,6 +16,12 @@ This repository holds the **canonical copy** (`tools/devcap.py`, tests in `tools
 
 State lives in `~/.devcap/<gate>/`: per-slot OS locks (released by the OS when a holder dies), a FIFO ticket queue (dead waiters pruned), holder records, and `~/.devcap/devcap.log`. Override counts with `DEVCAP_SLOTS_<POOL>` or `~/.devcap/config.json`.
 
+## Simulators booted outside a hold
+
+A booted simulator whose device gate nobody holds is **unmanaged**: something booted it without devcap, or left it booted after its hold. Unmanaged simulators count against the `simulator` slots, so the limit holds whoever boots them. After 5 minutes unmanaged (`DEVCAP_REAP_GRACE` or `config.json` `reap_grace_seconds`; `off` disables), the next waiter or finished simulator hold shuts it down and closes Device Hub windows of devices nobody is using, including stale "Devices – No Selection" windows (owner decision, 2026-10-13). Simulators running an app under Xcode's debugger are never shut down. `python3 tools/devcap.py status` lists unmanaged simulators; `python3 tools/devcap.py reap [--dry-run]` sweeps on demand.
+
+Consequences: never boot or drive a simulator outside a hold (a direct `simctl boot` or `xcodebuild test` gets shut down after 5 minutes), and `ios_sim.py`'s product simulator no longer stays booted for long between holds. Device Hub handling compiles a small Swift helper into `~/.devcap/bin` on first use and needs the Accessibility permission the agents already have; `DEVCAP_HUB=off` turns it off.
+
 ## How FST tools use it
 
 - `ios_sim.sim_lock(udid, purpose)` takes `~/.fst-sim.lock` (FST's one-product-simulator rule) and then `devcap` `--sim udid`. `shot`, `drive`, `uitest` batches, `pose`/shutdown and `pwa_ios.py` all go through it.
