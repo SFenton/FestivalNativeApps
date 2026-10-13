@@ -285,7 +285,7 @@ def find_artifact(run: Runner, repo: str, build: str, runs: int = 20) -> Optiona
     Returns:
         ``{version, sha, placeholder, name, run_id, expired}`` or ``None``.
     """
-    listing = json.loads(run(["api", "repos/%s/actions/workflows/%s/runs?branch=master&status=success"
+    listing = json.loads(run(["api", "repos/%s/actions/workflows/%s/runs?status=success"
                                      "&per_page=%d" % (repo, WORKFLOW, runs)]) or "{}")
     for item in listing.get("workflow_runs") or []:
         arts = json.loads(run(["api", "repos/%s/actions/runs/%s/artifacts" % (repo, item["id"])]) or "{}")
