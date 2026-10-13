@@ -130,6 +130,9 @@ public class PlayerModelTests
     [InlineData("""{"accountId":"fixtureplayer1","totalScores":1,"scores":[{"si":"s","ins":"01","sc":1,"pct":101}]}""")]
     [InlineData("""{"accountId":"fixtureplayer1","totalScores":1,"scores":[{"si":"s","ins":"01","sc":1,"rk":-2}]}""")]
     [InlineData("""{"accountId":"fixtureplayer1","totalScores":1,"scores":[{"si":"s","ins":"01","sc":1,"dif":-1}]}""")]
+    [InlineData("""{"accountId":"fixtureplayer1","totalScores":1,"scores":[{"si":"s","ins":"01","sc":1,"validRank":-1}]}""")]
+    [InlineData("""{"accountId":"fixtureplayer1","totalScores":1,"scores":[{"si":"s","ins":"01","sc":1,"validStars":7}]}""")]
+    [InlineData("""{"accountId":"fixtureplayer1","totalScores":1,"scores":[{"si":"s","ins":"01","sc":1,"validTotalEntries":-1}]}""")]
     [InlineData("""{"accountId":"fixtureplayer1","totalScores":1,"scores":[{"si":"s","ins":"01","sc":1,"vs":[{"sc":1,"ml":1,"st":9}]}]}""")]
     [InlineData("""{"accountId":"fixtureplayer1","totalScores":1,"scores":[{"si":"s","ins":"01","sc":1,"vs":[{"sc":1,"ml":1,"rt":[{"l":1,"r":-1}]}]}]}""")]
     public void Profile_RejectsCorruptOrMixedData(string json)

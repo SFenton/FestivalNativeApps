@@ -21,7 +21,8 @@ public readonly record struct InvalidScoreResolution(SongScoreDetail? Detail, In
 /// Filter Invalid Scores for Songs (web <c>useScoreFilter</c> + the <c>SongsPage</c> substitution; Android
 /// <c>InvalidScorePolicy</c>). A score is invalid when its precomputed <c>minLeeway</c> exceeds the user's leeway or,
 /// without one, when it exceeds the chart's CHOpt maximum × (1 + leeway / 100). An invalid score is replaced by the best
-/// <c>validScores</c> variant valid at that leeway (rank from its <c>rankTiers</c>), else by the legacy <c>validScore</c>
+/// <c>validScores</c> variant valid at that leeway (rank from its <c>rankTiers</c>, total from the catalogue's
+/// <c>populationTiers</c>), else by the legacy <c>validScore</c>
 /// fields, else dropped — always with an explicit reason. The data comes from the selected player's profile read and the
 /// catalogue, so no per-song leaderboard read is needed.
 /// </summary>
@@ -74,7 +75,7 @@ public static class InvalidScorePolicy
     /// <summary>Resolves one raw score.</summary>
     /// <param name="score">Raw wire score.</param>
     /// <param name="raw">Its unfiltered detail.</param>
-    /// <param name="song">Catalogue row (CHOpt maximum).</param>
+    /// <param name="song">Catalogue row (CHOpt maximum and population tiers).</param>
     /// <param name="chart">Chart.</param>
     /// <param name="leeway">Leeway percent.</param>
     /// <param name="showOverThreshold">Over CHOpt Threshold is on for this chart: keep the raw invalid score.</param>
@@ -94,15 +95,18 @@ public static class InvalidScorePolicy
                 IsFullCombo = fallback.IsFullCombo ?? raw.IsFullCombo,
                 Stars = fallback.Stars ?? raw.Stars,
                 Rank = RankAt(fallback.RankTiers, leeway) ?? raw.Rank,
+                TotalEntries = song?.FilteredPopulation(chart, leeway) ?? raw.TotalEntries,
             }, InvalidScoreReason.Fallback);
         }
         if (score.ValidScore is not { } legacy) return new(null, InvalidScoreReason.NoFallback);
         return new(raw with
         {
             Score = legacy,
-            Rank = 0,
+            Rank = score.ValidRank ?? 0,
             Accuracy = score.ValidAccuracy ?? raw.Accuracy,
             IsFullCombo = score.ValidIsFullCombo ?? raw.IsFullCombo,
+            Stars = score.ValidStars ?? raw.Stars,
+            TotalEntries = score.ValidTotalEntries ?? raw.TotalEntries,
         }, InvalidScoreReason.Fallback);
     }
 }

@@ -4,6 +4,39 @@
   "webRoot": "FortniteFestivalWeb/src",
   "patterns": [
     {
+      "id": "invalid-scores",
+      "title": "Invalid scores",
+      "status": "current",
+      "doc": ".agents/patterns/invalid-scores.md",
+      "summary": "Selected-player Songs scores resolve through one leeway-aware policy: valid raw scores, best eligible variants with filtered rank/population, full legacy fallback metrics, or no score. Metadata, checks and player sorts share that publication-gated detail.",
+      "keywords": ["invalid score", "filtered player score", "validScores", "minLeeway", "populationTiers", "fallback", "leeway"],
+      "web": [
+        {"path": "pages/songs/SongsPage.tsx", "symbol": "effectiveScores"},
+        {"path": "hooks/data/useScoreFilter.ts", "symbol": "useScoreFilter"}
+      ],
+      "canonical": {
+        "apple": [],
+        "android": [
+          {"path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt", "symbol": "InvalidScorePolicy"},
+          {"path": "android/app/src/main/java/com/festivalscoretracker/android/core/model/PopulationTiers.kt", "symbol": "PopulationTiers"}
+        ],
+        "windows": [
+          {"path": "windows/Festival.Core/Domain/SongInvalidScores.cs", "symbol": "InvalidScorePolicy"},
+          {"path": "windows/Festival.Core/Data/Models.cs", "symbol": "SongPopulationTiers"},
+          {"path": "windows/Festival.Core/ViewModels/SongScoreSource.cs", "symbol": "SongScoreSource"}
+        ]
+      },
+      "guards": [],
+      "related": {
+        "patterns": ["catalogue-sort", "songs-profile-panel"],
+        "controls": ["songs-filter", "song-score-metadata", "songs-instrument-status-chips"],
+        "pages": ["songs"]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [613]
+    },
+    {
       "id": "scroll-edge",
       "title": "Scroll edge: content under pinned chrome",
       "status": "current",

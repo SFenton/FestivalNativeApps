@@ -82,7 +82,62 @@ public sealed record SongDifficulty
     }
 }
 
-/// <summary>Fields present in the service's <c>/api/songs</c> wire objects (population tiers are ignored).</summary>
+/// <summary>One filtered-population changepoint in the compact catalogue wire.</summary>
+/// <param name="Leeway">Leeway percent at which the population changes.</param>
+/// <param name="Total">Filtered chart population.</param>
+public sealed record SongPopulationTier(
+    [property: JsonPropertyName("l"), JsonRequired] double Leeway,
+    [property: JsonPropertyName("t"), JsonRequired] int Total);
+
+/// <summary>A chart's filtered-population curve (<c>populationTiers</c>: <c>bc</c>, <c>t</c>).</summary>
+public sealed record SongPopulationTiers
+{
+    /// <summary>Population before the first changepoint.</summary>
+    [JsonPropertyName("bc"), JsonRequired] public int BaseCount { get; init; }
+    /// <summary>Changepoints in ascending leeway order.</summary>
+    [JsonPropertyName("t"), JsonRequired] public IReadOnlyList<SongPopulationTier> Tiers { get; init; } = [];
+
+    /// <summary>Whether counts are non-negative and changepoints are finite and ordered.</summary>
+    [JsonIgnore]
+    public bool IsValid
+    {
+        get
+        {
+            if (BaseCount < 0 || Tiers is null) return false;
+            var previous = double.NegativeInfinity;
+            foreach (var tier in Tiers)
+            {
+                if (tier is null || !double.IsFinite(tier.Leeway) || tier.Leeway < previous || tier.Total < 0) return false;
+                previous = tier.Leeway;
+            }
+            return true;
+        }
+    }
+
+    /// <summary>Finds the last changepoint at or below a leeway (web <c>getFilteredTotal</c>).</summary>
+    /// <param name="leeway">Leeway percent.</param>
+    /// <returns>Filtered population, or the base count before the first changepoint.</returns>
+    public int TotalAt(double leeway)
+    {
+        var low = 0;
+        var high = Tiers.Count - 1;
+        var total = BaseCount;
+        while (low <= high)
+        {
+            var middle = low + (high - low) / 2;
+            var tier = Tiers[middle];
+            if (tier.Leeway <= leeway)
+            {
+                total = tier.Total;
+                low = middle + 1;
+            }
+            else high = middle - 1;
+        }
+        return total;
+    }
+}
+
+/// <summary>Fields present in the service's <c>/api/songs</c> wire objects.</summary>
 public sealed record Song
 {
     /// <summary>Stable song identifier.</summary>
@@ -109,6 +164,8 @@ public sealed record Song
     [JsonPropertyName("pathArtifactGenerationId")] public string? PathArtifactGenerationId { get; init; }
     /// <summary>Per-chart engine maximum score keyed by service instrument ID.</summary>
     [JsonPropertyName("maxScores")] public IReadOnlyDictionary<string, int>? MaxScores { get; init; }
+    /// <summary>Filtered-population curves keyed by service instrument ID.</summary>
+    [JsonPropertyName("populationTiers")] public IReadOnlyDictionary<string, SongPopulationTiers?>? PopulationTiers { get; init; }
 
     /// <summary>Whether Lead/Pro Lead should use the keys icon.</summary>
     [JsonIgnore] public bool UsesKeyboardIcon => Sig == "Keyboard";
@@ -123,6 +180,13 @@ public sealed record Song
     /// <returns>A positive score, or <see langword="null"/>.</returns>
     public int? MaxScore(Instrument instrument) =>
         MaxScores is not null && MaxScores.TryGetValue(instrument.ServiceId(), out var value) && value > 0 ? value : null;
+
+    /// <summary>Returns a chart's filtered population from the validated catalogue.</summary>
+    /// <param name="instrument">Chart to look up.</param>
+    /// <param name="leeway">Leeway percent.</param>
+    /// <returns>Population, or <see langword="null"/> when no curve is provided.</returns>
+    public int? FilteredPopulation(Instrument instrument, double leeway) =>
+        PopulationTiers is not null && PopulationTiers.TryGetValue(instrument.ServiceId(), out var tiers) ? tiers?.TotalAt(leeway) : null;
 
     /// <summary>Formats a positive duration as <c>m:ss</c> or <c>h:mm:ss</c>.</summary>
     [JsonIgnore]
@@ -168,6 +232,7 @@ public sealed record SongsResponse(
     {
         if (Songs is null || Count < 0 || Count != Songs.Count ||
             Songs.Any(s => string.IsNullOrEmpty(s.SongId) || string.IsNullOrEmpty(s.Title)) ||
+            Songs.Any(s => s.PopulationTiers?.Values.Any(t => t is not null && !t.IsValid) == true) ||
             Songs.Select(s => s.SongId).Distinct(StringComparer.Ordinal).Count() != Songs.Count)
             throw new FestivalApiException(FestivalApiErrorKind.InvalidResponse);
     }

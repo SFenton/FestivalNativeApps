@@ -80,6 +80,110 @@ public class SongInvalidScoresTests
     }
 
     [Fact]
+    public void Resolve_VariantUsesFilteredCataloguePopulationAtTheLeeway()
+    {
+        var song = System.Text.Json.JsonSerializer.Deserialize(
+            """{"songId":"s1","title":"T","maxScores":{"Solo_Guitar":1000},"populationTiers":{"Solo_Guitar":{"bc":10,"t":[{"l":-5,"t":20},{"l":1,"t":25},{"l":3,"t":40}]}}}""",
+            FestivalJsonContext.Default.Song)!;
+        var score = Score(2000, variants: [new PlayerValidScoreVariant
+        {
+            Score = 950, MinLeeway = -5, RankTiers = [new(-5, 3), new(1, 5)],
+        }]);
+        var resolved = InvalidScorePolicy.Resolve(score, SongScoreSource.ToDetail(score), song, Instrument.Lead, 1, false);
+        Assert.Equal((5, 25), (resolved.Detail!.Rank, resolved.Detail.TotalEntries));
+        Assert.Equal("Top 20%", SongMetadataPolicy.PercentileBucket(resolved.Detail.Rank, resolved.Detail.TotalEntries));
+    }
+
+    [Fact]
+    public void Resolve_LegacyUsesEveryServerProvidedFallbackMetric()
+    {
+        var score = System.Text.Json.JsonSerializer.Deserialize(
+            """{"si":"s1","ins":"01","sc":2000,"acc":990,"fc":true,"st":6,"rk":1,"te":50,"validScore":950,"validAccuracy":970,"validIsFullCombo":false,"validRank":4,"validStars":5,"validTotalEntries":20}""",
+            PlayerJsonContext.Default.PlayerScore)!;
+        var resolved = Resolve(score);
+        Assert.Equal((950L, 970_000d, false, 4, 5, 20),
+            (resolved.Detail!.Score, resolved.Detail.Accuracy, resolved.Detail.IsFullCombo, resolved.Detail.Rank,
+                resolved.Detail.Stars, resolved.Detail.TotalEntries));
+    }
+
+    [Fact]
+    public void Resolve_PreservesRawAndMissingPopulationSemantics()
+    {
+        var song = Chart with
+        {
+            PopulationTiers = new Dictionary<string, SongPopulationTiers?>
+            {
+                ["Solo_Guitar"] = new() { BaseCount = 0 },
+            },
+        };
+        var variant = new PlayerValidScoreVariant { Score = 950, MinLeeway = -5 };
+        var invalid = Score(2000, variants: [variant]);
+        InvalidScoreResolution Run(PlayerScore score, Song? catalogue, bool over = false) =>
+            InvalidScorePolicy.Resolve(score, SongScoreSource.ToDetail(score), catalogue, Instrument.Lead, 1, over);
+        Assert.Equal(50, Run(Score(900), song).Detail!.TotalEntries);
+        Assert.Equal(50, Run(invalid, song, over: true).Detail!.TotalEntries);
+        Assert.Equal(0, Run(invalid, song).Detail!.TotalEntries);
+        Assert.Equal(50, Run(invalid, Chart).Detail!.TotalEntries);
+        Assert.Equal(50, Run(invalid, null).Detail!.TotalEntries);
+        Assert.Equal(50, Run(invalid, song with { PopulationTiers = new Dictionary<string, SongPopulationTiers?> { ["Solo_Guitar"] = null } }).Detail!.TotalEntries);
+        var legacy = invalid with { ValidScores = [], ValidScore = 900, ValidRank = 0, ValidStars = 0, ValidTotalEntries = 0 };
+        Assert.Equal((0, 0, 0), (Run(legacy, song).Detail!.Rank, Run(legacy, song).Detail!.Stars, Run(legacy, song).Detail!.TotalEntries));
+    }
+
+    [Fact]
+    public async Task Songs_FilteredPopulationFlowsThroughMetadataFiltersSortsAndLiveSettings()
+    {
+        var service = new FakeService
+        {
+            SongsBody = Wire.DefaultSongs().Replace(
+                "\"bc\":1,\"t\":[]",
+                "\"bc\":10,\"t\":[{\"l\":-5,\"t\":20},{\"l\":1,\"t\":25},{\"l\":3,\"t\":40}]",
+                StringComparison.Ordinal),
+        };
+        var profile = PlayerWire.Profile(PlayerWire.Id, "Fixture One",
+            PlayerWire.Score("s1", "01", 2000, 990, true, 6, 1, 100, 1,
+                ""","ml":5,"vs":[{"sc":1000,"ml":3,"st":6,"rt":[{"l":3,"r":2}]},{"sc":950,"ml":-4,"fc":false,"st":5,"rt":[{"l":-4,"r":3},{"l":1,"r":5}]}]"""),
+            PlayerWire.Score("s2", "01", 900, 980, true, 4, 10, 100, 10),
+            PlayerWire.Score("s3", "01", 1200, 990, true, 6, 2, 100, 2, ""","ml":10"""));
+        SongsWire.Install(service, player: true, profiles: new() { [PlayerWire.Id] = (HttpStatusCode.OK, profile) });
+        var session = service.Session(settings: new AppSettings
+        {
+            SelectedPlayer = new SelectedPlayer(PlayerWire.Id, "Fixture One"), FilterInvalidScores = true, Leeway = 1,
+            SongFilter = new SongFilter(Instrument.Lead), ShowInstrumentIcons = false, SongSort = SongSortMode.Percentile,
+            PlayerScoreFilter = SongPlayerScoreFilter.None.With(SongScoreFilterKind.HasScores, Instrument.Lead, true),
+        });
+        var vm = new SongsViewModel(session);
+        await vm.AppearCommand.ExecuteAsync(null);
+        var reads = service.Handler.Requests.Count;
+        SongRowItem Row(string id) => vm.Sections.SelectMany(s => s.Rows).Single(r => r.Song.SongId == id);
+        Assert.Equal(["s2", "s1"], Ids(vm));
+        Assert.Contains(Row("s1").Metadata, m => m.Kind == MetadataField.Percentile && m.Text == "Top 20%");
+        Assert.Empty(vm.Notices);
+
+        session.UpdateSettings(s => s with { SongSort = SongSortMode.Score });
+        Assert.Equal(["s2", "s1"], Ids(vm));
+        session.UpdateSettings(s => s with { SongSort = SongSortMode.Stars });
+        Assert.Equal(["s2", "s1"], Ids(vm));
+        session.UpdateSettings(s => s with { PlayerScoreFilter = SongPlayerScoreFilter.None.Only(SongBucketKind.Percentile, 20) });
+        Assert.Equal(["s1"], Ids(vm));
+        session.UpdateSettings(s => s with { PlayerScoreFilter = SongPlayerScoreFilter.None.With(SongScoreFilterKind.HasFCs, Instrument.Lead, true) });
+        Assert.Equal(["s2"], Ids(vm));
+        session.UpdateSettings(s => s with { PlayerScoreFilter = SongPlayerScoreFilter.None.With(SongScoreFilterKind.MissingScores, Instrument.Lead, true) });
+        Assert.Equal(["s3"], Ids(vm));
+
+        session.UpdateSettings(s => s with { PlayerScoreFilter = SongPlayerScoreFilter.None, Leeway = 3 });
+        Assert.Contains(Row("s1").Metadata, m => m.Kind == MetadataField.Percentile && m.Text == "Top 5%");
+        Assert.Equal(1000, SongScoreSource.ForSongs(session, session.Catalog!.Songs).Detail!("s1", Instrument.Lead)!.Score);
+        session.UpdateSettings(s => s with { Leeway = -5 });
+        Assert.Equal("No score", Row("s1").ScoreState);
+        session.UpdateSettings(s => s with { FilterInvalidScores = false });
+        Assert.Contains(Row("s1").Metadata, m => m.Kind == MetadataField.Percentile && m.Text == "Top 1%");
+        Assert.Equal(2000, SongScoreSource.ForSongs(session, session.Catalog!.Songs).Detail!("s1", Instrument.Lead)!.Score);
+        Assert.Equal(reads, service.Handler.Requests.Count);
+        Assert.Empty(vm.Notices);
+    }
+
+    [Fact]
     public void Filter_OverThresholdNeedsARawScoreOverTheMaximum()
     {
         var songs = new[] { Chart, Chart with { SongId = "s2" }, Chart with { SongId = "s3" } };

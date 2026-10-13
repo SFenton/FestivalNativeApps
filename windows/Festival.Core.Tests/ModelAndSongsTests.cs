@@ -96,6 +96,79 @@ public class ModelAndSongsTests
         Assert.Throws<FestivalApiException>(() => new Publication(1, 0, 1, false, false, null).Validate());
     }
 
+    [Theory]
+    [InlineData(-6, 10)]
+    [InlineData(-5, 20)]
+    [InlineData(0.9, 20)]
+    [InlineData(1, 25)]
+    [InlineData(2.9, 25)]
+    [InlineData(3, 40)]
+    [InlineData(100, 40)]
+    public void PopulationTiers_DecodeCompactWireAndIncludeExactBoundaries(double leeway, int total)
+    {
+        var song = System.Text.Json.JsonSerializer.Deserialize(
+            """{"songId":"s","title":"T","populationTiers":{"Solo_Guitar":{"bc":10,"t":[{"l":-5,"t":20},{"l":1,"t":25},{"l":3,"t":40}]},"Solo_Bass":null,"Solo_Drums":{"bc":0,"t":[]}}}""",
+            FestivalJsonContext.Default.Song)!;
+        new SongsResponse(1, null, [song]).Validate();
+        Assert.Equal(total, song.FilteredPopulation(Instrument.Lead, leeway));
+        Assert.Null(song.FilteredPopulation(Instrument.Bass, leeway));
+        Assert.Null(song.FilteredPopulation(Instrument.Vocals, leeway));
+        Assert.Equal(0, song.FilteredPopulation(Instrument.Drums, leeway));
+        Assert.Null(Make("s", "T").FilteredPopulation(Instrument.Lead, leeway));
+    }
+
+    [Fact]
+    public void PopulationTiers_UseTheLastEqualChangepoint()
+    {
+        var tiers = new SongPopulationTiers { BaseCount = 10, Tiers = [new(1, 20), new(1, 25), new(2, 30)] };
+        Assert.True(tiers.IsValid);
+        Assert.Equal(25, tiers.TotalAt(1));
+        Assert.Equal(30, tiers.TotalAt(2));
+    }
+
+    [Fact]
+    public void PopulationTiers_RejectInvalidCurvesExplicitly()
+    {
+        SongPopulationTiers[] curves =
+        [
+            new() { BaseCount = -1 },
+            new() { Tiers = null! },
+            new() { Tiers = [null!] },
+            new() { Tiers = [new(double.NaN, 1)] },
+            new() { Tiers = [new(double.PositiveInfinity, 1)] },
+            new() { Tiers = [new(0, -1)] },
+            new() { Tiers = [new(1, 20), new(0, 10)] },
+        ];
+        foreach (var curve in curves)
+        {
+            Assert.False(curve.IsValid);
+            var song = Make("s", "T") with { PopulationTiers = new Dictionary<string, SongPopulationTiers?> { ["Solo_Guitar"] = curve } };
+            Assert.Equal(FestivalApiErrorKind.InvalidResponse,
+                Assert.Throws<FestivalApiException>(() => new SongsResponse(1, null, [song]).Validate()).Kind);
+        }
+    }
+
+    [Theory]
+    [InlineData("""{}""")]
+    [InlineData("""{"bc":1}""")]
+    [InlineData("""{"t":[]}""")]
+    [InlineData("""{"bc":-1,"t":[]}""")]
+    [InlineData("""{"bc":1,"t":null}""")]
+    [InlineData("""{"bc":1,"t":[null]}""")]
+    [InlineData("""{"bc":1,"t":[{"l":1,"t":20},{"l":0,"t":10}]}""")]
+    [InlineData("""{"bc":1,"t":[{"l":0,"t":-1}]}""")]
+    [InlineData("""{"bc":1,"t":[{"l":0}]}""")]
+    [InlineData("""{"bc":1,"t":[{"t":20}]}""")]
+    public async Task CatalogueRead_ReportsInvalidPopulationTiers(string curve)
+    {
+        var service = new FakeService
+        {
+            SongsBody = Wire.Songs("""{"songId":"s","title":"T","populationTiers":{"Solo_Guitar":""" + curve + "}}"),
+        };
+        Assert.Equal(FestivalApiErrorKind.InvalidResponse,
+            (await Assert.ThrowsAsync<FestivalApiException>(() => service.Client().GetSongsAsync())).Kind);
+    }
+
     [Fact]
     public void Leaderboard_PagingAndValidation()
     {
