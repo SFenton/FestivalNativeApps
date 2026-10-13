@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import math
 import re
@@ -13,6 +14,7 @@ import struct
 import threading
 import time
 import zlib
+from collections.abc import Callable
 from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -32,6 +34,11 @@ SLOW_SONG_LEADERBOARD_PAGE_SECONDS = 3
 # mid-hold never leaves the listener stalling path reads. 240 s covers the CI runner's
 # ×4 virtual-machine budget for a 60 s hold (#386: a 60 s hold expired mid-audit there).
 PATH_HOLD_LIMIT_SECONDS = 240
+# A held Paths read sends its status line and headers at once, then one body byte this
+# often until released: the apps time out a request after 30 s without a byte (Apple
+# `FestivalAPI.requestTimeout`), and a held switch's checks and audit outlasted that on
+# the CI runner, so the sheet went offline mid-audit (#620).
+PATH_HOLD_KEEPALIVE_SECONDS = 5.0
 
 
 def load_fixture(name: str) -> tuple[dict, str]:
@@ -912,14 +919,33 @@ class FixtureServer(ThreadingHTTPServer):
             "waiting": self._path_hold_waiting,
         }
 
-    def wait_for_path_release(self) -> None:
-        """Block one Paths read while a hold lasts (returns at once without one)."""
+    def path_hold_active(self) -> bool:
+        """Return whether a Paths read arriving now would be held."""
+        with self._path_hold:
+            return time.monotonic() < self._path_hold_until
+
+    def wait_for_path_release(self, keepalive: Callable[[], None] | None = None) -> None:
+        """Block one Paths read while a hold lasts (returns at once without one).
+
+        Args:
+            keepalive: Called every ``PATH_HOLD_KEEPALIVE_SECONDS`` while held, outside
+                the lock, so the read's connection never goes idle.
+        """
         with self._path_hold:
             self._path_hold_waiting += 1
-            try:
-                while (remaining := self._path_hold_until - time.monotonic()) > 0:
-                    self._path_hold.wait(timeout=remaining)
-            finally:
+        try:
+            while True:
+                with self._path_hold:
+                    remaining = self._path_hold_until - time.monotonic()
+                    if remaining <= 0:
+                        return
+                    self._path_hold.wait(timeout=min(remaining, PATH_HOLD_KEEPALIVE_SECONDS))
+                    if self._path_hold_until <= time.monotonic():
+                        return
+                if keepalive:
+                    keepalive()
+        finally:
+            with self._path_hold:
                 self._path_hold_waiting -= 1
 
     def record_score_query(self, top: int, offset: int, leeway: float | None) -> None:
@@ -1199,6 +1225,46 @@ class FixtureHandler(BaseHTTPRequestHandler):
         self.end_headers()
         if data:
             self.wfile.write(data)
+
+    def _respond_after_path_hold(self, respond: Callable[[], None]) -> None:
+        """Answer a Paths read, keeping its connection alive while a hold lasts.
+
+        Held, the finished response's status line and headers go out at once and its
+        body one byte per keep-alive tick, keeping the last byte until the release, so
+        the client sees a slow server, not an idle one it times out (#620).
+
+        Args:
+            respond: Writes the complete response to ``self.wfile``.
+        """
+        if not self.fixture.path_hold_active():
+            self.fixture.wait_for_path_release()
+            respond()
+            return
+        stream, buffer = self.wfile, io.BytesIO()
+        self.wfile = buffer
+        try:
+            respond()
+        finally:
+            self.wfile = stream
+        data = buffer.getvalue()
+        sent = data.find(b"\r\n\r\n") + 4
+
+        def keepalive() -> None:
+            nonlocal sent
+            if sent < len(data) - 1:
+                stream.write(data[sent:sent + 1])
+                stream.flush()
+                sent += 1
+
+        try:
+            stream.write(data[:sent])
+            stream.flush()
+            self.fixture.wait_for_path_release(keepalive)
+            stream.write(data[sent:])
+            stream.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            # The client gave up; it is no longer waiting.
+            self.close_connection = True
 
     # region Public-only endpoint fixtures
     def do_GET(self) -> None:
@@ -2023,26 +2089,28 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if difficulty not in ("easy", "medium", "hard", "expert"):
                 self._json(400, {"status": "invalid_path_difficulty"})
                 return
-            self.fixture.wait_for_path_release()
-            if (song_id != "fixture-pulse"
-                    or query.get("generationId", ["fixture-path-generation"])[0]
-                        != "fixture-path-generation"
-                    or difficulty in ("easy", "medium")
-                    or instrument != "Solo_Guitar"):
-                self._json(404, {"status": "path_not_generated"})
-                return
-            etag = f'"fst-fixture-{difficulty}-{"json" if data_route else "png"}-v1"'
-            if data_route:
-                if self.headers.get("If-None-Match") == etag:
-                    self._json(304, None, etag=etag)
+            def respond() -> None:
+                if (song_id != "fixture-pulse"
+                        or query.get("generationId", ["fixture-path-generation"])[0]
+                            != "fixture-path-generation"
+                        or difficulty in ("easy", "medium")
+                        or instrument != "Solo_Guitar"):
+                    self._json(404, {"status": "path_not_generated"})
+                    return
+                etag = f'"fst-fixture-{difficulty}-{"json" if data_route else "png"}-v1"'
+                if data_route:
+                    if self.headers.get("If-None-Match") == etag:
+                        self._json(304, None, etag=etag)
+                    else:
+                        self._json(200, {
+                            **PATH_DEMO,
+                            "difficulty": difficulty,
+                            "pathSummary": f"Two synthetic {difficulty.title()} activations",
+                        }, etag=etag)
                 else:
-                    self._json(200, {
-                        **PATH_DEMO,
-                        "difficulty": difficulty,
-                        "pathSummary": f"Two synthetic {difficulty.title()} activations",
-                    }, etag=etag)
-            else:
-                self._path_image(difficulty, etag)
+                    self._path_image(difficulty, etag)
+
+            self._respond_after_path_hold(respond)
         elif match := SONG_BAND_LEADERBOARDS_ALL.fullmatch(path):
             # Checked before the per-size route, whose pattern also matches `all`.
             account_ids = query.get("accountId", [])
