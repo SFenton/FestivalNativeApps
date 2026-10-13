@@ -280,7 +280,7 @@ fun SongBandLeaderboardScreen(
             ) {
                 val state = swap.shown
                 if (swap.showsSpinner || state is LoadState.Loading) {
-                    loadSwapSpinnerItem(swap, "Loading band scores", "fst.song-band-leaderboard.loading")
+                    loadSwapSpinnerItem(swap, "Loading band scores", "fst.song-band-leaderboard.loading", state = listState)
                 } else when (state) {
                     LoadState.Loading -> Unit
                     is LoadState.Failed -> item(key = "error") {

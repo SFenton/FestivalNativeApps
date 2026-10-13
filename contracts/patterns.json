@@ -1992,6 +1992,10 @@
             "symbol": "FestivalLoadGate"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt",
+            "symbol": "LoadingRegion"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongPathsViewModel.kt",
             "symbol": "PathSwapPhase"
           },

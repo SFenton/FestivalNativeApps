@@ -293,7 +293,7 @@ fun SongLeaderboardScreen(
             fadeAboveFooter = true,
         ) {
             if (swap.showsSpinner || loaded == null) {
-                loadSwapSpinnerItem(swap, "Loading leaderboard", "fst.song-leaderboard.loading")
+                loadSwapSpinnerItem(swap, "Loading leaderboard", "fst.song-leaderboard.loading", state = listState)
             } else item(key = "rows") {
                 // The card fades in as one with all its rows, never row by row (load-transition R11, owner #614).
                 GlassCard(anchor.item.fillMaxWidth().then(with(swap) { Modifier.card() })) {
