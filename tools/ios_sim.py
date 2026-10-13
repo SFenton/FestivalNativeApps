@@ -2062,6 +2062,57 @@ EXIT_TEST_FAILED = 65
 #: simulator it hung for 44 minutes after a 2400 s batch timeout (#620).
 TERMINATE_TIMEOUT = 60
 
+#: Seconds to wait for a killed child to exit. ``subprocess.run(timeout=…)`` kills the child
+#: and then waits for it with no limit: on a runner whose CoreSimulator was stuck, a 60 s
+#: `simctl terminate` took 14 minutes and a 2400 s batch 78 (#620).
+KILL_WAIT = 60
+
+#: ``xcodebuild``'s error when it cannot see the simulator yet. On a runner, the first batch on
+#: a freshly downloaded runtime printed it, ran no test and then hung (#620).
+NO_DESTINATION_SIGNATURE = "Unable to find a device matching the provided destination specifier"
+
+#: Exit status for a batch stopped because ``xcodebuild`` could not see its simulator.
+EXIT_NO_DESTINATION = 69
+
+
+def run_bounded(cmd: list[str], timeout: float, *, watch: Path | None = None,
+                stop_on: str | None = None, poll: float = 5.0, **popen_kw) -> int | None:
+    """Run ``cmd`` in its own session and never wait on it past ``timeout``.
+
+    On timeout (or once ``stop_on`` appears in ``watch``) the whole process group gets
+    SIGKILL, and the child gets at most ``KILL_WAIT`` seconds to exit.
+
+    Args:
+        cmd: Argument vector (echoed to stderr).
+        timeout: Seconds before the run is killed.
+        watch: A log file the run writes, checked every ``poll`` seconds for ``stop_on``.
+        stop_on: Text in ``watch`` that ends the run early with ``EXIT_NO_DESTINATION``.
+        poll: Seconds between checks.
+        **popen_kw: Extra ``subprocess.Popen`` keyword arguments.
+
+    Returns:
+        The exit status, ``EXIT_NO_DESTINATION`` when ``stop_on`` appeared, or ``None`` on timeout.
+    """
+    print("+", " ".join(cmd), file=sys.stderr)
+    process = subprocess.Popen(cmd, env=popen_kw.pop("env", _env()), start_new_session=True, **popen_kw)
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            return process.wait(timeout=max(0.0, min(poll, deadline - time.monotonic())))
+        except subprocess.TimeoutExpired:
+            pass
+        stopped = bool(watch and stop_on and stop_on in watch.read_text(encoding="utf-8", errors="replace"))
+        if stopped or time.monotonic() >= deadline:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+            try:
+                process.wait(timeout=KILL_WAIT)
+            except subprocess.TimeoutExpired:
+                print(f"{cmd[0]} did not exit {KILL_WAIT}s after SIGKILL; continuing", file=sys.stderr)
+            return EXIT_NO_DESTINATION if stopped else None
+
 
 def terminate_app(udid: str, *, timeout: float = TERMINATE_TIMEOUT) -> bool:
     """Stop the app under test after a timed-out run, without hanging on the simulator.
@@ -2074,13 +2125,13 @@ def terminate_app(udid: str, *, timeout: float = TERMINATE_TIMEOUT) -> bool:
         Whether `simctl terminate` returned in time (its exit status is ignored: the
         app may already have exited).
     """
-    try:
-        _run(["xcrun", "simctl", "terminate", udid, product().bundle_id],
-             check=False, capture_output=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
+    returned = run_bounded(
+        ["xcrun", "simctl", "terminate", udid, product().bundle_id], timeout,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    ) is not None
+    if not returned:
         print(f"simctl terminate did not return within {timeout:g}s; continuing", file=sys.stderr)
-        return False
-    return True
+    return returned
 
 
 #: ``xcodebuild`` log lines that mean the simulator's accessibility server hung before any test ran, so
@@ -2089,6 +2140,7 @@ def terminate_app(udid: str, *, timeout: float = TERMINATE_TIMEOUT) -> bool:
 #: never a wedge.
 WEDGED_SIMULATOR_SIGNATURES = (
     "The test runner failed to initialize for UI testing",
+    NO_DESTINATION_SIGNATURE,
 )
 
 
@@ -2212,23 +2264,22 @@ def _run_uitest_batch(
         if not diagnostics:
             cmd += ["-collect-test-diagnostics", "never"]
         cmd += ["test-without-building", "-quiet"]
-        print("+", " ".join(cmd), file=sys.stderr)
         with open(log_path, "w") as log, simulator_accessibility(udid, a11y):
-            try:
-                process = subprocess.run(
-                    cmd, cwd=APPLE_DIR, env=_env(),
-                    stdout=log, stderr=subprocess.STDOUT, check=False,
-                    timeout=timeout,
-                )
-            except subprocess.TimeoutExpired:
+            returncode = run_bounded(
+                cmd, timeout, watch=log_path, stop_on=NO_DESTINATION_SIGNATURE,
+                cwd=APPLE_DIR, stdout=log, stderr=subprocess.STDOUT,
+            )
+            if returncode is None:
                 # Never let a hung run hold the shared simulator lock past `timeout`:
-                # `subprocess.run` already killed the xcodebuild process tree: this
-                # also stops the app under test so nothing lingers on the simulator.
+                # the xcodebuild process group is killed; also stop the app under test
+                # so nothing lingers on the simulator.
                 terminate_app(udid)
-                process = subprocess.CompletedProcess(cmd, 124)
+                returncode = 124
                 log.write(f"\nTIMEOUT after {timeout}s; killed.\n")
+            elif returncode == EXIT_NO_DESTINATION:
+                log.write("\nxcodebuild cannot see the simulator; stopped (no test ran).\n")
     elapsed = time.time() - start
-    return process.returncode, elapsed, log_path, result_bundle
+    return returncode, elapsed, log_path, result_bundle
 
 # region CI simulator
 

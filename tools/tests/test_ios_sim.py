@@ -249,9 +249,8 @@ class UitestDiagnosticsTests(unittest.TestCase):
                 unittest.mock.patch.object(ios_sim, "LOCK_PATH", Path(tmp) / "sim.lock"), \
                 unittest.mock.patch.object(ios_sim, "_run") as run, \
                 unittest.mock.patch.object(ios_sim, "boot_exclusive"), \
-                unittest.mock.patch.object(ios_sim.subprocess, "run") as xcodebuild:
+                unittest.mock.patch.object(ios_sim, "run_bounded", return_value=0) as xcodebuild:
             run.return_value = ios_sim.subprocess.CompletedProcess([], 0, stdout="", stderr="")
-            xcodebuild.return_value = ios_sim.subprocess.CompletedProcess([], 0)
             ios_sim._run_uitest_batch(
                 udid="UDID", derived=Path(tmp), selectors=["Journey"], timeout=5, **kwargs
             )
@@ -333,22 +332,52 @@ class TerminateAppTests(unittest.TestCase):
     """Stopping the app after a timed-out batch never hangs the harness (#620)."""
 
     def test_a_hung_terminate_gives_up_after_its_timeout(self):
-        import subprocess
         from unittest import mock
 
-        hang = subprocess.TimeoutExpired(cmd="simctl", timeout=60)
-        with mock.patch.object(ios_sim.subprocess, "run", side_effect=hang) as run:
+        with mock.patch.object(ios_sim, "run_bounded", return_value=None) as run, \
+                contextlib.redirect_stderr(io.StringIO()):
             self.assertFalse(ios_sim.terminate_app("UDID"))
-        self.assertEqual(run.call_args.kwargs["timeout"], ios_sim.TERMINATE_TIMEOUT)
+        self.assertEqual(run.call_args.args[1], ios_sim.TERMINATE_TIMEOUT)
         self.assertIn("terminate", run.call_args.args[0])
 
     def test_a_terminate_that_returns_succeeds_whatever_its_status(self):
-        import subprocess
         from unittest import mock
 
-        done = subprocess.CompletedProcess(args=[], returncode=3)
-        with mock.patch.object(ios_sim.subprocess, "run", return_value=done):
+        with mock.patch.object(ios_sim, "run_bounded", return_value=3):
             self.assertTrue(ios_sim.terminate_app("UDID", timeout=5))
+
+
+class RunBoundedTests(unittest.TestCase):
+    """`run_bounded` never waits on a child past its limit (#620: a 2400 s batch ran 78 minutes)."""
+
+    def _run(self, script: str, timeout: float, **kwargs):
+        import sys
+        import time
+
+        start = time.monotonic()
+        with contextlib.redirect_stderr(io.StringIO()):
+            code = ios_sim.run_bounded([sys.executable, "-c", script], timeout, poll=0.1, env=None, **kwargs)
+        return code, time.monotonic() - start
+
+    def test_a_finished_run_returns_its_status(self):
+        self.assertEqual(self._run("raise SystemExit(65)", 10)[0], 65)
+
+    def test_a_run_past_its_timeout_is_killed_with_its_children(self):
+        script = "import subprocess, sys, time; subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); time.sleep(60)"
+        code, elapsed = self._run(script, 0.5)
+        self.assertIsNone(code)
+        self.assertLess(elapsed, 10)
+
+    def test_the_missing_destination_error_stops_a_hung_run(self):
+        with TemporaryDirectory() as tmp:
+            log = Path(tmp) / "log.txt"
+            with open(log, "w") as out:
+                script = f"print({ios_sim.NO_DESTINATION_SIGNATURE!r}, flush=True); import time; time.sleep(60)"
+                code, elapsed = self._run(script, 30, watch=log, stop_on=ios_sim.NO_DESTINATION_SIGNATURE,
+                                          stdout=out, stderr=ios_sim.subprocess.STDOUT)
+        self.assertEqual(code, ios_sim.EXIT_NO_DESTINATION)
+        self.assertLess(elapsed, 10)
+        self.assertEqual(ios_sim.simulator_wedged(ios_sim.NO_DESTINATION_SIGNATURE), ios_sim.NO_DESTINATION_SIGNATURE)
 
 
 class RebootWedgedTests(unittest.TestCase):
