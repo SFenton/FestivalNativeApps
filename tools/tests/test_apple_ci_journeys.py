@@ -295,10 +295,23 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertEqual(self.workflow.count("--fail-on-skip"), 11)
 
     def test_split_band_journey_runs_on_the_ipad(self) -> None:
-        # #480: the only device evidence for the split band #344 changed (landscape iPad split, so not the iPhone).
+        # #480: the iPad's split band (#344) at AX5 under Increase Contrast, with Close's 44 pt hit region.
         journey = "IPadShellAccessibilityTests/testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5"
         self.assertIn(journey, self.history["HISTORY_IPAD_JOURNEYS"])
         self.assertNotIn(journey, self.history["HISTORY_JOURNEYS"])
+
+    def test_duo_split_band_journeys_run_on_the_landscape_ipad(self) -> None:
+        # #480: the iPhone Duo's flat-midpoint and book-hinge bands (#344). A split needs a 720 pt landscape window:
+        # the portrait iPhone skips them (--fail-on-skip) and the CI Duo is folded only, so the iPhone bundle runs
+        # them on the iPad with the Debug Duo window simulation.
+        iphone, ipad = self.blocks
+        for method in (
+            "testFlatMidpointBandIsAccessibleAtAX5WithMoreContrastDuoUnfolded",
+            "testBookHingeBandIsAccessibleAtAX5WithMoreContrastDuoBook",
+        ):
+            journey = f"DuoSplitBandAccessibilityJourneyTests/{method}"
+            self.assertIn(journey, ipad)
+            self.assertNotIn(journey, iphone)
 
     def test_invalid_score_filter_journey_runs_on_the_plain_fixture(self) -> None:
         # #615: the only device evidence for the Filter sheet's score checks under Filter Invalid Scores. It needs

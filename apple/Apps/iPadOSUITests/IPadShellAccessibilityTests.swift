@@ -345,7 +345,7 @@ final class IPadShellAccessibilityTests: XCTestCase {
                 XCTFail("\(page.name): row \(rowID) or trailing pane missing from the tree")
             }
             XCTAssertEqual(paneFrame.minX, window.midX, accuracy: 30, "\(page.name): trailing half")
-            assertBandIsSilent(nodes, page.name)
+            SplitBandUITestSupport.assertBandIsSilent(nodes, page.name)
 
             // Focus: the trailing pane's top heading.
             let focus = waitForTrace(app) { $0.hasPrefix("heading: ") }
@@ -392,32 +392,18 @@ final class IPadShellAccessibilityTests: XCTestCase {
         }
     }
 
-    /// The band between the panes (`OnDemandSplitLayout`'s `SplitDivider`).
-    static let bandID = "fst.split.divider"
-
-    /// The band gives VoiceOver nothing to announce (#344): no splitter anywhere, and the
-    /// band, if XCUITest lists it, is an unlabelled plain node. XCUITest also lists SwiftUI
-    /// views hidden with `accessibilityHidden` (`SongsChromeJourneyTests`), so that the band
-    /// is no accessibility element at all is the hosted `SplitBandAccessibilityTests`' check.
-    @MainActor
-    private func assertBandIsSilent(_ nodes: [XCUIElementSnapshot], _ context: String) {
-        let splitters = nodes.filter { $0.elementType == .splitter || $0.elementType == .splitGroup }
-        XCTAssertTrue(splitters.isEmpty, "\(context): no splitter for VoiceOver to announce: \(splitters.map(\.identifier))")
-        for band in nodes where band.identifier == Self.bandID {
-            XCTAssertEqual(band.elementType, .other, "\(context): the band is a plain view")
-            XCTAssertTrue(band.label.isEmpty && (band.value as? String ?? "").isEmpty,
-                          "\(context): the band has nothing to read ('\(band.label)')")
-        }
-    }
-
     /// The band between the panes under the app's Increase Contrast at AX5 (#344, backfilled
     /// by #480; split-panes R1–R2): the band then draws its hairline at a midpoint (the
     /// hosted `SplitBandAccessibilityTests` check its pixels under the system's and the
     /// app's setting), yet it gives VoiceOver nothing to announce: no splitter (it is
-    /// fixed, not draggable) and no labelled band. The opened row still reads before the
-    /// trailing pane, which opens beside the list, and the pane's Close stays named and at
-    /// least the HIG minimum. Run it with `ios_sim.py uitest --a11y increase-contrast` for
-    /// the system setting.
+    /// fixed, not draggable) and no labelled band (XCUITest lists views hidden with
+    /// `accessibilityHidden`, so that the band is no element at all is the hosted test's
+    /// check). The opened row still reads before the trailing pane, which opens beside the
+    /// list, and the pane's Close is named with a 44 × 44 pt hit region: every near-miss
+    /// tap closes the pane, or, when it overflows, More takes those taps and offers a named
+    /// Close (`SplitBandUITestSupport`). The iPhone Duo's flat and book states are the
+    /// iPhone bundle's `DuoSplitBandAccessibilityJourneyTests`. Run it with
+    /// `ios_sim.py uitest --a11y increase-contrast` for the system setting.
     @MainActor
     func testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5() throws {
         if !IPadAccessibilityAuditTests.runningOnDuo { XCUIDevice.shared.orientation = .landscapeLeft }
@@ -438,7 +424,7 @@ final class IPadShellAccessibilityTests: XCTestCase {
         XCTAssertEqual(paneFrame.minX, window.midX, accuracy: 30, "the trailing pane opens beside the list")
 
         let nodes = try order(app)
-        assertBandIsSilent(nodes, "AX5, Increase Contrast")
+        SplitBandUITestSupport.assertBandIsSilent(nodes, "AX5, Increase Contrast")
         let selected = app.descendants(matching: .any).matching(NSPredicate(format: "isSelected == true"))
             .matching(NSPredicate(format: "identifier BEGINSWITH %@", page.row)).firstMatch
         XCTAssertTrue(selected.exists, "the opened row reads selected")
@@ -452,22 +438,16 @@ final class IPadShellAccessibilityTests: XCTestCase {
             XCTFail("row \(selected.identifier) or trailing pane missing from the tree")
         }
 
-        // Close is a system bar button: XCUITest reports its 36 pt glass (iPadOS 26.5), and
-        // UIKit extends its hit region (audited by `IPadAccessibilityAuditTests`, hitRegion).
-        // Hold it to the HIG minimum (28 × 28 pt). In the iPhone Duo's vertical bar it can
-        // overflow into the system More menu.
-        let close = element(app, "fst.split.close")
-        if close.exists, close.isHittable {
-            XCTAssertEqual(close.label, "Close", "Close is named")
-            XCTAssertGreaterThanOrEqual(min(close.frame.width, close.frame.height), 28, "Close target \(close.frame)")
+        // Close: XCUITest reports a system bar button's glass (36 pt on iPadOS 26.5), not
+        // its hit region, so prove 44 × 44 pt with near-miss taps (each must close the
+        // pane; the row reopens it between taps), or through More when it overflows.
+        let rowID = selected.identifier
+        SplitBandUITestSupport.assertCloseHitRegion(app, "AX5, Increase Contrast") {
+            SplitBandUITestSupport.reopen(app, row: rowID)
         }
-        closeSplit(app)
-        let deadline = Date.now.addingTimeInterval(10)
-        while IPadAccessibilityAuditTests.trailingPane(app) != nil, Date.now < deadline {
-            Thread.sleep(forTimeInterval: 0.3)
-        }
-        XCTAssertNil(IPadAccessibilityAuditTests.trailingPane(app), "Close returns to full width")
-        XCTAssertFalse(element(app, Self.bandID).exists, "no band without a split")
+        XCTAssertTrue(SplitBandUITestSupport.waitForPane(app, open: false), "Close returns to full width")
+        XCTAssertFalse(SplitBandUITestSupport.element(app, SplitBandUITestSupport.bandID).exists,
+                       "no band without a split")
     }
 
     /// Back on a pushed list page beside an open item closes the trailing pane, keeps the

@@ -90,7 +90,7 @@ Re-check single pages with `TEST_RUNNER_FST_AUDIT_PAGES=song-detail,player` (pag
 | `testFlyoutFooterReachableAtAX5` (portrait, landscape) | At AX5 the footer (profile, Deselect Profile, Settings) scrolls with the rows and each item comes wholly on screen and hittable |
 | `testSplitReadingOrderSelectionAndFocus` (landscape) | Full Rankings, Rivals, Leaderboards, Song Detail (Lead board), Settings (Licenses): starts full width; the opened row reads before `fst.split.trailing` and only the opened item's rows are selected (Leaderboards lists the same player on every card, Full Rankings in the selected-profile footer too); the trailing pane starts at the midpoint; focus moves to the pane's top heading and that heading is in the pane; Close returns to full width, clears the selection and focus returns to the row (`row: player:…`). JSON `split-structure.json` |
 
-| `testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5` (landscape; #480, for #344) | Rivals at AX5 with the app's Increase Contrast on (the band then draws its hairline): Rival Detail opens beside the list, nothing is a splitter and the band (if XCUITest lists it) is an unlabelled `.other` node, the opened row reads before the trailing pane, Close is named and at least the HIG minimum 28 pt (a system bar button: XCUITest reports its 36 pt glass on iPadOS 26.5; UIKit's hit expansion is audited by `IPadAccessibilityAuditTests`), and closing removes the pane. XCUITest lists views hidden with `accessibilityHidden`, so the hosted test below proves the band is no element. CI: the plain-fixture step's `HISTORY_IPAD_JOURNEYS` (iPad). Add `uitest --a11y increase-contrast` locally for the system setting. `testSplitReadingOrderSelectionAndFocus` makes the same band check on every split page |
+| `testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5` (landscape; #480, for #344) | Rivals at AX5 with the app's Increase Contrast on (the band then draws its hairline): Rival Detail opens beside the list, nothing is a splitter and the band (if XCUITest lists it) is an unlabelled `.other` node, the opened row reads before the trailing pane, Close is named, sits in the trailing pane and has a **44 × 44 pt hit region**, and closing removes the pane. XCUITest reports a system bar button's glass (36 pt on iPadOS 26.5), not its hit region, so `SplitBandUITestSupport.assertCloseHitRegion` taps 20 pt off-centre (and 15 pt diagonally) six times, reopening the row between taps, and each tap must close the pane (the `NavButtonHitRegionJourneyTests` method). When Close overflows into the bar's More, each near-miss tap on More must open a menu with a named Close at least 44 pt tall, and choosing it closes the pane. XCUITest lists views hidden with `accessibilityHidden`, so the hosted test below proves the band is no element. CI: the plain-fixture step's `HISTORY_IPAD_JOURNEYS` (iPad). Add `uitest --a11y increase-contrast` locally for the system setting. `testSplitReadingOrderSelectionAndFocus` makes the same band check on every split page |
 
 Heading traits are read from the snapshot's `traits` (readable on iPadOS 26.5).
 
@@ -102,6 +102,16 @@ Heading traits are read from the snapshot's `traits` (readable on iPadOS 26.5).
 - No button overlaps the band, at Large and AX5.
 
 The app's toggle used to leave the band clear.
+
+The hosted tests run on macOS: they are no iPhone Duo or iPad device evidence. The device evidence is:
+
+- **iPad:** `IPadShellAccessibilityTests.testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5` (above).
+- **iPhone Duo:** the iPhone bundle's `DuoSplitBandAccessibilityJourneyTests`, in its two split states at AX5 with the app's Increase Contrast, on Rivals:
+  - `…DuoUnfolded` is the flat inner display. The band is 1 pt at the free space's midpoint and its hairline shows (screenshot pixels on `FST_DEBUG_FLAT_BACKDROP`).
+  - `…DuoBook` is book pose, switched live with Rival Detail open. The item stays open, and the band is the fold from the readout's `fold=`, with no hairline.
+  - Both check that the trailing pane starts where the band ends and the leading pane keeps 360 pt. They also check that the band is silent, that the opened row is selected and reads before the trailing pane, and Close's 44 pt hit region or its More overflow (`SplitBandUITestSupport`, shared with the iPad journey). Closing returns to full width with no band.
+  - The `DebugDuoWindow` simulation supplies the Duo's size classes, free span and fold. A split needs a landscape window of at least 720 pt, which the portrait-only iPhone never has and the CI Duo (folded only, [CI journeys](xcuitest.md#ci-journeys)) cannot reach. So `apple-ci` runs them in the iPad step (`uitest --app phone` on the landscape iPad), where the shell is the iPad flyout and no system vertical bar is drawn. Elsewhere they skip.
+  - On the real Duo simulator, run them unfolded and rotated to landscape: `uitest --device duo --pose unfolded --set-pose --rotate left`. This needs Device Hub scripting (Accessibility permission).
 
 ### Score History at AX5
 
