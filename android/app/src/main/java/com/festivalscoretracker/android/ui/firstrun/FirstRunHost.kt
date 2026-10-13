@@ -133,8 +133,10 @@ class FirstRunDemoSongsSource(
 )
 
 /**
- * Loads the catalogue once while a carousel is shown; a failure keeps placeholders (the demos
- * are decorative and online-only).
+ * Loads the catalogue while a carousel is shown, and again in place when the app observes a
+ * newer publication (#616), so the Shop demo keeps preferring same-publication Shop songs; a
+ * failure keeps the shown songs, or placeholders before any (the demos are decorative and
+ * online-only).
  *
  * @param source Inputs.
  * @param hideShop Shop hidden in Settings: Shop demos then use Epic Games songs.
@@ -143,12 +145,17 @@ class FirstRunDemoSongsSource(
 @Composable
 internal fun rememberFirstRunDemoCatalog(source: FirstRunDemoSongsSource, hideShop: Boolean): FirstRunDemoCatalog {
     val catalog by produceState<CatalogPayload?>(null, source) {
-        value = try {
-            source.loadCatalog()
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (_: Exception) {
-            null
+        source.publication.collect { current ->
+            val shown = value
+            if (shown != null && (current == null || shown.publicationId >= current)) return@collect
+            val read = try {
+                source.loadCatalog()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                null
+            }
+            if (read != null) value = read
         }
     }
     val shop by source.shop.collectAsStateWithLifecycle()

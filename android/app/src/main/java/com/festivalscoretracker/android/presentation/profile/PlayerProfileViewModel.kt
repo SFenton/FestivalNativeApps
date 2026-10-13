@@ -47,6 +47,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -516,6 +517,11 @@ class PlayerProfileViewModel(
                 }
             }
         }
+        // A viewed player follows new publications in place (#616), like the selected one
+        // (SelectedProfileStore), instead of asking the reader to reload before selecting.
+        viewModelScope.launch {
+            publications.filterNotNull().distinctUntilChanged().collect(::refreshViewed)
+        }
     }
 
     // region Actions
@@ -675,6 +681,30 @@ class PlayerProfileViewModel(
                         remaining--
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Re-read a shown viewed (not selected) player for a newer publication, keeping the shown
+     * read up until the new one lands; a failed re-read keeps it, with its "changed" notice.
+     *
+     * @param publication Latest observed publication.
+     */
+    private fun refreshViewed(publication: Int) {
+        val account = viewedAccount ?: return
+        if (account.equals(settings.value?.selectedPlayer?.accountId, ignoreCase = true)) return
+        val shown = (viewed.value as? LoadState.Loaded)?.value ?: return
+        if (!shown.belongsTo(account) || shown.observedPublicationId == publication) return
+        viewedJob?.cancel()
+        viewedJob = viewModelScope.launch {
+            try {
+                val payload = reads.profile(account)
+                if (viewedAccount.equals(account, ignoreCase = true)) viewed.value = LoadState.Loaded(payload)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Keep the shown read; it says it changed and offers a reload.
             }
         }
     }

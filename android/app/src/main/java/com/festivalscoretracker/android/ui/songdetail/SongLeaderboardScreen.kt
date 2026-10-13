@@ -119,6 +119,7 @@ fun SongLeaderboardRouteScreen(container: AppContainer, settings: AppSettings, r
             route.songId, instrument, route.page, { api.catalog(it) },
             { id, chart, page, top -> api.leaderboardPage(id, chart, page, top, leeway) },
             container.backoff,
+            api.publicationChanges,
         )
     }
     if (routeState != null) {

@@ -362,12 +362,13 @@ class ProfileSelectionPageStatesUiTest {
     private val journey = ProfileJourney(rule)
 
     /** Move the fake service to publication 8 and adopt it (a later read advanced it). */
-    private fun advancePublication() {
+    private fun advancePublication(viewedFails: Boolean = false) {
         val headers = mapOf("X-FST-Publication-Id" to "8")
         journey.transport.on("/api/publication") { Fixtures.publication(8) }
         journey.transport.on("/api/songs", headers = headers) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
         ProfileFixtures.register(journey.transport, headers = headers)
-        ProfileFixtures.register(journey.transport, Fixtures.ACCOUNT_B, headers = headers)
+        if (viewedFails) journey.transport.on("/api/player/${Fixtures.ACCOUNT_B}", status = 503) { "{}" }
+        else ProfileFixtures.register(journey.transport, Fixtures.ACCOUNT_B, headers = headers)
         runBlocking { journey.container.api.publication(force = true) }
         journey.settle()
     }
@@ -446,15 +447,32 @@ class ProfileSelectionPageStatesUiTest {
     }
 
     @Test
-    fun publicationChangePausesSelectionUntilReload() {
+    fun publicationChangeRefreshesTheViewedProfileInPlace() {
         journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_B, "Other"), stillBackground = true))
         journey.waitForTag("fst.player.select")
         val before = journey.transport.sent("/api/player/${Fixtures.ACCOUNT_B}").size
         advancePublication()
+        // load-transition R9 (#616): the viewed player re-reads by itself; no reload notice.
+        rule.waitUntil(5_000) { journey.settle(100); journey.transport.sent("/api/player/${Fixtures.ACCOUNT_B}").size == before + 1 }
+        journey.waitForTag("fst.player.select")
+        assertEquals(0, rule.onAllNodesWithTag("fst.player.identity-notice").fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("fst.player.reload").fetchSemanticsNodes().size)
+        journey.tap("fst.player.select")
+        journey.waitForTag("fst.nav.tab.shop")
+        assertKeyless()
+    }
+
+    @Test
+    fun failedPublicationRefreshPausesSelectionUntilReload() {
+        journey.launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_B, "Other"), stillBackground = true))
+        journey.waitForTag("fst.player.select")
+        advancePublication(viewedFails = true)
         journey.waitForTag("fst.player.identity-notice")
         rule.onNodeWithText("Published scores changed. Reload this page before selecting.").assert(hasText("Reload this page", substring = true))
         journey.waitGone("fst.player.select")
         assertTrue(rule.onNodeWithTag("fst.player.reload").getUnclippedBoundsInRoot().height >= 48.dp)
+        ProfileFixtures.register(journey.transport, Fixtures.ACCOUNT_B, headers = mapOf("X-FST-Publication-Id" to "8"))
+        val before = journey.transport.sent("/api/player/${Fixtures.ACCOUNT_B}").size
         journey.tap("fst.player.reload")
         journey.waitForTag("fst.player.select")
         journey.waitGone("fst.player.identity-notice")

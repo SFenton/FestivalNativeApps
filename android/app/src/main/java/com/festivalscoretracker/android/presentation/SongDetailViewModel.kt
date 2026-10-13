@@ -12,9 +12,11 @@ import com.festivalscoretracker.android.core.profile.PlayerHistoryPayload
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.data.CatalogPayload
 import com.festivalscoretracker.android.data.LeaderboardPayload
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 
 // region Song resolution
 
@@ -53,6 +55,8 @@ object SongResolver {
  * @param loadHistory Song score-history read `(accountId, songId)`, or null when unavailable.
  * @param loadBandBoard Song band leaderboard first page `(songId, bandType, top, accountId)`,
  *   or null to show no band previews.
+ * @param publications Latest observed publication (`FestivalApi.publicationChanges`): a newer one
+ *   re-reads the song and the chart previews in place (load-transition R9, #616).
  */
 class SongDetailViewModel(
     songKey: String,
@@ -62,6 +66,7 @@ class SongDetailViewModel(
     private val leeway: () -> Double? = { null },
     private val loadHistory: (suspend (String, String) -> PlayerHistoryPayload)? = null,
     private val loadBandBoard: (suspend (String, BandType, Int, String?) -> SongBandLeaderboardResponse)? = null,
+    private val publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     private val catalogPublicationFlow = MutableStateFlow<Int?>(null)
     private val currentSeasonFlow = MutableStateFlow<Int?>(null)
@@ -89,6 +94,7 @@ class SongDetailViewModel(
 
     init {
         songLoader.ensureStarted()
+        songLoader.followPublications(publications) { catalogPublicationFlow.value }
     }
 
     /**
@@ -103,7 +109,7 @@ class SongDetailViewModel(
         val loader = previews.getOrPut(instrument to current) {
             RetryingLoader(viewModelScope, "preview:${song.songId}:${instrument.wireId}", backoff) {
                 loadLeaderboard(song.songId, instrument, 1, LeaderboardPaging.PREVIEW_SIZE, current)
-            }
+            }.also { it.followPublications(publications) { payload -> payload.publicationId } }
         }
         loader.ensureStarted()
         return loader.state
@@ -191,6 +197,8 @@ class SongDetailViewModel(
  * @param loadCatalog Catalogue read (for the header).
  * @param loadLeaderboard Leaderboard page read.
  * @param backoff Shared retry backoff.
+ * @param publications Latest observed publication: a newer one re-reads the shown page in place,
+ *   so the pinned "your score" row (matched by publication) comes back (load-transition R9, #616).
  */
 class SongLeaderboardViewModel(
     songId: String,
@@ -199,6 +207,7 @@ class SongLeaderboardViewModel(
     loadCatalog: suspend (refresh: Boolean) -> CatalogPayload,
     loadLeaderboard: suspend (String, Instrument, Int, Int) -> LeaderboardPayload,
     backoff: ServiceRetryBackoff,
+    publications: Flow<Int?> = emptyFlow(),
 ) : ViewModel() {
     private val pageFlow = MutableStateFlow(initialPage.coerceAtLeast(1))
     private val currentSeasonFlow = MutableStateFlow<Int?>(null)
@@ -234,6 +243,7 @@ class SongLeaderboardViewModel(
     init {
         songLoader.ensureStarted()
         pageLoader.ensureStarted()
+        pageLoader.followPublications(publications) { it.publicationId }
     }
 
     /**
