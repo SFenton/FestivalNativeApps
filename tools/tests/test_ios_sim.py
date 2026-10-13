@@ -237,6 +237,55 @@ class FailOnSkipTests(unittest.TestCase):
     def test_unreadable_summary_fails(self):
         self.assertIsNotNone(skip_problem(None))
 
+    def test_a_failed_test_fails(self):
+        self.assertIn("failed", skip_problem({"passedTests": 2, "skippedTests": 0, "failedTests": 1}))
+
+
+class ResultSummaryTests(unittest.TestCase):
+    """`uitest` reads a batch's summary with retries, so one failed read cannot fail a green batch (#620)."""
+
+    def _reader(self, results):
+        calls = []
+
+        def read(bundle):
+            calls.append(bundle)
+            return results[len(calls) - 1]
+
+        return read, calls
+
+    def test_a_failed_first_read_is_retried(self):
+        passed = {"passedTests": 1, "skippedTests": 0, "failedTests": 0}
+        read, calls = self._reader([None, passed])
+        pauses = []
+        summary = ios_sim._result_summary(Path("/tmp/r.xcresult"), attempts=3, retry_delay=5, read=read,
+                                          sleep=pauses.append)
+        self.assertEqual(summary, passed)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(pauses, [5])
+        self.assertIsNone(skip_problem(summary))
+
+    def test_a_good_first_read_is_not_repeated(self):
+        read, calls = self._reader([{"passedTests": 1}])
+        ios_sim._result_summary(Path("/tmp/r.xcresult"), read=read, sleep=lambda _: self.fail("slept"))
+        self.assertEqual(len(calls), 1)
+
+    def test_every_read_failing_still_fails_the_batch(self):
+        read, calls = self._reader([None, None, None])
+        summary = ios_sim._result_summary(Path("/tmp/r.xcresult"), attempts=3, read=read, sleep=lambda _: None)
+        self.assertIsNone(summary)
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(skip_problem(summary), "no readable result summary")
+
+    def test_a_retried_all_skipped_summary_still_fails(self):
+        read, _ = self._reader([None, {"passedTests": 0, "skippedTests": 2, "failedTests": 0}])
+        summary = ios_sim._result_summary(Path("/tmp/r.xcresult"), read=read, sleep=lambda _: None)
+        self.assertIn("skipped", skip_problem(summary))
+
+    def test_counts_reuse_the_summary(self):
+        self.assertEqual(ios_sim._result_counts({"passedTests": 1, "skippedTests": 0, "failedTests": 0}),
+                         ": 1 passed, 0 skipped, 0 failed")
+        self.assertEqual(ios_sim._result_counts(None), "")
+
 
 class RetryBatchTests(unittest.TestCase):
     """`uitest --retries` reruns only a batch whose test failed, at most N more times."""
@@ -251,6 +300,36 @@ class RetryBatchTests(unittest.TestCase):
     def test_success_timeout_and_setup_errors_never_retry(self):
         for code in (0, 124, 70, 1, ios_sim.EXIT_POSE_MISMATCH):
             self.assertFalse(should_retry_batch(code, 0, 3), code)
+
+
+class UitestCommandTests(unittest.TestCase):
+    """A batch never collects a sysdiagnose after a failure, nor hangs stopping the app (#620)."""
+
+    def test_diagnostics_collection_is_off_and_selectors_are_kept(self):
+        cmd = ios_sim.uitest_command("UDID", Path("/d"), Path("/d/r.xcresult"), ["A/testB", "C"])
+        flag = cmd.index("-collect-test-diagnostics")
+        self.assertEqual(cmd[flag + 1], "never")
+        target = ios_sim.product().uitest_target
+        self.assertIn(f"-only-testing:{target}/A/testB", cmd)
+        self.assertIn(f"-only-testing:{target}/C", cmd)
+        self.assertEqual(cmd[-2:], ["test-without-building", "-quiet"])
+        self.assertIn("platform=iOS Simulator,id=UDID", cmd)
+
+    def test_a_hung_terminate_after_a_timeout_does_not_hang_the_batch(self):
+        calls = []
+
+        def hung(cmd, check=True, **kw):
+            calls.append((cmd, kw))
+            raise ios_sim.subprocess.TimeoutExpired(cmd, kw["timeout"])
+
+        original = ios_sim._run
+        ios_sim._run = hung
+        try:
+            self.assertFalse(ios_sim.stop_app_after_timeout("UDID"))
+        finally:
+            ios_sim._run = original
+        self.assertEqual(calls[0][0][:4], ["xcrun", "simctl", "terminate", "UDID"])
+        self.assertEqual(calls[0][1]["timeout"], ios_sim.TERMINATE_TIMEOUT)
 
 
 class SourceHashTests(unittest.TestCase):

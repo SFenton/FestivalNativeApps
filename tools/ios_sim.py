@@ -1863,13 +1863,17 @@ def cmd_uitest(args: argparse.Namespace) -> int:
             print(f"uitest {label} FAILED after {elapsed:.1f}s; last lines of {log_path}:", file=sys.stderr)
             print("\n".join(log_text.splitlines()[-60:]), file=sys.stderr)
             print(f"result bundle: {result_bundle}", file=sys.stderr)
-        elif getattr(args, "fail_on_skip", False) and (problem := skip_problem(_result_summary(result_bundle))):
+            continue
+        # One (retried) summary read per batch, reused for the skip check and the counts:
+        # on a slow CI runner a single xcresulttool read can time out (#620).
+        summary = _result_summary(result_bundle)
+        if getattr(args, "fail_on_skip", False) and (problem := skip_problem(summary)):
             failed_batches.append((batch, 1))
             print(f"uitest {label} FAILED (--fail-on-skip: {problem}) after {elapsed:.1f}s"
-                  f"{_result_counts(result_bundle)}; log {log_path}; result bundle: {result_bundle}",
+                  f"{_result_counts(summary)}; log {log_path}; result bundle: {result_bundle}",
                   file=sys.stderr)
         else:
-            print(f"uitest {label} OK in {elapsed:.1f}s ({len(batch)} selector(s)){_result_counts(result_bundle)}",
+            print(f"uitest {label} OK in {elapsed:.1f}s ({len(batch)} selector(s)){_result_counts(summary)}",
                   file=sys.stderr)
             if os.environ.get("FST_UITEST_KEEP_RESULTS") == "1":
                 # Keep green evidence too (attachments, per-test results): an all-skipped
@@ -1894,20 +1898,28 @@ def cmd_uitest(args: argparse.Namespace) -> int:
     return 0
 
 
-def _result_summary(result_bundle: Path) -> dict | None:
-    """Read a result bundle's test summary (``xcresulttool get test-results summary``).
+#: ``xcresulttool`` summary reads per batch, and the pause before each retry: on a slow CI
+#: runner one read can time out or return nothing just after a long batch (#620).
+RESULT_SUMMARY_ATTEMPTS = 3
+RESULT_SUMMARY_RETRY_DELAY = 5.0
+#: Seconds one ``xcresulttool`` summary read may take.
+RESULT_SUMMARY_TIMEOUT = 120
+
+
+def _read_result_summary(result_bundle: Path) -> dict | None:
+    """Read a result bundle's test summary once (``xcresulttool get test-results summary``).
 
     Args:
         result_bundle: The batch's ``.xcresult`` path.
 
     Returns:
         The summary JSON (``passedTests``, ``skippedTests``, ``failedTests``…), or ``None``
-        when it cannot be read.
+        when this read failed, timed out or returned something else.
     """
     try:
         out = subprocess.run(
             ["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", str(result_bundle)],
-            env=_env(), capture_output=True, text=True, check=True, timeout=60,
+            env=_env(), capture_output=True, text=True, check=True, timeout=RESULT_SUMMARY_TIMEOUT,
         ).stdout
         summary = json.loads(out)
     except (OSError, subprocess.SubprocessError, ValueError):
@@ -1915,19 +1927,49 @@ def _result_summary(result_bundle: Path) -> dict | None:
     return summary if isinstance(summary, dict) else None
 
 
-def _result_counts(result_bundle: Path) -> str:
-    """Summarize a result bundle's passed/skipped/failed counts (``-quiet`` hides them).
+def _result_summary(
+    result_bundle: Path,
+    attempts: int = RESULT_SUMMARY_ATTEMPTS,
+    retry_delay: float = RESULT_SUMMARY_RETRY_DELAY,
+    read=None,
+    sleep=time.sleep,
+) -> dict | None:
+    """Read a result bundle's test summary, retrying a failed or timed-out read.
+
+    ``uitest`` reads it once per batch and reuses it for ``--fail-on-skip`` and the printed
+    counts: a single unreadable read failed a batch whose test had passed (#620).
+
+    Args:
+        result_bundle: The batch's ``.xcresult`` path.
+        attempts: Reads to try before giving up.
+        retry_delay: Seconds to wait before each retry.
+        read: One read (default ``_read_result_summary``); injectable for tests.
+        sleep: The pause between reads; injectable for tests.
+
+    Returns:
+        The first readable summary JSON, or ``None`` when every read failed.
+    """
+    read = read or _read_result_summary
+    for attempt in range(max(1, attempts)):
+        if attempt:
+            sleep(retry_delay)
+        if (summary := read(result_bundle)) is not None:
+            return summary
+    return None
+
+
+def _result_counts(summary: dict | None) -> str:
+    """Summarize a batch's passed/skipped/failed counts (``-quiet`` hides them).
 
     A green batch can still be all skips (e.g. iPad-only journeys on an iPhone), so print
     the counts before the bundle is deleted.
 
     Args:
-        result_bundle: The batch's ``.xcresult`` path.
+        summary: The batch's ``_result_summary``, or ``None`` when unreadable.
 
     Returns:
         ``": N passed, N skipped, N failed"``, or an empty string when unavailable.
     """
-    summary = _result_summary(result_bundle)
     if summary is None:
         return ""
     return (f": {summary.get('passedTests', 0)} passed, {summary.get('skippedTests', 0)} skipped, "
@@ -1945,12 +1987,15 @@ def skip_problem(summary: dict | None) -> str | None:
         summary: The batch's ``_result_summary``, or ``None`` when unreadable.
 
     Returns:
-        A one-line reason, or ``None`` when every test ran and none skipped.
+        A one-line reason, or ``None`` when every test ran and none skipped or failed.
     """
     if summary is None:
         return "no readable result summary"
     skipped = int(summary.get("skippedTests", 0) or 0)
     passed = int(summary.get("passedTests", 0) or 0)
+    failed = int(summary.get("failedTests", 0) or 0)
+    if failed:
+        return f"{failed} test(s) failed"
     if skipped:
         return f"{skipped} test(s) skipped"
     if not passed:
@@ -1980,6 +2025,59 @@ def should_retry_batch(returncode: int, attempt: int, retries: int) -> bool:
         True when another attempt should run.
     """
     return returncode == EXIT_TEST_FAILED and attempt < retries
+
+
+def uitest_command(udid: str, derived: Path, result_bundle: Path, selectors: list[str]) -> list[str]:
+    """Build one batch's ``xcodebuild test-without-building`` command.
+
+    Test diagnostics collection is off (``-collect-test-diagnostics never``): after every
+    failing XCUITest, xcodebuild otherwise gathers a simulator sysdiagnose, which on the
+    ``apple-ci`` runner timed out after 600 s each time and still returned nothing, pushing
+    the build job past its limit (#620). The result bundle keeps the failure messages and
+    the failure screenshots.
+
+    Args:
+        udid: Target simulator UDID.
+        derived: The driver's DerivedData directory.
+        result_bundle: Where xcodebuild writes the batch's ``.xcresult``.
+        selectors: The batch's ``Class``/``Class/testMethod`` selectors.
+
+    Returns:
+        The command's arguments.
+    """
+    cmd = [
+        "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", product().scheme,
+        "-destination", f"platform=iOS Simulator,id={udid}",
+        "-derivedDataPath", str(derived), "-resultBundlePath", str(result_bundle),
+        "-collect-test-diagnostics", "never",
+    ]
+    for selector in selectors:
+        cmd.append(f"-only-testing:{product().uitest_target}/{selector}")
+    cmd += ["test-without-building", "-quiet"]
+    return cmd
+
+
+#: Seconds ``stop_app_after_timeout`` gives ``simctl terminate``: on the CI runner's wedged
+#: Duo an unbounded terminate after a batch timeout hung for 44 minutes (#620).
+TERMINATE_TIMEOUT = 60
+
+
+def stop_app_after_timeout(udid: str) -> bool:
+    """Stop the app under test after a batch timed out, without hanging on the simulator.
+
+    Args:
+        udid: The simulator the batch ran on.
+
+    Returns:
+        True when ``simctl terminate`` returned within ``TERMINATE_TIMEOUT``.
+    """
+    try:
+        _run(["xcrun", "simctl", "terminate", udid, product().bundle_id],
+             check=False, capture_output=True, timeout=TERMINATE_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        print(f"simctl terminate did not return within {TERMINATE_TIMEOUT}s; moving on", file=sys.stderr)
+        return False
+    return True
 
 
 def _run_uitest_batch(
@@ -2044,14 +2142,7 @@ def _run_uitest_batch(
                     except DeviceHubError as error:
                         print(error, file=sys.stderr)
                         return error.code, time.time() - start, log_path, result_bundle
-        cmd = [
-            "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", product().scheme,
-            "-destination", f"platform=iOS Simulator,id={udid}",
-            "-derivedDataPath", str(derived), "-resultBundlePath", str(result_bundle),
-        ]
-        for selector in selectors:
-            cmd.append(f"-only-testing:{product().uitest_target}/{selector}")
-        cmd += ["test-without-building", "-quiet"]
+        cmd = uitest_command(udid, derived, result_bundle, selectors)
         print("+", " ".join(cmd), file=sys.stderr)
         with open(log_path, "w") as log, simulator_accessibility(udid, a11y):
             try:
@@ -2064,8 +2155,7 @@ def _run_uitest_batch(
                 # Never let a hung run hold the shared simulator lock past `timeout`:
                 # `subprocess.run` already killed the xcodebuild process tree: this
                 # also stops the app under test so nothing lingers on the simulator.
-                _run(["xcrun", "simctl", "terminate", udid, product().bundle_id],
-                     check=False, capture_output=True)
+                stop_app_after_timeout(udid)
                 process = subprocess.CompletedProcess(cmd, 124)
                 log.write(f"\nTIMEOUT after {timeout}s; killed.\n")
     elapsed = time.time() - start
