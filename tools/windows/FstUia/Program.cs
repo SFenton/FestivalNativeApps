@@ -128,6 +128,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 "sysset" => SysSet(request),
                 "scan" => Scan(FindWindow(request), (string)request["out"]!, (string?)request["scanid"] ?? "scan"),
                 "ellipsis" => Ellipsis((string)request["image"]!, request["rect"]?.AsArray()),
+                "transient" => Transient((string)request["kind"]!, (int?)(long?)request["hresult"]),
                 _ => throw new ArgumentException($"unknown command {command}"),
             };
         }
@@ -1479,11 +1480,39 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         }
     }
 
+    /// <summary>HRESULT of a UIA call that timed out (<c>UIA_E_TIMEOUT</c>, the same value as <c>COR_E_TIMEOUT</c>).</summary>
+    internal const int UiaTimeoutHResult = unchecked((int)0x80131505);
+
     /// <summary>Whether a UI Automation error is a passing provider state worth searching again for.</summary>
     /// <param name="error">The error a UIA call threw.</param>
-    /// <returns>True for a UIA call timeout (<c>UIA_E_TIMEOUT</c>, 0x80131505) or an element that went away.</returns>
+    /// <returns>
+    /// True for a UIA call timeout (<c>UIA_E_TIMEOUT</c>, 0x80131505), whether .NET mapped it to a
+    /// <see cref="TimeoutException"/> or FlaUI's <c>FindAll</c> let it through as a raw <see cref="COMException"/>
+    /// (#622), or for an element that went away. Any other <see cref="COMException"/> is not transient.
+    /// </returns>
     internal static bool IsTransientUia(Exception error) =>
-        error is TimeoutException or FlaUI.Core.Exceptions.ElementNotAvailableException;
+        error is TimeoutException or FlaUI.Core.Exceptions.ElementNotAvailableException
+            or COMException { HResult: UiaTimeoutHResult };
+
+    /// <summary>
+    /// Offline check of <see cref="IsTransientUia"/> for a synthetic error (the <c>transient</c> command), so tests can
+    /// pin which UIA failures the step retries without a live provider.
+    /// </summary>
+    /// <param name="kind"><c>com</c>, <c>timeout</c>, <c>element-not-available</c> or <c>invalid-operation</c>.</param>
+    /// <param name="hresult">The <c>com</c> error's HRESULT.</param>
+    /// <returns><c>transient</c>: whether a step searches again after this error.</returns>
+    private static JsonNode Transient(string kind, int? hresult)
+    {
+        Exception error = kind switch
+        {
+            "com" => new COMException("synthetic UIA error", hresult ?? throw new ArgumentException("com needs hresult")),
+            "timeout" => new TimeoutException(),
+            "element-not-available" => new FlaUI.Core.Exceptions.ElementNotAvailableException(),
+            "invalid-operation" => new InvalidOperationException(),
+            _ => throw new ArgumentException($"unknown error kind {kind}"),
+        };
+        return new JsonObject { ["transient"] = IsTransientUia(error) };
+    }
 
     /// <summary>
     /// Waits until the step's element is on screen with exactly the step's UIA Name; each <c>*</c> in the text matches
