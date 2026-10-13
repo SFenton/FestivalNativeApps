@@ -260,7 +260,7 @@ private struct MacKeyProbe: View {
 
 /// Deliver a key press through the window, as AppKit does.
 @MainActor
-private func sendKey(_ name: String, to window: NSWindow) {
+func sendKey(_ name: String, to window: NSWindow) {
     guard let key = MacDebugHooks.keyEvent(named: name) else { return }
     let flags: NSEvent.ModifierFlags = key.keyCode >= 115 ? [.function, .numericPad] : []
     for type in [NSEvent.EventType.keyDown, .keyUp] {

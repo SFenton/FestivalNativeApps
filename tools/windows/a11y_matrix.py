@@ -14,7 +14,7 @@ previous values are always restored before it is released.
 Modes: ``normal``; ``hc-aquatic``, ``hc-desert``, ``hc-dusk``, ``hc-night-sky`` (contrast themes);
 ``light-theme``, ``dark-theme`` (default app mode); ``scale-100``, ``scale-150`` (primary display scale);
 ``text-150``, ``text-200``, ``text-225`` (text size);
-``no-animations`` (Animation effects off); ``no-transparency``;
+``no-animations`` (Animation effects off); ``no-transparency``; ``scrollbars-always`` (Always show scrollbars);
 ``app-reduced`` (in-app Reduce Motion + Disable Animated Artwork + Save Data); ``app-contrast`` (in-app
 More Contrast + Less Transparency). Join modes with ``+`` to combine them (``hc-desert+scale-150``: a contrast
 theme on a page area wide enough for the Quick Links pane on a high-scale host).
@@ -32,6 +32,12 @@ drive count, including ``scan:`` steps a page runs mid-journey. A page may list 
 neither counts nor is listed; every other finding does. Since #534 no gated page needs it: app flyouts and suggestion
 lists open in-window, and a page that leaves keyboard focus on a button with a tooltip (always a windowed popup)
 moves focus off it before the final scan.
+
+A page with ``"fade_trace": {"JumpButton": ["hide", "show"]}`` launches with ``--perf-log`` and fails unless each named
+``FadeIn.OnShow``/``OnHide`` element wrote those ``fade-show``/``fade-hide`` lines in order, each fading exactly when
+motion was on, and with motion off in ``app-reduced`` and ``no-animations`` (:func:`fade_trace_problems`, pattern
+``load-transition`` R6): UIA cannot see a composition fade, so this is what proves a Reduce Motion show or hide is
+instant.
 
 Outputs in ``--out``: ``<page>-<size>[-<mode>].png``, ``results.json`` and ``summary.md`` (page × size:
 Axe errors, tab stops, stops outside the app, repeated stops). Exit code 1 when any page failed to load
@@ -58,6 +64,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import fade_trace  # noqa: E402  (sibling module: FadeIn perf-log lines for pages with "fade_trace")
 import journey_exe  # noqa: E402  (sibling module: --exe debug|release|aot)
 import ui_journey  # noqa: E402  (sibling tool; shares the fixture-list contract)
 import uiwin  # noqa: E402  (sibling tool; provides the lock, driver and step parser)
@@ -87,6 +94,7 @@ MODES: dict[str, dict] = {
     "text-225": {"system": {"text_scale": 225}},
     "no-animations": {"system": {"animations": False}},
     "no-transparency": {"system": {"transparency": False}},
+    "scrollbars-always": {"system": {"always_show_scrollbars": True}},
     "app-reduced": {"app": {"reduceMotion": True, "disableAnimatedArtwork": True, "saveData": True}},
     "app-contrast": {"app": {"moreContrast": True, "lessTransparency": True}},
 }
@@ -114,6 +122,44 @@ def mode_spec(mode: str) -> dict:
         for kind, values in MODES[part].items():
             merged.setdefault(kind, {}).update(values)
     return merged
+
+
+def mode_motion(mode: str) -> bool | None:
+    """Whether the app's decorative motion (``Motion.Allowed``) must be on in a mode.
+
+    Args:
+        mode: A ``MODES`` key, or keys joined with ``+``.
+
+    Returns:
+        ``False`` when the mode turns in-app Reduce Motion on or Windows Animation effects off; ``None`` otherwise,
+        since the host's own Animation effects setting decides it (a CI runner may have them off).
+    """
+    spec = mode_spec(mode)
+    if spec.get("app", {}).get("reduceMotion") or spec.get("system", {}).get("animations") is False:
+        return False
+    return None
+
+
+def fade_trace_problems(page: dict, mode: str, lines: list[str]) -> list[str]:
+    """Judge a page's ``fade_trace``: the ``fade-show``/``fade-hide`` lines its ``OnShow``/``OnHide`` elements wrote.
+
+    A page lists ``"fade_trace": {"<x:Name>": ["hide", "show"]}``: each element must show and hide in that order
+    during the launch and drive, fading only while motion is on and never under Reduce Motion or Animation effects off
+    (:func:`fade_trace.check_show_hide`, pattern ``load-transition`` R6). UIA cannot see a composition fade, so a
+    ``waitfor``/``waitgone`` alone passes whether or not the element animated.
+
+    Args:
+        page: Page definition.
+        mode: ``--mode`` value.
+        lines: The launch's perf-log lines.
+
+    Returns:
+        Failures (empty when the page has no ``fade_trace`` or every element passed).
+    """
+    events = fade_trace.parse(lines)
+    motion = mode_motion(mode)
+    return [problem for element, sequence in page.get("fade_trace", {}).items()
+            for problem in fade_trace.check_show_hide(events, element, list(sequence), motion)]
 
 
 def restore_values(previous: dict, applied: dict | list[str]) -> dict:
@@ -195,19 +241,22 @@ def page_steps(page: dict, size: str, out: Path, suffix: str, scan: bool, tabs: 
     return [s.replace("{stem}", str(out / stem)).replace("{repo}", str(REPO_ROOT)) for s in steps]
 
 
-def launch_args(port: int | None, page: dict, settings: Path) -> list[str]:
+def launch_args(port: int | None, page: dict, settings: Path, perf_log: Path | None = None) -> list[str]:
     """App arguments for one launch.
 
     Args:
         port: Loopback fixture port, or ``None`` for the app's default keyless public origin (``--live``).
         page: Page definition (``first_run``; optional ``args``, extra app flags such as ``--auto-scroll-span``).
         settings: Isolated settings file.
+        perf_log: The launch's ``--perf-log`` file (a page with ``fade_trace``), or ``None``.
 
     Returns:
         Command-line arguments.
     """
     base = [] if port is None else ["--base-url", f"http://127.0.0.1:{port}/"]
-    return [*base, f"--first-run={page.get('first_run', 'off')}", f"--settings-path={settings}", *page.get("args", [])]
+    trace = [] if perf_log is None else [f"--perf-log={perf_log}"]
+    return [*base, f"--first-run={page.get('first_run', 'off')}", f"--settings-path={settings}", *trace,
+            *page.get("args", [])]
 
 
 def live_pages(pages: list[dict]) -> list[dict]:
@@ -468,7 +517,7 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
     warning = uiwin.prepare_automation(exe, env)
     if warning:
         print(f"warning: {warning}", file=sys.stderr)
-    args = launch_args(port, page, settings)
+    args = launch_args(port, page, settings, state / "perf.log" if page.get("fade_trace") else None)
     record: dict = {"page": page["name"], "size": size, "mode": mode, "ok": False, "scan_required": bool(page.get("scan"))}
     lock = uiwin.HostLock("desktop", purpose=f"a11y {page['name']} {size} {mode} [{REPO_ROOT.name}]",
                           hold_seconds=hold, wait_seconds=1800)
@@ -508,7 +557,14 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
             for key in ("sizes", "apart", "hits", "presses", "narration", "read", "orders", "paint"):
                 if key in result:
                     record[key] = result[key]
+            if page.get("fade_trace"):
+                lines = fade_trace.read_lines(state / "perf.log")
+                record["fade_trace"] = [line for line in lines if line.startswith(("fade-show ", "fade-hide "))]
+                problems = fade_trace_problems(page, mode, lines)
+                if problems:
+                    raise RuntimeError("fade trace: " + "; ".join(problems))
         except RuntimeError as error:
+            record["ok"] = False
             record["error"] = str(error)
             if pid:
                 try:

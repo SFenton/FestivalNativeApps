@@ -75,4 +75,15 @@ public class PopupHostingMarkupTests
         Assert.NotEmpty(boxes);
         Assert.Empty(boxes.Where(b => Attr(b.Element, "PopupHosting.InWindow") != "True").Select(b => b.Where));
     }
+
+    [Fact]
+    public void AutoSuggestBoxHints_SuspendWhileTyping()
+    {
+        // Issue #571: a box's hint tooltip opened over its own suggestion list (and its windowed PopupHost failed Axe).
+        var hinted = Elements("AutoSuggestBox").Where(b => Attr(b.Element, "ToolTipService.ToolTip") is not null).ToList();
+        Assert.NotEmpty(hinted);
+        var code = string.Concat(Sources("*.cs").Select(file => File.ReadAllText(Path.Combine(AppRoot, file))));
+        Assert.Empty(hinted.Where(b => !code.Contains($"TypingToolTip.SuspendWhileTyping({Attr(b.Element, "Name")})",
+            StringComparison.Ordinal)).Select(b => b.Where));
+    }
 }

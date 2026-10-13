@@ -4,7 +4,11 @@ import com.festivalscoretracker.android.testing.RankingsFixtures
 import android.os.Looper
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.material3.Text
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -40,7 +44,7 @@ import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.core.settings.AppSettings
 import com.festivalscoretracker.android.presentation.leaderboards.LeaderboardsViewModel
-import com.festivalscoretracker.android.ui.leaderboards.AnchoredRowCard
+import com.festivalscoretracker.android.ui.leaderboards.PinnedSelectedRow
 import com.festivalscoretracker.android.ui.leaderboards.CardGridRow
 import com.festivalscoretracker.android.ui.leaderboards.HingeSplit
 import com.festivalscoretracker.android.ui.leaderboards.LeaderboardsScreen
@@ -280,7 +284,7 @@ class LeaderboardsComponentsUiTest {
                     listState = rememberLazyListState(),
                     idPrefix = "fst.t",
                     controls = { Text("info") },
-                    footer = { AnchoredRowCard { Text("mine") } },
+                    footer = { PinnedSelectedRow { Text("mine") } },
                     pager = { RankingsPager(1, 3, "fst.t", {}) },
                 ) { item { Box(Modifier.fillMaxWidth().height(20.dp).testTag("row")) } }
             }
@@ -295,6 +299,47 @@ class LeaderboardsComponentsUiTest {
         // The pager is anchored to the bottom of the far pane, below the page information.
         assertTrue(pager.bottom > pane.bottom - 80 * density)
         assertTrue(text("info") && text("mine"))
+    }
+
+    /**
+     * #617: the hinge layout lists the rows alone and one column puts the page information first.
+     * At the top of the rows when the hinge goes (large text, flat), the population line shows
+     * instead of the keyed list keeping the first row on top; a reader further down keeps the row.
+     */
+    @Test
+    fun losingTheHingeAtTheTopShowsThePageInformationAndKeepsAScrolledRow() {
+        var hinge by mutableStateOf<HingeSplit?>(HingeSplit(140.dp, 160.dp))
+        lateinit var list: LazyListState
+        rule.setContent {
+            list = rememberLazyListState()
+            Box(Modifier.width(300.dp).height(400.dp)) {
+                RankingsBoardLayout(
+                    hinge = hinge,
+                    measure = Modifier,
+                    padding = PaddingValues(),
+                    listState = list,
+                    idPrefix = "fst.t",
+                    controls = { Text("info", Modifier.testTag("info")) },
+                    footer = {},
+                    pager = { RankingsPager(1, 3, "fst.t", {}) },
+                ) { items(30, key = { it }) { Box(Modifier.fillMaxWidth().height(40.dp).testTag("row$it")) } }
+            }
+        }
+        settle()
+        assertEquals(0, list.firstVisibleItemIndex)
+        hinge = null
+        settle()
+        rule.onNodeWithTag("info").assertIsDisplayed()
+        assertEquals("the page information leads the single column", 0, list.firstVisibleItemIndex)
+
+        hinge = HingeSplit(140.dp, 160.dp)
+        settle()
+        rule.onNodeWithTag("fst.t.list").performScrollToIndex(10)
+        settle()
+        hinge = null
+        settle()
+        rule.onNodeWithTag("row10").assertIsDisplayed()
+        assertEquals("a scrolled reader keeps their row (after the page information item)", 11, list.firstVisibleItemIndex)
     }
 
     @Test

@@ -103,8 +103,12 @@
                 "invoke:id=fst.first-run.close", "waitgone:id=fst.first-run.dialog@10"],
    "tabs": 12},
   {"name": "mm-suggestions-scroll", "route": "/suggestions", "profile": "fixture-player-1:Demo Player",
+   "env": {"FST_DEBUG_SUGGESTIONS_SEED": "1"},
    "ready": ["waitfor:id=fst.suggestions.list@25"],
    "after_ready": ["scrollto:id=fst.suggestions.list,40", "wait:0.5", "scrollto:id=fst.suggestions.list,100", "wait:0.5",
-                   "scrollto:id=fst.suggestions.list,0", "wait:0.5", "scrollto:id=fst.suggestions.list,60", "wait:1"],
+                   "scrollto:id=fst.suggestions.list,0", "wait:0.5",
+                   "scrollinto:id=fst.suggestions.category.unplayed_Solo_Bass.1@15",
+                   "scrollinset:id=fst.suggestions.category.unplayed_Solo_Bass.1|id=fst.suggestions.list|8|end",
+                   "wait:1"],
    "tabs": 12}
 ]

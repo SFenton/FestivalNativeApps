@@ -26,8 +26,15 @@ public enum LeaderboardRowKind
 /// Whether any row opens a destination: the chevron column is then reserved on every row, so a row that can't be opened
 /// (no account or team key) keeps its values in line with the rest (issue #209).
 /// </param>
+/// <param name="NameLines">
+/// Name lines every row of the section reserves while names wrap at large text (pattern <c>leaderboard-row</c> R2, issue
+/// #455): the most any row asks for (<see cref="ViewModels.LeaderboardRowMetrics.PlayerNameLines"/>, one per band member,
+/// one for a date label), shared by loaded, pinned and skeleton rows so a wrapped name doesn't make its row taller than
+/// its neighbours or the card jump when rows load. A minimum, never a cap.
+/// </param>
 public sealed record LeaderboardSection(
-    LeaderboardRowKind Kind, int RankChars, int MetaChars, int ValueChars, bool HasAccuracy, bool HasStars, bool HasRoutes = true)
+    LeaderboardRowKind Kind, int RankChars, int MetaChars, int ValueChars, bool HasAccuracy, bool HasStars, bool HasRoutes = true,
+    int NameLines = ViewModels.LeaderboardRowMetrics.PlayerNameLines)
 {
     /// <summary>Whether any row has a season (score sections) or songs label (rankings sections).</summary>
     public bool HasMeta => MetaChars > 0;

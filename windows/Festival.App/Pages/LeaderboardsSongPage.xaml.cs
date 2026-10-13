@@ -109,10 +109,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
             var rows = ViewModel.Rows;
             SelectedRowReveal.Start(RowsRepeater, selected, () =>
             {
-                if (!ReferenceEquals(ViewModel.Rows, rows) || RowsRepeater.GetOrCreateElement(selected) is not UIElement row) return;
-                // A freshly realized row has no arranged position yet; bringing it into view before layout is a no-op (#470).
-                row.UpdateLayout();
-                row.StartBringIntoView(new BringIntoViewOptions { VerticalAlignmentRatio = 0.5, AnimationDesired = false });
+                if (ReferenceEquals(ViewModel.Rows, rows)) SelectedRowReveal.CentreRow(RowsRepeater, selected);
             });
         });
 

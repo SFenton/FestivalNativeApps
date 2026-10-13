@@ -21,10 +21,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -120,6 +123,7 @@ internal fun RankingsBoardLayout(
     // Already one standard gap above the chrome actually shown (FestivalScreen, issue #578): the
     // pager or pinned row rests there, and a hinge pane's rows end there.
     val bottom = padding.calculateBottomPadding()
+    KeepPageInformationOnLayoutSwitch(split = hinge != null, listState = listState)
     Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).then(measure)) {
         if (hinge != null) {
             Row(Modifier.fillMaxSize()) {
@@ -242,35 +246,78 @@ private fun Modifier.gapBelowIfShown(gap: Dp): Modifier = layout { measurable, c
 }
 
 /**
- * Opaque card for anchored "your rank" content, so the floating row stays legible
- * over the rows scrolling beneath it.
+ * The selected profile's or band's pinned row above the pager: the row alone, with its own
+ * purple selected fill and no card or band around it (issue #579; Apple's pinned row floats
+ * over the page the same way, #93). Rows never draw beneath the anchored footer
+ * ([clipAboveFooter]), so nothing shows through the row's translucent fill.
+ *
+ * Only the rows' card inset ([PINNED_ROW_INSET]) is kept, horizontally, so the pinned row's
+ * fill and columns line up with the selected row inside the card above it.
+ *
+ * @param modifier Modifier (the load swap's pinned-row stagger and visibility).
+ * @param content The row, its loading placeholder included.
+ */
+@Composable
+fun PinnedSelectedRow(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(modifier.fillMaxWidth().padding(horizontal = PINNED_ROW_INSET), content = content)
+}
+
+/**
+ * Opaque card for an anchored "your rank" message (rank unavailable, not yet ranked), so the
+ * text reads as one floating notice like Apple's carded footer messages. The selected row
+ * itself uses [PinnedSelectedRow], never this card (issue #579).
  *
  * @param modifier Modifier.
- * @param content Row content.
+ * @param content Message content.
  */
 @Composable
 fun AnchoredRowCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Surface(
         shape = RoundedCornerShape(12.dp),
-        // Opaque: no row may show through a pinned footer (operator batch 5).
         color = BrandTokens.cardBackground,
         border = BorderStroke(1.dp, BrandTokens.glassBorder),
         shadowElevation = 4.dp,
         modifier = modifier.fillMaxWidth(),
     ) {
-        // Same inset as the rows' card, so the pinned row's columns line up with the list.
-        Column(Modifier.padding(ANCHORED_ROW_CARD_PADDING), content = content)
+        Column(Modifier.padding(PINNED_ROW_INSET), content = content)
     }
 }
 
-/** Inset inside [AnchoredRowCard] (the solo boards' row card inset; band boards start their ranks after it). */
-internal val ANCHORED_ROW_CARD_PADDING = 8.dp
+/**
+ * The board rows' card inset, which [PinnedSelectedRow] keeps so the pinned row lines up with
+ * the rows (the solo boards' row card inset; band boards start their ranks after it).
+ */
+internal val PINNED_ROW_INSET = 8.dp
 
 /** Space between list items, also left between the last item and the anchored footer. */
 private const val ROW_GAP_DP = 12
 
 /** Space between the "your rank" row and the pager. */
 private const val FOOTER_PAGER_GAP_DP = 8
+
+/**
+ * Keeps the page information in view when the board switches between the hinge layout and one
+ * column (large text, a fold opening flat; issue #617). The hinge layout lists the rows alone,
+ * with the page information in the other pane, while one column lists it first; the keyed list
+ * would otherwise keep the first row on top and leave the population line scrolled away above
+ * it. Only a board at its very top moves; a reader further down keeps their row.
+ *
+ * @param split Whether the board is split around a hinge.
+ * @param listState Row list state.
+ */
+@Composable
+private fun KeepPageInformationOnLayoutSwitch(split: Boolean, listState: LazyListState) {
+    // The layout the list last showed (written by the effect only, never read in composition).
+    val shown = remember { mutableStateOf(split) }
+    // Read once per switch, without observing, so scrolling never recomposes the board.
+    val atTop = remember(split) {
+        Snapshot.withoutReadObservation { listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0 }
+    }
+    LaunchedEffect(split) {
+        if (shown.value != split && atTop) listState.scrollToItem(0)
+        shown.value = split
+    }
+}
 
 @Composable
 private fun BoardList(

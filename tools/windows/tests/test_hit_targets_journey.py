@@ -54,6 +54,9 @@ _PRESSES = ("tapat", "clickat")
 # Page tools with a ToolTip: Esc returns keyboard focus to them, which opens the tip, and WinUI always windows tooltips
 # (open item 8 in windows-accessibility.md), so a press page whose last press is one of these ends focused elsewhere.
 _TOOLTIP_TOOLS = {"fst.songs.section-index-button", "fst.quick-links.open"}
+# Seconds a page waits after an Esc-closed flyout leaves UIA before pressing its button again (#574): the press is lost
+# while the flyout is still closing, which a cold app on the CI runner took longer than the driver's step gap to do.
+_FLYOUT_CLOSE_SETTLE_S = 1.0
 
 
 def _steps(page: dict) -> list[str]:
@@ -177,6 +180,27 @@ class HitTargetPressJourneyTests(unittest.TestCase):
                     else:
                         self.assertTrue(any(s.startswith(("key:escape", "key:alt+left", "select:id=fst.nav.")) for s in between), between)
                         self.assertTrue(any(s.startswith(("waitgone:", "waitfor:")) for s in between[1:]), between)
+
+    def test_a_flyout_closed_by_escape_settles_before_its_button_is_pressed_again(self):
+        # WinUI keeps a closing flyout registered as open until its presenter unloads (Closed), and ignores ShowAt on
+        # that flyout and target until then, while UIA drops its content first, so waitgone passes early (#574).
+        settled = 0
+        for page in _PRESS:
+            steps = _steps(page)
+            presses = [i for i, s in enumerate(steps) if s.split(":", 1)[0] in _PRESSES]
+            for before, after in zip(presses, presses[1:]):
+                tool = _id(u.parse_step(steps[before]))
+                if tool == "fst.global-search.open" or tool != _id(u.parse_step(steps[after])):
+                    continue
+                between = steps[before + 1:after]
+                if "key:escape" not in between or not between[-1].startswith(("wait:", "waitgone:")):
+                    continue  # Closed by navigating away, not by dismissing the flyout.
+                with self.subTest(page=page["name"], step=steps[after]):
+                    self.assertTrue(between[-1].startswith("wait:"), between)
+                    self.assertTrue(between[-2].startswith("waitgone:"), between)
+                    self.assertGreaterEqual(float(between[-1].removeprefix("wait:")), _FLYOUT_CLOSE_SETTLE_S)
+                    settled += 1
+        self.assertGreaterEqual(settled, 47)
 
     def test_pages_ending_on_a_tooltip_tool_move_focus_off_it_before_the_scan(self):
         ended = set()

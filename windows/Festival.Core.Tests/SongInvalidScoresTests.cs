@@ -80,6 +80,34 @@ public class SongInvalidScoresTests
     }
 
     [Fact]
+    public void FilterPlayerScores_ProfileKeepsSubstitutesOrDropsEachScore()
+    {
+        var bass = Chart with { MaxScores = new Dictionary<string, int> { ["Solo_Guitar"] = 1000, ["Solo_Bass"] = 1000 } };
+        Song? Lookup(string id) => id == "s1" ? bass : null;
+        var variant = new PlayerValidScoreVariant { Score = 950, RawAccuracy = 970, IsFullCombo = false, Stars = 5, MinLeeway = 0, RankTiers = [new(-5, 40), new(0, 20)] };
+        PlayerScore[] scores =
+        [
+            Score(900, minLeeway: 0),                                      // valid: kept as is
+            Score(2000, minLeeway: 2, variants: [variant]),                 // replaced by the variant's filtered rank
+            Score(1500, validScore: 990) with { InstrumentCode = "02", ValidRank = 30, ValidTotalEntries = 90 }, // legacy
+            Score(3000, minLeeway: 5),                                      // no replacement: dropped
+            Score(5000) with { SongId = "unknown" },                        // no catalogue row: not judgeable, kept
+        ];
+        var effective = InvalidScorePolicy.FilterPlayerScores(scores, Lookup, 1);
+        Assert.Equal(4, effective.Count);
+        Assert.Same(scores[0], effective[0]);
+        Assert.Equal((950, 970d, false, 5, 20, 50), (effective[1].Score, effective[1].RawAccuracy!.Value, effective[1].IsFullCombo!.Value,
+            effective[1].Stars!.Value, effective[1].Rank!.Value, effective[1].TotalEntries!.Value));
+        Assert.Equal((990, 30, 90, 950d), (effective[2].Score, effective[2].Rank!.Value, effective[2].TotalEntries!.Value, effective[2].RawAccuracy!.Value));
+        Assert.Equal(Instrument.Bass, effective[2].Instrument);
+        Assert.Same(scores[4], effective[3]);
+
+        // A higher leeway keeps the raw scores the lower one replaced or dropped.
+        var loose = InvalidScorePolicy.FilterPlayerScores(scores, Lookup, 6);
+        Assert.Equal([900, 2000, 990, 3000, 5000], loose.Select(s => s.Score));
+    }
+
+    [Fact]
     public void ResolveFiltered_SongDetailsUsesTheWebFilterPlayerScoresRule()
     {
         static InvalidScoreResolution Filtered(PlayerScore score) =>

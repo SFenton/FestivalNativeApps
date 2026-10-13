@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Festival.Core.ViewModels;
+using Microsoft.Extensions.Time.Testing;
 
 namespace Festival.Core.Tests;
 
@@ -538,11 +539,164 @@ public class SongsViewModelPlayerTests
         service.Override = service.Override is { } inner
             ? r => r.RequestUri!.AbsolutePath == "/api/songs" ? Wire.Response(HttpStatusCode.ServiceUnavailable) : inner(r)
             : null;
-        service.PublicationId = 8;
-        await session.Api.GetPublicationAsync(force: true);
-        await Async.Until(() => vm.Notices.Any(n => n.Message.Contains("same update")));
+        await AdvancePublication(service, session, vm);
+        // The failed catalogue read leaves older rows: the refresh ends in the explicit paused state (product invariant).
+        Assert.Contains(vm.Notices, n => n.Message.Contains("same update"));
         Assert.Contains("Player scores paused until songs update", Row(vm, "s1").ScoreState);
         Assert.Null(Row(vm, "s2").Highlight);
+        Assert.True(vm.ShowError);
+    }
+
+    [Fact]
+    public async Task PublicationAdvance_RefreshesInPlace_WithScoresAndNoPausedNotice()
+    {
+        // Issue #616: a newer publication (live socket or another page's read) refreshes Songs in place. The list never
+        // shows "Player scores paused until songs update" on the way, and saved filters and sort survive.
+        var (service, session, vm) = await Loaded(new AppSettings
+        {
+            SongSort = SongSortMode.Artist,
+            SongSortAscending = false,
+            GeneralFilter = new SongGeneralFilter { ExcludedDurationBuckets = [0] },
+        });
+        var sectionsBefore = vm.Sections;
+        var pausedSeen = new List<string>();
+        void Watch(object? _, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(SongsViewModel.Notices) && vm.Notices.Any(n => n.AutomationId == SongNotice.ProfilePausedId))
+                pausedSeen.Add("notice");
+            if (e.PropertyName == nameof(SongsViewModel.Sections) &&
+                vm.Sections.SelectMany(s => s.Rows).Any(r => r.ScoreState?.Contains("paused", StringComparison.Ordinal) == true))
+                pausedSeen.Add("row");
+            if (vm.IsPublicationRefreshing && e.PropertyName is nameof(SongsViewModel.Sections) or nameof(SongsViewModel.Notices))
+                pausedSeen.Add("rebuilt while hidden: " + e.PropertyName);
+        }
+        vm.PropertyChanged += Watch;
+        session.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(FestivalSession.ObservedPublicationId) && !vm.IsPublicationRefreshing)
+                pausedSeen.Add("publication observed before the refresh began");
+        };
+
+        service.PublicationId = 8;
+        await session.Api.GetPublicationAsync(force: true);
+        await Async.Until(() => vm.IsPublicationRefreshing);
+        Assert.Same(sectionsBefore, vm.Sections);
+        await FinishRefresh(session, vm);
+
+        Assert.Empty(pausedSeen);
+        Assert.Equal(8, session.CatalogPublicationId);
+        Assert.Equal(8, session.SelectedProfilePublicationId);
+        Assert.Equal(SongInstrumentStatus.FullCombo, Row(vm, "s1").Chips.Single(c => c.Instrument == Instrument.Lead).Status);
+        Assert.Empty(vm.Notices);
+        Assert.Equal(2, service.Handler.To("/api/songs").Count());
+        Assert.Equal(2, service.Handler.To($"/api/player/{PlayerWire.Id}").Count());
+        Assert.Equal(SongSortMode.Artist, session.Settings.SongSort);
+        Assert.False(session.Settings.SongSortAscending);
+        Assert.Equal([0], session.Settings.GeneralFilter.ExcludedDurationBuckets);
+        Assert.Equal("Artist ↓", vm.SortSummary);
+        Assert.Equal(LoadSwapPhase.ContentIn, vm.PublicationSwap.Phase);
+    }
+
+    [Fact]
+    public async Task PublicationAdvance_AnimatedRefreshRunsTheLoadSwapPhases()
+    {
+        var (service, session, vm) = await Loaded();
+        vm.AnimatePublicationRefresh = true;
+        var phases = new List<LoadSwapPhase>();
+        var revealed = 0;
+        vm.PublicationSwap.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(LoadSwap.Phase)) phases.Add(vm.PublicationSwap.Phase);
+        };
+        vm.PublicationSwap.ContentRevealed += (_, _) => revealed++;
+        service.PublicationId = 8;
+        await session.Api.GetPublicationAsync(force: true);
+        await Async.Until(() => vm.IsPublicationRefreshing);
+        Assert.Equal(LoadSwapPhase.ContentOut, vm.PublicationSwap.Phase);
+        Assert.False(vm.PublicationSwap.ContentHitTestVisible);
+        await FinishRefresh(session, vm);
+        await Async.Until(() => revealed == 1);
+        Assert.Equal([LoadSwapPhase.ContentOut, LoadSwapPhase.Loading, LoadSwapPhase.SpinnerOut, LoadSwapPhase.ContentIn], phases);
+        Assert.Equal(8, session.SelectedProfilePublicationId);
+    }
+
+    [Fact]
+    public async Task PublicationAdvance_HoldsTheSpinnerAtLeast400ms()
+    {
+        var (service, session, vm) = await Loaded();
+        service.PublicationId = 8;
+        await session.Api.GetPublicationAsync(force: true);
+        await Async.Until(() => vm.IsPublicationRefreshing);
+        await Async.Until(() => service.Handler.To($"/api/player/{PlayerWire.Id}").Count() == 2);
+        await Async.Settle();
+        Assert.True(vm.IsPublicationRefreshing);
+        Assert.Equal(LoadSwapPhase.Loading, vm.PublicationSwap.Phase);
+        ((FakeTimeProvider)session.Time).Advance(SongsViewModel.PublicationRefreshHold);
+        await Async.Until(() => !vm.IsPublicationRefreshing);
+        Assert.Equal(LoadSwapPhase.ContentIn, vm.PublicationSwap.Phase);
+    }
+
+    [Fact]
+    public async Task PublicationAdvance_BeforeTheFirstListIsAPlainReload()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service, player: true);
+        var session = service.Session();
+        var vm = new SongsViewModel(session);
+        await session.Api.GetPublicationAsync();
+        await session.LoadShopAsync();
+        service.PublicationId = 8;
+        await session.Api.GetPublicationAsync(force: true);
+        await Async.Until(() => vm.State == LoadState.Loaded);
+        Assert.False(vm.IsPublicationRefreshing);
+        Assert.Equal(LoadSwapPhase.ContentIn, vm.PublicationSwap.Phase);
+    }
+
+    [Fact]
+    public async Task PublicationAdvance_BackToBack_LatestRefreshWins()
+    {
+        // Two publications in quick succession: the first refresh's commit is superseded, one hidden period covers both
+        // and the list ends on the newest generation with scores.
+        var (service, session, vm) = await Loaded();
+        var raised = 0;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SongsViewModel.IsPublicationRefreshing) && vm.IsPublicationRefreshing) raised++;
+        };
+        service.PublicationId = 8;
+        await session.Api.GetPublicationAsync(force: true);
+        await Async.Until(() => vm.IsPublicationRefreshing);
+        service.PublicationId = 9;
+        await session.Api.GetPublicationAsync(force: true);
+        await FinishRefresh(session, vm);
+        await Async.Until(() => session.SelectedProfilePublicationId == 9);
+        await FinishRefresh(session, vm);
+        Assert.Equal(1, raised);
+        Assert.Equal(9, session.CatalogPublicationId);
+        Assert.Equal(SongInstrumentStatus.FullCombo, Row(vm, "s1").Chips.Single(c => c.Instrument == Instrument.Lead).Status);
+        Assert.DoesNotContain(vm.Notices, n => n.AutomationId == SongNotice.ProfilePausedId);
+        Assert.Equal(LoadSwapPhase.ContentIn, vm.PublicationSwap.Phase);
+    }
+
+    /// <summary>Publishes a newer generation and lets Songs' in-place refresh finish.</summary>
+    private static async Task AdvancePublication(FakeService service, FestivalSession session, SongsViewModel vm, long id = 8)
+    {
+        service.PublicationId = id;
+        await session.Api.GetPublicationAsync(force: true);
+        await Async.Until(() => vm.IsPublicationRefreshing);
+        await FinishRefresh(session, vm);
+    }
+
+    /// <summary>Advances the fake clock through the refresh's fades and spinner hold.</summary>
+    private static async Task FinishRefresh(FestivalSession session, SongsViewModel vm)
+    {
+        var time = (FakeTimeProvider)session.Time;
+        for (var i = 0; i < 100 && (vm.IsPublicationRefreshing || vm.PublicationSwap.Phase != LoadSwapPhase.ContentIn); i++)
+        {
+            time.Advance(TimeSpan.FromMilliseconds(100));
+            await Async.Settle();
+        }
+        Assert.False(vm.IsPublicationRefreshing);
     }
 
     [Fact]
@@ -648,9 +802,7 @@ public class SongsViewModelPlayerTests
         // The catalogue refetch fails, so the retained songs stay on publication 7 while the Shop feed moves to 8.
         var inner = service.Override;
         service.Override = r => r.RequestUri!.AbsolutePath == "/api/songs" ? Wire.Response(HttpStatusCode.ServiceUnavailable) : inner?.Invoke(r);
-        service.PublicationId = 8;
-        await session.Api.GetPublicationAsync(force: true);
-        await Async.Until(() => vm.Notices.Count >= 2);
+        await AdvancePublication(service, session, vm);
         Assert.Equal([SongNotice.SortPausedId, SongNotice.ShopFilterPausedId], vm.Notices.Select(n => n.AutomationId));
         Assert.All(vm.Sections, s => Assert.Equal("", s.AutomationId));
         Assert.Equal("Item Shop ↑", vm.SortSummary); // the saved choice stays; only its application pauses

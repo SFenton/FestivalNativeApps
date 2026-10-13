@@ -110,10 +110,14 @@ func fittedSectionAlignsNamesAndScores(width: CGFloat) async throws {
         scoreEntry(rank: 1_234, score: 708_315),
     ]
     let (frames, texts) = try await hostedRows(entries, width: width, fitted: true)
-    // The hidden width templates never reach assistive technology.
+    // The hidden width templates never reach assistive technology; the bold pinned
+    // row's rank speaks as the player's own (issue #457), so its drawn "#1,234" is not
+    // exposed at all.
     let pinnedRank = LeaderboardRowColumns.rankLabel(1_234)
     let widestScore = LeaderboardRowColumns.scoreLabel(1_234_567)
-    #expect(texts.filter { $0 == pinnedRank }.count == 1, "texts: \(texts)")
+    #expect(texts.filter { $0 == pinnedRank }.isEmpty, "texts: \(texts)")
+    #expect(texts.filter { $0 == SongLeaderboardEntryRow.spokenRank(1_234, isPlayer: true) }.count == 1,
+            "texts: \(texts)")
     #expect(texts.filter { $0 == widestScore }.count == 1, "texts: \(texts)")
     let names = entries.compactMap { frames["Name \($0.rank)"]?.minX }
     let scores = entries.compactMap { frames[$0.score.formatted()]?.maxX }

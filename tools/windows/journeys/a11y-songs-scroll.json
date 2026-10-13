@@ -1,0 +1,90 @@
+[
+  {
+    "name": "songs-scroll-far-jumps",
+    "tab": "songs",
+    "scan": true,
+    "fixture": [
+      "--large-catalogue"
+    ],
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-song-1@40",
+      "assertname:id=fst.songs.section-header|#",
+      "assertread:id=fst.songs.section-header|#, text",
+      "assertstate:id=fst.songs.list|scroll=0@10"
+    ],
+    "after_ready": [
+      "assertname:id=fst.songs.section-index-button|Jump to Section",
+      "assertsize:id=fst.songs.section-index-button|40x40",
+      "scrollto:id=fst.songs.list,100",
+      "assertstate:id=fst.songs.section-header|name=~^[X-Z]$@5",
+      "assertstate:id=fst.songs.section-header|heading=2",
+      "scrollto:id=fst.songs.list,25",
+      "assertstate:id=fst.songs.section-header|name=~^[B-F]$@5",
+      "scrollto:id=fst.songs.list,75",
+      "assertstate:id=fst.songs.section-header|name=~^[P-T]$@5",
+      "scrollto:id=fst.songs.list,50",
+      "assertstate:id=fst.songs.section-header|name=~^[H-N]$@5",
+      "scrollinto:id=fst.songs.row.fixture-song-49@5",
+      "scrollinset:id=fst.songs.row.fixture-song-49|id=fst.songs.list|8",
+      "assertstate:id=fst.songs.section-header|name=L@5",
+      "assertstate:id=fst.songs.section-header|heading=2",
+      "assertstate:id=fst.songs.section-header|type=text",
+      "assertorder:id=fst.songs.section-index-button|id=fst.songs.section-header|id=fst.songs.list"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "songs-scroll-fling-back",
+    "tab": "songs",
+    "scan": true,
+    "fixture": [
+      "--large-catalogue"
+    ],
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-song-1@40",
+      "assertname:id=fst.songs.section-header|#"
+    ],
+    "after_ready": [
+      "scrollto:id=fst.songs.list,100",
+      "assertstate:id=fst.songs.section-header|name=~^[X-Z]$@5",
+      "scrollto:id=fst.songs.list,0",
+      "scrollto:id=fst.songs.list,3",
+      "scrollto:id=fst.songs.list,0",
+      "assertstate:id=fst.songs.list|scroll=0@10",
+      "waitfor:id=fst.songs.row.fixture-song-1@5",
+      "assertname:id=fst.songs.section-header|#",
+      "assertread:id=fst.songs.section-header|#, text",
+      "assertstate:id=fst.songs.section-header|heading=2",
+      "assertorder:id=fst.songs.section-index-button|id=fst.songs.section-header|id=fst.songs.row.fixture-song-1"
+    ],
+    "tabs": 0
+  },
+  {
+    "name": "songs-scroll-keyboard",
+    "tab": "songs",
+    "scan": true,
+    "fixture": [
+      "--large-catalogue"
+    ],
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-song-1@40",
+      "assertname:id=fst.songs.section-header|#"
+    ],
+    "after_ready": [
+      "focus:id=fst.songs.row.fixture-song-1",
+      "assertfocus:id=fst.songs.row.fixture-song-1@3",
+      "key:end",
+      "assertfocus:id=fst.songs.row.fixture-song-105@5",
+      "assertstate:id=fst.songs.section-header|name=~^[X-Z]$@5",
+      "assertstate:id=fst.songs.section-header|heading=2",
+      "assertsize:id=fst.songs.row.fixture-song-105|40x40",
+      "key:home",
+      "assertfocus:id=fst.songs.row.fixture-song-1@5",
+      "assertstate:id=fst.songs.list|scroll=0@10",
+      "assertname:id=fst.songs.section-header|#",
+      "assertread:id=fst.songs.section-header|#, text",
+      "assertorder:id=fst.songs.section-index-button|id=fst.songs.section-header|id=fst.songs.row.fixture-song-1"
+    ],
+    "tabs": 0
+  }
+]

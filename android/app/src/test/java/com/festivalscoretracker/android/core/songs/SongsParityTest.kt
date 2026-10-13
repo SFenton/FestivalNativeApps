@@ -265,6 +265,31 @@ class SongsParityTest {
         InvalidScorePolicy.resolve(score, SongScoreDetail(score.score.toLong(), rank = score.rank, totalEntries = score.totalEntries), song, lead, 1.0, over)
 
     @Test
+    fun profileScoresFilterLikeWebFilterPlayerScores() {
+        // #619: Player Profile and Statistics read web `filterPlayerScores` (R4) for any player.
+        val tiered = a.copy(populationTiers = mapOf(lead.wireId to PopulationTiers(10, doubleArrayOf(0.5, 1.5), intArrayOf(12, 15))))
+        val variant = PlayerValidScoreVariant(80_000, rawAccuracy = 950.0, isFullCombo = false, stars = 5, minLeeway = 0.5, rankTiers = listOf(PlayerRankTier(0.0, 7)))
+        val valid = raw(99_000, minLeeway = 0.5)
+        val swapped = raw(99_000, minLeeway = 2.0, variants = listOf(variant)).copy(isFullCombo = true)
+        val legacy = SongsFixtures.score("a", Instrument.Bass, 50_000).copy(minLeeway = null, validScore = 40_000, validRank = 4, validTotalEntries = 90, rawValidAccuracy = 900.0)
+        val ceilingLegacy = raw(101_040).copy(validScore = 90_000, validRank = 6, validTotalEntries = 70)
+        val dropped = raw(99_000, minLeeway = 2.0).copy(validScore = 90_000)
+        val unknownSong = SongsFixtures.score("zz", lead, 500_000)
+        val out = InvalidScorePolicy.filterPlayerScores(listOf(valid, swapped, legacy, ceilingLegacy, dropped, unknownSong), mapOf("a" to tiered), 1.0)
+        assertEquals(5, out.size)
+        assertTrue(out[0] === valid)
+        assertEquals(listOf(80_000, 7, 12), listOf(out[1].score, out[1].rank, out[1].totalEntries))
+        assertEquals(false, out[1].isFullCombo)
+        assertEquals(950_000.0, out[1].accuracy!!, 0.001)
+        // Bass has no CHOpt maximum in this catalogue, so its raw score stays.
+        assertTrue(out[2] === legacy)
+        assertEquals(listOf(90_000, 6, 70), listOf(out[3].score, out[3].rank, out[3].totalEntries))
+        assertTrue(out[4] === unknownSong)
+        // A wider leeway accepts the raw score again.
+        assertTrue(InvalidScorePolicy.filterPlayerScores(listOf(swapped), mapOf("a" to tiered), 2.0).single() === swapped)
+    }
+
+    @Test
     fun precomputedVariantsSubstituteTheBestValidScore() {
         val tiered = a.copy(populationTiers = mapOf(lead.wireId to PopulationTiers(10, doubleArrayOf(0.5, 1.5), intArrayOf(12, 15))))
         val variant = PlayerValidScoreVariant(80_000, rawAccuracy = 950.0, isFullCombo = true, stars = 5, minLeeway = 0.5, rankTiers = listOf(PlayerRankTier(0.0, 5), PlayerRankTier(1.5, 3)))

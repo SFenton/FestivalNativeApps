@@ -94,7 +94,7 @@ private func hostRankByPage(
     let size = CGSize(width: 402, height: height)
     let host = nativeHostedView(AnyView(
         VStack(spacing: 0) {
-            NavigationStack { page.pageToolsScope() }
+            NavigationStack { page.pageToolsScope(inSelectedTab: true) }
             if let registry {
                 PageToolsAccessoryBar(registry: registry)
                     .frame(height: NavButtonAccessibilityTests.accessoryHeight)

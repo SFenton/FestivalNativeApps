@@ -32,6 +32,7 @@ import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.core.service.ServiceRetryBackoff
 import com.festivalscoretracker.android.core.settings.AppSettings
+import com.festivalscoretracker.android.core.songs.InvalidScorePolicy
 import com.festivalscoretracker.android.core.songs.SongScoreFilterKind
 import com.festivalscoretracker.android.presentation.LoadState
 import kotlinx.coroutines.CancellationException
@@ -318,6 +319,20 @@ sealed interface RankHistoryLoad {
      * @property issue Classified failure.
      */
     data class Failed(val issue: ServiceIssue) : RankHistoryLoad
+
+    companion object {
+        /**
+         * Whether a chart shows its Rank History card (and its Quick Link, #590): a played chart
+         * shows it while loading, loaded with ranked snapshots or failed (inline retry); not once
+         * loaded without snapshots (web: no ranking row, no chart).
+         *
+         * @param section The chart's section.
+         * @param load The chart's rank-history state, or null before it starts.
+         * @return True when the card is (or will be) on the page.
+         */
+        fun showsCard(section: PlayerInstrumentSection, load: RankHistoryLoad?): Boolean =
+            section.hasScores && !(load is Loaded && load.chart == null)
+    }
 }
 
 /**
@@ -356,8 +371,34 @@ data class PlayerProfileUiState(
     fun canRun(action: PlayerTileAction): Boolean =
         isSelected || identity == PlayerIdentityAction.Select || identity == PlayerIdentityAction.Switch || !action.requiresSelection
 
-    /** Select button label. */
-    val selectLabel: String get() = if (identity == PlayerIdentityAction.Switch) "Switch to This Profile" else "Select Profile"
+    /** Identity action's full label (TalkBack, and the top bar outside the shell; iOS `title`). */
+    val identityLabel: String
+        get() = when (identity) {
+            PlayerIdentityAction.Switch -> "Switch to This Profile"
+            PlayerIdentityAction.Deselect -> "Deselect Profile"
+            else -> "Select Profile"
+        }
+
+    /** Identity action's short visible text in the floating toolbar row (iOS `shortTitle`, #590). */
+    val identityShortLabel: String
+        get() = when (identity) {
+            PlayerIdentityAction.Switch -> "Switch"
+            PlayerIdentityAction.Deselect -> "Deselect"
+            else -> "Select"
+        }
+
+    /**
+     * Whether the page offers Select, Switch or Deselect as its own pill beside Quick Links
+     * (owner #590 acceptance: "Select/Switch/Deselect Profile appears in the floating toolbar row").
+     * Paused (unverified or changed) reads offer none; their notice stays in the identity row.
+     */
+    val offersIdentityAction: Boolean
+        get() = phase == ProfilePhase.Loaded && identity in IDENTITY_PILL_ACTIONS
+
+    private companion object {
+        /** The identity actions drawn as the floating-toolbar companion pill (#590). */
+        val IDENTITY_PILL_ACTIONS = setOf(PlayerIdentityAction.Select, PlayerIdentityAction.Switch, PlayerIdentityAction.Deselect)
+    }
 
     /** Why selection is paused, or null. */
     val identityNotice: String?
@@ -374,10 +415,12 @@ data class PlayerProfileUiState(
     val offersReload: Boolean
         get() = !isSelected && (identity == PlayerIdentityAction.Changed || actionError != null)
 
-    /** Whether the page needs its identity row: a Select/Switch button, a paused-selection notice or an action error. */
+    /**
+     * Whether the page needs its identity row: a paused-selection notice or an action error.
+     * Select/Switch/Deselect is not in it: it sits beside Quick Links in the floating toolbar row (#590).
+     */
     val showsIdentityRow: Boolean
-        get() = identity == PlayerIdentityAction.Select || identity == PlayerIdentityAction.Switch ||
-            identityNotice != null || actionError != null
+        get() = identityNotice != null || actionError != null
 }
 
 // endregion
@@ -430,6 +473,7 @@ class PlayerProfileViewModel(
     private val sectionJobs = mutableMapOf<String, Job>()
     private var sectionKey: String? = null
     private var memo: Pair<SectionsKey, Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>>>? = null
+    private var effectiveMemo: Pair<SectionsKey, PlayerProfileResponse>? = null
     private var topMemo: Triple<PlayerProfileResponse, Set<Instrument>, Pair<Map<String, Song>, List<PlayerTopSongs>>>? = null
     private val catalog = MutableStateFlow<Map<String, Song>>(emptyMap())
     private var catalogJob: Job? = null
@@ -754,7 +798,7 @@ class PlayerProfileViewModel(
         if (profile != null) ensureCatalog()
         val leeway = current?.leeway?.takeIf { current.filterInvalidScores }
         val (overview, instruments) = if (profile != null) sections(SectionsKey(profile, visible, songs, leeway)) else emptyList<PlayerStatTile>() to emptyList()
-        val topSongs = if (profile != null) topSongs(profile, visible, songs) else emptyList()
+        val topSongs = if (profile != null) topSongs(effective(profile, songs, leeway), visible, songs) else emptyList()
         return PlayerProfileUiState(account, name, isSelected, phase, identity, overview, instruments, error, topSongs, current?.experimentalRanks == true)
     }
 
@@ -774,13 +818,33 @@ class PlayerProfileViewModel(
      * @property profile Loaded profile.
      * @property visible Settings-visible charts.
      * @property songs Catalogue (total songs, CHOpt maxima).
-     * @property leeway Filter Invalid Scores leeway, or null when off (no Over CHOpt Threshold tiles).
+     * @property leeway Filter Invalid Scores leeway, or null when off (raw scores, no Over CHOpt Threshold tiles).
      */
     private data class SectionsKey(val profile: PlayerProfileResponse, val visible: Set<Instrument>, val songs: Map<String, Song>, val leeway: Double?)
 
+    /**
+     * The scores every profile figure reads (web `PlayerContent` `effectiveScores`): under
+     * Filter Invalid Scores, each score as is when valid, else its replacement with the
+     * filtered rank and population, else nothing (pattern invalid-scores R4), for the
+     * selected and any viewed player alike. Memoized so identity-keyed memos hold.
+     *
+     * @param profile Loaded raw profile.
+     * @param songs Catalogue (CHOpt maxima and population tiers).
+     * @param leeway Leeway percent, or null when the setting is off.
+     * @return [profile] itself when off, else a copy holding the effective scores.
+     */
+    private fun effective(profile: PlayerProfileResponse, songs: Map<String, Song>, leeway: Double?): PlayerProfileResponse {
+        if (leeway == null) return profile
+        effectiveMemo?.let { (last, result) -> if (last.profile === profile && last.songs === songs && last.leeway == leeway) return result }
+        val result = profile.copy(scores = InvalidScorePolicy.filterPlayerScores(profile.scores, songs, leeway))
+        effectiveMemo = SectionsKey(profile, emptySet(), songs, leeway) to result
+        return result
+    }
+
     private fun sections(key: SectionsKey): Pair<List<PlayerStatTile>, List<PlayerInstrumentSection>> {
         memo?.let { (last, result) -> if (last.profile === key.profile && last.visible == key.visible && last.songs === key.songs && last.leeway == key.leeway) return result }
-        val (profile, visible, songs, leeway) = key
+        val (raw, visible, songs, leeway) = key
+        val profile = effective(raw, songs, leeway)
         val totalSongs = songs.size
         val stats = PlayerStatistics.overall(profile, visible)
         // Web `buildOverallSummaryItems`.
@@ -808,7 +872,8 @@ class PlayerProfileViewModel(
             PlayerInstrumentSection(
                 instrument = instrument,
                 hasScores = chart.songsPlayed > 0,
-                stats = instrumentTiles(chart, instrument, totalSongs, leeway?.let { PlayerStatistics.overThresholdCount(profile, instrument, songs, it) }),
+                // Web: the over-threshold count reads raw scores; every other figure the effective ones.
+                stats = instrumentTiles(chart, instrument, totalSongs, leeway?.let { PlayerStatistics.overThresholdCount(raw, instrument, songs, it) }),
                 percentiles = PlayerStatistics.percentileBuckets(profile, instrument).map { bucket ->
                     PercentileRow(bucket, PlayerTileAction.FilterSongs(SongsPreset.PercentileBucket(instrument, bucket.topPercent)))
                 },

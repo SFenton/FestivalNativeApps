@@ -179,11 +179,18 @@ class QuickLinksLandingUiTest {
         val transport = songs(FakeTransport.standard()).apply { ProfileFixtures.register(this) }
         launch(DebugLaunch(route = PlayerRoute(Fixtures.ACCOUNT_A), stillBackground = true), transport)
         waitForTag("fst.player.available")
+        val overview = titleIn("fst.player.overview")
+        // Overview is the page's first row since Select moved to the toolbar (#590), so its title rests
+        // above the landing line at the top of the page.
+        val restTop = overview.top()
         // Lazily built grid items: the jump lands after composing the target.
         assertLands("top-songs", "Top Songs", titleIn("fst.player.top-songs"))
         // The instrument heading row is flush with its section.
         assertLands("instrument:Solo_Bass", "Bass", flush("fst.player.instrument.Solo_Bass"))
-        assertLands("global", "Global Statistics", titleIn("fst.player.overview"))
+        // The first section clamps at the content's top (section-jump-landing R2) and is still current.
+        jump("global")
+        assertEquals("global's title clamps at the top of the page", restTop, overview.top(), 1f)
+        assertTrue("entry names Global Statistics: ${entryLabel()}", entryLabel().endsWith("current section Global Statistics"))
     }
 
     private fun leaderboards() {

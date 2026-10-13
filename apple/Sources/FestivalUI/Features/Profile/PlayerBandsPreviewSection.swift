@@ -80,6 +80,8 @@ struct PlayerBandsPreviewSection: View {
                         retryRevision += 1
                     }
                 }
+                // `.contain` first, or the identifier replaces Retry's own (#463).
+                .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("fst.player.bands.error")
             case let .loaded(preview):
                 groups(preview)

@@ -587,6 +587,41 @@ class SongDetailAndShopTest {
 
     // endregion
 
+    // region Publication catch-up (#616)
+
+    @Test
+    fun songDetailReReadsSongAndPreviewsInPlaceForANewerPublication() = runTest(main.dispatcher) {
+        val api = FestivalApi("https://fixture.test", FakeTransport.standard())
+        val publications = MutableStateFlow<Int?>(7)
+        var served = 7
+        val catalogReads = mutableListOf<Boolean>()
+        var previewReads = 0
+        val vm = SongDetailViewModel(
+            "s-alpha",
+            { refresh -> catalogReads += refresh; api.catalog().copy(publicationId = served) },
+            { id, chart, page, top, l -> previewReads++; api.leaderboardPage(id, chart, page, top, l) },
+            ServiceRetryBackoff(),
+            publications = publications,
+        )
+        advanceUntilIdle()
+        val alpha = (vm.song.value as LoadState.Loaded).value
+        val preview = vm.preview(alpha, Instrument.Lead)
+        advanceUntilIdle()
+        assertEquals(1, previewReads)
+        assertEquals(7, vm.catalogPublication.value)
+
+        served = 8
+        publications.value = 8
+        advanceUntilIdle()
+        assertEquals(8, vm.catalogPublication.value)
+        assertEquals(listOf(false, false), catalogReads)
+        assertEquals(2, previewReads)
+        assertTrue(vm.song.value is LoadState.Loaded)
+        assertTrue(preview.value is LoadState.Loaded)
+    }
+
+    // endregion
+
     // region Leeway previews
 
     @Test

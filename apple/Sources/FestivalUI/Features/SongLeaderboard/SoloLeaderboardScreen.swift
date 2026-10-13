@@ -52,6 +52,9 @@ struct SoloLeaderboardScreen: View {
     /// or error) fills it, so a page change never lets the List clamp the header back
     /// into view (issue #316).
     @State private var listHeight: CGFloat = 0
+    /// The selected player's row height and the board's, for ``SelectedRowPinning`` (R12).
+    @State private var selectedRowHeight: CGFloat = 0
+    @State private var boardHeight: CGFloat = 0
 
     /// The group card's inset above its first row and below its last (rows inside it
     /// abut); the pinned chrome still rests ``rowGap`` below the card.
@@ -190,16 +193,26 @@ struct SoloLeaderboardScreen: View {
                                             .festivalCardSegmentFadeIn(cardIndex: BoardCardEntrance.index)
                                     }
                                 }
-                                // The card's top inset is content padding: a lone top
-                                // List row inset also left a gap under the first row
-                                // on macOS.
+                                // The card's top and bottom insets are content padding:
+                                // a lone top List row inset also left a gap under the
+                                // first row on macOS, and macOS dropped a last-row
+                                // bottom inset, resting the last row 4 pt rather than
+                                // one row gap above the footer or pager (#293, #456).
                                 .padding(.top, row.start == 0 ? Self.rowInset : 0)
-                                .listRowInsets(EdgeInsets(
-                                    top: 0, leading: 16,
-                                    bottom: row.start + columns >= entries.count ? Self.rowInset : 0, trailing: 16
-                                ))
+                                .padding(.bottom, row.start + columns >= entries.count ? Self.rowInset : 0)
+                                .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
                                 .listRowBackground(Color.clear)
                                 .listRowSeparator(.hidden)
+                            }
+                            // Too tall to pin at this text size: the player's row
+                            // follows the rows (leaderboard-row R12, #386).
+                            if !pinsFooter, rows != nil, hasFooter {
+                                selectedPlayerFooter(horizontalPadding: 0)
+                                    .listRowInsets(EdgeInsets(
+                                        top: Self.rowInset, leading: 16, bottom: Self.rowInset, trailing: 16
+                                    ))
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
                             }
                         }
                         .listStyle(.plain)
@@ -287,6 +300,9 @@ struct SoloLeaderboardScreen: View {
         // header and rows (#461).
         .boardBottomChrome {
             bottomChrome
+        }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+            boardHeight = height
         }
         // One set of columns for the page's rows and the pinned footer (web
         // `LeaderboardPage` `rankWidth`/`scoreWidth`, operator batch 7.3), with
@@ -416,9 +432,11 @@ struct SoloLeaderboardScreen: View {
     private var bottomChrome: some View {
         let spacing = chromeSpacing
         return VStack(spacing: 0) {
-            selectedPlayerFooter
-                .padding(.top, spacing.footerTop)
-                .padding(.bottom, spacing.footerBottom)
+            if pinsFooter {
+                selectedPlayerFooter(horizontalPadding: 16)
+                    .padding(.top, spacing.footerTop)
+                    .padding(.bottom, spacing.footerBottom)
+            }
             if let shownPayload {
                 RankingsPagerView(
                     page: page, totalPages: shownPayload.leaderboard.pageCount,
@@ -437,7 +455,7 @@ struct SoloLeaderboardScreen: View {
     private var chromeSpacing: PinnedChromeSpacing {
         PinnedChromeSpacing.resolve(
             rowGap: Double(Self.rowGap), rowBottomInset: Double(Self.rowInset), edgePadding: 8,
-            hasFooter: session.selectedPlayer != nil && selectedPlayerEntry() != nil,
+            hasFooter: pinsFooter && hasFooter,
             hasPager: shownPayload != nil
         )
     }
@@ -464,8 +482,10 @@ struct SoloLeaderboardScreen: View {
     /// on the shown page; otherwise it jumps to their page and brings the row into view
     /// (a native addition beyond web). The band board's footer follows the same rule
     /// (``SelectedRowAction``, issue #307).
+    ///
+    /// - Parameter horizontalPadding: 16 pinned; 0 after the rows, inset as a List row.
     @ViewBuilder
-    private var selectedPlayerFooter: some View {
+    private func selectedPlayerFooter(horizontalPadding: CGFloat) -> some View {
         if let selected = session.selectedPlayer, let entry = selectedPlayerEntry() {
             let rank = entry.rank
             // While the next page loads, its rank decides, so the footer keeps its
@@ -495,8 +515,26 @@ struct SoloLeaderboardScreen: View {
                     .accessibilityIdentifier("fst.song-leaderboard.spotlight-jump")
                 }
             }
-            .pinnedFooterControl(identifier: "fst.song-leaderboard.spotlight-footer")
+            .reportsSelectedRowHeight($selectedRowHeight)
+            .pinnedFooterControl(
+                identifier: "fst.song-leaderboard.spotlight-footer", horizontalPadding: horizontalPadding
+            )
         }
+    }
+
+    /// Whether the selected player has a footer row on this chart.
+    private var hasFooter: Bool {
+        session.selectedPlayer != nil && selectedPlayerEntry() != nil
+    }
+
+    /// Whether the player's row is pinned above the pager; at accessibility text sizes a
+    /// row that would cover more than a third of the board follows the rows instead
+    /// (leaderboard-row R12, #386).
+    private var pinsFooter: Bool {
+        SelectedRowPinning.pins(
+            isAccessibilitySize: dynamicTypeSize.isAccessibilitySize,
+            rowHeight: Double(selectedRowHeight), boardHeight: Double(boardHeight)
+        )
     }
 
     /// The selected player's own score on this chart as a row, from the already-loaded

@@ -137,8 +137,16 @@ public sealed partial class StarRow : StackPanel
         /// <inheritdoc />
         protected override string GetClassNameCore() => nameof(StarRow);
 
-        /// <inheritdoc />
-        protected override bool IsControlElementCore() => true;
+        /// <summary>
+        /// A control element unless the host marks the row <see cref="AccessibilityView.Raw"/> (a row that already speaks
+        /// its stars), so the stars are not a second Narrator stop inside it (issue #510).
+        /// </summary>
+        /// <returns>Whether UIA's control view includes the stars.</returns>
+        protected override bool IsControlElementCore() => AutomationProperties.GetAccessibilityView(Owner) != AccessibilityView.Raw;
+
+        /// <summary>Content unless the host marks the row <see cref="AccessibilityView.Raw"/> or <see cref="AccessibilityView.Control"/>.</summary>
+        /// <returns>Whether UIA's content view includes the stars.</returns>
+        protected override bool IsContentElementCore() => AutomationProperties.GetAccessibilityView(Owner) == AccessibilityView.Content;
 
         /// <inheritdoc />
         protected override IList<AutomationPeer>? GetChildrenCore() => null;

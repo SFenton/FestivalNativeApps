@@ -118,12 +118,16 @@ public sealed partial class FestivalSession
         };
     }
 
-    /// <summary>Announces a newer publication so pages re-read their inputs.</summary>
+    /// <summary>
+    /// Announces a newer publication so pages re-read their inputs. The event comes before the property notifications so
+    /// a page that refreshes in place (Songs, load-transition R9) hides its rows before anything rebuilds them against the
+    /// newer generation, which would otherwise flash the "paused until songs update" state (#616).
+    /// </summary>
     private void RaisePublicationAdvanced()
     {
+        PublicationAdvanced?.Invoke(this, EventArgs.Empty);
         OnPropertyChanged(nameof(ObservedPublicationId));
         OnPropertyChanged(nameof(ShopOffersForCatalog));
-        PublicationAdvanced?.Invoke(this, EventArgs.Empty);
     }
 }
 #endregion

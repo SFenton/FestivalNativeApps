@@ -1,5 +1,30 @@
 [
   {
+    "name": "search-swap-widen",
+    "tab": "songs",
+    "tabs": 0,
+    "sizes": ["wide"],
+    "setup": ["resize:compact", "wait:1.5", "waitfor:id=fst.songs.row.fixture-pulse@30",
+      "waitfor:id=fst.global-search.open@20", "focus:id=fst.shell.profile",
+              "key:shift+tab", "assertfocus:id=fst.global-search.open@3",
+              "waitfor:name=Search songs, players and bands (Ctrl+E)@5", "resize:wide", "wait:1.5"],
+    "ready": ["waitfor:id=fst.shell.profile@30", "waitfor:id=fst.nav.leaderboards@10"],
+    "after_ready": ["waitgone:name=Search songs, players and bands (Ctrl+E)@3",
+                    "assertfocus:name=Search songs, players and bands@3"]
+  },
+  {
+    "name": "search-swap-narrow",
+    "tab": "songs",
+    "tabs": 0,
+    "sizes": ["compact"],
+    "setup": ["resize:wide", "wait:1.5", "waitfor:id=fst.songs.row.fixture-pulse@30",
+      "waitfor:id=fst.global-search.open@20", "key:ctrl+e",
+              "assertfocus:name=Search songs, players and bands@3", "resize:compact", "wait:1.5"],
+    "ready": ["waitfor:id=fst.shell.profile@30", "waitfor:id=fst.global-search.open@10"],
+    "after_ready": ["assertfocus:id=fst.global-search.open@3",
+                    "waitgone:name=Search songs, players and bands (Ctrl+E)@3"]
+  },
+  {
     "name": "search-closed",
     "fixture": ["profile_fixture.py"],
     "tab": "songs",
@@ -13,8 +38,9 @@
     "tabs": 0,
     "sizes": ["medium", "wide", "maximized"],
     "ready": ["waitfor:id=fst.songs.row.fixture-pulse@20"],
+    "note": "Issue #571: Ctrl+E focuses the box with keyboard focus, which opens its Ctrl+E hint tooltip after the show delay; once the user types or the suggestion list opens, the hint closes and stays closed so it never covers the suggestions (TypingToolTip). The wait outlasts the show delay.",
     "after_ready": ["key:ctrl+e", "assertfocus:name=Search songs, players and bands@3", "type:fix",
-                    "waitfor:name=Player, Fixture Player 1@10"],
+                    "waitfor:name=Player, Fixture Player 1@10", "wait:1.5", "waitgone:class=ToolTip@3"],
     "teardown": ["key:esc", "key:esc", "key:esc"]
   },
   {
@@ -35,6 +61,43 @@
                     "waitfor:id=fst.global-search.result.player@5"]
   },
   {
+    "name": "search-delayed-results",
+    "note": "Issue #260 (#521): song rows that waited behind the one spinner for a slow player search (fixture \"Puls\" prefix) appear, fading in with motion on and in place under Reduce Motion, when it clears. While it spins Narrator reads the named ring and no song row or section title is there yet; afterwards the Songs title is a Level 2 heading read before the Fixture Pulse row (a 40+ epx list item), the empty Players section stays out, and focus never leaves the search field, so Tab then reaches All and the row.",
+    "fixture": ["profile_fixture.py"],
+    "route": "/search",
+    "tabs": 0,
+    "ready": ["waitfor:id=fst.global-search.field@20"],
+    "after_ready": [
+      "focus:id=fst.global-search.field",
+      "setvalue:id=fst.global-search.field|pulse",
+      "waitfor:id=fst.global-search.loading@5",
+      "assertread:id=fst.global-search.loading|Busy Searching, ProgressRing",
+      "waitgone:id=fst.global-search.result.song",
+      "waitgone:id=fst.global-search.section.songs",
+      "assertfocus:name=Search songs, players and bands@3",
+      "waitgone:id=fst.global-search.loading@15",
+      "waitfor:id=fst.global-search.result.song@5",
+      "waitfor:id=fst.global-search.section.songs@5",
+      "assertread:id=fst.global-search.section.songs|Songs, text",
+      "assertstate:id=fst.global-search.section.songs|heading=2",
+      "assertstate:id=fst.global-search.section.songs|focusable=false",
+      "assertread:id=fst.global-search.result.song|Fixture Pulse by Synthetic Quartet, list item",
+      "assertsize:id=fst.global-search.result.song|40x40",
+      "assertorder:id=fst.global-search.scope.all|id=fst.global-search.section.songs|id=fst.global-search.result.song",
+      "assertapart:id=fst.global-search.section.songs|id=fst.global-search.result.song",
+      "waitgone:id=fst.global-search.section.players",
+      "waitgone:id=fst.global-search.empty.title",
+      "narrate:id=fst.global-search.results",
+      "assertfocus:name=Search songs, players and bands@3",
+      "key:tab",
+      "assertfocus:id=fst.global-search.scope.all@3",
+      "key:tab",
+      "assertfocus:id=fst.global-search.result.song@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.global-search.scope.all@3"
+    ]
+  },
+  {
     "name": "search-results-all",
     "fixture": ["profile_fixture.py"],
     "route": "/search?q=fixture",
@@ -42,12 +105,76 @@
     "after_ready": ["waitfor:id=fst.global-search.result.song@5"]
   },
   {
+    "name": "search-all-sections",
+    "note": "Issue #348 (#483): All titles each shown section Songs, Players, Bands (web SearchModal h3 per rendered target). Narrator reads each title as text at heading level 2, never a Tab stop, before its own rows; the titles keep clear of their rows at every text size and the scope bar stays on All.",
+    "fixture": ["profile_fixture.py"],
+    "route": "/search?q=fixture",
+    "ready": ["waitfor:id=fst.global-search.result.song@20", "waitfor:id=fst.global-search.section.songs@10", "wait:1"],
+    "after_ready": [
+      "assertstate:id=fst.global-search.scope.all|selected=true",
+      "assertread:id=fst.global-search.section.songs|Songs, text",
+      "assertstate:id=fst.global-search.section.songs|heading=2",
+      "assertstate:id=fst.global-search.section.songs|focusable=false",
+      "assertorder:id=fst.global-search.scope.all|id=fst.global-search.section.songs|id=fst.global-search.result.song",
+      "assertapart:id=fst.global-search.section.songs|id=fst.global-search.result.song",
+      "assertbelow:id=fst.global-search.result.song|id=fst.global-search.section.songs",
+      "reveal:id=fst.global-search.result.player",
+      "waitfor:id=fst.global-search.section.players@5",
+      "assertbelow:id=fst.global-search.section.players|id=SongsList",
+      "assertread:id=fst.global-search.section.players|Players, text",
+      "assertstate:id=fst.global-search.section.players|heading=2",
+      "assertstate:id=fst.global-search.section.players|focusable=false",
+      "assertorder:id=fst.global-search.section.players|id=fst.global-search.result.player",
+      "assertapart:id=fst.global-search.section.players|id=fst.global-search.result.player",
+      "reveal:id=fst.global-search.result.band",
+      "waitfor:id=fst.global-search.section.bands@5",
+      "assertbelow:id=fst.global-search.section.bands|id=PlayersList",
+      "assertread:id=fst.global-search.section.bands|Bands, text",
+      "assertstate:id=fst.global-search.section.bands|heading=2",
+      "assertstate:id=fst.global-search.section.bands|focusable=false",
+      "assertorder:id=fst.global-search.section.bands|id=fst.global-search.result.band",
+      "assertapart:id=fst.global-search.section.bands|id=fst.global-search.result.band"
+    ]
+  },
+  {
+    "name": "search-all-sections-keyboard",
+    "note": "Issue #348 (#483): the All section titles are headings, not Tab stops: Tab walks the field -> All -> Songs rows -> Players rows -> band cards in title order, and Shift+Tab walks back; the titles stay as the walk scrolls the results.",
+    "fixture": ["profile_fixture.py"],
+    "route": "/search?q=fixture",
+    "tabs": 0,
+    "ready": ["waitfor:id=fst.global-search.result.song@20", "waitfor:id=fst.global-search.section.songs@10", "wait:1"],
+    "after_ready": [
+      "focus:id=fst.global-search.field",
+      "key:tab",
+      "assertfocus:id=fst.global-search.scope.all@3",
+      "key:tab",
+      "assertfocus:id=fst.global-search.result.song@3",
+      "key:tab",
+      "assertfocus:id=fst.global-search.result.player@3",
+      "waitfor:id=fst.global-search.section.players@3",
+      "key:tab",
+      "assertfocus:id=fst.global-search.result.band@3",
+      "waitfor:id=fst.global-search.section.bands@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.global-search.result.player@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.global-search.result.song@3",
+      "key:shift+tab",
+      "assertfocus:id=fst.global-search.scope.all@3",
+      "waitfor:id=fst.global-search.section.songs@3"
+    ]
+  },
+  {
     "name": "search-results-songs",
     "fixture": ["profile_fixture.py"],
     "route": "/search?q=fixture",
     "ready": ["waitfor:id=fst.global-search.result.player@20"],
     "after_ready": ["select:id=fst.global-search.scope.songs", "waitfor:id=fst.global-search.result.song@5",
-                    "waitgone:id=fst.global-search.result.player@5"]
+                    "waitgone:id=fst.global-search.result.player@5",
+                    "assertstate:id=fst.global-search.scope.songs|selected=true",
+                    "waitgone:id=fst.global-search.section.songs@5", "waitgone:id=fst.global-search.section.players",
+                    "waitgone:id=fst.global-search.section.bands",
+                    "assertorder:id=fst.global-search.scope.songs|id=fst.global-search.result.song"]
   },
   {
     "name": "search-results-players",
@@ -55,7 +182,11 @@
     "route": "/search?q=fixture",
     "ready": ["waitfor:id=fst.global-search.result.player@20"],
     "after_ready": ["select:id=fst.global-search.scope.players", "waitfor:id=fst.global-search.result.player@5",
-                    "waitgone:id=fst.global-search.result.song@5"]
+                    "waitgone:id=fst.global-search.result.song@5",
+                    "assertstate:id=fst.global-search.scope.players|selected=true",
+                    "waitgone:id=fst.global-search.section.players@5", "waitgone:id=fst.global-search.section.songs",
+                    "waitgone:id=fst.global-search.section.bands",
+                    "assertorder:id=fst.global-search.scope.players|id=fst.global-search.result.player"]
   },
   {
     "name": "search-empty",
@@ -127,7 +258,11 @@
     "fixture": ["profile_fixture.py"],
     "route": "/search?q=fixture&scope=bands",
     "ready": ["waitfor:id=fst.global-search.result.band@20"],
-    "after_ready": ["waitgone:id=fst.global-search.result.song@5", "waitgone:id=fst.global-search.result.player@5"]
+    "after_ready": ["waitgone:id=fst.global-search.result.song@5", "waitgone:id=fst.global-search.result.player@5",
+                    "assertstate:id=fst.global-search.scope.bands|selected=true",
+                    "waitgone:id=fst.global-search.section.bands@5", "waitgone:id=fst.global-search.section.songs",
+                    "waitgone:id=fst.global-search.section.players",
+                    "assertorder:id=fst.global-search.scope.bands|id=fst.global-search.result.band"]
   },
   {
     "name": "search-navigated",

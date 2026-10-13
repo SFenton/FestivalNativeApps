@@ -95,6 +95,21 @@ Per configuration:
 - **Journeys:** the full `suggestions_journey.py` run passed.
 - **Loading:** `loading` (an 8 s state) kept expiring while it waited behind other sessions on the shared desktop lock (`LOCK_BOUND`). A later retry passed at medium. It doesn't touch rival rows, and it passed at every width in the #205 run.
 
+## Accessibility tests (issue #513, 2026-10-12): backfill for #205
+
+`tools/windows/journeys/a11y-suggestions.json` (seeded `suggestions_fixture_server.py`) runs in the `windows-ui` CI job (`ui_ci.py`: `suggestions` at compact and medium, `suggestions-text-225` at compact). Its pages cover what #205 changed: card headings and order (`suggestions-cards`, with the 30-press Tab walk), arrow/Tab keys across cards (`suggestions-keyboard`), the named filter `Expander`s, switches and Reset (`suggestions-filter`), state titles as Level 2 headings (`suggestions-syncing`, `suggestions-no-results`) and the rival pill's contrast role (`suggestions-rival-pill-contrast`, medium). Details and results: [windows-accessibility](../../testing/windows-accessibility.md#suggestions-accessibility-tests-issue-513-2026-10-12).
+
+Rules the tests found (all fixed):
+- `SuggestionSongRow` sets its brushes in code, so it re-resolves them on `ContrastTheme.Changed` while loaded and on `Loaded` when the theme changed while it was off screen: chrome, subtitle style, and the metadata (rival pill brand ↔ neutral role, delta, pills). Without it a page left open across a switch kept the brand rival pill (#D9E3F0 on Desert). See [metadata-pills](../../patterns/metadata-pills.md).
+- Filter `ItemsControl`s are `IsTabStop="False"`, as on Songs and Shop: otherwise Tab stopped on an unnamed pane before the first switch.
+- `OnFilterOpening` fits the form to the window below the button, as Songs and Shop do, so Reset stays on screen at 225% text in a compact window ([songs-filter windows](../../controls/songs-filter/windows.md)).
+
+Test hooks: the rival pill's label carries `fst.suggestions.row.<row id with . for |>.rival` (Narrator is unchanged; the card row is read whole).
+
+## Accessibility tests (issue #521, 2026-10-12): backfill for #260
+
+Two more pages in `a11y-suggestions.json` cover the cards loaded after the first ten (#260 fades them in): `suggestions-load-more` (batch-2 card title heading, read after batch 1's last card, full-name 40 epx rows) and `suggestions-load-more-keyboard` (Down/Up across the batch boundary, Tab through batch 2 into batch 3, Shift+Tab back). They run in the full `suggestions` and `suggestions-text-225` runs, and in `suggestions-load-more-reduced-motion` and `-no-animations` (medium), where the cards appear in place. No defect was found. Rule: end a scrolled Suggestions page on `scrollinset:<card>|id=fst.suggestions.list|8` before its Axe scan, or a card can sit exactly on the viewport's bottom edge. Details: [windows-accessibility](../../testing/windows-accessibility.md#delayed-and-loaded-later-content-accessibility-tests-issue-521-for-260-2026-10-12).
+
 ## IDs
 
-`fst.suggestions.{filter-button,list,loading,syncing,choose-profile,error,no-results,start-new-mix}` (the state IDs are on the state titles; `error` is not exposed, see Validation), `fst.suggestions.category.<key>[.<mix>]`, `fst.suggestions.row.<songId|songId|Solo_X>`, `fst.suggestions.filter.{form,title,instruments,general,instrument-specific,instrument-picker.{<Solo_X>,compact,previous,next},instrument.<Solo_X>,type.<type>,type.<Solo_X>.<type>,reset}`.
+`fst.suggestions.{filter-button,list,loading,syncing,choose-profile,error,no-results,start-new-mix}` (the state IDs are on the state titles; `error` is not exposed, see Validation), `fst.suggestions.category.<key>[.<mix>]`, `fst.suggestions.row.<songId|songId|Solo_X>`, `fst.suggestions.row.<songId.songId.Solo_X>.{rival,season,percentile}` (pill labels), `fst.suggestions.filter.{form,title,instruments,general,instrument-specific,instrument-picker.{<Solo_X>,compact,previous,next},instrument.<Solo_X>,type.<type>,type.<Solo_X>.<type>,reset}`.
