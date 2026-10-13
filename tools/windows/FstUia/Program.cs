@@ -266,23 +266,72 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         foreach (var (key, value) in request["env"]?.AsObject() ?? []) start.Environment[key] = (string?)value;
         var process = Process.Start(start) ?? throw new InvalidOperationException("process did not start");
         var timeout = TimeSpan.FromSeconds((double?)request["timeout"] ?? 30);
-        var window = WaitForWindow(process.Id, timeout)
-            ?? throw new TimeoutException($"no top-level window for pid {process.Id} within {timeout.TotalSeconds}s");
+        Window? window;
+        try
+        {
+            window = WaitForWindow(process.Id, timeout);
+        }
+        catch
+        {
+            StopLaunched(process);
+            throw;
+        }
+        if (window is null)
+        {
+            StopLaunched(process);
+            throw new TimeoutException($"no top-level window for pid {process.Id} within {timeout.TotalSeconds}s");
+        }
         var result = Describe(window).AsObject();
         result["pid"] = process.Id;
         return result;
     }
 
+    /// <summary>
+    /// Ends an app this request launched but could not attach to, so a failed launch leaves no stray instance for the
+    /// next page (the caller never learns its pid and cannot close it).
+    /// </summary>
+    /// <param name="process">The launched process.</param>
+    private static void StopLaunched(Process process)
+    {
+        try
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+        }
+        catch (Exception error) when (error is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            // It exited on its own, or can't be ended; the launch error is what the caller needs.
+        }
+    }
+
+    /// <summary>
+    /// Polls for the process's largest visible top-level window. A freshly launched app, or a busy desktop, can time
+    /// out one UIA call (0x80131505) or drop a window mid-search; like <see cref="Find"/> (#552) the search runs again
+    /// within the timeout, at least once (#618: a launch failed on one timed-out desktop search).
+    /// </summary>
+    /// <param name="pid">App process ID.</param>
+    /// <param name="timeout">How long to poll.</param>
+    /// <returns>The window, or <see langword="null"/> when none appeared.</returns>
+    /// <exception cref="Exception">The last search's transient UIA error, when it persists to the timeout.</exception>
     private Window? WaitForWindow(int pid, TimeSpan timeout)
     {
         var until = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < until)
+        var retried = false;
+        while (true)
         {
-            var window = TopWindow(pid);
-            if (window is not null) return window;
+            try
+            {
+                var window = TopWindow(pid);
+                if (window is not null) return window;
+            }
+            catch (Exception error) when (IsTransientUia(error) && (!retried || DateTime.UtcNow < until))
+            {
+                retried = true;
+                Thread.Sleep(250);
+                continue;
+            }
+            if (DateTime.UtcNow >= until) return null;
             Thread.Sleep(250);
         }
-        return null;
     }
 
     private Window? TopWindow(int pid)
