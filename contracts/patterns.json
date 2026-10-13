@@ -1841,7 +1841,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence, chart swaps keep the card's size and paging a chart slides it to the new window over the web 400 ms (#593 decision); the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant).",
+      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence, chart swaps keep the card's size and paging a chart slides it to the new window over the web 400 ms (#593 decision); a new publication refreshes open pages in place without leaving the page (R9; Android keeps an anonymous /api/ws socket and holds Songs behind the swap until catalogue, scores and Shop match, #616); the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant).",
       "keywords": [
         "loading",
         "spinner",
@@ -2016,6 +2016,26 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ChartPageSlide.kt",
             "symbol": "rememberChartPageSlide"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/LoadState.kt",
+            "symbol": "RetryingLoader"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/SongsViewModel.kt",
+            "symbol": "SongsPublicationHold"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/PublicationRefresh.kt",
+            "symbol": "PublicationRefreshStatus"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/PublicationRefresh.kt",
+            "symbol": "PublicationRefreshSpinner"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/data/PublicationLiveUpdates.kt",
+            "symbol": "PublicationLiveConnection"
           }
         ],
         "windows": [
@@ -2171,7 +2191,8 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandListScreens.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalsScreen.kt",
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/compete/CompeteScreen.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/compete/CompeteScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt"
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
@@ -2252,7 +2273,8 @@
         323,
         380,
         561,
-        614
+        614,
+        616
       ]
     },
     {
