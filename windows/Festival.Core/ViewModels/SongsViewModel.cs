@@ -19,6 +19,7 @@ public sealed partial class SongsViewModel : ObservableObject
     private CancellationTokenSource? searchDebounce;
     private string appliedSearch = "";
     private (SongSortMode Mode, bool Ascending)? builtSort;
+    private bool publicationRefreshing;
 
     /// <summary>Creates the page model.</summary>
     /// <param name="session">Shared session.</param>
@@ -38,8 +39,28 @@ public sealed partial class SongsViewModel : ObservableObject
             if (e.PropertyName == nameof(SongFilterDraft.CanApply) && FilterDraft.IsLive && FilterDraft.CanApply) ApplyFilter();
         };
         session.PropertyChanged += OnSessionChanged;
-        session.PublicationAdvanced += (_, _) => _ = LoadAsync(force: true);
+        session.PublicationAdvanced += (_, _) => _ = RefreshForPublicationAsync();
+        PublicationSwap = new LoadSwap(session.Time, initiallyVisible: true);
     }
+
+    /// <summary>Minimum spinner hold during a publication refresh (load-transition R3/R9, Apple's 400 ms minimum).</summary>
+    public static readonly TimeSpan PublicationRefreshHold = TimeSpan.FromMilliseconds(400);
+
+    /// <summary>Screen-reader text for a publication refresh (load-transition R9).</summary>
+    public const string PublicationRefreshText = "Loading new scores";
+
+    /// <summary>
+    /// In-place refresh for a new publication (load-transition R9, web <c>PublicationBoundary</c>): the list fades out, a
+    /// spinner holds while the catalogue, Item Shop and player scores re-read for the new generation, then the rebuilt
+    /// list fades in. The page stays put: search, filters, sort and page tools are unchanged.
+    /// </summary>
+    public LoadSwap PublicationSwap { get; }
+
+    /// <summary>Whether the refresh fades (set by the view from its motion policy; tests leave it off).</summary>
+    public bool AnimatePublicationRefresh { get; set; }
+
+    /// <summary>Whether a publication refresh hides the list (rows and notices are held until it commits).</summary>
+    public bool IsPublicationRefreshing => publicationRefreshing;
 
     /// <summary>Failed-read presentation.</summary>
     public ServiceStatusViewModel Status { get; }
@@ -152,6 +173,63 @@ public sealed partial class SongsViewModel : ObservableObject
         Rebuild();
     }
 
+    /// <summary>
+    /// Refreshes in place for a newer publication (load-transition R9). Rows, notices and the count stay as they were
+    /// behind the spinner, so the older list is never rebuilt against the newer generation (which would show "Player
+    /// scores paused until songs update" until the reads finish, #616). The catalogue, Item Shop and player scores are
+    /// re-read together and applied in one rebuild. A failed catalogue read still ends in the explicit paused and failed
+    /// state, since the retained rows are from the older publication. Without a shown list this is a plain reload.
+    /// </summary>
+    /// <returns>Refresh task.</returns>
+    public async Task RefreshForPublicationAsync()
+    {
+        if (session.Catalog is null || State is not (LoadState.Loaded or LoadState.Empty))
+        {
+            await LoadAsync(force: true);
+            return;
+        }
+        SetPublicationRefreshing(true);
+        var animate = AnimatePublicationRefresh;
+        var hold = Task.Delay(PublicationRefreshHold, session.Time);
+        var request = await PublicationSwap.BeginReloadAsync(animate, hasContent: true);
+        FestivalApiException? failure = null;
+        try
+        {
+            await session.LoadCatalogAsync(force: true);
+        }
+        catch (FestivalApiException error)
+        {
+            failure = error;
+        }
+        if (failure is null)
+        {
+            await session.TryLoadShopAsync(force: true);
+            await SongScoreSource.LoadAsync(session, force: true);
+        }
+        await hold;
+        await PublicationSwap.CommitAsync(request, () =>
+        {
+            SetPublicationRefreshing(false);
+            Rebuild();
+            if (failure is null)
+            {
+                Status.Clear();
+                return;
+            }
+            Status.Report(failure);
+            State = LoadState.Failed;
+        }, animate);
+    }
+
+    /// <summary>Starts or ends the hold on rebuilds during a publication refresh.</summary>
+    /// <param name="value">Whether the refresh hides the list.</param>
+    private void SetPublicationRefreshing(bool value)
+    {
+        if (publicationRefreshing == value) return;
+        publicationRefreshing = value;
+        OnPropertyChanged(nameof(IsPublicationRefreshing));
+    }
+
     /// <summary>Loads on first appearance (and retries a failed list when the page becomes visible again).</summary>
     /// <returns>Load task.</returns>
     [RelayCommand]
@@ -246,7 +324,7 @@ public sealed partial class SongsViewModel : ObservableObject
     /// <summary>Runs the pipeline over the current catalogue and projects rows.</summary>
     private void Rebuild()
     {
-        if (session.Catalog is not { } catalog) return;
+        if (session.Catalog is not { } catalog || publicationRefreshing) return;
         var settings = session.Settings;
         OnPropertyChanged(nameof(IsSortChanged));
         OnPropertyChanged(nameof(IsFilterActive));
