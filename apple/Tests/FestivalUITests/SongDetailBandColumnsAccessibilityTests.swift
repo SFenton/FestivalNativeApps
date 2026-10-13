@@ -128,7 +128,7 @@ struct SongDetailBandColumnsAccessibilityTests {
     ///
     /// - Parameters:
     ///   - placement: Width and device layout.
-    ///   - typeSize: Dynamic Type size (accessibility sizes use the eager grid).
+    ///   - typeSize: Dynamic Type size (the eager grid at every size, #500).
     /// - Returns: The settled page.
     static func host(_ placement: Placement, typeSize: DynamicTypeSize = .large) async throws -> Hosted {
         let (session, storage, suite) = try await bandsFixtureSession(selected: "fixture-player-1")
