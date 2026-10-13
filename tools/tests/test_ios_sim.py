@@ -12,6 +12,8 @@ import unittest as _unittest
 if _sys.platform == "win32":  # Apple tooling imports the POSIX-only fcntl module.
     raise _unittest.SkipTest("Apple simulator tooling runs only on macOS")
 
+import contextlib
+import io
 import unittest
 import unittest.mock
 from pathlib import Path
@@ -347,6 +349,77 @@ class TerminateAppTests(unittest.TestCase):
         done = subprocess.CompletedProcess(args=[], returncode=3)
         with mock.patch.object(ios_sim.subprocess, "run", return_value=done):
             self.assertTrue(ios_sim.terminate_app("UDID", timeout=5))
+
+
+class RebootWedgedTests(unittest.TestCase):
+    """`uitest --reboot-wedged` reboots a hung simulator and reruns that batch once (#620)."""
+
+    RUNNER = ("FestivalMobileUITests-Runner (89034) encountered an error (The test runner failed to initialize "
+              "for UI testing. (Underlying Error: Timed out waiting for AX loaded notification))")
+
+    def test_a_runner_that_failed_to_start_is_a_hang(self):
+        self.assertEqual(ios_sim.simulator_wedged(f"Testing failed:\n\t{self.RUNNER}\n"),
+                         "The test runner failed to initialize for UI testing")
+
+    def test_a_test_failure_is_not_a_hang(self):
+        self.assertIsNone(ios_sim.simulator_wedged("XCTAssertTrue failed - No player footer\n** TEST FAILED **"))
+        self.assertIsNone(ios_sim.simulator_wedged('caught error: "Audit failed to complete in time"'))
+
+    def _run(self, logs: list[str], codes: list[int], *, reboot: bool = True):
+        """Run `cmd_uitest` over one batch whose attempts log `logs` and exit with `codes`."""
+        import argparse
+        from unittest import mock
+
+        with TemporaryDirectory() as tmp:
+            attempts = []
+            for index, (log, code) in enumerate(zip(logs, codes)):
+                path = Path(tmp) / f"log{index}.txt"
+                path.write_text(log)
+                attempts.append((code, 1.0, path, Path(tmp) / f"r{index}.xcresult"))
+            args = argparse.Namespace(
+                only=["SongsChromeJourneyTests/testA"], device="UDID", rebuild=False, batch_size=1, timeout=10,
+                retries=0, reboot_wedged=reboot, fail_on_skip=False,
+            )
+            with mock.patch.object(ios_sim, "scripting_preflight", return_value=0), \
+                    mock.patch.object(ios_sim, "resolve_device", return_value="UDID"), \
+                    mock.patch.object(ios_sim, "driver_derived_data", return_value=Path(tmp)), \
+                    mock.patch.object(ios_sim, "source_hash", return_value="h"), \
+                    mock.patch.object(ios_sim, "driver_build_stale", return_value=False), \
+                    mock.patch.object(ios_sim, "_result_summary", return_value={"passedTests": 1}), \
+                    mock.patch.object(ios_sim, "_run_uitest_batch", side_effect=attempts) as batch, \
+                    mock.patch.object(ios_sim, "_with_sim_lock", return_value=0) as lock, \
+                    contextlib.redirect_stderr(io.StringIO()):
+                code = ios_sim.cmd_uitest(args)
+        return code, batch.call_count, lock.call_args_list
+
+    def test_a_hung_runner_reboots_the_simulator_and_reruns_the_batch(self):
+        code, runs, locks = self._run([self.RUNNER, "ok"], [65, 0])
+        self.assertEqual((code, runs), (0, 2))
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._shutdown_simulator)])
+
+    def test_a_second_hang_fails_the_batch(self):
+        code, runs, locks = self._run([self.RUNNER, self.RUNNER], [65, 65])
+        self.assertEqual((code, runs, len(locks)), (65, 2, 1))
+
+    def test_an_ordinary_failure_is_not_rerun(self):
+        code, runs, locks = self._run(["XCTAssertTrue failed"], [65])
+        self.assertEqual((code, runs, locks), (65, 1, []))
+
+    def test_the_ci_environment_turns_the_flag_on(self):
+        from unittest import mock
+
+        for value, expected in (("1", True), (None, False)):
+            env = {k: v for k, v in ios_sim.os.environ.items() if k != "FST_UITEST_REBOOT_WEDGED"}
+            if value:
+                env["FST_UITEST_REBOOT_WEDGED"] = value
+            with mock.patch.dict(ios_sim.os.environ, env, clear=True), \
+                    mock.patch.object(ios_sim, "cmd_uitest", return_value=0) as run:
+                ios_sim.main(["uitest", "--device", "iphone27", "--only", "A/b"])
+            self.assertIs(run.call_args.args[0].reboot_wedged, expected)
+
+    def test_without_the_flag_a_hang_fails_the_batch(self):
+        code, runs, locks = self._run([self.RUNNER], [65], reboot=False)
+        self.assertEqual((code, runs, locks), (65, 1, []))
 
 
 class SourceHashTests(unittest.TestCase):

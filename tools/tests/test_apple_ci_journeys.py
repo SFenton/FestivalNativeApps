@@ -207,6 +207,16 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertIn("--retries 1", legs)
         self.assertNotIn("--retries", self.workflow.split("songs-filter-journeys:", 1)[0])
 
+    def test_songs_filter_legs_skip_failure_diagnostics(self) -> None:
+        # A failure's diagnostics take up to 600 s; the folded Duo leg's runner was lost during its journeys (#620).
+        legs = self.workflow.split("songs-filter-journeys:", 1)[1].split("\n  scroll-edge-journeys:", 1)[0]
+        self.assertIn("--no-test-diagnostics", legs)
+
+    def test_every_journey_run_reboots_a_wedged_simulator(self) -> None:
+        # A hung accessibility server failed 33 later batches before any test ran (#620).
+        header = self.workflow.split("\njobs:", 1)[0]
+        self.assertIn('FST_UITEST_REBOOT_WEDGED: "1"', header)
+
     def test_songs_filter_legs_run_only_on_release_dispatch(self) -> None:
         # Release train: pull requests and master run the build and unit tests only.
         legs = self.workflow.split("  songs-filter-journeys:", 1)[1].split("    strategy:", 1)[0]

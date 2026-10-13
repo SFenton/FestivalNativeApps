@@ -1894,6 +1894,7 @@ def cmd_uitest(args: argparse.Namespace) -> int:
         label = f"batch {batch_index}/{len(batches)}"
         retries = max(0, getattr(args, "retries", 0) or 0)
         attempt = 0
+        rebooted = False
         while True:
             returncode, elapsed, log_path, result_bundle = _run_uitest_batch(
                 udid=udid, derived=derived, selectors=batch, timeout=args.timeout,
@@ -1901,6 +1902,15 @@ def cmd_uitest(args: argparse.Namespace) -> int:
                 set_pose=getattr(args, "set_pose", False), rotate=getattr(args, "rotate", None),
                 diagnostics=not getattr(args, "no_test_diagnostics", False),
             )
+            if (returncode and not rebooted and getattr(args, "reboot_wedged", False)
+                    and (wedge := simulator_wedged(log_path.read_text(encoding="utf-8", errors="replace")))):
+                # No verdict: the simulator's accessibility server hung. Reboot it and run the
+                # batch again, once, keeping the stuck attempt's result bundle (#620).
+                rebooted = True
+                print(f"uitest {label}: simulator wedged ({wedge}) after {elapsed:.1f}s; rebooting it and "
+                      f"running the batch again; result bundle (kept): {result_bundle}", file=sys.stderr)
+                _with_sim_lock(udid, _shutdown_simulator)
+                continue
             if not should_retry_batch(returncode, attempt, retries):
                 break
             attempt += 1
@@ -2071,6 +2081,41 @@ def terminate_app(udid: str, *, timeout: float = TERMINATE_TIMEOUT) -> bool:
         print(f"simctl terminate did not return within {timeout:g}s; continuing", file=sys.stderr)
         return False
     return True
+
+
+#: ``xcodebuild`` log lines that mean the simulator's accessibility server hung before any test ran, so
+#: the batch reached no verdict: once it hangs, every later batch's runner fails to start (#620: an audit
+#: timed out, then 33 batches failed in about 90 s each). A test failure (an audit timeout included) is
+#: never a wedge.
+WEDGED_SIMULATOR_SIGNATURES = (
+    "The test runner failed to initialize for UI testing",
+)
+
+
+def simulator_wedged(log_text: str) -> str | None:
+    """Find a hung-simulator signature in a failed batch's ``xcodebuild`` log.
+
+    Args:
+        log_text: The batch's log.
+
+    Returns:
+        The first matching ``WEDGED_SIMULATOR_SIGNATURES`` entry, or ``None`` for an ordinary
+        failure (which ``--reboot-wedged`` leaves alone).
+    """
+    return next((signature for signature in WEDGED_SIMULATOR_SIGNATURES if signature in log_text), None)
+
+
+def _shutdown_simulator(udid: str) -> int:
+    """Shut ``udid`` down so the next batch boots it fresh. Call under the simulator lock.
+
+    Args:
+        udid: The simulator.
+
+    Returns:
+        0 (a simulator that is already shut down is fine).
+    """
+    _run(["xcrun", "simctl", "shutdown", udid], check=False, capture_output=True)
+    return 0
 
 
 def should_retry_batch(returncode: int, attempt: int, retries: int) -> bool:
@@ -2501,6 +2546,12 @@ def main(argv: list[str] | None = None) -> int:
     uitest.add_argument("--fail-on-skip", action="store_true",
                         help="fail a batch in which any test skipped or none ran (CI: a journey that "
                              "cannot find its fixture skips, and an all-skipped batch otherwise passes)")
+    uitest.add_argument("--reboot-wedged", action="store_true",
+                        default=os.environ.get("FST_UITEST_REBOOT_WEDGED") == "1",
+                        help="CI: when a batch's test runner failed to initialize (the simulator's accessibility "
+                             "server hung, so no test ran), reboot the simulator and run that batch once more; "
+                             "test failures are never rerun (default on when FST_UITEST_REBOOT_WEDGED=1, as "
+                             "apple-ci sets it)")
     uitest.add_argument("--retries", type=int, default=0,
                         help="CI: run a batch whose test failed (exit 65) up to N more times, keeping each "
                              "failed attempt's result bundle; timeouts and setup errors are not retried "
