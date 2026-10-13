@@ -30,6 +30,7 @@ import com.festivalscoretracker.android.core.shell.LoadSwapPhase
 import com.festivalscoretracker.android.core.shell.LoadSwapPolicy
 import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -51,6 +52,13 @@ import kotlinx.coroutines.launch
  * refresh) apply in place without a transition. Remove animations / Reduce Motion: no fades,
  * no waits; the spinner shows only while data is loading and content swaps at once.
  *
+ * A held spinner ([rememberLoadSwap] `holdSpinner`, the publication refresh of load-transition
+ * R3/R9, Apple `PublicationRefreshTransition`) runs all four phases even when the data is ready
+ * before the content has faded out: content out 300 ms → spinner in 150 ms (web
+ * `QUICK_FADE_MS`) → spinner on screen at least 400 ms from its appearance and until the data
+ * is ready (web `MIN_SPINNER_MS`) → spinner out 500 ms → content in. Under Reduce Motion the
+ * fades are instant and the spinner still holds 400 ms so it never blinks (R6).
+ *
  * Obtain one with [rememberLoadSwap]; draw [shown] with [staggered] (or [contentModifier]) while
  * [showsContent] (a card that groups several rows takes [card] and its rows no fade, R11), and
  * [LoadSwapSpinner] / [loadSwapSpinnerItem] while [showsSpinner]. A pinned
@@ -60,7 +68,7 @@ import kotlinx.coroutines.launch
  * @param T Value the content is drawn from (usually a `LoadState`).
  */
 @Stable
-class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?, pinnedKey: Any?) {
+class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?, pinnedKey: Any?, spinnerStartsHidden: Boolean = false) {
     /** Current phase. */
     var phase: LoadSwapPhase by mutableStateOf(LoadSwapPolicy.initial(ready))
         internal set
@@ -76,7 +84,7 @@ class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?, pi
     internal var committedKey: Any? by mutableStateOf(key)
     internal var sawSpinner: Boolean = !ready
     internal val contentAlpha = Animatable(1f)
-    internal val spinnerAlpha = Animatable(1f)
+    internal val spinnerAlpha = Animatable(if (spinnerStartsHidden) 0f else 1f)
     internal var current: T by mutableStateOf(initial)
 
     /** Pinned key of the latest inputs (see [rememberLoadSwap]). */
@@ -166,23 +174,29 @@ class LoadSwap<T> internal constructor(initial: T, ready: Boolean, key: Any?, pi
  * @param pinnedKey What pinned content beside the rows depends on (web `footerAnimKey`: the
  *   instrument, metric or invalid-score leeway, never the page). Pinned content hides beside the
  *   spinner and re-enters with the rows only when it changes; the default hides it on every reload.
+ * @param holdSpinner Publication refresh (load-transition R3, R9): the spinner always shows,
+ *   fades in over [LoadSwapPolicy.SPINNER_IN_MS] and stays at least
+ *   [LoadSwapPolicy.MIN_SPINNER_MS] from its appearance before it fades out, even for data that
+ *   was ready during the content fade-out; Reduce Motion keeps only the hold.
  * @return Swap state.
  */
 @Composable
-fun <T> rememberLoadSwap(target: T, ready: Boolean, key: Any? = null, pinnedKey: Any? = EveryReload): LoadSwap<T> {
+fun <T> rememberLoadSwap(target: T, ready: Boolean, key: Any? = null, pinnedKey: Any? = EveryReload, holdSpinner: Boolean = false): LoadSwap<T> {
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
-    val swap = remember { LoadSwap(target, ready, key, pinnedKey) }
-    val inputs = remember { MutableStateFlow(LoadSwapInputs(target, ready, key, pinnedKey, reduceMotion)) }
+    val swap = remember { LoadSwap(target, ready, key, pinnedKey, spinnerStartsHidden = !ready && holdSpinner && !reduceMotion) }
+    val inputs = remember { MutableStateFlow(LoadSwapInputs(target, ready, key, pinnedKey, reduceMotion, holdSpinner)) }
     val live = swap.phase == LoadSwapPhase.ContentIn && ready && key == swap.committedKey && pinnedKey == swap.committedPinnedKey
     swap.current = if (live) target else swap.committed
     swap.pinnedKey = pinnedKey
     SideEffect {
         if (live) swap.committed = target
-        inputs.value = LoadSwapInputs(target, ready, key, pinnedKey, reduceMotion)
+        inputs.value = LoadSwapInputs(target, ready, key, pinnedKey, reduceMotion, holdSpinner)
     }
     LaunchedEffect(swap) {
         fun swapped(input: LoadSwapInputs<T>) = input.key != swap.committedKey || input.pinnedKey != swap.committedPinnedKey
 
+        // Whether the spinner just replaced content (or is the first load), so a held spinner fades in and holds.
+        var freshSpinner = swap.phase == LoadSwapPhase.Loading
         suspend fun commit(animate: Boolean) {
             val latest = inputs.value
             swap.committed = latest.target
@@ -201,7 +215,13 @@ fun <T> rememberLoadSwap(target: T, ready: Boolean, key: Any? = null, pinnedKey:
         }
 
         suspend fun showSpinner(next: LoadSwapPhase) {
-            if (!swap.showsSpinner) swap.spinnerAlpha.snapTo(1f)
+            val fresh = next == LoadSwapPhase.Loading && !swap.showsSpinner
+            if (fresh) freshSpinner = true
+            val input = inputs.value
+            when {
+                fresh && input.holdsSpinner && LoadSwapPolicy.spinnerInMs(input.reduceMotion) > 0 -> swap.spinnerAlpha.snapTo(0f)
+                !swap.showsSpinner -> swap.spinnerAlpha.snapTo(1f)
+            }
             swap.sawSpinner = true
             swap.phase = next
         }
@@ -218,17 +238,31 @@ fun <T> rememberLoadSwap(target: T, ready: Boolean, key: Any? = null, pinnedKey:
             when (swap.phase) {
                 LoadSwapPhase.ContentIn -> {
                     val input = inputs.first { !it.ready || swapped(it) }
-                    step(LoadSwapPolicy.onInputs(LoadSwapPhase.ContentIn, input.ready, swapped(input), input.reduceMotion))
+                    step(LoadSwapPolicy.onInputs(LoadSwapPhase.ContentIn, input.ready, swapped(input), input.reduceMotion, input.holdsSpinner))
                 }
                 LoadSwapPhase.ContentOut -> {
                     if (!inputs.value.reduceMotion) {
                         swap.contentAlpha.animateTo(0f, tween(LoadSwapPolicy.CONTENT_OUT_MS, easing = FadeInEasing))
                     }
-                    step(LoadSwapPolicy.afterContentOut(inputs.value.ready, inputs.value.reduceMotion))
+                    val input = inputs.value
+                    step(LoadSwapPolicy.afterContentOut(input.ready, input.reduceMotion, input.holdsSpinner))
                 }
                 LoadSwapPhase.Loading -> {
                     swap.sawSpinner = true
-                    swap.spinnerAlpha.snapTo(1f)
+                    val hold = freshSpinner && inputs.value.holdsSpinner
+                    freshSpinner = false
+                    if (hold) {
+                        // Spinner in, then at least MIN_SPINNER_MS on screen from its appearance (R3; R6 keeps the hold).
+                        val fadeIn = LoadSwapPolicy.spinnerInMs(inputs.value.reduceMotion)
+                        coroutineScope {
+                            launch {
+                                if (fadeIn > 0) swap.spinnerAlpha.animateTo(1f, tween(fadeIn, easing = FadeInEasing)) else swap.spinnerAlpha.snapTo(1f)
+                            }
+                            delay(LoadSwapPolicy.MIN_SPINNER_MS.toLong())
+                        }
+                    } else {
+                        swap.spinnerAlpha.snapTo(1f)
+                    }
                     val input = inputs.first { it.ready }
                     step(LoadSwapPolicy.onInputs(LoadSwapPhase.Loading, ready = true, swapped = true, reduceMotion = input.reduceMotion))
                 }
@@ -263,8 +297,9 @@ fun <T> rememberLoadSwap(target: T, ready: Boolean, key: Any? = null, pinnedKey:
  * @property key Selection [target] belongs to.
  * @property pinnedKey What pinned content beside the rows depends on.
  * @property reduceMotion Remove animations / Reduce Motion.
+ * @property holdsSpinner The spinner fades in and holds (publication refresh, R3).
  */
-private data class LoadSwapInputs<T>(val target: T, val ready: Boolean, val key: Any?, val pinnedKey: Any?, val reduceMotion: Boolean)
+private data class LoadSwapInputs<T>(val target: T, val ready: Boolean, val key: Any?, val pinnedKey: Any?, val reduceMotion: Boolean, val holdsSpinner: Boolean)
 
 /** Default pinned key: pinned content is stale on every reload. */
 private object EveryReload

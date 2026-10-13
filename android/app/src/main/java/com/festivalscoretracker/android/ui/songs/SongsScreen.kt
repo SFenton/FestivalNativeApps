@@ -379,7 +379,8 @@ private fun SongList(
     onWarning: (InvalidScoreWarning) -> Unit,
 ) {
     // Draw from the swap: while a publication refresh fades the old rows out they keep their old state.
-    val swap = rememberLoadSwap(live, ready = !live.publicationRefreshing)
+    // The refresh spinner fades in and holds 400 ms even for a fast catch-up (load-transition R3).
+    val swap = rememberLoadSwap(live, ready = !live.publicationRefreshing, holdSpinner = true)
     val state = swap.shown
     val scope = rememberCoroutineScope()
     val leading = state.notices.size

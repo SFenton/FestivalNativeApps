@@ -12,9 +12,12 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.core.settings.SettingsRegistry
 import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.SuggestionFixtures
 import com.festivalscoretracker.android.ui.common.PUBLICATION_REFRESH_LABEL
@@ -33,7 +36,8 @@ import org.junit.runner.RunWith
  * (seen by the live socket's `/api/publication` re-read, or by any other read such as the
  * bell) refreshes Songs in place. TalkBack meets one polite live-region progress indicator
  * labelled "Loading new scores" instead of rows that say "Player scores paused until songs
- * update", then reads the rebuilt list in the same order as before, at 100% and 200% text.
+ * update", then reads the rebuilt list in the same order as before, at 100% and 200% text and
+ * under the in-app Reduce Motion setting (the held spinner shows without fades, R6).
  * ATF runs on every step. Fixtures only (the socket is off for fixture transports); `@DeviceCi`
  * puts it in the `android-device` job.
  */
@@ -85,7 +89,9 @@ class SongsPublicationRefreshAccessibilityJourneyTest {
             assertTrue("The refresh spinner is not a progress indicator", node.config.getOrNull(SemanticsProperties.ProgressBarRangeInfo) != null)
             h.awaitAccessibilityTree(present = PUBLICATION_REFRESH_TAG, absent = FIRST_ROW)
             val during = h.readingOrder("$screen-refreshing", fresh = true)
-            assertTrue("TalkBack does not hear \"$PUBLICATION_REFRESH_LABEL\": $during", PUBLICATION_REFRESH_LABEL in during)
+            // One stop: the label plus the indicator's own state ("Loading new scores, In progress"), never a second unnamed one (R2).
+            assertEquals("TalkBack does not hear \"$PUBLICATION_REFRESH_LABEL\" once: $during", 1, during.count { it.startsWith(PUBLICATION_REFRESH_LABEL) })
+            assertTrue("The refresh spinner has a second, unnamed stop: $during", during.none { it == IN_PROGRESS || it == UNLABELLED })
             assertTrue("TalkBack reads paused scores during the refresh: $during", during.none { PAUSED in it })
         } finally {
             gate.complete(Unit)
@@ -114,8 +120,31 @@ class SongsPublicationRefreshAccessibilityJourneyTest {
         h.assertAccessible()
     }
 
+    /**
+     * Under the in-app Reduce Motion setting the refresh has no fades (R6) but the same accessible
+     * contract: one "Loading new scores" stop, no paused rows, the same order afterwards.
+     */
+    @Test
+    fun reduceMotionRefreshesSongsInPlaceWithTheSameContract() {
+        h.enableAccessibilityChecks()
+        h.launch(
+            DebugLaunch(profile = player, stillBackground = true),
+            transport,
+            MemoryPreferences(mutablePreferencesOf(booleanPreferencesKey(SettingsRegistry.REDUCE_MOTION) to true)),
+        )
+        val before = settledOrder("songs-publication-reduce-motion")
+        val reads = transport.sent("/api/songs").size
+        publishAndCheckRefresh(8, "songs-publication-reduce-motion")
+        val after = settledOrder("songs-publication-reduce-motion-refreshed")
+        assertTrue("Songs never re-read the catalogue under Reduce Motion", transport.sent("/api/songs").size > reads)
+        assertEquals("TalkBack reads Songs differently after the refresh under Reduce Motion", before, after)
+        h.assertAccessible()
+    }
+
     private companion object {
         const val FIRST_ROW = "fst.songs.row.sg-0"
         const val PAUSED = "paused until songs update"
+        const val IN_PROGRESS = "In progress"
+        const val UNLABELLED = "<unlabelled>"
     }
 }
