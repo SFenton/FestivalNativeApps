@@ -365,7 +365,8 @@ def cmd_build(args: argparse.Namespace) -> int:
         print(f"waiting for build lock {BUILD_LOCK_PATH} ...", file=sys.stderr)
         fcntl.flock(lock, fcntl.LOCK_EX)
         try:
-            with devcap.hold(pools=["build"], purpose=f"FST mac build ({REPO_ROOT.name})", hold_seconds=None):
+            with devcap.hold(pools=["build"], purpose=f"FST mac build ({REPO_ROOT.name})", hold_seconds=None,
+                             wait_seconds=float("inf")):
                 result = _run([
                     "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", "FestivalDesktop",
                     "-configuration", args.configuration, "-destination", "platform=macOS",

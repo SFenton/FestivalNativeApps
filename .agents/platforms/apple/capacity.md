@@ -27,8 +27,8 @@ State lives in `~/.devcap/<gate>/`: per-slot OS locks (released by the OS when a
 
 ```bash
 python3 tools/devcap.py status                               # holders, waiters, slot counts
-python3 tools/devcap.py run --sim "$UDID" -- <command>        # anything else that drives a simulator
+python3 tools/devcap.py run --sim "$UDID" --shutdown -- <command>  # anything else that drives a simulator
 python3 tools/devcap.py run --pool build -- <compile command>
 ```
 
-`run` waits up to `--wait` seconds (3600, then exit 75), holds up to `--hold` seconds (1800, max 7200, `0` = no limit; overrun kills the process group and exits 124) and forwards Ctrl-C to the command.
+`run` waits up to `--wait` seconds (3600, then exit 75), holds up to `--hold` seconds (1800, max 7200, `0` = no limit; overrun kills the process group and exits 124) and forwards Ctrl-C to the command. `--shutdown` shuts the `--sim` simulators down before the slots are released, including after a hold timeout, so a killed run never leaves a simulator booted outside a hold.

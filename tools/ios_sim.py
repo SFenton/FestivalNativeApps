@@ -214,7 +214,8 @@ def build_lock():
         try:
             lock.write(f"{os.getpid()} {REPO_ROOT}\n")
             lock.flush()
-            with devcap.hold(pools=["build"], purpose=f"FST build ({REPO_ROOT.name})", hold_seconds=None):
+            with devcap.hold(pools=["build"], purpose=f"FST build ({REPO_ROOT.name})", hold_seconds=None,
+                             wait_seconds=float("inf")):
                 yield
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)
@@ -243,7 +244,8 @@ def sim_lock(udid: str, purpose: str) -> Iterator[None]:
         fcntl.flock(lock, fcntl.LOCK_EX)
         lock.write(f"{os.getpid()} {REPO_ROOT}\n")
         lock.flush()
-        with devcap.hold(sims=[udid], purpose=f"FST {purpose} ({REPO_ROOT.name})", hold_seconds=None):
+        with devcap.hold(sims=[udid], purpose=f"FST {purpose} ({REPO_ROOT.name})", hold_seconds=None,
+                         wait_seconds=float("inf")):
             yield
 
 

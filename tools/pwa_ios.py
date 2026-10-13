@@ -121,8 +121,12 @@ class SimLock:
     def __enter__(self) -> "SimLock":
         self.hold = ios_sim.sim_lock(self.udid, "pwa")
         self.hold.__enter__()
-        ios_sim.boot_exclusive(self.udid)
-        ios_sim._run(["xcrun", "simctl", "bootstatus", self.udid, "-b"], capture_output=True)
+        try:
+            ios_sim.boot_exclusive(self.udid)
+            ios_sim._run(["xcrun", "simctl", "bootstatus", self.udid, "-b"], capture_output=True)
+        except BaseException:
+            self.__exit__(*sys.exc_info())
+            raise
         return self
 
     def __exit__(self, *exc) -> None:
