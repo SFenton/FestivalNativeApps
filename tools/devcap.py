@@ -107,7 +107,7 @@ from typing import Callable, Iterable, Iterator, Sequence
 # region Configuration
 
 #: Bump when the on-disk layout or the CLI changes; vendored copies must match.
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 
 #: Exit code when a wait gives up (``EX_TEMPFAIL``).
 WAIT_TIMEOUT_EXIT = 75
@@ -474,12 +474,17 @@ class Gate:
         if len(self.holders()) + len(self._unmanaged) < self.slots:
             return True
         limit = evict_after(self.root)
-        idle = [u for u in self._unmanaged if not u["debugged"] and limit is not None and u["unheld_for"] >= limit]
+        idle = [u for u in self._unmanaged
+                if u["debugged"] is False and limit is not None and u["unheld_for"] >= limit]
         if idle:
             coldest = max(idle, key=lambda u: u["unheld_for"])
             if shut_down_unheld(self.root, coldest, "evict"):
-                self._unmanaged = [u for u in self._unmanaged if u["udid"] != coldest["udid"]]
-                self._next_scan = 0.0
+                # Count what is really booted now; a failed shutdown must not free a slot.
+                rescanned = scan_unmanaged(self.root, exclude=own_sims)
+                if rescanned is None:
+                    return False
+                self._unmanaged = rescanned
+                self._next_scan = time.monotonic() + SCAN_INTERVAL_SECONDS
                 return len(self.holders()) + len(self._unmanaged) < self.slots
         return False
 
@@ -1060,11 +1065,12 @@ def scan_unmanaged(root: Path | None = None, exclude: Sequence[str] = (), reap: 
                 continue
             since = first_seen.setdefault(udid, now)
             entry = {"udid": udid, "name": sim["name"], "unheld_for": now - since,
-                     "debugged": debugged is not None and udid in debugged}
-            if entry["debugged"]:
+                     # None when ps failed: unknown is treated like "under the debugger".
+                     "debugged": (udid in debugged) if debugged is not None else None}
+            if entry["debugged"] is not False:
                 in_use.add(sim["name"])
             idle = grace is not None and entry["unheld_for"] >= grace
-            if reap and idle and debugged is not None and not entry["debugged"]:
+            if reap and idle and entry["debugged"] is False:
                 if shut_down_unheld(root, entry, "reap"):
                     first_seen.pop(udid, None)
                     continue
@@ -1228,7 +1234,9 @@ def cmd_status(args: argparse.Namespace) -> int:
     if unmanaged:
         print(f"booted outside any hold (count against 'simulator'): {len(unmanaged)}")
         for u in unmanaged:
-            note = "Xcode debugger, never reaped" if u["debugged"] else "reaped when idle past the grace period"
+            note = ("Xcode debugger, never reaped" if u["debugged"] else
+                    "debugger state unknown, not reaped" if u["debugged"] is None else
+                    "reaped when idle past the grace period")
             print(f"  {u['name']} ({u['udid']}) for {describe_age(u['unheld_for'])}  [{note}]")
     return 0
 

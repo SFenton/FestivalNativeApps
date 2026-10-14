@@ -457,6 +457,15 @@ class UnmanagedSimTests(DevcapTestCase):
         self.assertEqual(self.shutdowns, [], "nothing is reaped within the grace period")
         holder.release()
 
+    def boot_off_on_shutdown(self):
+        """Make the mocked shutdown also remove the simulator from the booted list."""
+        def shutdown(udids):
+            self.shutdowns.extend(udids)
+            self.booted = [b for b in self.booted if b["udid"] not in udids]
+        patcher = unittest.mock.patch.object(devcap, "shutdown_sims", shutdown)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def age(self, udid, seconds):
         """Pretend ``udid`` has been unheld for ``seconds`` in the reaper's records."""
         devcap.scan_unmanaged(self.root, reap=False)
@@ -469,6 +478,7 @@ class UnmanagedSimTests(DevcapTestCase):
         self.booted = [{"udid": LEAKED, "name": "Warm A"}, {"udid": other, "name": "Warm B"}]
         self.age(LEAKED, 120)
         self.age(other, 90)
+        self.boot_off_on_shutdown()
         gate = self.waiter(slots=2)
         gate.acquire("needs room", 1, 0.05, announce=lambda _: None)
         self.assertEqual(self.shutdowns, [LEAKED])
@@ -488,6 +498,23 @@ class UnmanagedSimTests(DevcapTestCase):
         with self.assertRaises(WaitTimeout):
             self.waiter(slots=1).acquire("x", 0.3, 0.05, announce=lambda _: None)
         self.assertEqual(self.shutdowns, [])
+
+    def test_no_eviction_when_the_debugger_state_is_unknown(self):
+        self.booted = [{"udid": LEAKED, "name": "Warm"}]
+        self.age(LEAKED, 120)
+        with unittest.mock.patch.object(devcap, "debugged_sims", lambda: None), \
+                self.assertRaises(WaitTimeout):
+            self.waiter(slots=1).acquire("x", 0.3, 0.05, announce=lambda _: None)
+        self.assertEqual(self.shutdowns, [])
+        [entry] = json.loads((self.root / "reaper.json").read_text())["unmanaged"]
+        self.assertIsNone(entry["debugged"])
+
+    def test_failed_eviction_does_not_free_a_slot(self):
+        self.booted = [{"udid": LEAKED, "name": "Stuck"}]  # shutdown_sims is mocked: it stays booted
+        self.age(LEAKED, 120)
+        with self.assertRaises(WaitTimeout):
+            self.waiter(slots=1).acquire("x", 0.3, 0.05, announce=lambda _: None)
+        self.assertIn(LEAKED, self.shutdowns)
 
     def test_room_left_means_no_eviction(self):
         self.booted = [{"udid": LEAKED, "name": "Warm"}]
