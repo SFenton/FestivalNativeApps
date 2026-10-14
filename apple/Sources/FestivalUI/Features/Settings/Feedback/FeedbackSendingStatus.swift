@@ -112,6 +112,12 @@ enum FeedbackSendingChoreography {
         /// The stage's title and subtitle are opaque.
         var showsText: Bool
 
+        /// The form stays mounted while it shows or fades, and leaves once the opaque status
+        /// covers it: iOS keeps a transparent `Form`'s rows in the accessibility tree even
+        /// under `accessibilityHidden`. Its input lives in the model, so a failure that
+        /// brings the form back loses nothing.
+        var mountsForm: Bool { showsForm || !showsStatus }
+
         /// The form, with no status mounted.
         static let editing = Presentation(
             showsForm: true, showsStatus: false, stage: nil, showsText: false

@@ -105,10 +105,13 @@ final class FeedbackSentJourneyTests: XCTestCase {
             XCTAssertFalse(app.descendants(matching: .any)["fst.settings.feedback.\(id)"].exists,
                            "The form's \(id) is still reachable behind the status")
         }
+        // Across the sheet (page-sized on iPad), whose bar spans its width; down the window.
+        let sheet = app.navigationBars
+            .containing(.button, identifier: "fst.settings.feedback.close").firstMatch.frame
         let window = app.windows.firstMatch.frame
         let uploadSpinner = busy.frame
-        XCTAssertEqual(uploadSpinner.midX, window.midX, accuracy: 2, "The spinner is not centred across")
-        XCTAssertEqual(title.frame.midX, window.midX, accuracy: 2, "The title is not centred across")
+        XCTAssertEqual(uploadSpinner.midX, sheet.midX, accuracy: 2, "The spinner is not centred across")
+        XCTAssertEqual(title.frame.midX, sheet.midX, accuracy: 2, "The title is not centred across")
         XCTAssertTrue((window.minY + window.height * 0.3...window.minY + window.height * 0.7)
             .contains(uploadSpinner.midY),
                       "The status is not centred down the sheet: \(uploadSpinner) in \(window)")

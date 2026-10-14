@@ -80,11 +80,17 @@ struct FeedbackFormSheet: View {
 
     var body: some View {
         NavigationStack {
-            panes
-                // Faded out, the form is gone for touch and assistive technology at once.
-                .opacity(sending.showsForm ? 1 : 0)
-                .allowsHitTesting(sending.showsForm)
-                .accessibilityHidden(!sending.showsForm)
+            ZStack {
+                // Holds the sheet's full body for the status once the form leaves.
+                Color.clear
+                if sending.mountsForm {
+                    panes
+                        // Faded out, the form is gone for touch and assistive technology.
+                        .opacity(sending.showsForm ? 1 : 0)
+                        .allowsHitTesting(sending.showsForm)
+                        .accessibilityHidden(!sending.showsForm)
+                }
+            }
                 .overlay { sendingStatus }
                 .overlay {
                     if dropTargets > 0 && model.acceptsMedia {

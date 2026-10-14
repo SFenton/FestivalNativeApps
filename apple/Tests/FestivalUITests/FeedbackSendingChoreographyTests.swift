@@ -125,6 +125,18 @@ import Testing
         #expect(back.last?.presentation == .editing)
     }
 
+    /// The form stays mounted while it shows or fades either way, and leaves only while the
+    /// opaque status covers it, so iOS assistive technology can't reach its rows.
+    @Test func formLeavesOnlyUnderTheOpaqueStatus() {
+        let uploading = FeedbackSendingStage.uploading(hasMedia: true)
+        #expect(Presentation.editing.mountsForm)
+        #expect(Presentation(showsForm: false, showsStatus: false, stage: uploading, showsText: true).mountsForm)
+        #expect(!Presentation.status(uploading).mountsForm)
+        #expect(!Presentation(showsForm: false, showsStatus: true, stage: uploading, showsText: false).mountsForm)
+        let back = Choreography.plan(from: .status(.filing), to: .form, reduceMotion: false)
+        #expect(back.allSatisfy { $0.presentation.mountsForm })
+    }
+
     /// The fades share the load-transition and accordion timings.
     @Test func timingsMatchTheSharedPatterns() {
         #expect(Choreography.contentOutDuration == 0.3)
