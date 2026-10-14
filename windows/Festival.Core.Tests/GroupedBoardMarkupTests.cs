@@ -102,7 +102,11 @@ public class GroupedBoardMarkupTests
         Assert.Equal("True", Attr(rows, "GroupedRows.IsEnabled"));
         Assert.Equal("True", Attr(rows, "GroupedRows.InCard"));
         Assert.Equal("True", Attr(rows, "FadeIn.Stagger"));
-        Assert.Equal("0", Attr(Assert.Single(rows.Descendants(), e => e.Name.LocalName == "StackLayout"), "Spacing"));
+        // Issue #629: the top five realize in one pass (non-virtualizing, one column), so a swap never reads as the viewport.
+        Assert.DoesNotContain(rows.Descendants(), e => e.Name.LocalName == "StackLayout");
+        var layout = Assert.Single(rows.Descendants(), e => e.Name.LocalName == "MasonryLayout");
+        Assert.Equal("1", Attr(layout, "MaxColumns"));
+        Assert.Equal("0", Attr(layout, "RowSpacing"));
 
         // The swap holds only the graph section, so the list after it resizes to the new chart's rows (load-transition R7).
         var graph = card.Descendants().Single(e => Attr(e, "Name") == "HistoryGraph");
