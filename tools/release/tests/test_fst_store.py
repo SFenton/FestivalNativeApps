@@ -363,6 +363,87 @@ class SubmitTests(Base):
         self.assertIn("package upload failed", doc["error"])
 
 
+class FlightTests(Base):
+    GROUP = "1152921504607280733"
+
+    def routes(self, flights=None, pending=None, published=None):
+        routes = store_routes()
+        flight = {"flightId": "F1", "friendlyName": "Testers", "groupIds": [self.GROUP]}
+        if pending:
+            flight["pendingFlightSubmission"] = {"id": pending["id"]}
+            routes[("GET", API + "/flights/F1/submissions/" + pending["id"])] = pending
+            routes[("DELETE", API + "/flights/F1/submissions/" + pending["id"])] = (204, None)
+        if published:
+            flight["lastPublishedFlightSubmission"] = {"id": published["id"]}
+            routes[("GET", API + "/flights/F1/submissions/" + published["id"])] = published
+        routes[("GET", API + "/listflights")] = {"value": [flight] if flights is None else flights}
+        routes[("POST", API + "/flights")] = {"flightId": "F2", "friendlyName": "Testers", "groupIds": [self.GROUP]}
+        new = {"id": "FS9", "flightPackages": [{"fileName": "old.msixupload", "fileStatus": "Uploaded",
+                                                "version": "0.1.900.0"}],
+               "fileUploadUrl": "https://blob.example/upload?sig=SECRET", "targetPublishMode": "Manual",
+               "targetPublishDate": "2026-01-01T00:00:00Z"}
+        for fid in ("F1", "F2"):
+            routes[("POST", API + "/flights/%s/submissions" % fid)] = dict(new)
+            routes[("PUT", API + "/flights/%s/submissions/FS9" % fid)] = lambda body: body
+            routes[("POST", API + "/flights/%s/submissions/FS9/commit" % fid)] = {"status": "CommitStarted"}
+        return routes
+
+    @staticmethod
+    def flight_sub(sid, status, version):
+        return {"id": sid, "status": status,
+                "flightPackages": [{"fileName": "p.msixupload", "fileStatus": "Uploaded", "version": version}]}
+
+    def submit(self, store, gh=None):
+        return self.run_cli(["flight-submit", "--flight", "Testers", "--group", self.GROUP], store, gh or FakeGh())
+
+    def test_submits_the_newest_build_to_the_flight_and_publishes_when_certified(self):
+        store = FakeStore(self.routes(published=self.flight_sub("FS1", "Published", "0.1.900.0")))
+        code, doc = self.submit(store)
+        self.assertEqual((code, doc["submitted"], doc["version"], doc["flight_id"]), (0, True, "0.1.912.0", "F1"))
+        self.assertEqual(store.writes(), [("POST", API + "/flights/F1/submissions"),
+                                          ("PUT", API + "/flights/F1/submissions/FS9"), ("PUT", "<blob>"),
+                                          ("POST", API + "/flights/F1/submissions/FS9/commit")])
+        put = next(c for c in store.calls if c[:2] == ("PUT", API + "/flights/F1/submissions/FS9"))[2]
+        self.assertEqual(put["targetPublishMode"], "Immediate")
+        self.assertNotIn("targetPublishDate", put)
+        self.assertEqual([(p["fileName"], p["fileStatus"]) for p in put["flightPackages"]],
+                         [("old.msixupload", "PendingDelete"),
+                          ("FestivalScoreTracker_0.1.912.0_x64.msixupload", "PendingUpload")])
+        self.assertTrue(fs.is_own_submission(put))
+
+    def test_creates_the_flight_for_the_group_once(self):
+        store = FakeStore(self.routes(flights=[]))
+        code, doc = self.submit(store)
+        self.assertEqual((code, doc["flight_id"]), (0, "F2"))
+        create = next(c for c in store.calls if c[:2] == ("POST", API + "/flights"))[2]
+        self.assertEqual(create, {"friendlyName": "Testers", "groupIds": [self.GROUP]})
+        code, doc = self.run_cli(["flight-submit", "--flight", "Testers"], FakeStore(self.routes(flights=[])), FakeGh())
+        self.assertEqual((code, doc), (4, {"blocked": "flight_group_id_required"}))
+
+    def test_waits_while_certification_owns_the_flight_and_skips_what_it_already_has(self):
+        store = FakeStore(self.routes(pending=self.flight_sub("FS2", "Certification", "0.1.905.0")))
+        code, doc = self.submit(store)
+        self.assertEqual((code, doc["refused"], doc["pending_version"]), (3, "flight_busy", "0.1.905.0"))
+        self.assertEqual(store.writes(), [])
+        store = FakeStore(self.routes(published=self.flight_sub("FS1", "Published", "0.1.912.0")))
+        self.assertEqual(self.submit(store)[1]["refused"], "up_to_date")
+        self.assertEqual(store.writes(), [])
+
+    def test_a_failed_flight_submission_is_replaced(self):
+        store = FakeStore(self.routes(pending=self.flight_sub("FS2", "CertificationFailed", "0.1.905.0")))
+        code, doc = self.submit(store)
+        self.assertEqual((code, doc["replaced_draft"]), (0, True))
+        self.assertEqual(store.writes()[0], ("DELETE", API + "/flights/F1/submissions/FS2"))
+
+    def test_status_reports_pending_and_published_versions(self):
+        store = FakeStore(self.routes(pending=self.flight_sub("FS2", "Certification", "0.1.912.0"),
+                                      published=self.flight_sub("FS1", "Published", "0.1.900.0")))
+        code, doc = self.run_cli(["flight-status", "--group", self.GROUP], store, FakeGh())
+        self.assertEqual(doc, {"flight_id": "F1", "name": "Testers",
+                               "pending": {"status": "Certification", "version": "0.1.912.0"},
+                               "published_version": "0.1.900.0"})
+
+
 class DispatchTests(Base):
     def test_fst_release_windows_group_dispatches(self):
         out = io.StringIO()
