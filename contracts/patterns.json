@@ -978,6 +978,18 @@
             "symbol": "MacCommands"
           },
           {
+            "path": "apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift",
+            "symbol": "PageToolViewMenuItems"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift",
+            "symbol": "PageToolProfileMenuItems"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift",
+            "symbol": "PageToolMenuBarMirror"
+          },
+          {
             "path": "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
             "symbol": "DrawerMenu"
           },
@@ -1122,6 +1134,13 @@
           "regex": "tabViewBottomAccessory",
           "allow": [],
           "message": "Page tools float as individual glass buttons drawn by FloatingPageToolsBar wherever there is a horizontal tab bar, never a tab-bar accessory (owner-approved, page-tools-and-nav-chrome R28, #632, #633)."
+        },
+        {
+          "id": "apple-menu-bar-page-tools",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "Button\\(\"(Sort|Filter|Find Rival)…\"\\)|Toggle\\(\"as (List|Grid)\"|Menu\\(\"(Rank By|Instrument|Band Size)\"\\)|\"View Rival's Profile\"",
+          "allow": ["apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift"],
+          "message": "The macOS and iPadOS menu bars lay out page tools only through the shared PageToolViewMenuItems / PageToolProfileMenuItems, so both menu bars and their tested mirror stay one implementation (page-tools-and-nav-chrome R28, #633)."
         },
         {
           "id": "apple-title-display-mode",

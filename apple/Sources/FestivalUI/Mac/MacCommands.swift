@@ -212,6 +212,14 @@ public struct MacCommands: Commands {
             || navigation.notificationsPresented || navigation.whatsNewPresented
     }
 
+    /// The front page's values for the shared page-tool menu items.
+    private var pageTools: PageToolMenuState {
+        PageToolMenuState(
+            page: pageCommands, rankBy: rankBy, instrument: instrument, bandSize: bandSize,
+            profile: profilePageCommands, experimentalRanks: experimentalRanks, blocked: sheetOpen
+        )
+    }
+
     public var body: some Commands {
         SidebarCommands()
         ToolbarCommands()
@@ -242,15 +250,7 @@ public struct MacCommands: Commands {
             }
             .keyboardShortcut("f", modifiers: [.control, .command])
             Divider()
-            Button("Sort…") { pageCommands?.sort?() }
-                .disabled(pageCommands?.sort == nil || sheetOpen)
-            Button("Filter…") { pageCommands?.filter?() }
-                .disabled(pageCommands?.filter == nil || sheetOpen)
-            rankByMenu
-            instrumentMenu
-            bandSizeMenu
-            Divider()
-            layoutCommands
+            PageToolViewMenuItems(state: pageTools)
             Divider()
             // The standard "Scroll to selection" shortcut (HIG Keyboards: Command-J).
             Button("Scroll to Selection") { listCommands?.scrollToSelection() }
@@ -290,15 +290,7 @@ public struct MacCommands: Commands {
             Button("Deselect Profile") { model.session.deselectPlayer() }
                 .disabled(model.session.selectedPlayer == nil)
             Divider()
-            // The player and rival pages' toolbar actions (issue #633).
-            Button(MacProfilePageCommands.identityMenuTitle(for: profilePageCommands?.identity)) {
-                profilePageCommands?.performIdentity?()
-            }
-            .disabled(profilePageCommands?.performIdentity == nil || sheetOpen)
-            Button("View Rival's Profile") { profilePageCommands?.viewRivalProfile?() }
-                .disabled(profilePageCommands?.viewRivalProfile == nil || sheetOpen)
-            Button("Find Rival…") { pageCommands?.findRival?() }
-                .disabled(pageCommands?.findRival == nil || sheetOpen)
+            PageToolProfileMenuItems(state: pageTools)
             Button("Notifications") { navigation.notificationsPresented = true }
                 .disabled(model.session.selectedPlayer == nil || sheetOpen)
         }
@@ -312,73 +304,6 @@ public struct MacCommands: Commands {
             Button("Licenses") { navigation.push(.licenses) }
                 .disabled(sheetOpen)
         }
-    }
-
-    /// View › Rank By: the front rankings page's metrics with a checkmark on the one in
-    /// effect (HIG Menus: "Consider a checkmark to show an attribute is in effect");
-    /// the account metrics stay listed but disabled elsewhere, so the submenu keeps
-    /// its items (HIG Menus: "Make sure a submenu remains available even when its
-    /// items are unavailable").
-    @ViewBuilder private var rankByMenu: some View {
-        let options = rankBy?.options ?? MacRankByCommands.accountOptions(experimentalRanks: experimentalRanks)
-        Menu("Rank By") {
-            ForEach(options) { option in
-                Toggle(option.label, isOn: Binding(
-                    get: { rankBy?.selected == option.id },
-                    set: { isOn in if isOn { rankBy?.select(option.id) } }
-                ))
-                .disabled(rankBy == nil)
-            }
-        }
-    }
-
-    /// View › Instrument: the front rankings page's charts with a checkmark on the one
-    /// in effect (the page's toolbar instrument menu, issue #294); every chart stays
-    /// listed but disabled elsewhere (HIG Menus: "Make sure a submenu remains available
-    /// even when its items are unavailable").
-    @ViewBuilder private var instrumentMenu: some View {
-        let options = instrument?.options ?? MacInstrumentCommands.allOptions
-        Menu("Instrument") {
-            ForEach(options) { option in
-                Toggle(option.label, isOn: Binding(
-                    get: { instrument?.selected == option.id },
-                    set: { isOn in if isOn { instrument?.select(option.id) } }
-                ))
-                .disabled(instrument == nil)
-            }
-        }
-    }
-
-    /// View › Band Size: the front band board's sizes with a checkmark on the one in
-    /// effect (the page's Band Size tool, issue #633); every size stays listed but
-    /// disabled elsewhere (HIG Menus: "Make sure a submenu remains available even when
-    /// its items are unavailable").
-    @ViewBuilder private var bandSizeMenu: some View {
-        Menu("Band Size") {
-            ForEach(BandType.allCases) { size in
-                Toggle(size.label, isOn: Binding(
-                    get: { bandSize?.selected == size },
-                    set: { isOn in if isOn { bandSize?.select(size) } }
-                ))
-                .disabled(bandSize == nil)
-            }
-        }
-    }
-
-    /// View › as List / as Grid: the front page's List/Grid toolbar toggle (Item Shop,
-    /// issue #633) as Finder-style checkmarked items; disabled where no page offers it.
-    @ViewBuilder private var layoutCommands: some View {
-        let layout = pageCommands?.layout
-        Toggle("as List", isOn: Binding(
-            get: { layout?.isGrid == false },
-            set: { isOn in if isOn { layout?.select(false) } }
-        ))
-        .disabled(layout == nil || sheetOpen)
-        Toggle("as Grid", isOn: Binding(
-            get: { layout?.isGrid == true },
-            set: { isOn in if isOn { layout?.select(true) } }
-        ))
-        .disabled(layout == nil || sheetOpen)
     }
 
     /// Go › Quick Links (the front page's sections, the active one checked) and Next /

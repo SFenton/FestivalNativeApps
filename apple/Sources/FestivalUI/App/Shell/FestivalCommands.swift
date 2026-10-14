@@ -122,6 +122,14 @@ public struct FestivalCommands: Commands {
     /// Whether a root sheet covers the front window, or no window is focused.
     private var blocked: Bool { shell?.sheetOpen ?? true }
 
+    /// The front page's values for the shared page-tool menu items.
+    private var pageTools: PageToolMenuState {
+        PageToolMenuState(
+            page: pageCommands, rankBy: rankBy, instrument: instrument, bandSize: bandSize,
+            profile: profilePageCommands, experimentalRanks: experimentalRanks, blocked: blocked
+        )
+    }
+
     public var body: some Commands {
         if UIDevice.current.userInterfaceIdiom == .pad {
             // No persistent sidebar on iPad (`split-view.md`): View › Show Navigation
@@ -153,15 +161,7 @@ public struct FestivalCommands: Commands {
                     .keyboardShortcut("r", modifiers: .command)
                     .disabled(blocked)
                 Divider()
-                Button("Sort…") { pageCommands?.sort?() }
-                    .disabled(pageCommands?.sort == nil || blocked)
-                Button("Filter…") { pageCommands?.filter?() }
-                    .disabled(pageCommands?.filter == nil || blocked)
-                rankByMenu
-                instrumentMenu
-                bandSizeMenu
-                Divider()
-                layoutCommands
+                PageToolViewMenuItems(state: pageTools)
                 Divider()
             }
             CommandMenu("Go") {
@@ -196,15 +196,7 @@ public struct FestivalCommands: Commands {
                 Button("Deselect Profile") { shell?.deselectProfile() }
                     .disabled(shell?.hasPlayer != true || blocked)
                 Divider()
-                // The player and rival pages' toolbar actions (issue #633).
-                Button(MacProfilePageCommands.identityMenuTitle(for: profilePageCommands?.identity)) {
-                    profilePageCommands?.performIdentity?()
-                }
-                .disabled(profilePageCommands?.performIdentity == nil || blocked)
-                Button("View Rival's Profile") { profilePageCommands?.viewRivalProfile?() }
-                    .disabled(profilePageCommands?.viewRivalProfile == nil || blocked)
-                Button("Find Rival…") { pageCommands?.findRival?() }
-                    .disabled(pageCommands?.findRival == nil || blocked)
+                PageToolProfileMenuItems(state: pageTools)
                 Button("Notifications") { shell?.notifications() }
                     .disabled(shell?.hasPlayer != true || blocked)
             }
@@ -219,69 +211,6 @@ public struct FestivalCommands: Commands {
                     .disabled(blocked)
             }
         }
-    }
-
-    /// View › Rank By with a checkmark on the metric in effect; the account metrics stay
-    /// listed but disabled elsewhere (HIG Menus: "Make sure a submenu remains available
-    /// even when its items are unavailable").
-    @ViewBuilder private var rankByMenu: some View {
-        let options = rankBy?.options ?? MacRankByCommands.accountOptions(experimentalRanks: experimentalRanks)
-        Menu("Rank By") {
-            ForEach(options) { option in
-                Toggle(option.label, isOn: Binding(
-                    get: { rankBy?.selected == option.id },
-                    set: { isOn in if isOn { rankBy?.select(option.id) } }
-                ))
-                .disabled(rankBy == nil)
-            }
-        }
-    }
-
-    /// View › Instrument with a checkmark on the chart in effect (the front rankings
-    /// page's toolbar instrument menu, issue #294); every chart stays listed but
-    /// disabled elsewhere (HIG Menus: "Make sure a submenu remains available even when
-    /// its items are unavailable").
-    @ViewBuilder private var instrumentMenu: some View {
-        let options = instrument?.options ?? MacInstrumentCommands.allOptions
-        Menu("Instrument") {
-            ForEach(options) { option in
-                Toggle(option.label, isOn: Binding(
-                    get: { instrument?.selected == option.id },
-                    set: { isOn in if isOn { instrument?.select(option.id) } }
-                ))
-                .disabled(instrument == nil)
-            }
-        }
-    }
-
-    /// View › Band Size with a checkmark on the size in effect (the band board's Band
-    /// Size tool, issue #633); every size stays listed but disabled elsewhere.
-    @ViewBuilder private var bandSizeMenu: some View {
-        Menu("Band Size") {
-            ForEach(BandType.allCases) { size in
-                Toggle(size.label, isOn: Binding(
-                    get: { bandSize?.selected == size },
-                    set: { isOn in if isOn { bandSize?.select(size) } }
-                ))
-                .disabled(bandSize == nil)
-            }
-        }
-    }
-
-    /// View › as List / as Grid: the front page's List/Grid toolbar toggle (Item Shop,
-    /// issue #633), checkmarked; disabled where no page offers it.
-    @ViewBuilder private var layoutCommands: some View {
-        let layout = pageCommands?.layout
-        Toggle("as List", isOn: Binding(
-            get: { layout?.isGrid == false },
-            set: { isOn in if isOn { layout?.select(false) } }
-        ))
-        .disabled(layout == nil || blocked)
-        Toggle("as Grid", isOn: Binding(
-            get: { layout?.isGrid == true },
-            set: { isOn in if isOn { layout?.select(true) } }
-        ))
-        .disabled(layout == nil || blocked)
     }
 
     /// Go › Next / Previous Section over the front page's Quick Links (the detail page wins).
@@ -329,4 +258,31 @@ public struct FestivalCommands: Commands {
         }
     }
 }
+
+#if DEBUG
+// MARK: - Menu-bar mirror (Debug)
+
+/// Debug-only: with `FST_DEBUG_MENU_BAR=1` an iPad window lays ``FestivalCommands``'
+/// page-tool items over its bottom-trailing corner (``PageToolMenuBarMirror``: the same
+/// focused values and shared items), so `IPadMenuBarJourneyTests` can check their
+/// names, enabled states and actions against the real page in front; the iPadOS 26
+/// menu bar itself is not in the XCUITest tree (issue #633). Absent from Release.
+struct DebugMenuBarMirror: View {
+    @FocusedValue(\.festivalShellCommands) private var shell
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
+
+    /// Whether this launch asked for the mirror (iPad only: iPhone has no menu bar).
+    static var isEnabled: Bool {
+        MenuBarCommandsSupport.isAvailable && ProcessInfo.processInfo.environment["FST_DEBUG_MENU_BAR"] == "1"
+    }
+
+    var body: some View {
+        PageToolMenuBarMirror(blocked: shell?.sheetOpen ?? true, experimentalRanks: experimentalRanks)
+            .frame(width: 260)
+            .festivalCard(cornerRadius: 12)
+            .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+    }
+}
+#endif
 #endif

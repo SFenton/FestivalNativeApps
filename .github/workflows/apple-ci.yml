@@ -265,7 +265,11 @@ jobs:
         # board's split-pane title at AX5 (#478, the #342 region), Song Detail's Duos link selected beside its board
         # (#492, the #367 region), Song Detail's first instrument-card row at AX5 (#490, the #365 region: one top
         # edge, each card read whole) and #480's split-band journey (#344: in-app Increase Contrast at AX5, no
-        # splitter, row before pane); iPad only, so not in HISTORY_JOURNEYS.
+        # splitter, row before pane); iPad only, so not in HISTORY_JOURNEYS. MENU_BAR_IPAD_JOURNEYS (#633, iPad bundle, on
+        # the same iPad): the menu-bar page tools' names, enabled state and invocation against the front page, through
+        # the Debug `FST_DEBUG_MENU_BAR=1` mirror of the shared menu items (XCUITest cannot open the iPadOS menu bar);
+        # one journey per runner (`--batch-size 1`): the 2nd journey in a runner was intermittently killed (signal
+        # TERM) in Tear Down after all its assertions passed, on a host whose testmanagerd and SpringBoard crashed.
         # testing/apple/xcuitest.md#ci-journeys.
         env:
           PLAIN_JOURNEYS: >-
@@ -284,6 +288,13 @@ jobs:
             SongBandBoardSplitAccessibilityJourneyTests/testSongBandBoardSplitLinkAtAX5
             SongDetailCardRowAccessibilityJourneyTests/testInstrumentCardRowAtAX5
             IPadShellAccessibilityTests/testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5
+          MENU_BAR_IPAD_JOURNEYS: >-
+            IPadMenuBarJourneyTests/testMenuBarPageToolsAreListedAndDisabledWithoutPageTools
+            IPadMenuBarJourneyTests/testItemShopLayoutItemsSwitchThePage
+            IPadMenuBarJourneyTests/testBandSizeItemsSwitchTheBoard
+            IPadMenuBarJourneyTests/testSelectThisProfileSelectsTheShownPlayer
+            IPadMenuBarJourneyTests/testViewRivalsProfileOpensTheRival
+            IPadMenuBarJourneyTests/testSuggestionsFilterOpensThePageFilter
         run: |
           log="$RUNNER_TEMP/mock_service_history.log"
           python3 tools/mock_service.py --port 0 > "$log" 2>&1 &
@@ -302,6 +313,8 @@ jobs:
           ipad=$(python3 tools/ios_sim.py ci-device --type "iPad Pro 11-inch (M5)")
           only=(); for journey in $HISTORY_IPAD_JOURNEYS; do only+=(--only "$journey"); done
           python3 tools/ios_sim.py uitest --app ipad --device "$ipad" --fail-on-skip --timeout 1500 "${only[@]}"
+          only=(); for journey in $MENU_BAR_IPAD_JOURNEYS; do only+=(--only "$journey"); done
+          python3 tools/ios_sim.py uitest --app ipad --device "$ipad" --fail-on-skip --timeout 1500 --batch-size 1 "${only[@]}"
       - name: iPad simulator journeys (serialized, loopback fixture)
         if: github.event_name == 'workflow_dispatch'  # full CI: release branches (release machine)
         # The same evidence on iPad, portrait and landscape (the iPhone runs portrait only). Reuses the iPhone
