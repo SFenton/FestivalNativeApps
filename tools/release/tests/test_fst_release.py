@@ -389,6 +389,89 @@ class SubmitTests(TempHome):
         patch = [b for m, p, _q, b, _h in fake.calls if (m, p) == ("PATCH", "/v1/appStoreVersions/V2")][0]
         self.assertEqual(patch["data"]["attributes"]["versionString"], "1.0.1")
 
+    def replace_routes(self, attached="555", cancel=None):
+        busy = version("V3", "1.0.1", "WAITING_FOR_REVIEW", "2026-09-03T00:00:00Z")
+        states = {"V3": "WAITING_FOR_REVIEW"}
+        routes = self.routes([busy] + self.released, in_review_subs=[{"id": "INREV"}])
+        routes[("GET", "/v1/apps/APP1/appStoreVersions")] = lambda _q, _b: {"data": [
+            version("V3", "1.0.1", states["V3"], "2026-09-03T00:00:00Z")] + self.released}
+        subs = routes[("GET", "/v1/apps/APP1/reviewSubmissions")]
+
+        def review_subs(q, b):
+            if q.get("filter[state]") == ",".join(fr.CANCELABLE_SUBMISSION_STATES):
+                return {"data": [{"id": "OTHER"}, {"id": "INREV"}]}
+            if q.get("filter[state]") == "WAITING_FOR_REVIEW,IN_REVIEW" and states["V3"] != "WAITING_FOR_REVIEW":
+                return {"data": []}
+            return subs(q, b)
+        routes[("GET", "/v1/apps/APP1/reviewSubmissions")] = review_subs
+        routes[("GET", "/v1/reviewSubmissions/OTHER/items")] = {"data": []}
+        routes[("GET", "/v1/reviewSubmissions/INREV/items")] = {"data": [
+            {"relationships": {"appStoreVersion": {"data": {"id": "V3"}}}}]}
+        routes[("GET", "/v1/appStoreVersions/V3/build")] = {"data": {"attributes": {"version": attached}}}
+        routes[("GET", "/v1/appStoreVersions/V3/appStoreVersionLocalizations")] = {"data": []}
+        routes[("PATCH", "/v1/appStoreVersions/V3")] = {"data": {"id": "V3"}}
+
+        def cancel_reply(_q, _b):
+            states["V3"] = "DEVELOPER_REJECTED"
+            return {"data": {"id": "INREV"}}
+        routes[("PATCH", "/v1/reviewSubmissions/INREV")] = cancel or cancel_reply
+        return routes
+
+    def test_replace_removes_the_version_in_review_and_submits_the_new_build(self):
+        fake = FakeAsc(self.replace_routes())
+        client = fr.AscClient(self.creds(), transport=fake)
+        result = fr.submit(client, "ios", "com.example", "999", "Fixed", "MANUAL", replace=True, sleep=lambda _s: None)
+        cancel = [b for m, p, _q, b, _h in fake.calls if (m, p) == ("PATCH", "/v1/reviewSubmissions/INREV")][0]
+        self.assertEqual(cancel["data"]["attributes"], {"canceled": True})
+        self.assertEqual(result["replaced"], {"version": "1.0.1", "state": "WAITING_FOR_REVIEW",
+                                              "submission_id": "INREV"})
+        self.assertTrue(result["submitted"])
+        self.assertEqual(result["version_id"], "V3")  # the developer-rejected version is reused
+        writes = fake.writes()
+        self.assertLess(writes.index(("PATCH", "/v1/reviewSubmissions/INREV")),
+                        writes.index(("PATCH", "/v1/appStoreVersions/V3")))
+
+    def test_replace_without_flag_refuses_and_same_build_is_already_submitted(self):
+        fake = FakeAsc(self.replace_routes())
+        client = fr.AscClient(self.creds(), transport=fake)
+        self.assertEqual(fr.submit(client, "ios", "com.example", "999", "Fixed")["refused"], "in_review")
+        fake = FakeAsc(self.replace_routes(attached="999"))
+        client = fr.AscClient(self.creds(), transport=fake)
+        result = fr.submit(client, "ios", "com.example", "999", "Fixed", replace=True)
+        self.assertEqual(result["refused"], "already_submitted")
+        self.assertEqual(fake.writes(), [])
+
+    def test_a_refused_cancellation_blocks(self):
+        routes = self.replace_routes(cancel=(409, {"errors": [{"code": "STATE_ERROR", "detail": "not cancelable"}]}))
+        client = fr.AscClient(self.creds(), transport=FakeAsc(routes))
+        with self.assertRaises(fr.Blocked) as caught:
+            fr.submit(client, "ios", "com.example", "999", "Fixed", replace=True)
+        self.assertIn("cannot_cancel_review", caught.exception.reason)
+
+    def test_build_for_version_picks_a_valid_build(self):
+        routes = standard_routes(self.released, build=build_doc("B9", "999", "2610.12.01"))
+        client = fr.AscClient(self.creds(), transport=FakeAsc(routes))
+        self.assertEqual(fr.build_for_version(client, "ios", "com.example", "2610.12.01"),
+                         {"version": "2610.12.01", "build": "999", "found": True})
+        routes = standard_routes(self.released, build=build_doc("B9", "999", "2610.12.01", state="PROCESSING"))
+        client = fr.AscClient(self.creds(), transport=FakeAsc(routes))
+        self.assertFalse(fr.build_for_version(client, "ios", "com.example", "2610.12.01")["found"])
+
+    def test_release_approved_requests_release_of_the_matching_version(self):
+        approved = [version("V4", "2610.12.01", "PENDING_DEVELOPER_RELEASE", "2026-10-15T00:00:00Z")] + self.released
+        routes = standard_routes(approved)
+        routes[("POST", "/v1/appStoreVersionReleaseRequests")] = {"data": {"id": "R"}}
+        fake = FakeAsc(routes)
+        client = fr.AscClient(self.creds(), transport=fake)
+        self.assertEqual(fr.release_approved(client, "ios", "com.example", "2610.12.02")["reason"], "version_mismatch")
+        self.assertEqual(fake.writes(), [])
+        result = fr.release_approved(client, "ios", "com.example", "2610.12.01")
+        self.assertEqual((result["released"], result["version"]), (True, "2610.12.01"))
+        body = [b for m, p, _q, b, _h in fake.calls if m == "POST"][0]
+        self.assertEqual(body["data"]["relationships"]["appStoreVersion"]["data"]["id"], "V4")
+        client = fr.AscClient(self.creds(), transport=FakeAsc(standard_routes(self.released)))
+        self.assertEqual(fr.release_approved(client, "ios", "com.example")["reason"], "nothing_approved")
+
     def test_resubmits_the_open_submission_after_a_rejection(self):
         queries = []
         routes = self.routes(self.released, open_subs=[{"id": "OPEN"}])

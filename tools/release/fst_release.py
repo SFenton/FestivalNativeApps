@@ -81,6 +81,12 @@ EDITABLE_STATES = frozenset({
 })
 #: Review submission states that mean Apple (or the queue) owns the submission.
 IN_REVIEW_SUBMISSION_STATES = ("WAITING_FOR_REVIEW", "IN_REVIEW")
+#: Submission states searched for the one owning a version that ``submit --replace`` removes from review
+#: (``COMPLETE`` owns an approved ``PENDING_DEVELOPER_RELEASE`` version).
+CANCELABLE_SUBMISSION_STATES = ("WAITING_FOR_REVIEW", "IN_REVIEW", "UNRESOLVED_ISSUES", "COMPLETE")
+#: How long ``submit --replace`` waits for a cancelled version to leave review (cancellation is asynchronous).
+CANCEL_WAIT_SECONDS = 180
+CANCEL_POLL_SECONDS = 10
 
 EXIT_OK, EXIT_FAIL, EXIT_REFUSED, EXIT_BLOCKED, EXIT_ASC_ERROR = 0, 1, 3, 4, 5
 WHATS_NEW_LIMIT = 4000
@@ -591,6 +597,72 @@ def in_review_submissions(client: AscClient, app_id: str, asc_platform: str) -> 
     return [str(item["id"]) for item in (payload.get("data") or [])]
 
 
+def build_for_version(client: AscClient, group: str, bundle_id: str, marketing: str) -> Dict[str, Any]:
+    """Find the newest submittable build of marketing version ``marketing`` (the release train submits versions).
+
+    Returns:
+        ``{version, build, found}``; ``build`` is ``None`` (and ``builds`` lists what exists) when no VALID,
+        unexpired build of that version was uploaded.
+    """
+    asc_platform = PLATFORMS[group][0]
+    app_id = resolve_app(client, bundle_id)
+    payload = client.get("/v1/builds", {
+        "filter[app]": app_id, "filter[preReleaseVersion.platform]": asc_platform,
+        "filter[preReleaseVersion.version]": marketing, "sort": "-uploadedDate", "limit": "10",
+        "include": "preReleaseVersion"})
+    builds = [build_record(item, payload.get("included") or []) for item in (payload.get("data") or [])]
+    for build in builds:
+        if build["version"] == marketing and build["processing_state"] == "VALID" and not build["expired"]:
+            return {"version": marketing, "build": str(build["build"]), "found": True}
+    return {"version": marketing, "build": None, "found": False,
+            "builds": [{k: b[k] for k in ("build", "processing_state", "expired")} for b in builds]}
+
+
+def attached_build(client: AscClient, version_id: str) -> Optional[str]:
+    """Build number attached to App Store version ``version_id`` (``None`` when none)."""
+    data = client.get("/v1/appStoreVersions/%s/build" % version_id).get("data") or {}
+    number = (data.get("attributes") or {}).get("version")
+    return str(number) if number else None
+
+
+def cancel_review(client: AscClient, app_id: str, asc_platform: str, version_id: str,
+                  sleep: Callable[[float], None] = time.sleep, wait: float = CANCEL_WAIT_SECONDS) -> str:
+    """Remove ``version_id`` from review and release (it becomes ``DEVELOPER_REJECTED``, editable again).
+
+    Cancels the review submission that owns the version (``canceled: true``), as "Cancel Submission" /
+    "remove this version from review" does in App Store Connect, then waits until the version has left review.
+
+    Returns:
+        The cancelled review submission id.
+
+    Raises:
+        Blocked: No cancellable submission owns the version, App Store Connect refused the cancellation, or the
+            version was still in review after ``wait`` seconds.
+    """
+    subs = client.get("/v1/apps/%s/reviewSubmissions" % app_id, {
+        "filter[platform]": asc_platform, "filter[state]": ",".join(CANCELABLE_SUBMISSION_STATES),
+        "limit": "50"}).get("data") or []
+    owner = next((str(s["id"]) for s in subs if version_id in _submission_items(client, str(s["id"]))), None)
+    if owner is None:
+        raise Blocked("review_submission_not_found")
+    try:
+        client.request("PATCH", "/v1/reviewSubmissions/%s" % owner, body={"data": {
+            "type": "reviewSubmissions", "id": owner, "attributes": {"canceled": True}}})
+    except AscError as err:
+        raise Blocked("cannot_cancel_review: %s" % (err.detail or err)[:200])
+    if client.dry_run:
+        return owner
+    deadline = time.monotonic() + wait
+    while True:
+        state = next((version_state(v) for v in list_versions(client, app_id, asc_platform)
+                      if str(v.get("id")) == version_id), None)
+        if state not in IN_REVIEW_STATES and not in_review_submissions(client, app_id, asc_platform):
+            return owner
+        if time.monotonic() >= deadline:
+            raise Blocked("cancel_pending: version still %s" % state)
+        sleep(CANCEL_POLL_SECONDS)
+
+
 # endregion
 
 # region Commands
@@ -750,13 +822,14 @@ RELEASE_TYPES = ("MANUAL", "AFTER_APPROVAL")
 
 
 def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
-           notes: str, release_type: str = "MANUAL", baseline: Any = UNCHECKED) -> Dict[str, Any]:
+           notes: str, release_type: str = "MANUAL", baseline: Any = UNCHECKED, replace: bool = False,
+           sleep: Callable[[float], None] = time.sleep) -> Dict[str, Any]:
     """Attach a VALID build to its version and submit it for App Store review.
 
-    Sequence: refuse when anything is in review, find the build, create/reuse the
-    editable version for the build's marketing version, set What's New, PATCH the
-    build and release type, then create a review submission, add the version as
-    an item and PATCH ``submitted=true``.
+    Sequence: find the build, check its What's New baseline and notes, handle anything already in review
+    (refuse, or with ``replace`` remove it from review), create/reuse the editable version for the build's
+    marketing version, set What's New, PATCH the build and release type, then create a review submission, add
+    the version as an item and PATCH ``submitted=true``.
 
     Args:
         release_type: ``MANUAL`` (approved versions wait for a human release) or
@@ -764,9 +837,13 @@ def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
         baseline: The released version the build's bundled What's New was generated against
             (``None`` = no release yet). When given and the store has released a newer version since,
             nothing is written and ``refused: stale_whats_new`` asks for a rebuild.
+        replace: The release train's weekly submission: a version still in review or approved but not released
+            is removed from review (:func:`cancel_review`) and this build is submitted instead. The same build
+            already in review is refused as ``already_submitted``.
 
     Returns:
-        A result document; ``refused`` is set (and nothing written) when in review or stale.
+        A result document; ``refused`` is set (and nothing written) when in review or stale. ``replaced``
+        names the version removed from review.
 
     Raises:
         Blocked: App record missing.
@@ -779,8 +856,8 @@ def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
     asc_platform = PLATFORMS[group][0]
     app_id = resolve_app(client, bundle_id)
     versions = list_versions(client, app_id, asc_platform)
-    if any(version_state(v) in IN_REVIEW_STATES for v in versions) \
-            or in_review_submissions(client, app_id, asc_platform):
+    busy = next((v for v in versions if version_state(v) in IN_REVIEW_STATES), None)
+    if (busy is not None or in_review_submissions(client, app_id, asc_platform)) and not replace:
         return {"submitted": False, "refused": "in_review"}
 
     builds = list_builds(client, app_id, asc_platform, limit=5, number=build_number)
@@ -805,6 +882,17 @@ def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
                 "build": str(build_number)}
     if len(notes) > WHATS_NEW_LIMIT:
         notes = notes[:WHATS_NEW_LIMIT].rstrip()
+    replaced: Optional[Dict[str, Any]] = None
+    if busy is not None:
+        busy_string = (busy.get("attributes") or {}).get("versionString")
+        if attached_build(client, str(busy["id"])) == str(build_number):
+            return {"submitted": False, "refused": "already_submitted", "version": busy_string,
+                    "build": str(build_number), "state": version_state(busy)}
+        cancelled = cancel_review(client, app_id, asc_platform, str(busy["id"]), sleep=sleep)
+        replaced = {"version": busy_string, "state": version_state(busy), "submission_id": cancelled}
+        versions = list_versions(client, app_id, asc_platform)
+    elif in_review_submissions(client, app_id, asc_platform):
+        raise Blocked("in_review_submission_without_version")
     has_released = any(version_state(v) in RELEASED_STATES for v in versions)
 
     editable = next((v for v in versions if version_state(v) in EDITABLE_STATES), None)
@@ -837,9 +925,43 @@ def submit(client: AscClient, group: str, bundle_id: str, build_number: str,
         submission_id = owner.group(1)  # ASC names the submission that already owns the version: submit that one
     client.request("PATCH", "/v1/reviewSubmissions/%s" % submission_id, body={"data": {
         "type": "reviewSubmissions", "id": submission_id, "attributes": {"submitted": True}}})
-    return {"submitted": not client.dry_run, "dry_run": client.dry_run, "version": marketing,
-            "build": str(build_number), "version_id": version_id,
-            "submission_id": submission_id, "whats_new": whats_new}
+    result = {"submitted": not client.dry_run, "dry_run": client.dry_run, "version": marketing,
+              "build": str(build_number), "version_id": version_id,
+              "submission_id": submission_id, "whats_new": whats_new}
+    if replaced:
+        result["replaced"] = replaced
+    return result
+
+
+def release_approved(client: AscClient, group: str, bundle_id: str,
+                     marketing: Optional[str] = None) -> Dict[str, Any]:
+    """Release the version App Review approved (``PENDING_DEVELOPER_RELEASE``) to customers.
+
+    Submissions use the ``MANUAL`` release type, so an approved version waits for this call (the release train's
+    Monday release). ``marketing`` (optional) must match the approved version, so a check made against one
+    version never releases another.
+
+    Returns:
+        ``{released, version, version_id}``; ``released`` is False with ``reason`` ``nothing_approved`` (and the
+        newest version's ``state``) or ``version_mismatch`` (``approved`` names the approved version).
+    """
+    asc_platform = PLATFORMS[group][0]
+    app_id = resolve_app(client, bundle_id)
+    versions = list_versions(client, app_id, asc_platform)
+    approved = next((v for v in versions if version_state(v) == "PENDING_DEVELOPER_RELEASE"), None)
+    if approved is None:
+        newest = versions[0] if versions else None
+        return {"released": False, "reason": "nothing_approved",
+                "state": version_state(newest) if newest else None,
+                "version": (newest.get("attributes") or {}).get("versionString") if newest else None}
+    string = (approved.get("attributes") or {}).get("versionString")
+    if marketing and string != marketing:
+        return {"released": False, "reason": "version_mismatch", "approved": string, "version": marketing}
+    client.request("POST", "/v1/appStoreVersionReleaseRequests", body={"data": {
+        "type": "appStoreVersionReleaseRequests",
+        "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": str(approved["id"])}}}}})
+    return {"released": not client.dry_run, "dry_run": client.dry_run, "version": string,
+            "version_id": str(approved["id"])}
 
 
 def _submission_items(client: AscClient, submission_id: str) -> List[str]:
@@ -1022,6 +1144,15 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--bundle-id")
         p.add_argument("--whats-new-baseline",
                        help="released version the build's What's New used ('none' = no release yet)")
+        p.add_argument("--replace", action="store_true",
+                       help="remove a version still in review (or approved, unreleased) and submit this build")
+        p = sub.add_parser("build-for-version")
+        p.add_argument("--version", required=True)
+        p.add_argument("--bundle-id")
+        p = sub.add_parser("release")
+        p.add_argument("--version", help="release only if this is the approved version")
+        p.add_argument("--dry-run", action="store_true")
+        p.add_argument("--bundle-id")
         p = sub.add_parser("beta-notes")
         p.add_argument("--build", required=True)
         beta = p.add_mutually_exclusive_group(required=True)
@@ -1134,11 +1265,21 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
             if args.whats_new_baseline is not None:
                 baseline = None if args.whats_new_baseline in ("", "none") else args.whats_new_baseline
             result = submit(client, group, bundle_id, args.build, notes,
-                            env.get("FST_APPSTORE_RELEASE_TYPE") or "MANUAL", baseline)
+                            env.get("FST_APPSTORE_RELEASE_TYPE") or "MANUAL", baseline, replace=args.replace)
             if dry_run:
                 result["planned"] = client.planned
             emit(result)
             return EXIT_REFUSED if result.get("refused") else EXIT_OK
+        if args.command == "build-for-version":
+            result = build_for_version(client, group, bundle_id, args.version)
+            emit(result)
+            return EXIT_OK if result["found"] else EXIT_REFUSED
+        if args.command == "release":
+            result = release_approved(client, group, bundle_id, args.version)
+            if dry_run:
+                result["planned"] = client.planned
+            emit(result)
+            return EXIT_REFUSED if result.get("reason") == "version_mismatch" else EXIT_OK
     except Blocked as err:
         emit(blocked_status(err.reason) if args.command == "status" else {"blocked": err.reason})
         return EXIT_BLOCKED
