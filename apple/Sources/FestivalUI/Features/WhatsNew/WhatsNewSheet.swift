@@ -40,12 +40,11 @@ struct WhatsNewSheet: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
                 } else {
-                    ProgressView()
+                    FestivalLoadingView(accessibilityLabel: "Getting notes for this install")
                         .controlSize(.large)
+                        .accessibilityIdentifier("fst.whats-new.pending")
                         .frame(maxWidth: .infinity)
                         .padding(.top, 48)
-                        .accessibilityLabel("Getting notes for this install")
-                        .accessibilityIdentifier("fst.whats-new.pending")
                 }
             }
             .modifier(PullDownToDismiss(action: onDismiss))
