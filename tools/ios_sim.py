@@ -1816,8 +1816,7 @@ def cmd_drive(args: argparse.Namespace) -> int:
                     )
                 except subprocess.TimeoutExpired:
                     # Never let a hung run hold the shared simulator lock.
-                    _run(["xcrun", "simctl", "terminate", udid, product().bundle_id],
-                         check=False, capture_output=True)
+                    terminate_app(udid)
                     process = subprocess.CompletedProcess(cmd, 124)
                     log.write(f"\nTIMEOUT after {args.timeout}s; killed.\n")
     finally:
@@ -1918,6 +1917,7 @@ def cmd_uitest(args: argparse.Namespace) -> int:
         label = f"batch {batch_index}/{len(batches)}"
         retries = max(0, getattr(args, "retries", 0) or 0)
         attempt = 0
+        rebooted = False
         while True:
             returncode, elapsed, log_path, result_bundle = _run_uitest_batch(
                 udid=udid, derived=derived, selectors=batch, timeout=args.timeout,
@@ -1925,6 +1925,15 @@ def cmd_uitest(args: argparse.Namespace) -> int:
                 set_pose=getattr(args, "set_pose", False), rotate=getattr(args, "rotate", None),
                 diagnostics=not getattr(args, "no_test_diagnostics", False),
             )
+            if (returncode and not rebooted and getattr(args, "reboot_wedged", False)
+                    and (wedge := simulator_wedged(log_path.read_text(encoding="utf-8", errors="replace")))):
+                # No verdict: the simulator (or its accessibility server) hung. Reboot it and run the
+                # batch again, once, keeping the stuck attempt's result bundle (#620).
+                rebooted = True
+                print(f"uitest {label}: simulator wedged ({wedge}) after {elapsed:.1f}s; rebooting it and "
+                      f"running the batch again; result bundle (kept): {result_bundle}", file=sys.stderr)
+                _with_sim_lock(udid, _shutdown_simulator)
+                continue
             if not should_retry_batch(returncode, attempt, retries):
                 break
             attempt += 1
@@ -1946,13 +1955,16 @@ def cmd_uitest(args: argparse.Namespace) -> int:
             print(f"uitest {label} FAILED after {elapsed:.1f}s; last lines of {log_path}:", file=sys.stderr)
             print("\n".join(log_text.splitlines()[-60:]), file=sys.stderr)
             print(f"result bundle: {result_bundle}", file=sys.stderr)
-        elif getattr(args, "fail_on_skip", False) and (problem := skip_problem(_result_summary(result_bundle))):
+            continue
+        # One summary read per green batch (retried: #620), shared by --fail-on-skip and the counts.
+        summary = _result_summary(result_bundle)
+        if getattr(args, "fail_on_skip", False) and (problem := skip_problem(summary)):
             failed_batches.append((batch, 1))
             print(f"uitest {label} FAILED (--fail-on-skip: {problem}) after {elapsed:.1f}s"
-                  f"{_result_counts(result_bundle)}; log {log_path}; result bundle: {result_bundle}",
+                  f"{_result_counts(summary)}; log {log_path}; result bundle: {result_bundle}",
                   file=sys.stderr)
         else:
-            print(f"uitest {label} OK in {elapsed:.1f}s ({len(batch)} selector(s)){_result_counts(result_bundle)}",
+            print(f"uitest {label} OK in {elapsed:.1f}s ({len(batch)} selector(s)){_result_counts(summary)}",
                   file=sys.stderr)
             if os.environ.get("FST_UITEST_KEEP_RESULTS") == "1":
                 # Keep green evidence too (attachments, per-test results): an all-skipped
@@ -1977,40 +1989,64 @@ def cmd_uitest(args: argparse.Namespace) -> int:
     return 0
 
 
-def _result_summary(result_bundle: Path) -> dict | None:
+#: ``_result_summary`` reads: the first ``xcresulttool`` call on a cold CI runner can fail or run past its
+#: timeout although the bundle is complete (#620: an iPad batch whose one test passed failed
+#: ``--fail-on-skip`` with "no readable result summary", and the next read found "1 passed").
+SUMMARY_READ_ATTEMPTS = 3
+#: Seconds each ``xcresulttool`` summary read may take.
+SUMMARY_READ_TIMEOUT = 120
+#: Seconds between failed summary reads.
+SUMMARY_READ_PAUSE = 5
+
+
+def _result_summary(
+    result_bundle: Path, *, attempts: int = SUMMARY_READ_ATTEMPTS, pause: float = SUMMARY_READ_PAUSE,
+) -> dict | None:
     """Read a result bundle's test summary (``xcresulttool get test-results summary``).
+
+    A failed or timed-out read is retried, so one slow ``xcresulttool`` call does not fail a
+    batch whose tests all passed; an unreadable bundle still returns ``None`` after the last
+    attempt (and ``--fail-on-skip`` fails the batch).
 
     Args:
         result_bundle: The batch's ``.xcresult`` path.
+        attempts: Reads to try before giving up.
+        pause: Seconds to wait between reads.
 
     Returns:
         The summary JSON (``passedTests``, ``skippedTests``, ``failedTests``…), or ``None``
-        when it cannot be read.
+        when no attempt could read it.
     """
-    try:
-        out = subprocess.run(
-            ["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", str(result_bundle)],
-            env=_env(), capture_output=True, text=True, check=True, timeout=60,
-        ).stdout
-        summary = json.loads(out)
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return None
-    return summary if isinstance(summary, dict) else None
+    for attempt in range(1, max(1, attempts) + 1):
+        try:
+            out = subprocess.run(
+                ["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", str(result_bundle)],
+                env=_env(), capture_output=True, text=True, check=True, timeout=SUMMARY_READ_TIMEOUT,
+            ).stdout
+            summary = json.loads(out)
+        except (OSError, subprocess.SubprocessError, ValueError) as error:
+            print(f"result summary read {attempt}/{attempts} failed: {type(error).__name__}", file=sys.stderr)
+        else:
+            if isinstance(summary, dict):
+                return summary
+            print(f"result summary read {attempt}/{attempts} was not an object", file=sys.stderr)
+        if attempt < attempts:
+            time.sleep(pause)
+    return None
 
 
-def _result_counts(result_bundle: Path) -> str:
-    """Summarize a result bundle's passed/skipped/failed counts (``-quiet`` hides them).
+def _result_counts(summary: dict | None) -> str:
+    """Summarize a batch's passed/skipped/failed counts (``-quiet`` hides them).
 
     A green batch can still be all skips (e.g. iPad-only journeys on an iPhone), so print
     the counts before the bundle is deleted.
 
     Args:
-        result_bundle: The batch's ``.xcresult`` path.
+        summary: The batch's ``_result_summary``, or ``None`` when unreadable.
 
     Returns:
         ``": N passed, N skipped, N failed"``, or an empty string when unavailable.
     """
-    summary = _result_summary(result_bundle)
     if summary is None:
         return ""
     return (f": {summary.get('passedTests', 0)} passed, {summary.get('skippedTests', 0)} skipped, "
@@ -2045,14 +2081,146 @@ def skip_problem(summary: dict | None) -> str | None:
 #: nor a build, launch or setup error).
 EXIT_TEST_FAILED = 65
 
+#: Seconds to wait for `simctl terminate` after a batch timed out. On a starved CI
+#: simulator it hung for 44 minutes after a 2400 s batch timeout (#620).
+TERMINATE_TIMEOUT = 60
+
+#: Seconds to wait for a killed child to exit. ``subprocess.run(timeout=…)`` kills the child
+#: and then waits for it with no limit: on a runner whose CoreSimulator was stuck, a 60 s
+#: `simctl terminate` took 14 minutes and a 2400 s batch 78 (#620).
+KILL_WAIT = 60
+
+#: ``xcodebuild``'s error when it cannot see the simulator yet. On a runner, the first batch on
+#: a freshly downloaded runtime printed it, ran no test and then hung (#620).
+NO_DESTINATION_SIGNATURE = "Unable to find a device matching the provided destination specifier"
+
+#: Exit status for a batch stopped because ``xcodebuild`` could not see its simulator.
+EXIT_NO_DESTINATION = 69
+
+
+def run_bounded(cmd: list[str], timeout: float, *, watch: Path | None = None,
+                stop_on: str | None = None, poll: float = 5.0, **popen_kw) -> int | None:
+    """Run ``cmd`` in its own session and never wait on it past ``timeout``.
+
+    On timeout (or once ``stop_on`` appears in ``watch``) the whole process group gets
+    SIGKILL, and the child gets at most ``KILL_WAIT`` seconds to exit.
+
+    Args:
+        cmd: Argument vector (echoed to stderr).
+        timeout: Seconds before the run is killed.
+        watch: A log file the run writes, checked every ``poll`` seconds for ``stop_on``.
+        stop_on: Text in ``watch`` that ends the run early with ``EXIT_NO_DESTINATION``.
+        poll: Seconds between checks.
+        **popen_kw: Extra ``subprocess.Popen`` keyword arguments.
+
+    Returns:
+        The exit status, ``EXIT_NO_DESTINATION`` when ``stop_on`` appeared, or ``None`` on timeout.
+    """
+    print("+", " ".join(cmd), file=sys.stderr)
+    process = subprocess.Popen(cmd, env=popen_kw.pop("env", _env()), start_new_session=True, **popen_kw)
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            return process.wait(timeout=max(0.0, min(poll, deadline - time.monotonic())))
+        except subprocess.TimeoutExpired:
+            pass
+        stopped = bool(watch and stop_on and stop_on in watch.read_text(encoding="utf-8", errors="replace"))
+        if stopped or time.monotonic() >= deadline:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+            try:
+                process.wait(timeout=KILL_WAIT)
+            except subprocess.TimeoutExpired:
+                print(f"{cmd[0]} did not exit {KILL_WAIT}s after SIGKILL; continuing", file=sys.stderr)
+            return EXIT_NO_DESTINATION if stopped else None
+
+
+def terminate_app(udid: str, *, timeout: float = TERMINATE_TIMEOUT) -> bool:
+    """Stop the app under test after a timed-out run, without hanging on the simulator.
+
+    Args:
+        udid: The simulator.
+        timeout: Seconds to wait for `simctl terminate`.
+
+    Returns:
+        Whether `simctl terminate` returned in time (its exit status is ignored: the
+        app may already have exited).
+    """
+    returned = run_bounded(
+        ["xcrun", "simctl", "terminate", udid, product().bundle_id], timeout,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    ) is not None
+    if not returned:
+        print(f"simctl terminate did not return within {timeout:g}s; continuing", file=sys.stderr)
+    return returned
+
+
+#: ``xcodebuild`` log lines that mean the simulator's accessibility server hung before any test ran, so
+#: the batch reached no verdict: once it hangs, every later batch's runner fails to start (#620: an audit
+#: timed out, then 33 batches failed in about 90 s each). A test failure (an audit timeout included) is
+#: never a wedge.
+WEDGED_SIMULATOR_SIGNATURES = (
+    "The test runner failed to initialize for UI testing",
+    NO_DESTINATION_SIGNATURE,
+)
+
+#: The line ``_run_uitest_batch`` appends to a batch's log when it kills a run at its timeout.
+TIMEOUT_MARKER = "TIMEOUT after"
+
+#: ``simulator_wedged``'s reason for a batch killed at its own timeout. That is no verdict: an
+#: XCUITest query or audit that runs too long fails the test long before. On the folded-Duo legs
+#: (#620) one batch's ``xcodebuild`` printed nothing for 2400 s, and another's runner went silent
+#: inside its first audit for 25 minutes after the same journey had passed in the previous run;
+#: the `simctl terminate` after each hung too.
+TIMED_OUT = "the batch timed out before a verdict"
+
+#: Seconds to wait for `simctl shutdown` before a wedged batch's rerun.
+SHUTDOWN_TIMEOUT = 300
+
+
+def simulator_wedged(log_text: str) -> str | None:
+    """Find a hung-simulator signature in a failed batch's ``xcodebuild`` log.
+
+    Args:
+        log_text: The batch's log.
+
+    Returns:
+        The first matching ``WEDGED_SIMULATOR_SIGNATURES`` entry, ``TIMED_OUT`` when the batch
+        was killed at its timeout (``TIMEOUT_MARKER``), or ``None`` for an ordinary failure
+        (which ``--reboot-wedged`` leaves alone).
+    """
+    if signature := next((s for s in WEDGED_SIMULATOR_SIGNATURES if s in log_text), None):
+        return signature
+    return TIMED_OUT if TIMEOUT_MARKER in log_text else None
+
+
+def _shutdown_simulator(udid: str) -> int:
+    """Shut ``udid`` down so the next batch boots it fresh. Call under the simulator lock.
+
+    Bounded by ``SHUTDOWN_TIMEOUT``: the wedge it recovers from can stall CoreSimulator too.
+
+    Args:
+        udid: The simulator.
+
+    Returns:
+        0 (a simulator that is already shut down is fine).
+    """
+    if run_bounded(["xcrun", "simctl", "shutdown", udid], SHUTDOWN_TIMEOUT,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) is None:
+        print(f"simctl shutdown did not return within {SHUTDOWN_TIMEOUT}s; continuing", file=sys.stderr)
+    return 0
+
 
 def should_retry_batch(returncode: int, attempt: int, retries: int) -> bool:
     """Decide whether ``uitest --retries`` runs a failed batch again.
 
     Only a test failure is retried: the CI runner's simulator is 2-4x slower than a Mac and
-    an XCUITest query can time out there ("Timed out while evaluating UI query"). A timed-out
-    batch (124), a setup error or a pose mismatch would only fail again, and a deterministic
-    test failure fails every attempt, so it still fails the run.
+    an XCUITest query can time out there ("Timed out while evaluating UI query"). A setup error
+    or a pose mismatch would only fail again, and a deterministic test failure fails every
+    attempt, so it still fails the run. A timed-out batch (124) is not retried here:
+    ``--reboot-wedged`` reruns it once on a rebooted simulator (``simulator_wedged``).
 
     Args:
         returncode: The attempt's exit code.
@@ -2135,24 +2303,22 @@ def _run_uitest_batch(
         if not diagnostics:
             cmd += ["-collect-test-diagnostics", "never"]
         cmd += ["test-without-building", "-quiet"]
-        print("+", " ".join(cmd), file=sys.stderr)
         with open(log_path, "w") as log, simulator_accessibility(udid, a11y):
-            try:
-                process = subprocess.run(
-                    cmd, cwd=APPLE_DIR, env=_env(),
-                    stdout=log, stderr=subprocess.STDOUT, check=False,
-                    timeout=timeout,
-                )
-            except subprocess.TimeoutExpired:
+            returncode = run_bounded(
+                cmd, timeout, watch=log_path, stop_on=NO_DESTINATION_SIGNATURE,
+                cwd=APPLE_DIR, stdout=log, stderr=subprocess.STDOUT,
+            )
+            if returncode is None:
                 # Never let a hung run hold the shared simulator lock past `timeout`:
-                # `subprocess.run` already killed the xcodebuild process tree: this
-                # also stops the app under test so nothing lingers on the simulator.
-                _run(["xcrun", "simctl", "terminate", udid, product().bundle_id],
-                     check=False, capture_output=True)
-                process = subprocess.CompletedProcess(cmd, 124)
-                log.write(f"\nTIMEOUT after {timeout}s; killed.\n")
+                # the xcodebuild process group is killed; also stop the app under test
+                # so nothing lingers on the simulator.
+                terminate_app(udid)
+                returncode = 124
+                log.write(f"\n{TIMEOUT_MARKER} {timeout}s; killed.\n")
+            elif returncode == EXIT_NO_DESTINATION:
+                log.write("\nxcodebuild cannot see the simulator; stopped (no test ran).\n")
     elapsed = time.time() - start
-    return process.returncode, elapsed, log_path, result_bundle
+    return returncode, elapsed, log_path, result_bundle
 
 # region CI simulator
 
@@ -2465,6 +2631,13 @@ def main(argv: list[str] | None = None) -> int:
     uitest.add_argument("--fail-on-skip", action="store_true",
                         help="fail a batch in which any test skipped or none ran (CI: a journey that "
                              "cannot find its fixture skips, and an all-skipped batch otherwise passes)")
+    uitest.add_argument("--reboot-wedged", action="store_true",
+                        default=os.environ.get("FST_UITEST_REBOOT_WEDGED") == "1",
+                        help="CI: when a batch reached no verdict (its test runner failed to initialize, or it "
+                             "was killed at --timeout: the simulator hung), reboot the simulator and run that "
+                             "batch once more; "
+                             "test failures are never rerun (default on when FST_UITEST_REBOOT_WEDGED=1, as "
+                             "apple-ci sets it)")
     uitest.add_argument("--retries", type=int, default=0,
                         help="CI: run a batch whose test failed (exit 65) up to N more times, keeping each "
                              "failed attempt's result bundle; timeouts and setup errors are not retried "

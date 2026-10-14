@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import socket
 import threading
 import unittest
 from unittest.mock import patch
@@ -869,7 +870,9 @@ class MockServiceTests(unittest.TestCase):
         results: list[int] = []
 
         def read() -> None:
+            # The body completes only on release; the headers come first (#620).
             with urlopen(route) as held:
+                held.read()
                 results.append(held.status)
             answered.set()
 
@@ -905,6 +908,44 @@ class MockServiceTests(unittest.TestCase):
             with self.subTest(query=bad), self.assertRaises(HTTPError) as failure:
                 urlopen(control + bad)
             self.assertEqual(failure.exception.code, 400)
+
+    def test_held_path_read_keeps_its_connection_alive(self):
+        """A held read sends headers, then body bytes, never idling a client out (#620)."""
+        port = self.server.server_port
+        for route, kind in (("/api/paths/fixture-pulse/Solo_Guitar/hard/data", b"application/json"),
+                            ("/api/paths/fixture-pulse/Solo_Guitar/hard", b"image/png")):
+            with self.subTest(route=route), patch("tools.mock_service.PATH_HOLD_KEEPALIVE_SECONDS", 0.05):
+                with urlopen(self.base + "/__fixture__/hold-paths?seconds=30"):
+                    pass
+                with socket.create_connection(("127.0.0.1", port), timeout=5) as client:
+                    client.sendall(f"GET {route} HTTP/1.1\r\nHost: fixture\r\n\r\n".encode())
+                    received = b""
+                    while b"\r\n\r\n" not in received:
+                        received += client.recv(4096)
+                    head, body = received.split(b"\r\n\r\n", 1)
+                    self.assertIn(b" 200 ", head.split(b"\r\n")[0])
+                    self.assertIn(kind, head)
+                    length = int(next(line.split(b":")[1] for line in head.split(b"\r\n")
+                                      if line.lower().startswith(b"content-length")))
+                    # Body bytes keep arriving while held, but never the whole body.
+                    for _ in range(3):
+                        body += client.recv(1)
+                    self.assertEqual(len(body), 3)
+                    with urlopen(self.base + "/__fixture__/hold-paths") as response:
+                        self.assertEqual(json.load(response), {"held": True, "waiting": 1})
+                    with urlopen(self.base + "/__fixture__/hold-paths?seconds=0"):
+                        pass
+                    while len(body) < length:
+                        chunk = client.recv(65536)
+                        self.assertTrue(chunk, "The held read closed before its body ended")
+                        body += chunk
+                    self.assertEqual(len(body), length)
+                    if kind == b"application/json":
+                        self.assertEqual(json.loads(body)["difficulty"], "hard")
+                    else:
+                        self.assertTrue(body.startswith(b"\x89PNG"))
+                with urlopen(self.base + "/__fixture__/hold-paths") as response:
+                    self.assertEqual(json.load(response), {"held": False, "waiting": 0})
 
     def test_public_shop_feed_is_synthetic_pinned_and_explicit_on_errors(self):
         """Shop badge states and every failure are distinct from an empty feed."""

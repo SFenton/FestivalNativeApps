@@ -188,19 +188,34 @@ class AppleCIJourneysTests(unittest.TestCase):
                 self.assert_selectors_exist(selectors, roots)
 
     def test_songs_filter_journeys_run_on_every_touch_form_factor(self) -> None:
-        self.assertEqual(set(self.legs), {"iphone", "ipad", "duo-folded"})
-        for leg, selectors in self.legs.items():
+        # The folded Duo runs the Filter sheet's methods in a leg of their own (#620: one AX5 method took up to
+        # 27 min on the runner) and its bottom-field and scrim journeys in another.
+        self.assertEqual(set(self.legs), {"iphone", "ipad", "duo-folded-filter", "duo-folded"})
+        for leg in ("iphone", "ipad", "duo-folded-filter"):
             for journey in FILTER_JOURNEYS:
-                self.assertIn(journey, selectors, leg)
+                self.assertIn(journey, self.legs[leg], leg)
+        self.assertTrue(self.legs["duo-folded"])
+        self.assertTrue(all("Duo" in journey for journey in self.legs["duo-folded"]))
         self.assertIn("SongsFilterKeyboardJourneyTests/testCommandPeriodClosesFilter", self.legs["ipad"])
         self.assertRegex(self.workflow, r"leg: ipad\n\s+device_type: iPad[^\n]*\n\s+uitest_args: --app ipad\n")
-        self.assertRegex(self.workflow, r"leg: duo-folded\n\s+device_type: iPhone Duo\n\s+uitest_args: --pose folded\n")
+        for leg in ("duo-folded-filter", "duo-folded"):
+            self.assertRegex(self.workflow, rf"leg: {leg}\n\s+device_type: iPhone Duo\n\s+uitest_args: --pose folded\n")
         self.assertIn("--fail-on-skip", self.workflow.split("songs-filter-journeys:", 1)[1])
 
     def test_songs_filter_legs_retry_a_failed_batch_once(self) -> None:
         legs = self.workflow.split("songs-filter-journeys:", 1)[1].split("\n  apple-ci:", 1)[0]
         self.assertIn("--retries 1", legs)
         self.assertNotIn("--retries", self.workflow.split("songs-filter-journeys:", 1)[0])
+
+    def test_songs_filter_legs_skip_failure_diagnostics(self) -> None:
+        # A failure's diagnostics take up to 600 s; the folded Duo leg's runner was lost during its journeys (#620).
+        legs = self.workflow.split("songs-filter-journeys:", 1)[1].split("\n  scroll-edge-journeys:", 1)[0]
+        self.assertIn("--no-test-diagnostics", legs)
+
+    def test_every_journey_run_reboots_a_wedged_simulator(self) -> None:
+        # A hung accessibility server failed 33 later batches before any test ran (#620).
+        header = self.workflow.split("\njobs:", 1)[0]
+        self.assertIn('FST_UITEST_REBOOT_WEDGED: "1"', header)
 
     def test_songs_filter_legs_run_only_on_release_dispatch(self) -> None:
         # Release train: pull requests and master run the build and unit tests only.

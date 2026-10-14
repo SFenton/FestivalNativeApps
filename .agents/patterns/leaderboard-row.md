@@ -184,7 +184,7 @@ Agent decision (Apple, 2026-10-09, owner may override with `/choose`). The #386 
 | C. Never pin at accessibility sizes | Short rows that fit (Full Rankings' one-line row at AX1) lose R7 for no reason. | Overreaches R7. |
 | D. Hide the pinned row while its own row is on the page | Its action and the "on every page" rule disappear on other pages. | Contradicts R7. |
 
-A keeps R7 wherever pinning still leaves the board usable and changes only the placement, not the row. The threshold is a third so two-plus other rows stay visible on a phone. Guards: `SelectedRowNavigationTests` (`SelectedRowPinning`), `SongBandRevealAccessibilityJourneyTests.testRevealedBandRowGrowsAtLargestTextSize` (iPhone, apple-ci) and `SongBandRevealAccessibilityHostedTests` (macOS).
+A keeps R7 wherever pinning still leaves the board usable and changes only the placement, not the row. The threshold is a third so two-plus other rows stay visible on a phone. Guards: `SelectedRowNavigationTests` (`SelectedRowPinning`), `SongBandRevealAccessibilityJourneyTests.testRevealedBandRowGrowsAtLargestTextSize` (iPhone, apple-ci), `SongBandRevealAccessibilityHostedTests` (macOS), and the AX5 end-of-list journeys `SongLeaderboardEndJourneyTests` and `FullRankingsFooterJourneyTests` (apple-ci). On iPhone and the folded Duo these expect the Solo and Full Rankings footers to leave the chrome and follow the rows, one row gap above the pager. An iPad checks the placement its measured board settles on; until #620 they still expected the pinned footer.
 
 ### Agent decision: Android rank-history columns and alignment audit (#594)
 
