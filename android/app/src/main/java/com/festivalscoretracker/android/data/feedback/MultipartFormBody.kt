@@ -16,11 +16,14 @@ import java.util.UUID
  * @property fields Text fields in order.
  * @property files File parts in order.
  * @property boundary Part boundary (random by default; fixed in tests).
+ * @property onProgress Called on the writing thread after each chunk with the bytes written so
+ * far and [contentLength] (-1 when unknown); drives the feedback form's upload bar (issue #634).
  */
 class MultipartFormBody(
     private val fields: List<Pair<String, String>>,
     private val files: List<FilePart>,
     val boundary: String = "fst-" + UUID.randomUUID().toString().replace("-", ""),
+    private val onProgress: ((written: Long, total: Long) -> Unit)? = null,
 ) : HttpBody {
     /**
      * One file part.
@@ -51,6 +54,11 @@ class MultipartFormBody(
         }
 
     override fun writeTo(sink: OutputStream) {
+        val report = onProgress
+        if (report == null) write(sink) else write(CountingStream(sink, contentLength, report))
+    }
+
+    private fun write(sink: OutputStream) {
         fields.forEach { (name, value) ->
             sink.write(fieldHeader(name))
             sink.write(value.toByteArray())
@@ -74,6 +82,32 @@ class MultipartFormBody(
         ).toByteArray()
 
     private fun closing(): ByteArray = "--$boundary--\r\n".toByteArray()
+
+    /** Passes bytes through to [sink], reporting the running count after each write. */
+    private class CountingStream(
+        private val sink: OutputStream,
+        private val total: Long,
+        private val report: (Long, Long) -> Unit,
+    ) : OutputStream() {
+        private var written = 0L
+
+        override fun write(b: Int) {
+            sink.write(b)
+            advance(1)
+        }
+
+        override fun write(b: ByteArray, off: Int, len: Int) {
+            sink.write(b, off, len)
+            advance(len.toLong())
+        }
+
+        override fun flush() = sink.flush()
+
+        private fun advance(count: Long) {
+            written += count
+            report(written, total)
+        }
+    }
 
     companion object {
         private val CRLF = "\r\n".toByteArray()

@@ -1,6 +1,7 @@
 package com.festivalscoretracker.android.presentation.feedback
 
 import com.festivalscoretracker.android.core.feedback.FeedbackAttachment
+import com.festivalscoretracker.android.core.feedback.FeedbackCopy
 import com.festivalscoretracker.android.core.feedback.FeedbackException
 import com.festivalscoretracker.android.core.feedback.FeedbackKind
 import com.festivalscoretracker.android.core.feedback.FeedbackLimits
@@ -31,7 +32,7 @@ class FeedbackViewModelTest {
     private fun TestScope.model(
         status: suspend (String) -> FeedbackJob = { polled += it; filed },
         features: suspend () -> Boolean = { true },
-        send: suspend (FeedbackSubmission) -> FeedbackJob = { sent += it; queued },
+        send: suspend (FeedbackSubmission, (Float?) -> Unit) -> FeedbackJob = { submission, _ -> sent += submission; queued },
     ): FeedbackViewModel {
         val dispatcher = StandardTestDispatcher(testScheduler)
         return FeedbackViewModel(
@@ -118,11 +119,12 @@ class FeedbackViewModelTest {
         assertFalse(vm.form.value!!.editable)
         vm.edit { it.copy(description = "ignored while sending") }
         vm.submit() // no double send
-        assertEquals("Sending your report…", vm.form.value!!.progressText)
+        // No media: the short text-only send already reads as filing (#634).
+        assertEquals(FeedbackBusyStatus.filing(FeedbackKind.Bug), vm.form.value!!.busyStatus)
         runCurrent()
         assertEquals(FeedbackPhase.Filing(queued), vm.form.value!!.phase)
         assertTrue(vm.form.value!!.busy)
-        assertEquals("Filing your report on GitHub…", vm.form.value!!.progressText)
+        assertEquals(FeedbackBusyStatus.filing(FeedbackKind.Bug), vm.form.value!!.busyStatus)
         advanceUntilIdle()
         // Filed: the form closes by itself and the result waits for Settings (issue #565).
         assertNull(vm.form.value)
@@ -147,7 +149,7 @@ class FeedbackViewModelTest {
     @Test
     fun failureKeepsInputAndShowsReadableError() = runTest {
         var attempt = 0
-        val vm = model(send = { if (attempt++ == 0) throw FeedbackException.forStatus(429) else throw IllegalStateException("boom") })
+        val vm = model(send = { _, _ -> if (attempt++ == 0) throw FeedbackException.forStatus(429) else throw IllegalStateException("boom") })
         vm.open(FeedbackKind.Bug)
         vm.fill()
         vm.submit()
@@ -164,7 +166,7 @@ class FeedbackViewModelTest {
     @Test
     fun discardWhileSendingCancels() = runTest {
         val gate = CompletableDeferred<FeedbackJob>()
-        val vm = model(send = { gate.await() })
+        val vm = model(send = { _, _ -> gate.await() })
         vm.open(FeedbackKind.Bug)
         vm.fill()
         vm.submit()
@@ -224,7 +226,7 @@ class FeedbackViewModelTest {
         assertTrue(vm.sent.value!!.message.contains("received"))
 
         // No ID means nothing to poll.
-        val bare = model(send = { FeedbackJob(null, FeedbackJobState.Queued) })
+        val bare = model(send = { _, _ -> FeedbackJob(null, FeedbackJobState.Queued) })
         bare.open(FeedbackKind.Bug)
         bare.fill()
         bare.submit()
@@ -299,5 +301,56 @@ class FeedbackViewModelTest {
         assertNull(vm.form.value!!.notice)
         vm.requestClose()
         assertNull(vm.form.value)
+    }
+
+    /** Issue #634: with media the busy view reads Uploading Media over a bar that follows the upload, then Filing. */
+    @Test
+    fun mediaUploadReportsProgressThenFiling() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        var report: ((Float?) -> Unit)? = null
+        val vm = model(send = { _, onProgress -> report = onProgress; gate.await(); queued })
+        vm.open(FeedbackKind.Feature)
+        vm.edit { it.copy(title = "[Feature] Themes", description = "More themes") }
+        vm.addAttachments(listOf(FeedbackAttachment("a", "a.png", "image/png", 10)))
+        assertNull(vm.form.value!!.busyStatus)
+        vm.submit()
+        assertEquals(FeedbackBusyStatus.uploading(0f), vm.form.value!!.busyStatus)
+        runCurrent()
+        report!!(0.456f)
+        assertEquals(0.45f, vm.form.value!!.uploadProgress!!, 0.0001f)
+        val status = vm.form.value!!.busyStatus!!
+        assertEquals(FeedbackBusyStatus.Step.Uploading, status.step)
+        assertEquals("Uploading Media", status.title)
+        assertTrue(status.showsBar)
+        assertNull(status.subtitle)
+        // Whole-percent steps: the same percent doesn't publish a new state.
+        val before = vm.form.value
+        report!!(0.459f)
+        assertTrue(before === vm.form.value)
+        // Unknown length: an indeterminate bar.
+        report!!(null)
+        assertNull(vm.form.value!!.busyStatus!!.progress)
+        assertTrue(vm.form.value!!.busyStatus!!.showsBar)
+        gate.complete(Unit)
+        runCurrent()
+        val filing = vm.form.value!!.busyStatus!!
+        assertEquals(FeedbackBusyStatus.Step.Filing, filing.step)
+        assertEquals("Filing Request", filing.title)
+        assertEquals("We\u2019re filing your request. Please wait while we upload it.", filing.subtitle)
+        assertFalse(filing.showsBar)
+        // A late write after the hand-off is ignored.
+        val filingState = vm.form.value
+        report!!(1f)
+        assertTrue(filingState === vm.form.value)
+        advanceUntilIdle()
+        assertNull(vm.form.value)
+    }
+
+    @Test
+    fun busyCopyNamesTheIssueOrRequest() {
+        assertEquals("Filing Issue", FeedbackBusyStatus.filing(FeedbackKind.Bug).title)
+        assertEquals("We\u2019re filing your issue. Please wait while we upload it.", FeedbackBusyStatus.filing(FeedbackKind.Bug).subtitle)
+        assertEquals("Sending your issue", FeedbackCopy.busyLabel(FeedbackKind.Bug))
+        assertEquals("Sending your request", FeedbackCopy.busyLabel(FeedbackKind.Feature))
     }
 }

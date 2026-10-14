@@ -69,6 +69,16 @@ class FeedbackFormJourneyTest {
 
     private fun waitForText(text: String) = rule.waitUntil(15_000) { rule.onAllNodesWithText(text, substring = true).fetchSemanticsNodes().isNotEmpty() }
 
+    /** The busy view (issue #634) reads header, spinner, title, sentence; none of the hidden fields. */
+    private fun assertBusyOrder(order: List<String>) {
+        val header = order.indexOfFirst { it.contains("Report an Issue") }
+        val spinner = order.indexOfFirst { it.contains("Sending your issue") }
+        val title = order.indexOfFirst { it.contains("Filing Issue") }
+        val sentence = order.indexOfFirst { it.contains("Please wait while we upload it.") }
+        assertTrue("reading order $order", header >= 0 && spinner > header && title > spinner && sentence > title)
+        assertTrue("reading order $order", order.none { it.contains("[Bug]") || it.contains("Opening Songs crashes.") || it.contains("Attach") })
+    }
+
     @Test
     fun bugReportStatesReadInOrderAndPassChecks() {
         val release = CountDownLatch(1)
@@ -97,8 +107,12 @@ class FeedbackFormJourneyTest {
 
         h.tap("fst.settings.feedback.submit")
         h.waitForTag("fst.settings.feedback.progress")
-        waitForText("Sending your report")
-        orderWith("feedback-sending", "Sending your report")
+        // Issue #634: the fields fade out to a centred busy view. No media, so it reads as filing:
+        // one named spinner, then the title (a heading), then the sentence; the fields are gone.
+        waitForText("Filing Issue")
+        val sending = orderWith("feedback-sending", "Filing Issue")
+        assertBusyOrder(sending)
+        h.assertAccessible()
         h.tap("fst.settings.feedback.close")
         h.waitForTag("fst.settings.feedback.discard.dialog")
         val discard = orderWith("feedback-discard", "Sending will stop")
@@ -107,8 +121,8 @@ class FeedbackFormJourneyTest {
         h.waitGone("fst.settings.feedback.discard.dialog")
 
         release.countDown()
-        waitForText("Filing your report on GitHub")
-        orderWith("feedback-filing", "Filing your report on GitHub")
+        rule.waitUntil(15_000) { polls.get() > 0 }
+        assertBusyOrder(orderWith("feedback-filing", "Filing Issue"))
         h.waitForTag("fst.settings.feedback.sent")
         // Issue #565: the form has closed by itself; the result alert alone reads title, message, Done.
         h.waitGone("fst.settings.feedback.dialog")
@@ -143,6 +157,38 @@ class FeedbackFormJourneyTest {
         h.tap("fst.settings.feedback.discard.confirm")
         h.waitGone("fst.settings.feedback.dialog")
         h.assertAccessible()
+    }
+
+    /**
+     * Issue #634 at 200% text: the busy view's title and sentence wrap inside the form, stay
+     * centred under the header and keep Close reachable; ATF checks the busy state.
+     */
+    @Test
+    fun busyViewWrapsCentredAtLargeText() {
+        val release = CountDownLatch(1)
+        transport.on("/api/feedback", status = 202) { release.await(15, TimeUnit.SECONDS); """{"id":"$jobId","status":"queued"}""" }
+        transport.on("/api/feedback/$jobId") { """{"id":"$jobId","status":"submitted","issueNumber":43,"attachments":[]}""" }
+        h.enableAccessibilityChecks()
+        openForm("bug", fontScale = { 2f })
+        type("title", "[Bug] Songs crash")
+        type("description", "Opening Songs crashes.")
+        h.tap("fst.settings.feedback.submit")
+        h.waitForTag("fst.settings.feedback.progress.subtitle")
+        rule.waitForIdle()
+        val region = rule.onNodeWithTag("fst.settings.feedback.progress").fetchSemanticsNode().boundsInRoot
+        val spinner = rule.onNodeWithTag("fst.settings.feedback.progress.spinner").fetchSemanticsNode().boundsInRoot
+        val sentence = rule.onNodeWithTag("fst.settings.feedback.progress.subtitle").fetchSemanticsNode().boundsInRoot
+        val header = rule.onNodeWithTag("fst.settings.feedback.close").fetchSemanticsNode().boundsInRoot
+        assertTrue("spinner $spinner centred in $region", kotlin.math.abs(spinner.center.x - region.center.x) <= 2f)
+        assertTrue("sentence $sentence wraps inside $region", sentence.left >= region.left && sentence.right <= region.right)
+        assertTrue("busy region $region under the header $header", region.top >= header.bottom - 1f)
+        assertBusyOrder(orderWith("feedback-sending-large-text", "Filing Issue"))
+        h.assertFullTouchTarget("fst.settings.feedback.close")
+        h.assertAccessible()
+        release.countDown()
+        h.waitForTag("fst.settings.feedback.sent")
+        h.tap("fst.settings.feedback.done")
+        h.waitGone("fst.settings.feedback.sent")
     }
 
     /**
