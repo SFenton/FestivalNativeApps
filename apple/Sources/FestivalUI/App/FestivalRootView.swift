@@ -1009,7 +1009,11 @@ private struct TabContentIdentifier: ViewModifier {
 
     func body(content: Content) -> some View {
         if isEnabled {
-            content.accessibilityIdentifier(id)
+            // A container first, so the identifier names the tab's content instead of
+            // replacing its first child container's (the floating `fst.page-tools` row).
+            content
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier(id)
         } else {
             content
         }

@@ -82,6 +82,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         let ids = ["fst.songs.sort", "fst.songs.filter"]
         let tools = app.descendants(matching: .any).matching(identifier: "fst.page-tools").firstMatch
         XCTAssertTrue(tools.waitForExistence(timeout: 15), "Floating page tools missing")
+        XCTAssertEqual(tools.label, "Page Tools")
         let controls = ids.map { tools.buttons[$0] }
         XCTAssertFalse(app.buttons["fst.songs.tools"].exists, "iPhone 17 Pro should not fold Sort and Filter")
         let bar = app.navigationBars.firstMatch
@@ -261,10 +262,11 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         XCTAssertEqual(profile.label, "Profile: Fixture Player 1")
         for (id, button) in [("bell", bell), ("profile", profile)] {
             XCTAssertTrue(button.isHittable, "\(id) not hittable")
-            XCTAssertGreaterThanOrEqual(button.frame.height, 44, "\(id) \(button.frame)")
+            XCTAssertGreaterThanOrEqual(button.frame.height, 30, "\(id) \(button.frame)")
         }
-        // Bar items' widths are proven by the near-miss taps and the `.hitRegion` audit
-        // below: the bar extends a glyph's hit region past its element.
+        // Both are system bar items whose elements are their glass item (36 pt, the
+        // monogram 30 pt); the bar extends each hit region past its element, so the 44 pt
+        // regions are proven by the near-miss taps and the `.hitRegion` audit below.
         XCTAssertFalse(bell.frame.intersects(profile.frame), "bell \(bell.frame) overlaps profile \(profile.frame)")
         SongsUITestSupport.record(app, name: "account-buttons-ax-xxxl")
         try assertAccountReadingOrder(in: app, profileLabel: "Profile: Fixture Player 1", expectsBell: true)

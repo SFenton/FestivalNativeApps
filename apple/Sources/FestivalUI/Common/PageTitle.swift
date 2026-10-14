@@ -47,11 +47,13 @@ extension View {
 ///
 /// Owner-approved iPhone variant (#632, `page-tools-and-nav-chrome`): header titles on
 /// tab roots and pushed pages, pinned song titles included, are leading-aligned beside
-/// the drawer button or Back chevron, like the web's `MobileHeader`. SwiftUI's
-/// `inlineLarge` title display mode is the public API for a leading title in the bar's
-/// row (HIG Toolbars, leading zone: "Back/Forward, Show/Hide Sidebar, view title"), as
-/// the Search tab already uses. Other chromes (iPad, the iPhone Duo, Mac) keep each
-/// page's own mode.
+/// the drawer button or Back chevron, like the web's `MobileHeader`. The public API is
+/// the editor toolbar role (`toolbarRole(.editor)`, UIKit's `UINavigationItem.style =
+/// .editor`) with an inline title, which lays the title out right after the leading
+/// items (HIG Toolbars, leading zone: "Back/Forward, Show/Hide Sidebar, view title").
+/// `inlineLarge` is not used: with a leading item it pushes the drawer into the `…`
+/// overflow or draws a large title below the bar on pushed pages. Other chromes (iPad,
+/// the iPhone Duo, Mac) keep each page's own mode.
 enum FestivalTitlePlacement: Equatable {
     /// The title sits leading in the bar's row (iPhone).
     case leading
@@ -80,8 +82,8 @@ enum FestivalTitlePlacement: Equatable {
 
 extension FestivalTitlePlacement {
     /// The toolbar placement for a page's own title view (a pinned song or instrument
-    /// title): the title slot, which follows the leading `inlineLarge` title on iPhone
-    /// from iOS 26 (earlier systems centre it), else the centred principal slot.
+    /// title): the title slot, which the editor toolbar role lays out leading on iPhone,
+    /// else the centred principal slot.
     var toolbarPlacement: ToolbarItemPlacement {
         #if os(iOS)
         switch self {
@@ -103,7 +105,9 @@ private struct FestivalTitleDisplayModeModifier: ViewModifier {
         #if os(iOS)
         switch FestivalTitlePlacement.resolve(floatsPageTools: pageTools != nil) {
         case .leading:
-            content.toolbarTitleDisplayMode(.inlineLarge)
+            content
+                .toolbarTitleDisplayMode(.inline)
+                .toolbarRole(.editor)
         case .standard:
             switch mode {
             case .automatic: content
