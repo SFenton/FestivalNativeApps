@@ -867,7 +867,7 @@
       "title": "Page tools and navigation chrome",
       "status": "current",
       "doc": ".agents/patterns/page-tools-and-nav-chrome.md",
-      "summary": "Native shell navigation owns destinations; page tools use Apple's registry-drawn floating Liquid Glass buttons above the iPhone tab bar with Notifications beside Profile in one header pill and leading titles (owner-approved, R28, #632; navigation-bar items on Duo, iPad and Mac), Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android, Windows and Apple Rival pages name the rival and the section in the bar (Windows: the page header; Apple: R18's in-list InstrumentPageTitle with a subtitle line, pinned title over subtitle once it scrolls away): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too. Apple system bar items (the iPhone Duo rail's board switchers, Choose Profile) keep their system metrics, and tests prove their 44 pt target by hit region, not by element frame (R27, agent decision #625).",
+      "summary": "Native shell navigation owns destinations; page tools use Apple's registry-drawn floating Liquid Glass buttons above every horizontal tab bar (iPhone, iPhone Duo inner portrait, compact iPad) with Notifications beside Profile in one header pill and leading titles (owner-approved, R28, #632; extended by agent decision #633: rail items on the Duo vertical bar, trailing bar items in the regular iPad sidebar shell, the Mac window toolbar with every toolbar item also a menu-bar command), Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android, Windows and Apple Rival pages name the rival and the section in the bar (Windows: the page header; Apple: R18's in-list InstrumentPageTitle with a subtitle line, pinned title over subtitle once it scrolls away): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too. Apple system bar items (the iPhone Duo rail's board switchers, Choose Profile) keep their system metrics, and tests prove their 44 pt target by hit region, not by element frame (R27, agent decision #625).",
       "keywords": [
         "navigation",
         "page tools",
@@ -972,6 +972,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift",
             "symbol": "GlobalSearchFieldPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Mac/MacCommands.swift",
+            "symbol": "MacCommands"
           },
           {
             "path": "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
@@ -1117,7 +1121,7 @@
           "glob": "apple/Sources/**/*.swift",
           "regex": "tabViewBottomAccessory",
           "allow": [],
-          "message": "iPhone page tools float as individual glass buttons drawn by FloatingPageToolsBar, not a tab-bar accessory (owner-approved, page-tools-and-nav-chrome R28, #632)."
+          "message": "Page tools float as individual glass buttons drawn by FloatingPageToolsBar wherever there is a horizontal tab bar, never a tab-bar accessory (owner-approved, page-tools-and-nav-chrome R28, #632, #633)."
         },
         {
           "id": "apple-title-display-mode",
