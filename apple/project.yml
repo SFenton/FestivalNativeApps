@@ -119,6 +119,10 @@ targets:
       - path: Apps/iOSUITests/ProfileAvatarPixels.swift
       # Issue #373 inline photo library and cross-app drop journeys.
       - path: Apps/iOSUITests/FeedbackMediaJourneyTests.swift
+      # Issue #444 Rival Detail during a publish freeze, at regular width (and the
+      # rendered-contrast helpers its audit handler measures with).
+      - path: Apps/iOSUITests/RivalDetailFrozenAccessibilityJourneyTests.swift
+      - path: Apps/iOSUITests/SongsUITestSupport.swift
       - path: Apps/iOSUITests/FeedbackUITestSupport.swift
       # Issue #565: a filed report closes its form, then the sent alert shows.
       - path: Apps/iOSUITests/FeedbackSentJourneyTests.swift
@@ -130,6 +134,8 @@ targets:
       - path: Apps/iOSUITests/RecognizedText.swift
       # Issue #473 board footer fade at AX5, run on iPad too.
       - path: Apps/iOSUITests/BoardFooterFadeJourneyTests.swift
+      # Issue #480: the split band and Close's 44 pt hit region, shared with the Duo journey.
+      - path: Apps/iOSUITests/SplitBandUITestSupport.swift
     dependencies:
       - target: FestivalMobile
     settings:

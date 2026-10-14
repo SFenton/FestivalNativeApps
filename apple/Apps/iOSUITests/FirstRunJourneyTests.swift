@@ -411,7 +411,7 @@ final class FirstRunJourneyTests: XCTestCase {
     /// UIKit caps the inline navigation title (`system-bar-title-size`): its ink measured
     /// 36 → 44 px ("Leaderboards") and 43 → 53 px ("Songs") on an iPhone 17 Pro, 1.22–1.23×.
     /// The floor fails a title drawn at a fixed size (1.0×) with room for a pixel of rounding.
-    static let guideTitleMinimumGrowth: CGFloat = 1.15
+    static let guideTitleMinimumGrowth: CGFloat = RecognizedText.minimumBarTitleGrowth
 
     /// Launch the fixture app at `contentSize` with the guide of `tab` forced open.
     ///
@@ -744,5 +744,204 @@ final class FirstRunJourneyTests: XCTestCase {
             return true
         }
         XCTAssertEqual(issues, [], "Open audit issues")
+    }
+
+    // MARK: - Real-control demos (issue #380, accessibility backfill #498)
+
+    /// The Songs guide without a player (shop highlighting on), in order: title and
+    /// description of each slide. Sort Songs and Navigation show #380's real controls (the
+    /// Songs Sort sheet and a system tab bar), the three Item Shop slides real Songs rows.
+    static let songsGuideSlides: [(title: String, description: String)] = [
+        ("Song List", "Browse and search the entire Festival library. Tap a song to see leaderboards and more details."),
+        ("Sort Songs", "Tap the sort button to reorder by default song data. Select a player profile to narrow it down even more."),
+        ("Navigation", "Use the bottom tabs to navigate the app. Select a player profile to see even more options."),
+        ("Item Shop Highlights", "Songs currently available in the Item Shop are highlighted with a pulsing glow so you can spot them at a glance."),
+        ("New in the Item Shop", "New songs in Festival that are in the item shop for the first time pulse gold, while regular shop songs keep the green highlight."),
+        ("Leaving Tomorrow", "Songs about to leave the Item Shop pulse red so you know which ones to grab before they're gone."),
+    ]
+
+    /// Issue #380 rebuilt the demos from the pages' real controls (the Sort sheet with its
+    /// toggles and Apply, a real tab bar with five tabs) and made Skip a borderless accent
+    /// button. At AX5, on every page of the Songs guide: the slide is one element named only by
+    /// its title and description; no button, toggle, tab, cell or text from its demo is
+    /// reachable; VoiceOver reads the slide, the page dots, Next (Done on the last page), then
+    /// Skip; Next, Done and Skip are named buttons with on-screen 44 pt targets; and Back from
+    /// page two on is a named button. The real-control pages and the last page pass the
+    /// system audit (clipped text, hit regions, descriptions, element detection, contrast)
+    /// with no issue accepted. HIG VoiceOver: "Exclude purely decorative images that convey no useful or
+    /// actionable information"; HIG Accessibility: 44×44 pt default control size. Hosted
+    /// counterpart: `FirstRunNativeDemosAccessibilityTests` (all 42 demos, Reduce Motion,
+    /// hard edges, Skip contrast).
+    @MainActor
+    func testSongsGuideRealControlDemosAccessibleAtLargestText() throws {
+        try assertSongsGuideAccessibleAtLargestText(duoWindow: nil)
+    }
+
+    /// ``testSongsGuideRealControlDemosAccessibleAtLargestText()`` in the simulated folded
+    /// iPhone Duo window (the narrow outer display's sheet).
+    @MainActor
+    func testSongsGuideRealControlDemosAccessibleAtLargestTextDuoFolded() throws {
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The Duo window is simulated on an iPhone")
+        try assertSongsGuideAccessibleAtLargestText(duoWindow: "folded")
+    }
+
+    /// Walk the Songs guide at AX5 with the checks of
+    /// ``testSongsGuideRealControlDemosAccessibleAtLargestText()``.
+    ///
+    /// - Parameter duoWindow: `DebugDuoWindow` to simulate, or nil for the device itself.
+    /// - Throws: An unreadable snapshot or a failed audit run.
+    @MainActor
+    private func assertSongsGuideAccessibleAtLargestText(duoWindow: String?) throws {
+        continueAfterFailure = false
+        XCUIDevice.shared.orientation = .portrait
+        var environment = [
+            "FST_API_BASE_URL": ProcessInfo.processInfo.environment["FST_FIRST_RUN_FIXTURE_URL"]
+                ?? "http://127.0.0.1:8765",
+            "FST_UI_TEST_CLEAR_PROFILE": "1",
+            "FST_DEBUG_FIRST_RUN": "force",
+        ]
+        if let duoWindow {
+            environment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
+            environment["FST_DEBUG_DUO_WINDOW"] = duoWindow
+        }
+        let app = FestivalApp.makeApp(environment)
+        app.launchArguments += [
+            "-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue,
+        ]
+        app.launch()
+        let form = duoWindow.map { "duo-\($0)" } ?? "device"
+        if let duoWindow {
+            let marker = app.staticTexts["fst.shell.debug.duo-window"]
+            XCTAssertTrue(marker.waitForExistence(timeout: FestivalApp.budget(20)), "Duo window marker")
+            XCTAssertTrue(marker.label.hasPrefix("\(duoWindow) "), "simulated \(duoWindow) window: '\(marker.label)'")
+        }
+
+        let slides = Self.songsGuideSlides
+        for (index, expected) in slides.enumerated() {
+            let page = index + 1
+            let last = page == slides.count
+            let slide = slide(app, titled: expected.title)
+            XCTAssertTrue(slide.waitForExistence(timeout: FestivalApp.budget(20)), "'\(expected.title)' slide (\(form))")
+            waitForPage(app, "\(page) of \(slides.count)")
+            // Past the entrance cascade and the title and description fade.
+            Thread.sleep(forTimeInterval: FestivalApp.budget(1.5))
+            XCTAssertEqual(slide.label, "\(expected.title). \(expected.description)",
+                           "page \(page) reads its title and description only (\(form))")
+            try assertGuidePageAccessible(app, slide: slide, page: page, last: last, form: form)
+            if [2, 3, slides.count].contains(page) {
+                SongsUITestSupport.record(app, name: "first-run-songs-\(page)-ax5-\(form)")
+                try auditGuidePage(app, title: expected.title, form: form)
+            }
+            if !last {
+                app.buttons["fst.first-run.next"].tap()
+            }
+        }
+        app.buttons["fst.first-run.done"].tap()
+        // Not `assertCarouselClosed`: the large catalogue's AX5 list doesn't reach `fixture-pulse`.
+        let gone = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"), object: app.buttons["fst.first-run.close"]
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [gone], timeout: FestivalApp.budget(10)), .completed, "Done closes the guide (\(form))")
+        let songRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH 'fst.songs.row.'")).firstMatch
+        XCTAssertTrue(songRow.waitForExistence(timeout: FestivalApp.budget(15)), "Songs shows after Done (\(form))")
+    }
+
+    /// One guide page's AX5 checks: no demo element is reachable, reading order, named
+    /// 44 pt actions and Back.
+    ///
+    /// - Parameters:
+    ///   - app: The running app showing the page.
+    ///   - slide: The page's slide element.
+    ///   - page: One-based page number.
+    ///   - last: Whether this is the last page (Done, no Skip).
+    ///   - form: Device form, for messages.
+    /// - Throws: An unreadable snapshot.
+    @MainActor
+    private func assertGuidePageAccessible(
+        _ app: XCUIApplication, slide: XCUIElement, page: Int, last: Bool, form: String
+    ) throws {
+        let all = Self.flatten(try app.snapshot())
+        let slideFrame = slide.frame
+        let window = app.windows.firstMatch.frame
+        func name(_ node: XCUIElementSnapshot) -> String {
+            node.identifier.isEmpty ? node.label : node.identifier
+        }
+        let bars = all.filter { $0.node.elementType == .navigationBar }.map(\.path)
+        let slidePath = all.first { $0.node.label == slide.label }?.path
+        // Anything VoiceOver could stop on inside the slide's on-screen area, other than the
+        // slide itself and the guide's own chrome, belongs to the demo. The paged carousel's
+        // unnamed cell around the slide is a container, not a stop.
+        let readableTypes: Set<XCUIElement.ElementType> = [
+            .button, .switch, .toggle, .tab, .tabBar, .cell, .staticText, .image, .link, .slider,
+            .segmentedControl, .menuButton, .popUpButton, .searchField, .textField, .picker, .stepper,
+        ]
+        let visibleSlide = slideFrame.intersection(window)
+        let leaks = all.filter { entry in
+            let node = entry.node
+            guard readableTypes.contains(node.elementType), node.frame.intersects(visibleSlide),
+                  !node.identifier.hasPrefix("fst.first-run."), node.label != "Sheet Grabber",
+                  entry.path != slidePath,
+                  !(node.label.isEmpty && node.identifier.isEmpty && slidePath.map { $0.starts(with: entry.path) } == true),
+                  !bars.contains(where: { entry.path.starts(with: $0) }) else { return false }
+            return true
+        }.map { "\($0.node.elementType.rawValue) '\($0.node.label)' #\($0.node.identifier) \($0.node.frame)" }
+        XCTAssertEqual(leaks, [], "page \(page): the demo's controls reach VoiceOver (\(form))")
+
+        // Reading order: slide, dots, Next or Done, then Skip while pages remain.
+        let action = last ? "fst.first-run.done" : "fst.first-run.next"
+        let order = all.map { name($0.node) }
+        let slideIndex = try XCTUnwrap(all.firstIndex { $0.path == slidePath }, "slide in the snapshot (\(form))")
+        let dotsIndex = try XCTUnwrap(order.firstIndex(of: "fst.first-run.dots"), "dots (\(form))")
+        let actionIndex = try XCTUnwrap(order.firstIndex(of: action), "\(action) (\(form))")
+        XCTAssertLessThan(slideIndex, dotsIndex, "page \(page): the slide reads before the dots (\(form))")
+        XCTAssertLessThan(dotsIndex, actionIndex, "page \(page): the dots read before \(action) (\(form))")
+        let skip = app.buttons["fst.first-run.skip"]
+        if last {
+            XCTAssertFalse(skip.exists, "the last page offers no Skip (\(form))")
+        } else {
+            let skipIndex = try XCTUnwrap(order.firstIndex(of: "fst.first-run.skip"), "Skip (\(form))")
+            XCTAssertLessThan(actionIndex, skipIndex, "page \(page): Next reads before Skip (\(form))")
+        }
+
+        // Named buttons with 44 pt on-screen targets (the sheet draws about 0.96× scaled).
+        var controls = [(app.buttons[action], last ? "Done" : "Next")]
+        if !last { controls.append((skip, "Skip")) }
+        for (control, label) in controls {
+            XCTAssertEqual(control.label, label, "page \(page) \(control.identifier) (\(form))")
+            XCTAssertEqual(control.elementType, .button, "page \(page): \(label) is a button (\(form))")
+            XCTAssertGreaterThanOrEqual(control.frame.height, 44 * 0.96, "page \(page) \(label) \(control.frame) (\(form))")
+            XCTAssertTrue(window.contains(control.frame), "page \(page) \(label) on screen: \(control.frame) (\(form))")
+            XCTAssertTrue(control.isHittable, "page \(page) \(label) hittable (\(form))")
+        }
+        let back = app.buttons["fst.first-run.back"]
+        if page == 1 {
+            XCTAssertFalse(back.exists, "no Back on the first page (\(form))")
+        } else {
+            XCTAssertEqual(back.label, "Back", "page \(page) Back (\(form))")
+            XCTAssertTrue(back.isHittable, "page \(page) Back hittable (\(form))")
+        }
+    }
+
+    /// Audit one guide page at AX5: clipped text, hit regions, descriptions, element detection
+    /// and contrast (Skip's borderless accent text, Next, Done), with no issue accepted.
+    ///
+    /// - Parameters:
+    ///   - app: The running app showing the page.
+    ///   - title: The page's slide title.
+    ///   - form: Device form, for messages.
+    /// - Throws: A failed audit run.
+    @MainActor
+    private func auditGuidePage(_ app: XCUIApplication, title: String, form: String) throws {
+        var issues: [String] = []
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            app, [.textClipped, .hitRegion, .sufficientElementDescription, .elementDetection, .contrast],
+            name: "\(title) guide page (\(form))", reset: { issues = [] }
+        ) { issue in
+            let element = issue.element
+            issues.append("\(issue.auditType.rawValue) \(issue.compactDescription): #\(element?.identifier ?? "") '\(element?.label ?? "")' \(element?.frame ?? .zero)")
+            return true
+        }
+        XCTAssertEqual(issues, [], "Open audit issues on '\(title)' (\(form))")
     }
 }

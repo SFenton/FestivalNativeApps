@@ -288,7 +288,12 @@ private fun SongDetailGate(
     val historyFlow = remember(song, extras.selectedAccountId) { extras.selectedAccountId?.let { viewModel.history(song, it) } }
     val history: State<LoadState<PlayerHistoryPayload>>? = historyFlow?.collectAsStateWithLifecycle()
     val ready = SongDetailLayout.ready((previews + bands).map { it.value == LoadState.Loading }, history?.let { it.value == LoadState.Loading })
-    FestivalLoadGate(ready, Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()), label = "Loading song") {
+    FestivalLoadGate(
+        ready,
+        Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
+        label = "Loading song",
+        spinnerPadding = PaddingValues(bottom = padding.calculateBottomPadding()),
+    ) {
         SongDetailContent(
             SongDetailPage(song, extras, artUrl, charts, previews.map { it.value }, bands.map { it.value }, history?.value, SongDetailLayout.focus(focus, charts)),
             viewModel, PaddingValues(bottom = padding.calculateBottomPadding()), onOpenPaths, embedded, listState, revealed, onPlan,

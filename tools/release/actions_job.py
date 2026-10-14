@@ -7,6 +7,8 @@ the release orchestrator dispatches ``store-release.yml`` and reads the
 
     actions_job.py --platform windows --command status --out result.json
     actions_job.py --platform windows --command submit --build 0.1.912.0 --notes-b64 <b64> --out result.json
+    actions_job.py --platform ios --command submit --version 2610.15.02 --replace --out result.json
+    actions_job.py --platform ios --command release --version 2610.15.02 --out result.json
 
 ``result.json`` is ``{platform, command, exit_code, output, sha}`` where
 ``output`` is the JSON document printed by ``fst_release.py`` (exit codes as
@@ -16,8 +18,15 @@ there). Policy enforced here, independent of the orchestrator:
   ``blocked: app_store_review_disabled`` unless
   ``FST_APPSTORE_REVIEW_ENABLED=true`` (repository variable). Approved versions
   wait for a manual release unless ``FST_APPSTORE_RELEASE_TYPE=AFTER_APPROVAL``.
-- Windows ``submit`` always uses Manual publish mode: certification only, never
-  a release.
+- Windows ``submit`` uses Manual publish mode (certification only, never a
+  release) unless ``--publish-at`` schedules publication (the release train's
+  Monday release; the Store API has no "Publish now").
+- ``--version YYMM.DD.NN`` (release train) submits that version's build: iOS
+  resolves the newest VALID build of it first (``build-for-version``), Windows
+  finds its MSIX artifact. ``--replace`` removes a submission still in review
+  (or approved, unreleased) before submitting.
+- ``release`` releases the approved iOS version (``--version`` must match) and
+  reports whether the Windows submission is published or scheduled.
 - iOS ``submit`` reads the build's ``fst-ios-build_<build>`` marker artifact: its
   generated ``store_notes`` replace the orchestrator's notes, and its
   ``whats_new_baseline`` must still be the newest released version. Otherwise the
@@ -48,6 +57,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fst_release  # noqa: E402
 
 BUILD_RE = re.compile(r"^[0-9][0-9.]{0,31}$")
+VERSION_RE = re.compile(r"^\d{4}\.\d{2}\.\d{2}$")
+PUBLISH_AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 NOTES_LIMIT = 8000
 QUIET_EXITS = (fst_release.EXIT_OK, fst_release.EXIT_REFUSED, fst_release.EXIT_BLOCKED)
 
@@ -68,18 +79,43 @@ UNSET = object()
 
 
 def tool_argv(platform: str, command: str, build: Optional[str], dry_run: bool,
-              baseline: Any = UNSET) -> List[str]:
+              baseline: Any = UNSET, replace: bool = False, publish_at: Optional[str] = None,
+              version: Optional[str] = None) -> List[str]:
     """Build the ``fst_release.py`` arguments for one job (``baseline`` None = no release yet)."""
     if command == "status":
         return [platform, "status", "--json"]
+    if version and not VERSION_RE.match(version):
+        raise ValueError("--version must be YYMM.DD.NN")
+    if command == "release":
+        argv = [platform, "release"] + (["--version", version] if version else [])
+        return argv + (["--dry-run"] if dry_run else [])
     if not build or not BUILD_RE.match(build):
         raise ValueError("submit needs a numeric --build")
     argv = [platform, "submit", "--build", build, "--notes-stdin"]
     if baseline is not UNSET:
         argv += ["--whats-new-baseline", baseline or "none"]
+    if replace:
+        argv.append("--replace")
+    if publish_at:
+        if platform != "windows" or not PUBLISH_AT_RE.match(publish_at):
+            raise ValueError("--publish-at is a Windows YYYY-MM-DDTHH:MM:SSZ time")
+        argv += ["--publish-at", publish_at]
     if dry_run:
         argv.append("--dry-run")
     return argv
+
+
+def call_tool(main: Any, argv: List[str], env: Dict[str, str], notes: str = "") -> Any:
+    """Run ``fst_release.main`` in-process; returns ``(exit code, last JSON document)``."""
+    out = io.StringIO()
+    with redirect_stdout(out):
+        code = (main or fst_release.main)(argv, env=env, stdin=io.StringIO(notes))
+    text = out.getvalue().strip()
+    try:
+        output: Any = json.loads(text.splitlines()[-1]) if text else None
+    except ValueError:
+        output = {"error": "non-JSON output", "text": text[-500:]}
+    return code, output
 
 
 def default_marker(platform: str, build: str, env: Dict[str, str]) -> Optional[Dict[str, Any]]:
@@ -118,13 +154,26 @@ def dispatch_rebuild(platform: str, marker: Dict[str, Any], runner: Any = None) 
 
 def run_job(platform: str, command: str, build: Optional[str], notes: str, dry_run: bool,
             env: Dict[str, str], main: Any = None, marker_lookup: Any = None,
-            runner: Any = None) -> Dict[str, Any]:
+            runner: Any = None, version: Optional[str] = None, replace: bool = False,
+            publish_at: Optional[str] = None) -> Dict[str, Any]:
     """Apply policy, run the release tool in-process and return the result document."""
     result: Dict[str, Any] = {"platform": platform, "command": command, "build": build,
                               "sha": env.get("GITHUB_SHA"), "dry_run": dry_run}
+    if version:
+        result["version"] = version
     if command == "submit" and platform == "ios" and env.get("FST_APPSTORE_REVIEW_ENABLED") != "true":
         result.update(exit_code=fst_release.EXIT_BLOCKED, output={"blocked": "app_store_review_disabled"})
         return result
+    if command == "submit" and version and not build:
+        if not VERSION_RE.match(version):
+            raise ValueError("--version must be YYMM.DD.NN")
+        code, found = call_tool(main, [platform, "build-for-version", "--version", version], env)
+        if code != fst_release.EXIT_OK or not isinstance(found, dict) or not found.get("build"):
+            result.update(exit_code=fst_release.EXIT_REFUSED if code == fst_release.EXIT_REFUSED else code,
+                          output={"refused": "build_not_found", "version": version, "lookup": found})
+            return result
+        build = str(found["build"])
+        result["build"] = build
     baseline: Any = UNSET
     marker: Optional[Dict[str, Any]] = None
     if command == "submit" and platform in REBUILD_WORKFLOW and build and BUILD_RE.match(build):
@@ -137,15 +186,8 @@ def run_job(platform: str, command: str, build: Optional[str], notes: str, dry_r
                 # The build's generated notes are authoritative, even when empty (nothing user-facing:
                 # the store client refuses with no_user_facing_changes instead of shipping generic text).
                 notes = str(marker.get("store_notes") or "")
-    argv = tool_argv(platform, command, build, dry_run, baseline)
-    out = io.StringIO()
-    with redirect_stdout(out):
-        code = (main or fst_release.main)(argv, env=env, stdin=io.StringIO(notes))
-    text = out.getvalue().strip()
-    try:
-        output: Any = json.loads(text.splitlines()[-1]) if text else None
-    except ValueError:
-        output = {"error": "non-JSON output", "text": text[-500:]}
+    argv = tool_argv(platform, command, build, dry_run, baseline, replace, publish_at, version)
+    code, output = call_tool(main, argv, env, notes)
     result.update(exit_code=code, output=output)
     if marker and isinstance(output, dict) and output.get("refused") == "stale_whats_new" and not dry_run:
         result["rebuild"] = dispatch_rebuild(platform, marker, runner)
@@ -163,8 +205,11 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None)
     """Run one store job and write ``--out``."""
     parser = argparse.ArgumentParser(prog="actions_job.py", description=__doc__.split("\n")[0])
     parser.add_argument("--platform", choices=["ios", "windows"], required=True)
-    parser.add_argument("--command", choices=["status", "submit"], required=True)
+    parser.add_argument("--command", choices=["status", "submit", "release"], required=True)
     parser.add_argument("--build")
+    parser.add_argument("--version", help="release version YYMM.DD.NN (submit: its build; release: must match)")
+    parser.add_argument("--replace", action="store_true", help="submit: replace a submission still in review")
+    parser.add_argument("--publish-at", help="Windows submit: publish at this UTC time once certified")
     parser.add_argument("--notes-b64", default="")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--out", required=True)
@@ -172,7 +217,8 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None)
     env = dict(os.environ) if env is None else env
     try:
         result = run_job(args.platform, args.command, args.build, decode_notes(args.notes_b64),
-                         args.dry_run, env)
+                         args.dry_run, env, version=args.version, replace=args.replace,
+                         publish_at=args.publish_at)
     except ValueError as err:
         result = {"platform": args.platform, "command": args.command, "build": args.build,
                   "sha": env.get("GITHUB_SHA"), "dry_run": args.dry_run,

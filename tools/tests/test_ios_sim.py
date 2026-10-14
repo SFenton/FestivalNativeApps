@@ -12,7 +12,10 @@ import unittest as _unittest
 if _sys.platform == "win32":  # Apple tooling imports the POSIX-only fcntl module.
     raise _unittest.SkipTest("Apple simulator tooling runs only on macOS")
 
+import contextlib
+import io
 import unittest
+import unittest.mock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -238,6 +241,34 @@ class FailOnSkipTests(unittest.TestCase):
         self.assertIsNotNone(skip_problem(None))
 
 
+class UitestDiagnosticsTests(unittest.TestCase):
+    """``uitest --no-test-diagnostics`` tells xcodebuild not to collect failure diagnostics."""
+
+    def run_batch(self, **kwargs):
+        with TemporaryDirectory() as tmp, \
+                unittest.mock.patch.object(ios_sim, "LOCK_PATH", Path(tmp) / "sim.lock"), \
+                unittest.mock.patch.dict(ios_sim.os.environ, {"DEVCAP_DIR": tmp, "DEVCAP_HUB": "off",
+                                                            "DEVCAP_REAP_GRACE": "off"}), \
+                unittest.mock.patch.object(ios_sim, "_run") as run, \
+                unittest.mock.patch.object(ios_sim, "boot_exclusive"), \
+                unittest.mock.patch.object(ios_sim, "run_bounded", return_value=0) as xcodebuild:
+            run.return_value = ios_sim.subprocess.CompletedProcess([], 0, stdout="", stderr="")
+            ios_sim._run_uitest_batch(
+                udid="UDID", derived=Path(tmp), selectors=["Journey"], timeout=5, **kwargs
+            )
+        # The last subprocess call can be devcap's simulator sweep; return the xcodebuild run.
+        return next(c.args[0] for c in reversed(xcodebuild.call_args_list) if "xcodebuild" in c.args[0])
+
+    def test_collects_diagnostics_by_default(self):
+        self.assertNotIn("-collect-test-diagnostics", self.run_batch())
+
+    def test_skips_diagnostics_when_asked(self):
+        cmd = self.run_batch(diagnostics=False)
+        index = cmd.index("-collect-test-diagnostics")
+        self.assertEqual(cmd[index + 1], "never")
+        self.assertLess(index, cmd.index("test-without-building"))
+
+
 class RetryBatchTests(unittest.TestCase):
     """`uitest --retries` reruns only a batch whose test failed, at most N more times."""
 
@@ -251,6 +282,201 @@ class RetryBatchTests(unittest.TestCase):
     def test_success_timeout_and_setup_errors_never_retry(self):
         for code in (0, 124, 70, 1, ios_sim.EXIT_POSE_MISMATCH):
             self.assertFalse(should_retry_batch(code, 0, 3), code)
+
+
+class ResultSummaryReadTests(unittest.TestCase):
+    """One slow or failed ``xcresulttool`` read does not fail a green batch (#620)."""
+
+    @staticmethod
+    def _completed(stdout: str):
+        import subprocess
+
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout=stdout, stderr="")
+
+    def test_a_timed_out_read_is_retried(self):
+        import subprocess
+        from unittest import mock
+
+        reads = [
+            subprocess.TimeoutExpired(cmd="xcresulttool", timeout=1),
+            self._completed('{"passedTests": 1, "skippedTests": 0, "failedTests": 0}'),
+        ]
+        with mock.patch.object(ios_sim.subprocess, "run", side_effect=reads) as run, \
+                mock.patch.object(ios_sim.time, "sleep"):
+            summary = ios_sim._result_summary(Path("/tmp/x.xcresult"))
+        self.assertEqual(run.call_count, 2)
+        self.assertIsNone(skip_problem(summary))
+        self.assertEqual(ios_sim._result_counts(summary), ": 1 passed, 0 skipped, 0 failed")
+
+    def test_an_unreadable_bundle_still_fails_after_every_attempt(self):
+        import subprocess
+        from unittest import mock
+
+        error = subprocess.CalledProcessError(returncode=1, cmd="xcresulttool")
+        with mock.patch.object(ios_sim.subprocess, "run", side_effect=error) as run, \
+                mock.patch.object(ios_sim.time, "sleep"):
+            summary = ios_sim._result_summary(Path("/tmp/x.xcresult"), attempts=3)
+        self.assertEqual(run.call_count, 3)
+        self.assertIsNone(summary)
+        self.assertEqual(skip_problem(summary), "no readable result summary")
+        self.assertEqual(ios_sim._result_counts(summary), "")
+
+    def test_a_non_object_summary_is_retried(self):
+        from unittest import mock
+
+        reads = [self._completed("[]"), self._completed('{"passedTests": 0, "skippedTests": 2}')]
+        with mock.patch.object(ios_sim.subprocess, "run", side_effect=reads), \
+                mock.patch.object(ios_sim.time, "sleep"):
+            summary = ios_sim._result_summary(Path("/tmp/x.xcresult"))
+        self.assertIn("skipped", skip_problem(summary))
+
+
+class TerminateAppTests(unittest.TestCase):
+    """Stopping the app after a timed-out batch never hangs the harness (#620)."""
+
+    def test_a_hung_terminate_gives_up_after_its_timeout(self):
+        from unittest import mock
+
+        with mock.patch.object(ios_sim, "run_bounded", return_value=None) as run, \
+                contextlib.redirect_stderr(io.StringIO()):
+            self.assertFalse(ios_sim.terminate_app("UDID"))
+        self.assertEqual(run.call_args.args[1], ios_sim.TERMINATE_TIMEOUT)
+        self.assertIn("terminate", run.call_args.args[0])
+
+    def test_a_terminate_that_returns_succeeds_whatever_its_status(self):
+        from unittest import mock
+
+        with mock.patch.object(ios_sim, "run_bounded", return_value=3):
+            self.assertTrue(ios_sim.terminate_app("UDID", timeout=5))
+
+
+class RunBoundedTests(unittest.TestCase):
+    """`run_bounded` never waits on a child past its limit (#620: a 2400 s batch ran 78 minutes)."""
+
+    def _run(self, script: str, timeout: float, **kwargs):
+        import sys
+        import time
+
+        start = time.monotonic()
+        with contextlib.redirect_stderr(io.StringIO()):
+            code = ios_sim.run_bounded([sys.executable, "-c", script], timeout, poll=0.1, env=None, **kwargs)
+        return code, time.monotonic() - start
+
+    def test_a_finished_run_returns_its_status(self):
+        self.assertEqual(self._run("raise SystemExit(65)", 10)[0], 65)
+
+    def test_a_run_past_its_timeout_is_killed_with_its_children(self):
+        script = "import subprocess, sys, time; subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)']); time.sleep(60)"
+        code, elapsed = self._run(script, 0.5)
+        self.assertIsNone(code)
+        self.assertLess(elapsed, 10)
+
+    def test_the_missing_destination_error_stops_a_hung_run(self):
+        with TemporaryDirectory() as tmp:
+            log = Path(tmp) / "log.txt"
+            with open(log, "w") as out:
+                script = f"print({ios_sim.NO_DESTINATION_SIGNATURE!r}, flush=True); import time; time.sleep(60)"
+                code, elapsed = self._run(script, 30, watch=log, stop_on=ios_sim.NO_DESTINATION_SIGNATURE,
+                                          stdout=out, stderr=ios_sim.subprocess.STDOUT)
+        self.assertEqual(code, ios_sim.EXIT_NO_DESTINATION)
+        self.assertLess(elapsed, 10)
+        self.assertEqual(ios_sim.simulator_wedged(ios_sim.NO_DESTINATION_SIGNATURE), ios_sim.NO_DESTINATION_SIGNATURE)
+
+
+class RebootWedgedTests(unittest.TestCase):
+    """`uitest --reboot-wedged` reboots a hung simulator and reruns that batch once (#620)."""
+
+    RUNNER = ("FestivalMobileUITests-Runner (89034) encountered an error (The test runner failed to initialize "
+              "for UI testing. (Underlying Error: Timed out waiting for AX loaded notification))")
+
+    def test_a_runner_that_failed_to_start_is_a_hang(self):
+        self.assertEqual(ios_sim.simulator_wedged(f"Testing failed:\n\t{self.RUNNER}\n"),
+                         "The test runner failed to initialize for UI testing")
+
+    def test_a_test_failure_is_not_a_hang(self):
+        self.assertIsNone(ios_sim.simulator_wedged("XCTAssertTrue failed - No player footer\n** TEST FAILED **"))
+        self.assertIsNone(ios_sim.simulator_wedged('caught error: "Audit failed to complete in time"'))
+
+    def test_a_batch_killed_at_its_timeout_is_a_hang(self):
+        self.assertEqual(ios_sim.simulator_wedged("\n\nTIMEOUT after 2400.0s; killed.\n"), ios_sim.TIMED_OUT)
+        started = ("Writing result bundle at path:\n\t/tmp/r.xcresult\n"
+                   "\nTIMEOUT after 2400.0s; killed.\n")
+        self.assertEqual(ios_sim.simulator_wedged(started), ios_sim.TIMED_OUT)
+        self.assertIsNone(ios_sim.simulator_wedged(""))
+
+    def test_a_second_timeout_fails_the_batch(self):
+        timeout = "\nTIMEOUT after 10s; killed.\n"
+        code, runs, locks = self._run([timeout, timeout], [124, 124])
+        self.assertEqual((code, runs, len(locks)), (124, 2, 1))
+
+    def test_a_timed_out_batch_reboots_the_simulator_and_reruns(self):
+        code, runs, locks = self._run(["\nTIMEOUT after 10s; killed.\n", "ok"], [124, 0])
+        self.assertEqual((code, runs), (0, 2))
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._shutdown_simulator)])
+
+    def test_the_reboot_never_waits_on_a_stuck_shutdown(self):
+        from unittest import mock
+
+        with mock.patch.object(ios_sim, "run_bounded", return_value=None) as bounded, \
+                contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(ios_sim._shutdown_simulator("UDID"), 0)
+        self.assertEqual(bounded.call_args.args, (["xcrun", "simctl", "shutdown", "UDID"], ios_sim.SHUTDOWN_TIMEOUT))
+
+    def _run(self, logs: list[str], codes: list[int], *, reboot: bool = True):
+        """Run `cmd_uitest` over one batch whose attempts log `logs` and exit with `codes`."""
+        import argparse
+        from unittest import mock
+
+        with TemporaryDirectory() as tmp:
+            attempts = []
+            for index, (log, code) in enumerate(zip(logs, codes)):
+                path = Path(tmp) / f"log{index}.txt"
+                path.write_text(log)
+                attempts.append((code, 1.0, path, Path(tmp) / f"r{index}.xcresult"))
+            args = argparse.Namespace(
+                only=["SongsChromeJourneyTests/testA"], device="UDID", rebuild=False, batch_size=1, timeout=10,
+                retries=0, reboot_wedged=reboot, fail_on_skip=False,
+            )
+            with mock.patch.object(ios_sim, "scripting_preflight", return_value=0), \
+                    mock.patch.object(ios_sim, "resolve_device", return_value="UDID"), \
+                    mock.patch.object(ios_sim, "driver_derived_data", return_value=Path(tmp)), \
+                    mock.patch.object(ios_sim, "source_hash", return_value="h"), \
+                    mock.patch.object(ios_sim, "driver_build_stale", return_value=False), \
+                    mock.patch.object(ios_sim, "_result_summary", return_value={"passedTests": 1}), \
+                    mock.patch.object(ios_sim, "_run_uitest_batch", side_effect=attempts) as batch, \
+                    mock.patch.object(ios_sim, "_with_sim_lock", return_value=0) as lock, \
+                    contextlib.redirect_stderr(io.StringIO()):
+                code = ios_sim.cmd_uitest(args)
+        return code, batch.call_count, lock.call_args_list
+
+    def test_a_hung_runner_reboots_the_simulator_and_reruns_the_batch(self):
+        code, runs, locks = self._run([self.RUNNER, "ok"], [65, 0])
+        self.assertEqual((code, runs), (0, 2))
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._shutdown_simulator)])
+
+    def test_a_second_hang_fails_the_batch(self):
+        code, runs, locks = self._run([self.RUNNER, self.RUNNER], [65, 65])
+        self.assertEqual((code, runs, len(locks)), (65, 2, 1))
+
+    def test_an_ordinary_failure_is_not_rerun(self):
+        code, runs, locks = self._run(["XCTAssertTrue failed"], [65])
+        self.assertEqual((code, runs, locks), (65, 1, []))
+
+    def test_the_ci_environment_turns_the_flag_on(self):
+        from unittest import mock
+
+        for value, expected in (("1", True), (None, False)):
+            env = {k: v for k, v in ios_sim.os.environ.items() if k != "FST_UITEST_REBOOT_WEDGED"}
+            if value:
+                env["FST_UITEST_REBOOT_WEDGED"] = value
+            with mock.patch.dict(ios_sim.os.environ, env, clear=True), \
+                    mock.patch.object(ios_sim, "cmd_uitest", return_value=0) as run:
+                ios_sim.main(["uitest", "--device", "iphone27", "--only", "A/b"])
+            self.assertIs(run.call_args.args[0].reboot_wedged, expected)
+
+    def test_without_the_flag_a_hang_fails_the_batch(self):
+        code, runs, locks = self._run([self.RUNNER], [65], reboot=False)
+        self.assertEqual((code, runs, locks), (65, 1, []))
 
 
 class SourceHashTests(unittest.TestCase):
@@ -357,12 +583,66 @@ class DuoPoseTests(unittest.TestCase):
         self.assertEqual(classify_pose(outer_dark=True, inner_dark=True), "unknown")
         self.assertEqual(classify_pose(outer_dark=False, inner_dark=False), "unknown")
 
+    def test_panel_screenshot_retries_a_failed_or_stalled_attempt(self):
+        """A fresh boot's first screenshot can fail or stall (apple-ci run 37913520235)."""
+        import subprocess
+        import tempfile
+        from pathlib import Path
+        from types import SimpleNamespace
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "outer.bmp"
+            outcomes = [subprocess.TimeoutExpired("simctl", 120), SimpleNamespace(returncode=1, stderr=b"no display")]
+
+            def fake_run(command, **_):
+                if outcomes:
+                    outcome = outcomes.pop(0)
+                    if isinstance(outcome, Exception):
+                        raise outcome
+                    return outcome
+                path.write_bytes(_bmp([(255, 255, 255)]))
+                return SimpleNamespace(returncode=0, stderr=b"")
+
+            with mock.patch.object(ios_sim, "_run", side_effect=fake_run) as run, \
+                    mock.patch.object(ios_sim.time, "sleep") as sleep, \
+                    mock.patch("sys.stderr"):
+                self.assertTrue(ios_sim.screenshot_panel("UDID", "primary", path, attempts=3, timeout=120))
+            self.assertEqual(run.call_count, 3)
+            self.assertEqual(sleep.call_count, 2)
+
+            outcomes[:] = [SimpleNamespace(returncode=1, stderr=b"no display")] * 3
+            path.unlink()
+            with mock.patch.object(ios_sim, "_run", side_effect=lambda *_, **__: outcomes.pop(0)), \
+                    mock.patch.object(ios_sim.time, "sleep"), mock.patch("sys.stderr"):
+                self.assertFalse(ios_sim.screenshot_panel("UDID", "primary", path, attempts=3, timeout=120))
+
+    def test_require_pose_redetects_an_unknown_pose_after_boot(self):
+        """A just-booted Duo may light neither panel yet; unknown is re-checked, a definite pose is not."""
+        from unittest import mock
+
+        with mock.patch.object(ios_sim, "detect_pose", side_effect=["unknown", "unknown", "folded"]) as detect, \
+                mock.patch.object(ios_sim.time, "sleep") as sleep, mock.patch("sys.stderr"):
+            self.assertIsNone(ios_sim.require_pose("UDID", "folded"))
+        self.assertEqual(detect.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+
+        with mock.patch.object(ios_sim, "detect_pose", return_value="unfolded") as detect, \
+                mock.patch.object(ios_sim.time, "sleep"), mock.patch("sys.stderr"):
+            self.assertIn("not folded", ios_sim.require_pose("UDID", "folded"))
+        self.assertEqual(detect.call_count, 1)
+
+        with mock.patch.object(ios_sim, "detect_pose", return_value="unknown") as detect, \
+                mock.patch.object(ios_sim.time, "sleep"), mock.patch("sys.stderr"):
+            self.assertIn("unknown, not folded", ios_sim.require_pose("UDID", "folded"))
+        self.assertEqual(detect.call_count, 4)
+
     def test_pose_screenshots_get_longer_and_retried_on_ci(self):
         import os
         from unittest import mock
 
         with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}):
-            self.assertEqual(ios_sim.pose_screenshot_policy(), (30.0, 1))
+            self.assertEqual(ios_sim.pose_screenshot_policy(), (120.0, 1))
         with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
             self.assertEqual(ios_sim.pose_screenshot_policy(), (180.0, 3))
 
@@ -383,11 +663,13 @@ class DuoPoseTests(unittest.TestCase):
             return subprocess.CompletedProcess(argv, 0)
 
         with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}), \
-                mock.patch.object(ios_sim, "_run", side_effect=fake_run):
+                mock.patch.object(ios_sim, "_run", side_effect=fake_run), \
+                mock.patch.object(ios_sim.time, "sleep"), mock.patch("sys.stderr"):
             self.assertEqual(ios_sim.detect_pose("UDID"), "folded")
         self.assertEqual(len(calls), 3)
         with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": ""}), \
-                mock.patch.object(ios_sim, "_run", side_effect=subprocess.TimeoutExpired("x", 30)):
+                mock.patch.object(ios_sim, "_run", side_effect=subprocess.TimeoutExpired("x", 30)), \
+                mock.patch("sys.stderr"):
             self.assertEqual(ios_sim.detect_pose("UDID"), "unknown")
 
 

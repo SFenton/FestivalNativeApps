@@ -113,6 +113,38 @@ public static class InvalidScorePolicy
         return Legacy(score, raw);
     }
 
+    /// <summary>
+    /// Web <c>filterPlayerScores</c> over a whole profile (invalid-scores R4, #619): every score through
+    /// <see cref="ResolveFiltered"/>, a substituted score carrying its replacement's score, accuracy, FC, stars, filtered
+    /// rank and population, and a score without a valid replacement dropped. Player Profile and Statistics aggregate
+    /// these for any viewed player, selected or not.
+    /// </summary>
+    /// <param name="scores">Raw profile scores.</param>
+    /// <param name="song">Catalogue lookup (CHOpt maxima, population curves); <see langword="null"/> rows are not judgeable.</param>
+    /// <param name="leeway">Leeway percent.</param>
+    /// <returns>Effective scores in source order.</returns>
+    public static List<PlayerScore> FilterPlayerScores(IEnumerable<PlayerScore> scores, Func<string, Song?> song, double leeway)
+    {
+        var effective = new List<PlayerScore>();
+        foreach (var score in scores)
+        {
+            var raw = new SongScoreDetail(score.Score, score.Accuracy, score.IsFullCombo, score.Stars, score.Season, score.Difficulty,
+                score.Rank, score.TotalEntries);
+            var resolution = ResolveFiltered(score, raw, song(score.SongId), score.Instrument, leeway);
+            if (resolution.Detail is not { } detail) continue;
+            effective.Add(resolution.Reason is null ? score : score with
+            {
+                Score = (int)detail.Score,
+                RawAccuracy = detail.Accuracy / 1_000,
+                IsFullCombo = detail.IsFullCombo,
+                Stars = detail.Stars,
+                Rank = detail.Rank,
+                TotalEntries = detail.TotalEntries,
+            });
+        }
+        return effective;
+    }
+
     /// <summary>Substitutes the best <c>validScores</c> variant valid at the leeway (web <c>validScores.find</c>).</summary>
     /// <param name="score">Raw wire score with a non-empty <c>validScores</c>.</param>
     /// <param name="raw">Its unfiltered detail.</param>

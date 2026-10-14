@@ -69,7 +69,7 @@ import com.festivalscoretracker.android.presentation.profile.PlayerHistoryUiStat
 import com.festivalscoretracker.android.presentation.profile.PlayerHistoryViewModel
 import com.festivalscoretracker.android.presentation.profile.ScoreHistoryRow
 import com.festivalscoretracker.android.ui.common.FestivalEmptyState
-import com.festivalscoretracker.android.ui.common.FestivalLoading
+import com.festivalscoretracker.android.ui.common.LoadingView
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
 import com.festivalscoretracker.android.ui.common.fadeInStagger
@@ -115,7 +115,7 @@ fun PlayerHistoryScreen(viewModel: PlayerHistoryViewModel) {
         // Rows fade in (staggered) on the frame after the history loads (web FadeIn).
         val revealed = rememberRevealed(state.phase == HistoryPhase.Loaded)
         when (val phase = state.phase) {
-            HistoryPhase.Loading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { FestivalLoading("Loading score history") }
+            HistoryPhase.Loading -> LoadingView("Loading score history", Modifier.padding(padding))
             is HistoryPhase.Failed -> ServiceStatusView(phase.issue, "History unavailable", phase.countdown, viewModel::retry, contentPadding = padding)
             HistoryPhase.NoPlayer -> HistoryMessage("No Player Selected", "Select a player profile to see score history.", padding)
             HistoryPhase.Unregistered -> HistoryMessage("History Unavailable", "Score history is only available for registered users.", padding)

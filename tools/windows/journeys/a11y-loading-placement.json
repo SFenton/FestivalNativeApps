@@ -1,0 +1,294 @@
+[
+  {
+    "name": "leaderboards-loading-centred",
+    "route": "/leaderboards",
+    "settings": {
+      "experimentalRanks": true
+    },
+    "fixture": [
+      "loading_fixture.py"
+    ],
+    "sizes": [
+      "compact",
+      "medium",
+      "wide",
+      "portrait-tablet"
+    ],
+    "tabs": 0,
+    "scan": true,
+    "ready": [
+      "waitfor:id=fst.leaderboards.loading@15",
+      "assertread:id=fst.leaderboards.loading|Busy Loading leaderboards, ProgressRing",
+      "assertstate:id=fst.leaderboards.loading|type=progressbar",
+      "assertstate:id=fst.leaderboards.loading|focusable=false",
+      "assertorder:id=fst.leaderboards.title|id=fst.rankings.rank-by-menu|id=fst.leaderboards.loading",
+      "assertcentred:raw=fst.leaderboards.loading-region|id=fst.leaderboards.loading|id=fst.leaderboards.loading",
+      "assertsize:id=fst.rankings.rank-by-menu|40x40",
+      "waitgone:id=fst.leaderboards.card.0f@2",
+      "shot:{stem}-loading.png",
+      "scan:{stem}-loading",
+      "waitfor:id=fst.leaderboards.card.0f@25",
+      "waitgone:id=fst.leaderboards.loading@5"
+    ],
+    "after_ready": [
+      "assertorder:id=fst.leaderboards.title|id=fst.rankings.rank-by-menu|id=fst.leaderboards.card.0f",
+      "reveal:id=fst.leaderboards.bands-header",
+      "waitfor:id=fst.leaderboards.bands-header@5",
+      "scrollto:id=fst.leaderboards,0"
+    ]
+  },
+  {
+    "name": "leaderboards-reload-centred",
+    "route": "/leaderboards",
+    "settings": {
+      "experimentalRanks": true
+    },
+    "fixture": [
+      "loading_fixture.py"
+    ],
+    "sizes": [
+      "medium"
+    ],
+    "tabs": 0,
+    "scan": true,
+    "ready": [
+      "waitfor:id=fst.leaderboards.card.0f@40",
+      "waitgone:id=fst.leaderboards.loading@5"
+    ],
+    "after_ready": [
+      "focus:id=fst.rankings.rank-by-menu",
+      "key:f5",
+      "waitfor:id=fst.leaderboards.loading@5",
+      "assertread:id=fst.leaderboards.loading|Busy Loading leaderboards, ProgressRing",
+      "assertorder:id=fst.rankings.rank-by-menu|id=fst.leaderboards.loading",
+      "assertstate:id=fst.rankings.rank-by-menu|enabled=true",
+      "assertsize:id=fst.rankings.rank-by-menu|40x40",
+      "assertcentred:raw=fst.leaderboards.loading-region|id=fst.leaderboards.loading|id=fst.leaderboards.loading",
+      "waitgone:id=fst.leaderboards.card.0f@2",
+      "assertfocus:id=fst.rankings.rank-by-menu@3",
+      "waitfor:id=fst.leaderboards.card.0f@25",
+      "waitgone:id=fst.leaderboards.loading@5",
+      "assertfocus:id=fst.rankings.rank-by-menu@3",
+      "focus:id=fst.rankings.row.fixture-player-1",
+      "waitgone:class=ToolTip@5"
+    ]
+  },
+  {
+    "name": "song-detail-loading-verification",
+    "route": "/songs/fixture-pulse",
+    "fixture": [
+      "loading_fixture.py"
+    ],
+    "sizes": [
+      "compact",
+      "medium",
+      "wide",
+      "portrait-tablet"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:name=Busy Loading song@15",
+      "assertread:name=Busy Loading song|Busy Loading song, ProgressRing",
+      "assertstate:name=Busy Loading song|type=progressbar",
+      "assertstate:name=Busy Loading song|focusable=false",
+      "tree:{stem}-loading.txt",
+      "shot:{stem}-loading.png",
+      "waitfor:id=fst.song-detail.title@25",
+      "waitgone:name=Busy Loading song@5"
+    ]
+  },
+  {
+    "name": "full-rankings-reload-centred",
+    "route": "/leaderboards/all?instrument=Solo_Guitar",
+    "settings": {
+      "experimentalRanks": true
+    },
+    "fixture": [
+      "rankings_fixture.py",
+      "--rankings-delay",
+      "10"
+    ],
+    "sizes": [
+      "compact",
+      "medium",
+      "wide"
+    ],
+    "tabs": 0,
+    "scan": true,
+    "ready": [
+      "waitfor:id=fst.rankings.row.fixture-player-1@40",
+      "waitgone:name=Busy Loading rankings@5",
+      "wait:1"
+    ],
+    "after_ready": [
+      "focus:id=fst.full-rankings.page-next",
+      "invoke:id=fst.full-rankings.page-next",
+      "waitfor:name=Busy Loading rankings@3",
+      "waitgone:id=fst.rankings.row.fixture-player-1@3",
+      "assertread:name=Busy Loading rankings|Busy Loading rankings, ProgressRing",
+      "assertstate:name=Busy Loading rankings|focusable=false",
+      "assertorder:id=fst.rankings.rank-by-menu|name=Busy Loading rankings|id=fst.full-rankings.page-next",
+      "assertcentred:raw=fst.full-rankings.loading-region|name=Busy Loading rankings|name=Busy Loading rankings",
+      "assertgap:raw=fst.full-rankings.loading-region|id=fst.full-rankings.page-next|0",
+      "assertsize:id=fst.full-rankings.page-next|40x40",
+      "tree:{stem}-loading.txt",
+      "shot:{stem}-loading.png",
+      "waitfor:id=fst.rankings.row.fixture-rank-26@20",
+      "waitgone:name=Busy Loading rankings@5",
+      "assertfocus:id=fst.full-rankings.page-next@3",
+      "focus:id=fst.rankings.row.fixture-rank-26",
+      "wait:1"
+    ]
+  },
+  {
+    "name": "band-rankings-reload-centred",
+    "route": "/leaderboards/bands/Band_Duets",
+    "settings": {
+      "experimentalRanks": true
+    },
+    "fixture": [
+      "rankings_fixture.py",
+      "--bands-delay",
+      "10"
+    ],
+    "sizes": [
+      "medium"
+    ],
+    "tabs": 0,
+    "scan": true,
+    "ready": [
+      "waitfor:id=fst.band-rankings.row.fixture-team-1@40",
+      "waitgone:name=Busy Loading rankings@5",
+      "wait:1"
+    ],
+    "after_ready": [
+      "focus:id=fst.band-rankings.page-next",
+      "invoke:id=fst.band-rankings.page-next",
+      "waitfor:name=Busy Loading rankings@3",
+      "waitgone:id=fst.band-rankings.row.fixture-team-1@3",
+      "assertread:name=Busy Loading rankings|Busy Loading rankings, ProgressRing",
+      "assertstate:name=Busy Loading rankings|focusable=false",
+      "assertorder:id=fst.band-rankings.rank-by-menu|name=Busy Loading rankings|id=fst.band-rankings.page-next",
+      "assertcentred:raw=fst.band-rankings.loading-region|name=Busy Loading rankings|name=Busy Loading rankings",
+      "assertgap:raw=fst.band-rankings.loading-region|id=fst.band-rankings.page-next|0",
+      "assertsize:id=fst.band-rankings.page-next|40x40",
+      "tree:{stem}-loading.txt",
+      "shot:{stem}-loading.png",
+      "waitfor:id=fst.band-rankings.row.fixture-team-26@20",
+      "waitgone:name=Busy Loading rankings@5",
+      "assertfocus:id=fst.band-rankings.page-next@3",
+      "focus:id=fst.band-rankings.row.fixture-team-26",
+      "wait:1"
+    ]
+  },
+  {
+    "name": "song-band-board-reload-centred",
+    "route": "/songs/fixture-pulse/bands/Band_Duets",
+    "fixture": [
+      "rankings_fixture.py",
+      "--bands-delay",
+      "10"
+    ],
+    "sizes": [
+      "medium"
+    ],
+    "tabs": 0,
+    "scan": true,
+    "ready": [
+      "waitfor:id=fst.song-band-leaderboard.row.fixture-band-1:1@40",
+      "waitgone:name=Busy Loading band scores@5",
+      "wait:1"
+    ],
+    "after_ready": [
+      "focus:id=fst.song-band-leaderboard.page-next",
+      "invoke:id=fst.song-band-leaderboard.page-next",
+      "waitfor:name=Busy Loading band scores@3",
+      "waitgone:id=fst.song-band-leaderboard.row.fixture-band-1:1@3",
+      "assertread:name=Busy Loading band scores|Busy Loading band scores, ProgressRing",
+      "assertstate:name=Busy Loading band scores|focusable=false",
+      "assertorder:id=fst.song-band-leaderboard.band-type.Band_Duets|name=Busy Loading band scores|id=fst.song-band-leaderboard.page-next",
+      "assertcentred:raw=fst.song-band-leaderboard.loading-region|name=Busy Loading band scores|name=Busy Loading band scores",
+      "assertgap:raw=fst.song-band-leaderboard.loading-region|id=fst.song-band-leaderboard.page-next|0",
+      "assertsize:id=fst.song-band-leaderboard.page-next|40x40",
+      "tree:{stem}-loading.txt",
+      "shot:{stem}-loading.png",
+      "waitfor:id=fst.song-band-leaderboard.row.fixture-band-26:26@20",
+      "waitgone:name=Busy Loading band scores@5",
+      "assertfocus:id=fst.song-band-leaderboard.page-next@3",
+      "focus:id=fst.song-band-leaderboard.row.fixture-band-26:26",
+      "wait:1"
+    ]
+  },
+  {
+    "name": "player-bands-reload-centred",
+    "route": "/bands/player/fixture-player-1",
+    "fixture": [
+      "rankings_fixture.py",
+      "--bands-delay",
+      "10"
+    ],
+    "sizes": [
+      "medium"
+    ],
+    "tabs": 0,
+    "scan": true,
+    "ready": [
+      "waitfor:id=fst.player-bands.row.fixture-band-1@40",
+      "waitgone:name=Busy Loading bands@5",
+      "wait:1"
+    ],
+    "after_ready": [
+      "focus:id=fst.player-bands.page-next",
+      "invoke:id=fst.player-bands.page-next",
+      "waitfor:name=Busy Loading bands@3",
+      "waitgone:id=fst.player-bands.row.fixture-band-1@3",
+      "assertread:name=Busy Loading bands|Busy Loading bands, ProgressRing",
+      "assertstate:name=Busy Loading bands|focusable=false",
+      "assertorder:id=fst.player-bands.group.quads|name=Busy Loading bands|id=fst.player-bands.page-next",
+      "assertcentred:raw=fst.player-bands.loading-region|name=Busy Loading bands|name=Busy Loading bands",
+      "assertgap:raw=fst.player-bands.loading-region|id=fst.player-bands.page-next|0",
+      "assertsize:id=fst.player-bands.page-next|40x40",
+      "tree:{stem}-loading.txt",
+      "shot:{stem}-loading.png",
+      "waitfor:id=fst.player-bands.row.fixture-pband-trio-8@20",
+      "waitgone:name=Busy Loading bands@5",
+      "assertfocus:id=fst.player-bands.page-previous@3",
+      "focus:id=fst.player-bands.row.fixture-pband-trio-8",
+      "wait:1"
+    ]
+  },
+  {
+    "name": "song-board-reload-centred",
+    "route": "/songs/fixture-pulse/Solo_Guitar",
+    "fixture": [
+      "--song-leaderboard-paging"
+    ],
+    "sizes": [
+      "medium"
+    ],
+    "tabs": 0,
+    "scan": true,
+    "ready": [
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-1@25",
+      "wait:1"
+    ],
+    "after_ready": [
+      "focus:id=fst.song-leaderboard.page-next",
+      "invoke:id=fst.song-leaderboard.page-next",
+      "waitfor:name=Busy Loading leaderboard@3",
+      "waitgone:id=fst.song-leaderboard.row.fixture-player-1@3",
+      "assertread:name=Busy Loading leaderboard|Busy Loading leaderboard, ProgressRing",
+      "assertstate:name=Busy Loading leaderboard|focusable=false",
+      "assertorder:id=fst.song-leaderboard.song|name=Busy Loading leaderboard|id=fst.song-leaderboard.page-next",
+      "assertcentred:raw=fst.song-leaderboard.loading-region|name=Busy Loading leaderboard|name=Busy Loading leaderboard",
+      "assertgap:raw=fst.song-leaderboard.loading-region|id=fst.song-leaderboard.page-next|0",
+      "tree:{stem}-loading.txt",
+      "shot:{stem}-loading.png",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-26@10",
+      "waitgone:name=Busy Loading leaderboard@5",
+      "assertfocus:id=fst.song-leaderboard.page-next@3",
+      "focus:id=fst.song-leaderboard.row.fixture-player-26",
+      "wait:1"
+    ]
+  }
+]

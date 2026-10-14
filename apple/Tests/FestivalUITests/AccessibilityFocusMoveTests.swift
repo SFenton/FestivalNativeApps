@@ -46,7 +46,7 @@ struct AccessibilityFocusMoveTests {
     }
 }
 
-/// Song Detail's eager card rows at accessibility sizes keep the lazy grid's columns.
+/// Song Detail's eager card rows (every text size, #500) keep the adaptive grid's columns.
 struct SongDetailCardColumnsTests {
     private func columns(_ width: CGFloat) -> Int {
         HingeEagerGridLayout(
@@ -60,5 +60,6 @@ struct SongDetailCardColumnsTests {
         #expect(columns(343) == 1)   // ⅓ window / iPhone
         #expect(columns(1178) == 3)  // iPad landscape
         #expect(columns(0) == 1)
+        #expect(columns(.infinity) == 1)
     }
 }

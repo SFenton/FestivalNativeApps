@@ -172,8 +172,9 @@ struct SongsSectionBarAccessibilityTests {
     // MARK: Composed bar and list
 
     /// The Songs list as `SongsScreen` composes it on iOS 26 and macOS 26: flat List rows
-    /// (each section's in-list title, then its songs) with the section bar overlaid at the
-    /// List's top by the screen's own ``SongsSectionBarOverlay``.
+    /// (each section's in-list title, then its songs), each faded under the bar by the
+    /// screen's own `SectionBarRowFade`, with the section bar overlaid at the List's top
+    /// by the screen's own ``SongsSectionBarOverlay``.
     private struct ComposedList: View {
         let chrome: SongsScrollChrome
         let sections: [SongsSectionBar.Entry]
@@ -186,11 +187,13 @@ struct SongsSectionBarAccessibilityTests {
                         key: entry.key, label: entry.label, spokenLabel: entry.spokenLabel,
                         accessibilityID: "fst.songs.section.\(index)", chrome: chrome
                     )
+                    .modifier(SectionBarRowFade(chrome: chrome, enabled: true, hidesWhenCut: false))
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
                     ForEach((0..<rowsPerSection).map { "\(entry.key)-\($0)" }, id: \.self) { row in
                         Text("Song \(row)")
                             .accessibilityIdentifier("fst.songs.row.\(row)")
+                            .modifier(SectionBarRowFade(chrome: chrome, enabled: true))
                     }
                 }
             }
@@ -202,12 +205,24 @@ struct SongsSectionBarAccessibilityTests {
 
     /// Hosts ``ComposedList`` scrolled to its top, with ``SongsScrollChrome`` reporting a
     /// scroll as the screen's `ScrolledAwayTracker` does.
+    ///
+    /// - Parameters:
+    ///   - chrome: The screen's scroll chrome.
+    ///   - textCase: Text size and hard-edge settings; the default size with the ramp
+    ///     unless given.
+    /// - Returns: The host, its window (retain it while reading the tree), the List's
+    ///   table and a settle step.
     private func hostComposed(
-        _ chrome: SongsScrollChrome
+        _ chrome: SongsScrollChrome, textCase: CutCase = .standard
     ) async throws -> (NSView, NSWindow, NSTableView, @MainActor () async throws -> Void) {
         let size = CGSize(width: 390, height: 320)
+        let storage = try #require(UserDefaults(suiteName: textCase.suite))
+        storage.set(textCase.hardEdge, forKey: "fst.accessibility.lessTransparency")
+        storage.set(textCase.hardEdge, forKey: "fst.accessibility.moreContrast")
         let host = nativeHostedView(
             ComposedList(chrome: chrome, sections: sections, rowsPerSection: 12)
+                .defaultAppStorage(storage)
+                .dynamicTypeSize(textCase.typeSize)
                 .frame(width: size.width, height: size.height), size: size
         )
         let window = nativeHostedWindow(host, size: size)
@@ -330,6 +345,72 @@ struct SongsSectionBarAccessibilityTests {
             state: "landed"
         )
         #expect(macAccessibilityFindings(macAccessibilityTree(host)).isEmpty)
+    }
+
+    /// Text size and transparency settings for the composed list.
+    struct CutCase: Sendable, CustomTestStringConvertible {
+        let name: String
+        let typeSize: DynamicTypeSize
+        /// In-app Less Transparency and More Contrast: the bar's hard edge (R7).
+        let hardEdge: Bool
+
+        static let standard = CutCase(name: "default", typeSize: .large, hardEdge: false)
+        static let largestHardEdge = CutCase(name: "AX5 hard edge", typeSize: .accessibility5, hardEdge: true)
+
+        var testDescription: String { name }
+        /// The settings suite the hosted list reads; remove it when the test ends.
+        var suite: String { "fst-songs-section-bar-ax-\(name)" }
+    }
+
+    /// Scrolled, a song wholly under the bar (its bottom at or above the bar's edge) is
+    /// no VoiceOver stop, while a song partly under it is still read after the bar
+    /// (scroll-edge R7, issue #459; Android `cutRows`, #417). In-list titles keep their
+    /// headings under the bar (``composedLandedTitleReadsTheBarThenItsBlankedTitle()``).
+    /// Also with Less Transparency and More Contrast, whose hard edge leaves the row mask
+    /// no fade depth (issue #627; XCUITest lists hidden views, so the iOS journey
+    /// `SongsChromeJourneyTests/testRowUnderTheSectionBarAtLargestTextWithHardEdge`
+    /// relies on this test for the no-stop rule). That case also asks for AX5, but macOS
+    /// draws text at its standard size, so the taller AX5 bar is the iOS journey's.
+    @Test(arguments: [CutCase.standard, .largestHardEdge])
+    func composedSongsWhollyUnderTheBarAreNoStop(_ textCase: CutCase) async throws {
+        let chrome = SongsScrollChrome()
+        let (host, window, table, settle) = try await hostComposed(chrome, textCase: textCase)
+        defer {
+            window.orderOut(nil)
+            UserDefaults().removePersistentDomain(forName: textCase.suite)
+        }
+        let rowsPerSection = 12
+        /// The song a table row shows (each section is its title row, then its songs).
+        func song(atRow index: Int) -> String? {
+            let within = index % (rowsPerSection + 1)
+            guard within > 0, index / (rowsPerSection + 1) < sections.count else { return nil }
+            return "fst.songs.row.\(sections[index / (rowsPerSection + 1)].key)-\(within - 1)"
+        }
+        /// Songs whose cells lie wholly under the bar but still inside the List.
+        func cutSongs() -> [String] {
+            let top = table.visibleRect.minY
+            let visible = table.rows(in: table.visibleRect)
+            return (visible.lowerBound..<visible.upperBound).compactMap { index in
+                let bottom = table.rect(ofRow: index).maxY - top
+                return bottom > 0 && bottom <= chrome.sectionBarBottom ? song(atRow: index) : nil
+            }
+        }
+        try await scroll(chrome, settle: settle) { !cutSongs().isEmpty && chrome.passedHeaders == ["4"] }
+        let cut = cutSongs()
+        let order = readingOrder(host, table: table)
+        macAccessibilityDump(order, name: "songs-section-bar-composed-cut-\(textCase.hardEdge ? "hard-edge" : "default")")
+        expectReadingOrder(order, headings: ["4 stars", "5 stars"], state: "cut \(textCase.name)")
+        let songs = order.filter { $0.identifier.hasPrefix("fst.songs.row.") }
+        #expect(!songs.isEmpty, "no song is read: \(order)")
+        #expect(!cut.isEmpty, "\(textCase.name): no song is wholly under the bar")
+        for id in cut {
+            #expect(!songs.contains { $0.identifier == id }, "\(id) is wholly under the bar yet read: \(order)")
+        }
+        // Screen coordinates are y up: the bar's edge lies its height below the host's top.
+        let edge = window.convertToScreen(host.convert(host.bounds, to: nil)).maxY - chrome.sectionBarBottom
+        for node in songs {
+            #expect(node.frame.minY < edge - 0.5, "\(node) ends above the bar's edge \(edge) yet is read")
+        }
     }
 
     // MARK: Text size

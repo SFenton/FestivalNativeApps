@@ -113,7 +113,7 @@ fun BandRankingsScreen(viewModel: BandRankingsViewModel, selectedAccountId: Stri
             fadeAboveFooter = true,
         ) {
             if (swap.showsSpinner) {
-                loadSwapSpinnerItem(swap, "Loading band rankings", "fst.band-rankings.loading")
+                loadSwapSpinnerItem(swap, "Loading band rankings", "fst.band-rankings.loading", state = listState)
             } else if (shown is LoadState.Failed) {
                 item(key = "failed") {
                     Box(swap.contentModifier) { ServiceStatusInline(shown.issue, "Band rankings unavailable", shown.countdown, viewModel::retry) }

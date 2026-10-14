@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import math
 import re
@@ -13,6 +14,7 @@ import struct
 import threading
 import time
 import zlib
+from collections.abc import Callable
 from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -20,8 +22,9 @@ from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 # Delay for the "slowpoke" account search, long enough for a UI test to see the
-# global-search spinner.
-SLOW_ACCOUNT_SEARCH_SECONDS = 4
+# global-search spinner, even on a slow CI simulator (issue #624). Below the app's
+# 30 s request timeout.
+SLOW_ACCOUNT_SEARCH_SECONDS = 8
 # `--song-leaderboard-paging` (issue #316): `fixture-pulse` Lead grows to four full
 # 25-row pages; a page after the first waits this long, long enough for a UI test to
 # see the reload spinner under a kept song header, and the last page fails with 500.
@@ -29,8 +32,14 @@ SONG_LEADERBOARD_PAGING_ENTRIES = 100
 SLOW_SONG_LEADERBOARD_PAGE_SECONDS = 3
 # Longest `/__fixture__/hold-paths` hold (issue #430): a held Paths read is answered when
 # the test releases it or this many seconds after the hold began, so a test that dies
-# mid-hold never leaves the listener stalling path reads.
-PATH_HOLD_LIMIT_SECONDS = 60
+# mid-hold never leaves the listener stalling path reads. 240 s covers the CI runner's
+# ×4 virtual-machine budget for a 60 s hold (#386: a 60 s hold expired mid-audit there).
+PATH_HOLD_LIMIT_SECONDS = 240
+# A held Paths read sends its status line and headers at once, then one body byte this
+# often until released: the apps time out a request after 30 s without a byte (Apple
+# `FestivalAPI.requestTimeout`), and a held switch's checks and audit outlasted that on
+# the CI runner, so the sheet went offline mid-audit (#620).
+PATH_HOLD_KEEPALIVE_SECONDS = 5.0
 
 
 def load_fixture(name: str) -> tuple[dict, str]:
@@ -143,6 +152,12 @@ PLAYER_COMBO_RANKING = re.compile(r"^/api/rankings/combo/(fixture-[a-z0-9-]+)$")
 # Within-group combo bitmasks (bit = the instrument's index in the service order): any
 # two or more of Lead/Bass/Drums/Vocals (bits 0-3), or Pro Lead + Pro Bass (bits 4-5).
 COMBO_GROUP_MASKS = (0x0F, 0x30)
+# The Compete "your rank" viewer (#370, #493): a Rivals viewer like `fixture-riv` (demo scenario) whose own
+# instrument and combo rank reads say 45th of 60, outside every board's Top 5, so Compete appends its row.
+OUTSIDE_VIEWER_ACCOUNT = "fixture-riv-ranked"
+OUTSIDE_VIEWER_NAME = "Fixture Viewer"
+OUTSIDE_VIEWER_RANK = 45
+OUTSIDE_VIEWER_TOTAL = 60
 BAND_RANKINGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)$")
 BAND_HISTORY = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/history$")
 BAND_SONGS = re.compile(r"^/api/rankings/bands/([A-Za-z_]+)/(fixture-[a-z0-9-]+)/songs$")
@@ -527,6 +542,39 @@ RIVAL_DISPLAY_NAMES = {
     "fixture-cpp": "C++",
 }
 
+#: Rival the `-frozen` scenario's `/rivals/all` samples describe (#95, #444).
+FROZEN_RIVAL_ID = "frozenrival9"
+FROZEN_RIVAL_NAME = "Rival Nine"
+
+
+def _frozen_rivals_all(account_id: str) -> dict:
+    """Build `GET /api/player/{id}/rivals/all` for the `-frozen` scenario.
+
+    While the service publishes, rival detail reads answer 503 and the app rebuilds
+    the comparison from these precomputed samples (`RivalDetailFallback`). Rival Nine
+    shares Fixture Pulse on Lead and Bass (so the Lead+Bass combo `03` lists one song
+    twice) and Fixture Orbit on Lead, as `RivalDetailAccessibilityTests` hosts it.
+
+    Args:
+        account_id: The selected (viewing) player.
+
+    Returns:
+        A `RivalsAllResponse` wire body (`s` indexes `songs`, `i` is the instrument).
+    """
+    return {
+        "accountId": account_id,
+        "songs": ["fixture-pulse", "fixture-orbit"],
+        "combos": [{"combo": "03", "above": [{
+            "accountId": FROZEN_RIVAL_ID, "displayName": FROZEN_RIVAL_NAME, "direction": "above",
+            "sharedSongCount": 3, "aheadCount": 1, "behindCount": 2, "rivalScore": 1.0,
+            "samples": [
+                {"s": 0, "i": "Solo_Guitar", "ur": 10, "rr": 11, "us": 900, "rs": 890},
+                {"s": 0, "i": "Solo_Bass", "ur": 12, "rr": 10, "us": 800, "rs": 850},
+                {"s": 1, "i": "Solo_Guitar", "ur": 3, "rr": 20, "us": 990, "rs": 700},
+            ],
+        }], "below": []}],
+    }
+
 
 
 def _multi_instrument_history(account_id: str) -> dict:
@@ -573,12 +621,16 @@ def _rivals_scenario(account_id: str) -> str:
 
     Returns:
         `"empty"` (no rivals/shared songs yet), `"unavailable"` (503, matching
-        the live service's scrape-window freeze) or `"demo"` (populated).
+        the live service's scrape-window freeze, including `/rivals/all`),
+        `"frozen"` (only the detail reads answer the freeze's 503; lists and
+        `/rivals/all` answer, #95) or `"demo"` (populated).
     """
     if account_id.endswith("-empty"):
         return "empty"
     if account_id.endswith("-503"):
         return "unavailable"
+    if account_id.endswith("-frozen"):
+        return "frozen"
     return "demo"
 
 
@@ -868,14 +920,33 @@ class FixtureServer(ThreadingHTTPServer):
             "waiting": self._path_hold_waiting,
         }
 
-    def wait_for_path_release(self) -> None:
-        """Block one Paths read while a hold lasts (returns at once without one)."""
+    def path_hold_active(self) -> bool:
+        """Return whether a Paths read arriving now would be held."""
+        with self._path_hold:
+            return time.monotonic() < self._path_hold_until
+
+    def wait_for_path_release(self, keepalive: Callable[[], None] | None = None) -> None:
+        """Block one Paths read while a hold lasts (returns at once without one).
+
+        Args:
+            keepalive: Called every ``PATH_HOLD_KEEPALIVE_SECONDS`` while held, outside
+                the lock, so the read's connection never goes idle.
+        """
         with self._path_hold:
             self._path_hold_waiting += 1
-            try:
-                while (remaining := self._path_hold_until - time.monotonic()) > 0:
-                    self._path_hold.wait(timeout=remaining)
-            finally:
+        try:
+            while True:
+                with self._path_hold:
+                    remaining = self._path_hold_until - time.monotonic()
+                    if remaining <= 0:
+                        return
+                    self._path_hold.wait(timeout=min(remaining, PATH_HOLD_KEEPALIVE_SECONDS))
+                    if self._path_hold_until <= time.monotonic():
+                        return
+                if keepalive:
+                    keepalive()
+        finally:
+            with self._path_hold:
                 self._path_hold_waiting -= 1
 
     def record_score_query(self, top: int, offset: int, leeway: float | None) -> None:
@@ -1155,6 +1226,46 @@ class FixtureHandler(BaseHTTPRequestHandler):
         self.end_headers()
         if data:
             self.wfile.write(data)
+
+    def _respond_after_path_hold(self, respond: Callable[[], None]) -> None:
+        """Answer a Paths read, keeping its connection alive while a hold lasts.
+
+        Held, the finished response's status line and headers go out at once and its
+        body one byte per keep-alive tick, keeping the last byte until the release, so
+        the client sees a slow server, not an idle one it times out (#620).
+
+        Args:
+            respond: Writes the complete response to ``self.wfile``.
+        """
+        if not self.fixture.path_hold_active():
+            self.fixture.wait_for_path_release()
+            respond()
+            return
+        stream, buffer = self.wfile, io.BytesIO()
+        self.wfile = buffer
+        try:
+            respond()
+        finally:
+            self.wfile = stream
+        data = buffer.getvalue()
+        sent = data.find(b"\r\n\r\n") + 4
+
+        def keepalive() -> None:
+            nonlocal sent
+            if sent < len(data) - 1:
+                stream.write(data[sent:sent + 1])
+                stream.flush()
+                sent += 1
+
+        try:
+            stream.write(data[:sent])
+            stream.flush()
+            self.fixture.wait_for_path_release(keepalive)
+            stream.write(data[sent:])
+            stream.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            # The client gave up; it is no longer waiting.
+            self.close_connection = True
 
     # region Public-only endpoint fixtures
     def do_GET(self) -> None:
@@ -1576,6 +1687,12 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 if account_id == "fixture-rank-fail":
                     self._json(500, {"status": "internal_error"})
                     return
+                if account_id == OUTSIDE_VIEWER_ACCOUNT:
+                    self._json(200, {
+                        **_combo_ranking_entry(OUTSIDE_VIEWER_RANK, account_id, OUTSIDE_VIEWER_NAME),
+                        "comboId": combo, "rankBy": rank_by, "totalAccounts": max(total, OUTSIDE_VIEWER_TOTAL),
+                    })
+                    return
                 ranks = {account: rank for rank, (account, _) in enumerate(roster, start=1)}
                 if account_id not in ranks:
                     self._json(404, {"status": "account_not_ranked"})
@@ -1624,12 +1741,18 @@ class FixtureHandler(BaseHTTPRequestHandler):
             deep = re.fullmatch(r"fixture-rank-(\d+)", account_id)
             if self.fixture.large_rankings and deep and 3 < int(deep.group(1)) <= total:
                 roster[account_id] = (int(deep.group(1)), f"Fixture Rank {deep.group(1)}")
+            if account_id == OUTSIDE_VIEWER_ACCOUNT:
+                roster[account_id] = (OUTSIDE_VIEWER_RANK, OUTSIDE_VIEWER_NAME)
+                total = max(total, OUTSIDE_VIEWER_TOTAL)
             if account_id not in roster:
                 self._json(404, {"status": "account_not_ranked"})
                 return
             rank, display_name = roster[account_id]
+            entry = _ranking_entry(rank, account_id, display_name)
+            if account_id == OUTSIDE_VIEWER_ACCOUNT:
+                entry["songsPlayed"] = 30  # The rank-seeded count would go negative this deep.
             self._json(200, {
-                **_ranking_entry(rank, account_id, display_name),
+                **entry,
                 "instrument": instrument, "totalRankedAccounts": total,
             })
         elif match := RANKINGS.fullmatch(path):
@@ -1967,26 +2090,28 @@ class FixtureHandler(BaseHTTPRequestHandler):
             if difficulty not in ("easy", "medium", "hard", "expert"):
                 self._json(400, {"status": "invalid_path_difficulty"})
                 return
-            self.fixture.wait_for_path_release()
-            if (song_id != "fixture-pulse"
-                    or query.get("generationId", ["fixture-path-generation"])[0]
-                        != "fixture-path-generation"
-                    or difficulty in ("easy", "medium")
-                    or instrument != "Solo_Guitar"):
-                self._json(404, {"status": "path_not_generated"})
-                return
-            etag = f'"fst-fixture-{difficulty}-{"json" if data_route else "png"}-v1"'
-            if data_route:
-                if self.headers.get("If-None-Match") == etag:
-                    self._json(304, None, etag=etag)
+            def respond() -> None:
+                if (song_id != "fixture-pulse"
+                        or query.get("generationId", ["fixture-path-generation"])[0]
+                            != "fixture-path-generation"
+                        or difficulty in ("easy", "medium")
+                        or instrument != "Solo_Guitar"):
+                    self._json(404, {"status": "path_not_generated"})
+                    return
+                etag = f'"fst-fixture-{difficulty}-{"json" if data_route else "png"}-v1"'
+                if data_route:
+                    if self.headers.get("If-None-Match") == etag:
+                        self._json(304, None, etag=etag)
+                    else:
+                        self._json(200, {
+                            **PATH_DEMO,
+                            "difficulty": difficulty,
+                            "pathSummary": f"Two synthetic {difficulty.title()} activations",
+                        }, etag=etag)
                 else:
-                    self._json(200, {
-                        **PATH_DEMO,
-                        "difficulty": difficulty,
-                        "pathSummary": f"Two synthetic {difficulty.title()} activations",
-                    }, etag=etag)
-            else:
-                self._path_image(difficulty, etag)
+                    self._path_image(difficulty, etag)
+
+            self._respond_after_path_hold(respond)
         elif match := SONG_BAND_LEADERBOARDS_ALL.fullmatch(path):
             # Checked before the per-size route, whose pattern also matches `all`.
             account_ids = query.get("accountId", [])
@@ -2153,7 +2278,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(400, {"status": "invalid_rivals_query"})
                 return
             scenario = _rivals_scenario(account_id)
-            if scenario == "unavailable":
+            if scenario in ("unavailable", "frozen"):
                 self.send_response(503)
                 self.send_header("Retry-After", "30")
                 self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")
@@ -2168,6 +2293,9 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(400, {"status": "invalid_rivals_query"})
                 return
             scenario = _rivals_scenario(account_id)
+            if token == "all" and scenario == "frozen":
+                self._json(200, _frozen_rivals_all(account_id))
+                return
             if scenario == "unavailable":
                 self.send_response(503)
                 self.send_header("Retry-After", "30")
@@ -2186,7 +2314,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 self._json(400, {"status": "invalid_rivals_query"})
                 return
             scenario = _rivals_scenario(account_id)
-            if scenario == "unavailable":
+            if scenario in ("unavailable", "frozen"):
                 self.send_response(503)
                 self.send_header("Retry-After", "30")
                 self.send_header("X-Fst-Public-Read-Freeze-Reason", "scrape")

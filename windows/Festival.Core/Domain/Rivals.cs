@@ -175,7 +175,7 @@ public abstract record RivalScope
 
     /// <summary>
     /// The one chart a single-instrument scope (song or leaderboard rivals) is about, whose icon leads the All Rivals
-    /// title and the Rival Detail subtitle (page-tools-and-nav-chrome R18, #557, #604); <see langword="null"/> for lists
+    /// title and the Rival Detail subtitle (page-tools-and-nav-chrome R18 and R23, #557, #604); <see langword="null"/> for lists
     /// spanning several charts (Common, combos, Settings-derived).
     /// </summary>
     public Instrument? SingleInstrument => this switch

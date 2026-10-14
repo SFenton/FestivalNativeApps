@@ -345,6 +345,7 @@ final class IPadShellAccessibilityTests: XCTestCase {
                 XCTFail("\(page.name): row \(rowID) or trailing pane missing from the tree")
             }
             XCTAssertEqual(paneFrame.minX, window.midX, accuracy: 30, "\(page.name): trailing half")
+            SplitBandUITestSupport.assertBandIsSilent(nodes, page.name)
 
             // Focus: the trailing pane's top heading.
             let focus = waitForTrace(app) { $0.hasPrefix("heading: ") }
@@ -389,6 +390,64 @@ final class IPadShellAccessibilityTests: XCTestCase {
             try? JSONSerialization.data(withJSONObject: summary, options: [.prettyPrinted, .sortedKeys])
                 .write(to: URL(fileURLWithPath: dir).appendingPathComponent("split-structure.json"))
         }
+    }
+
+    /// The band between the panes under the app's Increase Contrast at AX5 (#344, backfilled
+    /// by #480; split-panes R1–R2): the band then draws its hairline at a midpoint (the
+    /// hosted `SplitBandAccessibilityTests` check its pixels under the system's and the
+    /// app's setting), yet it gives VoiceOver nothing to announce: no splitter (it is
+    /// fixed, not draggable) and no labelled band (XCUITest lists views hidden with
+    /// `accessibilityHidden`, so that the band is no element at all is the hosted test's
+    /// check). The opened row still reads before the trailing pane, which opens beside the
+    /// list, and the pane's Close is named with a 44 × 44 pt hit region: every near-miss
+    /// tap closes the pane, or, when it overflows, More takes those taps and offers a named
+    /// Close (`SplitBandUITestSupport`). The iPhone Duo's flat and book states are the
+    /// iPhone bundle's `DuoSplitBandAccessibilityJourneyTests`. Run it with
+    /// `ios_sim.py uitest --a11y increase-contrast` for the system setting.
+    @MainActor
+    func testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5() throws {
+        if !IPadAccessibilityAuditTests.runningOnDuo { XCUIDevice.shared.orientation = .landscapeLeft }
+        let page = try XCTUnwrap(Self.splitPages.first { $0.name == "rivals" })
+        let app = makeApp(profile: page.profile, env: page.env, contentSize: .accessibilityExtraExtraExtraLarge)
+        app.launchArguments += ["-fst.accessibility.moreContrast", "YES"]
+        launch(app)
+        defer { app.terminate() }
+        XCTAssertTrue(element(app, page.ready).waitForExistence(timeout: 25), "Rivals loads")
+        let window = app.windows.firstMatch.frame
+        guard window.width > window.height else {
+            return XCTFail("the window is not landscape (\(window)); no split to check")
+        }
+        guard IPadAccessibilityAuditTests.openSplit(app, prefix: page.row) != nil,
+              let paneFrame = IPadAccessibilityAuditTests.trailingPane(app) else {
+            return XCTFail("the trailing pane did not open at AX5 under Increase Contrast")
+        }
+        XCTAssertEqual(paneFrame.minX, window.midX, accuracy: 30, "the trailing pane opens beside the list")
+
+        let nodes = try order(app)
+        SplitBandUITestSupport.assertBandIsSilent(nodes, "AX5, Increase Contrast")
+        let selected = app.descendants(matching: .any).matching(NSPredicate(format: "isSelected == true"))
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", page.row)).firstMatch
+        XCTAssertTrue(selected.exists, "the opened row reads selected")
+        let rowIndex = nodes.firstIndex { $0.identifier == selected.identifier }
+        let paneIndex = nodes.firstIndex { $0.identifier == "fst.split.trailing" }
+            ?? nodes.firstIndex { paneFrame.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) && $0.frame.width > 0
+                && $0.frame.width < paneFrame.width + 1 }
+        if let rowIndex, let paneIndex {
+            XCTAssertLessThan(rowIndex, paneIndex, "the leading pane reads before the trailing pane at AX5")
+        } else {
+            XCTFail("row \(selected.identifier) or trailing pane missing from the tree")
+        }
+
+        // Close: XCUITest reports a system bar button's glass (36 pt on iPadOS 26.5), not
+        // its hit region, so prove 44 × 44 pt with near-miss taps (each must close the
+        // pane; the row reopens it between taps), or through More when it overflows.
+        let rowID = selected.identifier
+        SplitBandUITestSupport.assertCloseHitRegion(app, "AX5, Increase Contrast") {
+            SplitBandUITestSupport.reopen(app, row: rowID)
+        }
+        XCTAssertTrue(SplitBandUITestSupport.waitForPane(app, open: false), "Close returns to full width")
+        XCTAssertFalse(SplitBandUITestSupport.element(app, SplitBandUITestSupport.bandID).exists,
+                       "no band without a split")
     }
 
     /// Back on a pushed list page beside an open item closes the trailing pane, keeps the

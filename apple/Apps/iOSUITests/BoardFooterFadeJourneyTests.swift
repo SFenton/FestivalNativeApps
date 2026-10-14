@@ -243,6 +243,8 @@ final class BoardFooterFadeJourneyTests: XCTestCase {
     ) {
         // Settled only after two drags in a row leave the bottom row in place (a single
         // unchanged reading once ended early on iPad, with the row still under the pager).
+        // A reading with no row on screen never counts: after the AX5 audit XCUITest can
+        // see no row until a later drag, and two empty readings once ended the loop (#620).
         var lastFrame = CGRect.null
         var unchanged = 0
         for _ in 0..<60 where unchanged < 2 {
@@ -250,7 +252,7 @@ final class BoardFooterFadeJourneyTests: XCTestCase {
             start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -window.height * 0.4)))
             let bottom = rows.allElementsBoundByIndex.map(\.frame).filter { window.intersects($0) }
                 .max { $0.maxY < $1.maxY } ?? .null
-            unchanged = bottom == lastFrame ? unchanged + 1 : 0
+            unchanged = !bottom.isNull && bottom == lastFrame ? unchanged + 1 : 0
             lastFrame = bottom
         }
         guard let last = rows.allElementsBoundByIndex.filter({ window.intersects($0.frame) })

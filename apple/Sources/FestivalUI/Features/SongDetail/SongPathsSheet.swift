@@ -373,10 +373,7 @@ struct SongPathsSheet: View {
     /// - Parameter row: Resolved beat, time, frets, OD and score for one activation.
     /// - Returns: Accessible activation card.
     private func activationCard(_ row: PathActivationRow) -> some View {
-        let values: AnyLayout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
-            : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
-        return VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 caption("Note")
                 HStack(spacing: 4) {
@@ -394,11 +391,7 @@ struct SongPathsSheet: View {
                 }
                 .accessibilityHidden(true)
             }
-            values {
-                valueColumn("Beat", row.beat.formatted(.number.precision(.fractionLength(2))))
-                valueColumn("Time", Self.time(row.seconds))
-                valueColumn("Score", row.scoreBeforeActivation?.formatted())
-            }
+            activationValues(row)
             VStack(alignment: .leading, spacing: 8) {
                 caption("Overdrive")
                 if let amount = row.odPercent {
@@ -418,6 +411,22 @@ struct SongPathsSheet: View {
         .accessibilityLabel("Activation \(row.number)")
         .accessibilityValue(spokenValue(row))
         .accessibilityIdentifier("fst.paths.activation.\(row.number)")
+    }
+
+    /// Beat, Time and Score: in three equal columns (web mobile row card) while the widest
+    /// value fits its column at full size, else stacked, and always stacked at accessibility
+    /// sizes (HIG Typography: "Reduce the number of text columns as size increases"; as
+    /// `SettingsValueRowLayout`'s inline-or-stacked choice). Squeezed columns made
+    /// "00:02:750" shrink instead of grow at the larger standard sizes on an iPhone (#626).
+    ///
+    /// - Parameter row: The activation.
+    /// - Returns: The three labelled values.
+    private func activationValues(_ row: PathActivationRow) -> some View {
+        PathActivationValuesLayout(alwaysStacked: dynamicTypeSize.isAccessibilitySize) {
+            valueColumn("Beat", row.beat.formatted(.number.precision(.fractionLength(2))))
+            valueColumn("Time", Self.time(row.seconds))
+            valueColumn("Score", row.scoreBeforeActivation?.formatted())
+        }
     }
 
     /// Web mobile column caption (uppercase, semibold, small).
@@ -720,5 +729,75 @@ struct OverdriveBar: View {
                 .frame(minWidth: 40, alignment: .trailing)
         }
         .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Activation values layout
+
+/// An activation card's Beat, Time and Score columns: equal-width columns side by side
+/// while the widest column's natural width fits its share of the row, else one above the
+/// next, so a value never shrinks to keep the columns (#626; inline-or-stacked as
+/// `SettingsValueRowLayout`). Subviews keep their order in both arrangements.
+struct PathActivationValuesLayout: Layout {
+    /// Gap between side-by-side columns.
+    static let columnSpacing: CGFloat = 12
+    /// Gap between stacked values.
+    static let stackSpacing: CGFloat = 10
+
+    /// Stack regardless of width (accessibility text sizes).
+    var alwaysStacked = false
+
+    /// Whether equal columns hold every value at its natural width.
+    ///
+    /// - Parameters:
+    ///   - widths: Each column's natural (unwrapped) width.
+    ///   - available: The row's width, or nil when unconstrained.
+    /// - Returns: True when the widest column, times the count, plus the gaps, fits.
+    static func fitsSideBySide(widths: [CGFloat], available: CGFloat?) -> Bool {
+        guard let available, available.isFinite else { return true }
+        guard let widest = widths.max() else { return true }
+        let count = CGFloat(widths.count)
+        return widest * count + columnSpacing * (count - 1) <= available
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(width: proposal.width, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let arrangement = arrange(width: bounds.width, subviews: subviews)
+        for (subview, frame) in zip(subviews, arrangement.frames) {
+            subview.place(
+                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                anchor: .topLeading, proposal: ProposedViewSize(frame.size)
+            )
+        }
+    }
+
+    /// The values' size and each one's frame, in subview order.
+    private func arrange(width: CGFloat?, subviews: Subviews) -> (size: CGSize, frames: [CGRect]) {
+        guard !subviews.isEmpty else { return (.zero, []) }
+        let ideals = subviews.map { $0.sizeThatFits(.unspecified) }
+        let available = width.flatMap { $0.isFinite ? $0 : nil }
+        let count = CGFloat(subviews.count)
+        if !alwaysStacked, Self.fitsSideBySide(widths: ideals.map(\.width), available: available) {
+            let column = available.map { ($0 - Self.columnSpacing * (count - 1)) / count }
+                ?? (ideals.map(\.width).max() ?? 0)
+            let heights = subviews.map { $0.sizeThatFits(ProposedViewSize(width: column, height: nil)).height }
+            let height = heights.max() ?? 0
+            let frames = heights.indices.map { index in
+                CGRect(x: CGFloat(index) * (column + Self.columnSpacing), y: 0, width: column, height: heights[index])
+            }
+            return (CGSize(width: column * count + Self.columnSpacing * (count - 1), height: height), frames)
+        }
+        let columnWidth = available ?? (ideals.map(\.width).max() ?? 0)
+        var frames: [CGRect] = []
+        var y: CGFloat = 0
+        for subview in subviews {
+            let height = subview.sizeThatFits(ProposedViewSize(width: columnWidth, height: nil)).height
+            frames.append(CGRect(x: 0, y: y, width: columnWidth, height: height))
+            y += height + Self.stackSpacing
+        }
+        return (CGSize(width: columnWidth, height: max(0, y - Self.stackSpacing)), frames)
     }
 }

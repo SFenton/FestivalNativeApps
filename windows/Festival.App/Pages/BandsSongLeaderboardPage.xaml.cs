@@ -23,6 +23,7 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
     public BandsSongLeaderboardPage()
     {
         InitializeComponent();
+        LoadSwapVisual.PlaceSpinner(LoadingRing, LoadingRegion, footer: Footer);
         Controls.BoardFooter.Inset(Footer, Rows);
         BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Rows, Footer, FooterPlate);
     }

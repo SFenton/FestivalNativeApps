@@ -177,7 +177,7 @@ struct GlobalSearchResults: View {
 
     /// The one search spinner, centred in the results area.
     private var searchingIndicator: some View {
-        FestivalLoadingView(accessibilityLabel: "Searching")
+        FestivalLoadingView(accessibilityLabel: "Searching", placement: .fill)
             .accessibilityIdentifier(ids("loading"))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

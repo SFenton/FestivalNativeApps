@@ -12,6 +12,10 @@ import XCTest
 enum RecognizedText {
     /// Minimum growth of a text's glyphs from the default size to AX5 (project rule).
     static let minimumGrowth: CGFloat = 1.35
+    /// Minimum AX5 growth of a title UIKit hosts in a navigation bar (`system-bar-title-size`,
+    /// `testing/apple/accessibility.md`): UIKit caps it near 1.22× (the inline modal title, #429;
+    /// the phone Search tab's `inlineLarge` title, #611), so this floor still fails a fixed-size title.
+    static let minimumBarTitleGrowth: CGFloat = 1.15
 
     /// Text recognized from the element's own capture and its median line height in points.
     struct Reading {
@@ -61,6 +65,37 @@ enum RecognizedText {
             if (best.text?.count ?? -1) < text.count { best = reading }
         }
         return best
+    }
+
+    /// The one recognized line in an upright element capture that shows `label` whole, and
+    /// that line's own height in points, so one text among several (a value in a card) is
+    /// measured rather than the capture's median line (`PathsDismissAccessibilityJourneyTests`,
+    /// #626). Points come from the capture's own size, so an element partly off screen
+    /// measures the same as one wholly on it.
+    ///
+    /// - Parameters:
+    ///   - label: The text to find.
+    ///   - element: An element on screen whose capture contains it.
+    /// - Returns: The matching line and its height, or an empty reading when no line shows
+    ///   `label` whole after two retries.
+    @MainActor
+    static func recognizeLine(_ label: String, in element: XCUIElement) -> Reading {
+        for attempt in 0..<3 {
+            if attempt > 0 { RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(0.5))) }
+            let capture = element.screenshot().image
+            guard let image = capture.cgImage else { continue }
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = false
+            request.minimumTextHeight = 0
+            guard (try? VNImageRequestHandler(cgImage: image, orientation: .up, options: [:]).perform([request])) != nil
+            else { continue }
+            for line in request.results ?? [] {
+                guard let text = line.topCandidates(1).first?.string, showsWhole(label, in: text) else { continue }
+                return Reading(text: text, lineHeight: line.boundingBox.height * capture.size.height)
+            }
+        }
+        return Reading(text: nil, lineHeight: nil)
     }
 
     /// True when the recognized text shows the whole label without an ellipsis (letters and

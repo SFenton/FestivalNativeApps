@@ -4,6 +4,42 @@
   "webRoot": "FortniteFestivalWeb/src",
   "patterns": [
     {
+      "id": "artwork-background",
+      "title": "Artwork background",
+      "status": "current",
+      "doc": ".agents/patterns/artwork-background.md",
+      "summary": "One decorative dimmed carousel behind the shell and splits, static focused song covers, reduced-motion still art and Data Saver no-art. Catalogue and cover failures recover with paced retries; known publication changes reset the pool, render/failure state and bounded ephemeral image cache even for identical URLs.",
+      "keywords": ["artwork", "backdrop", "carousel", "album art", "background", "reduced motion", "data saver", "cover retry"],
+      "web": [
+        {"path": "components/shell/AnimatedBackground.tsx", "symbol": "AnimatedBackground"},
+        {"path": "components/page/BackgroundImage.tsx", "symbol": "BackgroundImage"}
+      ],
+      "canonical": {
+        "apple": [
+          {"path": "apple/Sources/FestivalUI/Background/ArtworkBackground.swift", "symbol": "ArtworkCarouselEngine"},
+          {"path": "apple/Sources/FestivalUI/Background/FestivalBackgroundCoordinator.swift", "symbol": "FestivalBackgroundCoordinator"}
+        ],
+        "android": [
+          {"path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/BackgroundController.kt", "symbol": "BackgroundController"},
+          {"path": "android/app/src/main/java/com/festivalscoretracker/android/ui/background/ArtworkBackground.kt", "symbol": "ArtworkBackground"},
+          {"path": "android/app/src/main/java/com/festivalscoretracker/android/ui/background/SongCoverBackdrop.kt", "symbol": "SongCoverBackdrop"}
+        ],
+        "windows": [
+          {"path": "windows/Festival.Core/Domain/ArtworkCarousel.cs", "symbol": "ArtworkCarousel"},
+          {"path": "windows/Festival.App/Controls/ArtworkBackground.cs", "symbol": "ArtworkBackground"}
+        ]
+      },
+      "guards": [],
+      "related": {
+        "patterns": ["song-leaderboard-header", "split-panes", "modal-shell"],
+        "controls": ["artwork-background"],
+        "pages": ["songs", "song-detail", "song-leaderboard", "song-band-leaderboard", "settings"]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [623]
+    },
+    {
       "id": "scroll-edge",
       "title": "Scroll edge: content under pinned chrome",
       "status": "current",
@@ -207,7 +243,8 @@
         319,
         322,
         335,
-        393
+        393,
+        459
       ]
     },
     {
@@ -828,7 +865,7 @@
       "title": "Page tools and navigation chrome",
       "status": "current",
       "doc": ".agents/patterns/page-tools-and-nav-chrome.md",
-      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android, Windows and Apple Rival pages name the rival and the section in the bar (Windows: the page header; Apple: R18's in-list InstrumentPageTitle with a subtitle line, pinned title over subtitle once it scrolls away): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too.",
+      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android, Windows and Apple Rival pages name the rival and the section in the bar (Windows: the page header; Apple: R18's in-list InstrumentPageTitle with a subtitle line, pinned title over subtitle once it scrolls away): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too. Apple system bar items (the iPhone Duo rail's board switchers, Choose Profile) keep their system metrics, and tests prove their 44 pt target by hit region, not by element frame (R27, agent decision #625).",
       "keywords": [
         "navigation",
         "page tools",
@@ -1176,7 +1213,9 @@
         576,
         597,
         578,
-        604
+        604,
+        611,
+        625
       ]
     },
     {
@@ -1415,7 +1454,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, whose own row inside a board or preview speaks its rank as \"Your rank, <ordinal>\" (bands \"Your band, …\") so the highlight is never the only cue (#457), with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score, keyboard or screen-reader focus that scrolls a row clear of the floating pinned row and pager (WCAG 2.4.11, #409), and the owner-approved #543 variant that native song boards, Full Rankings, Band Rankings and Song Detail band previews draw a page's rows in one card with separators (the web keeps a card per row), and rank-history rows (Leaderboards, Profile, Band) that draw rank and value in fixed right-aligned tabular columns measured once over every chart day, so the bold newest row and the tapped bar's detail line up, the date moves above the columns at large text and, when even the columns don't fit side by side, each keeps its measured width right-aligned on its own line, in rows at least 48 units tall (#594).",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, whose own row inside a board or preview speaks its rank as \"Your rank, <ordinal>\" (bands \"Your band, …\") so the highlight is never the only cue (#457), a pinned row that follows the rows instead when at accessibility text sizes it would cover more than a third of the board (#386), with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score, keyboard or screen-reader focus that scrolls a row clear of the floating pinned row and pager (WCAG 2.4.11, #409), and the owner-approved #543 variant that native song boards, Full Rankings, Band Rankings and Song Detail band previews draw a page's rows in one card with separators (the web keeps a card per row), and rank-history rows (Leaderboards, Profile, Band) that draw rank and value in fixed right-aligned tabular columns measured once over every chart day, so the bold newest row and the tapped bar's detail line up, the date moves above the columns at large text and, when even the columns don't fit side by side, each keeps its measured width right-aligned on its own line, in rows at least 48 units tall (#594).",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -1438,6 +1477,7 @@
         "season column",
         "multi-row card",
         "trailing pane",
+        "accessibility text size",
         "grouped card",
         "one card",
         "grouped rows",
@@ -1514,6 +1554,10 @@
           {
             "path": "apple/Sources/FestivalCore/SelectedRowNavigation.swift",
             "symbol": "SelectedRowAction"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/SelectedRowNavigation.swift",
+            "symbol": "SelectedRowPinning"
           },
           {
             "path": "apple/Sources/FestivalCore/RankingSpotlight.swift",
@@ -1841,7 +1885,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence, chart swaps keep the card's size and paging a chart slides it to the new window over the web 400 ms (#593 decision); the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant).",
+      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence, chart swaps keep the card's size and paging a chart slides it to the new window over the web 400 ms (#593 decision); the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant); a new publication refreshes open pages in place without pausing their rows (R9; Android one announced Songs spinner and in-place re-reads elsewhere, #616).",
       "keywords": [
         "loading",
         "spinner",
@@ -1912,6 +1956,10 @@
             "symbol": "FestivalReloadGate"
           },
           {
+            "path": "apple/Sources/FestivalUI/Common/FestivalLoadingView.swift",
+            "symbol": "FestivalLoadingView"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Common/FadeInOnLoad.swift",
             "symbol": "FestivalFadeInScope"
           },
@@ -1974,8 +2022,20 @@
             "symbol": "BOARD_CARD_INDEX"
           },
           {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/PublicationCatchUp.kt",
+            "symbol": "PublicationCatchUp"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadSwap.kt",
+            "symbol": "PUBLICATION_REFRESH_LABEL"
+          },
+          {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/LoadGate.kt",
             "symbol": "FestivalLoadGate"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/ServiceStatus.kt",
+            "symbol": "LoadingRegion"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongPathsViewModel.kt",
@@ -2022,6 +2082,14 @@
           {
             "path": "windows/Festival.Core/Domain/LoadSwap.cs",
             "symbol": "LoadSwap"
+          },
+          {
+            "path": "windows/Festival.App/Pages/LeaderboardsPage.xaml",
+            "symbol": "ReadyRing"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/LoadingRegion.cs",
+            "symbol": "LoadingRegion"
           },
           {
             "path": "windows/Festival.App/Controls/LoadSwapVisual.cs",
@@ -2082,6 +2150,14 @@
           {
             "path": "windows/Festival.Core/Domain/MotionPolicy.cs",
             "symbol": "AccordionMotion"
+          },
+          {
+            "path": "windows/Festival.Core/Data/PublicationLiveUpdates.cs",
+            "symbol": "PublicationLiveConnection"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/SongsViewModel.cs",
+            "symbol": "RefreshForPublicationAsync"
           }
         ]
       },
@@ -2171,7 +2247,8 @@
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/BandListScreens.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/bands/SongBandLeaderboardScreen.kt",
             "android/app/src/main/java/com/festivalscoretracker/android/ui/rivals/RivalsScreen.kt",
-            "android/app/src/main/java/com/festivalscoretracker/android/ui/compete/CompeteScreen.kt"
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/compete/CompeteScreen.kt",
+            "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongsScreen.kt"
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
@@ -2186,7 +2263,8 @@
             "windows/Festival.App/Pages/LeaderboardsPage.xaml",
             "windows/Festival.App/Pages/LeaderboardsSongPage.xaml",
             "windows/Festival.App/Pages/LeaderboardsBandRankingsPage.xaml",
-            "windows/Festival.App/Pages/BandsSongLeaderboardPage.xaml"
+            "windows/Festival.App/Pages/BandsSongLeaderboardPage.xaml",
+            "windows/Festival.App/Pages/SongsPage.xaml"
           ],
           "debt": [],
           "message": "Reloadable result areas must remain in the shared load-transition inventory (load-transition R1)."
@@ -2252,7 +2330,8 @@
         323,
         380,
         561,
-        614
+        614,
+        616
       ]
     },
     {
@@ -2354,7 +2433,7 @@
       "title": "Empty and error states",
       "status": "current",
       "doc": ".agents/patterns/empty-error-states.md",
-      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator, exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls; a score-update scrape freeze 503 for a URL the shared pinned-read client already verified in the same, still-current publication returns that kept body instead of the service status (R9, #554); cold reads, outages, non-score freezes and other publications still fail with Retry, and kept bodies are in-memory and byte-bounded. An inline service status is one container whose message, countdown and Retry stay separately reachable; Retry keeps its own identifier and an iOS 44×44 pt target, and a consumer tagging the wrapper contains its children first (R10, #463).",
+      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile, whose prominent fill and label stay paired and legible under Increase Contrast, #477); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator, exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls; a score-update scrape freeze 503 for a URL the shared pinned-read client already verified in the same, still-current publication returns that kept body instead of the service status (R9, #554); cold reads, outages, non-score freezes and other publications still fail with Retry. Kept bodies are in-memory: Android uses a byte-bounded LRU; Apple's verified JSON entries are cleared on every publication change but currently have no byte budget (R9 Known debt). An inline service status is one container whose message, countdown and Retry stay separately reachable; Retry keeps its own identifier and an iOS 44×44 pt target, and a consumer tagging the wrapper contains its children first (R10, #463).",
       "keywords": [
         "empty",
         "no results",
@@ -2394,6 +2473,10 @@
             "symbol": "FestivalEmptyState"
           },
           {
+            "path": "apple/Sources/FestivalUI/Design/AccentText.swift",
+            "symbol": "FestivalProminentButtonColors"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchEmptyState.swift",
             "symbol": "GlobalSearchEmptyStateView"
           },
@@ -2402,12 +2485,20 @@
             "symbol": "FestivalLoadingView"
           },
           {
+            "path": "apple/Sources/FestivalUI/Common/FestivalEmptyState.swift",
+            "symbol": "FoldAvoidingPlacement"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Common/ServiceStatusViews.swift",
             "symbol": "ServiceUnavailableView"
           },
           {
             "path": "apple/Sources/FestivalUI/Common/ServiceStatusView.swift",
             "symbol": "ServiceStatusInline"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/FestivalAPI.swift",
+            "symbol": "scrapeFreezeFallback"
           }
         ],
         "android": [
@@ -3425,6 +3516,84 @@
       ]
     },
     {
+      "id": "settings-toggle-row",
+      "title": "Settings toggle row",
+      "status": "current",
+      "doc": ".agents/patterns/settings-toggle-row.md",
+      "summary": "A Settings on/off row (title, description, disabled reason, trailing switch) is one switch element whose whole row is the touch target: at least 44 pt on iOS/iPadOS and 56 dp on Android, one flip per tap, no flip while disabled, applied once per platform so new switches inherit it. The Mac keeps the system switch at its control size.",
+      "keywords": [
+        "toggle",
+        "switch",
+        "toggle row",
+        "whole row",
+        "touch target",
+        "hit target",
+        "tap title",
+        "settings switch",
+        "disabled reason",
+        "toggleable"
+      ],
+      "web": [
+        {
+          "path": "components/common/ToggleRow.tsx",
+          "symbol": "ToggleRow"
+        },
+        {
+          "path": "pages/settings/SettingsPage.tsx",
+          "symbol": "ToggleRow"
+        },
+        {
+          "path": "components/modals/modalStyles.ts",
+          "symbol": "toggleRow"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsRowToggleStyle.swift",
+            "symbol": "SettingsRowToggleStyle"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/SettingsRowToggleStyle.swift",
+            "symbol": "settingsRowToggles"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/SettingsScreen.kt",
+            "symbol": "ToggleRow"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Pages/SettingsPage.xaml",
+            "symbol": "SettingSwitchStyle"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "settings-value-row",
+          "accordion"
+        ],
+        "pages": [
+          "settings"
+        ]
+      },
+      "guards": [
+        {
+          "id": "apple-switch-style",
+          "glob": "apple/Sources/FestivalUI/Features/Settings/**/*.swift",
+          "regex": "\\.toggleStyle\\(",
+          "allow": [
+            "apple/Sources/FestivalUI/Features/Settings/SettingsRowToggleStyle.swift"
+          ],
+          "debt": [],
+          "message": "Settings switches get their whole-row target from settingsRowToggles() at the page root; a per-switch toggleStyle would replace it (settings-toggle-row R1, R6)."
+        }
+      ]
+    },
+    {
       "id": "back-keeps-place",
       "title": "Back keeps place",
       "status": "current",
@@ -3615,7 +3784,7 @@
       "title": "Invalid scores (Filter Invalid Scores)",
       "status": "current",
       "doc": ".agents/patterns/invalid-scores.md",
-      "summary": "With Settings > Filter Invalid Scores on and a player selected, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details uses the web's filterPlayerScores rule.",
+      "summary": "With Settings > Filter Invalid Scores on and a player selected, each chart shows its effective score like the web's effectiveScores: the raw score when valid at the leeway (ml, else the CHOpt ceiling), else the first validScores variant valid at the leeway (rank from rankTiers, population from populationTiers), else the legacy validScore, else none; Over CHOpt Threshold keeps the raw score. Rows, chips, metadata, the profile panel, filters and sorts use effective scores and nothing pauses. Songs rows flag replaced/dropped scores with the red (gold for over-threshold) indicator, its own 44 pt accessible button after the song, opening the Filtered Score alert (OK / Settings). Song Details uses the web's filterPlayerScores rule. Player Profile and Statistics aggregate the effective scores (R4) of any viewed player, selected or not, and re-aggregate in place when the setting or leeway changes; only the Over CHOpt Threshold count stays raw (R9, web PlayerContent, #619).",
       "keywords": [
         "filter invalid scores",
         "invalid score",
@@ -3643,6 +3812,10 @@
         {
           "path": "pages/songs/modals/FilterModal.tsx",
           "symbol": "overThreshold"
+        },
+        {
+          "path": "pages/leaderboard/player/components/PlayerContent.tsx",
+          "symbol": "filterPlayerScores"
         }
       ],
       "canonical": {
@@ -3666,6 +3839,14 @@
           {
             "path": "apple/Sources/FestivalCore/SongPlayerScoreFilter.swift",
             "symbol": "overThreshold"
+          },
+          {
+            "path": "apple/Sources/FestivalCore/PlayerProfile.swift",
+            "symbol": "filteringInvalidScores"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Profile/PlayerProfileContent.swift",
+            "symbol": "effective"
           }
         ],
         "android": [
@@ -3680,6 +3861,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt",
             "symbol": "exceedsCeiling"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/core/songs/SongInvalidScores.kt",
+            "symbol": "filterPlayerScores"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/profile/PlayerProfileViewModel.kt",
+            "symbol": "effective"
           },
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/presentation/songs/SongScoreAdapter.kt",
@@ -3722,6 +3911,14 @@
           {
             "path": "windows/Festival.App/Controls/InvalidScoreIndicator.cs",
             "symbol": "InvalidScoreIndicator"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/SongInvalidScores.cs",
+            "symbol": "FilterPlayerScores"
+          },
+          {
+            "path": "windows/Festival.Core/Data/PlayerProfileModels.cs",
+            "symbol": "Effective"
           }
         ]
       },
@@ -3733,7 +3930,9 @@
         "pages": [
           "songs",
           "song-detail",
-          "settings"
+          "settings",
+          "player-profile",
+          "statistics"
         ],
         "controls": [
           "songs-filter",
@@ -3757,7 +3956,7 @@
       "title": "Hinge columns",
       "status": "current",
       "doc": ".agents/patterns/hinge-columns.md",
-      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; fully unfolded (flat), splits and page rows divide at the midpoint of the free content area, never on the flat hinge line (owner-approved, #361); cells sharing a row start at its top edge (#365; Android card grids are row-major LazyVerticalGrids and Band Detail pairs its sections in top-aligned rows under a full-width header, never masonry lanes, #584); two-pane viewers (Paths Side by Side) use HingePanes, meeting at the fold in book pose and as equal halves when flat (owner-approved, #368).",
+      "summary": "While a vertical fold crosses a layout (iPhone Duo book pose, Android book posture), grid and two-up row gutters sit on the fold with the same column count each side, full-width titles wrap on their own side, and the flat layout returns in place when unfolded; fully unfolded (flat), splits and page rows divide at the midpoint of the free content area, never on the flat hinge line (owner-approved, #361); cells sharing a row start at its top edge (#365) and a card of several elements is one accessibility container read whole (#490; Android card grids are row-major LazyVerticalGrids and Band Detail pairs its sections in top-aligned rows under a full-width header, never masonry lanes, #584); two-pane viewers (Paths Side by Side) use HingePanes, meeting at the fold in book pose and as equal halves when flat (owner-approved, #368).",
       "keywords": [
         "hinge",
         "fold",
@@ -3798,6 +3997,14 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Profile/PlayerStatGrid.swift",
             "symbol": "StatTileGridLayout"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/FestivalEmptyState.swift",
+            "symbol": "FoldAvoidingPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/FestivalLoadingView.swift",
+            "symbol": "FestivalLoadingView"
           }
         ],
         "android": [
@@ -3880,6 +4087,7 @@
         366,
         368,
         373,
+        490,
         583,
         584
       ]
@@ -4016,7 +4224,7 @@
       "title": "Split panes",
       "status": "current",
       "doc": ".agents/patterns/split-panes.md",
-      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under Increase Contrast, and the split's one backdrop and top gradient run unbroken across the band. Owner-approved variant R6 (#371; iPad, iPhone Duo inner landscape and Android tablets/foldables): Settings always splits, showing a vertically centred placeholder (Settings icon, \"Settings\", \"Select a setting to see more options here\") until a chevron row opens its options on the right; plain toggles act in the list. Owner-approved Android variant R7 (#583): Android tablets, foldables and wide windows use the iPhone Duo's on-demand split: Rivals/All Rivals/Compete open Rival Detail, Leaderboards opens Full/Band Rankings and Song Detail opens its boards and Score History in a trailing pane when the window is landscape, regular and leaves 360 dp a pane, or at the fold in book posture; everything else stays one page, and Back closes the pane first.",
+      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under the system's or the app's Increase Contrast (the band is never an accessibility element), and the split's one backdrop and top gradient run unbroken across the band. Owner-approved variant R6 (#371; iPad, iPhone Duo inner landscape and Android tablets/foldables): Settings always splits, showing a vertically centred placeholder (Settings icon, \"Settings\", \"Select a setting to see more options here\") until a chevron row opens its options on the right; plain toggles act in the list. Owner-approved Android variant R7 (#583): Android tablets, foldables and wide windows use the iPhone Duo's on-demand split: Rivals/All Rivals/Compete open Rival Detail, Leaderboards opens Full/Band Rankings and Song Detail opens its boards and Score History in a trailing pane when the window is landscape, regular and leaves 360 dp a pane, or at the fold in book posture; everything else stays one page, and Back closes the pane first.",
       "keywords": [
         "split view",
         "split",

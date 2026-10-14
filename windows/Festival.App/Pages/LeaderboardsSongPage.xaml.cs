@@ -21,6 +21,7 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
     public LeaderboardsSongPage()
     {
         InitializeComponent();
+        LoadSwapVisual.PlaceSpinner(LoadingRing, LoadingRegion, Header, Footer, Scroller);
         BoardFooter.Inset(Footer, ScrollContent);
         BoardFooterFade.Attach(BoardFadeSource, BoardFadeHost, Scroller, Footer, FooterPlate);
         reloadFocus = FailedReloadFocus.Attach(Footer, BoardPager, RowsStatus, () => ViewModel?.LoadSwap.Phase == LoadSwapPhase.ContentIn,
@@ -82,10 +83,11 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
         else if (e.PropertyName == nameof(SongLeaderboardViewModel.Rows))
         {
             shownPage = ViewModel.Page;
-            Scroller.ChangeView(null, 0, null, true);
             // The reveal waits for the load gate to show the rows and the row's own entrance (OnContentRevealed).
             var selected = ViewModel.Rows.FindIndex(r => r.IsSelected);
             pendingReveal = selected >= 0 ? selected : null;
+            // A pending scroll-to-top can land after the centring and leave the board at the top (#318, #470).
+            if (pendingReveal is null) Scroller.ChangeView(null, 0, null, true);
         }
     }
 

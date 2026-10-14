@@ -158,7 +158,7 @@ struct RivalDetailScreen: View {
     @ViewBuilder private var content: some View {
         switch state {
         case .loading:
-            FestivalLoadingView(accessibilityLabel: "Loading rival detail")
+            FestivalLoadingView(accessibilityLabel: "Loading rival detail", placement: .fill)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case let .failed(issue):
             ServiceStatusView(issue, title: "Rivals Unavailable") { Task { await load() } }

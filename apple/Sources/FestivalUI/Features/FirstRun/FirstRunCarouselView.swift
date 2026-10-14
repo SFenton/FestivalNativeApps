@@ -129,7 +129,9 @@ struct FirstRunCarouselView: View {
                     .frame(maxWidth: .infinity)
             }
             .controlSize(.large)
-            .modifier(FirstRunPrimaryButton())
+            // The app's prominent action (readable accent fill, Increase Contrast pair).
+            // The brand-blue Liquid Glass button failed the contrast audit (#626).
+            .festivalProminentButton()
             .accessibilityIdentifier(state.primaryFinishes ? "fst.first-run.done" : "fst.first-run.next")
             if state.reservesSkipRow {
                 // The row keeps its height on the last page so Done never jumps; an absent
@@ -153,20 +155,6 @@ struct FirstRunCarouselView: View {
         .padding(.horizontal, 24)
         .padding(.top, 12)
         .padding(.bottom, 16)
-    }
-}
-
-// MARK: - Primary button
-
-/// The native Liquid Glass prominent button on iOS 26 in the brand blue; bordered
-/// prominent before it.
-private struct FirstRunPrimaryButton: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, macOS 26.0, *) {
-            content.buttonStyle(.glassProminent).tint(BrandTokens.accentBlue)
-        } else {
-            content.buttonStyle(.borderedProminent).tint(AccentText.prominentFill)
-        }
     }
 }
 

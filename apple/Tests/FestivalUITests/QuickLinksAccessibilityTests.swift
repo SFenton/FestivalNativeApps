@@ -240,6 +240,30 @@ private func hostNestedPage(_ controller: QuickLinksController)
     #expect(value == "Percentiles")
 }
 
+/// The row's title text itself reads the spoken title: iOS 27 menus (the Duo and iPad
+/// chooser) read only a row's title text and drop the row's own label, so a nested row
+/// must say its instrument there, without the indent's figure spaces (#626).
+@MainActor
+@Test func quickLinksRowTitleTextReadsTheSpokenTitle() async throws {
+    let section = QuickLinkSection(
+        id: "rank-history:Solo_Guitar", title: "Rank History",
+        icon: .system("chart.line.uptrend.xyaxis"), depth: 1, spokenTitle: "Lead Rank History"
+    )
+    let size = CGSize(width: 402, height: 60)
+    let host = nativeHostedView(
+        QuickLinkLabel(section: section, presentation: .menu).title.preferredColorScheme(.dark), size: size
+    )
+    let window = nativeHostedWindow(host, size: size)
+    defer { window.orderOut(nil) }
+    var texts: [MacAXNode] = []
+    try await nativeHostedSettle(host) {
+        texts = macAccessibilityTree(host).filter { $0.isElement && $0.role == "AXStaticText" }
+        return !texts.isEmpty
+    }
+    #expect(texts.map(\.spokenName) == ["Lead Rank History"], "\(texts)")
+    #expect(!texts.contains { $0.spokenName.contains("\u{2007}") }, "indent leaks into VoiceOver")
+}
+
 // MARK: - Text scaling
 
 /// A nested row's label wraps rather than clipping when it does not fit on one line.

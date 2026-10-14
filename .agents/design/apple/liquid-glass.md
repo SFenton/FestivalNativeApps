@@ -38,7 +38,7 @@ Apple's HIG for iOS 26 puts Liquid Glass on the **navigation/control layer that 
 | Song Detail header, album art, charts, CHOpt images | Content | No glass | Primary content; refraction would distort it | Same |
 | Status banners (paused, update failed, notices) | Content | Opaque `cardBackground` rounded rect | Warnings must be readable over any artwork | Same |
 | Empty / error states (`ServiceUnavailableView`, `ComingSoonView`) | Content | Plain text on background; action button may use `.buttonStyle(.glass)` on 26 | Text is not a container | `.bordered` button |
-| Primary / secondary buttons in content | Control | 26: `.buttonStyle(.glassProminent)` / `.glass`; tint accent | System button styles adopt glass correctly | `.borderedProminent` / `.bordered` |
+| Primary / secondary buttons in content | Control | 26: `.buttonStyle(.glassProminent)` / `.glass`; tint accent. A primary with a white label on the brand blue uses `festivalProminentButton()` instead (First Run Next/Done, Choose Profile): the brand-blue glass failed the iOS 27 contrast audit (#626) | System button styles adopt glass correctly | `.borderedProminent` / `.bordered` |
 | Sections **inside sheets** | Content | Native `Form` sections with `FestivalSectionHeader` in the header slot and `.listRowBackground(Color.white.opacity(0.06))` | The sheet is already glass; glass cards inside would be glass-on-glass | Same (the sheet is frosted) |
 
 ## Shared components (use these, not raw modifiers)

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import socket
 import threading
 import unittest
 from unittest.mock import patch
@@ -106,6 +107,30 @@ class MockServiceTests(unittest.TestCase):
             with self.assertRaises(HTTPError) as error:
                 urlopen(detail + query)
             self.assertEqual(error.exception.code, 400)
+
+    def test_frozen_rivals_scenario_freezes_detail_but_serves_rivals_all(self):
+        """`-frozen`: detail reads answer the freeze's 503; lists and `/rivals/all` answer (#95, #444)."""
+        player = self.base + "/api/player/fixture-riv-frozen"
+        for detail in ("/rivals/03/frozenrival9?limit=0&sort=closest",
+                       "/leaderboard-rivals/Solo_Guitar/frozenrival9?rankBy=totalscore&sort=closest"):
+            with self.assertRaises(HTTPError) as error:
+                urlopen(player + detail)
+            self.assertEqual(error.exception.code, 503)
+            self.assertEqual(error.exception.headers["X-Fst-Public-Read-Freeze-Reason"], "scrape")
+        with urlopen(player + "/rivals/03") as response:
+            self.assertEqual(json.load(response)["combo"], "03")
+        with urlopen(player + "/rivals/all") as response:
+            body = json.load(response)
+        self.assertEqual(body["accountId"], "fixture-riv-frozen")
+        self.assertEqual(body["songs"], ["fixture-pulse", "fixture-orbit"])
+        rival = body["combos"][0]["above"][0]
+        self.assertEqual((rival["accountId"], rival["displayName"]), ("frozenrival9", "Rival Nine"))
+        self.assertEqual([(s["s"], s["i"]) for s in rival["samples"]],
+                         [(0, "Solo_Guitar"), (0, "Solo_Bass"), (1, "Solo_Guitar")])
+        # `-503` keeps every Rivals read frozen, `/rivals/all` included (no fallback).
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + "/api/player/fixture-riv-503/rivals/all")
+        self.assertEqual(error.exception.code, 503)
 
     def test_service_info_discovery_fixture_reports_attempt_progress(self):
         """The opt-in discovery body carries the web's schema-1 attempt counts."""
@@ -212,6 +237,21 @@ class MockServiceTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as error:
             urlopen(self.base + "/api/rankings/bands/Band_Duets/fixture-team-unavailable/song-rows")
         self.assertEqual(error.exception.code, 503)
+
+    def test_outside_viewer_ranks_outside_every_top_five(self):
+        """`fixture-riv-ranked` (#370, #493) reads 45th of 60 on instrument and combo boards, never on them."""
+        with urlopen(self.base + "/api/rankings/Solo_Guitar/fixture-riv-ranked") as response:
+            row = json.load(response)
+        self.assertEqual((row["accountId"], row["totalScoreRank"], row["totalRankedAccounts"], row["songsPlayed"]),
+                         ("fixture-riv-ranked", 45, 60, 30))
+        with urlopen(self.base + "/api/rankings/combo/fixture-riv-ranked?combo=03&rankBy=totalscore") as response:
+            combo = json.load(response)
+        self.assertEqual((combo["comboId"], combo["rank"], combo["totalAccounts"]), ("03", 45, 60))
+        with urlopen(self.base + "/api/rankings/Solo_Guitar?page=1&pageSize=10") as response:
+            self.assertNotIn("fixture-riv-ranked", [e["accountId"] for e in json.load(response)["entries"]])
+        with self.assertRaises(HTTPError) as error:
+            urlopen(self.base + "/api/rankings/Solo_Guitar/fixture-riv")
+        self.assertEqual(error.exception.code, 404)
 
     def test_combo_rankings_serve_board_and_player_and_reject_cross_group(self):
         """Combo boards (#602) page the roster, rank one player, 400 single charts and 404 cross-group or unranked reads."""
@@ -830,7 +870,9 @@ class MockServiceTests(unittest.TestCase):
         results: list[int] = []
 
         def read() -> None:
+            # The body completes only on release; the headers come first (#620).
             with urlopen(route) as held:
+                held.read()
                 results.append(held.status)
             answered.set()
 
@@ -862,10 +904,48 @@ class MockServiceTests(unittest.TestCase):
             pass
         with urlopen(route, timeout=10) as response:
             self.assertEqual(response.status, 200)
-        for bad in ("?seconds=61", "?seconds=-1", "?seconds=x", "?seconds=1&seconds=2", "?other=1"):
+        for bad in ("?seconds=241", "?seconds=-1", "?seconds=x", "?seconds=1&seconds=2", "?other=1"):
             with self.subTest(query=bad), self.assertRaises(HTTPError) as failure:
                 urlopen(control + bad)
             self.assertEqual(failure.exception.code, 400)
+
+    def test_held_path_read_keeps_its_connection_alive(self):
+        """A held read sends headers, then body bytes, never idling a client out (#620)."""
+        port = self.server.server_port
+        for route, kind in (("/api/paths/fixture-pulse/Solo_Guitar/hard/data", b"application/json"),
+                            ("/api/paths/fixture-pulse/Solo_Guitar/hard", b"image/png")):
+            with self.subTest(route=route), patch("tools.mock_service.PATH_HOLD_KEEPALIVE_SECONDS", 0.05):
+                with urlopen(self.base + "/__fixture__/hold-paths?seconds=30"):
+                    pass
+                with socket.create_connection(("127.0.0.1", port), timeout=5) as client:
+                    client.sendall(f"GET {route} HTTP/1.1\r\nHost: fixture\r\n\r\n".encode())
+                    received = b""
+                    while b"\r\n\r\n" not in received:
+                        received += client.recv(4096)
+                    head, body = received.split(b"\r\n\r\n", 1)
+                    self.assertIn(b" 200 ", head.split(b"\r\n")[0])
+                    self.assertIn(kind, head)
+                    length = int(next(line.split(b":")[1] for line in head.split(b"\r\n")
+                                      if line.lower().startswith(b"content-length")))
+                    # Body bytes keep arriving while held, but never the whole body.
+                    for _ in range(3):
+                        body += client.recv(1)
+                    self.assertEqual(len(body), 3)
+                    with urlopen(self.base + "/__fixture__/hold-paths") as response:
+                        self.assertEqual(json.load(response), {"held": True, "waiting": 1})
+                    with urlopen(self.base + "/__fixture__/hold-paths?seconds=0"):
+                        pass
+                    while len(body) < length:
+                        chunk = client.recv(65536)
+                        self.assertTrue(chunk, "The held read closed before its body ended")
+                        body += chunk
+                    self.assertEqual(len(body), length)
+                    if kind == b"application/json":
+                        self.assertEqual(json.loads(body)["difficulty"], "hard")
+                    else:
+                        self.assertTrue(body.startswith(b"\x89PNG"))
+                with urlopen(self.base + "/__fixture__/hold-paths") as response:
+                    self.assertEqual(json.load(response), {"held": False, "waiting": 0})
 
     def test_public_shop_feed_is_synthetic_pinned_and_explicit_on_errors(self):
         """Shop badge states and every failure are distinct from an empty feed."""

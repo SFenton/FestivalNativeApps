@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.presentation.profile
 import com.festivalscoretracker.android.core.bands.PlayerBandGroup
 import com.festivalscoretracker.android.core.bands.PlayerBandListResponse
 import com.festivalscoretracker.android.core.model.Instrument
+import com.festivalscoretracker.android.core.model.PopulationTiers
 import com.festivalscoretracker.android.core.rankings.RankingMetric
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.model.Song
@@ -63,7 +64,9 @@ class ProfileActionsTest {
     @After
     fun tearDown() = storeJob.cancel()
 
-    private val rows = listOf(
+    private var alphaPopulation: Map<String, PopulationTiers?>? = null
+
+    private var rows = listOf(
         ProfileFixtures.score("s-alpha", "01", fc = true, stars = 6, rank = 1, total = 200),
         ProfileFixtures.score("s-beta", "01", rank = 30, total = 200),
         ProfileFixtures.score("s-gamma", "02", rank = 9, total = 10),
@@ -83,7 +86,7 @@ class ProfileActionsTest {
         catalog = {
             catalogReads++
             catalogFailure?.let { throw it }
-            listOf(Song("s-alpha", "Alpha Song", "Alpha Artist", year = 2021, albumArt = "alpha.jpg", maxScores = leadMaximum?.let { mapOf("Solo_Guitar" to it) }))
+            listOf(Song("s-alpha", "Alpha Song", "Alpha Artist", year = 2021, albumArt = "alpha.jpg", maxScores = leadMaximum?.let { mapOf("Solo_Guitar" to it) }, populationTiers = alphaPopulation))
         },
         bands = { account, group ->
             bandReads += "$account:${group.wireId}"
@@ -127,13 +130,105 @@ class ProfileActionsTest {
         assertEquals("1", tile.value)
         assertEquals(StatTints.RED, tile.tint)
         assertEquals(PlayerTileAction.FilterSongs(SongsPreset.OverThreshold(Instrument.Lead)), tile.action)
-        // Web order: after FCs, before the star tiles. Bass (no maximum) gets no tile.
-        assertEquals(listOf("songs-played", "full-combos", "over-threshold"), lead().take(3).map { it.id })
+        // Web PlayerContent: the count reads raw scores, while the other tiles read the effective
+        // scores (Alpha has no valid fallback, so its FC drops out). Bass (no maximum) gets no tile.
+        assertEquals(listOf("songs-played", "over-threshold"), lead().take(2).map { it.id })
+        assertEquals("1", lead().first().value)
         assertTrue(vm.state.value.instruments.first { it.instrument == Instrument.Bass }.stats.none { it.id == "over-threshold" })
         // A leeway wide enough to accept the score drops the tile again.
         settings.value = settings.value?.copy(leeway = 5.0)
         advanceUntilIdle()
         assertTrue(lead().none { it.id == "over-threshold" })
+    }
+
+    @Test
+    fun overThresholdTileUsesTheUnroundedCeilingNotMinLeeway() = runTest(main.dispatcher) {
+        // Web isScoreValid (R8): only score vs CHOpt maximum × (1 + leeway / 100), unrounded.
+        leadMaximum = 100_000
+        settings.value = settings.value?.copy(filterInvalidScores = true, leeway = 1.0)
+        fun lead(vm: PlayerProfileViewModel) = vm.state.value.instruments.first { it.instrument == Instrument.Lead }.stats
+
+        // 101,040 is over the 101,000 ceiling even though its rounded ml (1.0) is within the leeway.
+        rows = listOf("""{"si":"s-alpha","ins":"01","sc":101040,"acc":1000,"fc":false,"st":5,"rk":3,"te":200,"ml":1.0}""")
+        val over = viewModel(this, Fixtures.ACCOUNT_A)
+        advanceUntilIdle()
+        assertEquals("1", lead(over).first { it.id == "over-threshold" }.value)
+
+        // At or below the ceiling, an ml above the leeway does not count.
+        for (score in listOf(101_000, 100_500)) {
+            rows = listOf("""{"si":"s-alpha","ins":"01","sc":$score,"acc":1000,"fc":false,"st":5,"rk":3,"te":200,"ml":1.5}""")
+            val under = viewModel(this, Fixtures.ACCOUNT_A)
+            advanceUntilIdle()
+            assertTrue("score $score", lead(under).none { it.id == "over-threshold" })
+        }
+    }
+
+    @Test
+    fun viewedProfileShowsFilteredRanksLikeWebFilterPlayerScores() = runTest(main.dispatcher) {
+        // #619: another player is selected, so this is a viewed (non-selected) profile.
+        settings.value = AppSettings(selectedPlayer = SelectedPlayer(Fixtures.ACCOUNT_B, "Other Player"))
+        rows = listOf(
+            """{"si":"s-alpha","ins":"01","sc":99000,"acc":1000,"fc":true,"st":6,"rk":1,"te":200,"ml":2.0,""" +
+                """"vs":[{"sc":80000,"acc":950,"fc":false,"st":5,"ml":0.5,"rt":[{"l":0.0,"r":40},{"l":1.5,"r":35}]}]}""",
+            ProfileFixtures.score("s-beta", "01", rank = 30, total = 200),
+            """{"si":"s-gamma","ins":"02","sc":70000,"acc":900,"fc":false,"st":5,"rk":9,"te":10,"ml":3.0}""",
+        )
+        alphaPopulation = mapOf("Solo_Guitar" to PopulationTiers(150, doubleArrayOf(0.5, 1.5), intArrayOf(160, 180)))
+        val vm = viewModel(this, Fixtures.ACCOUNT_A)
+        advanceUntilIdle()
+        fun section(chart: Instrument) = vm.state.value.instruments.first { it.instrument == chart }
+        fun bestRank() = section(Instrument.Lead).stats.first { it.id == "best-rank" }
+        fun leadTop() = vm.state.value.topSongs.first { it.instrument == Instrument.Lead }.top.map { Triple(it.songId, it.rank, it.totalEntries) }
+        assertFalse(vm.state.value.isSelected)
+        // Off: raw scores.
+        assertEquals("#1", bestRank().value)
+        assertEquals("#1", vm.state.value.overview.first { it.id == "best-rank" }.value)
+        assertEquals(listOf(1, 15), section(Instrument.Lead).percentiles.map { it.bucket.topPercent })
+        assertEquals(listOf(Triple("s-alpha", 1, 200), Triple("s-beta", 30, 200)), leadTop())
+        assertTrue(section(Instrument.Bass).hasScores)
+
+        // On at 1.0: Alpha shows its valid variant at rank 40 of 160; Gamma has no valid score.
+        settings.value = settings.value?.copy(filterInvalidScores = true, leeway = 1.0)
+        advanceUntilIdle()
+        assertEquals("#30", bestRank().value)
+        assertEquals(PlayerTileAction.OpenSong("s-beta", Instrument.Lead), vm.state.value.overview.first { it.id == "best-rank" }.action)
+        assertTrue(section(Instrument.Lead).stats.none { it.id == "full-combos" })
+        assertEquals(listOf(15, 25), section(Instrument.Lead).percentiles.map { it.bucket.topPercent })
+        assertEquals(listOf(Triple("s-beta", 30, 200), Triple("s-alpha", 40, 160)), leadTop())
+        assertFalse(section(Instrument.Bass).hasScores)
+        assertTrue(vm.state.value.topSongs.first { it.instrument == Instrument.Bass }.isEmpty)
+
+        // A wider leeway re-resolves in place: the variant's next rank tier and population.
+        settings.value = settings.value?.copy(leeway = 1.5)
+        advanceUntilIdle()
+        assertEquals(listOf(Triple("s-beta", 30, 200), Triple("s-alpha", 35, 180)), leadTop())
+
+        // Off again: raw ranks return without another read.
+        settings.value = settings.value?.copy(filterInvalidScores = false)
+        advanceUntilIdle()
+        assertEquals("#1", bestRank().value)
+        assertEquals(listOf(Triple("s-alpha", 1, 200), Triple("s-beta", 30, 200)), leadTop())
+        assertEquals(1, catalogReads)
+    }
+
+    @Test
+    fun statisticsAndViewedProfileAgreeOnFilteredRanks() = runTest(main.dispatcher) {
+        rows = listOf(
+            """{"si":"s-alpha","ins":"01","sc":99000,"acc":1000,"fc":true,"st":6,"rk":1,"te":200,"ml":2.0,""" +
+                """"vs":[{"sc":80000,"acc":950,"fc":false,"st":5,"ml":0.5,"rt":[{"l":0.0,"r":40}]}]}""",
+        )
+        settings.value = AppSettings(filterInvalidScores = true, leeway = 1.0)
+        val viewed = viewModel(this, Fixtures.ACCOUNT_A)
+        advanceUntilIdle()
+        fun best(vm: PlayerProfileViewModel) = vm.state.value.instruments.first { it.instrument == Instrument.Lead }.stats.first { it.id == "best-rank" }.value
+        assertFalse(viewed.state.value.isSelected)
+        val viewedBest = best(viewed)
+        settings.value = settings.value?.copy(selectedPlayer = SelectedPlayer(Fixtures.ACCOUNT_A, "Synthetic Player"))
+        val statistics = viewModel(this, null)
+        advanceUntilIdle()
+        assertTrue(statistics.state.value.isSelected)
+        assertEquals("#40", viewedBest)
+        assertEquals(viewedBest, best(statistics))
     }
 
     @Test

@@ -19,6 +19,9 @@ Rules enforced (see `.agents/workflow/docs-conventions.md`):
    read" header line.
 6. The generated tables in `pages/README.md` and `controls/README.md` match
    the contracts and the files on disk.
+7. Every pattern doc (`patterns/<id>.md`) defines each rule number once: two
+   `**R<n>.` rules with the same number (a merge that kept an old and a new
+   copy, or two rules given one number) are an error.
 
 Usage::
 
@@ -56,6 +59,10 @@ PLATFORM_STEMS = ("ios", "ipados", "duo", "macos", "android", "windows")
 IGNORED_DIRS = {"__pycache__"}
 #: Soft size budget; larger files produce a warning so they get split.
 MAX_LINES = 200
+#: Folder of cross-page pattern docs whose numbered rules must be unique.
+PATTERNS_DIR = "patterns"
+#: A numbered pattern rule definition: `- **R5. Title.**` or `5. **R5. Title.**`.
+PATTERN_RULE = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+\*\*R(\d+)\.")
 
 #: Platform families detected in headings. "iPhone Duo" is matched first so it
 #: counts only as Duo.
@@ -186,6 +193,26 @@ def headings(text: str) -> list[str]:
             continue
         if not fenced and (match := HEADING.match(line)):
             found.append(match.group(1))
+    return found
+
+
+def pattern_rules(text: str) -> dict[int, list[int]]:
+    """Map each numbered rule defined outside fenced code blocks to its lines.
+
+    Args:
+        text: Markdown source of a pattern doc.
+
+    Returns:
+        Rule number -> 1-based line numbers of every `**R<n>.` definition.
+    """
+    found: dict[int, list[int]] = {}
+    fenced = False
+    for number, line in enumerate(text.splitlines(), start=1):
+        if FENCE.match(line):
+            fenced = not fenced
+            continue
+        if not fenced and (match := PATTERN_RULE.match(line)):
+            found.setdefault(int(match.group(1)), []).append(number)
     return found
 
 
@@ -375,6 +402,34 @@ def check_skills(report: Report) -> None:
         for stray in sorted(base.glob("*.md")):
             if stray.name != "README.md":
                 report.error(stray, "skills live in `<name>/SKILL.md` folders so agents load them")
+
+
+def check_pattern_rules(report: Report) -> None:
+    """Fail when a pattern doc defines the same rule number more than once.
+
+    References such as "page-tools-and-nav-chrome R17" must name one rule, so a
+    duplicate (an old and a new copy kept by a merge, or two different rules
+    given one number) is an error, not a warning: merge the copies into one
+    authoritative rule, or give a distinct rule the next free number and
+    update its references.
+
+    Args:
+        report: Collector for findings.
+    """
+    folder = AGENTS / PATTERNS_DIR
+    if not folder.is_dir():
+        return
+    for doc in sorted(folder.glob("*.md")):
+        if doc.name == "README.md":
+            continue
+        for rule, lines in sorted(pattern_rules(doc.read_text(encoding="utf-8")).items()):
+            if len(lines) > 1:
+                where = ", ".join(str(line) for line in lines)
+                report.error(
+                    doc,
+                    f"rule R{rule} is defined {len(lines)} times (lines {where}); "
+                    "merge the copies into one rule or renumber the distinct one",
+                )
 
 
 def check_contracts(report: Report) -> None:
@@ -587,6 +642,7 @@ def run(fix: bool = False) -> Report:
     check_platform_mixing(report)
     check_routers(report)
     check_skills(report)
+    check_pattern_rules(report)
     check_contracts(report)
     return report
 

@@ -29,6 +29,13 @@ struct BottomSearchFieldPlacementTests {
         #expect(GlobalSearchFieldPlacement.resolve(pose: .unfolded, asTab: false) == .system)
     }
 
+    @Test func onlyThePhoneSearchTabDrawsItsLargeTitleInTheBarRow() {
+        // Issue #611: the tab's bar row has no items, so the large title fills it.
+        #expect(GlobalSearchTitleStyle.resolve(asTab: true) == .inlineLarge)
+        // The iPad sidebar page's row holds the bell and Profile; it keeps the default.
+        #expect(GlobalSearchTitleStyle.resolve(asTab: false) == .standard)
+    }
+
     @Test func onlyABookFoldMovesTheColumnToTheTrailingPage() {
         let fold = CGRect(x: 455, y: 0, width: 41, height: 669)
         let book = DeviceLayout.resolve(LayoutSignals(

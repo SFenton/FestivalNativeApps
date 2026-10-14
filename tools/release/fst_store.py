@@ -69,6 +69,13 @@ FAILED_STATUSES = frozenset({"CommitFailed", "PreProcessingFailed", "Certificati
                              "PublishFailed", "ReleaseFailed", "Canceled"})
 RELEASE_NOTES_LIMIT = 1500
 PUBLISH_MODE = "Manual"
+#: ``submit --publish-at``: the Store publishes a certified submission at this time by itself (the API has no
+#: "Publish now"), which is how the release train's Monday release reaches Windows.
+SCHEDULED_MODE = "SpecificDate"
+PUBLISH_AT_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+#: MSIX versions ``YYMM.<DD*100+NN>.<run>.0`` (versioning.msix_version) of release versions ``YYMM.DD.NN``.
+MSIX_VERSION_RE = re.compile(r"^(\d{4})\.(\d{3,4})\.\d+\.0$")
+RELEASE_VERSION_RE = re.compile(r"^\d{4}\.\d{2}\.\d{2}$")
 OWN_MARKER = "[fst-release]"
 
 EXIT_OK = fst_release.EXIT_OK
@@ -262,6 +269,33 @@ def latest_artifact(run: Runner, repo: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def release_version_of(msix: str) -> Optional[str]:
+    """The ``YYMM.DD.NN`` release version of MSIX version ``msix`` (``None`` for other schemes)."""
+    match = MSIX_VERSION_RE.match(msix or "")
+    if not match:
+        return None
+    day, nn = divmod(int(match.group(2)), 100)
+    return "%s.%02d.%02d" % (match.group(1), day, nn) if 1 <= day <= 31 and nn >= 1 else None
+
+
+def find_artifact(run: Runner, repo: str, build: str, runs: int = 20) -> Optional[Dict[str, Any]]:
+    """The newest successful build's artifact for ``build``: an MSIX version, or a ``YYMM.DD.NN`` release
+    version (the release train submits the newest version that passed full CI, not always the latest build).
+
+    Returns:
+        ``{version, sha, placeholder, name, run_id, expired}`` or ``None``.
+    """
+    listing = json.loads(run(["api", "repos/%s/actions/workflows/%s/runs?status=success"
+                                     "&per_page=%d" % (repo, WORKFLOW, runs)]) or "{}")
+    for item in listing.get("workflow_runs") or []:
+        arts = json.loads(run(["api", "repos/%s/actions/runs/%s/artifacts" % (repo, item["id"])]) or "{}")
+        for art in arts.get("artifacts") or []:
+            parsed = parse_artifact(art.get("name", ""))
+            if parsed and build in (parsed["version"], release_version_of(parsed["version"])):
+                return dict(parsed, name=art["name"], run_id=item["id"], expired=bool(art.get("expired")))
+    return None
+
+
 def artifact_sha(run: Runner, repo: str, version: str) -> Optional[str]:
     """Find the git SHA of a built package version from artifact names (ledger fallback)."""
     listing = json.loads(run(["api", "repos/%s/actions/artifacts?per_page=100&name=" % repo]) or "{}")
@@ -379,37 +413,57 @@ def collect_status(client: StoreClient, run: Runner, repo: str,
             "latest_build": latest, "released_sha": released_sha, "blocked": None}
 
 
-def _clear_pending(client: StoreClient, app: Dict[str, Any]) -> Optional[str]:
+def _clear_pending(client: StoreClient, app: Dict[str, Any], replace: bool = False,
+                   build: str = "") -> Optional[str]:
     """Delete a failed or self-created draft; refuse anything else.
 
+    With ``replace`` (the release train's weekly submission) a submission in certification or waiting to publish
+    is deleted too, unless it already carries ``build``. The submission API has no "cancel certification", so
+    the Store may refuse the delete.
+
     Returns:
-        ``"refused:<status>"`` when certification/publishing owns it, else ``None``.
+        ``"refused:<status>"`` when certification/publishing owns it (``refused:already_submitted`` for the same
+        build), ``"replaced:<status>:<version>"`` after deleting one, else ``None``.
 
     Raises:
-        Blocked: A draft someone else is editing in Partner Center.
+        Blocked: A draft someone else is editing in Partner Center, or the Store refused to delete a
+            submission in certification (``cannot_cancel_<status>``).
     """
     pending = submission(client, app.get("pendingApplicationSubmission"))
     if pending is None:
         return None
     status = str(pending.get("status") or "")
     if status in IN_REVIEW_STATUSES:
-        return "refused:" + status
+        version = package_version(pending) or ""
+        if not replace:
+            return "refused:" + status
+        if build and build in (version, release_version_of(version)):
+            return "refused:already_submitted"
+        try:
+            client.request("DELETE", "/applications/%s/submissions/%s" % (client.creds.app_id, pending["id"]))
+        except StoreError as err:
+            raise Blocked("cannot_cancel_%s" % status) from err
+        return "replaced:%s:%s" % (status, version)
     if status not in FAILED_STATUSES and not is_own_submission(pending):
         raise Blocked("foreign_pending_submission")
     client.request("DELETE", "/applications/%s/submissions/%s" % (client.creds.app_id, pending["id"]))
     return None
 
 
-def prepare_submission(body: Dict[str, Any], file_name: str, notes: str, sha: str) -> Dict[str, Any]:
-    """Swap in the new package and release notes on a cloned submission and hold publication (Manual)."""
+def prepare_submission(body: Dict[str, Any], file_name: str, notes: str, sha: str,
+                       publish_at: Optional[str] = None) -> Dict[str, Any]:
+    """Swap in the new package and release notes on a cloned submission and hold publication (Manual), or
+    schedule it for ``publish_at`` (``SpecificDate``: published then if certified, else once certified)."""
     packages = []
     for package in body.get("applicationPackages") or []:
         packages.append(dict(package, fileStatus="PendingDelete"))
     packages.append({"fileName": file_name, "fileStatus": "PendingUpload",
                      "minimumDirectXVersion": "None", "minimumSystemRam": "None"})
     body["applicationPackages"] = packages
-    body["targetPublishMode"] = PUBLISH_MODE
+    body["targetPublishMode"] = SCHEDULED_MODE if publish_at else PUBLISH_MODE
     body.pop("targetPublishDate", None)
+    if publish_at:
+        body["targetPublishDate"] = publish_at
     body["notesForCertification"] = "%s automated build of commit %s. No sign-in required; the app reads " \
         "public leaderboard data." % (OWN_MARKER, sha[:12])
     for listing in (body.get("listings") or {}).values():
@@ -428,8 +482,14 @@ def package_zip(package: Path) -> bytes:
 
 
 def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], build: str,
-           notes: str) -> Dict[str, Any]:
-    """Create, fill, upload and commit a new submission for MSIX ``build``.
+           notes: str, replace: bool = False, publish_at: Optional[str] = None) -> Dict[str, Any]:
+    """Create, fill, upload and commit a new submission for ``build`` (MSIX or ``YYMM.DD.NN`` version).
+
+    Args:
+        replace: Delete a submission still in certification or waiting to publish first (see
+            :func:`_clear_pending`); ``replaced`` in the result names it.
+        publish_at: ``YYYY-MM-DDTHH:MM:SSZ``: publish then if certified (``SpecificDate``) instead of holding
+            for a manual publish.
 
     Returns:
         ``{submitted, submission_id, version, build, sha, publish_mode}`` or ``{refused: ...}``.
@@ -438,20 +498,26 @@ def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], bui
         Blocked: First submission not done, foreign draft, or the build is not submittable.
     """
     notes = (notes or "").strip()[:RELEASE_NOTES_LIMIT]
+    if publish_at and not PUBLISH_AT_RE.match(publish_at):
+        raise ValueError("publish_at must be YYYY-MM-DDTHH:MM:SSZ")
     app = application(client)
     if not app.get("lastPublishedApplicationSubmission") and not app.get("pendingApplicationSubmission"):
         raise Blocked("first_submission_required")
-    refused = _clear_pending(client, app)
-    if refused:
-        return {"refused": refused.split(":", 1)[1], "build": build}
-
-    artifact = latest_artifact(run, repo)
-    if not artifact or artifact["version"] != build:
-        raise Blocked("build_not_latest_artifact")
+    artifact = find_artifact(run, repo, build)
+    if not artifact:
+        raise Blocked("build_artifact_not_found")
     if artifact["placeholder"]:
         raise Blocked("placeholder_store_identity")
     if artifact["expired"]:
         raise Blocked("artifact_expired")
+    build = artifact["version"]
+    cleared = _clear_pending(client, app, replace, build)
+    if cleared and cleared.startswith("refused:"):
+        return {"refused": cleared.split(":", 1)[1], "build": build}
+    replaced = None
+    if cleared:
+        _, status, version = cleared.split(":", 2)
+        replaced = {"state": status, "version": version}
 
     with tempfile.TemporaryDirectory(prefix="fst-msix-") as tmp:
         if client.dry_run:
@@ -470,7 +536,7 @@ def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], bui
         upload_url = str(created.pop("fileUploadUrl", "") or "")
         if not client.dry_run and not upload_url:
             raise StoreError(0, "new submission has no fileUploadUrl")
-        body = prepare_submission(created, file_name, notes, artifact["sha"])
+        body = prepare_submission(created, file_name, notes, artifact["sha"], publish_at)
         path = "/applications/%s/submissions/%s" % (client.creds.app_id, submission_id)
         client.request("PUT", path, body)
         client.upload(upload_url, data)
@@ -478,8 +544,36 @@ def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], bui
 
     if not client.dry_run:
         fst_release.record_build(fst_release.ledger_path(env), LEDGER_PLATFORM, build, build, artifact["sha"])
-    return {"submitted": not client.dry_run, "submission_id": submission_id, "version": build, "build": build,
-            "sha": artifact["sha"], "publish_mode": PUBLISH_MODE}
+    result = {"submitted": not client.dry_run, "submission_id": submission_id, "version": build, "build": build,
+              "sha": artifact["sha"], "publish_mode": SCHEDULED_MODE if publish_at else PUBLISH_MODE}
+    if publish_at:
+        result["publish_at"] = publish_at
+    if replaced:
+        result["replaced"] = replaced
+    return result
+
+
+def release_state(client: StoreClient) -> Dict[str, Any]:
+    """Report whether the newest submission reached customers (the release train's Monday check).
+
+    The submission API cannot "Publish now": a certified ``Manual`` submission waits for Partner Center
+    (``blocked: manual_publish_required``), while a ``SpecificDate`` one publishes itself at ``scheduled``.
+
+    Returns:
+        ``{released, state, version, publish_mode, scheduled}`` (``blocked`` set when a person must act).
+    """
+    app = application(client)
+    pending = submission(client, app.get("pendingApplicationSubmission"))
+    published = submission(client, app.get("lastPublishedApplicationSubmission"))
+    if pending is None:
+        return {"released": published is not None, "state": "Published" if published else None,
+                "version": package_version(published) if published else None}
+    status = str(pending.get("status") or "")
+    doc = {"released": False, "state": status, "version": package_version(pending),
+           "publish_mode": pending.get("targetPublishMode"), "scheduled": pending.get("targetPublishDate")}
+    if status == "PendingPublication" and pending.get("targetPublishMode") == PUBLISH_MODE:
+        doc["blocked"] = "manual_publish_required"
+    return doc
 
 
 # endregion
@@ -498,6 +592,14 @@ def build_parser() -> argparse.ArgumentParser:
     notes = p.add_mutually_exclusive_group(required=True)
     notes.add_argument("--notes-file")
     notes.add_argument("--notes-stdin", action="store_true")
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--replace", action="store_true",
+                   help="delete a submission still in certification or waiting to publish, then submit")
+    p.add_argument("--publish-at", help="publish at this UTC time (YYYY-MM-DDTHH:MM:SSZ) once certified")
+    p = sub.add_parser("build-for-version")
+    p.add_argument("--version", required=True)
+    p = sub.add_parser("release")
+    p.add_argument("--version")
     p.add_argument("--dry-run", action="store_true")
     p = sub.add_parser("record-build")
     p.add_argument("--build", required=True)
@@ -546,11 +648,21 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
             return EXIT_OK
         if args.command == "submit":
             notes = (stdin or sys.stdin).read() if args.notes_stdin else Path(args.notes_file).read_text(encoding="utf-8")
-            result = submit(client, runner, repo, env, args.build, notes)
+            result = submit(client, runner, repo, env, args.build, notes, replace=args.replace,
+                            publish_at=args.publish_at)
             if dry_run:
                 result["planned"] = client.planned
             emit(result)
             return EXIT_REFUSED if result.get("refused") else EXIT_OK
+        if args.command == "build-for-version":
+            artifact = find_artifact(runner, repo, args.version)
+            ok = bool(artifact and not artifact["placeholder"] and not artifact["expired"])
+            emit({"version": args.version, "build": artifact["version"] if ok else None, "found": ok})
+            return EXIT_OK if ok else EXIT_REFUSED
+        if args.command == "release":
+            result = release_state(client)
+            emit(result)
+            return EXIT_BLOCKED if result.get("blocked") else EXIT_OK
     except Blocked as err:
         emit(blocked_status(err.reason) if args.command == "status" else {"blocked": err.reason})
         return EXIT_BLOCKED

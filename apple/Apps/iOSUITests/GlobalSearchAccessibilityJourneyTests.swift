@@ -17,8 +17,9 @@ import XCTest
 /// At AX5, with the field active and again with results shown, the title must:
 /// - be the navigation bar's static text named "Search", on screen at the top of the page,
 ///   and read before the scope bar and results (VoiceOver announces the page title first);
-/// - grow (> 1.35× its default-size line height; > 1.05× on the iPhone Duo device type, whose
-///   system bar caps it) and render whole, never "Sea…";
+/// - grow (> 1.35× its default-size line height on the iPad page; > 1.15× for the phone tab's
+///   in-bar `inlineLarge` title, #611; > 1.05× on the iPhone Duo device type; UIKit caps
+///   bar-hosted titles) and render whole, never "Sea…";
 /// - pass a scoped audit (Dynamic Type, clipped text, description, contrast) together with
 ///   the field and Close, which stay named and reachable (Close ≥ 44 pt).
 ///
@@ -166,11 +167,16 @@ final class GlobalSearchAccessibilityJourneyTests: XCTestCase {
 
     /// Minimum growth of the title's recognized line height from the default size to AX5.
     ///
-    /// iPhone and iPad (iOS 26.5 and 27) grow the system large title more than 1.35×. The
-    /// iPhone Duo device type caps it (`system-bar-title-size`, testing/apple/accessibility.md):
-    /// 22.7 → 25.0 pt (1.10×) folded on iOS 27.1. UIKit sizes that title and the page keeps the
-    /// system large title (#375), so the floor only fails a title drawn at a fixed size.
-    private static var minimumTitleGrowth: CGFloat { isDuo ? 1.05 : RecognizedText.minimumGrowth }
+    /// The iPad sidebar page's standard large title grows more than 1.35× (iOS 26.5 and 27).
+    /// The phone Search tab draws it inside the bar row (`inlineLarge`, #611), where UIKit caps
+    /// bar-hosted text (`system-bar-title-size`, testing/apple/accessibility.md): 27.8 → 33.7 pt
+    /// (1.21×) on iOS 27, like the inline modal title (#429). The iPhone Duo device type caps it
+    /// further: 22.7 → 25.0 pt (1.10×) folded on iOS 27.1. UIKit sizes the title in every case,
+    /// so each floor only fails a title drawn at a fixed size.
+    private static var minimumTitleGrowth: CGFloat {
+        if isDuo { return 1.05 }
+        return isPhone ? RecognizedText.minimumBarTitleGrowth : RecognizedText.minimumGrowth
+    }
 
     // MARK: - Launch and queries
 

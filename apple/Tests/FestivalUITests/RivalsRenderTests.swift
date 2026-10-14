@@ -888,7 +888,7 @@ private func hostRivalsPageWithTools<Page: View>(
 ) -> (NSHostingView<NativeHostedRoot<AnyView>>, NSWindow) {
     let size = CGSize(width: 402, height: height)
     let host = nativeHostedView(AnyView(
-        NavigationStack { page.pageToolsScope() }
+        NavigationStack { page.pageToolsScope(inSelectedTab: true) }
             .environment(\.pageToolsRegistry, registry)
             .defaultAppStorage(storage)
             .preferredColorScheme(.dark)
@@ -922,11 +922,11 @@ private func hostRivalsPageWithTools<Page: View>(
     macAccessibilityDump(nodes, name: "rivalry-no-quick-links")
     var rowTitles: [String] = []
     for node in nodes where node.isElement {
-        guard let title = titles.first(where: { node.spokenName.hasPrefix("\($0), you rank") }),
+        guard let title = titles.first(where: { node.spokenName.hasPrefix("\($0), Lead, you rank") }),
               rowTitles.last != title else { continue }
         rowTitles.append(title)
     }
-    #expect(rowTitles == titles, "song rows read in drawn order, named with both ranks: \(nodes)")
+    #expect(rowTitles == titles, "song rows read in drawn order, named with instrument and both ranks: \(nodes)")
     #expect(hostedRotorEntries(named: "Quick Links", in: host).isEmpty, "no Quick Links rotor")
     #expect(nativeHostedAccessibilityElement("fst.quick-links.open", in: host) == nil)
     #expect(registry.frontItems.map(\.order) == [PageToolOrder.primary], "View Profile is the only page tool")

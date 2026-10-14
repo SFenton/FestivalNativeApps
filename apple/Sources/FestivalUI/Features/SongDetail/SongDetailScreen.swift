@@ -169,7 +169,7 @@ struct SongDetailScreen: View {
             if ready {
                 loadedScroll
             } else {
-                FestivalLoadingView(accessibilityLabel: "Loading \(song.title)")
+                FestivalLoadingView(accessibilityLabel: "Loading \(song.title)", placement: .fill)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityIdentifier("fst.song-detail.loading")
             }
@@ -599,40 +599,30 @@ enum SongDetailCardColumns {
     static let rowSpacing: CGFloat = 20
 }
 
-/// Song Detail's preview cards in hinge-aware adaptive columns (``HingeGrid``): the
-/// instrument cards, and in a second grid the Duos, Trios and Quads previews (#366), so
-/// both share one column rule. Accessibility sizes build every card at once
-/// (``HingeEagerGrid``): scrolling the lazy grid's very tall, unequal cards to the end of
-/// the page at AX5 hung the main thread in a lazy-layout loop (iPad portrait, sampled
-/// 2026-10-05, Lane A11Y3). Both put the gutter on the fold in book pose (#343).
+/// Song Detail's preview cards in hinge-aware adaptive columns: the instrument cards,
+/// and in a second grid the Duos, Trios and Quads previews (#366), so both share one
+/// column rule and put the gutter on the fold in book pose (#343).
+///
+/// Every card is built at once (``HingeEagerGrid``) at every text size. A lazy grid of
+/// these tall, unequal cards (a ten-row chart beside a one-line empty one) hung the main
+/// thread in a lazy-layout loop once scrolled to them: first at AX5 (iPad portrait,
+/// sampled 2026-10-05, Lane A11Y3), then at the default size on iPhone (issue #30's
+/// render loop, sampled 2026-10-12 in `LazyLayoutViewCache.updateItemPhases`, #500).
+/// The page preloads every card's chart before it appears, so building them all adds no reads.
 struct SongDetailCardGrid<Item: Hashable, Card: View>: View {
     /// Cards' items (instruments or band sizes) in reading order.
     let items: [Item]
     /// One card, given its index and item.
     @ViewBuilder let card: (Int, Item) -> Card
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        if dynamicTypeSize.isAccessibilitySize {
-            HingeEagerGrid(
-                minimum: SongDetailCardColumns.minimumWidth, spacing: SongDetailCardColumns.spacing,
-                rowSpacing: SongDetailCardColumns.rowSpacing
-            ) {
-                ForEach(Array(items.enumerated()), id: \.element) { index, item in
-                    card(index, item)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                }
-            }
-        } else {
-            HingeGrid(
-                columns: [GridItem(
-                    .adaptive(minimum: SongDetailCardColumns.minimumWidth), spacing: SongDetailCardColumns.spacing
-                )],
-                alignment: .leading, spacing: SongDetailCardColumns.rowSpacing
-            ) {
-                ForEach(Array(items.enumerated()), id: \.element) { index, item in
-                    card(index, item)
-                }
+        HingeEagerGrid(
+            minimum: SongDetailCardColumns.minimumWidth, spacing: SongDetailCardColumns.spacing,
+            rowSpacing: SongDetailCardColumns.rowSpacing
+        ) {
+            ForEach(Array(items.enumerated()), id: \.element) { index, item in
+                card(index, item)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         }
     }

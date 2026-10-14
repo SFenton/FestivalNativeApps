@@ -49,6 +49,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import devcap  # noqa: E402  (machine-wide build capacity shared with other repos)
+
 # region Configuration
 
 DEVELOPER_DIR = "/Applications/Xcode.app/Contents/Developer"
@@ -362,11 +365,13 @@ def cmd_build(args: argparse.Namespace) -> int:
         print(f"waiting for build lock {BUILD_LOCK_PATH} ...", file=sys.stderr)
         fcntl.flock(lock, fcntl.LOCK_EX)
         try:
-            result = _run([
-                "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", "FestivalDesktop",
-                "-configuration", args.configuration, "-destination", "platform=macOS",
-                "-derivedDataPath", str(derived_data()), "build", "-quiet",
-            ], cwd=APPLE_DIR, check=False)
+            with devcap.hold(pools=["build"], purpose=f"FST mac build ({REPO_ROOT.name})", hold_seconds=None,
+                             wait_seconds=float("inf")):
+                result = _run([
+                    "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", "FestivalDesktop",
+                    "-configuration", args.configuration, "-destination", "platform=macOS",
+                    "-derivedDataPath", str(derived_data()), "build", "-quiet",
+                ], cwd=APPLE_DIR, check=False)
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)
     return result.returncode

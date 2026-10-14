@@ -49,8 +49,9 @@
     Settings replay alike. Controls follow Apple's onboarding layout (issue #25): a system
     toolbar **Back** chevron at the top leading edge (`fst.first-run.back`, label "Back", HIG
     Toolbars: "Leading: back/previous-document … controls, then the view title"; only after
-    page one, never disabled); one large accent-tinted `.glassProminent` **Next/Done**
-    (`.borderedProminent` before iOS 26; `.controlSize(.large)`, ≈48 pt on screen); then a
+    page one, never disabled); one large **Next/Done** drawn with the app's prominent action,
+    `festivalProminentButton()` (`.borderedProminent` on `AccentText.prominentFill` with its
+    Increase Contrast pair; `.controlSize(.large)`, ≈48 pt on screen; #626); then a
     full-width `.borderless` accent-tinted **Skip** beneath it (body text, ≥48 pt row; issue
     #380, see [Native controls and web motion](#native-controls-and-web-motion-issue-380)) until
     the last page. The Skip row stays reserved on the last page so Done doesn't move; a one-page
@@ -205,7 +206,7 @@ app's own interface.
 - **Skip (agent decision, #380; the owner may override with `/choose`).**
   - Skip is now a full-width `.borderless` button: body text tinted `AccentText.blue`, ≥48 pt.
     It replaces the white plain text, which read as a web link.
-  - Next/Done keep `.glassProminent`/`.borderedProminent`. HIG Buttons: "use a prominent style
+  - Next/Done keep a prominent style (`festivalProminentButton()` since #626). HIG Buttons: "use a prominent style
     (accent-color background) for the most likely action" and "Distinguish the preferred choice
     by style, not size". This prominent primary with a tinted borderless secondary is the
     layout of Apple's own setup screens.
@@ -213,6 +214,62 @@ app's own interface.
     operator decision).
   - Rejected: a bordered Skip, which competes with Next; and Skip in the toolbar, where Close
     already dismisses.
+- **Next/Done use the app's prominent action (agent decision, #626; the owner may override with
+  `/choose`).** The brand-blue `.glassProminent` Next failed `performAccessibilityAudit` contrast
+  at AX5 on iOS 27 (iPhone and Duo folded), although its rendered fill measured about 4.95:1
+  against the white label. Options: (A) `festivalProminentButton()`, the canonical prominent
+  action (Choose Profile, [empty-error-states](../../patterns/empty-error-states.md) R5): white on
+  `AccentText.prominentFill` (5.2:1) and a dark label on the white Increase Contrast tint;
+  (B) keep `.glassProminent` with a darker tint; (C) keep the glass and accept the flag on a
+  rendered measurement. Chose A: it passes the audit outright (verified on iOS 27 at AX5, iPhone
+  and Duo folded), adds the Increase Contrast variant the glass lacked, and reuses one component
+  instead of a First Run-only style; B is unproven against the audit's glass reading and C
+  would keep a flagged control. HIG Buttons (should): "use a prominent style (accent-color
+  background) for the most likely action"; HIG Accessibility (should): text at least 4.5:1, and
+  "If not met by default, provide it when Increase Contrast is on"; HIG Materials: "Don't use
+  Liquid Glass in the content layer". This narrows [Liquid Glass](../../design/apple/liquid-glass.md)'s
+  "primary buttons in content" row for First Run.
+- **Accessibility (#380, backfilled by #498).** HIG VoiceOver: "Exclude purely decorative images
+  that convey no useful or actionable information".
+  - Hosted (`FirstRunNativeDemosAccessibilityTests`, the shared SwiftUI of every Apple platform):
+    - All 42 catalogue demos are checked, active with motion on and past their entrance. None
+      exposes an element through `accessibilityChildren`.
+    - The 10 real-control slides (Sort, Navigation, Filter, View All, Paths, Item Shop button,
+      Player History sort, Select Player, both Suggestions filters) each read as one
+      `AXStaticText` "title. description" with no custom actions. They are read before the dots,
+      Next and Skip, with nothing else reachable.
+    - System and app Reduce Motion show the title and description at rest from the first frame;
+      with motion allowed they fade in. Reduce Motion also holds the infinite scroll still.
+    - Reduce Transparency, Less Transparency, Increase Contrast and More Contrast each remove
+      its bottom fade while leaving the top unchanged ([scroll-edge](../../patterns/scroll-edge.md) R7).
+    - Skip's `AccentText.blue` keeps ≥ 4.5:1 on the sheet.
+  - iPhone and the simulated folded Duo at AX5
+    (`FirstRunJourneyTests/testSongsGuideRealControlDemosAccessibleAtLargestText[DuoFolded]`,
+    `apple-ci` journeys). The test walks all six Songs pages:
+    - each slide's exact name;
+    - no button, tab, toggle, cell or text from the real Sort sheet, tab bar or rows inside the
+      slide;
+    - reading order slide → dots → Next/Done → Skip;
+    - named 44 pt Next, Done and Skip, and Back from page two;
+    - `performAccessibilityAudit` on Sort, Navigation and the last page (clipped text, hit
+      regions, descriptions, element detection, contrast), with no issue accepted.
+  - **Rule: a real control's UIKit views need UIKit hiding.** `accessibilityHidden` is a SwiftUI
+    modifier and never reaches a separate UIKit host. Each `Form`/`List` row is its own SwiftUI
+    host in a collection-view cell, and a `TabView` is a `UITabBarController`. On iPhone the Sort
+    Songs slide read the sheet's cells and its Title, Artist, Year and Duration buttons, and the
+    Navigation slide read its tab bar and five tabs (found by #498, shipped since #380). On iOS,
+    `firstRunInert()` therefore adds `FirstRunPlatformAccessibilityHider`, a background probe
+    that marks every UIKit view inside the preview's frame `accessibilityElementsHidden`. It
+    never marks its own ancestors (the carousel pager, the slide's AX5 scroll view). Every demo
+    that shows a real control uses `firstRunInert()`, never a bare `accessibilityHidden`.
+    Hosted macOS tests can't see this leak; only the XCUITest journey does.
+  - **Rule:** `firstRunInert()` collapses the preview (`.accessibilityElement(children: .ignore)`)
+    before `accessibilityHidden`. On macOS a menu-style `Picker`'s title label escaped
+    `accessibilityHidden` alone: the Paths demo read "Instrument", "Difficulty" and "View"
+    (found by #498; the carousel slide's combine had absorbed them). Test a demo's exposure with
+    an `accessibilityChildren` walk: the Navigation demo's macOS `NSTabView` is an AppKit
+    subview the host never lists, so `macAccessibilityTree`'s subview walk reports a tab group
+    that VoiceOver doesn't reach.
 
 ### FREs reviewed (#380)
 

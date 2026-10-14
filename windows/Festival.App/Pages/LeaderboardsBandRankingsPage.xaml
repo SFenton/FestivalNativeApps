@@ -91,9 +91,15 @@
                                  TitleAutomationId="fst.band-rankings.empty"
                                  controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                  Visibility="{x:Bind ViewModel.ShowEmpty, Mode=OneWay}" />
-        <ProgressRing Grid.Row="1" Width="48" Height="48" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
-                      controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Spinner"
-                      AutomationProperties.Name="Loading rankings" />
+        <controls:AccessibleGroup x:Name="LoadingRegion" Grid.Row="1" Grid.RowSpan="2" AutomationProperties.AccessibilityView="Raw"
+                                  AutomationProperties.AutomationId="fst.band-rankings.loading-region" IsHitTestVisible="False">
+            <!-- Transparent fill: the Raw region's UI Automation bounds are its layout box, not the ring's. -->
+            <Grid Background="Transparent">
+                <ProgressRing x:Name="LoadingRing" Width="48" Height="48" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}"
+                              controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Spinner"
+                              AutomationProperties.Name="Loading rankings" />
+            </Grid>
+        </controls:AccessibleGroup>
         <controls:ServiceStatusView x:Name="RowsStatus" Grid.Row="1" Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                     controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />

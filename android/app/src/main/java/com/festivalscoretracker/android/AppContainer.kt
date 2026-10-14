@@ -1,6 +1,8 @@
 package com.festivalscoretracker.android
 
 import android.content.Context
+import android.util.Log
+import coil3.SingletonImageLoader
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
@@ -16,6 +18,8 @@ import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.data.ForcedFreezeTransport
 import com.festivalscoretracker.android.data.HttpTransport
 import com.festivalscoretracker.android.data.OkHttpTransport
+import com.festivalscoretracker.android.data.OkHttpPublicationLiveSocket
+import com.festivalscoretracker.android.data.PublicationLiveConnection
 import com.festivalscoretracker.android.data.RetiredSettingsMigration
 import com.festivalscoretracker.android.data.SettingsRepository
 import com.festivalscoretracker.android.data.shop.shop
@@ -84,7 +88,14 @@ class AppContainer(
     val rivals = RivalsRepository(api)
 
     /** Shared animated backdrop state. */
-    val background = BackgroundController(loadCatalog = { api.catalog() }, artworkUrl = api::artworkUrl)
+    val background = BackgroundController(
+        loadCatalog = { api.catalog() },
+        artworkUrl = api::artworkUrl,
+        publications = api.publicationChanges,
+        backoff = backoff,
+        onFailure = { Log.w("FST_ART", "Artwork catalogue failed; retrying", it) },
+        onPublicationChanged = { SingletonImageLoader.get(context).memoryCache?.clear() },
+    )
 
     /** App-wide first-run arbiter (seen-state in the settings DataStore). */
     val firstRun = FirstRunCenter(
@@ -112,6 +123,15 @@ class AppContainer(
 
     /** Saved Songs filters and Shop layout. */
     val songsPreferences = SongsPreferences(settings)
+
+    /**
+     * Anonymous receive-only `/api/ws` connection (web `useAppWebSocket`, Apple #304; issue
+     * #616), run while the app is in the foreground. Null for fixture transports and loopback
+     * origins: tests and the mock service have no live socket and drive publication changes
+     * themselves.
+     */
+    val liveUpdates: PublicationLiveConnection? =
+        if (transport == null && !api.usesLoopbackOrigin) PublicationLiveConnection(api, OkHttpPublicationLiveSocket(httpClient)) else null
 }
 
 // endregion

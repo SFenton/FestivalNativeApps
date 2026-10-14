@@ -182,7 +182,7 @@ fun FullRankingsScreen(viewModel: FullRankingsViewModel) {
             fadeAboveFooter = true,
         ) {
             when {
-                swap.showsSpinner -> loadSwapSpinnerItem(swap, "Loading rankings", "fst.full-rankings.loading")
+                swap.showsSpinner -> loadSwapSpinnerItem(swap, "Loading rankings", "fst.full-rankings.loading", state = listState)
                 shown is LoadState.Failed -> item(key = "failed") {
                     Box(swap.contentModifier) { ServiceStatusInline(shown.issue, "Rankings unavailable", shown.countdown, viewModel::retry) }
                 }

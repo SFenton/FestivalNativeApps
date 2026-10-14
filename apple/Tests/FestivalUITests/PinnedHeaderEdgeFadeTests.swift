@@ -110,6 +110,32 @@ func pinnedHeaderAccessibilitySettingsKeepAHardEdge(reduceTransparency: Bool, in
     #expect(PinnedHeaderEdgeFade.cut(rowTop: .nan, edge: 100, depth: 28) == nil)
 }
 
+/// Issue #459 (scroll-edge R7, as Android's `cutRows`, #417): a row whose bottom ends at
+/// or above the pinned title's edge, inside the scroll view, is wholly in the cut and no
+/// VoiceOver stop; a row with any part below the edge (even in the fade) stays one, and
+/// a row that has left the scroll view is the platform's.
+@Test func pinnedHeaderRowIsHiddenOnlyWhollyInTheCut() {
+    typealias Fade = PinnedHeaderEdgeFade
+    // Edge 28 pt below the scroll view's top (the Notifications title band); 85 pt rows.
+    #expect(Fade.hiddenInCut(rowTop: -68, rowHeight: 85, edge: 28, visibleTop: 0))
+    #expect(Fade.hiddenInCut(rowTop: -57, rowHeight: 85, edge: 28, visibleTop: 0))
+    // Rounding: ends half a point below the edge.
+    #expect(Fade.hiddenInCut(rowTop: -56.5, rowHeight: 85, edge: 28, visibleTop: 0))
+    // One point of the row below the edge: partly hidden, still read (R5).
+    #expect(!Fade.hiddenInCut(rowTop: -56, rowHeight: 85, edge: 28, visibleTop: 0))
+    #expect(!Fade.hiddenInCut(rowTop: 3, rowHeight: 85, edge: 28, visibleTop: 0))
+    // Wholly above the scroll view's top: off screen, left to the platform.
+    #expect(!Fade.hiddenInCut(rowTop: -85, rowHeight: 85, edge: 28, visibleTop: 0))
+    #expect(!Fade.hiddenInCut(rowTop: -200, rowHeight: 85, edge: 28, visibleTop: 0))
+    // Global coordinates (Songs bar): edge 160, window top 0.
+    #expect(Fade.hiddenInCut(rowTop: 60, rowHeight: 72, edge: 160, visibleTop: 0))
+    #expect(!Fade.hiddenInCut(rowTop: 100, rowHeight: 72, edge: 160, visibleTop: 0))
+    // No row or no readings: never hidden.
+    #expect(!Fade.hiddenInCut(rowTop: -40, rowHeight: 0, edge: 28, visibleTop: 0))
+    #expect(!Fade.hiddenInCut(rowTop: .nan, rowHeight: 85, edge: 28, visibleTop: 0))
+    #expect(!Fade.hiddenInCut(rowTop: -68, rowHeight: 85, edge: .infinity, visibleTop: 0))
+}
+
 /// Issue #322: the row's own separator runs between its separator guides in its
 /// background's coordinates (on to the row edge on macOS), left to right in either
 /// layout direction, and is 1 pt
