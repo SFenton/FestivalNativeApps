@@ -3,6 +3,7 @@ package com.festivalscoretracker.android.presentation.feedback
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.festivalscoretracker.android.core.feedback.FeedbackAttachment
+import com.festivalscoretracker.android.core.feedback.FeedbackCopy
 import com.festivalscoretracker.android.core.feedback.FeedbackDraft
 import com.festivalscoretracker.android.core.feedback.FeedbackException
 import com.festivalscoretracker.android.core.feedback.FeedbackKind
@@ -58,6 +59,47 @@ data class FeedbackSent(val kind: FeedbackKind, val job: FeedbackJob) {
 }
 
 /**
+ * The busy view that replaces the form's fields while it is sent and filed (owner, issue #634):
+ * one spinner that stays put, and a title with either a progress bar or a subtitle under it.
+ *
+ * @property step Which step it is; the title, subtitle and bar cross-fade only when this changes.
+ * @property title "Uploading Media", "Filing Issue" or "Filing Request".
+ * @property subtitle Text under the title, or null when the progress bar is the subtitle.
+ * @property showsBar Whether the upload bar is the subtitle.
+ * @property progress Upload fraction 0…1 for the bar, or null when the body's length is unknown.
+ */
+data class FeedbackBusyStatus(
+    val step: Step,
+    val title: String,
+    val subtitle: String?,
+    val showsBar: Boolean,
+    val progress: Float?,
+) {
+    /** The two busy steps, in order. */
+    enum class Step { Uploading, Filing }
+
+    companion object {
+        /**
+         * The upload step: "Uploading Media" over a determinate bar.
+         *
+         * @param progress Fraction sent, or null when unknown.
+         * @return Status.
+         */
+        fun uploading(progress: Float?): FeedbackBusyStatus =
+            FeedbackBusyStatus(Step.Uploading, FeedbackCopy.UPLOADING_TITLE, null, showsBar = true, progress = progress)
+
+        /**
+         * The filing step: "Filing Issue/Request" over the owner's sentence.
+         *
+         * @param kind Form.
+         * @return Status.
+         */
+        fun filing(kind: FeedbackKind): FeedbackBusyStatus =
+            FeedbackBusyStatus(Step.Filing, FeedbackCopy.filingTitle(kind), FeedbackCopy.filingSubtitle(kind), showsBar = false, progress = null)
+    }
+}
+
+/**
  * One open feedback form.
  *
  * @property draft Field values and attachments.
@@ -65,6 +107,7 @@ data class FeedbackSent(val kind: FeedbackKind, val job: FeedbackJob) {
  * @property error Readable send or filing failure, shown above the fields.
  * @property notice Readable note about skipped attachments.
  * @property confirmingDiscard Whether the discard confirmation is showing.
+ * @property uploadProgress Fraction of the request sent while [FeedbackPhase.Submitting], or null when unknown.
  */
 data class FeedbackFormState(
     val draft: FeedbackDraft,
@@ -72,6 +115,7 @@ data class FeedbackFormState(
     val error: String? = null,
     val notice: String? = null,
     val confirmingDiscard: Boolean = false,
+    val uploadProgress: Float? = null,
 ) {
     /** Whether the fields and Attach Media accept input. */
     val editable: Boolean get() = phase == FeedbackPhase.Editing
@@ -85,12 +129,17 @@ data class FeedbackFormState(
     /** Whether the send or filing progress shows. */
     val busy: Boolean get() = phase == FeedbackPhase.Submitting || phase is FeedbackPhase.Filing
 
-    /** Progress line under the indicator. */
-    val progressText: String
-        get() = if (phase is FeedbackPhase.Filing) {
-            "Filing your ${draft.kind.noun} on GitHub…"
-        } else {
-            "Sending your ${draft.kind.noun}…"
+    /**
+     * The busy view's content, or null while editing. A form without attachments has no media
+     * to upload, so its short text-only send already reads as filing (agent decision, issue #634):
+     * "Uploading Media" would be inaccurate and would flash for a fraction of a second.
+     */
+    val busyStatus: FeedbackBusyStatus?
+        get() = when (phase) {
+            FeedbackPhase.Editing -> null
+            FeedbackPhase.Submitting ->
+                if (draft.attachments.isEmpty()) FeedbackBusyStatus.filing(draft.kind) else FeedbackBusyStatus.uploading(uploadProgress)
+            is FeedbackPhase.Filing -> FeedbackBusyStatus.filing(draft.kind)
         }
 }
 
@@ -104,7 +153,8 @@ data class FeedbackFormState(
  * accepts a form it polls the job until it is filed, fails or [POLL_TIMEOUT_MS] passes. A filed
  * or received form closes and its result moves to [sent] (one presentation at a time, #565).
  *
- * @param send Sends one submission (`FestivalApi.submitFeedback` with the content resolver).
+ * @param send Sends one submission (`FestivalApi.submitFeedback` with the content resolver),
+ * reporting upload progress (0…1, or null when unknown) through its second argument.
  * @param status Reads an accepted job (`FestivalApi.feedbackStatus`).
  * @param features Reads whether the service accepts feedback (`FestivalApi.feedbackEnabled`).
  * @param appVersion App version reported with the form.
@@ -115,7 +165,7 @@ data class FeedbackFormState(
  * @param now Monotonic clock in milliseconds for the polling deadline.
  */
 class FeedbackViewModel(
-    private val send: suspend (FeedbackSubmission) -> FeedbackJob,
+    private val send: suspend (FeedbackSubmission, (Float?) -> Unit) -> FeedbackJob,
     private val status: suspend (String) -> FeedbackJob,
     private val features: suspend () -> Boolean,
     private val appVersion: String,
@@ -234,10 +284,10 @@ class FeedbackViewModel(
         val state = formFlow.value ?: return
         if (!state.canSubmit) return
         val submission = state.draft.submission(platform, appVersion, clientInfo)
-        formFlow.value = state.copy(phase = FeedbackPhase.Submitting, error = null)
+        formFlow.value = state.copy(phase = FeedbackPhase.Submitting, error = null, uploadProgress = 0f)
         job = work.launch {
             val accepted = try {
-                withContext(io) { send(submission) }
+                withContext(io) { send(submission, ::reportUpload) }
             } catch (cancel: CancellationException) {
                 throw cancel
             } catch (error: FeedbackException) {
@@ -263,6 +313,20 @@ class FeedbackViewModel(
 
     private fun fail(message: String?) {
         formFlow.update { it?.copy(phase = FeedbackPhase.Editing, error = message ?: FeedbackException.offline().message) }
+    }
+
+    /**
+     * Record upload progress from the writing thread, in whole-percent steps so a large video
+     * doesn't recompose the bar for every buffer. Ignored once the form has left sending.
+     *
+     * @param fraction Fraction sent, or null when the length is unknown.
+     */
+    internal fun reportUpload(fraction: Float?) {
+        val stepped = fraction?.let { (it.coerceIn(0f, 1f) * 100).toInt() / 100f }
+        formFlow.update { state ->
+            if (state == null || state.phase != FeedbackPhase.Submitting || state.uploadProgress == stepped) state
+            else state.copy(uploadProgress = stepped)
+        }
     }
 
     /**

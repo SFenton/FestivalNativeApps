@@ -74,12 +74,14 @@ final class FeedbackSentJourneyTests: XCTestCase {
         }
     }
 
-    /// Issue #634: Submit swaps the form for the sending status, centred in the sheet. The
-    /// `fixture-slow` job answers its upload after 2 s and files after two more status reads,
-    /// so both stages stay on screen: "Sending Issue" (no media) over the upload bar and
-    /// Stop Sending, then "Filing Issue" with the owner's sentence. The fields leave the
-    /// screen and the tree, one named busy indicator stays put through both stages, and the
-    /// filed form still closes before "Report Sent" (#565).
+    /// Issue #634: Submit swaps the form for the sending status, centred in the sheet. A
+    /// report without media reads as filing from Submit (`modal-shell` R16, as on Android
+    /// and Windows): "Filing Issue" with the owner's sentence, no bar and no Stop Sending.
+    /// The `fixture-slow` job answers its upload after 2 s and files after two more status
+    /// reads, so the status stays through both phases: the fields leave the screen and the
+    /// tree, the text never changes, one named busy indicator stays put, and the filed form
+    /// still closes before "Report Sent" (#565). The Uploading Media stage (bar, Stop
+    /// Sending, the hand-off) is covered by the hosted `FeedbackSendingStatusAccessibilityTests`.
     @MainActor
     func testSubmitSwapsFormForCentredSendingStatus() throws {
         try requireFixture()
@@ -91,15 +93,17 @@ final class FeedbackSentJourneyTests: XCTestCase {
         app.buttons["fst.settings.feedback.submit"].tap()
 
         let title = app.descendants(matching: .any)["fst.settings.feedback.status.title"]
+        let subtitle = app.descendants(matching: .any)["fst.settings.feedback.status.subtitle"]
         let busy = app.activityIndicators["fst.settings.feedback.busy"]
-        XCTAssertTrue(FeedbackJourney.waitUntil(timeout: FestivalApp.budget(5)) {
-            title.exists && title.label == "Sending Issue"
-        }, "No upload status (title: \(title.exists ? title.label : "missing"))")
-        XCTAssertTrue(app.progressIndicators["fst.settings.feedback.progress"].exists, "No upload bar")
-        let stop = app.buttons["fst.settings.feedback.stop"]
-        XCTAssertTrue(stop.exists, "No Stop Sending while uploading")
-        XCTAssertGreaterThanOrEqual(stop.frame.height, 44, "Stop Sending is under 44 pt")
-        XCTAssertTrue(busy.exists, "No busy indicator while uploading")
+        let sentence = "We\u{2019}re filing your issue. Please wait while we upload it."
+        XCTAssertTrue(FeedbackJourney.waitUntil(timeout: FestivalApp.budget(2)) {
+            title.exists && title.label == "Filing Issue"
+        }, "No Filing Issue status while sending (title: \(title.exists ? title.label : "missing"))")
+        XCTAssertEqual(subtitle.label, sentence)
+        XCTAssertFalse(app.progressIndicators["fst.settings.feedback.progress"].exists,
+                       "An upload bar shows with no media")
+        XCTAssertFalse(app.buttons["fst.settings.feedback.stop"].exists, "Stop Sending shows with no media")
+        XCTAssertTrue(busy.exists, "No busy indicator while sending")
         XCTAssertEqual(busy.label, "Sending your issue")
         for id in ["field.title", "field.description", "attach"] {
             XCTAssertFalse(app.descendants(matching: .any)["fst.settings.feedback.\(id)"].exists,
@@ -109,24 +113,24 @@ final class FeedbackSentJourneyTests: XCTestCase {
         let sheet = app.navigationBars
             .containing(.button, identifier: "fst.settings.feedback.close").firstMatch.frame
         let window = app.windows.firstMatch.frame
-        let uploadSpinner = busy.frame
-        XCTAssertEqual(uploadSpinner.midX, sheet.midX, accuracy: 2, "The spinner is not centred across")
+        let sendingSpinner = busy.frame
+        XCTAssertEqual(sendingSpinner.midX, sheet.midX, accuracy: 2, "The spinner is not centred across")
         XCTAssertEqual(title.frame.midX, sheet.midX, accuracy: 2, "The title is not centred across")
         XCTAssertTrue((window.minY + window.height * 0.3...window.minY + window.height * 0.7)
-            .contains(uploadSpinner.midY),
-                      "The status is not centred down the sheet: \(uploadSpinner) in \(window)")
+            .contains(sendingSpinner.midY),
+                      "The status is not centred down the sheet: \(sendingSpinner) in \(window)")
 
+        // The upload answers after 2 s; the job then files after two status reads.
+        let close = app.buttons["fst.settings.feedback.close"]
         XCTAssertTrue(FeedbackJourney.waitUntil(timeout: FestivalApp.budget(6)) {
-            title.exists && title.label == "Filing Issue"
-        }, "No Filing Issue status (title: \(title.exists ? title.label : "missing"))")
-        let subtitle = app.descendants(matching: .any)["fst.settings.feedback.status.subtitle"]
-        XCTAssertEqual(subtitle.label, "We\u{2019}re filing your issue. Please wait while we upload it.")
+            close.exists && close.label == "Close"
+        }, "The sheet never reached filing (Close)")
+        XCTAssertEqual(title.label, "Filing Issue", "The status text changed while filing")
+        XCTAssertEqual(subtitle.label, sentence)
         XCTAssertEqual(app.activityIndicators.matching(identifier: "fst.settings.feedback.busy").count, 1)
-        XCTAssertEqual(busy.label, "Sending your issue", "The spinner was renamed between stages")
-        XCTAssertEqual(busy.frame.midX, uploadSpinner.midX, accuracy: 1, "The spinner moved between stages")
-        XCTAssertEqual(busy.frame.midY, uploadSpinner.midY, accuracy: 1, "The spinner moved between stages")
-        XCTAssertFalse(app.buttons["fst.settings.feedback.stop"].exists, "Stop Sending stayed while filing")
-        XCTAssertEqual(app.buttons["fst.settings.feedback.close"].label, "Close")
+        XCTAssertEqual(busy.label, "Sending your issue", "The spinner was renamed between phases")
+        XCTAssertEqual(busy.frame.midX, sendingSpinner.midX, accuracy: 1, "The spinner moved between phases")
+        XCTAssertEqual(busy.frame.midY, sendingSpinner.midY, accuracy: 1, "The spinner moved between phases")
 
         let alert = app.alerts["Report Sent"]
         XCTAssertTrue(alert.waitForExistence(timeout: FestivalApp.budget(15)), "No Report Sent alert")

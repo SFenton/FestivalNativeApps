@@ -1223,7 +1223,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586), and no sheet or dialog draws a line under the shared header (owner, #607); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612); on Apple the feedback form's busy state fades the form out for a centred spinner, title and subtitle (Uploading Media with a determinate bar, then Filing Issue/Request), crossfading only the text between stages and swapping without fades under Reduce Motion (owner-approved, #634).",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586), and no sheet or dialog draws a line under the shared header (owner, #607); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612); while the feedback form sends and files, its fields fade out to a centred white spinner with a title and subtitle (Uploading Media over a determinate bar, then Filing Issue/Request), the spinner staying across the cross-fade (owner-approved, #634; Apple, Android, Windows; without media it reads as filing from Submit).",
       "keywords": [
         "modal",
         "sheet",
@@ -1340,6 +1340,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
             "symbol": "FestivalModalBody"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/FeedbackDialog.kt",
+            "symbol": "FeedbackBusySwap"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/FeedbackDialog.kt",
+            "symbol": "FeedbackBusyView"
           }
         ],
         "windows": [
@@ -1350,6 +1358,14 @@
           {
             "path": "windows/Festival.App/Controls/DialogChrome.cs",
             "symbol": "CommandTargets"
+          },
+          {
+            "path": "windows/Festival.App/Controls/FeedbackDialog.cs",
+            "symbol": "SwapStage"
+          },
+          {
+            "path": "windows/Festival.App/Controls/FeedbackDialog.cs",
+            "symbol": "SwapStatus"
           }
         ]
       },
@@ -2449,7 +2465,7 @@
       "title": "Empty and error states",
       "status": "current",
       "doc": ".agents/patterns/empty-error-states.md",
-      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile, whose prominent fill and label stay paired and legible under Increase Contrast, #477); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator, exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls; a score-update scrape freeze 503 for a URL the shared pinned-read client already verified in the same, still-current publication returns that kept body instead of the service status (R9, #554); cold reads, outages, non-score freezes and other publications still fail with Retry. Kept bodies are in-memory: Android uses a byte-bounded LRU; Apple's verified JSON entries are cleared on every publication change but currently have no byte budget (R9 Known debt). An inline service status is one container whose message, countdown and Retry stay separately reachable; Retry keeps its own identifier and an iOS 44×44 pt target, and a consumer tagging the wrapper contains its children first (R10, #463).",
+      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile, whose prominent fill and label stay paired and legible under Increase Contrast, #477); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one loading indicator, a white arc on a 10% white track at the web Spinner sizes (web ArcSpinner; Apple FestivalArcProgressStyle, #635), exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls; a score-update scrape freeze 503 for a URL the shared pinned-read client already verified in the same, still-current publication returns that kept body instead of the service status (R9, #554); cold reads, outages, non-score freezes and other publications still fail with Retry. Kept bodies are in-memory: Android uses a byte-bounded LRU; Apple's verified JSON entries are cleared on every publication change but currently have no byte budget (R9 Known debt). An inline service status is one container whose message, countdown and Retry stay separately reachable; Retry keeps its own identifier and an iOS 44×44 pt target, and a consumer tagging the wrapper contains its children first (R10, #463).",
       "keywords": [
         "empty",
         "no results",
@@ -2457,6 +2473,7 @@
         "unavailable",
         "loading",
         "spinner",
+        "arc spinner",
         "retry",
         "search",
         "empty state",
@@ -2480,6 +2497,10 @@
         {
           "path": "components/search/SearchModal.tsx",
           "symbol": "SearchModal"
+        },
+        {
+          "path": "components/common/ArcSpinner.tsx",
+          "symbol": "ArcSpinner"
         }
       ],
       "canonical": {
@@ -2579,6 +2600,15 @@
           "regex": "ContentUnavailableView\\s*[({]",
           "allow": [],
           "message": "Use the shared FestivalEmptyState (empty-error-states R5/R8); ContentUnavailableView failed Dynamic Type audits."
+        },
+        {
+          "id": "apple-one-spinner",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\bProgressView\\s*(?:\\(\\s*\\)|\\(\\s*\"|\\{)",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/FestivalLoadingView.swift"
+          ],
+          "message": "Indeterminate spinners are FestivalLoadingView (the arc on a faint track, one named busy indicator; empty-error-states R5/R6, #635), never a raw ProgressView. Determinate ProgressView(value:) bars are exempt."
         },
         {
           "id": "no-empty-card",

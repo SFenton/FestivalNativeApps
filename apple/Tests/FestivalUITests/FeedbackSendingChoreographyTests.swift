@@ -13,14 +13,11 @@ import Testing
 
     // MARK: - Copy
 
-    /// The owner's titles and subtitle, with an accurate upload title when nothing but the
-    /// report itself is sent.
+    /// The owner's titles and subtitle.
     @Test func copyFollowsTheOwnersWording() {
-        #expect(FeedbackSendingStage.uploading(hasMedia: true).title(for: .bug) == "Uploading Media")
-        #expect(FeedbackSendingStage.uploading(hasMedia: true).title(for: .feature) == "Uploading Media")
-        #expect(FeedbackSendingStage.uploading(hasMedia: false).title(for: .bug) == "Sending Issue")
-        #expect(FeedbackSendingStage.uploading(hasMedia: false).title(for: .feature) == "Sending Request")
-        #expect(FeedbackSendingStage.uploading(hasMedia: true).subtitle(for: .bug) == nil)
+        #expect(FeedbackSendingStage.uploading.title(for: .bug) == "Uploading Media")
+        #expect(FeedbackSendingStage.uploading.title(for: .feature) == "Uploading Media")
+        #expect(FeedbackSendingStage.uploading.subtitle(for: .bug) == nil)
         #expect(FeedbackSendingStage.filing.title(for: .bug) == "Filing Issue")
         #expect(FeedbackSendingStage.filing.title(for: .feature) == "Filing Request")
         #expect(FeedbackSendingStage.filing.subtitle(for: .bug)
@@ -33,14 +30,17 @@ import Testing
 
     // MARK: - Targets
 
-    /// Editing and a failure show the form; uploading and filing show their stage; a filed
+    /// Editing and a failure show the form; uploading and filing show their stage; a report
+    /// without media reads as filing from Submit (R16, as on Android and Windows); a filed
     /// report holds whatever shows while the sheet closes (#565).
     @Test func phasesMapToTargets() {
         typealias Stage = FeedbackSendingStage
         #expect(Stage.target(for: .editing, hasMedia: true) == .form)
         #expect(Stage.target(for: .failed("x"), hasMedia: true) == .form)
-        #expect(Stage.target(for: .submitting(0.4), hasMedia: true) == .status(.uploading(hasMedia: true)))
-        #expect(Stage.target(for: .submitting(0), hasMedia: false) == .status(.uploading(hasMedia: false)))
+        #expect(Stage.target(for: .submitting(0.4), hasMedia: true) == .status(.uploading))
+        #expect(Stage.target(for: .submitting(0), hasMedia: false) == .status(.filing))
+        #expect(Stage.target(for: .submitting(0.9), hasMedia: false) == .status(.filing))
+        #expect(Stage.target(for: .filing, hasMedia: false) == .status(.filing))
         #expect(Stage.target(for: .filing, hasMedia: true) == .status(.filing))
         #expect(Stage.target(for: .finished(.received), hasMedia: false) == nil)
         #expect(Stage.target(for: .finished(.filed(issueNumber: 1, skipped: 0)), hasMedia: true) == nil)
@@ -51,7 +51,7 @@ import Testing
     /// Submit: the form fades out over 300 ms with the stage mounted transparent, then the
     /// status fades in over 150 ms and its title is announced.
     @Test func submitFadesTheFormOutThenTheStatusIn() {
-        let uploading = FeedbackSendingStage.uploading(hasMedia: true)
+        let uploading = FeedbackSendingStage.uploading
         let steps = Choreography.plan(from: .editing, to: .status(uploading), reduceMotion: false)
         #expect(steps == [
             .init(delay: 0, fade: 0.3, presentation: Presentation(
@@ -64,7 +64,7 @@ import Testing
     /// Upload to filing: only the text fades out and the new text in (150 ms each); the
     /// status, and so the spinner, stays opaque throughout.
     @Test func stageChangeSwapsOnlyTheText() {
-        let uploading = FeedbackSendingStage.uploading(hasMedia: false)
+        let uploading = FeedbackSendingStage.uploading
         let steps = Choreography.plan(from: .status(uploading), to: .status(.filing), reduceMotion: false)
         #expect(steps == [
             .init(delay: 0, fade: 0.15, presentation: Presentation(
@@ -96,7 +96,7 @@ import Testing
 
     /// Reduce Motion: one immediate step to the end state, still announcing a new stage.
     @Test func reduceMotionSwapsAtOnce() {
-        let uploading = FeedbackSendingStage.uploading(hasMedia: true)
+        let uploading = FeedbackSendingStage.uploading
         #expect(Choreography.plan(from: .editing, to: .status(uploading), reduceMotion: true)
                 == [.init(delay: 0, fade: nil, presentation: .status(uploading), announces: true)])
         #expect(Choreography.plan(from: .status(uploading), to: .status(.filing), reduceMotion: true)
@@ -110,7 +110,7 @@ import Testing
     /// form is still fading out goes straight to the filing status, and Stop Sending while
     /// the text is swapping brings the form back.
     @Test func interruptionsReplanFromTheCurrentPresentation() {
-        let uploading = FeedbackSendingStage.uploading(hasMedia: true)
+        let uploading = FeedbackSendingStage.uploading
         let formFading = Presentation(showsForm: false, showsStatus: false, stage: uploading, showsText: true)
         #expect(Choreography.plan(from: formFading, to: .status(.filing), reduceMotion: false)
                 == [.init(delay: 0, fade: 0.15, presentation: .status(.filing), announces: true)])
@@ -128,7 +128,7 @@ import Testing
     /// The form stays mounted while it shows or fades either way, and leaves only while the
     /// opaque status covers it, so iOS assistive technology can't reach its rows.
     @Test func formLeavesOnlyUnderTheOpaqueStatus() {
-        let uploading = FeedbackSendingStage.uploading(hasMedia: true)
+        let uploading = FeedbackSendingStage.uploading
         #expect(Presentation.editing.mountsForm)
         #expect(Presentation(showsForm: false, showsStatus: false, stage: uploading, showsText: true).mountsForm)
         #expect(!Presentation.status(uploading).mountsForm)

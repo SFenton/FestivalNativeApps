@@ -213,18 +213,28 @@ JOURNEYS = [
                    f"assertfocus:id={ROOT}.attach"],
                   count={ATTACHMENT: 3},
                   forbid=[r'"You can attach up to 4 files\."', r'"Remove shot-4\.png"']),
-            # sending: the upload is held; progress shows, Submit is disabled; Cancel asks before discarding.
-            Phase(["invoke:id=PrimaryButton", f"waitfor:id={ROOT}.progress@10",
-                   f"assertname:id={ROOT}.progress|Sending your report…", _submit_enabled(False),
+            # sending (issue #634): the fields fade out and the centred busy status fades in: the named ring, "Uploading
+            # Media" and the determinate bar (the fixture reads the whole body before holding, so it is full); Submit is
+            # disabled; Cancel asks before discarding, above the status.
+            Phase(["invoke:id=PrimaryButton", f"waitfor:id={ROOT}.progress@10", f"waitgone:id={ROOT}.title@5",
+                   f"assertname:id={ROOT}.progress|Uploading Media", _submit_enabled(False),
+                   f"assertcentred:id={ROOT}.status|id={ROOT}.busy|id={ROOT}.progress.bar",
                    f"invoke:id={ROOT}.cancel", f"waitfor:id={ROOT}.keep-editing@5"],
                   control={"post": "hold", "reset": "1"},
-                  expect=[_id(f"{ROOT}.discard-confirm")],
+                  expect=[_id(f"{ROOT}.discard-confirm"), _id(f"{ROOT}.busy"), _id(f"{ROOT}.progress.bar")],
+                  forbid=[_id(f"{ROOT}.description"), _id(f"{ROOT}.attach"), _id(f"{ROOT}.progress.subtitle")],
                   posted={"one POST received": lambda s: s["posts"] == 1}),
+            # Keep Editing keeps sending: the fields stay hidden and focus lands on Cancel, not the hidden title.
             Phase([f"invoke:id={ROOT}.keep-editing", f"waitgone:id={ROOT}.keep-editing@5",
-                   f"assertname:id={ROOT}.progress|Sending your report…"]),
-            # filing: accepted; the status poll is held.
-            Phase([f"assertname:id={ROOT}.progress@15|Filing your report on GitHub…", _submit_enabled(False)],
+                   f"assertname:id={ROOT}.progress|Uploading Media", f"assertfocus:id={ROOT}.cancel@3"],
+                  forbid=[_id(f"{ROOT}.title")]),
+            # filing: accepted; the status poll is held. The title and subtitle swap; the ring stays and the bar goes.
+            Phase([f"assertname:id={ROOT}.progress@15|Filing Issue",
+                   f"assertname:id={ROOT}.progress.subtitle@5|We\u2019re filing your issue. Please wait while we upload it.",
+                   f"waitgone:id={ROOT}.progress.bar@5", _submit_enabled(False)],
                   control={"post": "ok", "status": "hold"},
+                  expect=[_id(f"{ROOT}.busy")],
+                  forbid=[_id(f"{ROOT}.title")],
                   posted={"bug from Windows": lambda s: s["last"]["kind"] == "bug" and s["last"]["platform"] == "windows",
                           "three media parts": lambda s: s["last"]["media"] == 3,
                           "no privileged or selected-profile header": lambda s: s["last"]["forbidden_header"] is False,
@@ -234,7 +244,7 @@ JOURNEYS = [
                    f"assertname:id={ROOT}.sent|Thanks! Your report was filed as issue #1.",
                    f"assertname:id={ROOT}.cancel|Done"],
                   control={"status": "ok"},
-                  forbid=[_id(f"{ROOT}.title"), _id(f"{ROOT}.progress") + r".*rect=(?!0,0,0,0)",
+                  forbid=[_id(f"{ROOT}.title"), _id(f"{ROOT}.progress") + r".*rect=(?!0,0,0,0)", _id(f"{ROOT}.busy"),
                           _named("PrimaryButton", "Submit") + r".*rect=(?!0,0,0,0)"],
                   posted={"exactly one POST": lambda s: s["posts"] == 1}),
             Phase([f"invoke:id={ROOT}.cancel", f"waitgone:id={ROOT}.bug.dialog@5", f"waitfor:id={ROOT}.bug@5"],
@@ -251,7 +261,9 @@ JOURNEYS = [
             # error: 503 feedback_busy keeps every field and re-enables Submit for a retry.
             Phase([f"setvalue:id={ROOT}.title|[Feature] fixture-unavailable compare",
                    f"setvalue:id={ROOT}.description|Compare two players.", "invoke:id=PrimaryButton",
-                   f"waitfor:name=Feedback is busy right now. Try again in a minute.@15", _submit_enabled(True)],
+                   f"waitfor:name=Feedback is busy right now. Try again in a minute.@15", _submit_enabled(True),
+                   # The form fades back with everything entered (issue #634).
+                   f"waitfor:id={ROOT}.title@5", f"assertstate:id={ROOT}.title|value=[Feature] fixture-unavailable compare@5"],
                   control={"reset": "1"},
                   expect=[_id(f"{ROOT}.error"), _id(f"{ROOT}.title")],
                   posted={"feature POST": lambda s: s["posts"] == 1 and s["last"]["kind"] == "feature"}),
@@ -352,7 +364,7 @@ def check_posted(snapshot: dict[str, Any] | None, phase: Phase) -> list[str]:
 
 
 #: Longest the runner re-reads the fixture for a phase's ``posted`` predicates. Requests can trail the UI state that a
-#: phase waits for: the form shows "Filing your report on GitHub…" when the POST is accepted and reads the job's status
+#: phase waits for: the form shows "Filing Issue" when the POST is accepted and reads the job's status
 #: only ``FeedbackFormViewModel.PollInterval`` (2 s) later, so a snapshot taken as soon as the label appears can still
 #: count no read (#548). A predicate that holds at once still returns at once, so nothing that passed before waits.
 POSTED_SETTLE_SECONDS = 10.0

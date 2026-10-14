@@ -179,8 +179,11 @@
                                                Visibility="{x:Bind ViewModel.History.ShowChart, Mode=OneWay}" controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48"
                                                controls:GroupedRows.IsEnabled="True" controls:GroupedRows.InCard="True"
                                                AutomationProperties.Name="Score history" AutomationProperties.AutomationId="fst.history.rows">
+                                    <!-- Non-virtualizing (one column): the top five realize in one layout pass. StackLayout
+                                         realized a swap's new rows over several frames when they ran below the window,
+                                         and UIA read the list as the whole viewport meanwhile (issue #629). -->
                                     <ItemsRepeater.Layout>
-                                        <StackLayout Spacing="0" />
+                                        <controls:MasonryLayout MaxColumns="1" RowSpacing="0" />
                                     </ItemsRepeater.Layout>
                                 </ItemsRepeater>
                                 <Button x:Name="HistoryViewAll" Content="{x:Bind ViewModel.History.ViewAllText}" Click="OnHistoryViewAll"

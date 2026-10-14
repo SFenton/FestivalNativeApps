@@ -75,11 +75,10 @@ struct FeedbackSendingStatusAccessibilityTests {
         typeSize: DynamicTypeSize = .large, size: CGSize = FeedbackSendingStatusAccessibilityTests.size
     ) async throws -> Hosted {
         let recorder = StopRecorder()
-        let hasMedia: Bool = if case let .uploading(hasMedia) = stage { hasMedia } else { true }
         let host = nativeHostedView(
             AnyView(
                 FeedbackSendingStatusView(
-                    kind: kind, hasMedia: hasMedia, presentation: .status(stage),
+                    kind: kind, presentation: .status(stage),
                     progress: progress, onStop: { recorder.stops += 1 }
                 )
                 .frame(width: size.width, height: size.height)
@@ -100,7 +99,7 @@ struct FeedbackSendingStatusAccessibilityTests {
     /// Uploading Media reads the busy indicator, the heading, the bar with its value and
     /// Stop Sending, in that order; the filing text is out of the tree.
     @Test func uploadReadsSpinnerTitleBarThenStop() async throws {
-        let hosted = try await Self.host(.uploading(hasMedia: true))
+        let hosted = try await Self.host(.uploading)
         defer { hosted.close() }
         let nodes = hosted.readable()
         let dump = nodes.map(\.description).joined(separator: "\n")
@@ -117,12 +116,12 @@ struct FeedbackSendingStatusAccessibilityTests {
         #expect(macAccessibilityFindings(macAccessibilityTree(hosted.host)) == [])
     }
 
-    /// Without media the title says the report is being sent, still over the bar.
-    @Test func uploadWithoutMediaSaysSending() async throws {
-        let hosted = try await Self.host(.uploading(hasMedia: false), kind: .feature)
+    /// A feature request's upload keeps the shared title and names the request's spinner.
+    @Test func uploadForRequestNamesTheRequest() async throws {
+        let hosted = try await Self.host(.uploading, kind: .feature)
         defer { hosted.close() }
         let nodes = hosted.readable()
-        #expect(nodes.first { $0.identifier == Self.titleID }?.spokenName == "Sending Request")
+        #expect(nodes.first { $0.identifier == Self.titleID }?.spokenName == "Uploading Media")
         #expect(nodes.first { $0.role == "AXBusyIndicator" }?.label == "Sending your request")
         #expect(nodes.contains { $0.identifier == Self.progressID })
     }
@@ -130,7 +129,7 @@ struct FeedbackSendingStatusAccessibilityTests {
     /// Stop Sending meets the Mac's 28 pt default control size (the iOS label frame gives
     /// 44 pt) and stops through the accessibility press.
     @Test func stopIsATargetThatStops() async throws {
-        let hosted = try await Self.host(.uploading(hasMedia: true))
+        let hosted = try await Self.host(.uploading)
         defer { hosted.close() }
         let stop = try hosted.frame(Self.stopID)
         #expect(stop.height >= 28 - Self.tolerance && stop.width >= 28 - Self.tolerance, "stop: \(stop)")
@@ -164,7 +163,7 @@ struct FeedbackSendingStatusAccessibilityTests {
     /// The block is centred horizontally and vertically in the sheet, and the spinner sits
     /// in the same place in both stages (the text swaps beneath it).
     @Test func statusIsCentredAndTheSpinnerStaysPut() async throws {
-        let uploading = try await Self.host(.uploading(hasMedia: true))
+        let uploading = try await Self.host(.uploading)
         defer { uploading.close() }
         let filing = try await Self.host(.filing)
         defer { filing.close() }

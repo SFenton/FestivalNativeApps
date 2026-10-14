@@ -240,7 +240,7 @@ struct FeedbackFormSheet: View {
     private var sendingStatus: some View {
         if sending.stage != nil {
             FeedbackSendingStatusView(
-                kind: kind, hasMedia: !model.attachments.isEmpty, presentation: sending,
+                kind: kind, presentation: sending,
                 progress: progress, onStop: { model.cancelSubmit() }
             )
             .modifier(ModalTopEdgeFadeModifier())
@@ -374,7 +374,7 @@ struct FeedbackFormSheet: View {
         )
         .accessibilityIdentifier("fst.settings.feedback.attach")
         if model.importing > 0 {
-            ProgressView("Adding media…")
+            FestivalLoadingView(status: "Adding media…")
                 .accessibilityIdentifier("fst.settings.feedback.attach.progress")
         }
         if let message = model.attachmentMessage {

@@ -7,21 +7,19 @@ import FestivalDesign
 /// What the feedback form's sending status says (issue #634): the upload, then the
 /// service filing the issue on GitHub.
 enum FeedbackSendingStage: Hashable, Sendable {
-    /// The form and its media are uploading (``FeedbackFormModel/Phase/submitting(_:)``).
-    /// Without media only the report itself is sent, so the title says so.
-    case uploading(hasMedia: Bool)
+    /// The form's media are uploading (``FeedbackFormModel/Phase/submitting(_:)`` with
+    /// attachments).
+    case uploading
     /// The service has the report and is filing it (``FeedbackFormModel/Phase/filing``).
     case filing
 
     /// The status headline.
     ///
     /// - Parameter kind: Bug report or feature request.
-    /// - Returns: "Uploading Media", "Sending Issue"/"Sending Request" or
-    ///   "Filing Issue"/"Filing Request".
+    /// - Returns: "Uploading Media" or "Filing Issue"/"Filing Request".
     func title(for kind: FeedbackKind) -> String {
         switch self {
-        case .uploading(hasMedia: true): "Uploading Media"
-        case .uploading(hasMedia: false): "Sending \(Self.noun(kind).capitalized)"
+        case .uploading: "Uploading Media"
         case .filing: "Filing \(Self.noun(kind).capitalized)"
         }
     }
@@ -47,7 +45,9 @@ enum FeedbackSendingStage: Hashable, Sendable {
         "Sending your \(noun(kind))"
     }
 
-    /// The stage a form phase shows.
+    /// The stage a form phase shows. A report without media reads as filing from Submit
+    /// (`modal-shell` R16, the agent decision Android and Windows share): nothing is
+    /// uploading, so "Uploading Media" would be inaccurate and flash for a moment.
     ///
     /// - Parameters:
     ///   - phase: The form's phase.
@@ -59,7 +59,7 @@ enum FeedbackSendingStage: Hashable, Sendable {
     ) -> FeedbackSendingChoreography.Target? {
         switch phase {
         case .editing, .failed: .form
-        case .submitting: .status(.uploading(hasMedia: hasMedia))
+        case .submitting: .status(hasMedia ? .uploading : .filing)
         case .filing: .status(.filing)
         case .finished: nil
         }
@@ -239,7 +239,6 @@ enum FeedbackSendingChoreography {
 /// above them never moves or restarts when the text swaps.
 struct FeedbackSendingStatusView: View {
     let kind: FeedbackKind
-    let hasMedia: Bool
     let presentation: FeedbackSendingChoreography.Presentation
     /// Upload progress, 0...1.
     let progress: Double
@@ -259,7 +258,7 @@ struct FeedbackSendingStatusView: View {
                 .controlSize(.large)
                 .accessibilityIdentifier("fst.settings.feedback.busy")
                 ZStack(alignment: .top) {
-                    stageSlot(.uploading(hasMedia: hasMedia))
+                    stageSlot(.uploading)
                     stageSlot(.filing)
                 }
             }
