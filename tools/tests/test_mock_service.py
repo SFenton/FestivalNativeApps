@@ -4,13 +4,14 @@ import hashlib
 import json
 import socket
 import threading
+import time
 import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from tools.mock_service import (
-    DEMO_SONGS, FixtureHandler, FixtureServer, ROOT,
+    DEMO_SONGS, FEEDBACK_SLOW_READS, FEEDBACK_SLOW_UPLOAD_S, FixtureHandler, FixtureServer, ROOT,
     fixture_artwork, fixture_path_image,
     _band_detail, _band_ranking_entry, _ranking_entry, _song_band_leaderboard_entry,
 )
@@ -653,6 +654,17 @@ class MockServiceTests(unittest.TestCase):
         with self.assertRaises(HTTPError) as error:
             urlopen(self.base + "/api/feedback/" + "a" * 32)
         self.assertEqual(error.exception.code, 404)
+
+        # #634: a slow job answers late and stays processing for two reads, then files.
+        started = time.monotonic()
+        with urlopen(post("[Bug] fixture-slow", {})) as response:
+            slow_id = json.load(response)["id"]
+        self.assertGreaterEqual(time.monotonic() - started, FEEDBACK_SLOW_UPLOAD_S - 0.1)
+        reads = []
+        for _ in range(FEEDBACK_SLOW_READS + 1):
+            with urlopen(self.base + "/api/feedback/" + slow_id) as response:
+                reads.append(json.load(response)["status"])
+        self.assertEqual(reads, ["processing", "processing", "submitted"])
 
         for title, headers, fields, code, error_code in [
             ("[Bug] fixture-unavailable", {}, ("kind", "platform", "description"), 503, "feedback_busy"),
