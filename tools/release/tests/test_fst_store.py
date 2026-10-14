@@ -440,8 +440,26 @@ class FlightTests(Base):
                                       published=self.flight_sub("FS1", "Published", "0.1.900.0")))
         code, doc = self.run_cli(["flight-status", "--group", self.GROUP], store, FakeGh())
         self.assertEqual(doc, {"flight_id": "F1", "name": "Testers",
-                               "pending": {"status": "Certification", "version": "0.1.912.0"},
+                               "pending": {"id": "FS2", "status": "Certification", "version": "0.1.912.0",
+                                           "own": False, "has_upload_url": False},
                                "published_version": "0.1.900.0"})
+
+    def test_a_new_flights_empty_draft_is_filled_in(self):
+        draft = {"id": "FS0", "status": "PendingCommit", "flightPackages": [],
+                 "fileUploadUrl": "https://blob.example/upload?sig=SECRET"}
+        routes = self.routes(pending=draft)
+        routes[("PUT", API + "/flights/F1/submissions/FS0")] = lambda body: body
+        routes[("POST", API + "/flights/F1/submissions/FS0/commit")] = {"status": "CommitStarted"}
+        store = FakeStore(routes)
+        code, doc = self.submit(store)
+        self.assertEqual((code, doc["submission_id"], doc["filled_draft"]), (0, "FS0", True))
+        self.assertEqual(store.writes(), [("PUT", API + "/flights/F1/submissions/FS0"), ("PUT", "<blob>"),
+                                          ("POST", API + "/flights/F1/submissions/FS0/commit")])
+        foreign = {"id": "FS3", "status": "PendingCommit", "flightPackages": [
+            {"fileName": "x", "fileStatus": "Uploaded", "version": "1.0.0.0"}]}
+        code, doc = self.submit(FakeStore(self.routes(pending=foreign)))
+        self.assertEqual(code, 4)
+        self.assertTrue(doc["blocked"].startswith("foreign_pending_flight_submission: FS3 PendingCommit"))
 
 
 class DispatchTests(Base):

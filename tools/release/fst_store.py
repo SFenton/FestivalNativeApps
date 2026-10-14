@@ -613,7 +613,9 @@ def flight_status(client: StoreClient, name: str, group: str) -> Dict[str, Any]:
     pending = flight_submission(client, flight, "pendingFlightSubmission")
     published = flight_submission(client, flight, "lastPublishedFlightSubmission")
     return {"flight_id": flight.get("flightId"), "name": name,
-            "pending": {"status": pending.get("status"), "version": flight_package_version(pending)}
+            "pending": {"id": pending.get("id"), "status": pending.get("status"),
+                        "version": flight_package_version(pending), "own": is_own_submission(pending),
+                        "has_upload_url": bool(pending.get("fileUploadUrl"))}
             if pending else None,
             "published_version": flight_package_version(published)}
 
@@ -636,15 +638,21 @@ def flight_submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, st
     version = artifact["version"]
     pending = flight_submission(client, flight, "pendingFlightSubmission")
     published = flight_submission(client, flight, "lastPublishedFlightSubmission")
+    draft: Optional[Dict[str, Any]] = None
     if pending is not None:
         status = str(pending.get("status") or "")
         if status in FLIGHT_BUSY_STATUSES or status == "PendingPublication":
             return {"refused": "flight_busy", "state": status, "pending_version": flight_package_version(pending),
                     "version": version, "flight_id": flight.get("flightId")}
-        if status not in FAILED_STATUSES and not is_own_submission(pending):
-            raise Blocked("foreign_pending_flight_submission")
-        client.request("DELETE", "/applications/%s/flights/%s/submissions/%s" % (
-            client.creds.app_id, flight["flightId"], pending["id"]))
+        if status == "PendingCommit" and not flight_package_version(pending) and pending.get("fileUploadUrl"):
+            draft = pending  # a new flight's empty draft (Partner Center and the API create one): fill it in
+        elif status not in FAILED_STATUSES and not is_own_submission(pending) and not (
+                status == "PendingCommit" and not flight_package_version(pending)):
+            raise Blocked("foreign_pending_flight_submission: %s %s, packages %s" % (
+                pending.get("id"), status, flight_package_version(pending) or "none"))
+        else:
+            client.request("DELETE", "/applications/%s/flights/%s/submissions/%s" % (
+                client.creds.app_id, flight["flightId"], pending["id"]))
     if _msix_key(flight_package_version(published)) >= _msix_key(version):
         return {"refused": "up_to_date", "version": version, "flight_id": flight.get("flightId")}
 
@@ -656,7 +664,7 @@ def flight_submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, st
         else:
             package = download_package(run, repo, artifact, Path(tmp))
             file_name, data = package.name, package_zip(package)
-        created = client.request("POST", path) or {}
+        created = dict(draft) if draft is not None else (client.request("POST", path) or {})
         submission_id = str(created.get("id") or "<new>")
         upload_url = str(created.pop("fileUploadUrl", "") or "")
         if not client.dry_run and not upload_url:
@@ -673,7 +681,8 @@ def flight_submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, st
         client.upload(upload_url, data)
         client.request("POST", "%s/%s/commit" % (path, submission_id))
     return {"submitted": not client.dry_run, "flight_id": flight.get("flightId"), "submission_id": submission_id,
-            "version": version, "sha": artifact["sha"], "replaced_draft": pending is not None}
+            "version": version, "sha": artifact["sha"], "replaced_draft": pending is not None and draft is None,
+            "filled_draft": draft is not None}
 
 
 # endregion
