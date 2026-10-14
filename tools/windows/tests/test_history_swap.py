@@ -143,6 +143,16 @@ class HistorySwapJourneyTests(unittest.TestCase):
             self.assertEqual(page["profile"], "fixture-history-multi:History Multi", page["name"])
             self.assertEqual(page["route"], "/songs/fixture-pulse", page["name"])
 
+    def test_top_five_rows_realize_in_one_pass(self):
+        # Issue #629: a virtualizing StackLayout realized a swap's new rows over several frames when they ran below the
+        # window (compact, large text), parking rows in its recycle pool meanwhile, and UIA then read the list's
+        # rectangle as the whole viewport. The top five are few: a non-virtualizing one-column layout lays them out at once.
+        xaml = (Path(__file__).resolve().parents[3] / "windows" / "Festival.App" / "Pages" / "SongDetailPage.xaml").read_text("utf-8")
+        start = xaml.index('<ItemsRepeater x:Name="HistoryRows"')
+        rows = xaml[start:xaml.index("</ItemsRepeater>", start)]
+        self.assertIn('<controls:MasonryLayout MaxColumns="1" RowSpacing="0" />', rows)
+        self.assertNotIn("<StackLayout", rows)
+
     def test_pages_open_song_detail_not_the_history_page(self):
         # Issue #324: /songs/:id/:instrument/history opens the separate Player History page, which has no chart or
         # instrument selector; the swap pages drive Song Detail's card, which has no sort button.

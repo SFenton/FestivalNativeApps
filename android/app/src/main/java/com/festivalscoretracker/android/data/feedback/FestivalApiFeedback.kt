@@ -49,12 +49,15 @@ suspend fun FestivalApi.feedbackEnabled(): Boolean =
  * Submit a feedback form with its media.
  *
  * @param submission Validated form contents.
+ * @param onProgress Upload progress as a 0…1 fraction of the request body, or null when its
+ * length is unknown (an attachment without a reported size); called on the writing thread.
  * @param openAttachment Opens a fresh stream for an attachment (called once in preflight and once per write).
  * @return The accepted job (normally [FeedbackJobState.Queued] with an ID to poll).
  * @throws FeedbackException with readable text for every failure.
  */
 suspend fun FestivalApi.submitFeedback(
     submission: FeedbackSubmission,
+    onProgress: (Float?) -> Unit = {},
     openAttachment: (FeedbackAttachment) -> InputStream,
 ): FeedbackJob {
     val parts = submission.attachments.map { attachment ->
@@ -73,7 +76,11 @@ suspend fun FestivalApi.submitFeedback(
     }
     parts.forEach { part -> runCatching { part.open().close() }.onFailure { throw FeedbackException.unreadable(part.filename) } }
     val response = try {
-        postFeedback(MultipartFormBody(submission.formFields, parts))
+        postFeedback(
+            MultipartFormBody(submission.formFields, parts) { written, total ->
+                onProgress(if (total > 0) (written.toFloat() / total).coerceIn(0f, 1f) else null)
+            },
+        )
     } catch (error: FestivalApiException) {
         throw FeedbackException(error.message ?: "The app blocked an unsafe request.")
     } catch (error: IOException) {

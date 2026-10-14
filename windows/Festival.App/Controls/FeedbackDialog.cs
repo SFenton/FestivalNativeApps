@@ -7,7 +7,9 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage;
 using Windows.Storage.FileProperties;
@@ -20,7 +22,9 @@ namespace Festival.App.Controls;
 /// <see cref="ContentDialog"/> with Submit and Cancel, headed text boxes whose guidance stays visible as their
 /// <see cref="TextBox.Description"/>, and Attach Media through the system file picker. Attached media show above the
 /// button and open in the default app (no in-app viewer). Cancel, Esc or an outside click on a form with input shows an
-/// inline discard confirmation (a ContentDialog cannot open a second one); discarding cancels an upload.
+/// inline discard confirmation (a ContentDialog cannot open a second one); discarding cancels an upload. Submit fades the
+/// fields out and a centred busy status in (ring, "Uploading Media" with a determinate bar, then "Filing Issue/Request";
+/// issue #634).
 /// </summary>
 public sealed class FeedbackDialog
 {
@@ -37,16 +41,26 @@ public sealed class FeedbackDialog
     private readonly VariableSizedWrapGrid tiles;
     private readonly TextBlock notice;
     private readonly Button attach;
-    private readonly StackPanel progress;
     private readonly StackPanel sent;
     private readonly TextBlock sentText;
-    private readonly TextBlock sending;
     private readonly Button keepEditing;
     private readonly XamlRoot root;
     private readonly ScrollViewer scroller;
+    private readonly Grid stage;
+    private readonly ScrollViewer busy;
+    private readonly ProgressRing ring;
+    private readonly StackPanel status;
+    private readonly TextBlock statusTitle;
+    private readonly ProgressBar uploadBar;
+    private readonly TextBlock statusSubtitle;
+    private readonly Dictionary<UIElement, Storyboard> fades = [];
+    private bool busyShown;
+    private int stageSequence;
+    private int statusSequence;
     private readonly Grid validation;
     private readonly TextBlock validationText;
     private string? announcedValidation;
+    private string? announcedStatus;
     private bool allowClose;
 
     /// <summary>Builds the dialog.</summary>
@@ -58,7 +72,12 @@ public sealed class FeedbackDialog
         var api = App.Session.Api;
         form = new FeedbackFormViewModel(
             kind,
-            (submission, token) => Task.Run(() => api.SubmitFeedbackAsync(submission, OpenAttachment, token), token),
+            (submission, progress, token) =>
+            {
+                // Created on the UI thread, so reports from the sending thread marshal back to it.
+                var onUi = new Progress<double>(progress.Report);
+                return Task.Run(() => api.SubmitFeedbackAsync(submission, OpenAttachment, token, onUi), token);
+            },
             (jobId, token) => Task.Run(() => api.GetFeedbackStatusAsync(jobId, token), token),
             AppVersionInfo.Display(typeof(App).Assembly),
             $"{RuntimeInformation.OSDescription} ({RuntimeInformation.OSArchitecture})");
@@ -80,7 +99,9 @@ public sealed class FeedbackDialog
         keepEditing.Click += (_, _) =>
         {
             form.KeepEditing();
-            title!.Focus(FocusState.Programmatic);
+            // While sending, the fields are hidden behind the busy status; Cancel stays reachable.
+            if (form.IsEditing) title!.Focus(FocusState.Programmatic);
+            else FocusCancel();
         };
         discardBar.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 0, 0, 12), Children = { discard, keepEditing } };
         AutomationProperties.SetAutomationId(discardBar, $"{Root}.discard-confirm");
@@ -140,14 +161,56 @@ public sealed class FeedbackDialog
         attach.Click += async (_, _) => await PickAsync();
         editor.Children.Add(new StackPanel { Spacing = 8, Children = { mediaHeader, mediaHelp, tiles, notice, attach } });
 
-        // WinUI names an indeterminate bar "Busy" + its name with no separator, so the bar stays out of the tree and the
-        // status caption carries the test ID (status changes are spoken via Speak).
-        var bar = new ProgressBar { IsIndeterminate = true };
-        AutomationProperties.SetAccessibilityView(bar, AccessibilityView.Raw);
-        sending = new TextBlock { Text = form.SendingText, TextWrapping = TextWrapping.Wrap };
-        AutomationProperties.SetAutomationId(sending, $"{Root}.progress");
-        AutomationProperties.SetLiveSetting(sending, AutomationLiveSetting.Polite);
-        progress = new StackPanel { Spacing = 8, Children = { bar, sending } };
+        // Busy status (issue #634, owner-approved variant of load-transition/modal-shell): one named ring, then a title and
+        // a subtitle that is the determinate upload bar while sending and the filing explanation after; centred in the
+        // stage like EmptyStateView's title/subtitle (empty-error-states), and text wraps at large text sizes.
+        ring = new ProgressRing { Width = 48, Height = 48, IsActive = false, HorizontalAlignment = HorizontalAlignment.Center };
+        AutomationProperties.SetName(ring, form.BusyName);
+        AutomationProperties.SetAutomationId(ring, $"{Root}.busy");
+        statusTitle = new TextBlock
+        {
+            Style = Resource<Style>("SubtitleTextBlockStyle"),
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        AutomationProperties.SetAutomationId(statusTitle, $"{Root}.progress");
+        AutomationProperties.SetLiveSetting(statusTitle, AutomationLiveSetting.Polite);
+        uploadBar = new ProgressBar { Minimum = 0, Maximum = 100, Width = 240, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 4, 0, 0) };
+        AutomationProperties.SetName(uploadBar, FeedbackCopy.UploadProgressName);
+        AutomationProperties.SetAutomationId(uploadBar, $"{Root}.progress.bar");
+        statusSubtitle = new TextBlock
+        {
+            Style = Resource<Style>("BodyTextBlockStyle"),
+            Foreground = Resource<Brush>("FSTSecondaryTextBrush"),
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        AutomationProperties.SetAutomationId(statusSubtitle, $"{Root}.progress.subtitle");
+        status = new StackPanel { Spacing = 8, Children = { statusTitle, uploadBar, statusSubtitle } };
+        // Its own scroller (like EmptyStateView) keeps very large text reachable instead of clipped in a short window.
+        busy = new ScrollViewer
+        {
+            HorizontalScrollMode = ScrollMode.Disabled,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            IsTabStop = false,
+            Visibility = Visibility.Collapsed,
+            Opacity = 0,
+            Content = new StackPanel
+            {
+                Spacing = 16,
+                MaxWidth = 480,
+                Padding = new Thickness(12, 24, 12, 24),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Children = { ring, status },
+            },
+        };
+        AutomationProperties.SetAutomationId(busy, $"{Root}.status");
 
         sentText = new TextBlock { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
         AutomationProperties.SetLiveSetting(sentText, AutomationLiveSetting.Assertive);
@@ -174,11 +237,15 @@ public sealed class FeedbackDialog
             },
         };
 
-        // Progress sits above the fields so it is on screen wherever the form was scrolled when Submit was pressed.
-        var body = new StackPanel { Spacing = 16, Padding = new Thickness(0, 0, 16, 0), Children = { discardBar, errorBar, progress, editor, sent } };
+        var body = new StackPanel { Spacing = 16, Padding = new Thickness(0, 0, 16, 0), Children = { errorBar, editor, sent } };
         // ContentDialog's own ContentScrollViewer never scrolls vertically, so a long form needs its own scroller.
         scroller = new ScrollViewer { Content = body, Margin = new Thickness(0, 0, -16, 0) };
         AutomationProperties.SetAutomationId(scroller, $"{Root}.scroller");
+        // The form and the busy status share one stage: the status fades in where the fields faded out, centred in the
+        // height the form had (kept while busy so the dialog doesn't jump).
+        stage = new Grid { Children = { scroller, busy } };
+        // The discard confirmation sits above the stage so Cancel while sending still shows it.
+        discardBar.SizeChanged += (_, _) => FitScroller();
 
         // Why Submit is disabled, pinned above the buttons (outside the scroller) so it stays next to Submit.
         validationText = new TextBlock
@@ -200,9 +267,14 @@ public sealed class FeedbackDialog
         Grid.SetColumn(validationText, 1);
         validation.Children.Add(validationIcon);
         validation.Children.Add(validationText);
-        var content = new Grid { RowDefinitions = { new RowDefinition(), new RowDefinition { Height = GridLength.Auto } } };
-        Grid.SetRow(validation, 1);
-        content.Children.Add(scroller);
+        var content = new Grid
+        {
+            RowDefinitions = { new RowDefinition { Height = GridLength.Auto }, new RowDefinition(), new RowDefinition { Height = GridLength.Auto } },
+        };
+        Grid.SetRow(stage, 1);
+        Grid.SetRow(validation, 2);
+        content.Children.Add(discardBar);
+        content.Children.Add(stage);
         content.Children.Add(validation);
         FitScroller();
         root.Changed += OnRootChanged;
@@ -235,8 +307,17 @@ public sealed class FeedbackDialog
         }
     }
 
-    /// <summary>Caps the form's scroller to the window, leaving room for the dialog title, validation line and buttons.</summary>
-    private void FitScroller() => scroller.MaxHeight = Math.Max(200, root.Size.Height - 272);
+    /// <summary>
+    /// Caps the form's scroller to the window, leaving room for the dialog title, validation line and buttons; the busy
+    /// stage keeps the form's height within the same cap.
+    /// </summary>
+    private void FitScroller()
+    {
+        var discard = form.ConfirmingDiscard ? discardBar.ActualHeight + discardBar.Margin.Bottom : 0;
+        scroller.MaxHeight = Math.Max(200, root.Size.Height - 272 - discard);
+        busy.MaxHeight = scroller.MaxHeight;
+        if (busyShown) stage.MinHeight = Math.Min(stage.MinHeight, scroller.MaxHeight);
+    }
 
     /// <summary>Re-fits the scroller when the window resizes.</summary>
     /// <param name="sender">XAML root.</param>
@@ -339,13 +420,19 @@ public sealed class FeedbackDialog
         Render();
         if (e.PropertyName == nameof(FeedbackFormViewModel.Error) && form.HasError)
             dialog.DispatcherQueue.TryEnqueue(() => errorBar.StartBringIntoView());
-        else if (e.PropertyName == nameof(FeedbackFormViewModel.IsSubmitting) && form.IsSubmitting)
-            dialog.DispatcherQueue.TryEnqueue(() => scroller.ChangeView(null, 0, null));
         // The error and discard InfoBars raise their own notification when they open.
         switch (e.PropertyName)
         {
-            case nameof(FeedbackFormViewModel.SendingText) when form.IsSubmitting:
-                Speak(form.SendingText, AnnouncementKind.Progress);
+            case nameof(FeedbackFormViewModel.Phase):
+                ShowPhase();
+                break;
+            case nameof(FeedbackFormViewModel.UploadFraction):
+                uploadBar.Value = form.UploadFraction * 100;
+                break;
+            case nameof(FeedbackFormViewModel.StatusTitle) when form.IsSubmitting && form.StatusTitle != announcedStatus:
+                // Each step's title once; a form without media keeps "Filing …" from Submit to filed.
+                announcedStatus = form.StatusTitle;
+                Speak(form.StatusTitle, AnnouncementKind.Progress);
                 break;
             case nameof(FeedbackFormViewModel.SuccessMessage) when form.IsSent:
                 Speak(form.SuccessMessage, AnnouncementKind.Completed);
@@ -366,13 +453,14 @@ public sealed class FeedbackDialog
     /// <param name="kind">Kind (later announcements of one kind replace earlier ones).</param>
     private void Speak(string text, AnnouncementKind kind)
     {
-        if (text.Length > 0 && scroller.IsLoaded) ScreenReader.Announce(scroller, new Announcement(text, kind));
+        if (text.Length > 0 && stage.IsLoaded) ScreenReader.Announce(stage, new Announcement(text, kind));
     }
 
     /// <summary>Applies the model to the controls.</summary>
     private void Render()
     {
         discardBar.IsOpen = form.ConfirmingDiscard;
+        discardBar.Margin = form.ConfirmingDiscard ? new Thickness(0, 0, 0, 12) : new Thickness(0);
         // Message first: an InfoBar's open notification reads Title and Message as they are when IsOpen flips.
         errorBar.Message = form.Error ?? "";
         errorBar.IsOpen = form.HasError;
@@ -383,10 +471,8 @@ public sealed class FeedbackDialog
         notice.Text = form.Notice ?? "";
         notice.Visibility = form.HasNotice ? Visibility.Visible : Visibility.Collapsed;
         editor.Visibility = form.IsSent ? Visibility.Collapsed : Visibility.Visible;
-        progress.Visibility = form.IsSubmitting ? Visibility.Visible : Visibility.Collapsed;
         sent.Visibility = form.IsSent ? Visibility.Visible : Visibility.Collapsed;
         sentText.Text = form.SuccessMessage;
-        sending.Text = form.SendingText;
         dialog.PrimaryButtonText = form.PrimaryText;
         dialog.CloseButtonText = form.CloseText;
         dialog.IsPrimaryButtonEnabled = form.CanSubmit;
@@ -395,6 +481,160 @@ public sealed class FeedbackDialog
         foreach (var tile in tiles.Children.OfType<Grid>())
             if (tile.Children.OfType<Button>().LastOrDefault() is { } remove) remove.IsEnabled = editable;
     }
+
+    #region Busy stage
+    /// <summary>
+    /// Follows a phase change (issue #634): Submit fades the form out and the busy status in; Submitting → Filing fades
+    /// only the title/subtitle/bar out and back in while the ring keeps spinning; a failure or Sent fades the status out
+    /// and the form (error bar or sent message) back in. Each fade is the accordion's 150 ms CSS-ease fade phase
+    /// (<see cref="AccordionMotion"/>, web <c>QUICK_FADE_MS</c>); under Reduce Motion every swap is instant.
+    /// </summary>
+    private void ShowPhase()
+    {
+        var toBusy = form.IsSubmitting;
+        if (!toBusy) announcedStatus = null;
+        if (toBusy != busyShown) SwapStage(toBusy);
+        else if (toBusy) SwapStatus();
+    }
+
+    /// <summary>Swaps the stage between the form and the busy status, fading one out before the other fades in.</summary>
+    /// <param name="toBusy">Whether the busy status should show.</param>
+    private void SwapStage(bool toBusy)
+    {
+        busyShown = toBusy;
+        var token = ++stageSequence;
+        statusSequence++;
+        StopFade(status);
+        status.Opacity = 1;
+        if (toBusy)
+        {
+            // Keep the form's height so the dialog doesn't jump and the status centres in the same space.
+            stage.MinHeight = Math.Min(scroller.ActualHeight, scroller.MaxHeight);
+            RenderStatus();
+            ring.IsActive = true;
+            Fade(scroller, 0, () =>
+            {
+                if (token != stageSequence) return;
+                MoveFocusOutOf(scroller);
+                scroller.Visibility = Visibility.Collapsed;
+                busy.Visibility = Visibility.Visible;
+                Fade(busy, 1, null);
+            });
+            return;
+        }
+        Fade(busy, 0, () =>
+        {
+            if (token != stageSequence) return;
+            busy.Visibility = Visibility.Collapsed;
+            ring.IsActive = false;
+            stage.ClearValue(FrameworkElement.MinHeightProperty);
+            scroller.Visibility = Visibility.Visible;
+            if (form.HasError) dialog.DispatcherQueue.TryEnqueue(() => errorBar.StartBringIntoView());
+            Fade(scroller, 1, null);
+        });
+    }
+
+    /// <summary>Uploading → Filing: fades the title, subtitle and bar out, swaps them, and fades them back in.</summary>
+    private void SwapStatus()
+    {
+        var token = ++statusSequence;
+        var unchanged = statusTitle.Text == form.StatusTitle && statusSubtitle.Text == form.StatusSubtitle
+            && (uploadBar.Visibility == Visibility.Visible) == form.ShowsUploadBar;
+        if (busy.Visibility != Visibility.Visible || unchanged)
+        {
+            // Still fading the form out (the status fades in with the new text), or a step with the same copy (no media).
+            RenderStatus();
+            return;
+        }
+        Fade(status, 0, () =>
+        {
+            if (token != statusSequence) return;
+            RenderStatus();
+            Fade(status, 1, null);
+        });
+    }
+
+    /// <summary>Applies the model's busy title, upload bar and subtitle.</summary>
+    private void RenderStatus()
+    {
+        statusTitle.Text = form.StatusTitle;
+        uploadBar.Value = form.UploadFraction * 100;
+        uploadBar.Visibility = form.ShowsUploadBar ? Visibility.Visible : Visibility.Collapsed;
+        statusSubtitle.Text = form.StatusSubtitle;
+        statusSubtitle.Visibility = form.StatusSubtitle.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Fades an element's opacity from where it is (an interrupted fade continues from its reached value), then runs
+    /// <paramref name="done"/>; instant when motion is off or the dialog is not loaded.
+    /// </summary>
+    /// <param name="target">Element.</param>
+    /// <param name="to">Target opacity (0 or 1).</param>
+    /// <param name="done">Runs once the fade finishes (not when it is replaced by another fade).</param>
+    private void Fade(UIElement target, double to, Action? done)
+    {
+        StopFade(target);
+        var from = target.Opacity;
+        var opening = to > 0;
+        var phase = AccordionMotion.Plan(opening, opening ? 1 : 0, from, Motion.Allowed && stage.IsLoaded).Fade;
+        if (phase.Duration <= TimeSpan.Zero)
+        {
+            target.Opacity = to;
+            done?.Invoke();
+            return;
+        }
+        var spline = AccordionMotion.Spline;
+        var animation = new DoubleAnimationUsingKeyFrames();
+        animation.KeyFrames.Add(new SplineDoubleKeyFrame
+        {
+            KeyTime = KeyTime.FromTimeSpan(phase.Duration),
+            Value = to,
+            KeySpline = new KeySpline
+            {
+                ControlPoint1 = new Windows.Foundation.Point(spline.X1, spline.Y1),
+                ControlPoint2 = new Windows.Foundation.Point(spline.X2, spline.Y2),
+            },
+        });
+        Storyboard.SetTarget(animation, target);
+        Storyboard.SetTargetProperty(animation, "Opacity");
+        var storyboard = new Storyboard { Children = { animation } };
+        storyboard.Completed += (_, _) =>
+        {
+            if (!fades.TryGetValue(target, out var current) || !ReferenceEquals(current, storyboard)) return;
+            fades.Remove(target);
+            target.Opacity = to;
+            storyboard.Stop();
+            done?.Invoke();
+        };
+        fades[target] = storyboard;
+        storyboard.Begin();
+    }
+
+    /// <summary>Stops an element's running fade, keeping the opacity it reached.</summary>
+    /// <param name="target">Element.</param>
+    private void StopFade(UIElement target)
+    {
+        if (!fades.Remove(target, out var running)) return;
+        var reached = target.Opacity;
+        running.Stop();
+        target.Opacity = reached;
+    }
+
+    /// <summary>Moves keyboard focus to the dialog's buttons when it is inside an element about to collapse.</summary>
+    /// <param name="container">Element about to collapse.</param>
+    private void MoveFocusOutOf(DependencyObject container)
+    {
+        for (var node = FocusManager.GetFocusedElement(root) as DependencyObject; node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (!ReferenceEquals(node, container)) continue;
+            FocusCancel();
+            return;
+        }
+    }
+
+    /// <summary>Focuses the dialog's Cancel/Close button.</summary>
+    private void FocusCancel() => DialogChrome.CloseButton(dialog)?.Focus(FocusState.Programmatic);
+    #endregion
 
     /// <summary>Rebuilds the attachment tiles (thumbnail button that opens the file, plus a remove button).</summary>
     private void RenderTiles()

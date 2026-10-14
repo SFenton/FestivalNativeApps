@@ -128,6 +128,32 @@ public static class FeedbackCopy
     public static string DescriptionHelp(FeedbackKind kind) => kind == FeedbackKind.Bug
         ? "What went wrong? Include the page, song, instrument or player involved."
         : "What would you like, and how would it help you? Mention the pages it affects.";
+
+    /// <summary>Busy-status title while media uploads (issue #634, owner copy).</summary>
+    public const string UploadingTitle = "Uploading Media";
+
+    /// <summary>Busy-status title while the service files the issue (issue #634, owner copy).</summary>
+    /// <param name="kind">Form.</param>
+    /// <returns>"Filing Issue" or "Filing Request".</returns>
+    public static string FilingTitle(FeedbackKind kind) => kind == FeedbackKind.Bug ? "Filing Issue" : "Filing Request";
+
+    /// <summary>Busy-status subtitle while the service files the issue (issue #634, owner copy).</summary>
+    /// <param name="kind">Form.</param>
+    /// <returns>The filing explanation.</returns>
+    public static string FilingSubtitle(FeedbackKind kind) =>
+        $"We\u2019re filing your {(kind == FeedbackKind.Bug ? "issue" : "request")}. Please wait while we upload it.";
+
+    /// <summary>
+    /// Accessible name of the busy ring, the same in both steps so it stays one stop (Narrator prefixes "Busy"); the
+    /// wording matches Android's TalkBack label.
+    /// </summary>
+    /// <param name="kind">Form.</param>
+    /// <returns>"Sending your issue" or "Sending your request".</returns>
+    public static string BusyName(FeedbackKind kind) =>
+        $"Sending your {(kind == FeedbackKind.Bug ? "issue" : "request")}";
+
+    /// <summary>Accessible name of the determinate upload bar.</summary>
+    public const string UploadProgressName = "Upload progress";
 }
 #endregion
 
