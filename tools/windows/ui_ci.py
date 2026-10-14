@@ -380,6 +380,12 @@ RUNS: tuple[Run, ...] = (
     Run("grouped-boards-text-225", "a11y-grouped-boards.json", sizes="compact", mode="text-225", tabs=0),
     Run("grouped-boards-reduced", "a11y-grouped-boards.json", sizes="medium", mode="app-reduced", tabs=0,
         only="grouped-song-board-one-card"),
+    # Feedback form (issues #64, #634): every state, plus the busy status (fields fade out; a centred named ring, phase
+    # title, upload bar or filing subtitle fade in; each title announced) with the app's Reduce Motion (no fades).
+    Run("feedback", "a11y-feedback.json", tabs=0),
+    Run("feedback-text-225", "a11y-feedback.json", sizes="compact", mode="text-225", tabs=0),
+    Run("feedback-reduced", "a11y-feedback.json", sizes="medium", mode="app-reduced", tabs=0,
+        only="feedback-sending,feedback-uploading-media,feedback-filing,feedback-error"),
     # Rivals lists as one card (issue #603, rival-rows R3, R6): Rivalry and All Rivals rows touch (0 epx), each stays one
     # named 40+ epx stop in visual order (iOS-design song rows read title, artist, instrument, ranks, who leads), Up/Down.
     Run("rivals-cards", "a11y-rivals-cards.json", tabs=0),
