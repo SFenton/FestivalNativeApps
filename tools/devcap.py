@@ -103,7 +103,7 @@ from typing import Callable, Iterable, Iterator, Sequence
 # region Configuration
 
 #: Bump when the on-disk layout or the CLI changes; vendored copies must match.
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 
 #: Exit code when a wait gives up (``EX_TEMPFAIL``).
 WAIT_TIMEOUT_EXIT = 75
@@ -1015,8 +1015,8 @@ def scan_unmanaged(root: Path | None = None, exclude: Sequence[str] = (), reap: 
         if reap and grace is not None and debugged is not None and (hub := hub_windows(root)):
             helper, windows = hub
             sim_udids = {sim["udid"].upper() for sim in sims}
-            physical_in_use = any(p.name.startswith("device-") and p.name[7:] not in sim_udids
-                                  and Gate(p.name, root).holders() for p in root.iterdir() if p.is_dir())
+            physical_in_use = any(name.startswith("device-") and name[7:] not in sim_udids
+                                  and Gate(name, root).holders() for name in known_gates(root))
             # A held physical device's name could match a simulator's: then close only empty windows.
             closable = set() if physical_in_use else {sim["name"] for sim in sims}
             to_close, window_seen = windows_to_close(windows, in_use, window_seen, now, grace, closable)
@@ -1129,9 +1129,18 @@ def cmd_run(args: argparse.Namespace) -> int:
         held.finish()  # after an overrun, blocks until the watchdog has cleaned up and exited
 
 
+#: Directories under the state root that are not gates.
+NOT_GATES = {"lib", "bin"}
+
+
 def known_gates(root: Path) -> list[str]:
-    """Gate directories present under ``root`` plus the two standard pools."""
-    found = {p.name for p in root.iterdir() if p.is_dir()} if root.exists() else set()
+    """Gate directories present under ``root`` plus the two standard pools.
+
+    Skips ``lib``/``bin`` (the shared install and the Device Hub helper) and
+    any directory whose name is not a valid gate name.
+    """
+    found = {p.name for p in root.iterdir() if p.is_dir() and p.name not in NOT_GATES
+             and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", p.name)} if root.exists() else set()
     return sorted(found | {"simulator", "build"})
 
 
@@ -1314,7 +1323,7 @@ def defer_to_installed(namespace: dict) -> bool:
         if not callable(getattr(module, "main", None)) or getattr(module, "VERSION", None) != installed:
             raise ImportError("shared install did not define devcap")
         module.CALLER_FILE = namespace.get("__file__")
-    except Exception as error:  # a broken install must never break every copy on the Mac
+    except (Exception, SystemExit) as error:  # a broken install must never break every copy on the Mac
         sys.modules.pop(name, None)
         print(f"devcap: ignoring shared install {path} ({error.__class__.__name__}: {error}); "
               f"running {VERSION}", file=sys.stderr)
