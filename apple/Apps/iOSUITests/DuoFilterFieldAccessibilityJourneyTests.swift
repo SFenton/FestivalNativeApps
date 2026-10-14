@@ -19,7 +19,9 @@ import XCTest
 /// - typed text adds "Clear Search", a 44 × 44 pt button read right after the field,
 ///   which empties it;
 /// - the system audit (hit region, description, Dynamic Type, clipping) reports nothing
-///   on the field or Clear Search.
+///   on the field or Clear Search;
+/// - flat in portrait, where page tools float above the tab bar (issue #633), the field
+///   stacks above the 44 pt floating Sort and Filter buttons instead of covering them.
 ///
 /// HIG Accessibility: iOS default control size 44×44 pt; "Provide VoiceOver descriptions
 /// for all interface elements". HIG Designing for iPhone Duo: "use reserved-region APIs to
@@ -116,6 +118,33 @@ final class DuoFilterFieldAccessibilityJourneyTests: XCTestCase {
 
     // MARK: - Assertions
 
+    /// Inner portrait has a horizontal tab bar, so Songs' tools float above it (issue
+    /// #633): the field stacks above the floating Sort and Filter buttons instead of
+    /// covering them, and each stays a 44 × 44 pt target.
+    ///
+    /// - Parameters:
+    ///   - app: The running app.
+    ///   - field: The Filter Songs field (its text line, inside the capsule).
+    ///   - label: Pose and text-size label for messages.
+    @MainActor
+    private func assertClearsFloatingTools(_ app: XCUIApplication, _ field: XCUIElement, label: String) {
+        let tools = ["fst.songs.sort", "fst.songs.filter"].map {
+            app.descendants(matching: .any).matching(identifier: $0).firstMatch
+        }
+        for tool in tools {
+            XCTAssertTrue(tool.waitForExistence(timeout: FestivalApp.budget(10)), "\(label): no floating \(tool)")
+        }
+        let stacked = NSPredicate { _, _ in tools.allSatisfy { field.frame.maxY <= $0.frame.minY } }
+        let settled = XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: stacked, object: nil)],
+                                     timeout: FestivalApp.budget(5))
+        XCTAssertEqual(settled, .completed,
+                       "\(label): field \(field.frame) covers the floating tools \(tools.map(\.frame))")
+        for tool in tools {
+            XCTAssertGreaterThanOrEqual(tool.frame.width, Self.minimumTarget, "\(label): \(tool.identifier) \(tool.frame)")
+            XCTAssertGreaterThanOrEqual(tool.frame.height, Self.minimumTarget, "\(label): \(tool.identifier) \(tool.frame)")
+        }
+    }
+
     /// Switch to `pose`, then require the field's name, role, column and target; type to
     /// bring Clear Search and require its name, order and target; audit both; clear.
     ///
@@ -170,6 +199,8 @@ final class DuoFilterFieldAccessibilityJourneyTests: XCTestCase {
         XCTAssertLessThanOrEqual(frame.maxX, window.maxX, "\(label): field \(frame) leaves the window")
         XCTAssertLessThanOrEqual(frame.maxY, window.maxY, "\(label): field \(frame) leaves the window")
         if let fold, onRightPage(frame) { XCTAssertGreaterThan(frame.minX, CGFloat(fold) + 12, "\(label): field \(frame) crosses the fold") }
+
+        if pose == "unfolded-portrait" { assertClearsFloatingTools(app, element, label: label) }
 
         try assertCapsuleTarget(app, element, label: label)
 

@@ -389,8 +389,8 @@ struct FestivalRootTrailingItems: ToolbarContent {
         .resolve(displayName: session.selectedPlayer?.displayName, chrome: layout.sectionChrome)
     }
 
-    /// Bell and profile share one glass pill (issue #632): page tools float above the
-    /// iPhone tab bar.
+    /// Bell and profile share one glass pill (issues #632, #633): page tools float above
+    /// the horizontal tab bar.
     private var inAccountPill: Bool { pageTools != nil }
 
     /// The bell, opening the root's sheet in the account pill.

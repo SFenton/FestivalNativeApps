@@ -78,7 +78,10 @@ final class DuoPageTitleJourneyTests: XCTestCase {
 
     /// The same comparison in the unfolded inner landscape (vertical bar) and inner
     /// portrait (horizontal bar) layouts, simulated in the real window (`DebugDuoWindow`).
-    /// Skips on a device that is not an iPhone Duo.
+    /// Inner portrait floats page tools and so takes the iPhone header (pattern
+    /// page-tools-and-nav-chrome R28, agent decision #633): every title, Item Shop's too,
+    /// is the same leading inline title instead of a large one. Skips on a device that is
+    /// not an iPhone Duo.
     @MainActor
     func testItemShopTitleMatchesRootTitleSizeUnfolded() throws {
         for window in ["unfolded-landscape", "unfolded-portrait"] {
@@ -93,7 +96,8 @@ final class DuoPageTitleJourneyTests: XCTestCase {
 
     /// Measure Songs, Settings and Item Shop (pushed on Songs through its launch route)
     /// in one layout and require Item Shop's title to be exactly as tall as the roots'
-    /// (within half a point) and at least the system large title's height.
+    /// (within half a point) and at least the system large title's height, or, in the
+    /// simulated inner portrait window that floats page tools (#633), one inline line.
     ///
     /// - Parameter environment: Extra launch environment (a simulated Duo window).
     @MainActor
@@ -113,8 +117,15 @@ final class DuoPageTitleJourneyTests: XCTestCase {
                        "\(layout): Item Shop title \(shop) pt tall, Settings \(settings) pt", file: file, line: line)
         // A collapsed or inline title is one 17 pt line; the large title's line is ~41 pt.
         let inline = UIFont.systemFont(ofSize: 17, weight: .semibold).lineHeight
-        XCTAssertGreaterThan(shop, inline * 1.5,
-                             "\(layout): Item Shop title \(shop) pt tall is not the large title", file: file, line: line)
+        if environment["FST_DEBUG_DUO_WINDOW"] == "unfolded-portrait" {
+            XCTAssertLessThan(shop, inline * 1.5,
+                              "\(layout): Item Shop title \(shop) pt tall is not the leading inline title",
+                              file: file, line: line)
+        } else {
+            XCTAssertGreaterThan(shop, inline * 1.5,
+                                 "\(layout): Item Shop title \(shop) pt tall is not the large title",
+                                 file: file, line: line)
+        }
     }
 
     /// Launch on `tab` and require its complete title at the top of the page.
