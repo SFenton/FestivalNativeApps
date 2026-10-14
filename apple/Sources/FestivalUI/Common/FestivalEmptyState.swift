@@ -43,7 +43,6 @@ struct FestivalEmptyState<Actions: View>: View {
     private let reading: Reading
     private let identifier: String?
     private let actions: Actions
-    @Environment(\.deviceLayout) private var layout
 
     /// Create an empty state.
     ///
@@ -73,22 +72,7 @@ struct FestivalEmptyState<Actions: View>: View {
     var body: some View {
         switch placement {
         case .fill:
-            GeometryReader { proxy in
-                let region = FoldAvoidingPlacement.region(
-                    container: proxy.frame(in: .global), fold: layout.splitHinge
-                )
-                ScrollView {
-                    content
-                        .padding(Self.fillPadding)
-                        .frame(width: region.width)
-                        .frame(minHeight: region.height)
-                        .padding(.leading, region.minX)
-                        .padding(.top, region.minY)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .scrollBounceBehavior(.basedOnSize)
-                .scrollDismissesKeyboard(.immediately)
-            }
+            FestivalCentredFill(padding: Self.fillPadding) { content }
         case .inline:
             content
                 .padding(.vertical, Self.inlineVerticalPadding)
@@ -137,20 +121,88 @@ struct FestivalEmptyState<Actions: View>: View {
 
     private var texts: some View {
         VStack(spacing: Self.spacing) {
-            Text(title)
-                .font(.title2.bold())
-                .foregroundStyle(BrandTokens.textPrimary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
+            FestivalStateTitle(title)
             if let subtitle {
-                Text(subtitle)
-                    .font(.body)
-                    .foregroundStyle(FestivalText.primary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+                FestivalStateSubtitle(subtitle)
             }
         }
+    }
+}
+
+// MARK: - Centred fill
+
+/// The filling layout shared by ``FestivalEmptyState`` and other centred status
+/// messages (the feedback form's sending status, issue #634): the content centred
+/// horizontally and vertically in the proposed region, beside an iPhone Duo fold rather
+/// than on it (``FoldAvoidingPlacement``), scrolling when large text no longer fits.
+struct FestivalCentredFill<Content: View>: View {
+    private let padding: CGFloat
+    private let content: Content
+    @Environment(\.deviceLayout) private var layout
+
+    /// Centre content in the region this view is given.
+    ///
+    /// - Parameters:
+    ///   - padding: Space around the content inside the region.
+    ///   - content: The message to centre.
+    init(padding: CGFloat, @ViewBuilder content: () -> Content) {
+        self.padding = padding
+        self.content = content()
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let region = FoldAvoidingPlacement.region(
+                container: proxy.frame(in: .global), fold: layout.splitHinge
+            )
+            ScrollView {
+                content
+                    .padding(padding)
+                    .frame(width: region.width)
+                    .frame(minHeight: region.height)
+                    .padding(.leading, region.minX)
+                    .padding(.top, region.minY)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollDismissesKeyboard(.immediately)
+        }
+    }
+}
+
+// MARK: - State text
+
+/// A centred status message's headline (the web `EmptyState` title): bold Title 2,
+/// wrapping, read as a heading.
+struct FestivalStateTitle: View {
+    private let text: String
+
+    /// - Parameter text: The headline.
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text)
+            .font(.title2.bold())
+            .foregroundStyle(BrandTokens.textPrimary)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// A centred status message's subtitle (the web `EmptyState` subtitle): Body, wrapping.
+struct FestivalStateSubtitle: View {
+    private let text: String
+
+    /// - Parameter text: The sentence under the headline.
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text)
+            .font(.body)
+            .foregroundStyle(FestivalText.primary)
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
