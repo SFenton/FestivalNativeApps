@@ -41,7 +41,11 @@ Simulators booted outside any hold
 A booted simulator whose device gate nobody holds is *unmanaged*: a thread
 booted it without devcap, or left it booted after its hold. Unmanaged
 simulators count against the ``simulator`` slots, so the limit holds no
-matter who boots a simulator. Once one has stayed unmanaged for 5 minutes
+matter who boots a simulator. A lane may leave its simulator booted between
+runs on purpose (warm, so the next run skips the boot); when every slot is in
+use, the waiter at the head shuts down the simulator idle longest once it has
+been idle for 60 seconds (``DEVCAP_EVICT_AFTER`` / ``evict_after_seconds``).
+Once one has stayed unmanaged for 5 minutes
 (``DEVCAP_REAP_GRACE`` / ``config.json`` ``reap_grace_seconds``; ``off``
 disables), the next waiter or finished simulator hold shuts it down and closes
 Device Hub windows of devices nobody is using. Simulators running an app under
@@ -103,7 +107,7 @@ from typing import Callable, Iterable, Iterator, Sequence
 # region Configuration
 
 #: Bump when the on-disk layout or the CLI changes; vendored copies must match.
-VERSION = "1.2.2"
+VERSION = "1.3.0"
 
 #: Exit code when a wait gives up (``EX_TEMPFAIL``).
 WAIT_TIMEOUT_EXIT = 75
@@ -458,13 +462,26 @@ class Gate:
 
         Only the ``simulator`` pool counts unmanaged simulators; the scan (which
         also reaps idle ones) runs at most every ``SCAN_INTERVAL_SECONDS``.
+        Simulators a lane left warm between runs count too, but when every
+        slot is in use the waiter at the head evicts the one idle longest, once
+        it has been idle for ``evict_after`` (never one under the debugger).
         """
         if self.name != "simulator":
             return True
         if time.monotonic() >= self._next_scan:
             self._unmanaged = scan_unmanaged(self.root, exclude=own_sims) or []
             self._next_scan = time.monotonic() + SCAN_INTERVAL_SECONDS
-        return len(self.holders()) + len(self._unmanaged) < self.slots
+        if len(self.holders()) + len(self._unmanaged) < self.slots:
+            return True
+        limit = evict_after(self.root)
+        idle = [u for u in self._unmanaged if not u["debugged"] and limit is not None and u["unheld_for"] >= limit]
+        if idle:
+            coldest = max(idle, key=lambda u: u["unheld_for"])
+            if shut_down_unheld(self.root, coldest, "evict"):
+                self._unmanaged = [u for u in self._unmanaged if u["udid"] != coldest["udid"]]
+                self._next_scan = 0.0
+                return len(self.holders()) + len(self._unmanaged) < self.slots
+        return False
 
     # MARK: acquire / release
 
@@ -595,6 +612,7 @@ class Hold:
         on_overrun: Called first when the hold overruns, e.g. to stop the command.
         cleanup: Runs once before the gates are released (``finish`` or an
             overrun), e.g. to shut a simulator down while its slot is held.
+        cleanup_on_finish: False runs ``cleanup`` only after an overrun.
     """
 
     names: list[str]
@@ -604,6 +622,7 @@ class Hold:
     root: Path = field(default_factory=lock_root)
     on_overrun: Callable[[], None] | None = None
     cleanup: Callable[[], None] | None = None
+    cleanup_on_finish: bool = True
     gates: list[Gate] = field(default_factory=list, init=False)
     overran: bool = field(default=False, init=False)
     _release_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
@@ -657,7 +676,7 @@ class Hold:
             if not self.overran:
                 had_simulator = any(g.name == "simulator" for g in self.gates)
                 try:
-                    if self.cleanup and self.gates:
+                    if self.cleanup and self.cleanup_on_finish and self.gates:
                         self.cleanup()
                 finally:
                     self.release()
@@ -732,6 +751,53 @@ DEFAULT_REAP_GRACE_SECONDS = 300.0
 
 #: Seconds between scans of booted simulators while waiting at the head of the queue.
 SCAN_INTERVAL_SECONDS = 10.0
+
+
+#: Seconds a warm simulator stays reserved for its lane's next run before a
+#: waiting lane may evict it when every slot is in use.
+DEFAULT_EVICT_AFTER_SECONDS = 60.0
+
+
+def _seconds_setting(env: str, key: str, default: float, root: Path | None) -> float | None:
+    """A seconds setting from ``env``, then ``config.json`` ``key``, then ``default``; ``off`` is None."""
+    raw = os.environ.get(env)
+    if raw is None:
+        try:
+            raw = json.loads(((root or lock_root()) / "config.json").read_text(encoding="utf-8")).get(key)
+        except (OSError, ValueError, AttributeError):
+            raw = None
+    if raw is None:
+        return default
+    if str(raw).strip().lower() in ("off", "never", "none"):
+        return None
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        return default
+
+
+def evict_after(root: Path | None = None) -> float | None:
+    """How long a warm simulator is kept for its lane while others wait (``DEVCAP_EVICT_AFTER``)."""
+    return _seconds_setting("DEVCAP_EVICT_AFTER", "evict_after_seconds", DEFAULT_EVICT_AFTER_SECONDS, root)
+
+
+def shut_down_unheld(root: Path, entry: dict, reason: str) -> bool:
+    """Shut an unheld simulator down while holding its device gate, so no lane takes it meanwhile.
+
+    Returns:
+        False when someone took the device gate first (the simulator is left alone).
+    """
+    gate = Gate(device_gate(entry["udid"]), root, 1)
+    if not gate._try_slots():
+        return False
+    try:
+        shutdown_sims([entry["udid"]])
+        log_event(f"{reason} {entry['name']} ({entry['udid']}) booted outside any hold for "
+                  f"{describe_age(entry['unheld_for'])}", root)
+    finally:
+        gate._unlock(gate._handle)
+        gate._handle = gate._slot = None
+    return True
 
 
 def reap_grace(root: Path | None = None) -> float | None:
@@ -999,15 +1065,7 @@ def scan_unmanaged(root: Path | None = None, exclude: Sequence[str] = (), reap: 
                 in_use.add(sim["name"])
             idle = grace is not None and entry["unheld_for"] >= grace
             if reap and idle and debugged is not None and not entry["debugged"]:
-                gate = Gate(device_gate(udid), root, 1)
-                if gate._try_slots():  # nobody can take it while it shuts down
-                    try:
-                        shutdown_sims([udid])
-                        log_event(f"reap {sim['name']} ({udid}) booted outside any hold for "
-                                  f"{describe_age(entry['unheld_for'])}", root)
-                    finally:
-                        gate._unlock(gate._handle)
-                        gate._handle = gate._slot = None
+                if shut_down_unheld(root, entry, "reap"):
                     first_seen.pop(udid, None)
                     continue
             unmanaged.append(entry)
@@ -1116,8 +1174,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 2
     hold_seconds = None if args.hold <= 0 else min(args.hold, MAX_HOLD_SECONDS)
     held = Hold(names, args.purpose or " ".join(command)[:120], args.wait, hold_seconds)
-    if args.shutdown and args.sim:  # before acquire() starts the watchdog
+    if (args.shutdown or args.shutdown_on_timeout) and args.sim:  # before acquire() starts the watchdog
         held.cleanup = lambda: shutdown_sims(args.sim)
+        held.cleanup_on_finish = args.shutdown
     try:
         held.acquire()
     except WaitTimeout as error:
@@ -1209,6 +1268,9 @@ def build_parser() -> argparse.ArgumentParser:
                      help="physical device: its device gate only (repeatable)")
     run.add_argument("--shutdown", action="store_true",
                      help="shut the --sim simulators down before releasing, even after a hold timeout")
+    run.add_argument("--shutdown-on-timeout", action="store_true",
+                     help="keep the --sim simulators warm after the command, but shut them down if the hold "
+                          "times out (a hung run)")
     run.add_argument("--purpose", default="", help="what this hold is for (shown to waiters)")
     run.add_argument("--wait", type=float, default=DEFAULT_WAIT_SECONDS,
                      help=f"seconds to queue before exiting {WAIT_TIMEOUT_EXIT} (default %(default)s)")
