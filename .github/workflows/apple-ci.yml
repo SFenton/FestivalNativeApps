@@ -169,6 +169,7 @@ jobs:
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
+            FeedbackSentJourneyTests/testSubmitSwapsFormForCentredSendingStatus
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchReadsOneSpinnerBeforeTheSelectors
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchUnderReduceMotion
             PathsSwitchAccessibilityJourneyTests/testHeldSwitchAtAX5
@@ -332,6 +333,7 @@ jobs:
             FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
             FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
+            FeedbackSentJourneyTests/testSubmitSwapsFormForCentredSendingStatus
             PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGestures
             PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesAtAX5
             PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterField
