@@ -17,11 +17,25 @@ import CoreGraphics
 /// re-decides only when the content offset itself moves (user scrolling, momentum or
 /// a programmatic jump), never on an inset-only change; and it uses hysteresis so a
 /// slow drag across the threshold cannot flicker the chrome.
+///
+/// The decision now shows Songs' pinned section title (``SongsSectionBar``), so it flips
+/// where the first section title reaches its pin line: the collapsed top itself. While
+/// the large title collapses the List's first row rides on the navigation bar's bottom
+/// edge (the pin line) and the distance stays 0; once the title has collapsed the row
+/// moves above the line point for point. Entering 24 pt past the collapsed top let the
+/// in-list title slide 24 pt under the bar before its pinned copy popped back in at the
+/// line, and leaving at 8 pt showed it 8 pt above the line (issue #631). The collapsed
+/// top is still where the navigation bar stops moving, so the row masks this enables
+/// never follow the large title's transition (issue #383).
 struct ScrollAwayGate: Equatable {
-    /// Distance past the collapsed top that counts as scrolled away.
-    static let enterDistance: CGFloat = 24
-    /// Distance below which a scrolled list counts as back at the top.
-    static let exitDistance: CGFloat = 8
+    /// Distance past the collapsed top that counts as scrolled away: the title-pass
+    /// tolerance (``SongsScrollChrome/headerTolerance``), so the pinned copy takes over
+    /// within a point of where the in-list title crosses its pin line (issue #631).
+    static let enterDistance: CGFloat = SongsScrollChrome.headerTolerance
+    /// Distance below which a scrolled list counts as back at the top: half a point, so
+    /// the in-list title takes back over within a point of the pin line and the List's
+    /// own top (distance 0) always counts as the top (issue #631).
+    static let exitDistance: CGFloat = 0.5
     /// Offset movement smaller than this is layout jitter, not scrolling.
     static let offsetTolerance: CGFloat = 0.5
 

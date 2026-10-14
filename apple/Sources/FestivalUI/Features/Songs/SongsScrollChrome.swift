@@ -462,8 +462,8 @@ final class SongsScrollChrome {
     /// them there. Both follow the navigation bar while the large title expands or
     /// collapses, and every change re-rendered the row masks in the middle of that
     /// system transition (issue #383). Once scrolled away the large title has
-    /// fully collapsed (``ScrollAwayGate`` enters 24 pt past the collapsed inset), so the
-    /// navigation bar no longer moves.
+    /// fully collapsed (``ScrollAwayGate`` enters just past the collapsed inset, where the
+    /// first title reaches its pin line, issue #631), so the navigation bar no longer moves.
     ///
     /// - Parameter enabled: The List has sections and the OS shows the section bar.
     /// - Returns: The mask inputs.

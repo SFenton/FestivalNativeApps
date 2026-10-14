@@ -324,7 +324,7 @@ struct SongsSectionPushAccessibilityTests {
             let step = try await scrollSongs(scroll, to: offset, host: host)
             guard step.bar != nil || !steps.isEmpty else { continue }
             steps.append(step)
-            checkStep(step)
+            checkStep(step, byRow: true)
             let order = macListReadingOrder(host, table: table)
             checkReadingOrder(order, bar: step.bar?.label, state: "scrolled again to \(offset)")
             if let name = order.before.first(where: { $0.identifier == barID })?.spokenName, names.last != name {
@@ -388,7 +388,15 @@ struct SongsSectionPushAccessibilityTests {
     /// One scrolled step: the floating title is a heading naming a fixture section, it is
     /// as tall as the in-list titles (text scaling, no clipping), and the in-list titles
     /// stay named headings in list order (the one under the bar or mid-push too).
-    private func checkStep(_ step: PushStep) {
+    ///
+    /// - Parameters:
+    ///   - step: The step to check.
+    ///   - byRow: Take the in-list titles in row order rather than walk order. After a
+    ///     long return AppKit recycles row views out of order, so the walk can list a
+    ///     recycled first title last; callers passing true check VoiceOver's order with
+    ///     ``checkReadingOrder(_:bar:state:sourceLocation:)``. Their frames must still
+    ///     rise with the row order.
+    private func checkStep(_ step: PushStep, byRow: Bool = false) {
         guard let bar = step.bar else {
             Issue.record("No floating title at \(step.offset)")
             return
@@ -397,7 +405,8 @@ struct SongsSectionPushAccessibilityTests {
         #expect(pushLetters.contains(bar.label), "Floating title names no section: \(bar)")
         #expect(!step.titles.isEmpty, "No in-list title at \(step.offset)")
         var previous: PushElement?
-        for title in step.titles {
+        let titles = byRow ? step.titles.sorted { ($0.inListSection ?? -1) < ($1.inListSection ?? -1) } : step.titles
+        for title in titles {
             let index = title.inListSection ?? -1
             #expect(title.role == "AXHeading", "In-list title is not a heading: \(title)")
             #expect(pushLetters.indices.contains(index) && title.label == pushLetters[index],

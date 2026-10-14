@@ -1922,6 +1922,97 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertEqual(delta("songs.sort"), 0, "Scrolling near the top re-sorted the catalogue")
     }
 
+    /// Issue #631: a slow scroll from the top showed the first section title ("#") ride
+    /// up past its pin line under the collapsed navigation bar, then jump back down when
+    /// the section bar appeared 24 pt later (``ScrollAwayGate``'s old threshold). Scrolling
+    /// back, the bar left 8 pt early and the in-list title reappeared above it.
+    ///
+    /// Drags from the top end at several depths through and just past the large title's
+    /// collapse, then back up from further down. At every rest the one visible "#" (the
+    /// section bar's copy when it exists, else the in-list title) sits where a native
+    /// sticky header would: on its own row while that row is at or below the pin line
+    /// (the navigation bar's bottom), else pinned on the line. It never rides above the
+    /// line uncopied, and the bar never pops in below the row (section-headers R4/R5).
+    /// At every rest the in-list title stays a heading with its name, and a shown bar is
+    /// the one bar, a heading with the same name, below the navigation bar (R6). Needs the
+    /// large fixture (skips otherwise).
+    @MainActor
+    func testSlowScrollFromTheTopPinsTheFirstTitleWithoutAJump() throws {
+        guard #available(iOS 26.0, *) else {
+            throw XCTSkip("The section bar exists on iOS 26 and later.")
+        }
+        XCUIDevice.shared.orientation = .portrait
+        let app = try launchScrollAwayFixture(largeText: false)
+        defer { app.terminate() }
+        let first = app.staticTexts["fst.songs.section.0"]
+        let bar = app.staticTexts["fst.songs.section-bar"]
+        func pinLine() -> CGFloat { app.navigationBars.firstMatch.frame.maxY }
+        func drag(_ from: Double, _ to: Double) {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: from)).press(
+                forDuration: 0.1,
+                thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: to)),
+                withVelocity: .slow, thenHoldForDuration: 0.5
+            )
+        }
+        func backToTop() {
+            drag(0.40, 0.80)
+            Thread.sleep(forTimeInterval: 1)
+        }
+
+        Thread.sleep(forTimeInterval: 1.5)
+        XCTAssertTrue(first.waitForExistence(timeout: 5))
+        XCTAssertFalse(bar.exists, "A section title is pinned at the top")
+        // The title text's distance below its row's top, which rests on the pin line.
+        let textInset = first.frame.minY - pinLine()
+        let firstLabel = first.label
+        var pinnedSamples = 0
+        func check(_ step: String) {
+            Thread.sleep(forTimeInterval: 1)
+            let line = pinLine()
+            let row = first.frame.minY
+            let expected = max(row, line + textInset)
+            let barTop: CGFloat? = bar.exists ? bar.frame.minY : nil
+            let visible = barTop ?? row
+            print("FST631 \(step): line \(line) row \(row) bar \(barTop.map { "\($0)" } ?? "-")")
+            if row < line + textInset - 1.5 { pinnedSamples += 1 }
+            XCTAssertEqual(
+                visible, expected, accuracy: 1.5,
+                "\(step): \"#\" drawn at \(visible), a sticky header sits at \(expected) "
+                    + "(pin line \(line), in-list title \(row), bar \(String(describing: barTop)))"
+            )
+            // Accessibility (section-headers R6): the in-list title stays a named heading
+            // at every step; once the bar takes over it is the one bar, a heading with the
+            // same spoken name, and it is not drawn under the navigation bar.
+            XCTAssertNotEqual(try? isHeading(first), false, "\(step): the in-list title lost its heading")
+            XCTAssertEqual(first.label, firstLabel, "\(step): the in-list title changed its name")
+            if barTop != nil {
+                XCTAssertEqual(
+                    app.staticTexts.matching(identifier: "fst.songs.section-bar").count, 1,
+                    "\(step): more than one section bar"
+                )
+                XCTAssertNotEqual(try? isHeading(bar), false, "\(step): the section bar is not a heading")
+                XCTAssertEqual(bar.label, firstLabel, "\(step): the bar names another section")
+                XCTAssertGreaterThanOrEqual(bar.frame.minY, line, "\(step): the bar is under the navigation bar")
+            }
+        }
+
+        // Down from the top: ending inside the collapse, at its end and just past it.
+        for (index, end) in stride(from: 0.54, through: 0.48, by: -0.006).enumerated() {
+            drag(0.60, end)
+            check("Down \(index + 1) to \(end)")
+            backToTop()
+        }
+        // Back up from further down, ending just past the collapse and at the top.
+        for (index, end) in stride(from: 0.50, through: 0.56, by: 0.012).enumerated() {
+            drag(0.60, 0.42)
+            drag(0.42, end)
+            check("Up \(index + 1) to \(end)")
+            backToTop()
+        }
+        XCTAssertGreaterThan(pinnedSamples, 2, "No drag ended with the first title past its pin line")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
     /// Issue #471 (accessibility backfill for #325): #325 moved the publication refresh
     /// spinner, the VoiceOver page anchor and their `@AccessibilityFocusState` into an
     /// always-mounted overlay over Songs, so focus-store updates during slow drags near
