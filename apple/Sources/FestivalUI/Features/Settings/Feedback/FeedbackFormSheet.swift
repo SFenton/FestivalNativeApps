@@ -307,7 +307,7 @@ struct FeedbackFormSheet: View {
         )
         .accessibilityIdentifier("fst.settings.feedback.attach")
         if model.importing > 0 {
-            ProgressView("Adding media…")
+            FestivalLoadingView(status: "Adding media…")
                 .accessibilityIdentifier("fst.settings.feedback.attach.progress")
         }
         if let message = model.attachmentMessage {
@@ -338,10 +338,8 @@ struct FeedbackFormSheet: View {
         Section {
             if model.isFiling {
                 // Indeterminate: the service is filing the issue and processing media.
-                ProgressView {
-                    Text("Filing your \(kind == .bug ? "report" : "request")…")
-                }
-                .accessibilityIdentifier("fst.settings.feedback.progress")
+                FestivalLoadingView(status: "Filing your \(kind == .bug ? "report" : "request")…")
+                    .accessibilityIdentifier("fst.settings.feedback.progress")
                 Text("It's been received. You can close this; it will still be filed.")
                     .font(.footnote)
                     .foregroundStyle(FestivalText.primary)
