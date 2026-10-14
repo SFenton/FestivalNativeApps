@@ -8,7 +8,8 @@ import AppKit
 
 /// Page tools a focused page offers to the menu bar on macOS and iPadOS (HIG Toolbars ›
 /// macOS: "Every toolbar item must also be a menu-bar command"; The menu bar › iPadOS).
-/// Songs publishes Sort and Filter.
+/// Songs and the Item Shop publish Sort and Filter, Suggestions Filter, Rivals Find
+/// Rival and the Item Shop its List/Grid choice.
 struct MacPageCommands: Equatable {
     /// Opens the page's Sort options, or nil when the page has none.
     var sort: (@MainActor () -> Void)?
@@ -16,12 +17,27 @@ struct MacPageCommands: Equatable {
     var filter: (@MainActor () -> Void)?
     /// Opens Find Rival (Rivals), or nil elsewhere.
     var findRival: (@MainActor () -> Void)?
+    /// The page's List/Grid choice (the Item Shop's toolbar toggle), or nil when the
+    /// page offers none.
+    var layout: MacLayoutChoice?
 
-    /// Always equal: the closures only flip the page's own presentation state.
+    /// Equal when the same commands are offered and the List/Grid checkmark matches:
+    /// the closures only flip the page's own presentation state.
     static func == (lhs: Self, rhs: Self) -> Bool {
         (lhs.sort == nil) == (rhs.sort == nil) && (lhs.filter == nil) == (rhs.filter == nil)
-            && (lhs.findRival == nil) == (rhs.findRival == nil)
+            && (lhs.findRival == nil) == (rhs.findRival == nil) && lhs.layout == rhs.layout
     }
+}
+
+/// A page's List/Grid choice for View › as List / as Grid (Finder's View-menu
+/// convention; HIG Menus: "Consider a checkmark to show an attribute is in effect").
+struct MacLayoutChoice: Equatable {
+    /// Whether the grid is in effect (else the list).
+    var isGrid: Bool
+    /// Shows the grid (true) or the list (false).
+    var select: @MainActor (Bool) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.isGrid == rhs.isGrid }
 }
 
 private struct MacPageCommandsKey: FocusedValueKey {
@@ -97,22 +113,86 @@ extension View {
     }
 }
 
+// MARK: - Profile page commands
+
+/// A player or rival page's toolbar actions for the Profile menu (HIG Toolbars › macOS:
+/// "Every toolbar item must also be a menu-bar command"; issue #633): the player page's
+/// Select / Switch and Rivalry's and Rival Detail's View Profile. A separate key from
+/// ``MacPageCommands`` because the Rivals list beside a rival publishes Find Rival at
+/// the same time.
+struct MacProfilePageCommands: Equatable {
+    /// The player page's Select / Switch for the shown player, or nil when the page
+    /// offers none (never Deselect, which lives in the drawer and the Profile menu).
+    var identity: ProfileIdentityAction?
+    /// Performs ``identity``, or nil while the page's read has not proven it (the
+    /// toolbar button shows disabled then, and so does the menu item).
+    var performIdentity: (@MainActor () -> Void)?
+    /// Opens the shown rival's player page (Rivalry, Rival Detail), or nil elsewhere.
+    var viewRivalProfile: (@MainActor () -> Void)?
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.identity == rhs.identity && (lhs.performIdentity == nil) == (rhs.performIdentity == nil)
+            && (lhs.viewRivalProfile == nil) == (rhs.viewRivalProfile == nil)
+    }
+
+    /// The Profile menu title for the player page's identity action. Not "Select
+    /// Profile…", which opens profile selection; this acts on the player shown.
+    ///
+    /// - Parameter identity: The published action, if any.
+    /// - Returns: "Switch to This Profile" for a switch, else "Select This Profile".
+    static func identityMenuTitle(for identity: ProfileIdentityAction?) -> String {
+        identity == .switchTo ? "Switch to This Profile" : "Select This Profile"
+    }
+}
+
+private struct MacProfilePageCommandsKey: FocusedValueKey {
+    typealias Value = MacProfilePageCommands
+}
+
+extension FocusedValues {
+    /// The player or rival page's Profile-menu actions in the key window.
+    var macProfilePageCommands: MacProfilePageCommands? {
+        get { self[MacProfilePageCommandsKey.self] }
+        set { self[MacProfilePageCommandsKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Publish a player or rival page's toolbar actions to the Profile menu (the macOS
+    /// and iPadOS menu bar; a no-op on iPhone).
+    ///
+    /// - Parameter commands: The page's actions.
+    /// - Returns: The view.
+    func macProfilePageCommands(_ commands: MacProfilePageCommands) -> some View {
+        #if os(macOS)
+        focusedSceneValue(\.macProfilePageCommands, commands)
+        #else
+        modifier(MenuBarTopPagePublisher(keyPath: \.macProfilePageCommands, value: commands))
+        #endif
+    }
+}
+
 // MARK: - Menu bar
 
 #if os(macOS)
 
 /// The Mac app's menu bar commands: File › Close, Edit › Search Festival, View
-/// (sidebar, toolbar, Refresh, Full Screen, Sort/Filter), a Go menu (destinations
-/// ⌘1…⌘9, Back ⌘[, Search ⌘K), a Song menu (Paths, Item Shop), Profile and Help.
+/// (sidebar, toolbar, Refresh, Full Screen, Sort/Filter, Rank By, Instrument, Band
+/// Size, as List/as Grid), a Go menu (destinations ⌘1…⌘9, Back ⌘[, Search ⌘K), a Song
+/// menu (Paths, Item Shop), Profile (with the shown player's Select/Switch and View
+/// Rival's Profile) and Help. Every page toolbar item has a command here (HIG Toolbars
+/// › macOS: "Every toolbar item must also be a menu-bar command").
 /// Unavailable items are disabled, never hidden (HIG The menu bar).
 public struct MacCommands: Commands {
     let model: MacAppModel
     @FocusedValue(\.macPageCommands) private var pageCommands
     @FocusedValue(\.macSongCommands) private var songCommands
+    @FocusedValue(\.macProfilePageCommands) private var profilePageCommands
     @FocusedValue(\.macRankBy) private var rankBy
     /// Settings › Experimental Ranks: View › Rank By lists Total Score alone while off.
     @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @FocusedValue(\.macInstrument) private var instrument
+    @FocusedValue(\.macBandSize) private var bandSize
     @FocusedValue(\.macQuickLinksPage) private var pageQuickLinks
     @FocusedValue(\.macQuickLinksList) private var listQuickLinks
     @FocusedValue(\.macListCommands) private var listCommands
@@ -130,6 +210,14 @@ public struct MacCommands: Commands {
     private var sheetOpen: Bool {
         navigation.profilePresented || navigation.searchPresented
             || navigation.notificationsPresented || navigation.whatsNewPresented
+    }
+
+    /// The front page's values for the shared page-tool menu items.
+    private var pageTools: PageToolMenuState {
+        PageToolMenuState(
+            page: pageCommands, rankBy: rankBy, instrument: instrument, bandSize: bandSize,
+            profile: profilePageCommands, experimentalRanks: experimentalRanks, blocked: sheetOpen
+        )
     }
 
     public var body: some Commands {
@@ -162,12 +250,7 @@ public struct MacCommands: Commands {
             }
             .keyboardShortcut("f", modifiers: [.control, .command])
             Divider()
-            Button("Sort…") { pageCommands?.sort?() }
-                .disabled(pageCommands?.sort == nil || sheetOpen)
-            Button("Filter…") { pageCommands?.filter?() }
-                .disabled(pageCommands?.filter == nil || sheetOpen)
-            rankByMenu
-            instrumentMenu
+            PageToolViewMenuItems(state: pageTools)
             Divider()
             // The standard "Scroll to selection" shortcut (HIG Keyboards: Command-J).
             Button("Scroll to Selection") { listCommands?.scrollToSelection() }
@@ -207,8 +290,7 @@ public struct MacCommands: Commands {
             Button("Deselect Profile") { model.session.deselectPlayer() }
                 .disabled(model.session.selectedPlayer == nil)
             Divider()
-            Button("Find Rival…") { pageCommands?.findRival?() }
-                .disabled(pageCommands?.findRival == nil || sheetOpen)
+            PageToolProfileMenuItems(state: pageTools)
             Button("Notifications") { navigation.notificationsPresented = true }
                 .disabled(model.session.selectedPlayer == nil || sheetOpen)
         }
@@ -221,41 +303,6 @@ public struct MacCommands: Commands {
                 .disabled(sheetOpen)
             Button("Licenses") { navigation.push(.licenses) }
                 .disabled(sheetOpen)
-        }
-    }
-
-    /// View › Rank By: the front rankings page's metrics with a checkmark on the one in
-    /// effect (HIG Menus: "Consider a checkmark to show an attribute is in effect");
-    /// the account metrics stay listed but disabled elsewhere, so the submenu keeps
-    /// its items (HIG Menus: "Make sure a submenu remains available even when its
-    /// items are unavailable").
-    @ViewBuilder private var rankByMenu: some View {
-        let options = rankBy?.options ?? MacRankByCommands.accountOptions(experimentalRanks: experimentalRanks)
-        Menu("Rank By") {
-            ForEach(options) { option in
-                Toggle(option.label, isOn: Binding(
-                    get: { rankBy?.selected == option.id },
-                    set: { isOn in if isOn { rankBy?.select(option.id) } }
-                ))
-                .disabled(rankBy == nil)
-            }
-        }
-    }
-
-    /// View › Instrument: the front rankings page's charts with a checkmark on the one
-    /// in effect (the page's toolbar instrument menu, issue #294); every chart stays
-    /// listed but disabled elsewhere (HIG Menus: "Make sure a submenu remains available
-    /// even when its items are unavailable").
-    @ViewBuilder private var instrumentMenu: some View {
-        let options = instrument?.options ?? MacInstrumentCommands.allOptions
-        Menu("Instrument") {
-            ForEach(options) { option in
-                Toggle(option.label, isOn: Binding(
-                    get: { instrument?.selected == option.id },
-                    set: { isOn in if isOn { instrument?.select(option.id) } }
-                ))
-                .disabled(instrument == nil)
-            }
         }
     }
 

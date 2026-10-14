@@ -238,6 +238,11 @@ public struct FestivalRootView: View {
                         .accessibilityIdentifier("fst.nav.debug-layout")
                 }
                 #endif
+                #if DEBUG && os(iOS)
+                if DebugMenuBarMirror.isEnabled {
+                    DebugMenuBarMirror()
+                }
+                #endif
                 if drawerMounted && usesDrawer {
                     FestivalDrawer(
                         session: session, visibleSections: sections(for: presentation),

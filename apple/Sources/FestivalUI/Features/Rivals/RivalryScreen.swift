@@ -143,6 +143,10 @@ struct RivalryScreen: View {
             }
             .accessibilityIdentifier("fst.rivalry.view-profile")
         }
+        // Mac and iPad menu bar: Profile › View Rival's Profile (issue #633).
+        .macProfilePageCommands(MacProfilePageCommands(viewRivalProfile: {
+            pushRoute?(.player(accountId: rivalId, displayName: rivalName))
+        }))
         .task(id: RivalryTaskKey(rivalId: rivalId, mode: mode, scope: scope)) { await load() }
         .task { await loadSongLookup() }
     }

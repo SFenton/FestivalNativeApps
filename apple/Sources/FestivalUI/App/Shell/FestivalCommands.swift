@@ -97,19 +97,22 @@ extension FocusedValues {
 /// The iPadOS menu bar (and ⌘-hold shortcut overlay), mirroring the Mac's
 /// ``MacCommands`` over the focused window's ``FestivalShellCommands`` and the page
 /// values the Mac already publishes: Edit › Search Festival (⌘F); View › Refresh (⌘R),
-/// Sort…, Filter…, Rank By ▸, Instrument ▸, sidebar; Go › Back (⌘[), destinations (⌘1…⌘9), Search
-/// (⌘K), Next/Previous Section (⌥⌘↓/↑); Song › Paths…, Open in Item
-/// Shop; Profile › Select/Switch (⇧⌘P), Deselect, Find Rival…, Notifications; Help.
+/// Sort…, Filter…, Rank By ▸, Instrument ▸, Band Size ▸, as List / as Grid, sidebar;
+/// Go › Back (⌘[), destinations (⌘1…⌘9), Search (⌘K), Next/Previous Section (⌥⌘↓/↑);
+/// Song › Paths…, Open in Item Shop; Profile › Select/Switch (⇧⌘P), Deselect, Select /
+/// Switch to This Profile, View Rival's Profile, Find Rival…, Notifications; Help.
 /// Unavailable items are disabled, never hidden (HIG The menu bar). iPhone has no menu
 /// bar: nothing is added there, so its own hidden shortcut buttons stay in charge.
 public struct FestivalCommands: Commands {
     @FocusedValue(\.festivalShellCommands) private var shell
     @FocusedValue(\.macPageCommands) private var pageCommands
     @FocusedValue(\.macSongCommands) private var songCommands
+    @FocusedValue(\.macProfilePageCommands) private var profilePageCommands
     @FocusedValue(\.macRankBy) private var rankBy
     /// Settings › Experimental Ranks: View › Rank By lists Total Score alone while off.
     @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @FocusedValue(\.macInstrument) private var instrument
+    @FocusedValue(\.macBandSize) private var bandSize
     @FocusedValue(\.macQuickLinksPage) private var pageQuickLinks
     @FocusedValue(\.macQuickLinksList) private var listQuickLinks
 
@@ -118,6 +121,14 @@ public struct FestivalCommands: Commands {
 
     /// Whether a root sheet covers the front window, or no window is focused.
     private var blocked: Bool { shell?.sheetOpen ?? true }
+
+    /// The front page's values for the shared page-tool menu items.
+    private var pageTools: PageToolMenuState {
+        PageToolMenuState(
+            page: pageCommands, rankBy: rankBy, instrument: instrument, bandSize: bandSize,
+            profile: profilePageCommands, experimentalRanks: experimentalRanks, blocked: blocked
+        )
+    }
 
     public var body: some Commands {
         if UIDevice.current.userInterfaceIdiom == .pad {
@@ -150,12 +161,7 @@ public struct FestivalCommands: Commands {
                     .keyboardShortcut("r", modifiers: .command)
                     .disabled(blocked)
                 Divider()
-                Button("Sort…") { pageCommands?.sort?() }
-                    .disabled(pageCommands?.sort == nil || blocked)
-                Button("Filter…") { pageCommands?.filter?() }
-                    .disabled(pageCommands?.filter == nil || blocked)
-                rankByMenu
-                instrumentMenu
+                PageToolViewMenuItems(state: pageTools)
                 Divider()
             }
             CommandMenu("Go") {
@@ -190,8 +196,7 @@ public struct FestivalCommands: Commands {
                 Button("Deselect Profile") { shell?.deselectProfile() }
                     .disabled(shell?.hasPlayer != true || blocked)
                 Divider()
-                Button("Find Rival…") { pageCommands?.findRival?() }
-                    .disabled(pageCommands?.findRival == nil || blocked)
+                PageToolProfileMenuItems(state: pageTools)
                 Button("Notifications") { shell?.notifications() }
                     .disabled(shell?.hasPlayer != true || blocked)
             }
@@ -204,39 +209,6 @@ public struct FestivalCommands: Commands {
                     .disabled(blocked)
                 Button("Licenses") { shell?.licenses() }
                     .disabled(blocked)
-            }
-        }
-    }
-
-    /// View › Rank By with a checkmark on the metric in effect; the account metrics stay
-    /// listed but disabled elsewhere (HIG Menus: "Make sure a submenu remains available
-    /// even when its items are unavailable").
-    @ViewBuilder private var rankByMenu: some View {
-        let options = rankBy?.options ?? MacRankByCommands.accountOptions(experimentalRanks: experimentalRanks)
-        Menu("Rank By") {
-            ForEach(options) { option in
-                Toggle(option.label, isOn: Binding(
-                    get: { rankBy?.selected == option.id },
-                    set: { isOn in if isOn { rankBy?.select(option.id) } }
-                ))
-                .disabled(rankBy == nil)
-            }
-        }
-    }
-
-    /// View › Instrument with a checkmark on the chart in effect (the front rankings
-    /// page's toolbar instrument menu, issue #294); every chart stays listed but
-    /// disabled elsewhere (HIG Menus: "Make sure a submenu remains available even when
-    /// its items are unavailable").
-    @ViewBuilder private var instrumentMenu: some View {
-        let options = instrument?.options ?? MacInstrumentCommands.allOptions
-        Menu("Instrument") {
-            ForEach(options) { option in
-                Toggle(option.label, isOn: Binding(
-                    get: { instrument?.selected == option.id },
-                    set: { isOn in if isOn { instrument?.select(option.id) } }
-                ))
-                .disabled(instrument == nil)
             }
         }
     }
@@ -286,4 +258,31 @@ public struct FestivalCommands: Commands {
         }
     }
 }
+
+#if DEBUG
+// MARK: - Menu-bar mirror (Debug)
+
+/// Debug-only: with `FST_DEBUG_MENU_BAR=1` an iPad window lays ``FestivalCommands``'
+/// page-tool items over its bottom-trailing corner (``PageToolMenuBarMirror``: the same
+/// focused values and shared items), so `IPadMenuBarJourneyTests` can check their
+/// names, enabled states and actions against the real page in front; the iPadOS 26
+/// menu bar itself is not in the XCUITest tree (issue #633). Absent from Release.
+struct DebugMenuBarMirror: View {
+    @FocusedValue(\.festivalShellCommands) private var shell
+    @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
+
+    /// Whether this launch asked for the mirror (iPad only: iPhone has no menu bar).
+    static var isEnabled: Bool {
+        MenuBarCommandsSupport.isAvailable && ProcessInfo.processInfo.environment["FST_DEBUG_MENU_BAR"] == "1"
+    }
+
+    var body: some View {
+        PageToolMenuBarMirror(blocked: shell?.sheetOpen ?? true, experimentalRanks: experimentalRanks)
+            .frame(width: 260)
+            .festivalCard(cornerRadius: 12)
+            .padding(16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+    }
+}
+#endif
 #endif

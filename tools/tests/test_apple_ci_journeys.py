@@ -7,6 +7,7 @@ Songs section-push AX XXXL journey (#288, #452), the Songs large-title rest jour
 the What's New AX5 journeys (#434: iPhone portrait, iPad portrait and landscape), the pinned caption-icon journeys (``song-header`` R4, #542)
 and the drawer's Reduce Motion and closing journeys (#489, iPhone only); ``HISTORY_JOURNEYS``/``HISTORY_IPAD_JOURNEYS``
 (iPad bundle, on the iPhone and the iPad) must keep the Score History AX5 journeys (#385, the region #302 changed);
+``MENU_BAR_IPAD_JOURNEYS`` (iPad bundle, on the iPad, one per runner) must keep the menu-bar page-tool journeys (#633);
 ``PLAIN_JOURNEYS`` (iPhone bundle, on the iPhone in the plain-fixture step) must keep the Filter Invalid Scores score-check
 journey (#615) and the Songs deselect-reset accessibility journeys (#487, the region #359 changed); ``UNPINNED_JOURNEYS``
 (iPhone bundle, on its own unpinned listener) must keep the player profile's pause-notice AX5 journey (#446, the region
@@ -42,6 +43,7 @@ BLOCKS = {
     "PLAIN_JOURNEYS": UITESTS,
     "HISTORY_JOURNEYS": IPAD_UITESTS,
     "HISTORY_IPAD_JOURNEYS": IPAD_UITESTS,
+    "MENU_BAR_IPAD_JOURNEYS": IPAD_UITESTS,
     "UNPINNED_JOURNEYS": UITESTS,
     "RIVAL_JOURNEYS": UITESTS,
     "SCROLL_EDGE_JOURNEYS": UITESTS,
@@ -306,11 +308,32 @@ class AppleCIJourneysTests(unittest.TestCase):
         # #480: the split band (#344) under Increase Contrast at AX5; asserted in test_split_band_journey_runs_on_the_ipad.
         split_band = "IPadShellAccessibilityTests/testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5"
         self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split, board, band, cards, split_band])
-        self.assertEqual(self.workflow.count("uitest --app ipad"), 2)
+        # Score History on the iPhone and the iPad, and #633's menu-bar journeys on the iPad.
+        self.assertEqual(self.workflow.count("uitest --app ipad"), 3)
         # iPhone journeys, the unpinned profile-notice run (#446), two Score History runs, the plain-fixture iPhone run
-        # (#615), the iPad journeys, the iPad keyboard batches (#473, #442), the Rival Detail device loop (#444), the
-        # Songs Filter legs (#432) and the scroll-edge job's iPhone and iPad runs (#462).
-        self.assertEqual(self.workflow.count("--fail-on-skip"), 12)
+        # (#615), the iPad menu-bar run (#633), the iPad journeys, the iPad keyboard batches (#473, #442), the Rival
+        # Detail device loop (#444), the Songs Filter legs (#432) and the scroll-edge job's iPhone and iPad runs (#462).
+        self.assertEqual(self.workflow.count("--fail-on-skip"), 13)
+
+    def test_menu_bar_journeys_run_on_the_ipad_one_per_runner(self) -> None:
+        # #633: the iPadOS menu bar's page tools, through the Debug mirror (XCUITest cannot open the menu bar).
+        names = (
+            "testMenuBarPageToolsAreListedAndDisabledWithoutPageTools",
+            "testItemShopLayoutItemsSwitchThePage",
+            "testBandSizeItemsSwitchTheBoard",
+            "testSelectThisProfileSelectsTheShownPlayer",
+            "testViewRivalsProfileOpensTheRival",
+            "testSuggestionsFilterOpensThePageFilter",
+        )
+        self.assertEqual(
+            ci_journeys(self.workflow, "MENU_BAR_IPAD_JOURNEYS"), [f"IPadMenuBarJourneyTests/{n}" for n in names]
+        )
+        self.assertIn(
+            'only=(); for journey in $MENU_BAR_IPAD_JOURNEYS; do only+=(--only "$journey"); done\n'
+            '          python3 tools/ios_sim.py uitest --app ipad --device "$ipad" --fail-on-skip --timeout 1500 '
+            '--batch-size 1 "${only[@]}"',
+            self.workflow,
+        )
 
     def test_split_band_journey_runs_on_the_ipad(self) -> None:
         # #480: the iPad's split band (#344) at AX5 under Increase Contrast, with Close's 44 pt hit region.

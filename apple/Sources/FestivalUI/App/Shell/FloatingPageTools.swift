@@ -52,6 +52,12 @@ final class PageToolsRegistry {
     /// A root sheet (Notifications, Profile, Search, a tool menu) covers the page, so
     /// the floating tools hide (web `showMobileFab = isMobile && !notificationsOpen`).
     private(set) var isCovered = false
+    /// The selected tab's floating row's top edge in global (window) points, or `nil`
+    /// while no tab's row is on screen. A page's own bottom chrome (the iPhone Duo
+    /// Filter Songs field, ``BottomSearchField``) stacks above it (issue #633).
+    private(set) var floatingRowTop: CGFloat?
+    /// The row that made the current ``floatingRowTop`` report.
+    @ObservationIgnored private var floatingRowOwner: UUID?
     /// A page-tool menu shown as a compact sheet from a floating tool
     /// (``PageToolMenu``); the host presents it.
     var inlineMenu: PageToolInlineMenu?
@@ -121,6 +127,21 @@ final class PageToolsRegistry {
         }
     }
 
+    /// Forget every page and tool: the window stopped floating page tools (an iPhone Duo
+    /// inner window rotated from the tab bar to the vertical bar, #633).
+    ///
+    /// Pages keep their identity across that change, so while the registry is withdrawn
+    /// a page popped or pushed cannot report it; when tools float again, every page on
+    /// screen reports itself and its tools afresh (``PageToolsScopeModifier``,
+    /// ``PageToolRegistration``). Revealed scopes are kept, so returning tools don't
+    /// replay their first-appearance motion.
+    func resetPages() {
+        entries.removeAll()
+        pageScopes.removeAll()
+        floatingRowTop = nil
+        floatingRowOwner = nil
+    }
+
     /// The front page: the most recently appeared page on screen in the selected tab.
     var frontScope: UUID? { pageScopes.last }
 
@@ -163,6 +184,21 @@ final class PageToolsRegistry {
     /// - Parameter width: Its width in points.
     func reportWindow(width: CGFloat) {
         if windowWidth != width { windowWidth = width }
+    }
+
+    /// Record the selected tab's floating row's top edge, skipping identical reports.
+    ///
+    /// A row clears only its own report, so a tab switch never loses the new tab's row
+    /// to the old one's late clear.
+    ///
+    /// - Parameters:
+    ///   - top: Its top in global points (whole points), or `nil` once it is off screen
+    ///     or no longer selected.
+    ///   - owner: The reporting row's identity.
+    func reportFloatingRow(top: CGFloat?, from owner: UUID) {
+        if top == nil, floatingRowOwner != owner { return }
+        floatingRowOwner = top == nil ? nil : owner
+        if floatingRowTop != top { floatingRowTop = top }
     }
 
     /// Show a page-tool menu as a compact sheet (``PageToolMenu``).
@@ -415,10 +451,10 @@ enum FloatingPageToolsMotion: Equatable {
 // MARK: - Environment
 
 extension EnvironmentValues {
-    /// Set only where page tools float above the iPhone tab bar (a compact-width window
-    /// with a horizontal tab bar, issue #632). Nil (the iPhone Duo vertical bar, regular
-    /// width iPad and Duo windows, Mac) means pages keep their tools as navigation-bar
-    /// items.
+    /// Set only where page tools float above a horizontal tab bar (iPhone, compact iPad
+    /// windows, the iPhone Duo inner display in portrait; issues #632, #633). Nil (the
+    /// iPhone Duo vertical bar, the regular-width iPad sidebar shell, Mac) means pages
+    /// keep their tools as navigation-bar, rail or window-toolbar items.
     @Entry var pageToolsRegistry: PageToolsRegistry? = nil
 
     /// The enclosing page's scope; tool registrations are tagged with it.
@@ -434,8 +470,7 @@ extension EnvironmentValues {
 extension View {
     /// Host the floating page tools on the iPhone root `TabView` (issues #92, #632).
     ///
-    /// A compact-width window with a horizontal tab bar publishes a
-    /// ``PageToolsRegistry``: pages hand it their tools, and each tab's
+    /// A window with a horizontal tab bar publishes a ``PageToolsRegistry``: pages hand it their tools, and each tab's
     /// ``FloatingPageToolsInset`` draws the front page's tools as individual floating
     /// Liquid Glass buttons above the tab bar. Elsewhere it publishes nothing, so pages
     /// keep their navigation-bar items. The host presents a ``PageToolMenu``'s choices.
@@ -452,17 +487,20 @@ extension View {
 struct FloatingPageToolsHost: ViewModifier {
     let covered: Bool
 
-    /// Whether the window floats page tools: a horizontal tab bar in a compact-width
-    /// window (iPhone, compact iPad windows).
+    /// Whether the window floats page tools: wherever the horizontal tab bar is
+    /// (agent decision, issue #633; pattern `page-tools-and-nav-chrome` R28).
     ///
-    /// The iPhone Duo inner display in portrait also has a horizontal tab bar, but at
-    /// regular width with a list/detail split, where each pane keeps its own navigation
-    /// bar items, as the vertical bar and the iPad sidebar do.
+    /// That is iPhone in either orientation (a large iPhone in landscape is regular
+    /// width), compact iPad windows and the iPhone Duo inner display in portrait or
+    /// partially folded portrait, a single full-width push stack (on-demand splits are
+    /// landscape only). The Duo vertical bar (folded, inner landscape and book) keeps
+    /// rail items with system overflow, the regular-width iPad sidebar shell keeps
+    /// trailing navigation-bar items and the Mac keeps its window toolbar.
     ///
     /// - Parameter layout: The window's published layout.
-    /// - Returns: True for a compact-width horizontal tab bar.
+    /// - Returns: True for a horizontal tab bar.
     nonisolated static func floatsPageTools(in layout: DeviceLayout) -> Bool {
-        layout.sectionChrome == .tabBar && layout.windowWidthClass == .compact
+        layout.sectionChrome == .tabBar
     }
     @State private var registry = PageToolsRegistry()
     @Environment(\.deviceLayout) private var layout
@@ -478,6 +516,9 @@ struct FloatingPageToolsHost: ViewModifier {
             }
             .onChange(of: isCovered, initial: true) { _, covered in
                 registry.setCovered(covered)
+            }
+            .onChange(of: floats) { _, floats in
+                if !floats { registry.resetPages() }
             }
             .sheet(item: Bindable(registry).inlineMenu, onDismiss: registry.inlineMenuDismissed) { menu in
                 PageToolInlineMenuSheet(menu: menu, registry: registry)
@@ -514,12 +555,14 @@ struct FloatingPageToolsInset: ViewModifier {
     @Environment(\.pageToolsRegistry) private var registry
 
     func body(content: Content) -> some View {
-        if let registry {
-            content.safeAreaInset(edge: .bottom, spacing: 0) {
+        // One branch whether or not tools float: an iPhone Duo inner window rotating
+        // between the vertical bar and the tab bar toggles the registry (#633), and a
+        // branch change would rebuild the stack, dropping its pages' state (an open
+        // Paths sheet). Without a registry the inset is empty and adds no height.
+        content.safeAreaInset(edge: .bottom, spacing: 0) {
+            if let registry {
                 FloatingPageToolsBar(registry: registry, isSelected: isSelected)
             }
-        } else {
-            content
         }
     }
 }
@@ -544,6 +587,10 @@ struct FloatingPageToolsBar: View {
     let registry: PageToolsRegistry
     /// The bar's tab is the selected one; other tabs' bars draw nothing.
     var isSelected = true
+    /// This row's identity for ``PageToolsRegistry/reportFloatingRow(top:from:)``.
+    @State private var rowID = UUID()
+    /// This row's last measured top, in global points.
+    @State private var rowTop: CGFloat?
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     @AppStorage("fst.accessibility.reduceMotion") private var reduceMotion = false
 
@@ -591,6 +638,15 @@ struct FloatingPageToolsBar: View {
             // Later visits to this page cross-fade instead of replaying the stagger.
             if let front, !ids.isEmpty { registry.markRevealed(front) }
         }
+        // The page's own bottom chrome stacks above the selected row (issue #633).
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY.rounded() } action: { top in
+            rowTop = top
+            if isSelected { registry.reportFloatingRow(top: top, from: rowID) }
+        }
+        .onChange(of: isSelected) { _, selected in
+            registry.reportFloatingRow(top: selected ? rowTop : nil, from: rowID)
+        }
+        .onDisappear { registry.reportFloatingRow(top: nil, from: rowID) }
     }
 
     /// A tool's insertion and removal transition.
@@ -668,6 +724,8 @@ struct PageToolsScopeModifier: ViewModifier {
                 sync()
             }
             .onChange(of: inSelectedTab) { _, _ in sync() }
+            // Tools start floating without the page reappearing (#633).
+            .onChange(of: registry == nil) { _, _ in sync() }
     }
 
     /// Report the page's visibility to the registry.

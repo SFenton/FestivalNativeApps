@@ -296,5 +296,81 @@ private func navA11yControls(_ nodes: [MacAXNode]) -> [MacAXNode] {
         #expect(RootProfileButton.MonogramMetrics.resolve(liquidGlassBar: true).diameter >= 44)
         #expect(RootProfileButton.MonogramMetrics.resolve(liquidGlassBar: true, inAccountPill: true).diameter == 30)
     }
+
+    // MARK: iPhone Duo inner portrait (#633)
+
+    /// iPhone Duo's inner display in portrait floats page tools above its tab bar (issue
+    /// #633). Songs' bottom Filter Songs field stacks 8 pt above the floating row instead
+    /// of covering it; VoiceOver reads the field, then Sort, Filter Songs and Quick Links;
+    /// and each tool stays a whole 44 × 44 pt circle (HIG Buttons: "Minimum hit region:
+    /// 44x44 pt"), at the default and largest accessibility text sizes.
+    @Test(arguments: [DynamicTypeSize.large, .accessibility5])
+    func duoInnerPortraitFieldStacksAboveFloatingTools(_ typeSize: DynamicTypeSize) async throws {
+        let layout = DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .fullyOpen
+        ), dualSource: false)
+        #expect(FloatingPageToolsHost.floatsPageTools(in: layout))
+        let controller = QuickLinksController()
+        controller.configure(title: "Quick Links", explicit: navA11ySections)
+        let registry = navA11ySongsRegistry(controller)
+        let size = CGSize(width: 669, height: 951)
+        let host = nativeHostedView(AnyView(
+            NavigationStack {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(0..<4, id: \.self) { index in
+                            Text("Song \(index + 1)")
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .padding(.horizontal, 16)
+                        }
+                    }
+                }
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        BottomSearchField(
+                            text: .constant(""), prompt: "Filter Songs", accessibilityLabel: "Filter Songs",
+                            identifier: "fst.songs.filter-field", clearIdentifier: "fst.songs.filter-clear",
+                            hinge: nil, space: "page"
+                        )
+                    }
+                    .coordinateSpace(.named("page"))
+            }
+            .floatingPageTools(isSelected: true)
+            .environment(\.pageToolsRegistry, registry)
+            .environment(\.deviceLayout, layout)
+            .environment(\.festivalSession, navA11ySession(player: true))
+            .environment(\.dynamicTypeSize, typeSize)
+            .buttonStyle(.borderless)
+            .preferredColorScheme(.dark)
+        ), size: size)
+        let window = nativeHostedWindow(host, size: size)
+        defer { window.orderOut(nil) }
+        let ids = ["fst.songs.filter-field"] + Self.songsIDs
+        try await nativeHostedSettle(host, until: {
+            ids.allSatisfy { nativeHostedAccessibilityElement($0, in: host) != nil }
+                && registry.floatingRowTop != nil
+        })
+        // The clearance applies on the next layout pass.
+        try await nativeHostedSettle(host, until: {
+            guard let field = nativeHostedAccessibilityFrame("fst.songs.filter-field", in: host),
+                  let sort = nativeHostedAccessibilityFrame("fst.songs.sort", in: host) else { return false }
+            return field.maxY < sort.minY
+        })
+        let nodes = macAccessibilityTree(host)
+        macAccessibilityDump(nodes, name: "nav-buttons-duo-inner-portrait-\(typeSize)")
+        let order = navA11yControls(nodes).map(\.identifier).filter { ids.contains($0) }
+        #expect(order == ids, "field, then the tools left to right: \(order)")
+
+        let field = try #require(nativeHostedAccessibilityFrame("fst.songs.filter-field", in: host))
+        let rowTop = try #require(registry.floatingRowTop)
+        let tools = try Self.songsIDs.map { try #require(nativeHostedAccessibilityFrame($0, in: host)) }
+        for (id, frame) in zip(Self.songsIDs, tools) {
+            #expect(abs(frame.width - FloatingPageToolsFit.slot) <= 0.5, "\(id) \(frame)")
+            #expect(abs(frame.height - FloatingPageToolsFit.slot) <= 0.5, "\(id) \(frame)")
+            #expect(!frame.intersects(field), "\(id) \(frame) clear of the field \(field)")
+        }
+        // The field's row ends 8 pt above the floating row (its glass may draw past the
+        // text element by a point or two).
+        #expect(field.maxY <= rowTop - BottomSearchFieldPlacement.rowPadding + 2, "\(field) row top \(rowTop)")
+    }
 }
 #endif

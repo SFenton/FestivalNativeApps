@@ -86,6 +86,21 @@ struct MacInstrumentCommands: Equatable {
     static let allOptions = options(for: Instrument.allCases)
 }
 
+// MARK: - Band Size
+
+/// A band board's Band Size tool for View › Band Size (issue #633: the song band
+/// leaderboard's Band Size is a toolbar item, and HIG Toolbars › macOS says "Every
+/// toolbar item must also be a menu-bar command"; Band Rankings publishes its header
+/// menu too).
+struct MacBandSizeCommands: Equatable {
+    /// The band size in effect.
+    let selected: BandType
+    /// Applies a band size.
+    let select: @MainActor (BandType) -> Void
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.selected == rhs.selected }
+}
+
 // MARK: - Quick Links
 
 /// A page's Quick Links for Go › Quick Links and Next/Previous Section.
@@ -123,7 +138,7 @@ extension View {
     ///     is listed (pattern `experimental-ranks`).
     /// - Returns: The view.
     func macRankByCommands(_ selection: Binding<RankingMetric>, experimentalRanks: Bool) -> some View {
-        modifier(MacRankByPublisher(commands: MacRankByCommands(
+        modifier(MacDetailTopPublisher(keyPath: \.macRankBy, value: MacRankByCommands(
             options: MacRankByCommands.accountOptions(experimentalRanks: experimentalRanks),
             selected: selection.wrappedValue.coerced(experimentalRanks: experimentalRanks).rawValue,
             select: { id in RankingMetric(rawValue: id).map { selection.wrappedValue = $0 } }
@@ -139,7 +154,7 @@ extension View {
     ///     is listed (pattern `experimental-ranks`).
     /// - Returns: The view.
     func macRankByCommands(_ selection: Binding<BandRankingMetric>, experimentalRanks: Bool) -> some View {
-        modifier(MacRankByPublisher(commands: MacRankByCommands(
+        modifier(MacDetailTopPublisher(keyPath: \.macRankBy, value: MacRankByCommands(
             options: MacRankByCommands.bandOptions(experimentalRanks: experimentalRanks),
             selected: selection.wrappedValue.coerced(experimentalRanks: experimentalRanks).rawValue,
             select: { id in BandRankingMetric(rawValue: id).map { selection.wrappedValue = $0 } }
@@ -154,10 +169,22 @@ extension View {
     ///   - selection: The page's chart.
     /// - Returns: The view.
     func macInstrumentCommands(_ instruments: [Instrument], selection: Binding<Instrument>) -> some View {
-        modifier(MacInstrumentPublisher(commands: MacInstrumentCommands(
+        modifier(MacDetailTopPublisher(keyPath: \.macInstrument, value: MacInstrumentCommands(
             options: MacInstrumentCommands.options(for: instruments),
             selected: selection.wrappedValue.rawValue,
             select: { id in Instrument(rawValue: id).map { selection.wrappedValue = $0 } }
+        )))
+    }
+
+    /// Publish a band board's band size to View › Band Size (macOS and the iPadOS menu
+    /// bar; a no-op on iPhone).
+    ///
+    /// - Parameter selection: The page's band size.
+    /// - Returns: The view.
+    func macBandSizeCommands(_ selection: Binding<BandType>) -> some View {
+        modifier(MacDetailTopPublisher(keyPath: \.macBandSize, value: MacBandSizeCommands(
+            selected: selection.wrappedValue,
+            select: { selection.wrappedValue = $0 }
         )))
     }
 }
@@ -168,6 +195,10 @@ private struct MacRankByCommandsKey: FocusedValueKey {
 
 private struct MacInstrumentCommandsKey: FocusedValueKey {
     typealias Value = MacInstrumentCommands
+}
+
+private struct MacBandSizeCommandsKey: FocusedValueKey {
+    typealias Value = MacBandSizeCommands
 }
 
 private struct MacQuickLinksPageKey: FocusedValueKey {
@@ -191,6 +222,12 @@ extension FocusedValues {
         set { self[MacInstrumentCommandsKey.self] = newValue }
     }
 
+    /// The front band board's band size.
+    var macBandSize: MacBandSizeCommands? {
+        get { self[MacBandSizeCommandsKey.self] }
+        set { self[MacBandSizeCommandsKey.self] = newValue }
+    }
+
     /// Quick Links of the page in the detail (or only) column.
     var macQuickLinksPage: MacQuickLinksCommand? {
         get { self[MacQuickLinksPageKey.self] }
@@ -204,32 +241,19 @@ extension FocusedValues {
     }
 }
 
-/// Publishes Rank By only from the top page of its column, and not from the list beside
-/// an open trailing pane (Leaderboards beside Full Rankings, issue #352: the detail wins).
-private struct MacRankByPublisher: ViewModifier {
-    let commands: MacRankByCommands
+/// Publishes a page's View-menu choice (Rank By, Instrument, Band Size) only from the
+/// top page of its column, and not from the list beside an open trailing pane
+/// (Leaderboards beside Full Rankings, issue #352: the detail wins).
+private struct MacDetailTopPublisher<Published>: ViewModifier {
+    let keyPath: WritableKeyPath<FocusedValues, Published?>
+    let value: Published
     @Environment(\.macPageIsTop) private var isTop
     @Environment(\.macColumnIsList) private var isList
 
     func body(content: Content) -> some View {
         if MenuBarCommandsSupport.isAvailable {
-            content.focusedSceneValue(\.macRankBy, isTop && !isList ? commands : nil)
-        } else {
-            content
-        }
-    }
-}
-
-/// Publishes the instrument switcher only from the top page of its column, and not from
-/// the list beside an open trailing pane (the detail wins, as for Rank By).
-private struct MacInstrumentPublisher: ViewModifier {
-    let commands: MacInstrumentCommands
-    @Environment(\.macPageIsTop) private var isTop
-    @Environment(\.macColumnIsList) private var isList
-
-    func body(content: Content) -> some View {
-        if MenuBarCommandsSupport.isAvailable {
-            content.focusedSceneValue(\.macInstrument, isTop && !isList ? commands : nil)
+            let published: Published? = isTop && !isList ? value : nil
+            content.focusedSceneValue(keyPath, published)
         } else {
             content
         }

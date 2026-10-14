@@ -212,6 +212,41 @@ struct BottomSearchFieldPlacementTests {
         ) == 8)
     }
 
+    @Test func innerPortraitStacksTheFieldAboveTheFloatingTools() {
+        // Issue #633: Duo inner portrait floats page tools in a 60 pt row above the tab
+        // bar; the page's safe area still ends at the bar (868), so the field clears
+        // the row (top 808) and sits 8 pt above it.
+        let padding = BottomSearchFieldPlacement.bottomPadding(
+            chrome: .tabBar, rowBottom: 868, windowBottom: 951, fieldHeight: 62, keyboardTop: nil,
+            floatingRowTop: 808
+        )
+        #expect(padding == 68)
+        let fieldBottom: CGFloat = 868 - padding
+        #expect(fieldBottom == 800, "8 pt above the floating row's top")
+        // Where the row is already outside the page's safe area, nothing is added.
+        #expect(BottomSearchFieldPlacement.bottomPadding(
+            chrome: .tabBar, rowBottom: 808, windowBottom: 951, fieldHeight: 62, keyboardTop: nil,
+            floatingRowTop: 808
+        ) == 8)
+        // Keyboard up: the row rides above it with the page, so the field stays above
+        // the row; a larger keyboard lift wins.
+        #expect(BottomSearchFieldPlacement.bottomPadding(
+            chrome: .tabBar, rowBottom: 500, windowBottom: 951, fieldHeight: 62, keyboardTop: 500,
+            floatingRowTop: 440
+        ) == 68)
+        #expect(BottomSearchFieldPlacement.bottomPadding(
+            chrome: .tabBar, rowBottom: 868, windowBottom: 951, fieldHeight: 62, keyboardTop: 500,
+            floatingRowTop: 808
+        ) == 376)
+    }
+
+    @Test func floatingRowClearanceIsNeverNegative() {
+        #expect(BottomSearchFieldPlacement.floatingRowClearance(rowBottom: 868, floatingRowTop: nil) == 0)
+        #expect(BottomSearchFieldPlacement.floatingRowClearance(rowBottom: 0, floatingRowTop: 808) == 0)
+        #expect(BottomSearchFieldPlacement.floatingRowClearance(rowBottom: 700, floatingRowTop: 808) == 0)
+        #expect(BottomSearchFieldPlacement.floatingRowClearance(rowBottom: 868.4, floatingRowTop: 808) == 61)
+    }
+
     @Test func keyboardCoversOnlyWhenOnScreen() {
         #expect(!BottomSearchFieldPlacement.keyboardCovers(keyboardTop: nil, windowBottom: 669))
         #expect(!BottomSearchFieldPlacement.keyboardCovers(keyboardTop: 669, windowBottom: 669))

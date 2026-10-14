@@ -93,6 +93,47 @@ struct PageToolsRegistryTests {
         return id
     }
 
+    @Test("The selected row's top is kept until that row clears it (issue #633)")
+    func floatingRowTopOwnership() {
+        let registry = PageToolsRegistry()
+        let songs = UUID()
+        let leaderboards = UUID()
+        #expect(registry.floatingRowTop == nil)
+        registry.reportFloatingRow(top: 808, from: songs)
+        #expect(registry.floatingRowTop == 808)
+        // Tab switch: the new tab reports before the old one's late clear.
+        registry.reportFloatingRow(top: 806, from: leaderboards)
+        registry.reportFloatingRow(top: nil, from: songs)
+        #expect(registry.floatingRowTop == 806)
+        registry.reportFloatingRow(top: nil, from: leaderboards)
+        #expect(registry.floatingRowTop == nil)
+    }
+
+    @Test("Leaving the tab bar forgets pages, so a page popped meanwhile never returns as the front (#633)")
+    func resetPagesForgetsStalePages() {
+        let registry = PageToolsRegistry()
+        let songs = UUID()
+        let detail = UUID()
+        registry.pageAppeared(songs)
+        _ = entry(registry, songs, PageToolOrder.primary)
+        registry.pageAppeared(detail)
+        _ = entry(registry, detail, PageToolOrder.primary)
+        registry.reportFloatingRow(top: 808, from: UUID())
+        registry.markRevealed(detail)
+        // Rotated to the vertical bar: Song Detail is popped while no registry is published.
+        registry.resetPages()
+        #expect(registry.frontScope == nil)
+        #expect(registry.frontItems.isEmpty)
+        #expect(registry.entries.isEmpty)
+        #expect(registry.floatingRowTop == nil)
+        #expect(registry.hasRevealed(detail))
+        // Back in portrait, only Songs reports itself.
+        registry.pageAppeared(songs)
+        let sort = entry(registry, songs, PageToolOrder.primary)
+        #expect(registry.frontScope == songs)
+        #expect(registry.frontItems.map(\.id) == [sort])
+    }
+
     @Test("No page on screen shows no tools")
     func emptyWithoutPage() {
         let registry = PageToolsRegistry()
@@ -277,20 +318,54 @@ struct FloatingPageToolsHostTests {
         #expect(FloatingPageToolsHost.floatsPageTools(in: phone))
     }
 
-    @Test("Duo inner portrait (regular width, horizontal tab bar) keeps bar items")
-    func duoInnerPortraitKeepsBarItems() {
+    @Test("Large iPhone landscape (regular width, horizontal tab bar) floats page tools")
+    func iPhoneLandscapeFloats() {
+        let landscape = DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: 956, height: 440), widthClass: .regular, heightClass: .compact,
+            safeAreaInsets: EdgeInsets(top: 0, leading: 62, bottom: 21, trailing: 62)
+        ))
+        #expect(landscape.sectionChrome == .tabBar)
+        #expect(FloatingPageToolsHost.floatsPageTools(in: landscape))
+    }
+
+    @Test("Duo inner portrait, flat or partially folded, floats page tools (#633)")
+    func duoInnerPortraitFloats() {
         let inner = DeviceLayout.resolve(LayoutSignals(
             size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .fullyOpen
         ))
+        let tabletop = DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .partiallyOpen
+        ))
         #expect(inner.sectionChrome == .tabBar)
-        #expect(!FloatingPageToolsHost.floatsPageTools(in: inner))
+        #expect(FloatingPageToolsHost.floatsPageTools(in: inner))
+        #expect(tabletop.sectionChrome == .tabBar)
+        #expect(FloatingPageToolsHost.floatsPageTools(in: tabletop))
     }
 
-    @Test("Duo vertical bars never float page tools")
+    @Test("Compact iPad windows float page tools; the regular sidebar shell keeps bar items")
+    func iPadWindows() {
+        let slideOver = DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: 375, height: 820), widthClass: .compact
+        ))
+        let sidebar = DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: 1180, height: 820), widthClass: .regular, usesSidebarShell: true
+        ))
+        #expect(slideOver.sectionChrome == .tabBar)
+        #expect(FloatingPageToolsHost.floatsPageTools(in: slideOver))
+        #expect(sidebar.sectionChrome == .sidebar)
+        #expect(!FloatingPageToolsHost.floatsPageTools(in: sidebar))
+    }
+
+    @Test("Duo vertical bars never float page tools, in every rotation and pose")
     func verticalBarsDoNot() {
         let folded = DeviceLayout.resolve(LayoutSignals(
             size: CGSize(width: 466, height: 678), widthClass: .compact,
             safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 34, trailing: 84),
+            verticalBarEdge: .trailing, hinge: .closed
+        ))
+        let foldedLandscape = DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: 678, height: 466), widthClass: .compact, heightClass: .compact,
+            safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 21, trailing: 84),
             verticalBarEdge: .trailing, hinge: .closed
         ))
         let innerLandscape = DeviceLayout.resolve(LayoutSignals(
@@ -298,7 +373,21 @@ struct FloatingPageToolsHostTests {
             safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
             verticalBarEdge: .trailing, hinge: .fullyOpen
         ))
-        #expect(!FloatingPageToolsHost.floatsPageTools(in: folded))
-        #expect(!FloatingPageToolsHost.floatsPageTools(in: innerLandscape))
+        let book = DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: 951, height: 669), widthClass: .regular,
+            verticalBarEdge: .leading, hinge: .partiallyOpen
+        ))
+        for layout in [folded, foldedLandscape, innerLandscape, book] {
+            #expect(layout.sectionChrome.isVerticalBar)
+            #expect(!FloatingPageToolsHost.floatsPageTools(in: layout))
+        }
+    }
+
+    @Test("The Mac sidebar shell never floats page tools")
+    func macDoesNot() {
+        let mac = DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: 1280, height: 800), widthClass: .regular, usesSidebarShell: true
+        ))
+        #expect(!FloatingPageToolsHost.floatsPageTools(in: mac))
     }
 }
