@@ -79,10 +79,10 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         continueAfterFailure = false
         let app = fixtureApp(profile: true)
         app.launch()
-        let ids = ["fst.songs.sort", "fst.songs.filter"]
         let tools = app.descendants(matching: .any).matching(identifier: "fst.page-tools").firstMatch
         XCTAssertTrue(tools.waitForExistence(timeout: 15), "Floating page tools missing")
         XCTAssertEqual(tools.label, "Page Tools")
+        let ids = Self.songsTools(in: app)
         let controls = ids.map { tools.buttons[$0] }
         XCTAssertFalse(app.buttons["fst.songs.tools"].exists, "iPhone 17 Pro should not fold Sort and Filter")
         let bar = app.navigationBars.firstMatch
@@ -305,12 +305,23 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         XCTAssertTrue(app.navigationBars.buttons["fst.shell.profile"].waitForExistence(timeout: FestivalApp.budget(10)))
         XCTAssertTrue(app.buttons["fst.songs.filter"].waitForExistence(timeout: FestivalApp.budget(10)))
         let order = try assertAccountReadingOrder(in: app, profileLabel: "Profile: Fixture Player 1", expectsBell: true)
-        // Songs: drawer → bell → Profile in the bar; Sort → Filter floating.
+        // Songs: drawer → bell → Profile in the bar; Sort → Filter (→ Quick Links) floating.
         XCTAssertEqual(
             order.navigationBar, ["fst.shell.drawer.open", "fst.shell.notifications", "fst.shell.profile"],
             "navigation bar buttons \(order)"
         )
-        XCTAssertEqual(order.tools, ["fst.songs.sort", "fst.songs.filter"], "floating tools \(order)")
+        XCTAssertEqual(order.tools, Self.songsTools(in: app), "floating tools \(order)")
+    }
+
+    /// Songs' floating tools in reading order: Sort, Filter and, once the catalogue has
+    /// sections to jump to (the `--large-catalogue` fixture), Quick Links.
+    ///
+    /// - Parameter app: The running app on the Songs root.
+    /// - Returns: The tools' identifiers, leading to trailing.
+    @MainActor
+    private static func songsTools(in app: XCUIApplication) -> [String] {
+        let quickLinks = app.buttons["fst.quick-links.open"].waitForExistence(timeout: FestivalApp.budget(3))
+        return ["fst.songs.sort", "fst.songs.filter"] + (quickLinks ? ["fst.quick-links.open"] : [])
     }
 
     /// The same order on a pushed page (`PageTrailingItems`): Back, the bell, then Profile
@@ -673,12 +684,18 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
                        file: file, line: line)
         XCTAssertLessThanOrEqual(node.frame.maxX, entries[profile].node.frame.minX + 0.5, "the bell is right of Profile",
                                  file: file, line: line)
-        // The badge digit and glyph belong to the bell's one element, never a sibling.
+        // The glyph and any badge digit belong to the bell, never a sibling button or label
+        // elsewhere. In the navigation bar (#632) the iOS 26 system toolbar-item badge
+        // publishes its digit as UIKit's own static text on the bell's top-trailing
+        // corner (as on iPad); that one system element is allowed, nothing else.
+        let corner = node.frame.insetBy(dx: -12, dy: -12)
         let strays = (bar + 1..<entries[bar].end).filter { index in
             let item = entries[index].node
-            let badgeLike = item.label == "Notifications"
-                || item.label.range(of: #"^[0-9]+\+?$"#, options: .regularExpression) != nil
-            return badgeLike && index != bell && !ancestors(of: index).contains(bell)
+            let digit = item.label.range(of: #"^[0-9]+\+?$"#, options: .regularExpression) != nil
+            let badgeLike = item.label == "Notifications" || digit
+            let systemBadge = digit && item.elementType == .staticText && index == bell + 1
+                && corner.contains(CGPoint(x: item.frame.midX, y: item.frame.midY))
+            return badgeLike && index != bell && !systemBadge && !ancestors(of: index).contains(bell)
         }
         XCTAssertTrue(strays.isEmpty, "badge parts outside the bell: \(strays.map(name))", file: file, line: line)
         return AccountReadingOrder(navigationBar: barButtons.map(name), tools: toolButtons.map(name))

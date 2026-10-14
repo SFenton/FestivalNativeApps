@@ -26,6 +26,7 @@ Source: `FortniteFestivalWeb/src/components/notifications/MobileNotificationsMod
 - iOS 26+ uses the system toolbar-item badge (`.badge(Text)` on the bell inside its `ToolbarItem`). The bar lays it out without clipping (HIG Notifications: "Avoid custom images or components that mimic a badge"). Before iOS 26 SwiftUI ignores `badge` on toolbar items, so a small numeric capsule overlay stands in.
 - Finding (2026-10-02, iOS 26.5): a custom `.overlay` on a `Label` button inside a `ToolbarItem` is **dropped** because the bar hosts it as a system item. The old 9pt gold dot never drew, even with unread rows.
 - The system badge also publishes its count as the bell's accessibility **value**, which stayed stale (`2`) after the badge cleared. The bell pins `accessibilityValue` to empty so VoiceOver reads only the label, "Notifications, N unread" (exact, uncapped count). `NotificationsJourneyTests` asserts the label and the empty value before and after dismissal.
+- In the navigation bar (iPhone since #632, iPad, Duo) the system badge view is also its own accessibility element: a static text holding the capped digit on the bell's top-trailing corner (measured on iOS 26, live service: `Notifications, 6 unread` then `6`). SwiftUI has no handle to hide it, and a custom capsule would mimic a badge, so it stays; `NavButtonHitRegionJourneyTests` allows exactly that one sibling and nothing else.
 
 ## Row navigation (issue #75)
 

@@ -415,7 +415,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: 15))
         let rail = app.descendants(matching: .any)
             .matching(identifier: "fst.songs.section-index").firstMatch
-        guard rail.waitForExistence(timeout: 3) else {
+        guard rail.waitForExistence(timeout: FestivalApp.budget(10)) else {
             throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
         }
         let field = app.searchFields["Filter Songs"]
