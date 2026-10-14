@@ -541,6 +541,7 @@ struct SongsScreen: View, Equatable {
         .coordinateSpace(.named(Self.pageSpace))
         .festivalBackground(.carousel, session: session, visible: isVisible)
         .navigationTitle("Songs")
+        .festivalTitleDisplayMode(.automatic)
         // Filter this list: an inline field pinned above it (issue #92; HIG Search
         // fields: "Use an inline field when adjacency clarifies that it filters one view
         // rather than searches globally"). Global search is the Search tab. Not on
@@ -549,9 +550,9 @@ struct SongsScreen: View, Equatable {
             text: $searchText, enabled: filterPlacement == .system,
             listNudger: scrollChrome.listNudger
         ))
-        // Sort, Filter and Quick Links, then the account group: in the iPhone tab-bar
-        // accessory on iOS 26.1+, the navigation bar elsewhere (issue #92); Sort and
-        // Filter fold into one menu where there is too little room.
+        // Sort, Filter and Quick Links, then the account group: floating above the
+        // iPhone tab bar (issue #632), the navigation bar elsewhere (issue #92); Sort
+        // and Filter fold into one menu where there is too little room.
         .modifier(SongsPageTools(
             session: session, quickLinks: quickLinks,
             canPresentFilter: canPresentFilter,
@@ -2285,15 +2286,13 @@ struct SectionBarRowFade: ViewModifier {
 
 /// Songs' page tools (issue #92): Sort, Filter and Quick Links, then the account group.
 ///
-/// On iOS 26.1+ iPhone they sit in the tab-bar accessory (``PageToolsRegistry``); Sort
-/// and Filter fold into one "Sort and Filter" menu when the inline accessory for this
-/// window would be too narrow for every item, or at accessibility text sizes
-/// (``PageToolsAccessoryFit``). The decision never follows the accessory's own width, so
-/// the expanded and inline accessory show the same items (issue #300). Elsewhere they are
-/// navigation-bar items, folding by ``SongsToolbarFold``. Either way Quick Links,
-/// Notifications and Profile stay visible (HIG Toolbars, iOS: "Put only essential
-/// actions in the main area; use More for the rest"). It measures its own width, so a
-/// width change re-renders only this modifier.
+/// On iPhone they float above the tab bar as individual glass buttons
+/// (``PageToolsRegistry``, issue #632); Sort and Filter fold into one "Sort and Filter"
+/// menu only when the window is too narrow for every button
+/// (``FloatingPageToolsFit``). Elsewhere they are navigation-bar items, folding by
+/// ``SongsToolbarFold``. Either way Quick Links, Notifications and Profile stay visible
+/// (HIG Toolbars, iOS: "Put only essential actions in the main area; use More for the
+/// rest"). It measures its own width, so a width change re-renders only this modifier.
 private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifier {
     let session: FestivalSession
     let quickLinks: QuickLinksController
@@ -2303,7 +2302,7 @@ private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifie
     /// A filter is applied (the folded menu is tinted gold, like Filter).
     let filterActive: Bool
     /// Every value the Sort and Filter buttons display (accessibility values), so the
-    /// accessory re-registers them when one changes.
+    /// floating tools re-register them when one changes.
     let stateToken: [String]
     let sortAction: SortAction
     let filterAction: FilterAction
@@ -2320,24 +2319,22 @@ private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifie
         )
     }
 
-    /// Whether Sort and Filter fold into one menu in the tab-bar accessory.
-    private func foldsInAccessory(_ registry: PageToolsRegistry) -> Bool {
-        PageToolsAccessoryFit.folds(
+    /// Whether Sort and Filter fold into one floating menu.
+    private func foldsFloating(_ registry: PageToolsRegistry) -> Bool {
+        FloatingPageToolsFit.folds(
             windowWidth: registry.windowWidth,
-            pageTools: (canPresentFilter ? 2 : 1) + (quickLinks.isAvailable ? 1 : 0),
-            showsBell: session.selectedPlayer != nil,
-            dynamicTypeSize: dynamicTypeSize
+            pageTools: (canPresentFilter ? 2 : 1) + (quickLinks.isAvailable ? 1 : 0)
         )
     }
 
     func body(content: Content) -> some View {
-        let accessoryFolds = pageTools.map(foldsInAccessory) ?? false
+        let floatingFolds = pageTools.map(foldsFloating) ?? false
         let highlighted = sortCustomized || filterActive
         content
             .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }
             .festivalPageTool(
                 token: ["fold", String(highlighted), String(canPresentFilter)],
-                order: PageToolOrder.primary, isEnabled: accessoryFolds
+                order: PageToolOrder.primary, isEnabled: floatingFolds
             ) {
                 SongsSortFilterMenu(
                     canPresentFilter: canPresentFilter, highlighted: highlighted,
@@ -2346,18 +2343,18 @@ private struct SongsPageTools<SortAction: View, FilterAction: View>: ViewModifie
             }
             .festivalPageTool(
                 token: stateToken + [String(sortCustomized)],
-                order: PageToolOrder.primary, isEnabled: !accessoryFolds
+                order: PageToolOrder.primary, isEnabled: !floatingFolds
             ) {
                 sortAction
             }
             .festivalPageTool(
                 token: stateToken + [String(filterActive)],
-                order: PageToolOrder.secondary, isEnabled: !accessoryFolds && canPresentFilter
+                order: PageToolOrder.secondary, isEnabled: !floatingFolds && canPresentFilter
             ) {
                 filterAction
             }
             .toolbar {
-                // With the tab-bar accessory, Sort and Filter are there instead.
+                // With floating page tools, Sort and Filter float instead.
                 if pageTools == nil {
                     if folds {
                         ToolbarItem(placement: .festivalPageAction) {
@@ -2415,7 +2412,7 @@ private struct SongsSortFilterMenu: View {
         .accessibilityIdentifier("fst.songs.tools")
     }
 
-    /// Sort and Filter for the inline-accessory sheet (``PageToolMenu``).
+    /// Sort and Filter for the floating tool's sheet (``PageToolMenu``).
     private func choices() -> [PageToolMenuChoice] {
         var choices = [
             PageToolMenuChoice(

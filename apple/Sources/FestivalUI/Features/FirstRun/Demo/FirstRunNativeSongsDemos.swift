@@ -392,16 +392,13 @@ struct FirstRunNativeNavigationDemo: View {
     private static let tabs: [FestivalSection] = [.songs, .suggestions, .compete, .statistics, .settings]
 }
 
-/// Keeps the Navigation demo's tab view to just its tab bar: the shell's page-tools
-/// accessory (Songs' Sort and Filter) is inherited by nested tab views on iOS 26.1
-/// (``SwiftUICore/View/festivalPageToolsAccessoryHidden()``), and the
-/// system tab-bar backdrop would draw a grey panel over the guide.
+/// Keeps the Navigation demo's tab view to just its tab bar: the system tab-bar
+/// backdrop would draw a grey panel over the guide.
 private struct FirstRunDemoTabBarChrome: ViewModifier {
     func body(content: Content) -> some View {
         #if os(iOS)
         if #available(iOS 18, *) {
             content
-                .festivalPageToolsAccessoryHidden()
                 .toolbarBackgroundVisibility(.hidden, for: .tabBar)
         } else {
             content.toolbarBackground(.hidden, for: .tabBar)

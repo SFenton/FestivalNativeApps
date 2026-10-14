@@ -12,6 +12,11 @@ import XCTest
 /// lift, so it fails both checks; hiding the glass without the overhang leaves the disc
 /// 10 pt too far from the trailing edge.
 ///
+/// Issue #632 (owner-approved iPhone variant, `page-tools-and-nav-chrome` R8/R28): on
+/// iPhone the bell and Profile share one glass pill, so the avatar is a round 30 pt disc
+/// (`MonogramMetrics.pillDiameter`) centred in its half of the pill, inside the shared
+/// glass, which is expected there rather than a ring to remove.
+///
 /// iPhone (`FestivalMobileUITests`): Songs (tab root), Item Shop pushed from the drawer,
 /// the Search tab (which by design has no account items, so no avatar and no ring) and
 /// the page shown again after closing Search. iPad (`FestivalMobileIPadUITests`): Songs,
@@ -19,18 +24,28 @@ import XCTest
 /// fixture (`tools/mock_service.py`; `TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL` or
 /// `127.0.0.1:8765`) on a flat backdrop, so no artwork shows through the bar.
 final class ProfileAvatarFillJourneyTests: XCTestCase {
-    /// Accepted avatar diameter in points: the 44 pt bar glass item, ±2 pt antialiasing.
-    private static let diameter: ClosedRange<CGFloat> = 42...46
+    /// Accepted avatar diameter in points: the 44 pt bar glass item (iPad) or the 30 pt
+    /// pill avatar (iPhone, #632), ±2 pt antialiasing.
+    @MainActor
+    private static var diameter: ClosedRange<CGFloat> {
+        isPhonePill ? 28...32 : 42...46
+    }
+
+    /// The iPhone's account pill (#632): the avatar sits inside the glass it shares with
+    /// the bell.
+    @MainActor
+    private static var isPhonePill: Bool { UIDevice.current.userInterfaceIdiom == .phone }
     /// Largest median brightening of the band just outside the disc (0–255); the pre-#311
     /// glass ring measured 15.8 on iPhone 17 Pro, the borderless avatar −2…2.
     private static let maximumRimLift = 8.0
 
     /// The disc's trailing gap to the window edge, where the glass circle sat: 16 pt on
     /// iPhone 17 Pro and 10 pt on iPad Pro 11 (iOS 26.5). Hidden glass without the
-    /// overhang adds 10 pt.
+    /// overhang adds 10 pt. In the iPhone pill (#632) the 30 pt disc sits 7 pt inside the
+    /// glass circle's 44 pt slot.
     @MainActor
     private static var trailingGap: ClosedRange<CGFloat> {
-        UIDevice.current.userInterfaceIdiom == .pad ? 6...14 : 12...20
+        UIDevice.current.userInterfaceIdiom == .pad ? 6...14 : 19...27
     }
 
     override func setUpWithError() throws {
@@ -149,17 +164,19 @@ final class ProfileAvatarFillJourneyTests: XCTestCase {
         let center = CGPoint(x: avatar.center.x + window.minX, y: avatar.center.y + window.minY)
         XCTAssertTrue(
             Self.diameter.contains(avatar.width) && Self.diameter.contains(avatar.height),
-            "\(place): avatar is \(avatar.width)×\(avatar.height) pt, not the 44 pt bar circle",
+            "\(place): avatar is \(avatar.width)×\(avatar.height) pt, not \(Self.diameter) pt",
             file: file, line: line
         )
         XCTAssertLessThanOrEqual(
             abs(avatar.width - avatar.height), 2, "\(place): avatar is clipped or not round", file: file, line: line
         )
-        XCTAssertLessThanOrEqual(
-            avatar.rimLift, Self.maximumRimLift,
-            "\(place): a lighter ring (\(avatar.rimLift)) surrounds the avatar: exposed glass or outline",
-            file: file, line: line
-        )
+        if !Self.isPhonePill {
+            XCTAssertLessThanOrEqual(
+                avatar.rimLift, Self.maximumRimLift,
+                "\(place): a lighter ring (\(avatar.rimLift)) surrounds the avatar: exposed glass or outline",
+                file: file, line: line
+            )
+        }
         XCTAssertTrue(
             frame.insetBy(dx: -2, dy: -2).contains(center),
             "\(place): avatar centre \(center) is outside its button \(frame)", file: file, line: line

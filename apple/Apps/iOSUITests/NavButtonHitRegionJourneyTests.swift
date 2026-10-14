@@ -1,8 +1,9 @@
 import XCTest
 
-/// Issue #15: page buttons accept near-miss taps. Since issue #92 the page tools and
-/// Notifications live in the tab-bar bottom accessory; since issue #300 Profile is the
-/// navigation bar's trailing button.
+/// Issue #15: page buttons accept near-miss taps. Since issue #632 the page tools are
+/// individual floating glass buttons above the tab bar (`fst.page-tools`), and
+/// Notifications and Profile share one pill at the navigation bar's trailing end,
+/// Profile trailing-most (they were in the tab-bar accessory from #92 to #632).
 ///
 /// Each button is tapped 20 pt off-centre in every direction and 15 pt diagonally, all
 /// inside a 44 × 44 pt square centred on it (HIG Buttons: "the hit region is at least
@@ -37,7 +38,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
 
     // MARK: - Journeys
 
-    /// Songs' page tools in the tab-bar accessory accept 44 pt near-miss taps.
+    /// Songs' floating page tools accept 44 pt near-miss taps.
     @MainActor
     func testSongsPageToolsAcceptNearMisses() throws {
         continueAfterFailure = false
@@ -47,7 +48,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         let sort = app.buttons["fst.songs.sort"]
         XCTAssertTrue(sort.waitForExistence(timeout: 15))
         try chooseYearSort(in: app)
-        // Each accessory item fills its slot, so the reported frame is the hit region.
+        // Each floating tool fills its 44 pt circle, so the reported frame is the hit region.
         let ids = ["fst.songs.sort", "fst.songs.filter", "fst.quick-links.open"]
         let frames = ids.map { app.buttons[$0].frame }
         for (id, frame) in zip(ids, frames) {
@@ -69,51 +70,56 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         }
     }
 
-    /// Issue #92: Songs' page tools, then Notifications, sit left to right in the tab-bar
-    /// accessory with 44 pt hit regions on the standard iPhone width; none of them is
-    /// left in the navigation bar. Issue #300: Notifications is pinned to the accessory's
-    /// trailing edge and Profile is the navigation bar's trailing-most button.
+    /// Issue #632: Songs' page tools are individual 44 pt floating buttons, left to right
+    /// at the trailing edge between the navigation bar and the tab bar; none of them is in
+    /// the navigation bar. Notifications is no page tool: it sits in the navigation bar
+    /// right before Profile, the trailing-most button, and the two do not overlap.
     @MainActor
-    func testSongsAccessoryOrderAndHitRegions() throws {
+    func testSongsFloatingToolsOrderAndHitRegions() throws {
         continueAfterFailure = false
         let app = fixtureApp(profile: true)
         app.launch()
-        let ids = ["fst.songs.sort", "fst.songs.filter", "fst.shell.notifications"]
-        let accessory = app.descendants(matching: .any).matching(identifier: "fst.page-tools").firstMatch
-        XCTAssertTrue(accessory.waitForExistence(timeout: 15), "Tab-bar accessory missing")
-        let controls = ids.map { accessory.buttons[$0] }
+        let tools = app.descendants(matching: .any).matching(identifier: "fst.page-tools").firstMatch
+        XCTAssertTrue(tools.waitForExistence(timeout: 15), "Floating page tools missing")
+        XCTAssertEqual(tools.label, "Page Tools")
+        let ids = Self.songsTools(in: app)
+        let controls = ids.map { tools.buttons[$0] }
         XCTAssertFalse(app.buttons["fst.songs.tools"].exists, "iPhone 17 Pro should not fold Sort and Filter")
+        let bar = app.navigationBars.firstMatch
+        let tabBar = app.tabBars.firstMatch
         for (id, control) in zip(ids, controls) {
-            XCTAssertTrue(control.waitForExistence(timeout: 15), "\(id) missing from the accessory")
+            XCTAssertTrue(control.waitForExistence(timeout: 15), "\(id) missing from the floating row")
             XCTAssertTrue(control.isHittable, "\(id) not hittable")
             XCTAssertGreaterThanOrEqual(control.frame.height, 44, "\(id) hit region \(control.frame)")
             XCTAssertGreaterThanOrEqual(control.frame.width, 44, "\(id) hit region \(control.frame)")
             XCTAssertFalse(app.navigationBars.buttons[id].exists, "\(id) is still in the navigation bar")
-            XCTAssertGreaterThan(control.frame.minY, app.navigationBars.firstMatch.frame.maxY)
+            XCTAssertGreaterThan(control.frame.minY, bar.frame.maxY)
+            if tabBar.exists { XCTAssertLessThanOrEqual(control.frame.maxY, tabBar.frame.minY + 0.5, "\(id) over the tab bar") }
         }
         for index in controls.indices.dropLast() {
-            XCTAssertLessThan(
-                controls[index].frame.minX, controls[index + 1].frame.minX,
+            XCTAssertLessThanOrEqual(
+                controls[index].frame.maxX, controls[index + 1].frame.minX,
                 "\(ids[index]) is not before \(ids[index + 1])"
             )
         }
-        // The bell keeps its trailing slot whatever the page's tools are.
-        XCTAssertEqual(
-            controls[controls.count - 1].frame.maxX, accessory.frame.maxX, accuracy: 16,
-            "Notifications is not at the accessory's trailing edge"
-        )
-        let profile = app.navigationBars.buttons["fst.shell.profile"]
+        XCTAssertEqual(controls[controls.count - 1].frame.maxX, app.frame.maxX - 16, accuracy: 1,
+                       "the last tool is not 16 pt from the trailing edge")
+        XCTAssertFalse(tools.buttons["fst.shell.notifications"].exists, "Notifications is still a page tool")
+        let bell = bar.buttons["fst.shell.notifications"]
+        let profile = bar.buttons["fst.shell.profile"]
+        XCTAssertTrue(bell.exists, "Notifications is not in the navigation bar")
         XCTAssertTrue(profile.exists, "Profile is not in the navigation bar")
-        XCTAssertFalse(accessory.buttons["fst.shell.profile"].exists, "Profile is still in the accessory")
+        XCTAssertFalse(tools.buttons["fst.shell.profile"].exists, "Profile is a page tool")
+        XCTAssertTrue(bell.isHittable, "Notifications not hittable")
         XCTAssertTrue(profile.isHittable, "Profile not hittable")
-        let trailing = app.navigationBars.firstMatch.buttons.allElementsBoundByIndex
-            .filter { $0.frame.minY < app.navigationBars.firstMatch.frame.minY + 50 }
+        XCTAssertLessThanOrEqual(bell.frame.maxX, profile.frame.minX + 0.5, "Notifications is not before Profile")
+        let trailing = bar.buttons.allElementsBoundByIndex
+            .filter { $0.frame.minY < bar.frame.minY + 50 }
             .map(\.frame.maxX).max() ?? 0
         XCTAssertEqual(profile.frame.maxX, trailing, accuracy: 0.5, "Profile is not the rightmost header button")
     }
 
-    /// The drawer and selected-profile monogram (navigation bar) and the bell (tab-bar
-    /// accessory).
+    /// The drawer, the bell and the selected-profile monogram (all in the navigation bar).
     @MainActor
     func testHeaderButtonsAcceptNearMisses() throws {
         continueAfterFailure = false
@@ -133,8 +139,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         }
     }
 
-    /// Choose Profile (anonymous, navigation bar) and Suggestions' Filter in the tab-bar
-    /// accessory.
+    /// Choose Profile (anonymous, navigation bar) and Suggestions' floating Filter.
     @MainActor
     func testChooseProfileAndSuggestionsFilterAcceptNearMisses() throws {
         continueAfterFailure = false
@@ -155,13 +160,12 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         }
     }
 
-    /// Issue #92: scrolling minimizes the tab bar and moves the accessory inline. Issue
-    /// #300: it keeps the same items as when expanded (Sort, Filter, Quick Links |
-    /// Notifications), each a 44 pt slot without overlap, and they still accept
-    /// near-miss taps; Quick Links opens its choices as a sheet (iOS 26 does not open a
-    /// `Menu` there).
+    /// Issue #632: scrolling minimizes the tab bar, but the floating tools stay put (no
+    /// inline morph): the same items (Sort, Filter, Quick Links), each a 44 pt circle in
+    /// the same place without overlap, still accept near-miss taps; Quick Links opens its
+    /// choices as a sheet.
     @MainActor
-    func testSongsToolsStayInTheInlineAccessoryWhileScrolled() throws {
+    func testSongsFloatingToolsStayPutWhileScrolled() throws {
         continueAfterFailure = false
         let app = fixtureApp(profile: true)
         app.launch()
@@ -170,8 +174,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         try chooseYearSort(in: app)
         let field = app.searchFields["Filter Songs"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
-        app.swipeUp()
-        let ids = ["fst.songs.sort", "fst.songs.filter", "fst.quick-links.open", "fst.shell.notifications"]
+        let ids = ["fst.songs.sort", "fst.songs.filter", "fst.quick-links.open"]
         for _ in 0..<100 {
             if ids.allSatisfy({ app.buttons[$0].exists && app.buttons[$0].isHittable }) { break }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
@@ -179,12 +182,17 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         guard ids.allSatisfy({ app.buttons[$0].exists }) else {
             throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
         }
-        XCTAssertFalse(app.buttons["fst.songs.tools"].exists, "Sort and Filter folded while inline")
+        let before = ids.map { app.buttons[$0].frame }
+        app.swipeUp()
+        RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(1)))
+        XCTAssertFalse(app.buttons["fst.songs.tools"].exists, "Sort and Filter folded while scrolled")
         XCTAssertTrue(field.exists, "Filter Songs field disappeared while scrolled")
         let frames = ids.map { app.buttons[$0].frame }
-        for (id, frame) in zip(ids, frames) {
+        for (id, (frame, start)) in zip(ids, zip(frames, before)) {
             XCTAssertGreaterThanOrEqual(frame.width, 44, "\(id) \(frame)")
             XCTAssertGreaterThan(frame.minY, app.navigationBars.firstMatch.frame.maxY, "\(id) in the header")
+            XCTAssertEqual(frame.minX, start.minX, accuracy: 0.5, "\(id) moved sideways while scrolled")
+            XCTAssertEqual(frame.minY, start.minY, accuracy: 0.5, "\(id) moved while the tab bar minimized")
         }
         for index in frames.indices.dropLast() {
             XCTAssertLessThanOrEqual(frames[index].maxX, frames[index + 1].minX, "\(ids[index]) overlaps its neighbour")
@@ -197,46 +205,47 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         }
     }
 
-    /// Issue #300: at an accessibility text size Sort and Filter fold into one "Sort and
-    /// Filter" control both expanded and inline, so the item set never changes while the
-    /// accessory morphs. The folded control opens its choices as a sheet, and a choice
-    /// runs once the sheet has closed (Filter… opens the Filter sheet).
+    /// Issues #300, #632: at an accessibility text size Sort and Filter stay two fixed
+    /// 44 pt floating circles (they no longer fold: the circles do not grow with text,
+    /// and long-press shows the Large Content Viewer), the item set never changes while
+    /// the tab bar minimizes, and each still accepts near-miss taps.
     @MainActor
-    func testAccessibilityTextFoldIsTheSameExpandedAndInline() throws {
+    func testAccessibilityTextKeepsTheFloatingToolsWhileScrolled() throws {
         continueAfterFailure = false
         let app = fixtureApp(profile: true)
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXL"]
         app.launch()
-        let folded = app.buttons["fst.songs.tools"]
-        XCTAssertTrue(folded.waitForExistence(timeout: 15), "Sort and Filter not folded at AX text size")
-        XCTAssertFalse(app.buttons["fst.songs.sort"].exists)
+        let sort = app.buttons["fst.songs.sort"]
+        let filter = app.buttons["fst.songs.filter"]
+        XCTAssertTrue(sort.waitForExistence(timeout: 15), "Sort missing at AX text size")
+        XCTAssertTrue(filter.exists, "Filter missing at AX text size")
+        XCTAssertFalse(app.buttons["fst.songs.tools"].exists, "Sort and Filter folded at AX text size")
         let field = app.searchFields["Filter Songs"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
+        let before = [sort.frame, filter.frame]
         app.swipeUp()
         for _ in 0..<30 {
-            XCTAssertTrue(folded.exists, "Sort and Filter unfolded while the accessory moved")
-            XCTAssertFalse(app.buttons["fst.songs.sort"].exists, "Sort reappeared while the accessory moved")
+            XCTAssertTrue(sort.exists && filter.exists, "a tool left while scrolling")
+            XCTAssertFalse(app.buttons["fst.songs.tools"].exists, "Sort and Filter folded while scrolling")
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
-        XCTAssertGreaterThanOrEqual(folded.frame.width, 44)
-        let menuClose = app.buttons["fst.page-tools.menu.close"]
-        assertNearMissesOpen(app, "fst.songs.tools", opens: app.buttons["fst.songs.tools.filter"]) {
-            menuClose.tap()
+        for (frame, start) in zip([sort.frame, filter.frame], before) {
+            XCTAssertEqual(frame.width, 44, accuracy: 1, "\(frame)")
+            XCTAssertEqual(frame.height, 44, accuracy: 1, "\(frame)")
+            XCTAssertEqual(frame.minY, start.minY, accuracy: 0.5, "a tool moved while the tab bar minimized")
         }
-        folded.tap()
-        XCTAssertTrue(app.buttons["fst.songs.tools.filter"].waitForExistence(timeout: 5))
-        app.buttons["fst.songs.tools.filter"].tap()
-        XCTAssertTrue(app.buttons["fst.songs.filter.done"].waitForExistence(timeout: 5))
-        app.buttons["fst.songs.filter.done"].tap()
+        assertNearMissesOpen(app, "fst.songs.filter", opens: app.buttons["fst.songs.filter.done"]) {
+            app.buttons["fst.songs.filter.done"].tap()
+        }
     }
 
-    /// Issue #394 (for #14): at the largest accessibility text size the bell (tab-bar
-    /// accessory) and Profile (navigation bar) stay two separate, labelled buttons with
+    /// Issue #394 (for #14): at the largest accessibility text size the bell and Profile
+    /// (one shared pill in the navigation bar since #632) stay two separate, labelled buttons with
     /// 44 pt hit regions; each still opens its own destination, and an accessibility
     /// audit of hit region, description, Dynamic Type and clipping reports nothing on
     /// either. Bar buttons keep their size at large text (Profile offers the Large
-    /// Content Viewer); the accessory caps its type at `PageToolsAccessory.maxTypeSize`.
-    /// The production reading order (Profile, then the bell) holds at this size too.
+    /// Content Viewer). The production reading order (bell, then Profile) holds at this
+    /// size too.
     @MainActor
     func testAccountButtonsStaySeparateAndLabelledAtLargestTextSize() throws {
         continueAfterFailure = false
@@ -253,12 +262,11 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         XCTAssertEqual(profile.label, "Profile: Fixture Player 1")
         for (id, button) in [("bell", bell), ("profile", profile)] {
             XCTAssertTrue(button.isHittable, "\(id) not hittable")
-            XCTAssertGreaterThanOrEqual(button.frame.height, 44, "\(id) \(button.frame)")
+            XCTAssertGreaterThanOrEqual(button.frame.height, 30, "\(id) \(button.frame)")
         }
-        // The accessory bell's slot is a full 44 pt square. The monogram draws its 44 pt
-        // circle past a narrower layout rect (`MonogramMetrics.overhang`, #311), so its
-        // width is proven by the near-miss taps and the `.hitRegion` audit below instead.
-        XCTAssertGreaterThanOrEqual(bell.frame.width, 44, "bell \(bell.frame)")
+        // Both are system bar items whose elements are their glass item (36 pt, the
+        // monogram 30 pt); the bar extends each hit region past its element, so the 44 pt
+        // regions are proven by the near-miss taps and the `.hitRegion` audit below.
         XCTAssertFalse(bell.frame.intersects(profile.frame), "bell \(bell.frame) overlaps profile \(profile.frame)")
         SongsUITestSupport.record(app, name: "account-buttons-ax-xxxl")
         try assertAccountReadingOrder(in: app, profileLabel: "Profile: Fixture Player 1", expectsBell: true)
@@ -283,11 +291,11 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
 
     // MARK: - Account reading order (issue #394, for #14)
 
-    /// Issue #394 (for #14): in the production iPhone chrome Profile and the bell are two
-    /// separate buttons in two system containers, read in screen order: Profile, the
-    /// navigation bar's last button (after the drawer), before the page; the bell, the
-    /// tab-bar accessory's last button (after the page's tools), before the tab bar.
-    /// Measured from the app's accessibility hierarchy, the order VoiceOver swipes through.
+    /// Issue #394 (for #14), re-measured for #632: in the production iPhone chrome the
+    /// bell and Profile are two separate buttons in the navigation bar's account pill, read
+    /// in screen order after the drawer and the title: bell, then Profile (the bar's last
+    /// button); the page's floating tools follow the page, before the tab bar. Measured
+    /// from the app's accessibility hierarchy, the order VoiceOver swipes through.
     @MainActor
     func testAccountButtonsReadInProductionChromeOrder() throws {
         continueAfterFailure = false
@@ -295,19 +303,29 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.buttons["fst.shell.notifications"].waitForExistence(timeout: FestivalApp.budget(15)))
         XCTAssertTrue(app.navigationBars.buttons["fst.shell.profile"].waitForExistence(timeout: FestivalApp.budget(10)))
+        XCTAssertTrue(app.buttons["fst.songs.filter"].waitForExistence(timeout: FestivalApp.budget(10)))
         let order = try assertAccountReadingOrder(in: app, profileLabel: "Profile: Fixture Player 1", expectsBell: true)
-        // Songs: drawer → Profile in the bar, Sort → Filter → bell in the accessory.
+        // Songs: drawer → bell → Profile in the bar; Sort → Filter (→ Quick Links) floating.
         XCTAssertEqual(
-            order.navigationBar, ["fst.shell.drawer.open", "fst.shell.profile"], "navigation bar buttons \(order)"
+            order.navigationBar, ["fst.shell.drawer.open", "fst.shell.notifications", "fst.shell.profile"],
+            "navigation bar buttons \(order)"
         )
-        XCTAssertEqual(
-            order.accessory, ["fst.songs.sort", "fst.songs.filter", "fst.shell.notifications"],
-            "accessory buttons \(order)"
-        )
+        XCTAssertEqual(order.tools, Self.songsTools(in: app), "floating tools \(order)")
     }
 
-    /// The same order on a pushed page (`PageTrailingItems`): Back, then Profile in the
-    /// navigation bar; the page's tools, then the bell in the accessory.
+    /// Songs' floating tools in reading order: Sort, Filter and, once the catalogue has
+    /// sections to jump to (the `--large-catalogue` fixture), Quick Links.
+    ///
+    /// - Parameter app: The running app on the Songs root.
+    /// - Returns: The tools' identifiers, leading to trailing.
+    @MainActor
+    private static func songsTools(in app: XCUIApplication) -> [String] {
+        let quickLinks = app.buttons["fst.quick-links.open"].waitForExistence(timeout: FestivalApp.budget(3))
+        return ["fst.songs.sort", "fst.songs.filter"] + (quickLinks ? ["fst.quick-links.open"] : [])
+    }
+
+    /// The same order on a pushed page (`PageTrailingItems`): Back, the bell, then Profile
+    /// in the navigation bar; the page's tools float after the page.
     @MainActor
     func testAccountButtonsReadInProductionChromeOrderOnPushedPage() throws {
         continueAfterFailure = false
@@ -317,7 +335,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         XCTAssertTrue(app.navigationBars.buttons["fst.shell.profile"].waitForExistence(timeout: FestivalApp.budget(10)))
         XCTAssertFalse(app.navigationBars.buttons["fst.shell.drawer.open"].exists, "a pushed page shows the drawer")
         let order = try assertAccountReadingOrder(in: app, profileLabel: "Profile: Fixture Player 1", expectsBell: true)
-        XCTAssertGreaterThanOrEqual(order.navigationBar.count, 2, "no Back before Profile \(order)")
+        XCTAssertGreaterThanOrEqual(order.navigationBar.count, 3, "no Back before the bell and Profile \(order)")
     }
 
     /// Anonymous: no bell anywhere, and Choose Profile is the navigation bar's last button.
@@ -334,8 +352,8 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
     // MARK: - Pushed-page Profile (issue #437, for #85)
 
     /// Issue #437 (for #85): on Song Details, the page #85 was reported on, Profile is one
-    /// labelled button and the navigation bar's last, rightmost button, read before the
-    /// page's own actions (Paths, Item Shop, Quick Links) and the bell; it keeps a 44 pt
+    /// labelled button and the navigation bar's last, rightmost button, read after the
+    /// bell and before the page's own floating actions (Paths, Item Shop, Quick Links); it keeps a 44 pt
     /// tall hit region. Going back to Songs leaves exactly one Profile, still last.
     @MainActor
     func testProfileStaysTheLastBarButtonOnSongDetail() throws {
@@ -361,7 +379,10 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         (back.exists ? back : app.navigationBars.buttons.element(boundBy: 0)).tap()
         XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: FestivalApp.budget(10)))
         let songs = try assertAccountReadingOrder(in: app, profileLabel: "Profile: Fixture Player 1", expectsBell: true)
-        XCTAssertEqual(songs.navigationBar, ["fst.shell.drawer.open", "fst.shell.profile"], "after Back \(songs)")
+        XCTAssertEqual(
+            songs.navigationBar, ["fst.shell.drawer.open", "fst.shell.notifications", "fst.shell.profile"],
+            "after Back \(songs)"
+        )
     }
 
     /// Issue #437 (for #85): pushed pages with their own page actions (Item Shop's Sort,
@@ -455,15 +476,15 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
 
     /// Require Profile to be hittable and the bar's trailing-most element on screen.
     ///
-    /// The selected-profile monogram fills a 44 pt tall circle; it draws past a narrower
-    /// layout rect (`MonogramMetrics.overhang`, #311), so its width is proven by near-miss
-    /// taps and the `.hitRegion` audit instead. Choose Profile is a system bar button: its
-    /// element is the 36 pt Liquid Glass circle and the bar extends its hit region, so its
-    /// 44 pt region is proven the same way (`testChooseProfileAndSuggestionsFilterAcceptNearMisses`).
+    /// Since #632 the selected-profile monogram is a 30 pt avatar inside the account
+    /// pill's shared glass (`MonogramMetrics.pillDiameter`), and Choose Profile a system
+    /// bar button whose element is its Liquid Glass circle; the bar extends both hit
+    /// regions, so their 44 pt regions are proven by near-miss taps and the `.hitRegion`
+    /// audit (`testChooseProfileAndSuggestionsFilterAcceptNearMisses`).
     ///
     /// - Parameters:
     ///   - app: The running app, settled on a page.
-    ///   - monogram: Whether a profile is selected, so Profile draws the 44 pt monogram.
+    ///   - monogram: Whether a profile is selected, so Profile draws the pill monogram.
     @MainActor
     private func assertProfileTarget(
         in app: XCUIApplication, monogram: Bool, file: StaticString = #filePath, line: UInt = #line
@@ -471,7 +492,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         let profile = app.navigationBars.buttons["fst.shell.profile"]
         XCTAssertTrue(profile.isHittable, "Profile not hittable", file: file, line: line)
         if monogram {
-            XCTAssertGreaterThanOrEqual(profile.frame.height, 44, "Profile \(profile.frame)", file: file, line: line)
+            XCTAssertGreaterThanOrEqual(profile.frame.height, 30, "Profile \(profile.frame)", file: file, line: line)
         }
         for button in app.navigationBars.buttons.allElementsBoundByIndex
         where button.identifier != "fst.shell.profile" && button.frame.width > 0 {
@@ -484,8 +505,8 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
     /// Require the selected-profile monogram on a pushed page to keep a 44 × 44 pt hit
     /// region that its page actions do not take over.
     ///
-    /// The monogram's element is narrower than the circle it draws
-    /// (`MonogramMetrics.overhang`, #311), so its frame cannot prove the width. Instead,
+    /// The monogram's element is the 30 pt pill avatar (#632), so its frame cannot
+    /// prove the 44 pt region. Instead,
     /// no shown page action may overlap Profile (`assertProfileTarget` already keeps every
     /// bar button left of it); a scoped `.hitRegion`
     /// audit must report nothing on Profile; and taps 20 pt off its centre in every
@@ -531,10 +552,10 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
     private struct AccountReadingOrder: CustomStringConvertible {
         /// Identifiers (or labels) of the navigation bar's buttons, in reading order.
         var navigationBar: [String]
-        /// Identifiers (or labels) of the tab-bar accessory's buttons, in reading order.
-        var accessory: [String]
+        /// Identifiers (or labels) of the floating page tools (`fst.page-tools`), in reading order.
+        var tools: [String]
 
-        var description: String { "bar \(navigationBar), accessory \(accessory)" }
+        var description: String { "bar \(navigationBar), tools \(tools)" }
     }
 
     /// One node of a depth-first walk of the app's accessibility snapshot.
@@ -560,19 +581,19 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
     }
 
     /// Require Profile and (with `expectsBell`) the bell to be separate, labelled buttons
-    /// in their production containers, read Profile → bell in screen order.
+    /// in the navigation bar, read bell → Profile in screen order (issue #632).
     ///
-    /// Profile must be the navigation bar's last button and the bell the tab-bar
-    /// accessory's (`fst.page-tools`) last button; the bar is read before the accessory
-    /// and the accessory before the tab bar; the bell's badge digit and glyph belong to
-    /// the bell, not to a separate element in the accessory. XCUITest cannot read
-    /// VoiceOver's cursor, so the order is the hierarchy's depth-first order.
+    /// Profile must be the navigation bar's last button and the bell the one right before
+    /// it; the floating page tools (`fst.page-tools`), when shown, are read after the bar
+    /// and before the tab bar and hold neither; the bell's badge digit and glyph belong to
+    /// the bell, not to a separate element. XCUITest cannot read VoiceOver's cursor, so
+    /// the order is the hierarchy's depth-first order.
     ///
     /// - Parameters:
     ///   - app: The running app, settled on a page.
     ///   - profileLabel: The expected Profile label.
     ///   - expectsBell: Whether a profile is selected, so the bell shows.
-    /// - Returns: The bar's and the accessory's buttons in reading order.
+    /// - Returns: The bar's buttons and the floating tools in reading order.
     @MainActor
     @discardableResult
     private func assertAccountReadingOrder(
@@ -625,13 +646,24 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         )
         XCTAssertLessThan(profile, tabBar, "Profile is read after the tab bar", file: file, line: line)
 
+        let floating = entries.indices.first { entries[$0].node.identifier == "fst.page-tools" }
+        let toolButtons = floating.map(buttons(in:)) ?? []
+        XCTAssertFalse(toolButtons.contains(profile), "Profile is a floating page tool", file: file, line: line)
+        if let floating, !toolButtons.isEmpty {
+            // Screen order: navigation bar → page → floating tools → tab bar.
+            XCTAssertLessThanOrEqual(entries[bar].end, floating, "the tools are read inside the bar",
+                                     file: file, line: line)
+            XCTAssertLessThan(floating, tabBar, "the tools are read after the tab bar", file: file, line: line)
+            for tool in toolButtons {
+                XCTAssertGreaterThanOrEqual(entries[tool].node.frame.minY, entries[profile].node.frame.maxY,
+                                            "\(name(tool)) is above the header", file: file, line: line)
+            }
+        }
+
         let bells = entries.indices.filter { entries[$0].node.identifier == "fst.shell.notifications" }
-        let accessory = entries.indices.first { entries[$0].node.identifier == "fst.page-tools" }
         guard expectsBell else {
             XCTAssertTrue(bells.isEmpty, "a bell shows without a profile", file: file, line: line)
-            return AccountReadingOrder(
-                navigationBar: barButtons.map(name), accessory: accessory.map { buttons(in: $0).map(name) } ?? []
-            )
+            return AccountReadingOrder(navigationBar: barButtons.map(name), tools: toolButtons.map(name))
         }
         XCTAssertEqual(bells.count, 1, "bell elements: \(bells)", file: file, line: line)
         let bell = try XCTUnwrap(bells.first, file: file, line: line)
@@ -643,35 +675,30 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
         )
         XCTAssertTrue(((node.value as? String) ?? "").isEmpty, "bell value '\(String(describing: node.value))'",
                       file: file, line: line)
-        let tools = try XCTUnwrap(accessory, "no tab-bar accessory", file: file, line: line)
-        XCTAssertTrue(ancestors(of: bell).contains(tools), "the bell is not in the accessory", file: file, line: line)
-        XCTAssertFalse(ancestors(of: bell).contains(bar), "the bell is in the navigation bar", file: file, line: line)
-        let toolButtons = buttons(in: tools)
-        XCTAssertEqual(toolButtons.last, bell, "the bell is not the accessory's last button: \(toolButtons.map(name))",
+        XCTAssertTrue(ancestors(of: bell).contains(bar), "the bell is not in the navigation bar", file: file, line: line)
+        XCTAssertFalse(toolButtons.contains(bell), "the bell is a floating page tool", file: file, line: line)
+        // The account pill: the bell right before Profile, in the tree and on screen.
+        // VoiceOver follows the tree, which does not reflect `accessibilitySortPriority`
+        // (measured), so neither button may set one.
+        XCTAssertEqual(barButtons.dropLast().last, bell, "the bell is not right before Profile: \(barButtons.map(name))",
                        file: file, line: line)
-        XCTAssertFalse(toolButtons.contains(profile), "Profile is in the accessory", file: file, line: line)
-        // Screen order: navigation bar (Profile) → page → accessory (bell) → tab bar.
-        XCTAssertLessThanOrEqual(entries[bar].end, tools, "the accessory is read inside the bar", file: file, line: line)
-        XCTAssertLessThan(profile, bell, "the bell is read before Profile", file: file, line: line)
-        XCTAssertLessThan(bell, tabBar, "the bell is read after the tab bar", file: file, line: line)
-        // The tree order matches the screen: Profile above the bell, and the bell the
-        // accessory's trailing-most button. VoiceOver follows the tree, which does not
-        // reflect `accessibilitySortPriority` (measured), so neither button may set one.
-        XCTAssertLessThanOrEqual(entries[profile].node.frame.maxY, node.frame.minY, "Profile is not above the bell",
+        XCTAssertLessThanOrEqual(node.frame.maxX, entries[profile].node.frame.minX + 0.5, "the bell is right of Profile",
                                  file: file, line: line)
-        for other in toolButtons.dropLast() {
-            XCTAssertLessThanOrEqual(entries[other].node.frame.maxX, node.frame.minX + 0.5,
-                                     "\(name(other)) is right of the bell", file: file, line: line)
-        }
-        // The badge digit and glyph belong to the bell's one element, never a sibling.
-        let strays = (tools + 1..<entries[tools].end).filter { index in
+        // The glyph and any badge digit belong to the bell, never a sibling button or label
+        // elsewhere. In the navigation bar (#632) the iOS 26 system toolbar-item badge
+        // publishes its digit as UIKit's own static text on the bell's top-trailing
+        // corner (as on iPad); that one system element is allowed, nothing else.
+        let corner = node.frame.insetBy(dx: -12, dy: -12)
+        let strays = (bar + 1..<entries[bar].end).filter { index in
             let item = entries[index].node
-            let badgeLike = item.label == "Notifications"
-                || item.label.range(of: #"^[0-9]+\+?$"#, options: .regularExpression) != nil
-            return badgeLike && index != bell && !ancestors(of: index).contains(bell)
+            let digit = item.label.range(of: #"^[0-9]+\+?$"#, options: .regularExpression) != nil
+            let badgeLike = item.label == "Notifications" || digit
+            let systemBadge = digit && item.elementType == .staticText && index == bell + 1
+                && corner.contains(CGPoint(x: item.frame.midX, y: item.frame.midY))
+            return badgeLike && index != bell && !systemBadge && !ancestors(of: index).contains(bell)
         }
         XCTAssertTrue(strays.isEmpty, "badge parts outside the bell: \(strays.map(name))", file: file, line: line)
-        return AccountReadingOrder(navigationBar: barButtons.map(name), accessory: toolButtons.map(name))
+        return AccountReadingOrder(navigationBar: barButtons.map(name), tools: toolButtons.map(name))
     }
 
     // MARK: - Helpers
@@ -690,7 +717,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
     ) {
         let button = app.buttons.matching(identifier: id).firstMatch
         XCTAssertTrue(button.waitForExistence(timeout: FestivalApp.budget(10)), "\(id) missing", file: file, line: line)
-        // A closing sheet briefly leaves the accessory's items without a frame.
+        // A closing sheet briefly leaves the floating tools without a frame.
         let hittable = XCTNSPredicateExpectation(predicate: NSPredicate(format: "hittable == true"), object: button)
         XCTAssertEqual(
             XCTWaiter.wait(for: [hittable], timeout: FestivalApp.budget(5)), .completed, "\(id) not hittable",
@@ -724,7 +751,7 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
     }
 
     /// Close the Quick Links menu by tapping away from it; the dismissing tap is
-    /// consumed. A legacy sheet, or the inline accessory's sheet, closes with its close
+    /// consumed. A legacy sheet, or a floating tool's choices sheet, closes with its close
     /// button.
     @MainActor
     private static func closeQuickLinks(in app: XCUIApplication) {

@@ -298,8 +298,10 @@ struct SongBarTitleToolbarItem: ToolbarContent {
     /// Accessibility identifier of the shown title.
     let identifier: String
 
+    @Environment(\.pageToolsRegistry) private var pageTools
+
     var body: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
+        ToolbarItem(placement: FestivalTitlePlacement.resolve(floatsPageTools: pageTools != nil).toolbarPlacement) {
             if isShown {
                 SongBarTitle(song: song, session: session, caption: caption, captionInstrument: captionInstrument)
                     .transition(.opacity)

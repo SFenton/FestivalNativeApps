@@ -22,7 +22,7 @@ import XCTest
 /// whole-app audits (`testing/strategy.md`), so it is not audited here.
 ///
 /// The Band Size tool is not checked: the `FST_DEBUG_SONG_BAND` route pushes the page
-/// without `pageToolsScope(inSelectedTab:)`, so its page tools never reach the tab-bar accessory
+/// without `pageToolsScope(inSelectedTab:)`, so its page tools never reach the floating page tools
 /// (`testing/apple/xcuitest.md` Pitfalls), and #317 did not change it.
 ///
 /// Needs `tools/mock_service.py`; `apple-ci` serves it with `--large-catalogue` on the

@@ -15,7 +15,7 @@ import FestivalDesign
 /// Like the song leaderboards it starts with the shared ``SongHeaderRow`` (song-header
 /// R1), which hands off to the bar title once it scrolls under the bar. Rows reuse
 /// Song Detail's ``ScoreHistoryListRow``; the best score is purple wherever the sort
-/// puts it. Sort is a page tool (the iPhone tab accessory, the toolbar elsewhere) that
+/// puts it. Sort is a page tool (floating above the iPhone tab bar, the toolbar elsewhere) that
 /// opens ``PlayerHistorySortSheet`` (a popover on the Mac, like Songs).
 ///
 /// Reads only the allowlisted keyless song-history read (web
@@ -150,7 +150,7 @@ struct PlayerHistoryScreen: View {
                 )
             }
             #endif
-            // With the iPhone tab-bar accessory, Sort is there instead.
+            // With the iPhone floating page tools, Sort floats instead.
             if pageTools == nil, sortAvailable {
                 ToolbarItem(placement: .festivalPageAction) {
                     sortButton
@@ -158,10 +158,8 @@ struct PlayerHistoryScreen: View {
             }
         }
         .songBarTitleKeepsBarVisible(showsSongHeader)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-        // iPhone tab-bar accessory (issue #92): the page's one action.
+        .festivalTitleDisplayMode(.inline)
+        // iPhone floating page tools (issues #92, #632): the page's one action.
         .festivalPageTool(
             token: ["sort", sortMode.rawValue, String(sortAscending)],
             order: PageToolOrder.primary, isEnabled: sortAvailable

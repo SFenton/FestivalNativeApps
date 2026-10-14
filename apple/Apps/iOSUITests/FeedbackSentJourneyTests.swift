@@ -178,7 +178,7 @@ final class FeedbackSentJourneyTests: XCTestCase {
         // Audit the alert only; Settings behind it has its own journeys. The
         // system alert caps its title and message size (it scrolls instead),
         // which the audit reports as partial Dynamic Type: system chrome, as
-        // the Songs accessory type cap.
+        // the Songs floating tools type cap.
         var alertIssues: [String] = []
         let alertFrame = alert.frame
         try app.performAccessibilityAudit(for: .all) { issue in

@@ -26,7 +26,7 @@ struct BandRankingsScreen: View {
     /// sub-page (pattern `wide-columns`, issue #353).
     @State private var columns = 1
     @Environment(\.deviceLayout) private var layout
-    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    /// Set where page tools float above the iPhone tab bar (issues #92, #632).
     @Environment(\.pageToolsRegistry) private var pageTools
 
     /// Count facts that survive a page change.
@@ -176,7 +176,7 @@ struct BandRankingsScreen: View {
                 }
             }
         }
-        // iPhone tab-bar accessory (issue #92): Rank By.
+        // iPhone floating page tools (issues #92, #632): Rank By.
         .festivalPageTool(token: rankBy, order: PageToolOrder.primary, isEnabled: experimentalRanks) {
             BandRankByMenu(selection: $selectedRankBy)
         }
