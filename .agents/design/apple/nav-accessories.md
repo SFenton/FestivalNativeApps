@@ -1,8 +1,10 @@
 # Navigation accessories (iPhone, Duo, iPad)
 
-> **What:** Decision record for where each page's controls go on iPhone, iPhone Duo and iPad: the iPhone tab-bar accessory, the top navigation bar, the tab bar's Search tab, an inline list filter, or the page content (issue #92 replaced the custom dock of #42/#84/#89). **Read when:** adding a toolbar item, search field or persistent action to any Apple page.
+> **What:** Decision record for where each page's controls go on iPhone, iPhone Duo and iPad: the iPhone floating page tools (the tab-bar accessory until #632), the top navigation bar, the tab bar's Search tab, an inline list filter, or the page content (issue #92 replaced the custom dock of #42/#84/#89). **Read when:** adding a toolbar item, search field or persistent action to any Apple page.
 
-**iPhone (horizontal tab bar, iOS 26.1+):** page tools and Notifications sit in the system tab-bar bottom accessory (`tabViewBottomAccessory`, Music's mini-player slot), **not** in the navigation bar (owner, #92 follow-up: "should be in an *accessory* to the bottom tab bar… *Not* as part of the top header bar"). **Profile** is the navigation bar's trailing-most button on every page (issue #300, owner: "profile button can go back to permanent right side residence in header"). The header keeps the drawer or Back, the title, the player page's Select/Switch and Profile. **Duo vertical bar, iPad and older iOS:** the same items stay trailing navigation-bar items. macOS keeps its own window toolbar and search (`.agents/platforms/apple/macos.md`).
+**Superseded on iPhone by #632 (owner, 2026-10-13; [pattern R28](../../patterns/page-tools-and-nav-chrome.md)):** "No more accessory pill with notifications/quick links/filter/sort. Those buttons are now permanently floating individual glass chrome like the floating buttons on web. Notifications goes to header. Titles in header are now left-aligned next to hamburger button or back chevron." On the horizontal iPhone tab bar each page tool is its own 44 pt Liquid Glass circle floating above the tab bar (`FloatingPageToolsBar`, trailing, right-to-left fade-up like web `MobileFloatingActionButton`, staying put when the tab bar minimizes); Notifications and Profile share one glass pill trailing in the navigation bar (Profile trailing-most, 30 pt monogram); titles are leading (`toolbarTitleDisplayMode(.inlineLarge)`, `FestivalTitlePlacement`). No page uses `tabViewBottomAccessory`. Rules 1, 2, 6, 6a, 7 and 11 below are history for iPhone where they say "accessory"; the registry, front-page scoping (#487), the sheet form of page menus and the Duo/iPad navigation-bar placement still hold. The table's iPhone column reads as the floating tools, with the bell in the header.
+
+**iPhone before #632 (horizontal tab bar, iOS 26.1+):** page tools and Notifications sat in the system tab-bar bottom accessory (`tabViewBottomAccessory`, Music's mini-player slot), **not** in the navigation bar (owner, #92 follow-up: "should be in an *accessory* to the bottom tab bar… *Not* as part of the top header bar"). **Profile** is the navigation bar's trailing-most button on every page (issue #300, owner: "profile button can go back to permanent right side residence in header"). The header keeps the drawer or Back, the title, the player page's Select/Switch and Profile. **Duo vertical bar, iPad and older iOS:** the same items stay trailing navigation-bar items. macOS keeps its own window toolbar and search (`.agents/platforms/apple/macos.md`).
 
 ## APIs (iOS 27.1 SDK; verified in the swiftinterface and on the iOS 26.5 simulator)
 
@@ -38,7 +40,7 @@ HIG sources: `apple-hig/references/hig/toolbars.md`, `search-fields.md`, `search
 
 ## Decisions per page
 
-| Page | Tab-bar accessory, left to right (iPhone) | Duo vertical bar, iPad |
+| Page | iPhone page tools, left to right (floating circles since #632; the bell is in the header pill, not here) | Duo vertical bar, iPad |
 |---|---|---|
 | Every page | Page tools \| bell (selected profile), bell pinned trailing; header: drawer/Back, title, avatar rightmost | Trailing navigation-bar items; rail overflow by priority |
 | Songs (root) | Sort · Filter · Quick Links (sectioned sorts) \| bell; pinned "Filter Songs" field in the header. AX text or a window under 357 pt: Sort and Filter · Quick Links \| bell, expanded and inline alike | Sort, Filter, Quick Links; "Filter Songs" field (iPad: header; Duo: bottom of the page, trailing page in book pose only, #333, #334) |
@@ -54,6 +56,8 @@ HIG sources: `apple-hig/references/hig/toolbars.md`, `search-fields.md`, `search
 | Search tab | — (accessory hidden; system Close beside the field) | iPad sidebar Search: bell · avatar |
 
 ## Small widths
+
+Since #632 the floating circles (44 pt, 10 pt apart, 16 pt from the trailing edge; `FloatingPageToolsFit`) fold Sort and Filter only when the window cannot fit them; they no longer fold at accessibility text sizes (the circles do not grow; long-press shows the Large Content Viewer). UI journeys: `NavButtonHitRegionJourneyTests/testAccessibilityTextKeepsTheFloatingToolsWhileScrolled`, `SongsChromeJourneyTests/testToolsStayFloatingWhileScrolled`. The rest of this section is the #300 accessory history.
 
 `FST_DEBUG_CANVAS_WIDTH=375` (Debug) lays the app out in a 375 pt canvas on the 402 pt iPhone 17 Pro. Accessory (issue #300, 2026-10-04): 44 pt slots everywhere. 402 pt: Songs and Song Detail keep all four items expanded (348 pt) and inline (222 pt). 375 pt canvas: Song Detail inline (195 pt) shows Item Shop · Paths · Quick Links | bell with the bell's slot ending at the capsule edge. `AccessibilityXL` at 375 pt: Sort and Filter | bell, the same expanded and inline. Nothing clipped; UI journeys `NavButtonHitRegionJourneyTests` (including `testAccessibilityTextFoldIsTheSameExpandedAndInline`) and `SongsChromeJourneyTests/testToolsStayInTheTabBarAccessoryWhileScrolled`.
 
