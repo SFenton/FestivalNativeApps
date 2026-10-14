@@ -88,6 +88,25 @@ class FeedbackDataTest {
         assertTrue(String(bytesOf(body)).contains("Content-Type: image/pngX:y\r\n"))
     }
 
+    /** Issue #634: the body reports bytes written against its length so the busy view's bar follows the upload. */
+    @Test
+    fun multipartReportsWriteProgress() {
+        val seen = mutableListOf<Pair<Long, Long>>()
+        val body = MultipartFormBody(
+            listOf("kind" to "bug"),
+            listOf(MultipartFormBody.FilePart("media", "shot.png", "image/png", png.size.toLong()) { ByteArrayInputStream(png) }),
+            boundary = "B",
+        ) { written, total -> seen += written to total }
+        val bytes = bytesOf(body)
+        assertTrue(seen.isNotEmpty())
+        assertTrue(seen.all { it.second == body.contentLength })
+        assertEquals(seen.map { it.first }.sorted(), seen.map { it.first })
+        assertEquals(bytes.size.toLong(), seen.last().first)
+        val unknown = mutableListOf<Long>()
+        bytesOf(MultipartFormBody(emptyList(), listOf(MultipartFormBody.FilePart("media", "a", "image/png", null) { ByteArrayInputStream(png) })) { _, total -> unknown += total })
+        assertTrue(unknown.isNotEmpty() && unknown.all { it == -1L })
+    }
+
     // endregion
 
     // region Gate
@@ -134,7 +153,8 @@ class FeedbackDataTest {
         val api = FestivalApi("https://fixture.test", transport)
         val attachment = FeedbackAttachment("content://a", "shot.png", "image/png", png.size.toLong())
         var opens = 0
-        val job = api.submitFeedback(submission(listOf(attachment))) {
+        val fractions = mutableListOf<Float?>()
+        val job = api.submitFeedback(submission(listOf(attachment)), onProgress = { fractions += it }) {
             opens++
             ByteArrayInputStream(png)
         }
@@ -150,6 +170,9 @@ class FeedbackDataTest {
             "name=\"media\"; filename=\"shot.png\"\r\nContent-Type: image/png",
         ).forEach { assertTrue(it, text.contains(it)) }
         assertEquals(2, opens) // preflight + the write above
+        // Writing the request body reports upload fractions that end at 1.
+        assertEquals(1f, fractions.last()!!, 0f)
+        assertTrue(fractions.all { it != null && it in 0f..1f })
     }
 
     @Test
