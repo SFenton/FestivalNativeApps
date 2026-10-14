@@ -156,6 +156,11 @@ public static class DialogChrome
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(element); i++) WithoutBackplate(VisualTreeHelper.GetChild(element, i));
     }
 
+    /// <summary>The dialog's Close (Cancel/Done) button from its template, once the dialog is loaded.</summary>
+    /// <param name="dialog">Dialog.</param>
+    /// <returns>The button, or <see langword="null"/> before the template is applied.</returns>
+    public static Button? CloseButton(ContentDialog dialog) => Find(dialog, "CloseButton") as Button;
+
     /// <summary>Finds a named template part below the dialog.</summary>
     /// <param name="dialog">Dialog.</param>
     /// <param name="name">Part name.</param>
