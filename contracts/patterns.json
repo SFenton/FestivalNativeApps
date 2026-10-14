@@ -1223,7 +1223,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586), and no sheet or dialog draws a line under the shared header (owner, #607); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612).",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586), and no sheet or dialog draws a line under the shared header (owner, #607); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612); on Apple the feedback form's busy state fades the form out for a centred spinner, title and subtitle (Uploading Media with a determinate bar, then Filing Issue/Request), crossfading only the text between stages and swapping without fades under Reduce Motion (owner-approved, #634).",
       "keywords": [
         "modal",
         "sheet",
@@ -1239,7 +1239,9 @@
         "drag and drop",
         "photo picker",
         "half height",
-        "partially expanded"
+        "partially expanded",
+        "sending status",
+        "upload progress"
       ],
       "web": [
         {
@@ -1292,6 +1294,18 @@
           {
             "path": "apple/Sources/FestivalUI/Design/SheetStyle.swift",
             "symbol": "festivalFormIdentifier"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackSendingStatus.swift",
+            "symbol": "FeedbackSendingStatusView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackSendingStatus.swift",
+            "symbol": "FeedbackSendingChoreography"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackSendingStatus.swift",
+            "symbol": "FeedbackSendingStage"
           }
         ],
         "android": [
@@ -1446,7 +1460,8 @@
         368,
         400,
         420,
-        607
+        607,
+        634
       ]
     },
     {
@@ -2331,7 +2346,8 @@
         380,
         561,
         614,
-        616
+        616,
+        634
       ]
     },
     {
@@ -2489,6 +2505,10 @@
             "symbol": "FoldAvoidingPlacement"
           },
           {
+            "path": "apple/Sources/FestivalUI/Common/FestivalEmptyState.swift",
+            "symbol": "FestivalCentredFill"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Common/ServiceStatusViews.swift",
             "symbol": "ServiceUnavailableView"
           },
@@ -2630,7 +2650,8 @@
         348,
         377,
         554,
-        463
+        463,
+        634
       ]
     },
     {
