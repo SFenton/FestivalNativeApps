@@ -368,7 +368,7 @@ final class QuickLinksOrderJourneyTests: XCTestCase {
     }
 
     /// Rivalry is one list of songs: it offers no Quick Links, only View Profile, a
-    /// full-size hittable button in the tab-bar accessory (owner, #545; `quick-links` R3).
+    /// full-size hittable button in the floating page tools (owner, #545; `quick-links` R3).
     @MainActor
     func testRivalryOffersNoQuickLinks() throws {
         continueAfterFailure = false

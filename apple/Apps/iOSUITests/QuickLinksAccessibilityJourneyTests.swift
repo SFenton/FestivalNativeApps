@@ -3,7 +3,7 @@ import XCTest
 
 /// Accessibility of the iPhone Quick Links chooser (#389, for #6's fixed menu order).
 ///
-/// On iPhone (iOS 26.1+) Quick Links sits in the tab-bar accessory and lists the page's
+/// On iPhone (iOS 26.1+) Quick Links sits in the floating page tools and lists the page's
 /// sections in a compact sheet (`PageToolInlineMenuSheet`). Each test opens Settings'
 /// sheet against the fixture service, audits it with `performAccessibilityAudit`, and
 /// checks what the audit cannot: rows in page order with section names, the current

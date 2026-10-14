@@ -190,7 +190,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         return target
     }
 
-    /// Open Filter from the accessory: the Filter Songs button, or at large text the
+    /// Open Filter from the floating tools: the Filter Songs button, or at large text the
     /// folded Sort and Filter menu's "Filter…", which #77 offers without a profile too.
     /// Both entries are named and at least 44 pt.
     ///

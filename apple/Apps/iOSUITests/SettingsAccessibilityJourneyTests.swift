@@ -362,7 +362,7 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
     /// region's own elements (its headings, descriptions and switches).
     ///
     /// The audit can flag region text over the glass card's artwork backdrop, or text it
-    /// reads under the tab bar and Quick Links accessory. A contrast flag on a region title,
+    /// reads under the tab bar and floating Quick Links. A contrast flag on a region title,
     /// heading or description is accepted only once that text, scrolled clear of the bottom
     /// chrome, measures at least 4.5:1 rendered (testing/apple/accessibility.md
     /// `contrast-rendered`; precedent `PathsSwitchAccessibilityJourneyTests`); a weaker

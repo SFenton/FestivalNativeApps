@@ -133,7 +133,7 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     /// proof that the row takes a tap. XCUI's `isHittable` stays false for this settled,
     /// unobscured row on the CI iPad runtime (apple-ci run 37896597940), so the journey taps
     /// like a user instead. Not at the row's centre: an AX5 row is about 440 pt tall, and
-    /// below #604's page title its centre sits under the iPhone's page-tools accessory.
+    /// below #604's page title its centre sits under the iPhone's floating page tools.
     ///
     /// - Parameters:
     ///   - app: Rival Detail, its rows shown.
