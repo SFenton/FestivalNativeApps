@@ -601,6 +601,8 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(motion.waitForExistence(timeout: 10))
         let original = try XCTUnwrap(motion.value as? String)
         XCTAssertTrue(["0", "1"].contains(original))
+        // A coordinate tap never scrolls: bring the lazily placed row on screen first.
+        SongsUITestSupport.reveal(motion, in: app, scrollingUp: true)
         SongsUITestSupport.switchTrackCentre(of: motion).tap()
         let changed = original == "0" ? "1" : "0"
         let changedValue = XCTNSPredicateExpectation(
@@ -619,8 +621,8 @@ final class FestivalMobileUITests: XCTestCase {
         let restored = app.switches["fst.settings.reduce-motion"]
         XCTAssertTrue(restored.waitForExistence(timeout: 10))
         XCTAssertEqual(restored.value as? String, changed)
-        SongsUITestSupport.switchTrackCentre(of: restored).tap()
-        XCTAssertEqual(restored.value as? String, original)
+        SongsUITestSupport.reveal(restored, in: app, scrollingUp: true)
+        SongsUITestSupport.setSwitch(restored, to: original)
     }
 
     /// Validate actual background motion, static-art override and opaque UI pixels.
