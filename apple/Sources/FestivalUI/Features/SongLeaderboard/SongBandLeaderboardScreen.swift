@@ -342,6 +342,8 @@ struct SongBandLeaderboardContent: View {
         .festivalPageTool(token: bandType, order: PageToolOrder.primary) {
             bandTypeMenu
         }
+        // Mac and iPad menu bar: View › Band Size mirrors the toolbar menu (issue #633).
+        .macBandSizeCommands($bandType)
         .onChange(of: bandType) { _, _ in
             focusPending = false
             page = 1

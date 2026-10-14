@@ -97,19 +97,22 @@ extension FocusedValues {
 /// The iPadOS menu bar (and ⌘-hold shortcut overlay), mirroring the Mac's
 /// ``MacCommands`` over the focused window's ``FestivalShellCommands`` and the page
 /// values the Mac already publishes: Edit › Search Festival (⌘F); View › Refresh (⌘R),
-/// Sort…, Filter…, Rank By ▸, Instrument ▸, sidebar; Go › Back (⌘[), destinations (⌘1…⌘9), Search
-/// (⌘K), Next/Previous Section (⌥⌘↓/↑); Song › Paths…, Open in Item
-/// Shop; Profile › Select/Switch (⇧⌘P), Deselect, Find Rival…, Notifications; Help.
+/// Sort…, Filter…, Rank By ▸, Instrument ▸, Band Size ▸, as List / as Grid, sidebar;
+/// Go › Back (⌘[), destinations (⌘1…⌘9), Search (⌘K), Next/Previous Section (⌥⌘↓/↑);
+/// Song › Paths…, Open in Item Shop; Profile › Select/Switch (⇧⌘P), Deselect, Select /
+/// Switch to This Profile, View Rival's Profile, Find Rival…, Notifications; Help.
 /// Unavailable items are disabled, never hidden (HIG The menu bar). iPhone has no menu
 /// bar: nothing is added there, so its own hidden shortcut buttons stay in charge.
 public struct FestivalCommands: Commands {
     @FocusedValue(\.festivalShellCommands) private var shell
     @FocusedValue(\.macPageCommands) private var pageCommands
     @FocusedValue(\.macSongCommands) private var songCommands
+    @FocusedValue(\.macProfilePageCommands) private var profilePageCommands
     @FocusedValue(\.macRankBy) private var rankBy
     /// Settings › Experimental Ranks: View › Rank By lists Total Score alone while off.
     @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     @FocusedValue(\.macInstrument) private var instrument
+    @FocusedValue(\.macBandSize) private var bandSize
     @FocusedValue(\.macQuickLinksPage) private var pageQuickLinks
     @FocusedValue(\.macQuickLinksList) private var listQuickLinks
 
@@ -156,6 +159,9 @@ public struct FestivalCommands: Commands {
                     .disabled(pageCommands?.filter == nil || blocked)
                 rankByMenu
                 instrumentMenu
+                bandSizeMenu
+                Divider()
+                layoutCommands
                 Divider()
             }
             CommandMenu("Go") {
@@ -190,6 +196,13 @@ public struct FestivalCommands: Commands {
                 Button("Deselect Profile") { shell?.deselectProfile() }
                     .disabled(shell?.hasPlayer != true || blocked)
                 Divider()
+                // The player and rival pages' toolbar actions (issue #633).
+                Button(MacProfilePageCommands.identityMenuTitle(for: profilePageCommands?.identity)) {
+                    profilePageCommands?.performIdentity?()
+                }
+                .disabled(profilePageCommands?.performIdentity == nil || blocked)
+                Button("View Rival's Profile") { profilePageCommands?.viewRivalProfile?() }
+                    .disabled(profilePageCommands?.viewRivalProfile == nil || blocked)
                 Button("Find Rival…") { pageCommands?.findRival?() }
                     .disabled(pageCommands?.findRival == nil || blocked)
                 Button("Notifications") { shell?.notifications() }
@@ -239,6 +252,36 @@ public struct FestivalCommands: Commands {
                 .disabled(instrument == nil)
             }
         }
+    }
+
+    /// View › Band Size with a checkmark on the size in effect (the band board's Band
+    /// Size tool, issue #633); every size stays listed but disabled elsewhere.
+    @ViewBuilder private var bandSizeMenu: some View {
+        Menu("Band Size") {
+            ForEach(BandType.allCases) { size in
+                Toggle(size.label, isOn: Binding(
+                    get: { bandSize?.selected == size },
+                    set: { isOn in if isOn { bandSize?.select(size) } }
+                ))
+                .disabled(bandSize == nil)
+            }
+        }
+    }
+
+    /// View › as List / as Grid: the front page's List/Grid toolbar toggle (Item Shop,
+    /// issue #633), checkmarked; disabled where no page offers it.
+    @ViewBuilder private var layoutCommands: some View {
+        let layout = pageCommands?.layout
+        Toggle("as List", isOn: Binding(
+            get: { layout?.isGrid == false },
+            set: { isOn in if isOn { layout?.select(false) } }
+        ))
+        .disabled(layout == nil || blocked)
+        Toggle("as Grid", isOn: Binding(
+            get: { layout?.isGrid == true },
+            set: { isOn in if isOn { layout?.select(true) } }
+        ))
+        .disabled(layout == nil || blocked)
     }
 
     /// Go › Next / Previous Section over the front page's Quick Links (the detail page wins).

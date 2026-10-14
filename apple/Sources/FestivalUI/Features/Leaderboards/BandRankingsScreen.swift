@@ -155,8 +155,9 @@ struct BandRankingsScreen: View {
         .coordinateSpace(.named(Self.pageSpace))
         .festivalBackground(.carousel, session: session)
         .festivalNavigationTitle("\(bandType.label) Rankings")
-        // Mac: View › Rank By mirrors the toolbar menu.
+        // Mac: View › Rank By and Band Size mirror the page's menus (issue #633).
         .macRankByCommands($selectedRankBy, experimentalRanks: experimentalRanks)
+        .macBandSizeCommands($bandType)
         .toolbar {
             if layout.sectionChrome.isVerticalBar {
                 // `/duo` J1: band size and Rank By as two titled rail items, not one

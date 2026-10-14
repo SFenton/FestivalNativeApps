@@ -228,7 +228,11 @@ struct ShopScreen: View {
         // HIG Toolbars › macOS: "Every toolbar item must also be a menu-bar command"
         // (also the iPadOS menu bar).
         .macPageCommands(MacPageCommands(
-            sort: { sortPresented = true }, filter: { filterPresented = true }
+            sort: { sortPresented = true }, filter: { filterPresented = true },
+            layout: showsViewToggle ? MacLayoutChoice(isGrid: viewMode == .grid) { grid in
+                staggerSettled = false
+                preferredMode = grid ? .grid : .list
+            } : nil
         ))
         .task(id: requestKey) {
             guard isVisible else { return }

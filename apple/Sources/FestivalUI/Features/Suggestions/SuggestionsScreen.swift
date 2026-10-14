@@ -55,6 +55,12 @@ struct SuggestionsScreen: View {
         viewModel.visibleCategories(appVisibleInstruments: visibleInstruments)
     }
 
+    /// View › Filter… while the page offers its Filter tool.
+    private var macCommands: MacPageCommands {
+        guard showsFilter else { return MacPageCommands() }
+        return MacPageCommands(filter: { filterPresented = true })
+    }
+
     /// Filter is offered with a selected, available player.
     private var showsFilter: Bool {
         session.selectedPlayer != nil && session.playerLoadState == .available
@@ -117,6 +123,9 @@ struct SuggestionsScreen: View {
         ) {
             filterButton
         }
+        // HIG Toolbars › macOS: "Every toolbar item must also be a menu-bar command"
+        // (View › Filter…, also the iPadOS menu bar; issue #633).
+        .macPageCommands(macCommands)
         .sheet(isPresented: $filterPresented) {
             SuggestionsFilterSheet(
                 applied: viewModel.filter, visibleInstruments: orderedVisibleInstruments
