@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
@@ -178,23 +179,33 @@ class SelectedRowRevealAccessibilityJourneyTest {
         shell(if (saved == null || saved == "null" || saved.isEmpty()) "settings delete global animator_duration_scale" else "settings put global animator_duration_scale $saved")
     }
 
-    private fun bounds(tag: String): Rect? = rule.onAllNodes(hasTestTag(tag), useUnmergedTree = true).fetchSemanticsNodes().firstOrNull()?.boundsInWindow
+    private fun node(tag: String): SemanticsNode? = rule.onAllNodes(hasTestTag(tag), useUnmergedTree = true).fetchSemanticsNodes().firstOrNull()
+
+    private fun bounds(tag: String): Rect? = node(tag)?.boundsInWindow
 
     /**
-     * The part of the board's list a reader sees: below the top bar, and above the pinned footer
-     * where the footer shares the row's column (around a hinge the footer sits in the other pane).
+     * Whether [row] sits wholly in the part of the board's list a reader sees: below the top bar,
+     * and above the pinned footer where the footer shares the row's column (around a hinge the
+     * footer sits in the other pane).
+     *
+     * `boundsInWindow` is clipped by the list's own clip and by the clip at the footer's top, so
+     * a row scrolled partly out of view reports only its visible strip, which can sit inside that
+     * part (issue #628: at 200 % text a row peeking 91 px of its 357 px above the footer counted
+     * as in view). A row is whole only when those clipped bounds keep its full layout size.
      *
      * @param board Board.
-     * @param row A row's bounds.
-     * @return True when [row] is wholly in that part.
+     * @param row A row's semantics node.
+     * @return True when all of [row] is in that part.
      */
-    private fun inView(board: Board, row: Rect): Boolean {
+    private fun inView(board: Board, row: SemanticsNode): Boolean {
+        val box = row.boundsInWindow
+        val whole = box.width >= row.size.width - 1 && box.height >= row.size.height - 1
         val list = bounds("${board.prefix}.list") ?: return false
         val top = maxOf(list.top, bounds("fst.nav.top-bar")?.bottom ?: list.top)
         val footer = bounds("${board.prefix}.bottom-bar")
-        val sharesColumn = footer != null && footer.left < row.right && footer.right > row.left
+        val sharesColumn = footer != null && footer.left < box.right && footer.right > box.left
         val bottom = if (sharesColumn) minOf(list.bottom, footer!!.top) else list.bottom
-        return row.top >= top - 1 && row.bottom <= bottom + 1 && row.width > 0f
+        return whole && box.top >= top - 1 && box.bottom <= bottom + 1 && box.width > 0f
     }
 
     /** Test tags of the board's rows that sit wholly in view (layout bounds: drawn or not). */
@@ -203,7 +214,7 @@ class SelectedRowRevealAccessibilityJourneyTest {
             SemanticsMatcher("row") { it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith(board.rowPrefix) == true },
             useUnmergedTree = true,
         ).fetchSemanticsNodes()
-            .filter { inView(board, it.boundsInWindow) }
+            .filter { inView(board, it) }
             .mapNotNull { it.config.getOrNull(SemanticsProperties.TestTag) }
             .toSet()
 
@@ -298,9 +309,9 @@ class SelectedRowRevealAccessibilityJourneyTest {
 
         // The reveal lands the selected row wholly on screen above the pinned footer (R7).
         try {
-            rule.waitUntil(20_000) { bounds(board.selectedTag)?.let { inView(board, it) } == true }
+            rule.waitUntil(20_000) { node(board.selectedTag)?.let { inView(board, it) } == true }
         } catch (timeout: androidx.compose.ui.test.ComposeTimeoutException) {
-            throw AssertionError("$screen: the reveal left ${board.selectedTag} at ${bounds(board.selectedTag)} out of view", timeout)
+            throw AssertionError("$screen: the reveal left ${board.selectedTag} at ${bounds(board.selectedTag)} (${node(board.selectedTag)?.size}) out of view", timeout)
         }
         rule.waitForIdle()
         h.awaitAccessibilityTree(present = board.selectedTag)
@@ -338,9 +349,15 @@ class SelectedRowRevealAccessibilityJourneyTest {
 
         // Reading order: the rows in rank order with no gap (the selected one among them), then the
         // pinned footer, then the pager.
-        val order = h.readingOrder(screen, fresh = true)
+        val stops = h.readingStops(screen, fresh = true)
+        val order = stops.map { it.label }
         val footerAt = order.indexOfLast { board.footerRank.find(it)?.groupValues?.get(1)?.toInt() == board.selectedRank }
         assertTrue("$screen: pinned footer not read in $order", footerAt >= 0)
+        // Each row wholly in view is one stop of its own that starts with its rank.
+        expected.forEach { tag ->
+            val stop = stops.take(footerAt).filter { it.id == tag }
+            assertTrue("$screen: $tag in view is not one stop led by its rank before the footer: $stop in $order", stop.size == 1 && board.rowRank.containsMatchIn(stop.single().label))
+        }
         val ranks = order.take(footerAt).mapNotNull { board.rowRank.find(it)?.groupValues?.get(1)?.toInt() }
         assertTrue("$screen: selected row #${board.selectedRank} not read before the footer in $order", board.selectedRank in ranks)
         assertTrue("$screen: fewer rows read (${ranks.size}) than in view (${expected.size}) in $order", ranks.size >= expected.size)
