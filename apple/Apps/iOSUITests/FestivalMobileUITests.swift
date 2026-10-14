@@ -601,7 +601,7 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(motion.waitForExistence(timeout: 10))
         let original = try XCTUnwrap(motion.value as? String)
         XCTAssertTrue(["0", "1"].contains(original))
-        motion.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        SongsUITestSupport.switchTrackCentre(of: motion).tap()
         let changed = original == "0" ? "1" : "0"
         let changedValue = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value == %@", changed), object: motion
@@ -619,7 +619,7 @@ final class FestivalMobileUITests: XCTestCase {
         let restored = app.switches["fst.settings.reduce-motion"]
         XCTAssertTrue(restored.waitForExistence(timeout: 10))
         XCTAssertEqual(restored.value as? String, changed)
-        restored.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        SongsUITestSupport.switchTrackCentre(of: restored).tap()
         XCTAssertEqual(restored.value as? String, original)
     }
 
@@ -1801,22 +1801,7 @@ final class FestivalMobileUITests: XCTestCase {
     ///   - value: Expected accessibility value, `0` or `1`.
     @MainActor
     private func setSwitch(_ element: XCUIElement, to value: String) {
-        if element.value as? String != value {
-            element.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
-            let changed = XCTNSPredicateExpectation(
-                predicate: NSPredicate(format: "value == %@", value), object: element
-            )
-            XCTAssertEqual(
-                XCTWaiter.wait(for: [changed], timeout: 3), .completed,
-                "Settings switch \(element.identifier) did not settle after one tap; "
-                    + "current value \(element.value as? String ?? "unavailable")"
-            )
-        }
-        XCTAssertEqual(
-            element.value as? String, value,
-            "Settings control \(element.identifier), frame \(element.frame), "
-                + "hittable \(element.isHittable)"
-        )
+        SongsUITestSupport.setSwitch(element, to: value)
     }
 
     /// Attach only the app's current display to the Xcode result bundle.
