@@ -40,9 +40,6 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
     /// The trailing switch and its spacing, left out of a title's contrast crop.
     private static let switchWidth: CGFloat = 72
 
-    /// From the row's trailing edge to the centre of the system switch's track.
-    private static let switchTrackCentreInset: CGFloat = 32
-
     private static let region: [Entry] = [
         Entry(kind: .heading, key: "Accessibility", title: "Accessibility"),
         Entry(kind: .toggle, key: "fst.settings.reduce-motion", title: "Reduce Motion"),
@@ -232,15 +229,13 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
         let toggle = app.switches[id]
         XCTAssertTrue(toggle.isHittable, "\(id) is not on screen after the landing at \(size)", file: file, line: line)
         let original = toggle.value as? String ?? ""
-        let width = max(toggle.frame.width, 1)
-        // The switch's own tap lands on its track's centre (the system switch is about 63 pt
-        // wide at the row's trailing edge), not on the thumb's outer rim (#626).
-        let steps: [(place: String, dx: CGFloat, expected: String)] = [
-            ("title", 0.1, original == "1" ? "0" : "1"),
-            ("switch", max(0.5, (width - Self.switchTrackCentreInset) / width), original),
+        // The switch's own tap lands on its track's centre, not on the thumb's outer rim (#626).
+        let steps: [(place: String, target: XCUICoordinate, expected: String)] = [
+            ("title", toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)), original == "1" ? "0" : "1"),
+            ("switch", SongsUITestSupport.switchTrackCentre(of: toggle), original),
         ]
         for step in steps {
-            toggle.coordinate(withNormalizedOffset: CGVector(dx: step.dx, dy: 0.5)).tap()
+            step.target.tap()
             let flipped = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "value == %@", step.expected), object: toggle
             )

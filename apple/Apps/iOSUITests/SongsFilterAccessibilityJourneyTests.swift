@@ -386,7 +386,12 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
             : nil
         var cut: [String] = []
         var anyDeferred = false
-        try app.performAccessibilityAudit(for: types) { issue in
+        // The runner's simulator can miss XCTest's audit deadline (#636, the folded Duo):
+        // run once more after clearing what the first pass collected.
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            app, types, name: "songs-filter",
+            reset: { cut.removeAll(); anyDeferred = false }
+        ) { issue in
             let deferred = proof?(issue) ?? false
             anyDeferred = anyDeferred || deferred
             let behindSheet = !deferred && Self.isPadPageBehindSheet(issue, pad: pad)
@@ -414,7 +419,9 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
             let text = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", label)).firstMatch
             reveal(text, in: app)
             // Everything else was judged whole in the first pass.
-            try app.performAccessibilityAudit(for: .contrast) { issue in
+            try SongsUITestSupport.performAuditRetryingTimeout(
+                app, .contrast, name: "songs-filter-revealed", reset: {}
+            ) { issue in
                 guard issue.element?.label == label else { return true }
                 let attachment = XCTAttachment(string: "Contrast, revealed whole: \(label)")
                 attachment.name = "songs-filter-audit-issue"
