@@ -74,6 +74,65 @@ final class FeedbackSentJourneyTests: XCTestCase {
         }
     }
 
+    /// Issue #634: Submit swaps the form for the sending status, centred in the sheet. The
+    /// `fixture-slow` job answers its upload after 2 s and files after two more status reads,
+    /// so both stages stay on screen: "Sending Issue" (no media) over the upload bar and
+    /// Stop Sending, then "Filing Issue" with the owner's sentence. The fields leave the
+    /// screen and the tree, one named busy indicator stays put through both stages, and the
+    /// filed form still closes before "Report Sent" (#565).
+    @MainActor
+    func testSubmitSwapsFormForCentredSendingStatus() throws {
+        try requireFixture()
+        let app = FeedbackJourney.fixtureApp(origin: Self.origin)
+        app.launch()
+        defer { app.terminate() }
+        FeedbackJourney.openForm(in: app)
+        fill(in: app, description: "Journey fixture-slow: the sending status replaces the form.")
+        app.buttons["fst.settings.feedback.submit"].tap()
+
+        let title = app.descendants(matching: .any)["fst.settings.feedback.status.title"]
+        let busy = app.activityIndicators["fst.settings.feedback.busy"]
+        XCTAssertTrue(FeedbackJourney.waitUntil(timeout: FestivalApp.budget(5)) {
+            title.exists && title.label == "Sending Issue"
+        }, "No upload status (title: \(title.exists ? title.label : "missing"))")
+        XCTAssertTrue(app.progressIndicators["fst.settings.feedback.progress"].exists, "No upload bar")
+        let stop = app.buttons["fst.settings.feedback.stop"]
+        XCTAssertTrue(stop.exists, "No Stop Sending while uploading")
+        XCTAssertGreaterThanOrEqual(stop.frame.height, 44, "Stop Sending is under 44 pt")
+        XCTAssertTrue(busy.exists, "No busy indicator while uploading")
+        XCTAssertEqual(busy.label, "Sending your issue")
+        for id in ["field.title", "field.description", "attach"] {
+            XCTAssertFalse(app.descendants(matching: .any)["fst.settings.feedback.\(id)"].exists,
+                           "The form's \(id) is still reachable behind the status")
+        }
+        let window = app.windows.firstMatch.frame
+        let uploadSpinner = busy.frame
+        XCTAssertEqual(uploadSpinner.midX, window.midX, accuracy: 2, "The spinner is not centred across")
+        XCTAssertEqual(title.frame.midX, window.midX, accuracy: 2, "The title is not centred across")
+        XCTAssertTrue((window.minY + window.height * 0.3...window.minY + window.height * 0.7)
+            .contains(uploadSpinner.midY),
+                      "The status is not centred down the sheet: \(uploadSpinner) in \(window)")
+
+        XCTAssertTrue(FeedbackJourney.waitUntil(timeout: FestivalApp.budget(6)) {
+            title.exists && title.label == "Filing Issue"
+        }, "No Filing Issue status (title: \(title.exists ? title.label : "missing"))")
+        let subtitle = app.descendants(matching: .any)["fst.settings.feedback.status.subtitle"]
+        XCTAssertEqual(subtitle.label, "We\u{2019}re filing your issue. Please wait while we upload it.")
+        XCTAssertEqual(app.activityIndicators.matching(identifier: "fst.settings.feedback.busy").count, 1)
+        XCTAssertEqual(busy.label, "Sending your issue", "The spinner was renamed between stages")
+        XCTAssertEqual(busy.frame.midX, uploadSpinner.midX, accuracy: 1, "The spinner moved between stages")
+        XCTAssertEqual(busy.frame.midY, uploadSpinner.midY, accuracy: 1, "The spinner moved between stages")
+        XCTAssertFalse(app.buttons["fst.settings.feedback.stop"].exists, "Stop Sending stayed while filing")
+        XCTAssertEqual(app.buttons["fst.settings.feedback.close"].label, "Close")
+
+        let alert = app.alerts["Report Sent"]
+        XCTAssertTrue(alert.waitForExistence(timeout: FestivalApp.budget(15)), "No Report Sent alert")
+        XCTAssertFalse(title.exists, "The status is still on screen under the alert")
+        alert.buttons.firstMatch.tap()
+        XCTAssertTrue(FeedbackJourney.waitUntil { FeedbackJourney.row("bug", in: app).isHittable },
+                      "Settings is not usable after Done")
+    }
+
     // MARK: - Steps
 
     /// Open a form, file it against the fixture and check the sent sequence.

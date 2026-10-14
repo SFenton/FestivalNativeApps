@@ -697,6 +697,14 @@ def _leaderboard_rival_detail_body(
 # Fixture feedback job IDs (32 lowercase hex, as the service issues them).
 FEEDBACK_FILED_JOB = "0" * 31 + "1"
 FEEDBACK_FAILED_JOB = "f" * 32
+#: A title containing ``fixture-slow`` (issue #634) answers its upload after
+#: ``FEEDBACK_SLOW_UPLOAD_S`` and reports ``processing`` for its first
+#: ``FEEDBACK_SLOW_READS`` status reads, so journeys can see both busy stages.
+FEEDBACK_SLOW_JOB = "0" * 31 + "2"
+FEEDBACK_SLOW_UPLOAD_S = 2.0
+FEEDBACK_SLOW_READS = 2
+_feedback_slow_reads = 0
+_feedback_slow_lock = threading.Lock()
 
 SERVICE_INFO_IDLE = {
     "contractVersion": 2,
@@ -2364,7 +2372,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
         ``202 {"id", "status": "queued"}``. Refuses privileged or selected-profile headers.
         A title containing ``fixture-unavailable`` answers ``503 feedback_busy`` and one
         containing ``fixture-failed`` queues a job that later fails, so automation can reach
-        both error states. Nothing is filed anywhere.
+        both error states. One containing ``fixture-slow`` answers after a delay and files
+        slowly (``FEEDBACK_SLOW_JOB``). Nothing is filed anywhere.
 
         Returns:
             None; a JSON response is written to the local response.
@@ -2396,6 +2405,13 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self.send_header("Retry-After", "60")
             self.end_headers()
             self.wfile.write(payload)
+            return
+        if b"fixture-slow" in body:
+            global _feedback_slow_reads
+            with _feedback_slow_lock:
+                _feedback_slow_reads = 0
+            time.sleep(FEEDBACK_SLOW_UPLOAD_S)
+            self._json(202, {"id": FEEDBACK_SLOW_JOB, "status": "queued"})
             return
         job = FEEDBACK_FAILED_JOB if b"fixture-failed" in body else FEEDBACK_FILED_JOB
         self._json(202, {"id": job, "status": "queued"})
@@ -2435,7 +2451,8 @@ class FixtureHandler(BaseHTTPRequestHandler):
 
     def _feedback_status(self, job: str) -> None:
         """Fixture for ``GET /api/feedback/{id}``: the filed job reports issue #1, the
-        failed job reports ``failed`` and any other ID is ``404 not_found``.
+        failed job reports ``failed``, the slow job reports ``processing`` for its first
+        reads and then issue #1, and any other ID is ``404 not_found``.
 
         Args:
             job: Path segment after ``/api/feedback/``.
@@ -2443,6 +2460,15 @@ class FixtureHandler(BaseHTTPRequestHandler):
         Returns:
             None; a JSON response is written to the local response.
         """
+        if job == FEEDBACK_SLOW_JOB:
+            global _feedback_slow_reads
+            with _feedback_slow_lock:
+                _feedback_slow_reads += 1
+                processing = _feedback_slow_reads <= FEEDBACK_SLOW_READS
+            if processing:
+                self._json(200, {"id": job, "status": "processing", "attachments": []})
+                return
+            job = FEEDBACK_FILED_JOB
         if job == FEEDBACK_FILED_JOB:
             self._json(200, {
                 "id": job, "status": "submitted", "issueNumber": 1,
