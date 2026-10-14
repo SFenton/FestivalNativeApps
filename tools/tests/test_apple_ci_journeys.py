@@ -15,7 +15,8 @@ journey (#615) and the Songs deselect-reset accessibility journeys (#487, the re
 Detail frozen-state journeys (#444, the region #95 changed). The Songs Filter journeys (#432) must run on the iPhone,
 the iPad and the folded iPhone Duo on release-branch dispatches, gated by the required ``apple-ci`` job.
 The scroll-edge fade journeys (#462: the sheet header and every R9 board on the iPhone and the iPad, the Duo windows
-on the iPhone; ``SCROLL_EDGE_JOURNEYS``/``SCROLL_EDGE_IPAD_JOURNEYS``) run in their own gated job, likewise.
+on the iPhone; ``SCROLL_EDGE_JOURNEYS``/``SCROLL_EDGE_IPAD_JOURNEYS``) run in their own gated job, likewise, and the
+iPad and Rival Detail journeys in the gated ``ipad-journeys`` job beside the build job (#636).
 """
 
 from __future__ import annotations
@@ -227,12 +228,13 @@ class AppleCIJourneysTests(unittest.TestCase):
     def test_required_check_needs_every_job(self) -> None:
         required = self.workflow.split("\n  apple-ci:\n", 1)[1]
         self.assertIn("name: apple-ci\n", required)
-        self.assertIn("needs: [build, songs-filter-journeys, scroll-edge-journeys]", required)
+        self.assertIn("needs: [build, ipad-journeys, songs-filter-journeys, scroll-edge-journeys]", required)
         self.assertIn("if: always()", required)
         job_names = re.findall(r"^    name: (.+)$", self.workflow, flags=re.MULTILINE)
         self.assertEqual(job_names.count("apple-ci"), 1, "only the gate job is named apple-ci")
         jobs = re.findall(r"^  ([a-z][\w-]*):$", self.workflow.split("\njobs:\n", 1)[1], flags=re.MULTILINE)
-        self.assertEqual(sorted(jobs), sorted(["build", "songs-filter-journeys", "scroll-edge-journeys", "apple-ci"]),
+        self.assertEqual(sorted(jobs), sorted(["build", "ipad-journeys", "songs-filter-journeys", "scroll-edge-journeys",
+                                               "apple-ci"]),
                          "a new job must join the gate's needs")
 
     def test_gate_passes_only_when_every_job_passed_or_the_legs_are_not_due(self) -> None:
@@ -249,13 +251,15 @@ class AppleCIJourneysTests(unittest.TestCase):
             ("workflow_dispatch", "failure", "success"): False,
         }
         for (event, build, journeys), passes in cases.items():
-            # Each journey job alone decides the gate when the other passed or was not due.
+            # Each journey job alone decides the gate when the others passed or were not due.
             other = "success" if event == "workflow_dispatch" else "skipped"
-            for filter_legs, scroll_edge in ((journeys, other), (other, journeys)):
-                env = {"EVENT": event, "BUILD": build, "JOURNEYS": filter_legs, "SCROLL_EDGE": scroll_edge,
-                       "PATH": "/usr/bin:/bin"}
+            for ipad, filter_legs, scroll_edge in (
+                (journeys, other, other), (other, journeys, other), (other, other, journeys)
+            ):
+                env = {"EVENT": event, "BUILD": build, "IPAD": ipad, "JOURNEYS": filter_legs,
+                       "SCROLL_EDGE": scroll_edge, "PATH": "/usr/bin:/bin"}
                 result = subprocess.run(["bash", "-e", "-c", script], env=env, capture_output=True, check=False)
-                self.assertEqual(result.returncode == 0, passes, (event, build, filter_legs, scroll_edge))
+                self.assertEqual(result.returncode == 0, passes, (event, build, ipad, filter_legs, scroll_edge))
 
     def gate_script(self) -> str:
         """The gate job's ``run`` script, dedented from its ``run: |`` block."""
@@ -331,7 +335,7 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertIn(
             'only=(); for journey in $MENU_BAR_IPAD_JOURNEYS; do only+=(--only "$journey"); done\n'
             '          python3 tools/ios_sim.py uitest --app ipad --device "$ipad" --fail-on-skip --timeout 1500 '
-            '--batch-size 1 "${only[@]}"',
+            '--batch-size 1 \\\n            --no-test-diagnostics "${only[@]}"',
             self.workflow,
         )
 
@@ -409,6 +413,21 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertIsNotNone(timeout, "iPad step runs one selector per batch with a timeout")
         self.assertGreaterEqual(int(timeout.group(1)), 1500)
 
+    def test_ipad_and_rival_detail_journeys_run_beside_the_build_job(self) -> None:
+        # #636: with them the build job needed about 7 h on the runner, past its limit and the hosted 6 h cap.
+        build = self.workflow.split("\n  build:\n", 1)[1].split("\n  ipad-journeys:\n", 1)[0]
+        ipad = self.workflow.split("\n  ipad-journeys:\n", 1)[1].split("\n  songs-filter-journeys:\n", 1)[0]
+        for moved in ("name: iPad simulator journeys", "name: Rival Detail accessibility journeys",
+                      "HISTORY_IPAD_JOURNEYS: >-", "MENU_BAR_IPAD_JOURNEYS: >-"):
+            self.assertNotIn(moved, build)
+            self.assertIn(moved, ipad)
+        for job in (build, ipad):
+            self.assertLessEqual(int(re.search(r"\n    timeout-minutes: (\d+)", job).group(1)), 360)
+        # A failure's simulator diagnostics took 600 s of the build job's time in the plain-fixture step (#636).
+        for name in ("Plain-fixture journeys, iPhone", "Plain-fixture journeys, iPad"):
+            step = self.workflow.split(f"name: {name}", 1)[1].split("\n      - name:", 1)[0]
+            self.assertEqual(step.count("--no-test-diagnostics"), step.count("ios_sim.py uitest"), name)
+
     def test_rival_detail_frozen_journeys_run_on_every_touch_form_factor(self) -> None:
         # #444: the only device evidence for Rival Detail's frozen-service state (#95) on iPhone, iPad and Duo.
         sys.path.insert(0, str(ROOT / "tools"))
@@ -425,11 +444,14 @@ class AppleCIJourneysTests(unittest.TestCase):
         step = self.workflow.split("name: Rival Detail accessibility journeys", 1)[1].split("\n      - name:", 1)[0]
         condition = re.search(r"\n        if: (.+)", step)
         self.assertIsNotNone(condition, "the step has a condition")
-        for clause in ("github.event_name == 'workflow_dispatch'", "!cancelled()", "steps.unit.outcome == 'success'"):
-            # Release-train only, like the other journeys; an earlier journey step's failure must not skip it,
-            # but a failed build or unit-test step does.
+        for clause in ("!cancelled()", "steps.project.outcome == 'success'"):
+            # An earlier journey step's failure must not skip it, but a failed setup step does.
             self.assertIn(clause, condition.group(1))
-        self.assertIn("\n        id: unit\n", self.workflow.split("name: Swift unit tests", 1)[1].split("\n      - name:", 1)[0])
+        job = self.workflow.split("\n  ipad-journeys:\n", 1)[1].split("\n  songs-filter-journeys:\n", 1)[0]
+        # Release-train only, like the other journeys, in the job beside the build job (#636).
+        self.assertIn("if: github.event_name == 'workflow_dispatch'", job.split("    steps:", 1)[0])
+        self.assertIn("name: Rival Detail accessibility journeys", job)
+        self.assertIn("\n        id: project\n", job)
 
     def test_page_tools_keyboard_journey_runs_in_ci(self) -> None:
         # #442 (for #89): hardware-keyboard focus on Songs' page tools, its own --a11y invocation.

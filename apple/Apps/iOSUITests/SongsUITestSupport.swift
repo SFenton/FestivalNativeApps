@@ -1167,7 +1167,37 @@ enum SongsUITestSupport {
         return element.frame.maxY <= limit
     }
 
-    /// Toggle the trailing native switch only when its current value differs.
+    /// From a switch row's trailing edge to the centre of the system switch's track, used
+    /// when the row exposes no inner switch element (the track is about 63 pt wide; #626).
+    static let switchTrackCentreInset: CGFloat = 30
+
+    /// Where one tap flips a SwiftUI `Toggle` row's system switch: its track's centre.
+    ///
+    /// The thumb's outer rim does not take the tap (#626, #636): on iOS 26 and later a tap
+    /// a few points inside the "on" thumb's leading edge, where `dx: 0.9` of a 338 pt row
+    /// lands, misses with no response. The row's inner system switch (63 x 28 pt) is
+    /// tapped at its centre; without one, the track centre is `switchTrackCentreInset`
+    /// from the row's trailing edge.
+    ///
+    /// - Parameter element: The toggle's switch element (row or bare switch).
+    /// - Returns: The coordinate to tap once.
+    @MainActor
+    static func switchTrackCentre(of element: XCUIElement) -> XCUICoordinate {
+        let inner = element.switches.firstMatch
+        if inner.exists {
+            let frame = inner.frame
+            if !frame.isEmpty, frame != element.frame {
+                return inner.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            }
+        }
+        let width = max(element.frame.width, 1)
+        return element.coordinate(
+            withNormalizedOffset: CGVector(dx: max(0.5, (width - switchTrackCentreInset) / width), dy: 0.5)
+        )
+    }
+
+    /// Toggle the trailing native switch only when its current value differs, with one tap
+    /// on its track that must flip it exactly once.
     ///
     /// - Parameters:
     ///   - element: Settings switch, not the surrounding static-text label.
@@ -1175,15 +1205,17 @@ enum SongsUITestSupport {
     @MainActor
     static func setSwitch(_ element: XCUIElement, to value: String) {
         if element.value as? String != value {
-            element.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+            switchTrackCentre(of: element).tap()
             let changed = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "value == %@", value), object: element
             )
             XCTAssertEqual(
-                XCTWaiter.wait(for: [changed], timeout: 3), .completed,
+                XCTWaiter.wait(for: [changed], timeout: FestivalApp.budget(3)), .completed,
                 "Settings switch \(element.identifier) did not settle after one tap; "
-                    + "current value \(element.value as? String ?? "unavailable")"
+                    + "current value \(element.value as? String ?? "unavailable"), frame \(element.frame)"
             )
+            // Exactly once: a late second flip (a row tap doubling the switch's) fails too.
+            Thread.sleep(forTimeInterval: 0.5)
         }
         XCTAssertEqual(
             element.value as? String, value,
