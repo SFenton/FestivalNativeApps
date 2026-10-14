@@ -15,6 +15,11 @@ on:
     - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
+      command:
+        description: submit (default) or status
+        type: choice
+        options: [submit, status]
+        default: submit
       build:
         description: MSIX or YYMM.DD.NN version (default - the newest release build)
         type: string
@@ -49,13 +54,18 @@ jobs:
           MSSTORE_APP_ID: ${{ secrets.MSSTORE_APP_ID }}
           FLIGHT: ${{ vars.FST_MSSTORE_FLIGHT_NAME || 'Testers' }}
           GROUP: ${{ vars.FST_MSSTORE_FLIGHT_GROUP }}
+          IN_COMMAND: ${{ inputs.command }}
           IN_BUILD: ${{ inputs.build }}
           IN_DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -uo pipefail
-          args=(flight-submit --flight "$FLIGHT" --group "$GROUP")
-          if [ -n "${IN_BUILD:-}" ]; then args+=(--build "$IN_BUILD"); fi
-          if [ "${IN_DRY_RUN:-false}" = "true" ]; then args+=(--dry-run); fi
+          if [ "${IN_COMMAND:-submit}" = "status" ]; then
+            args=(flight-status --flight "$FLIGHT" --group "$GROUP")
+          else
+            args=(flight-submit --flight "$FLIGHT" --group "$GROUP")
+            if [ -n "${IN_BUILD:-}" ]; then args+=(--build "$IN_BUILD"); fi
+            if [ "${IN_DRY_RUN:-false}" = "true" ]; then args+=(--dry-run); fi
+          fi
           python3 tools/release/fst_store.py "${args[@]}" | tee "$RUNNER_TEMP/flight.json"
           code=${PIPESTATUS[0]}
           { echo "### windows-flight ($FLIGHT) → exit $code"; echo '```json'; cat "$RUNNER_TEMP/flight.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
