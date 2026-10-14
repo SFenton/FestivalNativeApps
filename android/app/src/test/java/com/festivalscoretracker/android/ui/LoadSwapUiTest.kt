@@ -2,6 +2,7 @@ package com.festivalscoretracker.android.ui
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -153,9 +154,10 @@ class LoadSwapUiTest {
             FestivalTheme {
                 val state = rememberLoadSwap("rows for $key", ready = true, key = key)
                 swap = state
-                LazyColumn(Modifier.fillMaxSize()) {
+                val listState = rememberLazyListState()
+                LazyColumn(Modifier.fillMaxSize(), state = listState) {
                     item(key = "header") { Text("Header") }
-                    if (state.showsSpinner) loadSwapSpinnerItem(state)
+                    if (state.showsSpinner) loadSwapSpinnerItem(state, state = listState)
                     if (state.showsContent) item(key = "rows") { with(state) { Text(state.shown, Modifier.staggered(0).testTag("row")) } }
                 }
             }

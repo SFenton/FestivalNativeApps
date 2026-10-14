@@ -49,8 +49,9 @@
     Settings replay alike. Controls follow Apple's onboarding layout (issue #25): a system
     toolbar **Back** chevron at the top leading edge (`fst.first-run.back`, label "Back", HIG
     Toolbars: "Leading: back/previous-document … controls, then the view title"; only after
-    page one, never disabled); one large accent-tinted `.glassProminent` **Next/Done**
-    (`.borderedProminent` before iOS 26; `.controlSize(.large)`, ≈48 pt on screen); then a
+    page one, never disabled); one large **Next/Done** drawn with the app's prominent action,
+    `festivalProminentButton()` (`.borderedProminent` on `AccentText.prominentFill` with its
+    Increase Contrast pair; `.controlSize(.large)`, ≈48 pt on screen; #626); then a
     full-width `.borderless` accent-tinted **Skip** beneath it (body text, ≥48 pt row; issue
     #380, see [Native controls and web motion](#native-controls-and-web-motion-issue-380)) until
     the last page. The Skip row stays reserved on the last page so Done doesn't move; a one-page
@@ -205,7 +206,7 @@ app's own interface.
 - **Skip (agent decision, #380; the owner may override with `/choose`).**
   - Skip is now a full-width `.borderless` button: body text tinted `AccentText.blue`, ≥48 pt.
     It replaces the white plain text, which read as a web link.
-  - Next/Done keep `.glassProminent`/`.borderedProminent`. HIG Buttons: "use a prominent style
+  - Next/Done keep a prominent style (`festivalProminentButton()` since #626). HIG Buttons: "use a prominent style
     (accent-color background) for the most likely action" and "Distinguish the preferred choice
     by style, not size". This prominent primary with a tinted borderless secondary is the
     layout of Apple's own setup screens.
@@ -213,6 +214,21 @@ app's own interface.
     operator decision).
   - Rejected: a bordered Skip, which competes with Next; and Skip in the toolbar, where Close
     already dismisses.
+- **Next/Done use the app's prominent action (agent decision, #626; the owner may override with
+  `/choose`).** The brand-blue `.glassProminent` Next failed `performAccessibilityAudit` contrast
+  at AX5 on iOS 27 (iPhone and Duo folded), although its rendered fill measured about 4.95:1
+  against the white label. Options: (A) `festivalProminentButton()`, the canonical prominent
+  action (Choose Profile, [empty-error-states](../../patterns/empty-error-states.md) R5): white on
+  `AccentText.prominentFill` (5.2:1) and a dark label on the white Increase Contrast tint;
+  (B) keep `.glassProminent` with a darker tint; (C) keep the glass and accept the flag on a
+  rendered measurement. Chose A: it passes the audit outright (verified on iOS 27 at AX5, iPhone
+  and Duo folded), adds the Increase Contrast variant the glass lacked, and reuses one component
+  instead of a First Run-only style; B is unproven against the audit's glass reading and C
+  would keep a flagged control. HIG Buttons (should): "use a prominent style (accent-color
+  background) for the most likely action"; HIG Accessibility (should): text at least 4.5:1, and
+  "If not met by default, provide it when Increase Contrast is on"; HIG Materials: "Don't use
+  Liquid Glass in the content layer". This narrows [Liquid Glass](../../design/apple/liquid-glass.md)'s
+  "primary buttons in content" row for First Run.
 - **Accessibility (#380, backfilled by #498).** HIG VoiceOver: "Exclude purely decorative images
   that convey no useful or actionable information".
   - Hosted (`FirstRunNativeDemosAccessibilityTests`, the shared SwiftUI of every Apple platform):

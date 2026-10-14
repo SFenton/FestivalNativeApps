@@ -22,8 +22,9 @@ from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 # Delay for the "slowpoke" account search, long enough for a UI test to see the
-# global-search spinner.
-SLOW_ACCOUNT_SEARCH_SECONDS = 4
+# global-search spinner, even on a slow CI simulator (issue #624). Below the app's
+# 30 s request timeout.
+SLOW_ACCOUNT_SEARCH_SECONDS = 8
 # `--song-leaderboard-paging` (issue #316): `fixture-pulse` Lead grows to four full
 # 25-row pages; a page after the first waits this long, long enough for a UI test to
 # see the reload spinner under a kept song header, and the last page fails with 500.

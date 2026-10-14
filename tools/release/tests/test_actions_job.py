@@ -38,6 +38,40 @@ class RunJobTests(unittest.TestCase):
         self.assertEqual(fake.calls[0]["argv"], ["ios", "submit", "--build", "42", "--notes-stdin"])
         self.assertEqual(fake.calls[0]["stdin"], "notes")
 
+    def test_release_train_submit_resolves_the_version_then_replaces(self):
+        class Sequenced(FakeMain):
+            def __call__(self, argv, env=None, stdin=None):
+                self.doc = {"version": "2610.15.02", "build": "61", "found": True} if argv[1] == "build-for-version" \
+                    else {"submitted": True, "replaced": {"version": "2610.12.01"}}
+                return super().__call__(argv, env, stdin)
+        fake = Sequenced()
+        result = aj.run_job("ios", "submit", None, "n", False, {"FST_APPSTORE_REVIEW_ENABLED": "true"}, main=fake,
+                            marker_lookup=lambda *_a: None, version="2610.15.02", replace=True)
+        self.assertEqual(fake.calls[0]["argv"], ["ios", "build-for-version", "--version", "2610.15.02"])
+        self.assertEqual(fake.calls[1]["argv"], ["ios", "submit", "--build", "61", "--notes-stdin", "--replace"])
+        self.assertEqual((result["exit_code"], result["build"], result["version"]), (0, "61", "2610.15.02"))
+
+    def test_release_train_submit_without_a_build_is_refused(self):
+        fake = FakeMain(code=3, doc={"version": "2610.15.02", "build": None, "found": False})
+        result = aj.run_job("windows", "submit", None, "n", False, {}, main=fake, version="2610.15.02")
+        self.assertEqual((result["exit_code"], result["output"]["refused"]), (3, "build_not_found"))
+        self.assertEqual(len(fake.calls), 1)
+
+    def test_windows_publish_at_and_release_argv(self):
+        self.assertEqual(aj.tool_argv("windows", "submit", "2610.1502.9.0", False, replace=True,
+                                      publish_at="2026-10-19T11:00:00Z"),
+                         ["windows", "submit", "--build", "2610.1502.9.0", "--notes-stdin", "--replace",
+                          "--publish-at", "2026-10-19T11:00:00Z"])
+        with self.assertRaises(ValueError):
+            aj.tool_argv("ios", "submit", "61", False, publish_at="2026-10-19T11:00:00Z")
+        with self.assertRaises(ValueError):
+            aj.tool_argv("ios", "release", None, False, version="next week")
+        self.assertEqual(aj.tool_argv("ios", "release", None, False, version="2610.15.02"),
+                         ["ios", "release", "--version", "2610.15.02"])
+        fake = FakeMain(doc={"released": True})
+        result = aj.run_job("ios", "release", None, "", False, {}, main=fake, version="2610.15.02")
+        self.assertEqual((result["exit_code"], fake.calls[0]["argv"][:2]), (0, ["ios", "release"]))
+
     def test_ios_submit_uses_marker_notes_and_baseline(self):
         fake = FakeMain()
         marker = {"version": "2610.01.02", "version_tag": "ios/v2610.01.02", "sha": "s", "whats_new_baseline": "2610.01.01",

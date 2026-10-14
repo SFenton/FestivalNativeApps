@@ -15,7 +15,8 @@ import XCTest
 /// default size, every type but contrast at AX5; `testing/apple/accessibility.md`). The audit
 /// may flag text in the 40 pt ramp under the header for contrast: that text is fading out by
 /// design (R2), so the journey accepts a contrast issue only for an element that starts inside
-/// the ramp and fails on any other.
+/// the ramp, or for a Paths selector capsule whose rendered contrast measures at least 4.5:1
+/// (`contrast-rendered`, as `PathsDismissAccessibilityJourneyTests`), and fails on any other.
 ///
 /// Text scaling: each AX5 test first launches at the default size, then at AX5, and measures
 /// the inline title (ink height, read back whole) and a body element at rest, clear of the
@@ -160,7 +161,7 @@ final class ModalHeaderAccessibilityJourneyTests: XCTestCase {
         let sheet = Sheet(bar: bar, close: app.buttons["fst.paths.close"], closeIdentifier: "fst.paths.close",
                           title: bar.identifier,
                           content: ["fst.paths.text.Solo_Guitar.expert"] + Self.pathsSelectors,
-                          targets: Self.pathsSelectors)
+                          targets: Self.pathsSelectors, capsules: Self.pathsSelectors)
         if !measureOnly {
             try check(sheet, in: app, run: run, state: "rest")
             record(app, name: "paths-\(run.name)-rest")
@@ -295,6 +296,9 @@ final class ModalHeaderAccessibilityJourneyTests: XCTestCase {
         let content: [String]
         /// Controls that must keep 44 pt targets wherever they sit wholly below the ramp.
         let targets: [String]
+        /// Selector capsules whose contrast flag passes only once their rendered contrast
+        /// measures at least 4.5:1 (Paths, as `PathsDismissAccessibilityJourneyTests`).
+        var capsules: [String] = []
     }
 
     /// The title reads before the content, Close is reachable over it, controls clear of
@@ -415,14 +419,24 @@ final class ModalHeaderAccessibilityJourneyTests: XCTestCase {
                 + issue.compactDescription
             if issue.auditType == .contrast, let frame = node?.frame, !frame.isEmpty,
                frame.minY < edge + Self.ramp {
-                faded.append(line)
+                faded.append("in the header ramp: \(line)")
+                return true
+            }
+            // The audit flags a Paths selector's light text on its dark capsule (iOS 27,
+            // "Expert", #626). Accept that only once the capsule's rendered contrast measures
+            // at least 4.5:1 (`contrast-rendered`, `testing/apple/accessibility.md`).
+            if issue.auditType == .contrast, let frame = node?.frame, !frame.isEmpty,
+               let capsule = sheet.capsules.map({ self.element($0, in: app) })
+                   .first(where: { $0.exists && $0.frame.contains(CGPoint(x: frame.midX, y: frame.midY)) }) {
+                try SongsUITestSupport.assertHeaderContrast(capsule, in: app)
+                faded.append("measured ≥ 4.5:1: \(line)")
                 return true
             }
             issues.append(line)
             return true
         }
         attach("\(sheet.title)-\(run.name)-\(state)-audit",
-               (issues + faded.map { "in the header ramp, accepted: \($0)" }).joined(separator: "\n"))
+               (issues + faded.map { "accepted: \($0)" }).joined(separator: "\n"))
         XCTAssertEqual(issues, [], "Audit issues: \(sheet.title) \(run.name) \(state)")
     }
 

@@ -281,13 +281,62 @@ class SubmitTests(Base):
     def test_blocks_placeholder_stale_or_expired_builds(self):
         cases = [(FakeGh(artifact="fst-windows-msix_0.1.912.0_%s_placeholder" % SHA_NEW),
                   "placeholder_store_identity"),
-                 (FakeGh(artifact="fst-windows-msix_0.1.913.0_%s" % SHA_NEW), "build_not_latest_artifact"),
+                 (FakeGh(artifact="fst-windows-msix_0.1.913.0_%s" % SHA_NEW), "build_artifact_not_found"),
                  (FakeGh(expired=True), "artifact_expired")]
         for gh, reason in cases:
             store = FakeStore(self.submit_routes())
             code, doc = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin"], store, gh)
             self.assertEqual((code, doc), (4, {"blocked": reason}))
             self.assertEqual(store.writes(), [])
+
+    def test_release_version_finds_its_msix_artifact(self):
+        self.assertEqual(fs.release_version_of("2610.1201.57.0"), "2610.12.01")
+        self.assertIsNone(fs.release_version_of("0.1.912.0"))
+        store = FakeStore(self.submit_routes())
+        gh = FakeGh(artifact="fst-windows-msix_2610.1201.57.0_%s" % SHA_NEW)
+        code, doc = self.run_cli(["submit", "--build", "2610.12.01", "--notes-stdin"], store, gh)
+        self.assertEqual((code, doc["build"]), (0, "2610.1201.57.0"))
+        code, doc = self.run_cli(["build-for-version", "--version", "2610.12.01"], FakeStore(store_routes()), gh)
+        self.assertEqual((code, doc), (0, {"version": "2610.12.01", "build": "2610.1201.57.0", "found": True}))
+        code, doc = self.run_cli(["build-for-version", "--version", "2610.12.02"], FakeStore(store_routes()), gh)
+        self.assertEqual((code, doc["found"]), (3, False))
+
+    def test_replace_deletes_the_submission_in_certification_and_schedules_publication(self):
+        store = FakeStore(self.submit_routes(pending=submission("200", "Certification", "0.1.905.0")))
+        code, doc = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin", "--replace",
+                                  "--publish-at", "2026-10-19T11:00:00Z"], store, FakeGh())
+        self.assertEqual(code, 0)
+        self.assertEqual(doc["replaced"], {"state": "Certification", "version": "0.1.905.0"})
+        self.assertEqual((doc["publish_mode"], doc["publish_at"]), ("SpecificDate", "2026-10-19T11:00:00Z"))
+        self.assertEqual(store.writes()[0], ("DELETE", API + "/submissions/200"))
+        put = next(c for c in store.calls if c[:2] == ("PUT", API + "/submissions/300"))[2]
+        self.assertEqual((put["targetPublishMode"], put["targetPublishDate"]),
+                         ("SpecificDate", "2026-10-19T11:00:00Z"))
+
+    def test_replace_keeps_the_same_build_and_reports_a_refused_delete(self):
+        store = FakeStore(self.submit_routes(pending=submission("200", "Certification", "0.1.912.0")))
+        code, doc = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin", "--replace"], store, FakeGh())
+        self.assertEqual((code, doc["refused"]), (3, "already_submitted"))
+        self.assertEqual(store.writes(), [])
+        routes = self.submit_routes(pending=submission("200", "Certification", "0.1.905.0"))
+        routes[("DELETE", API + "/submissions/200")] = (409, {"code": "InvalidState", "message": "in cert"})
+        store = FakeStore(routes)
+        code, doc = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin", "--replace"], store, FakeGh())
+        self.assertEqual((code, doc), (4, {"blocked": "cannot_cancel_Certification"}))
+        with self.assertRaises(ValueError):
+            fs.submit(None, FakeGh(), "r", {}, "1", "n", publish_at="Monday")
+
+    def test_release_reports_published_scheduled_and_manual(self):
+        code, doc = self.run_cli(["release"], FakeStore(store_routes()), FakeGh())
+        self.assertEqual((code, doc["released"], doc["version"]), (0, True, "0.1.900.0"))
+        scheduled = submission("200", "PendingPublication", "0.1.912.0")
+        scheduled.update(targetPublishMode="SpecificDate", targetPublishDate="2026-10-19T11:00:00Z")
+        code, doc = self.run_cli(["release"], FakeStore(store_routes(pending=scheduled)), FakeGh())
+        self.assertEqual((code, doc["released"], doc["scheduled"]), (0, False, "2026-10-19T11:00:00Z"))
+        manual = submission("200", "PendingPublication", "0.1.912.0")
+        manual["targetPublishMode"] = "Manual"
+        code, doc = self.run_cli(["release"], FakeStore(store_routes(pending=manual)), FakeGh())
+        self.assertEqual((code, doc["blocked"]), (4, "manual_publish_required"))
 
     def test_dry_run_plans_without_writes_or_download(self):
         store = FakeStore(self.submit_routes())

@@ -1,11 +1,14 @@
 name: store-release
 run-name: store-release ${{ inputs.platform }} ${{ inputs.command }} ${{ inputs.request_id }}
 # The only place store calls happen. The release orchestrator (festival-report-tracker) dispatches this
-# workflow for `status` reads and `submit`s and reads the `store-release-result` artifact (result.json).
+# workflow for `status` reads, `submit`s and Monday `release`s and reads the `store-release-result` artifact
+# (result.json). The release train submits a version (`version`, resolved to its build here) with `replace`
+# (a submission still in review is removed first) and, for Windows, `publish_at` (the Store publishes it then once
+# certified; its API has no "Publish now").
 # Credentials live only in the `store-release` environment (master-only). Policy (tools/release/actions_job.py):
 # iOS App Store review submission is refused unless vars.FST_APPSTORE_REVIEW_ENABLED == 'true' and releases
 # manually unless vars.FST_APPSTORE_RELEASE_TYPE == 'AFTER_APPROVAL'; Windows
-# submissions always use Manual publish (certification only, nothing goes live). iOS submits use the build
+# submissions use Manual publish (certification only) unless publish_at schedules them. iOS submits use the build
 # marker's generated What's New and refuse (and rebuild) when a newer version was released since the build.
 on:
   workflow_dispatch:
@@ -16,10 +19,22 @@ on:
         required: true
       command:
         type: choice
-        options: [status, submit]
+        options: [status, submit, release]
         required: true
       build:
         description: Build to submit (iOS build number or Windows MSIX version)
+        type: string
+        default: ''
+      version:
+        description: Release version YYMM.DD.NN (submit its build; release only this version)
+        type: string
+        default: ''
+      replace:
+        description: Submit even when a submission is in review (it is removed from review first)
+        type: boolean
+        default: false
+      publish_at:
+        description: Windows submit only - publish at this UTC time (YYYY-MM-DDTHH:MM:SSZ) once certified
         type: string
         default: ''
       notes_b64:
@@ -76,11 +91,17 @@ jobs:
           IN_PLATFORM: ${{ inputs.platform }}
           IN_COMMAND: ${{ inputs.command }}
           IN_BUILD: ${{ inputs.build }}
+          IN_VERSION: ${{ inputs.version }}
+          IN_REPLACE: ${{ inputs.replace }}
+          IN_PUBLISH_AT: ${{ inputs.publish_at }}
           IN_NOTES: ${{ inputs.notes_b64 }}
           IN_DRY_RUN: ${{ inputs.dry_run }}
         run: |
           args=(--platform "$IN_PLATFORM" --command "$IN_COMMAND" --out "$RUNNER_TEMP/result.json")
           if [ -n "$IN_BUILD" ]; then args+=(--build "$IN_BUILD"); fi
+          if [ -n "$IN_VERSION" ]; then args+=(--version "$IN_VERSION"); fi
+          if [ "$IN_REPLACE" = "true" ]; then args+=(--replace); fi
+          if [ -n "$IN_PUBLISH_AT" ]; then args+=(--publish-at "$IN_PUBLISH_AT"); fi
           if [ -n "$IN_NOTES" ]; then args+=(--notes-b64 "$IN_NOTES"); fi
           if [ "$IN_DRY_RUN" = "true" ]; then args+=(--dry-run); fi
           python3 tools/release/actions_job.py "${args[@]}"

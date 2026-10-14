@@ -517,9 +517,6 @@ struct FestivalDrawer: View {
                     .padding(placement.panelPadding)
                     .modifier(stage)
                     .gesture(dismissDrag(width: width))
-                    // Modal only while open: a closing panel that stayed modal kept the page
-                    // out of VoiceOver's reach on iOS until the slide-out ended (#489).
-                    .accessibilityAddTraits(isPresented ? .isModal : [])
                     .accessibilityAction(.escape, onClose)
                 if closesOnEscape {
                     // Hardware Escape (HIG Keyboards): an invisible cancel button.
@@ -625,6 +622,11 @@ struct FestivalDrawer: View {
         // A container element, so the identifier does not replace the rows' own.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("fst.shell.drawer")
+        // Modal only while open: a closing panel that stayed modal kept the page out of
+        // VoiceOver's reach on iOS until the slide-out ended (#489). On this container, not
+        // the glass-wrapped panel: there iOS 27 exposed an empty modal node and hid the rows
+        // from the accessibility tree (#626).
+        .accessibilityAddTraits(isPresented ? .isModal : [])
     }
 
     /// Whether the footer scrolls with the rows (``footerScrollsAtAccessibilitySizes``).

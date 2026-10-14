@@ -303,12 +303,33 @@ class AppleCIJourneysTests(unittest.TestCase):
         band = "SongBandBoardSplitAccessibilityJourneyTests/testSongBandBoardSplitLinkAtAX5"
         # #490: Song Detail's first instrument-card row (#365) needs two card columns, so it rides the iPad run only.
         cards = "SongDetailCardRowAccessibilityJourneyTests/testInstrumentCardRowAtAX5"
-        self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split, board, band, cards])
+        # #480: the split band (#344) under Increase Contrast at AX5; asserted in test_split_band_journey_runs_on_the_ipad.
+        split_band = "IPadShellAccessibilityTests/testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5"
+        self.assertEqual(self.history["HISTORY_IPAD_JOURNEYS"], [page, split, board, band, cards, split_band])
         self.assertEqual(self.workflow.count("uitest --app ipad"), 2)
         # iPhone journeys, the unpinned profile-notice run (#446), two Score History runs, the plain-fixture iPhone run
         # (#615), the iPad journeys, the iPad keyboard batches (#473, #442), the Rival Detail device loop (#444), the
         # Songs Filter legs (#432) and the scroll-edge job's iPhone and iPad runs (#462).
         self.assertEqual(self.workflow.count("--fail-on-skip"), 12)
+
+    def test_split_band_journey_runs_on_the_ipad(self) -> None:
+        # #480: the iPad's split band (#344) at AX5 under Increase Contrast, with Close's 44 pt hit region.
+        journey = "IPadShellAccessibilityTests/testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5"
+        self.assertIn(journey, self.history["HISTORY_IPAD_JOURNEYS"])
+        self.assertNotIn(journey, self.history["HISTORY_JOURNEYS"])
+
+    def test_duo_split_band_journeys_run_on_the_landscape_ipad(self) -> None:
+        # #480: the iPhone Duo's flat-midpoint and book-hinge bands (#344). A split needs a 720 pt landscape window:
+        # the portrait iPhone skips them (--fail-on-skip) and the CI Duo is folded only, so the iPhone bundle runs
+        # them on the iPad with the Debug Duo window simulation.
+        iphone, ipad = self.blocks
+        for method in (
+            "testFlatMidpointBandIsAccessibleAtAX5WithMoreContrastDuoUnfolded",
+            "testBookHingeBandIsAccessibleAtAX5WithMoreContrastDuoBook",
+        ):
+            journey = f"DuoSplitBandAccessibilityJourneyTests/{method}"
+            self.assertIn(journey, ipad)
+            self.assertNotIn(journey, iphone)
 
     def test_invalid_score_filter_journey_runs_on_the_plain_fixture(self) -> None:
         # #615: the only device evidence for the Filter sheet's score checks under Filter Invalid Scores. It needs
@@ -342,6 +363,13 @@ class AppleCIJourneysTests(unittest.TestCase):
             self.assertNotIn(journey, self.journeys)
         source = (ROOT / "apple/Apps/iOSUITests/GlobalSearchJourneyTests.swift").read_text()
         self.assertIn('environment["FST_FIXTURE_URL"]', source)
+
+    def test_search_spinner_journey_runs_on_the_plain_fixture(self) -> None:
+        # #624: the only iPhone-device evidence that Search's spinner is one named native busy indicator centred in
+        # the result region (load-transition R13). It needs the fixture's delayed `slowpoke` account search.
+        journey = "GlobalSearchJourneyTests/testSearchingSpinnerIsCentredBelowScopeBar"
+        self.assertIn(journey, ci_journeys(self.workflow, "PLAIN_JOURNEYS"))
+        self.assertNotIn(journey, self.journeys)
 
     def test_board_footer_fade_keyboard_journey_runs_in_ci(self) -> None:
         # #473: the iPad hardware-keyboard form needs its own invocation, because --a11y applies to a whole run.

@@ -139,7 +139,7 @@ struct FestivalReloadGate<Key: Equatable, Content: View>: View {
                     .transition(.asymmetric(insertion: .opacity, removal: .identity))
             }
             if transition.showsSpinner || keyPending {
-                FestivalLoadingView(accessibilityLabel: spinnerLabel)
+                FestivalLoadingView(accessibilityLabel: spinnerLabel, placement: .fill)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .accessibilityIdentifier(spinnerIdentifier ?? "")
                     // Over a retained frame the spinner must not block its header.

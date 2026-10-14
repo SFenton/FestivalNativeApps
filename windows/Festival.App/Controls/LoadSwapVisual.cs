@@ -5,6 +5,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 
 namespace Festival.App.Controls;
@@ -76,6 +78,65 @@ public static class LoadSwapVisual
     /// <param name="element">Element.</param>
     /// <param name="value">Whether it is gated.</param>
     public static void SetIsGated(FrameworkElement element, bool value) => element.SetValue(IsGatedProperty, value);
+
+    /// <summary>
+    /// Keeps a spinner's stretching, Raw region between the visible retained header and floating footer (#624).
+    /// The region occupies the result viewport's grid cell/span; the named native ring centres inside it.
+    /// Layout is followed only while loading, without altering the swap, focus, visibility or fade timings.
+    /// </summary>
+    /// <param name="spinner">The region's native busy indicator.</param>
+    /// <param name="region">Stretching region containing the ring, not its scroll content.</param>
+    /// <param name="retainedHeader">Header inside the viewport, if any.</param>
+    /// <param name="footer">Footer floating over the viewport, if any.</param>
+    /// <param name="scroller">Scroller of a retained header, if any.</param>
+    public static void PlaceSpinner(ProgressRing spinner, FrameworkElement region, FrameworkElement? retainedHeader = null,
+        FrameworkElement? footer = null, ScrollViewer? scroller = null)
+    {
+        var following = false;
+
+        // Edges are measured in the region's layout slot (its parent's cell), which its own margin never changes: deriving
+        // the viewport from the region's size let a ring taller than the gap grow the margins every pass (layout cycle).
+        double? Edge(FrameworkElement? element, UIElement host, Windows.Foundation.Rect slot, bool bottom)
+        {
+            if (element is null || !element.IsLoaded || element.ActualHeight <= 0) return null;
+            for (DependencyObject? parent = element; parent is not null; parent = VisualTreeHelper.GetParent(parent))
+                if (parent is UIElement { Visibility: Visibility.Collapsed }) return null;
+            return element.TransformToVisual(host).TransformPoint(default).Y - slot.Y + (bottom ? element.ActualHeight : 0);
+        }
+
+        void Update(object? sender, object args)
+        {
+            if (!region.IsLoaded || !spinner.IsActive || VisualTreeHelper.GetParent(region) is not UIElement host) return;
+            var slot = LayoutInformation.GetLayoutSlot(region);
+            var margin = region.Margin;
+            var (top, bottom) = LoadingRegion.Insets(slot.Height, Edge(retainedHeader, host, slot, true),
+                Edge(footer, host, slot, false), spinner.ActualHeight);
+            if (Math.Abs(margin.Top - top) < 0.5 && Math.Abs(margin.Bottom - bottom) < 0.5) return;
+            region.Margin = new Thickness(margin.Left, top, margin.Right, bottom);
+        }
+
+        void Follow()
+        {
+            var shouldFollow = region.IsLoaded && spinner.IsActive;
+            if (following == shouldFollow) return;
+            following = shouldFollow;
+            if (following)
+            {
+                region.LayoutUpdated += Update;
+                if (scroller is not null) scroller.ViewChanged += Update;
+            }
+            else
+            {
+                region.LayoutUpdated -= Update;
+                if (scroller is not null) scroller.ViewChanged -= Update;
+            }
+        }
+
+        region.Loaded += (_, _) => Follow();
+        region.Unloaded += (_, _) => Follow();
+        spinner.RegisterPropertyChangedCallback(ProgressRing.IsActiveProperty, (_, _) => Follow());
+        Follow();
+    }
 
     /// <summary>Subscribes to a new swap and updates immediately.</summary>
     /// <param name="d">Element.</param>

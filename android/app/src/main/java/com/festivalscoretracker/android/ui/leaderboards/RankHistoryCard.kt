@@ -135,7 +135,7 @@ fun RankHistoryCard(viewModel: LeaderboardsViewModel, instruments: List<Instrume
                 // one in, even when it was read before (web load sequence, issue #71).
                 val swap = rememberLoadSwap(instrument to state, state !is LoadState.Loading, key = instrument)
                 if (swap.showsSpinner) {
-                    LoadSwapSpinner(swap, "Loading rank history", Modifier.fillMaxWidth().heightIn(min = 96.dp), "fst.leaderboards.rank-history.loading")
+                    LoadSwapSpinner(swap, "Loading rank history", Modifier.fillMaxWidth().heightIn(min = 96.dp), "fst.leaderboards.rank-history.loading", avoidHinge = false)
                 } else {
                     val (shownInstrument, shownState) = swap.shown
                     Column(swap.contentModifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {

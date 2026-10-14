@@ -131,7 +131,7 @@ python3 tools/ios_sim.py drive \
 
 ## Locks
 
-Two separate `flock`s, never held at once:
+Two separate `flock`s, never held at once. Inside each, `tools/devcap.py` also takes the matching machine-wide gate (a `build` slot, or the device gate plus a `simulator` slot) shared with other repositories ([capacity](../platforms/apple/capacity.md)):
 
 - `~/.fst-build.lock` — held only around the `xcodebuild build-for-testing` compile step (see `build_lock()` in `tools/ios_sim.py`; `build` and `lane_integrate.sh`'s `swift build` use the same lock). Released before touching the simulator.
 - `~/.fst-sim.lock` — held for the `test-without-building` run, exactly like `shot`'s install/launch/screenshot sequence. Never call `simctl` or `xcodebuild test` directly against the shared simulator; always go through `tools/ios_sim.py`.
