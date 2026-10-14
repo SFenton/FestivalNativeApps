@@ -30,7 +30,7 @@ struct SuggestionsScreen: View {
     @State private var handledPublicationRevision: Int?
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var layout
-    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    /// Set where page tools float above the iPhone tab bar (issues #92, #632).
     @Environment(\.pageToolsRegistry) private var pageTools
     @AppStorage(SuggestionFilterSettings.storageKey) private var filterData = Data()
 
@@ -111,7 +111,7 @@ struct SuggestionsScreen: View {
             FestivalRootTrailingItems(session: session)
         }
         .festivalProvidesRootTrailingItems()
-        // iPhone tab-bar accessory (issue #92): Filter before the account group.
+        // iPhone floating page tools (issues #92, #632): Filter before the account group.
         .festivalPageTool(
             token: viewModel.filter.isActive(), order: PageToolOrder.primary, isEnabled: showsFilter
         ) {

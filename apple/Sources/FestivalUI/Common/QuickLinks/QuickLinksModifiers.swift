@@ -88,9 +88,9 @@ public extension View {
     }
 }
 
-// MARK: - Accessory tool
+// MARK: - Floating tool
 
-/// Offers the page's Quick Links menu to the iPhone tab-bar accessory while it has
+/// Offers the page's Quick Links menu to the iPhone floating page tools while it has
 /// sections (``PageToolsRegistry``); a no-op where Quick Links is a toolbar item.
 struct QuickLinksPageTool: ViewModifier {
     let controller: QuickLinksController
@@ -157,7 +157,7 @@ struct QuickLinksContainerModifier: ViewModifier {
         .onChange(of: sections) { configure() }
         .onChange(of: activationOffset) { configure() }
         .onChange(of: listTopInset) { configure() }
-        // iPhone tab-bar accessory (issue #92): Quick Links after the page's actions.
+        // iPhone floating page tools (issues #92, #632): Quick Links after the page's actions.
         .modifier(QuickLinksPageTool(controller: controller))
         // Go › Quick Links / Next Section / Previous Section (HIG Toolbars › macOS:
         // "Every toolbar item must also be a menu-bar command"; iPadOS menu bar too).

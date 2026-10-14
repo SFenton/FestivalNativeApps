@@ -95,7 +95,7 @@ private actor HeldGateTransport: HTTPTransport {
     func finishedCount(_ kind: HeldRead) -> Int { finishedReads[kind, default: 0] }
 }
 
-/// Every distinct tool count the accessory's front page went through, read once per
+/// Every distinct tool count the floating row's front page went through, read once per
 /// main-actor turn after a change (so tools that register in one update count once).
 @MainActor
 private final class PageToolCountRecorder {
@@ -116,9 +116,9 @@ private final class PageToolCountRecorder {
 }
 
 /// Host Song Details for `fixture-pulse` in a `NavigationStack` above the real
-/// tab-bar accessory bar, as on iPhone (its tools register in `registry`).
+/// floating page-tools row, as on iPhone (its tools register in `registry`).
 @MainActor
-private func hostSongDetailWithAccessory(
+private func hostSongDetailWithFloatingTools(
     session: FestivalSession, storage: UserDefaults, registry: PageToolsRegistry
 ) async throws -> (NSHostingView<NativeHostedRoot<AnyView>>, NSWindow) {
     let song = try #require(try await session.catalog().catalog.songs.first { $0.songId == "fixture-pulse" })
@@ -129,8 +129,8 @@ private func hostSongDetailWithAccessory(
                 SongDetailScreen(song: song, session: session, visibleInstruments: [.lead, .bass])
                     .pageToolsScope(inSelectedTab: true)
             }
-            PageToolsAccessoryBar(registry: registry)
-                .frame(height: NavButtonAccessibilityTests.accessoryHeight)
+            FloatingPageToolsBar(registry: registry)
+                .frame(height: FloatingPageToolsFit.reservedHeight)
                 .buttonStyle(.borderless)
         }
         .environment(\.pageToolsRegistry, registry)
@@ -142,7 +142,7 @@ private func hostSongDetailWithAccessory(
     return (host, nativeHostedWindow(host, size: size))
 }
 
-/// Song Details' tools in accessory order.
+/// Song Details' tools in floating row order.
 private let songDetailToolIDs = ["fst.song-detail.shop", "fst.song-detail.paths", "fst.quick-links.open"]
 
 // MARK: - Tests
@@ -150,9 +150,9 @@ private let songDetailToolIDs = ["fst.song-detail.shop", "fst.song-detail.paths"
 /// Song Details' page tools wait for the first-load gate (load-transition R1, #585).
 ///
 /// Item Shop, Paths and Quick Links act on the loaded page, so none registers in the
-/// iPhone tab-bar accessory or reaches VoiceOver while the spinner is up. The gate
+/// iPhone floating page tools or reaches VoiceOver while the spinner is up. The gate
 /// includes the Item Shop read, so the applicable set is known before it appears: the
-/// tools register together with the content, in accessory order with their names, each
+/// tools register together with the content, in floating row order with their names, each
 /// a whole 44 pt slot (HIG Accessibility: "Strive for the platform's recommended minimum
 /// control size"), and stay while the cards reload.
 @MainActor
@@ -262,7 +262,7 @@ private let songDetailToolIDs = ["fst.song-detail.shop", "fst.song-detail.paths"
 
         let registry = PageToolsRegistry()
         let recorder = PageToolCountRecorder(registry)
-        let (host, window) = try await hostSongDetailWithAccessory(
+        let (host, window) = try await hostSongDetailWithFloatingTools(
             session: session, storage: storage, registry: registry
         )
         defer {
@@ -270,7 +270,7 @@ private let songDetailToolIDs = ["fst.song-detail.shop", "fst.song-detail.paths"
             Task { await transport.releaseAll() }
         }
 
-        // Loading: the spinner and no tool, in the accessory or the accessibility tree.
+        // Loading: the spinner and no tool, in the floating row or the accessibility tree.
         try await waitFor(host) {
             let cards = await transport.heldCount(.leaderboard)
             let shop = await transport.heldCount(.shop)
@@ -304,13 +304,13 @@ private let songDetailToolIDs = ["fst.song-detail.shop", "fst.song-detail.paths"
         #expect(recorder.counts == [0, 3], "the tools appear together: \(recorder.counts)")
         let nodes = macAccessibilityTree(host)
         let tools = nodes.filter { songDetailToolIDs.contains($0.identifier) && $0.isElement }
-        #expect(tools.map(\.identifier) == songDetailToolIDs, "accessory reading order: \(tools)")
+        #expect(tools.map(\.identifier) == songDetailToolIDs, "floating row reading order: \(tools)")
         #expect(tools.first?.spokenName.hasPrefix("Item Shop") == true, "\(tools)")
         #expect(tools.dropFirst().map(\.spokenName) == ["Paths", "Quick Links"])
         for id in songDetailToolIDs {
             let frame = try #require(nativeHostedAccessibilityFrame(id, in: host))
-            #expect(frame.width >= PageToolsAccessoryFit.slot - 0.5, "\(id) \(frame)")
-            #expect(frame.height >= PageToolsAccessoryFit.slot - 0.5, "\(id) \(frame)")
+            #expect(frame.width >= FloatingPageToolsFit.slot - 0.5, "\(id) \(frame)")
+            #expect(frame.height >= FloatingPageToolsFit.slot - 0.5, "\(id) \(frame)")
         }
 
         // A quiet reload (invalid-score filtering reloads every card): the tools stay.
@@ -335,7 +335,7 @@ private let songDetailToolIDs = ["fst.song-detail.shop", "fst.song-detail.paths"
 
         let registry = PageToolsRegistry()
         let recorder = PageToolCountRecorder(registry)
-        let (host, window) = try await hostSongDetailWithAccessory(
+        let (host, window) = try await hostSongDetailWithFloatingTools(
             session: session, storage: storage, registry: registry
         )
         defer {
@@ -424,10 +424,10 @@ private let songDetailToolIDs = ["fst.song-detail.shop", "fst.song-detail.paths"
         host.layoutSubtreeIfNeeded()
     }
 
-    /// No Song Details tool in the accessory or the accessibility tree.
+    /// No Song Details tool in the floating row or the accessibility tree.
     ///
     /// - Parameters:
-    ///   - registry: The accessory's registry.
+    ///   - registry: The floating page tools' registry.
     ///   - host: Hosted Song Details.
     private func expectNoTools(_ registry: PageToolsRegistry, _ host: NSView) {
         #expect(registry.frontItems.isEmpty, "no page tool while the spinner is up")

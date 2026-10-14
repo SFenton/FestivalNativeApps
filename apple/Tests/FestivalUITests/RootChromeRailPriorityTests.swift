@@ -62,13 +62,13 @@ struct RootChromeRailPriorityTests {
 
 /// An iOS system navigation bar drops a toolbar item's accessibility value (the folded
 /// iPhone Duo's vertical bar, the iPad on iOS 27), so a page tool's state joins its label
-/// there; the iPhone tab-bar accessory and the Mac keep label and value apart. The
+/// there; the iPhone floating page tools and the Mac keep label and value apart. The
 /// rendered `SongsFilterAccessibilityJourneyTests` (iPhone, iPad, folded Duo) checks the bars.
 @Suite("Bar item spoken state")
 struct BarItemSpokenStateTests {
-    @Test("The tab-bar accessory and the Mac keep a separate value")
-    func accessoryAndMacKeepValue() {
-        for placement in [BarItemSpokenState.Placement.accessory, .mac] {
+    @Test("The floating page tools and the Mac keep a separate value")
+    func floatingAndMacKeepValue() {
+        for placement in [BarItemSpokenState.Placement.floating, .mac] {
             let spoken = BarItemSpokenState.resolve(label: "Filter Songs", value: "No filters", placement: placement)
             #expect(spoken.label == "Filter Songs")
             #expect(spoken.value == "No filters")
@@ -91,14 +91,14 @@ struct BarItemSpokenStateTests {
         #expect(spoken.value.isEmpty)
     }
 
-    @Test("Placement follows the accessory on iOS; the Mac is always the Mac")
+    @Test("Placement follows the floating tools on iOS; the Mac is always the Mac")
     func placementPerPlatform() {
         #if os(macOS)
-        #expect(BarItemSpokenState.placement(inAccessory: false) == .mac)
-        #expect(BarItemSpokenState.placement(inAccessory: true) == .mac)
+        #expect(BarItemSpokenState.placement(floating: false) == .mac)
+        #expect(BarItemSpokenState.placement(floating: true) == .mac)
         #else
-        #expect(BarItemSpokenState.placement(inAccessory: false) == .systemBar)
-        #expect(BarItemSpokenState.placement(inAccessory: true) == .accessory)
+        #expect(BarItemSpokenState.placement(floating: false) == .systemBar)
+        #expect(BarItemSpokenState.placement(floating: true) == .floating)
         #endif
     }
 }

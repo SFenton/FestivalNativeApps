@@ -3,76 +3,88 @@ import SwiftUI
 import Testing
 @testable import FestivalUI
 
-// MARK: - PageToolsAccessoryFit (issues #92, #300)
+// MARK: - FloatingPageToolsFit (issues #92, #300, #632)
 
-@Suite("Tab-bar accessory fit")
-struct PageToolsAccessoryFitTests {
-    @Test("Required width counts fixed 44 pt slots and the divider before the bell")
+@Suite("Floating page tools fit")
+struct FloatingPageToolsFitTests {
+    @Test("Each tool is a 44 pt circle 10 pt from its neighbour (web Gap.sm)")
     func requiredWidth() {
-        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: 0, showsBell: false) == 0)
-        // Notifications alone: one slot, no divider.
-        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: 0, showsBell: true) == 44)
-        // Sort, Filter, Quick Links without a profile: three slots.
-        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: 3, showsBell: false) == 132)
-        // Sort, Filter, Quick Links | Notifications.
-        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: 3, showsBell: true) == 177)
+        #expect(FloatingPageToolsFit.slot == 44)
+        #expect(FloatingPageToolsFit.requiredWidth(pageTools: 0) == 0)
+        #expect(FloatingPageToolsFit.requiredWidth(pageTools: 1) == 44)
+        // Sort, Filter, Quick Links.
+        #expect(FloatingPageToolsFit.requiredWidth(pageTools: 3) == 152)
     }
 
     @Test("Negative counts are treated as zero")
     func negativeCounts() {
-        #expect(PageToolsAccessoryFit.requiredWidth(pageTools: -3, showsBell: true) == 44)
+        #expect(FloatingPageToolsFit.requiredWidth(pageTools: -3) == 0)
     }
 
-    @Test("The inline width follows the window, never the morphing accessory")
-    func inlineWidth() {
-        // Measured: the inline capsule is 222 pt on a 402 pt iPhone, 260 pt on 440 pt.
-        #expect(PageToolsAccessoryFit.inlineWidth(windowWidth: 402) == 210)
-        #expect(PageToolsAccessoryFit.inlineWidth(windowWidth: 440) == 248)
-        #expect(PageToolsAccessoryFit.inlineWidth(windowWidth: 375) == 183)
-        #expect(PageToolsAccessoryFit.inlineWidth(windowWidth: 100) == 0)
+    @Test("The row reserves the circle plus clear space above and below")
+    func reservedHeight() {
+        #expect(FloatingPageToolsFit.reservedHeight == 60)
     }
 
-    @Test("Songs keeps every item, expanded and inline, from 375 pt up")
+    @Test("The available width is the window less a 16 pt margin each side")
+    func availableWidth() {
+        #expect(FloatingPageToolsFit.availableWidth(windowWidth: 402) == 370)
+        #expect(FloatingPageToolsFit.availableWidth(windowWidth: 320) == 288)
+        #expect(FloatingPageToolsFit.availableWidth(windowWidth: 20) == 0)
+    }
+
+    @Test("Songs keeps every tool from 320 pt up")
     func songsNeverFoldsAtStandardSizes() {
-        for window: CGFloat in [375, 393, 402, 440] {
-            #expect(!PageToolsAccessoryFit.folds(
-                windowWidth: window, pageTools: 3, showsBell: true, dynamicTypeSize: .large
-            ))
+        for window: CGFloat in [320, 375, 393, 402, 440] {
+            #expect(!FloatingPageToolsFit.folds(windowWidth: window, pageTools: 3))
         }
     }
 
-    @Test("A window too narrow for the inline accessory folds, in both placements")
+    @Test("A window too narrow for the row folds")
     func narrowWindowFolds() {
-        // 320 pt (Display Zoom on a small iPhone): 128 pt inline.
-        #expect(PageToolsAccessoryFit.folds(
-            windowWidth: 320, pageTools: 3, showsBell: true, dynamicTypeSize: .large
-        ))
-        #expect(!PageToolsAccessoryFit.folds(
-            windowWidth: 320, pageTools: 2, showsBell: false, dynamicTypeSize: .large
-        ))
+        #expect(FloatingPageToolsFit.folds(windowWidth: 150, pageTools: 3))
+        #expect(!FloatingPageToolsFit.folds(windowWidth: 150, pageTools: 2))
     }
 
     @Test("An unmeasured window never folds on width alone")
     func unmeasured() {
-        #expect(!PageToolsAccessoryFit.folds(
-            windowWidth: 0, pageTools: 3, showsBell: true, dynamicTypeSize: .large
-        ))
+        #expect(!FloatingPageToolsFit.folds(windowWidth: 0, pageTools: 3))
+    }
+}
+
+// MARK: - FloatingPageToolsMotion (issue #632)
+
+@Suite("Floating page tools motion")
+struct FloatingPageToolsMotionTests {
+    @Test("Web MobileFloatingActionButton timings")
+    func webConstants() {
+        #expect(FloatingPageToolsMotion.staggerInterval == 0.125)
+        #expect(FloatingPageToolsMotion.fadeDuration == 0.4)
+        #expect(FloatingPageToolsMotion.quickFade == 0.15)
+        #expect(FloatingPageToolsMotion.rise == 12)
     }
 
-    @Test("Accessibility text sizes always fold; standard sizes do not")
-    func dynamicType() {
-        #expect(PageToolsAccessoryFit.folds(
-            windowWidth: 402, pageTools: 2, showsBell: true, dynamicTypeSize: .accessibility1
-        ))
-        #expect(!PageToolsAccessoryFit.folds(
-            windowWidth: 402, pageTools: 2, showsBell: true, dynamicTypeSize: .xxxLarge
-        ))
+    @Test("First reveal staggers, a revisit cross-fades, Reduce Motion removes both")
+    func resolve() {
+        #expect(FloatingPageToolsMotion.resolve(reduceMotion: false, revealed: false) == .staggered)
+        #expect(FloatingPageToolsMotion.resolve(reduceMotion: false, revealed: true) == .quick)
+        #expect(FloatingPageToolsMotion.resolve(reduceMotion: true, revealed: false) == .none)
+        #expect(FloatingPageToolsMotion.resolve(reduceMotion: true, revealed: true) == .none)
+    }
+
+    @Test("The stagger reveals right to left")
+    func staggerRightToLeft() {
+        #expect(FloatingPageToolsMotion.staggerDelay(index: 2, count: 3) == 0)
+        #expect(FloatingPageToolsMotion.staggerDelay(index: 1, count: 3) == 0.125)
+        #expect(FloatingPageToolsMotion.staggerDelay(index: 0, count: 3) == 0.25)
+        #expect(FloatingPageToolsMotion.staggerDelay(index: 3, count: 3) == 0)
+        #expect(FloatingPageToolsMotion.staggerDelay(index: -1, count: 3) == 0)
     }
 }
 
 // MARK: - PageToolsRegistry (issue #92)
 
-@Suite("Tab-bar accessory registry")
+@Suite("Floating page tools registry")
 @MainActor
 struct PageToolsRegistryTests {
     private func entry(_ registry: PageToolsRegistry, _ scope: UUID, _ order: Int) -> UUID {
@@ -183,15 +195,42 @@ struct PageToolsRegistryTests {
         #expect(registry.windowWidth == 402)
     }
 
-    @Test("The accessory has content with a profile or with front-page tools")
-    func hasContent() {
+    @Test("A page's tools are revealed once; a revisit does not replay (web hasVisitedPage)")
+    func revealedOnce() {
+        let registry = PageToolsRegistry()
+        let songs = UUID()
+        let detail = UUID()
+        registry.pageAppeared(songs)
+        #expect(registry.frontScope == songs)
+        #expect(!registry.hasRevealed(songs))
+        registry.markRevealed(songs)
+        registry.markRevealed(songs)
+        #expect(registry.hasRevealed(songs))
+        registry.pageAppeared(detail)
+        #expect(registry.frontScope == detail)
+        #expect(!registry.hasRevealed(detail))
+        registry.pageDisappeared(detail)
+        #expect(registry.frontScope == songs)
+        #expect(registry.hasRevealed(songs))
+    }
+
+    @Test("A covering sheet hides the tools without dropping them")
+    func covered() {
         let registry = PageToolsRegistry()
         let page = UUID()
         registry.pageAppeared(page)
-        #expect(!registry.hasContent(hasPlayer: false))
-        #expect(registry.hasContent(hasPlayer: true))
-        _ = entry(registry, page, PageToolOrder.primary)
-        #expect(registry.hasContent(hasPlayer: false))
+        let sort = entry(registry, page, PageToolOrder.primary)
+        #expect(!registry.isCovered)
+        registry.setCovered(true)
+        #expect(registry.isCovered)
+        #expect(registry.frontItems.map(\.id) == [sort])
+        registry.setCovered(false)
+        #expect(!registry.isCovered)
+    }
+
+    @Test("No page on screen has no front scope")
+    func noFrontScope() {
+        #expect(PageToolsRegistry().frontScope == nil)
     }
 
     @Test("An inline menu choice runs only after its sheet has closed")
@@ -225,17 +264,17 @@ struct PageToolsRegistryTests {
     }
 }
 
-// MARK: - Host gate (iPhone Duo inner portrait)
+// MARK: - Host gate (iPhone, iPhone Duo)
 
-@Suite("Tab-bar accessory host")
-struct PageToolsAccessoryHostTests {
-    @Test("iPhone portrait hosts the accessory")
+@Suite("Floating page tools host")
+struct FloatingPageToolsHostTests {
+    @Test("iPhone portrait floats page tools")
     func iPhoneHosts() {
         let phone = DeviceLayout.resolve(LayoutSignals(
             size: CGSize(width: 402, height: 874), widthClass: .compact,
             safeAreaInsets: EdgeInsets(top: 62, leading: 0, bottom: 34, trailing: 0)
         ))
-        #expect(PageToolsAccessoryHost.hostsAccessory(in: phone))
+        #expect(FloatingPageToolsHost.floatsPageTools(in: phone))
     }
 
     @Test("Duo inner portrait (regular width, horizontal tab bar) keeps bar items")
@@ -244,10 +283,10 @@ struct PageToolsAccessoryHostTests {
             size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .fullyOpen
         ))
         #expect(inner.sectionChrome == .tabBar)
-        #expect(!PageToolsAccessoryHost.hostsAccessory(in: inner))
+        #expect(!FloatingPageToolsHost.floatsPageTools(in: inner))
     }
 
-    @Test("Duo vertical bars never host the accessory")
+    @Test("Duo vertical bars never float page tools")
     func verticalBarsDoNot() {
         let folded = DeviceLayout.resolve(LayoutSignals(
             size: CGSize(width: 466, height: 678), widthClass: .compact,
@@ -259,7 +298,7 @@ struct PageToolsAccessoryHostTests {
             safeAreaInsets: EdgeInsets(top: 0, leading: 0, bottom: 20, trailing: 84),
             verticalBarEdge: .trailing, hinge: .fullyOpen
         ))
-        #expect(!PageToolsAccessoryHost.hostsAccessory(in: folded))
-        #expect(!PageToolsAccessoryHost.hostsAccessory(in: innerLandscape))
+        #expect(!FloatingPageToolsHost.floatsPageTools(in: folded))
+        #expect(!FloatingPageToolsHost.floatsPageTools(in: innerLandscape))
     }
 }

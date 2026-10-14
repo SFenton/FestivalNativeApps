@@ -233,9 +233,7 @@ struct PlayerProfileContent: View {
     var body: some View {
         content
             .festivalNavigationTitle(displayName)
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
-            #endif
+            .festivalTitleDisplayMode(.large)
             .task(id: loadKey) {
                 guard loadedKey != loadKey else { return }
                 let key = loadKey

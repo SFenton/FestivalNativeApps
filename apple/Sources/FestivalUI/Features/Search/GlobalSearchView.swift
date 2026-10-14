@@ -695,8 +695,8 @@ extension EnvironmentValues {
 extension View {
     /// Add the account group (bell when a profile is selected, then the profile button)
     /// to a pushed page's toolbar, so the persistent top bar matches its tab root
-    /// (issue #92). With the iPhone tab-bar accessory only Profile is added; the bell is
-    /// in the accessory (issue #300).
+    /// (issue #92). Where page tools float above the iPhone tab bar the two share one
+    /// glass pill (issue #632).
     ///
     /// - Returns: The page with the trailing account items.
     func pageTrailingItems() -> some View {
@@ -716,9 +716,10 @@ struct PageTrailingItems: ViewModifier {
     @State private var pageProvidesAccount = false
     /// The macOS shell shows the account items once for the whole window.
     @Environment(\.shellOwnsGlobalToolbar) private var shellOwnsGlobalToolbar
-    /// Set where the tab-bar accessory draws the bell instead (issue #92); Profile stays
-    /// in the bar (issue #300).
+    /// Set where page tools float above the iPhone tab bar: the bell and profile then
+    /// share one glass pill (issue #632).
     @Environment(\.pageToolsRegistry) private var pageTools
+    @Environment(\.openNotifications) private var openNotifications
 
     func body(content: Content) -> some View {
         content
@@ -728,8 +729,8 @@ struct PageTrailingItems: ViewModifier {
                 // batch 7, issue #92); root screens carry them in their own trailing items.
                 // This outer modifier's items are laid out before the page's, so on iOS
                 // they are the only `.primaryAction` items (pinned to the trailing edge),
-                // in their own glass group after the page's tools (issue #85). With the
-                // iPhone tab-bar accessory the bell is there and Profile stays here (#300).
+                // in their own glass group after the page's tools (issue #85); on iPhone one
+                // pill with the monogram inside (issue #632).
                 if let session, !pageProvidesAccount, !shellOwnsGlobalToolbar {
                     #if os(iOS)
                     if #available(iOS 26.0, *) {
@@ -737,23 +738,28 @@ struct PageTrailingItems: ViewModifier {
                             ToolbarSpacer(.fixed, placement: .primaryAction)
                         }
                     }
-                    if session.selectedPlayer != nil, pageTools == nil {
+                    let inAccountPill = pageTools != nil
+                    if session.selectedPlayer != nil {
                         ToolbarItem(placement: .primaryAction) {
-                            NotificationsButton(session: session, pushRoute: pushRoute)
+                            NotificationsButton(
+                                session: session, pushRoute: pushRoute,
+                                open: inAccountPill ? openNotifications.map { action in { action() } } : nil
+                            )
                         }
                     }
-                    // The monogram hides its item's glass ring (issue #311).
+                    // The monogram hides its item's glass ring (issue #311) except in the
+                    // iPhone account pill (issue #632).
                     if #available(iOS 26.0, *) {
                         ToolbarItem(placement: .primaryAction) {
-                            RootProfileButton(session: session) { profileButtonAction() }
+                            RootProfileButton(session: session, inAccountPill: inAccountPill) { profileButtonAction() }
                         }
                         .profileItemBackground(.resolve(
                             displayName: session.selectedPlayer?.displayName,
                             chrome: layout.sectionChrome
-                        ))
+                        ), inAccountPill: inAccountPill)
                     } else {
                         ToolbarItem(placement: .primaryAction) {
-                            RootProfileButton(session: session) { profileButtonAction() }
+                            RootProfileButton(session: session, inAccountPill: inAccountPill) { profileButtonAction() }
                         }
                     }
                     #else

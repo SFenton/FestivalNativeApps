@@ -9,15 +9,15 @@ import Testing
 // MARK: - Notifications bell and Profile accessibility (issue #394, for #14)
 //
 // #14 split the notifications bell and the profile avatar into two independent buttons
-// (since #300 the iPhone bell sits in the tab-bar accessory and Profile stays the
-// navigation bar's trailing-most button). These component tests pin what VoiceOver gets
-// from each button: its own label, hint and state; the badge digit and the monogram
-// initial are never read on their own; and the accessory bell's hit region is the full
-// 44 pt slot. They host the buttons side by side in the single-bar order
-// (``RootChromeTrailingGroups``: bell, then Profile; Duo, iPad, iOS < 26.1) and do not
-// model the iPhone, where the two live in different system containers and Profile is read
-// first: that production order is measured from the iPhone's accessibility hierarchy by
-// `NavButtonHitRegionJourneyTests` (page-tools-and-nav-chrome R17). HIG VoiceOver:
+// (since #632 the iPhone shows them in one shared glass pill in the navigation bar, bell
+// then Profile trailing-most; #300's tab-bar accessory bell is gone). These component
+// tests pin what VoiceOver gets from each button: its own label, hint and state; the badge
+// digit and the monogram initial are never read on their own; and the bell's hit region is
+// at least 44 pt. They host the buttons side by side in the bar order
+// (``RootChromeTrailingGroups``: bell, then Profile), with the iPhone pill's smaller
+// monogram or the full-circle avatar of the Duo, iPad and iOS < 26 bars; the production
+// order on iPhone is measured by `NavButtonHitRegionJourneyTests` (page-tools-and-nav-chrome
+// R17). HIG VoiceOver:
 // "Provide alternative labels for all key interface elements ... keep labels current as
 // interface and content change"; HIG Buttons: "the hit region is at least 44x44 pt".
 
@@ -67,14 +67,14 @@ private func accountSession(unread: Int, player: Bool = true) async throws -> Fe
     return session
 }
 
-/// The account group as a single navigation bar lists it (Duo, iPad, iOS < 26.1), leading
-/// to trailing, from the canonical ``RootChromeTrailingGroups`` order: the bell (a profile
-/// is selected), then Profile. A component harness, not the iPhone layout (bell in the
-/// tab-bar accessory, Profile in the navigation bar; see `NavButtonHitRegionJourneyTests`).
+/// The account group as the navigation bar lists it, leading to trailing, from the
+/// canonical ``RootChromeTrailingGroups`` order: the bell (a profile is selected), then
+/// Profile. A component harness for the bar's items (see `NavButtonHitRegionJourneyTests`
+/// for the iPhone bar itself).
 private struct AccountGroup: View {
     let session: FestivalSession
-    /// Draw the bell as in the iPhone tab-bar accessory (badge on the glyph, 44 pt slot).
-    let accessoryBell: Bool
+    /// Draw Profile as in the iPhone account pill shared with the bell (issue #632).
+    let pill: Bool
 
     var body: some View {
         let items = RootChromeTrailingGroups.resolve(
@@ -85,14 +85,9 @@ private struct AccountGroup: View {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                 switch item {
                 case .bell:
-                    if accessoryBell {
-                        NotificationsButton(session: session, open: {}, drawsBadgeOnIcon: true)
-                            .labelStyle(PageToolsAccessoryLabelStyle())
-                    } else {
-                        NotificationsButton(session: session, open: {})
-                    }
+                    NotificationsButton(session: session, open: {})
                 case .profile:
-                    RootProfileButton(session: session, action: {})
+                    RootProfileButton(session: session, inAccountPill: pill, action: {})
                 case .pageAction, .quickLinks:
                     EmptyView()
                 }
@@ -105,11 +100,11 @@ private struct AccountGroup: View {
 /// Host the account group and return its settled accessibility tree and host.
 @MainActor
 private func accountTree(
-    _ session: FestivalSession, accessoryBell: Bool, until texts: [String], name: String
+    _ session: FestivalSession, pill: Bool, until texts: [String], name: String
 ) async throws -> (nodes: [MacAXNode], host: NSView, window: NSWindow) {
     let size = CGSize(width: 360, height: 120)
     let host = nativeHostedView(
-        AccountGroup(session: session, accessoryBell: accessoryBell)
+        AccountGroup(session: session, pill: pill)
             .frame(width: size.width, height: size.height)
             .preferredColorScheme(.dark),
         size: size
@@ -124,17 +119,16 @@ private func accountTree(
 // MARK: - Labels, roles, state and reading order
 
 /// With unread notifications the bell and the avatar are two buttons (bell → profile in the
-/// single-bar order), the bell's label carrying the exact count and the avatar naming the
-/// player, in the navigation bar's badge style and the iPhone accessory's badge-on-glyph
-/// style.
+/// bar order), the bell's label carrying the exact count and the avatar naming the
+/// player, both in the iPhone account pill (issue #632) and as separate bar items.
 @MainActor
 @Test(arguments: [false, true])
-func bellAndProfileReadAsTwoLabelledButtonsInOrder(accessoryBell: Bool) async throws {
+func bellAndProfileReadAsTwoLabelledButtonsInOrder(pill: Bool) async throws {
     let session = try await accountSession(unread: 2)
     let (nodes, _, window) = try await accountTree(
-        session, accessoryBell: accessoryBell,
+        session, pill: pill,
         until: ["Notifications, 2 unread", "Profile: Fixture Player"],
-        name: "account-unread-\(accessoryBell ? "accessory" : "bar")"
+        name: "account-unread-\(pill ? "pill" : "bar")"
     )
     defer { window.orderOut(nil) }
     let ids = ["fst.shell.notifications", "fst.shell.profile"]
@@ -165,7 +159,7 @@ func bellAndProfileReadAsTwoLabelledButtonsInOrder(accessoryBell: Bool) async th
 @Test func bellWithoutUnreadReadsNotifications() async throws {
     let session = try await accountSession(unread: 0)
     let (nodes, _, window) = try await accountTree(
-        session, accessoryBell: false, until: ["Notifications", "Profile: Fixture Player"],
+        session, pill: false, until: ["Notifications", "Profile: Fixture Player"],
         name: "account-read"
     )
     defer { window.orderOut(nil) }
@@ -180,7 +174,7 @@ func bellAndProfileReadAsTwoLabelledButtonsInOrder(accessoryBell: Bool) async th
 @Test func bellReadsExactCountAboveTheBadgeCap() async throws {
     let session = try await accountSession(unread: 12)
     let (nodes, _, window) = try await accountTree(
-        session, accessoryBell: true, until: ["Notifications, 12 unread"], name: "account-capped"
+        session, pill: true, until: ["Notifications, 12 unread"], name: "account-capped"
     )
     defer { window.orderOut(nil) }
     let bell = try #require(nodes.first { $0.isElement && $0.identifier == "fst.shell.notifications" })
@@ -194,7 +188,7 @@ func bellAndProfileReadAsTwoLabelledButtonsInOrder(accessoryBell: Bool) async th
 @Test func anonymousAccountGroupIsOnlyChooseProfile() async throws {
     let session = try await accountSession(unread: 0, player: false)
     let (nodes, _, window) = try await accountTree(
-        session, accessoryBell: true, until: ["Choose Profile"], name: "account-anonymous"
+        session, pill: true, until: ["Choose Profile"], name: "account-anonymous"
     )
     defer { window.orderOut(nil) }
     #expect(!nodes.contains { $0.identifier == "fst.shell.notifications" })
@@ -207,20 +201,24 @@ func bellAndProfileReadAsTwoLabelledButtonsInOrder(accessoryBell: Bool) async th
 
 // MARK: - Target size
 
-/// The iPhone accessory bell fills its 44 × 44 pt slot (HIG Buttons hit region) and does
-/// not overlap the profile button beside it.
+/// The bell in the account pill does not overlap the profile button trailing it, and the
+/// pill's monogram is a bar glyph's size with no rim or overhang, so both sit inside one
+/// glass pill as two separate targets (issue #632). The bar's 44 pt item regions on iPhone
+/// are measured by `NavButtonHitRegionJourneyTests`.
 @MainActor
-@Test func accessoryBellHitRegionIsAFull44PointSlot() async throws {
+@Test func pillBellAndProfileAreSeparateTargets() async throws {
     let session = try await accountSession(unread: 3)
     let (_, host, window) = try await accountTree(
-        session, accessoryBell: true, until: ["Notifications, 3 unread", "Profile: Fixture Player"],
+        session, pill: true, until: ["Notifications, 3 unread", "Profile: Fixture Player"],
         name: "account-hit-region"
     )
     defer { window.orderOut(nil) }
     let bell = try #require(nativeHostedAccessibilityFrame("fst.shell.notifications", in: host))
     let profile = try #require(nativeHostedAccessibilityFrame("fst.shell.profile", in: host))
-    #expect(PageToolsAccessoryFit.slot >= 44)
-    #expect(bell.width >= 44 && bell.height >= 44, "bell \(bell)")
+    #expect(RootProfileButton.MonogramMetrics.resolve(liquidGlassBar: true, inAccountPill: true).diameter
+            == RootProfileButton.MonogramMetrics.pillDiameter)
+    #expect(!RootProfileButton.MonogramMetrics.resolve(liquidGlassBar: true, inAccountPill: true).outlined)
+    #expect(RootProfileButton.MonogramMetrics.resolve(liquidGlassBar: true, inAccountPill: true).overhang == 0)
     #expect(bell.maxX <= profile.minX, "bell \(bell) overlaps profile \(profile)")
 }
 #endif

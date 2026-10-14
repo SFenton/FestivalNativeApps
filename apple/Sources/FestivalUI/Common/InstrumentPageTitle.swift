@@ -214,8 +214,10 @@ struct InstrumentPageTitleToolbarItem: ToolbarContent {
         !chrome.isVerticalBar
     }
 
+    @Environment(\.pageToolsRegistry) private var pageTools
+
     var body: some ToolbarContent {
-        ToolbarItem(placement: .principal) {
+        ToolbarItem(placement: FestivalTitlePlacement.resolve(floatsPageTools: pageTools != nil).toolbarPlacement) {
             if isShown {
                 InstrumentPageTitle(
                     instrument: instrument, title: title, subtitle: subtitle,
