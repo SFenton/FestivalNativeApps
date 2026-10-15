@@ -102,6 +102,42 @@ class UiCiTests(unittest.TestCase):
             self.assertIn("assertsize:raw=fst.songs.metadata.stars.fixture-song-1|126x24", steps)
             self.assertIn("assertsize:raw=fst.songs.metadata.intensity.fixture-song-1|74x24", steps)
 
+    def test_songs_chip_rows_run_at_default_and_largest_text(self):
+        # Issue #645 review: the narrow chip-row journey gates the release-branch suite at default and 225% text,
+        # scanned, at compact: balanced 5 + 4 lines (Pro Lead level with Lead, Pro Bass below it), each line centred on
+        # the row (assertmidline), lines apart, 21-epx icons and the row's spoken order; the normal run also re-flows the
+        # chips to one centred line after a resize.
+        chip = "raw=fst.songs.instrument-status.fixture-pulse."
+        row = "id=fst.songs.row.fixture-pulse"
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-songs-chip-rows.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan and not run.only and run.sizes == "compact" for run in runs.values()))
+        self.assertFalse([run for run in ci.RUNS if run.name.startswith("a11y-songs-chip-rows")])
+        pages = json.loads((ci.JOURNEYS / "a11y-songs-chip-rows.json").read_text(encoding="utf-8"))
+        balanced = [f"assertlevel:{chip}Solo_Guitar|{chip}Solo_PeripheralGuitar",
+                    f"assertbelow:{chip}Solo_PeripheralBass|{chip}Solo_PeripheralGuitar",
+                    f"assertmidline:{chip}Solo_Guitar|{chip}Solo_PeripheralGuitar|{row}|4",
+                    f"assertmidline:{chip}Solo_PeripheralBass|{chip}Solo_PeripheralDrums|{row}|4",
+                    f"assertapart:{chip}Solo_PeripheralGuitar|{chip}Solo_PeripheralDrums"]
+        for mode, run in runs.items():
+            chosen = m.mode_pages(pages, mode)
+            self.assertTrue(chosen, mode)
+            for page in chosen:
+                with self.subTest(mode=mode, page=page["name"]):
+                    self.assertTrue(page["scan"])
+                    self.assertTrue(m.page_sizes(page, run.sizes.split(","), mode))
+                    steps = page["ready"]
+                    self.assertIn("resize:360x800", steps)
+                    for step in balanced:
+                        self.assertIn(step, steps)
+        narrow = {page["name"]: page for page in pages}["songs-chip-rows-narrow"]
+        self.assertLessEqual({"normal", "text-225"}, set(narrow["modes"]))
+        self.assertIn(f"assertsize:{chip}Solo_Guitar|21x21", narrow["ready"])
+        self.assertTrue(any(step.startswith(f"assertname:{row}|") for step in narrow["ready"]))
+        resize = {page["name"]: page for page in m.mode_pages(pages, "normal")}["songs-chip-rows-resize"]
+        after = resize["ready"][resize["ready"].index("resize:compact"):]
+        self.assertIn(f"assertmidline:{chip}Solo_Guitar|{chip}Solo_PeripheralDrums|{row}|4", after)
+
     def test_songs_scroll_runs_at_default_largest_text_and_animations_off(self):
         # Issue #520 (#247): the pinned Songs title after far UIA jumps, a fling back to the top and keyboard End/Home.
         runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-songs-scroll.json"}

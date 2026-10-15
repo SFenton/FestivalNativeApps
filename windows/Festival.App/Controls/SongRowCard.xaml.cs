@@ -63,12 +63,19 @@ public sealed partial class SongRowCard : UserControl
         SetWrapped(false);
     }
 
-    /// <summary>Shows or hides the second row; the art spans it only while it has content.</summary>
+    /// <summary>
+    /// Shows or hides the second row. By default it sits under the title and the art spans it; a full-width second row
+    /// runs under the art and title instead, like the web's mobile instrument chip row (issue #645).
+    /// </summary>
     /// <param name="wrapped">Second row has content.</param>
-    public void SetWrapped(bool wrapped)
+    /// <param name="fullWidth">Run the second row across the card's full width, under the art.</param>
+    public void SetWrapped(bool wrapped, bool fullWidth = false)
     {
         SecondaryPanel.Visibility = wrapped ? Visibility.Visible : Visibility.Collapsed;
-        Grid.SetRowSpan(ArtHost, wrapped ? 2 : 1);
+        var under = wrapped && fullWidth;
+        Grid.SetColumn(SecondaryPanel, under ? 0 : 1);
+        Grid.SetColumnSpan(SecondaryPanel, under ? 3 : 2);
+        Grid.SetRowSpan(ArtHost, wrapped && !fullWidth ? 2 : 1);
     }
 
     /// <summary>The row's Shop pulse ring (first-run demos gate its breathing to the visible slide).</summary>

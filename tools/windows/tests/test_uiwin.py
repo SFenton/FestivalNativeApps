@@ -235,6 +235,18 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertmidline(self):
+        step = u.parse_step("assertmidline:raw=fst.chip.a|raw=fst.chip.e|id=fst.songs.row.x|4")
+        self.assertEqual(step["verb"], "assertmidline")
+        self.assertEqual(step["selector"], {"kind": "raw", "value": "fst.chip.a"})
+        self.assertEqual(step["other"], {"kind": "raw", "value": "fst.chip.e"})
+        self.assertEqual(step["region"], {"kind": "id", "value": "fst.songs.row.x"})
+        self.assertEqual(step["epx"], 4.0)
+        for bad in ("assertmidline:id=a|id=b|id=c", "assertmidline:id=a|id=b|id=c|wide", "assertmidline:id=a||id=c|2",
+                    "assertmidline:id=a|1,2|id=c|2"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_assertpaint(self):
         step = u.parse_step("assertpaint:id=fst.notifications.row.x|fill:L8,M0=#162133~4|L4,M-10,L5,M10=#1e2a3a"
                             "|R25,M-24!=@fill~40|C-0.5,B2.5,C20,B-3!=@fill")
