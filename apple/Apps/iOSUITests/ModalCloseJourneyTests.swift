@@ -72,8 +72,7 @@ final class ModalCloseJourneyTests: XCTestCase {
         closeWithSystemClose("fst.profile.close", in: app, shot: "modal-close-profiles")
         tap("fst.songs.row.fixture-pulse", in: app)
         tap("fst.song-detail.paths", in: app)
-        let warning = app.alerts["Some Instruments Unavailable"]
-        if warning.waitForExistence(timeout: 3) { warning.buttons["OK"].tap() }
+        PathsUITestSupport.dismissKaraokeNotice(in: app)
         XCTAssertTrue(app.navigationBars.buttons["fst.paths.zoom-in"].waitForExistence(timeout: 15))
         closeWithSystemClose("fst.paths.close", in: app, shot: "modal-close-paths")
     }

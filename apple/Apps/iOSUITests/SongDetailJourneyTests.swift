@@ -26,7 +26,7 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertTrue(open.waitForExistence(timeout: 10))
         open.tap()
         let warning = app.alerts["Some Instruments Unavailable"]
-        if warning.waitForExistence(timeout: 2) {
+        if PathsUITestSupport.waitForKaraokeNotice(in: app) {
             XCTAssertTrue(warning.staticTexts[
                 "Karaoke is not available for path visualization yet."
             ].exists)
@@ -165,8 +165,7 @@ final class SongDetailJourneyTests: XCTestCase {
         func openPaths(_ view: String) {
             XCTAssertTrue(open.waitForExistence(timeout: 10))
             open.tap()
-            let warning = app.alerts["Some Instruments Unavailable"]
-            if warning.waitForExistence(timeout: 2) { warning.buttons["OK"].tap() }
+            PathsUITestSupport.dismissKaraokeNotice(in: app)
             XCTAssertTrue(display.waitForExistence(timeout: 10))
             if !menuShows(view, display) { choose(view, in: display, app: app) }
         }
@@ -250,10 +249,7 @@ final class SongDetailJourneyTests: XCTestCase {
         let open = app.buttons["fst.song-detail.paths"]
         XCTAssertTrue(open.waitForExistence(timeout: 10))
         open.tap()
-        let warning = app.alerts["Some Instruments Unavailable"]
-        if warning.waitForExistence(timeout: 2) {
-            warning.buttons["OK"].tap()
-        }
+        PathsUITestSupport.dismissKaraokeNotice(in: app)
         let display = pathsMenu("fst.paths.display", in: app)
         XCTAssertTrue(display.waitForExistence(timeout: 10))
         XCTAssertTrue(menuShows(changed, display), "View: \(display.label)")
@@ -280,7 +276,8 @@ final class SongDetailJourneyTests: XCTestCase {
         XCTAssertEqual(setting.value as? String, "\(original), Expanded")
     }
 
-    /// Warn once per Paths opening until the explicit persistent choice survives cold launch.
+    /// Warn once per Paths opening, after the path loads, until the explicit persistent
+    /// choice survives cold launch.
     ///
     /// - Throws: Missing or low-contrast warning, ignored choice or forgotten dismissal.
     @MainActor
@@ -299,6 +296,7 @@ final class SongDetailJourneyTests: XCTestCase {
         open.tap()
         let warning = app.alerts["Some Instruments Unavailable"]
         XCTAssertTrue(warning.waitForExistence(timeout: 10))
+        PathsUITestSupport.assertKaraokeNoticeFollowsLoadedChart(in: app, "first opening")
         XCTAssertTrue(warning.staticTexts[
             "Karaoke is not available for path visualization yet."
         ].exists)
@@ -341,6 +339,7 @@ final class SongDetailJourneyTests: XCTestCase {
 
         open.tap()
         XCTAssertTrue(warning.waitForExistence(timeout: 10))
+        PathsUITestSupport.assertKaraokeNoticeFollowsLoadedChart(in: app, "next opening")
         SongsUITestSupport.record(app, name: "song-path-karaoke-warning-next-opening")
         let permanent = try XCTUnwrap(
             warning.buttons.matching(identifier: "fst.paths.warning.dismiss")

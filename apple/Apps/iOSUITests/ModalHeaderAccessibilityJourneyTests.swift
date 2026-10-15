@@ -538,8 +538,7 @@ final class ModalHeaderAccessibilityJourneyTests: XCTestCase {
         let open = app.buttons["fst.song-detail.paths"]
         XCTAssertTrue(open.waitForExistence(timeout: FestivalApp.budget(20)), "No Paths button")
         open.tap()
-        let warning = app.alerts["Some Instruments Unavailable"]
-        if warning.waitForExistence(timeout: FestivalApp.budget(3)) { warning.buttons["OK"].tap() }
+        PathsUITestSupport.dismissKaraokeNotice(in: app)
         XCTAssertTrue(element("fst.paths.display", in: app).waitForExistence(timeout: FestivalApp.budget(10)),
                       "No Paths sheet")
     }

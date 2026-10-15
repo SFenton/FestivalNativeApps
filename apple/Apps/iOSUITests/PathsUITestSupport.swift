@@ -43,10 +43,62 @@ enum PathsUITestSupport {
         let open = app.buttons["fst.song-detail.paths"]
         XCTAssertTrue(open.waitForExistence(timeout: FestivalApp.budget(20)), "No Paths button")
         open.tap()
-        let warning = app.alerts["Some Instruments Unavailable"]
-        if warning.waitForExistence(timeout: FestivalApp.budget(3)) { warning.buttons["OK"].tap() }
+        dismissKaraokeNotice(in: app)
         XCTAssertTrue(element("fst.paths.display", in: app).waitForExistence(timeout: FestivalApp.budget(10)),
                       "No Paths sheet")
+    }
+
+    // MARK: Karaoke notice (#649)
+
+    /// The Paths sheet's first chart (image, table or error) once it replaces the spinner.
+    ///
+    /// - Parameter app: The running app.
+    /// - Returns: The first loaded form.
+    @MainActor
+    static func loadedChart(in app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ OR identifier IN %@",
+            "fst.paths.text.", ["fst.paths.image", "fst.paths.error"]
+        )).firstMatch
+    }
+
+    /// Wait for the first chart, then for the "Some Instruments Unavailable" notice that
+    /// follows it: the sheet never shows the notice over its spinner (load-transition R1).
+    ///
+    /// - Parameter app: The running app, with the Paths sheet just opened.
+    /// - Returns: True when the notice is showing.
+    @MainActor
+    @discardableResult
+    static func waitForKaraokeNotice(in app: XCUIApplication) -> Bool {
+        _ = loadedChart(in: app).waitForExistence(timeout: FestivalApp.budget(15))
+        return app.alerts["Some Instruments Unavailable"].waitForExistence(timeout: FestivalApp.budget(3))
+    }
+
+    /// Answer the Karaoke notice with OK once it follows the loaded chart, if it shows.
+    ///
+    /// - Parameter app: The running app, with the Paths sheet just opened.
+    @MainActor
+    static func dismissKaraokeNotice(in app: XCUIApplication) {
+        let warning = app.alerts["Some Instruments Unavailable"]
+        if waitForKaraokeNotice(in: app) {
+            warning.buttons["OK"].tap()
+            _ = warning.waitForNonExistence(timeout: FestivalApp.budget(5))
+        }
+    }
+
+    /// Expect the showing Karaoke notice to have the loaded chart behind it and no
+    /// "Loading … path" spinner (issue #649).
+    ///
+    /// - Parameters:
+    ///   - app: The running app, showing the notice.
+    ///   - context: Which opening, for the failure message.
+    @MainActor
+    static func assertKaraokeNoticeFollowsLoadedChart(in app: XCUIApplication, _ context: String) {
+        XCTAssertTrue(loadedChart(in: app).exists, "\(context): notice showed before the path loaded")
+        let spinner = app.descendants(matching: .any).matching(NSPredicate(
+            format: "label BEGINSWITH %@ AND label ENDSWITH %@", "Loading ", " path"
+        )).firstMatch
+        XCTAssertFalse(spinner.exists, "\(context): notice covers the loading spinner")
     }
 
     /// The first element with an identifier, of any type.

@@ -317,8 +317,7 @@ final class DuoPathsSelectorJourneyTests: XCTestCase {
         let open = app.buttons["fst.song-detail.paths"]
         XCTAssertTrue(open.waitForExistence(timeout: 10))
         open.tap()
-        let warning = app.alerts["Some Instruments Unavailable"]
-        if warning.waitForExistence(timeout: 2) { warning.buttons["OK"].tap() }
+        PathsUITestSupport.dismissKaraokeNotice(in: app)
         // Text view: a steady backdrop for the pixel measurement.
         choose("Text", in: menu("fst.paths.display", in: app), app: app)
         let instrument = menu("fst.paths.instrument", in: app)

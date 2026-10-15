@@ -448,6 +448,34 @@ struct SongPathsSwitchAccessibilityTests {
         #expect(!SongPathsSheet.announcesSwitch(of: .image, in: .sideBySide, afterSwitch: true))
     }
 
+    // MARK: Karaoke notice
+
+    /// The "Some Instruments Unavailable" notice waits until every form on screen shows
+    /// its image, table or error, so it never covers the spinner (issue #649); it shows
+    /// once per opening and never after "Don't show again".
+    @Test func karaokeNoticeWaitsForTheChartOnScreen() {
+        func presents(
+            warn: Bool = true, dismissed: Bool = false, considered: Bool = false,
+            resolved: Set<PathDisplayMode>, onScreen: PathViewMode
+        ) -> Bool {
+            SongPathsSheet.presentsUnavailableWarning(
+                warnAboutKaraoke: warn, dismissed: dismissed, alreadyConsidered: considered,
+                resolved: resolved, onScreen: onScreen.displays
+            )
+        }
+        for mode in PathViewMode.allCases {
+            #expect(!presents(resolved: [], onScreen: mode), "\(mode): not while loading")
+            #expect(presents(resolved: Set(PathDisplayMode.allCases), onScreen: mode), "\(mode): once loaded")
+            #expect(!presents(warn: false, resolved: Set(PathDisplayMode.allCases), onScreen: mode))
+            #expect(!presents(dismissed: true, resolved: Set(PathDisplayMode.allCases), onScreen: mode))
+            #expect(!presents(considered: true, resolved: Set(PathDisplayMode.allCases), onScreen: mode))
+        }
+        #expect(presents(resolved: [.text], onScreen: .text))
+        #expect(!presents(resolved: [.image], onScreen: .text), "a stale other form doesn't count")
+        #expect(!presents(resolved: [.text], onScreen: .sideBySide), "Side by Side waits for both panes")
+        #expect(!presents(resolved: [.image], onScreen: .sideBySide))
+    }
+
     /// The in-app Reduce Motion setting stops the switch fades like the system setting
     /// (it was ignored until #430); either keeps the spinner's minimum hold.
     @Test func switchTimingHonorsSystemAndInAppReduceMotion() {
