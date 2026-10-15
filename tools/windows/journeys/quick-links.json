@@ -90,10 +90,10 @@
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section App Settings@5"
     ],
     "after_ready": [
+      "pin:id=fst.quick-links.open",
       "focus:id=fst.quick-links.open",
       "key:enter",
       "waitfor:id=fst.quick-links.item.licenses@5",
-      "key:down",
       "key:down",
       "key:down",
       "key:down",
@@ -108,12 +108,12 @@
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section Licenses@5",
       "waitfor:id=fst.settings.licenses@3",
       "assertfocus:id=fst.settings.licenses@3",
-      "waitgone:id=fst.quick-links.open@3",
+      "assertpinned:id=fst.quick-links.open",
       "wait:1",
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section Licenses"
     ],
     "teardown": [
-      "scrollinto:id=fst.quick-links.open@5",
+      "scrollinto:name=App Settings&class=TextBlock@5",
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section App Settings@5"
     ]
   },
@@ -137,7 +137,7 @@
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section First Run Guides@5"
     ],
     "teardown": [
-      "scrollinto:id=fst.quick-links.open@5",
+      "scrollinto:name=App Settings&class=TextBlock@5",
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section App Settings@5"
     ]
   },
@@ -287,7 +287,7 @@
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section Drums@5",
       "wait:1",
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section Drums",
-      "scrollinto:id=fst.quick-links.open@5",
+      "scrollinto:id=fst.player.overview@5",
       "focus:id=fst.quick-links.open",
       "key:enter",
       "waitfor:id=fst.quick-links.item.bands@5",
