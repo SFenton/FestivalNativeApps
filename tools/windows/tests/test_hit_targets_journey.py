@@ -19,12 +19,13 @@ _TOOLS = {
     "fst.global-search.open", "fst.shell.profile", "fst.shell.notifications", "fst.songs.sort", "fst.songs.filter",
     "fst.songs.section-index-button", "fst.suggestions.filter-button", "fst.rankings.rank-by-menu",
     "fst.full-rankings.instrument-menu", "fst.band-rankings.band-type-menu", "fst.band-rankings.rank-by-menu",
-    "fst.song-detail.paths", "fst.song-detail.pinned-paths", "fst.history.sort.open", "fst.shop.sort",
+    "fst.song-detail.paths", "fst.song-detail.pinned-paths", "fst.song-detail.shop", "fst.song-detail.pinned-shop",
+    "fst.history.sort.open", "fst.shop.sort",
     "fst.shop.filter", "fst.quick-links.open",
 }
-# Sized and probed, but never pressed: it opens the Item Shop in the external browser (Launcher), which a shared
-# desktop run must not do.
-_NOT_PRESSED = {"fst.song-detail.shop"}
+# Sized and probed, but never pressed: they open the Item Shop in the external browser (Launcher), which a shared
+# desktop run must not do. The pinned copy (#639) shares the inline button's handler.
+_NOT_PRESSED = {"fst.song-detail.shop", "fst.song-detail.pinned-shop"}
 # Live runs press Search only: the bell's flyout and the profile's Statistics view read player-scoped data, so they
 # are pressed against the fixture (press-titlebar-transitions) instead.
 _LIVE_PRESSED = {"fst.global-search.open"}

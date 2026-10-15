@@ -543,12 +543,11 @@ public sealed partial class FirstRunDemo
         var shopContent = new Grid();
         shopContent.Children.Add(fill);
         var label = GlyphLabel("\uE719", "Item Shop");
-        label.Padding = new Thickness(11, 5, 11, 6);
+        // The button's default padding plus the 1 epx border FSTShopButtonStyle drops, so it matches Paths beside it.
+        label.Padding = new Thickness(12, 6, 12, 7);
+        label.VerticalAlignment = VerticalAlignment.Center;
         shopContent.Children.Add(label);
-        buttons.Children.Add(new Button
-        {
-            Padding = new Thickness(0), Background = B("FSTShopButtonSurfaceBrush"), Foreground = B("FSTShopBadgeTextBrush"), Content = shopContent,
-        });
+        buttons.Children.Add(new Button { Style = S("FSTShopButtonStyle"), Content = shopContent });
         Stage(buttons);
     }
     #endregion
