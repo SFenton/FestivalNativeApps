@@ -142,14 +142,13 @@ final class IPadAccessibilityAuditTests: XCTestCase {
                 row.tap()
             }
             guard tapFirst(app, ["fst.song-detail.paths"], timeout: 15) else { return nil }
-            // The fixture song charts Karaoke, so Paths opens with the system "Some
-            // Instruments Unavailable" alert (UIKit-owned, not audited: accessibility.md).
-            // Audit the sheet itself after OK, as a person sees it.
-            let alert = app.alerts.firstMatch
-            if alert.waitForExistence(timeout: 5) {
-                alert.buttons["OK"].tap()
-                _ = alert.waitForNonExistence(timeout: 5)
-            }
+            // The fixture song charts Karaoke, so once its path loads Paths shows the
+            // system "Some Instruments Unavailable" alert (UIKit-owned, not audited:
+            // accessibility.md). The moment it shows, the chart must be loaded behind it
+            // with no spinner left (#649, load-transition R1); the held-read states are
+            // `PathsKaraokeNoticeAccessibilityJourneyTests`. Audit the sheet itself after
+            // OK, as a person sees it.
+            PathsUITestSupport.dismissKaraokeNotice(in: app)
             return "fst.paths.display"
         }, sheet: true),
         Page(name: "item-shop", env: ["FST_DEBUG_ROUTE": "shop"], ready: "Item Shop"),

@@ -1312,7 +1312,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586), and no sheet or dialog draws a line under the shared header (owner, #607); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612); while the feedback form sends and files, its fields fade out to a centred white spinner with a title and subtitle (Uploading Media over a determinate bar, then Filing Issue/Request), the spinner staying across the cross-fade (owner-approved, #634; Apple, Android, Windows; without media it reads as filing from Submit).",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586), and no sheet or dialog draws a line under the shared header (owner, #607); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612); while the feedback form sends and files, its fields fade out to a centred white spinner with a title and subtitle (Uploading Media over a determinate bar, then Filing Issue/Request), the spinner staying across the cross-fade (owner-approved, #634; Apple, Android, Windows; without media it reads as filing from Submit); on Windows the Notifications bell opens the shared dialog docked to the window edge: a full-height trailing panel below the title bar like the web desktop drawer, or a full-width bottom sheet once navigation collapses to the hamburger menu (DialogChrome.WindowEdge, ModalEdgeLayout; owner-approved, #638, Windows Notifications only).",
       "keywords": [
         "modal",
         "sheet",
@@ -1330,7 +1330,9 @@
         "half height",
         "partially expanded",
         "sending status",
-        "upload progress"
+        "upload progress",
+        "side panel",
+        "drawer"
       ],
       "web": [
         {
@@ -1455,6 +1457,14 @@
           {
             "path": "windows/Festival.App/Controls/FeedbackDialog.cs",
             "symbol": "SwapStatus"
+          },
+          {
+            "path": "windows/Festival.App/Controls/DialogChrome.cs",
+            "symbol": "WindowEdge"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/ModalEdgeLayout.cs",
+            "symbol": "ModalEdgeLayout"
           }
         ]
       },
@@ -1528,6 +1538,15 @@
           "regex": "\"ContentScrollViewer\"",
           "allow": [],
           "message": "ContentDialog's template scroller never scrolls vertically; give a tall body its own ScrollViewer instead of reaching into the template (modal-shell R5, #420)."
+        },
+        {
+          "id": "windows-edge-dialog",
+          "glob": "windows/Festival.App/**/*.cs",
+          "regex": "\\bDialogChrome\\.WindowEdge\\s*\\(",
+          "allow": [
+            "windows/Festival.App/Controls/NotificationsBell.xaml.cs"
+          ],
+          "message": "Only Notifications docks its dialog to the window edge (modal-shell R17, owner-approved #638); every other modal keeps the centred shell."
         }
       ],
       "related": {
@@ -1566,7 +1585,8 @@
         400,
         420,
         607,
-        634
+        634,
+        638
       ]
     },
     {
@@ -2006,7 +2026,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence, chart swaps keep the card's size and paging a chart slides it to the new window over the web 400 ms (#593 decision); the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant); a new publication refreshes open pages in place without pausing their rows (R9; Android one announced Songs spinner and in-place re-reads elsewhere, #616).",
+      "summary": "Initial loads use one gate, and page tools and notices acting on the gated content appear with it (the Paths Karaoke notice waits until every path form on screen has loaded, #649); selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence, chart swaps keep the card's size and paging a chart slides it to the new window over the web 400 ms (#593 decision); the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant); a new publication refreshes open pages in place without pausing their rows (R9; Android one announced Songs spinner and in-place re-reads elsewhere, #616).",
       "keywords": [
         "loading",
         "spinner",

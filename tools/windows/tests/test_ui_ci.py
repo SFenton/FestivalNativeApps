@@ -62,6 +62,12 @@ class UiCiTests(unittest.TestCase):
                 for page in pages:
                     self.assertLessEqual(set(page.get("axe_allow", ())), set(m.AXE_ALLOW), page["name"])
 
+    def test_songs_last_played_runs_at_default_and_largest_text(self):
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-songs-last-played.json"}
+        self.assertEqual(set(runs), {"normal", "text-225"})
+        self.assertIn("wide", runs["normal"].sizes.split(","))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+
     def test_quick_links_landing_runs_at_default_and_largest_text(self):
         landing = {run.mode: run for run in ci.RUNS if run.pages == "a11y-quick-links-landing.json"}
         self.assertEqual({"normal", "text-225"}, set(landing))

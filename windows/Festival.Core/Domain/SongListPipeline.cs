@@ -178,7 +178,7 @@ public static class SongListPipeline
         SongScoreDetail? Detail(Song song) => chart is { } c ? details(song.SongId, c) : null;
         string LastPlayed(Song song) => chart is { } c
             ? details(song.SongId, c)?.LastPlayedAt ?? ""
-            : input.Visible.Select(i => details(song.SongId, i)?.LastPlayedAt ?? "").DefaultIfEmpty("").Max(StringComparer.Ordinal) ?? "";
+            : SongMetadataPolicy.LatestPlay(input.Visible, i => details(song.SongId, i))?.At ?? "";
         return (left, right) =>
         {
             int cmp;
