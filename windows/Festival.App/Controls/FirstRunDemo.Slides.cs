@@ -482,8 +482,9 @@ public sealed partial class FirstRunDemo
     }
 
     /// <summary>
-    /// Paths (web <c>PathPreviewDemo</c>): the Paths dialog's instrument selector, Difficulty and Display radio groups,
-    /// then its path image area (no path image is fetched for the demo).
+    /// Paths (web <c>PathPreviewDemo</c>): the Paths dialog's instrument selector, its Difficulty and Display selector
+    /// boxes (the same <c>FSTSelectorComboBoxStyle</c> and icon + label display template, issue #650), then its path
+    /// image area (no path image is fetched for the demo).
     /// </summary>
     private void BuildPaths()
     {
@@ -494,13 +495,11 @@ public sealed partial class FirstRunDemo
             Required = true,
             IdPrefix = $"fst.first-run.demo.{SlideId}.instrument",
         });
-        var pickers = new FlowPanel { Spacing = 20, HorizontalAlignment = HorizontalAlignment.Center };
-        pickers.Children.Add(new RadioButtons
-        {
-            Header = "Difficulty", MaxColumns = 4, SelectedIndex = 3,
-            ItemsSource = PathDifficultyInfo.All.Select(d => (object)d.Label()).ToList(),
-        });
-        pickers.Children.Add(new RadioButtons { Header = "Display", MaxColumns = 2, SelectedIndex = 0, ItemsSource = new List<object> { "Image", "Text" } });
+        var pickers = new FlowPanel { Spacing = 12, HorizontalAlignment = HorizontalAlignment.Center };
+        pickers.Children.Add(PathSelectorBox("Difficulty", PathDifficultyInfo.All.Select(d => (object)d.Label()).ToList(), 3));
+        var display = PathSelectorBox("Display", [PathDisplayOption.Image, PathDisplayOption.Text], 0);
+        display.ItemTemplate = (DataTemplate)Application.Current.Resources["FSTPathDisplayOptionTemplate"];
+        pickers.Children.Add(display);
         Stage(pickers);
         var image = new Border
         {
@@ -508,6 +507,22 @@ public sealed partial class FirstRunDemo
             Child = new FontIcon { Glyph = "\uE707", FontSize = 20, Foreground = B("FSTSecondaryTextBrush") },
         };
         Stage(image);
+    }
+
+    /// <summary>One of the Paths dialog's wide selector boxes, at least as wide as the dialog's minimum box.</summary>
+    /// <param name="name">Accessible name.</param>
+    /// <param name="items">Options.</param>
+    /// <param name="selected">Selected option index.</param>
+    /// <returns>The box.</returns>
+    private static ComboBox PathSelectorBox(string name, List<object> items, int selected)
+    {
+        var box = new ComboBox
+        {
+            Style = S("FSTSelectorComboBoxStyle"), MinWidth = PathSelectorLayout.WideBoxMinWidth,
+            ItemsSource = items, SelectedIndex = selected,
+        };
+        AutomationProperties.SetName(box, name);
+        return box;
     }
 
     /// <summary>

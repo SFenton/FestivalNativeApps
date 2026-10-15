@@ -746,7 +746,7 @@ class UiCiTests(unittest.TestCase):
 
     def test_paths_swap_runs_every_page(self):
         # Issue #430 (#70): every Paths swap page (normal, 225% text, Reduce Motion, Animation effects off and the wide
-        # RadioButtons keyboard page) runs in windows-ui, Axe-scanned, at a size the page supports.
+        # selector-box keyboard page) runs in windows-ui, Axe-scanned, at a size the page supports.
         runs = [run for run in ci.RUNS if run.pages == "a11y-paths-swap.json"]
         self.assertEqual({"normal", "text-225", "no-animations"}, {run.mode for run in runs})
         self.assertTrue(all(run.scan and not run.only for run in runs))
@@ -764,16 +764,21 @@ class UiCiTests(unittest.TestCase):
                       "assertannounced:Lead Hard path image loaded@5", "assertsize:id=fst.paths.zoom-in|40x40",
                       "assertsize:id=fst.paths.zoom-out|40x40"):
             self.assertIn(check, swap)
-        # Design review: the wide instrument circles and every Difficulty/Display radio are 40 epx targets, mid-swap
-        # and settled (page-tools-and-nav-chrome R10).
+        # Design review: the wide instrument circles and the Difficulty/Display selector boxes (issue #650) are 40 epx
+        # targets, mid-swap and settled (page-tools-and-nav-chrome R10); both boxes read as named combo boxes with their
+        # value and keep keyboard focus across a swap.
         wide = next(page for page in pages if page["name"] == "paths-swap-keyboard-wide")["after_ready"]
         loading = wide.index("waitfor:id=fst.paths.loading@3")
         settled = wide.index("waitfor:name=Lead Hard CHOpt path@15")
-        for choice in ("Hard", "Expert"):
-            self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[loading:settled])
-        for choice in ("Easy", "Medium", "Hard", "Expert", "Image", "Text"):
-            self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[settled:])
+        for box in ("difficulty", "display"):
+            self.assertIn(f"assertsize:id=fst.paths.{box}|40x40", wide[loading:settled])
+        self.assertIn("assertread:id=fst.paths.difficulty|Difficulty, combo box, collapsed", wide[:loading])
+        self.assertIn("assertread:id=fst.paths.display|Display, combo box, collapsed", wide[:loading])
+        self.assertIn("assertstate:id=fst.paths.difficulty|value=Hard", wide[loading:settled])
+        self.assertIn("assertfocus:id=fst.paths.difficulty@3", wide[settled:])
+        self.assertIn("assertstate:id=fst.paths.display|value=Text", wide[settled:])
         self.assertIn("assertsize:id=fst.paths.instrument.Solo_Guitar|40x40", wide[settled:])
+        self.assertFalse([step for step in wide if "RadioButton" in step])
 
     def test_paths_instrument_picker_runs_in_ci(self):
         # Issue #439 (#88): the compact Instrument ComboBox opens, reads each option by name in order without Karaoke,

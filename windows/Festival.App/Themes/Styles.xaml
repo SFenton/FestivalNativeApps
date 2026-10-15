@@ -391,9 +391,28 @@
         <Setter Property="MinHeight" Value="{StaticResource FSTMenuItemMinHeight}" />
     </Style>
 
+    <!-- Selector boxes (modal-shell R14, issue #650): the Paths Instrument/Difficulty/Display pickers drawn like the web's
+         frostedCard selectors (iOS glass menus, Android ControlButton): the card surface and stroke, 8 epx corners,
+         semibold value and a 48 epx box. They stay native ComboBoxes; the hover/press fills are lightweight overrides
+         where the boxes live (SongPathsView resources). Options keep regular weight and the 44 epx option height. -->
+    <x:Double x:Key="FSTSelectorMinHeight">48</x:Double>
+    <Style x:Key="FSTSelectorComboBoxItemStyle" TargetType="ComboBoxItem" BasedOn="{StaticResource DefaultComboBoxItemStyle}">
+        <Setter Property="MinHeight" Value="{StaticResource FSTMenuItemMinHeight}" />
+        <Setter Property="FontWeight" Value="Normal" />
+    </Style>
+    <Style x:Key="FSTSelectorComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}">
+        <Setter Property="Background" Value="{ThemeResource FSTCardSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource FSTCardStrokeBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource OverlayCornerRadius}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="MinHeight" Value="{StaticResource FSTSelectorMinHeight}" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource FSTSelectorComboBoxItemStyle}" />
+    </Style>
+
     <!-- Radio choices are targets too (page-tools-and-nav-chrome R10, issue #430): WinUI's template draws each RadioButton
          32 epx tall (a fixed 32 epx circle row, no MinHeight) with an 8 epx RadioButtonsRowSpacing between them, so the
-         Paths Difficulty/Display, Sort By/Direction and Settings Path Default View choices were 32 epx targets. Each
+         Sort By/Direction and Settings Path Default View choices were 32 epx targets (Paths used radios until #650). Each
          RadioButton is at least FSTMinTargetSize tall (6 epx under the label, matching the template's 6 epx above it)
          and the target absorbs the old row gap, so a one-line list keeps its 40 epx row pitch. Implicit styles match
          the exact type; RadioButtons' generated items pick this one up. -->

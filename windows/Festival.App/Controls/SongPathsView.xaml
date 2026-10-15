@@ -7,6 +7,24 @@
     xmlns:vm="using:Festival.Core.ViewModels">
 
     <UserControl.Resources>
+      <ResourceDictionary>
+        <!-- Selector boxes (FSTSelectorComboBoxStyle, issue #650): hover and press keep the card surface (lightweight
+             styling, like the linked stat cards) instead of WinUI's near-transparent control fills, so a box never loses
+             its frosted surface under the pointer. Scoped here: other pages' ComboBoxes keep the Fluent defaults. -->
+        <ResourceDictionary.ThemeDictionaries>
+            <ResourceDictionary x:Key="Default">
+                <StaticResource x:Key="ComboBoxBackgroundPointerOver" ResourceKey="FSTCardSurfacePointerOverBrush" />
+                <StaticResource x:Key="ComboBoxBackgroundPressed" ResourceKey="FSTCardSurfacePressedBrush" />
+                <StaticResource x:Key="ComboBoxBorderBrushPointerOver" ResourceKey="FSTCardStrokePointerOverBrush" />
+                <StaticResource x:Key="ComboBoxBorderBrushPressed" ResourceKey="FSTCardStrokeBrush" />
+            </ResourceDictionary>
+            <ResourceDictionary x:Key="HighContrast">
+                <StaticResource x:Key="ComboBoxBackgroundPointerOver" ResourceKey="FSTCardSurfacePointerOverBrush" />
+                <StaticResource x:Key="ComboBoxBackgroundPressed" ResourceKey="FSTCardSurfacePressedBrush" />
+                <StaticResource x:Key="ComboBoxBorderBrushPointerOver" ResourceKey="FSTCardStrokePointerOverBrush" />
+                <StaticResource x:Key="ComboBoxBorderBrushPressed" ResourceKey="FSTCardStrokePointerOverBrush" />
+            </ResourceDictionary>
+        </ResourceDictionary.ThemeDictionaries>
         <!-- Compact row options: icon + name in every drop-down option; the closed boxes show only the icon while the row
              is icon-only (PathSelectorArrangement.IconOnly, owner-approved issue #612, like the web's mobile selectors). -->
         <DataTemplate x:Key="InstrumentOptionTemplate" x:DataType="vm:PathInstrumentOption">
@@ -24,25 +42,16 @@
             <controls:InstrumentIcon File="{x:Bind IconFile}" Width="24" Height="24" VerticalAlignment="Center"
                                      AutomationProperties.AccessibilityView="Raw" />
         </DataTemplate>
-        <DataTemplate x:Key="DisplayOptionTemplate" x:DataType="vm:PathDisplayOption">
-            <Grid ColumnSpacing="8" AutomationProperties.Name="{x:Bind Label}">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <FontIcon Glyph="{x:Bind Glyph}" FontSize="20" Width="20" VerticalAlignment="Center"
-                          AutomationProperties.AccessibilityView="Raw" />
-                <TextBlock Grid.Column="1" Text="{x:Bind Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-            </Grid>
-        </DataTemplate>
         <DataTemplate x:Key="DisplayFaceTemplate" x:DataType="vm:PathDisplayOption">
             <FontIcon Glyph="{x:Bind Glyph}" FontSize="20" Width="20" VerticalAlignment="Center"
                       AutomationProperties.AccessibilityView="Raw" />
         </DataTemplate>
         <controls:ComboBoxFaceTemplateSelector x:Key="InstrumentTemplates" ItemTemplate="{StaticResource InstrumentOptionTemplate}"
                                                FaceTemplate="{StaticResource InstrumentFaceTemplate}" />
-        <controls:ComboBoxFaceTemplateSelector x:Key="DisplayTemplates" ItemTemplate="{StaticResource DisplayOptionTemplate}"
+        <!-- FSTPathDisplayOptionTemplate (Themes/PathSelectorTemplates.xaml) is shared with the first-run demo. -->
+        <controls:ComboBoxFaceTemplateSelector x:Key="DisplayTemplates" ItemTemplate="{StaticResource FSTPathDisplayOptionTemplate}"
                                                FaceTemplate="{StaticResource DisplayFaceTemplate}" />
+      </ResourceDictionary>
     </UserControl.Resources>
     <Grid x:Name="Root" RowSpacing="12" SizeChanged="OnRootSizeChanged" AutomationProperties.AutomationId="fst.song-detail.paths-dialog">
         <Grid.RowDefinitions>
@@ -51,26 +60,27 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Selectors (medium/wide): the web Instrument Selector (required, full row), then difficulty and image/text. -->
+        <!-- Selectors (medium/wide): the web Instrument Selector (required, full row), then the difficulty and display
+             (icon + Image/Text) selector boxes, centred and equally wide like the web's desktop selector row (issue #650;
+             they replaced plain RadioButtons). Each box is as wide as the longer one's longest option. -->
         <StackPanel x:Name="Selectors" Spacing="12">
             <controls:InstrumentSelector x:Name="InstrumentPicker" Required="True" CompactMode="Never" IdPrefix="fst.paths.instrument"
                                          SelectionChanged="OnInstrumentPicked" HorizontalAlignment="Center"
                                          AutomationProperties.Name="Instrument" />
-            <controls:FlowPanel Spacing="20" HorizontalAlignment="Center">
-                <RadioButtons x:Name="DifficultyPicker" Header="Difficulty" MaxColumns="4"
-                              ItemsSource="{x:Bind ViewModel.DifficultyLabels}" SelectedIndex="{x:Bind ViewModel.DifficultyIndex, Mode=TwoWay}"
-                              AutomationProperties.AutomationId="fst.paths.difficulty" />
-                <RadioButtons x:Name="DisplayPicker" Header="Display" MaxColumns="2"
-                              SelectedIndex="{x:Bind ViewModel.DisplayIndex, Mode=TwoWay}"
-                              AutomationProperties.AutomationId="fst.paths.display">
-                    <x:String>Image</x:String>
-                    <x:String>Text</x:String>
-                </RadioButtons>
+            <controls:FlowPanel x:Name="WideBoxes" Spacing="12" HorizontalAlignment="Center">
+                <ComboBox x:Name="DifficultyPicker" Style="{StaticResource FSTSelectorComboBoxStyle}"
+                          ItemsSource="{x:Bind ViewModel.DifficultyLabels}" SelectedIndex="{x:Bind ViewModel.DifficultyIndex, Mode=TwoWay}"
+                          AutomationProperties.Name="Difficulty" AutomationProperties.AutomationId="fst.paths.difficulty" />
+                <ComboBox x:Name="DisplayPicker" Style="{StaticResource FSTSelectorComboBoxStyle}"
+                          ItemsSource="{x:Bind ViewModel.DisplayOptions}" SelectedIndex="{x:Bind ViewModel.DisplayIndex, Mode=TwoWay}"
+                          ItemTemplate="{StaticResource FSTPathDisplayOptionTemplate}"
+                          AutomationProperties.Name="Display" AutomationProperties.AutomationId="fst.paths.display" />
             </controls:FlowPanel>
         </StackPanel>
 
         <!-- Selectors (compact): the chart fills the sheet above native ComboBoxes for the instrument (icon + name),
-             difficulty and display (icon + Image/Text) (Fluent; replaces the web's mobile instrument accordion, issue #88).
+             difficulty and display (icon + Image/Text) (Fluent; replaces the web's mobile instrument accordion, issue #88),
+             drawn as selector boxes (FSTSelectorComboBoxStyle, issue #650).
              Each labelled box is as wide as its longest option. When one row can't fit them, the instrument and display
              boxes show only their icons and difficulty fills the rest (owner-approved, issue #612); only when that still
              doesn't fit do difficulty and display reflow under the instrument (PathSelectorLayout, issue #280). Declared
@@ -85,13 +95,13 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
-            <ComboBox x:Name="CompactInstrumentPicker" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.InstrumentOptions}"
+            <ComboBox x:Name="CompactInstrumentPicker" Style="{StaticResource FSTSelectorComboBoxStyle}" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.InstrumentOptions}"
                       SelectedIndex="{x:Bind ViewModel.InstrumentIndex, Mode=TwoWay}" ItemTemplateSelector="{StaticResource InstrumentTemplates}"
                       AutomationProperties.Name="Instrument" AutomationProperties.AutomationId="fst.paths.instrument.compact" />
-            <ComboBox x:Name="CompactDifficultyPicker" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.DifficultyLabels}"
+            <ComboBox x:Name="CompactDifficultyPicker" Style="{StaticResource FSTSelectorComboBoxStyle}" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" ItemsSource="{x:Bind ViewModel.DifficultyLabels}"
                       SelectedIndex="{x:Bind ViewModel.DifficultyIndex, Mode=TwoWay}"
                       AutomationProperties.Name="Difficulty" AutomationProperties.AutomationId="fst.paths.difficulty.compact" />
-            <ComboBox x:Name="CompactDisplayPicker" Grid.Column="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+            <ComboBox x:Name="CompactDisplayPicker" Style="{StaticResource FSTSelectorComboBoxStyle}" Grid.Column="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                       ItemsSource="{x:Bind ViewModel.DisplayOptions}" SelectedIndex="{x:Bind ViewModel.DisplayIndex, Mode=TwoWay}"
                       ItemTemplateSelector="{StaticResource DisplayTemplates}"
                       AutomationProperties.Name="Display" AutomationProperties.AutomationId="fst.paths.display.compact" />

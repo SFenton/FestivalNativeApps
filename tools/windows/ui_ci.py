@@ -458,7 +458,7 @@ RUNS: tuple[Run, ...] = (
     Run("a11y-history-swap-no-animations", "a11y-history-swap.json", mode="no-animations", only=HISTORY_SWAP_REDUCED),
     # Paths swap (issues #70, #430): mid-swap the old chart leaves UIA, "Busy Loading path, ProgressRing" sits between
     # the selectors and Close, the selectors stay enabled and show the new value, "Loading …" then "… loaded" are
-    # announced; Image <-> Text; keyboard switches (ComboBox, wide RadioButtons) keep focus on the selector; 40 epx zoom,
+    # announced; Image <-> Text; keyboard switches (compact and wide selector boxes, #650) keep focus on the selector; 40 epx zoom,
     # selectors and Close; mid-swap Axe scans; at 225% text, with in-app Reduce Motion and with Animation effects off.
     # paths-selectors-swap-* (#571) resize the window across the 900 epx selector swap with the dialog open: the dialog
     # follows the window, a focused circle's keyboard tooltip and a hovered circle's pointer tooltip close with the
