@@ -25,7 +25,7 @@ Wide shells (Apple: iPad, the iPhone Duo inner display and Mac) split a selected
 | Season | `S9`, inverted when equal to the current catalogue season |
 | Song Intensity | Catalogue chart raw + 1 on the seven-bar [meter](../difficulty-meter/spec.md); once per card |
 | Game Difficulty | Player E/M/H/X (0–3), separate from Intensity; Easy/Hard use **dark** glyphs, Medium/Expert white |
-| Last Played | Web: hidden under Title, injected under Last Played sort. Native: toggle-controlled date under Title (explicit deviation until that sort ships); when shown it is the **final** pill |
+| Last Played | Web: hidden under every sort but Last Played, whatever the toggle says; under that sort it leads the row as the date alone (unfiltered: the latest play across charts, that chart's icon + date). Android and Windows follow the web (#647). Apple: toggle-controlled date under Title, as the **final** pill (explicit deviation until its sort ships) |
 
 - The first **renderable** field becomes the primary top-trailing value (Score hidden → Accuracy/FC). The rest wrap right-aligned by measured width; grow rather than clip at large text or narrow panes. The row stays one navigation action; art and Shop badge are separate.
 - A positive score on a non-Lead chart shows and speaks that chart's name (e.g. "Drums chart").

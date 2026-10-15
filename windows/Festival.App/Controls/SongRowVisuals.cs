@@ -67,8 +67,9 @@ public static class SongRowVisuals
     /// <summary>A metadata pill for one field: one raw-view UIA element named with the field's spoken text.</summary>
     /// <param name="field">Field.</param>
     /// <param name="songId">Row song for the <c>fst.songs.metadata.*</c> test ID, or <see langword="null"/> (measuring).</param>
+    /// <param name="keyboard">Use the keys icon variant for an unfiltered Last Played entry's Lead/Pro Lead icon.</param>
     /// <returns>Pill element.</returns>
-    public static FrameworkElement Pill(SongMetadataField field, string? songId = null)
+    public static FrameworkElement Pill(SongMetadataField field, string? songId = null, bool keyboard = false)
     {
         var element = field.Kind switch
         {
@@ -95,6 +96,18 @@ public static class SongRowVisuals
                 Text(field.Text, PillFont, FontWeights.Bold, new SolidColorBrush(field.GameDifficulty is 0 or 2 ? Colors.Black : Colors.White)),
                 Brush(field.GameDifficulty switch { 0 => "FSTDiffPillEasyBrush", 1 => "FSTDiffPillMediumBrush", 2 => "FSTDiffPillHardBrush", _ => "FSTDiffPillExpertBrush" }),
                 null),
+            // Web SongRow unfiltered Last Played: the most recently played chart's icon, then the date.
+            MetadataField.LastPlayed when field.PlayedChart is { } played => Plain(new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                Children =
+                {
+                    new InstrumentIcon { File = played.IconFile(keyboard), Label = played.Label(), Width = 20, Height = 20, VerticalAlignment = VerticalAlignment.Center }
+                        .Raw(),
+                    Text(field.Text, 12, FontWeights.Normal, Brush("FSTSecondaryTextBrush")),
+                },
+            }),
             _ => Plain(Text(field.Text, 12, FontWeights.Normal, Brush("FSTSecondaryTextBrush"))),
         };
         element.VerticalAlignment = VerticalAlignment.Center;
@@ -187,6 +200,15 @@ public static class SongRowVisuals
     {
         pill.Children.Add(content);
         return pill;
+    }
+
+    /// <summary>Hides an element from the UIA control view (the pill and row already speak it).</summary>
+    /// <param name="element">Element.</param>
+    /// <returns>The element.</returns>
+    private static UIElement Raw(this UIElement element)
+    {
+        AutomationProperties.SetAccessibilityView(element, AccessibilityView.Raw);
+        return element;
     }
 
     /// <summary>Looks up an app brush.</summary>
