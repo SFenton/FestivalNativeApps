@@ -46,6 +46,15 @@ public static class MetadataPillStyle
     /// <summary>Percentile pill minimum width: the web 5.5em at <see cref="FontSize"/>.</summary>
     public const double PercentileMinWidth = 5.5 * FontSize;
 
+    /// <summary>Songs accuracy pill minimum width (graded and full combo): the web <c>accuracyPillMinWidth</c> 3.75em.</summary>
+    public const double AccuracyMinWidth = 3.75 * FontSize;
+
+    /// <summary>
+    /// Edge of each star circle on a metadata row: the pill height, so stars line up with the pills (web <c>MiniStars</c>
+    /// 24 px circles; Apple and Android draw stars at the pill height too, issue #644).
+    /// </summary>
+    public const double StarCircle = Height;
+
     /// <summary>Visible season label.</summary>
     /// <param name="season">Season number.</param>
     /// <returns><c>S9</c>.</returns>
@@ -129,6 +138,12 @@ public static class MetadataPillStyle
         SongPercentileTier.TopFive => new("FSTGoldPillFillBrush", "FSTEmphasisStrokeBrush", "FSTEmphasisBrush", true, false, false),
         _ => new("FSTPercentileNeutralFillBrush", "FSTPercentileNeutralStrokeBrush", "FSTPercentileNeutralTextBrush", bold, false, false),
     };
+
+    /// <summary>
+    /// Full-combo accuracy look on Songs rows (web <c>AccuracyDisplay</c> <c>fcBadge</c>: <c>goldOutlineSkew</c>, the same
+    /// skewed bold italic gold outline as Top 1%; issue #644).
+    /// </summary>
+    public static MetadataPillLook FullCombo { get; } = Percentile(SongPercentileTier.TopOne);
 
     /// <summary>Width a season pill takes for a label of <paramref name="chars"/> characters at text scale 1.</summary>
     /// <param name="chars">Label length.</param>

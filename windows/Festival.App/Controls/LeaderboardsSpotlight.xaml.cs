@@ -8,6 +8,9 @@ namespace Festival.App.Controls;
 /// <summary>Selected-player spotlight shown under an overview card or pinned above the Full Rankings pager.</summary>
 public sealed partial class LeaderboardsSpotlight : UserControl
 {
+    /// <summary>Whether the spotlight sits inside an overview card (issue #643).</summary>
+    private bool inCard;
+
     /// <summary>Spotlight model.</summary>
     public static readonly DependencyProperty SpotlightProperty = DependencyProperty.Register(
         nameof(Spotlight), typeof(RankingSpotlightViewModel), typeof(LeaderboardsSpotlight),
@@ -36,6 +39,32 @@ public sealed partial class LeaderboardsSpotlight : UserControl
             PinnedRow.IsFloating = LoadingRow.IsFloating = value;
             var backplate = value ? Visibility.Visible : Visibility.Collapsed;
             FailedBackplate.Visibility = UnrankedBackplate.Visibility = backplate;
+        }
+    }
+
+    /// <summary>
+    /// Whether the spotlight sits inside an overview card with the board's rows (Leaderboards, issue #643): the loading
+    /// placeholder and the pinned row draw in-card <see cref="GroupedRowSlice"/>s after the card's rows (the placeholder
+    /// under a hairline, the pinned row in its purple fill), and the failure and unranked note drop their own card for a
+    /// hairline inset like the rows' and text aligned with the rows' content. Set once from markup (it only turns on).
+    /// </summary>
+    public bool InCard
+    {
+        get => inCard;
+        set
+        {
+            if (inCard || !value) return;
+            inCard = true;
+            LoadingRow.Slice = GroupedRowSlice.For(1, 2, false, false, inCard: true);
+            PinnedRow.Slice = GroupedRowSlice.For(1, 2, true, false, inCard: true);
+            FailedLine.Visibility = UnrankedLine.Visibility = Visibility.Visible;
+            foreach (var surface in new[] { FailedSurface, UnrankedSurface })
+            {
+                // No surface or outline in the card: the hairline Border above draws the only line.
+                surface.Background = null;
+                surface.BorderThickness = new Thickness(0);
+                surface.Padding = new Thickness(GroupedRowSlice.SeparatorInset, 10, GroupedRowSlice.SeparatorInset, 10);
+            }
         }
     }
 

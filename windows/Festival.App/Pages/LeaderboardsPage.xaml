@@ -102,32 +102,40 @@
                                 <!-- Header above the card (web RankingCard cardLabel): instrument icon and name only (the Rank By
                                      button already names the metric). -->
                                 <controls:CardHeader Title="{x:Bind Title}" IconFile="{x:Bind IconFile}" IconFiles="{x:Bind IconFiles}" TitleAutomationId="{x:Bind AutomationId}" />
-                                <!-- No card around the rows: each row is its own frosted row (web RankingCard cardBody,
-                                     operator batch 7.7); failed boards sit on their own card, empty boards use the shared compact EmptyStateView (#377). -->
-                                <StackPanel Spacing="4">
-                                        <controls:LeaderboardsSkeleton Rows="{x:Bind SkeletonRows}" Visibility="{x:Bind IsLoading, Mode=OneWay}" />
+                                <!-- One card per board (issue #643, leaderboard-row R10, like Apple's flush FestivalGlassSection and
+                                     Android's GlassCard): the loading placeholders, the inline failure, the rows as in-card
+                                     GroupedRows slices (hairlines between them, the player's row purple), the player's
+                                     spotlight and View All, last (view-all-cta R1). An empty board is the shared compact
+                                     EmptyStateView with no card (#377). -->
+                                <StackPanel>
                                         <controls:EmptyStateView IsCompact="True" Title="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" />
-                                        <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ShowError, Mode=OneWay}">
-                                            <controls:ServiceStatusInline Status="{x:Bind Status}" />
+                                        <Border x:Name="BoardCard" Style="{StaticResource FSTCardStyle}" Padding="8,8,8,12"
+                                                Visibility="{x:Bind ShowEmpty, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}">
+                                            <StackPanel Spacing="4">
+                                                <controls:LeaderboardsSkeleton Rows="{x:Bind SkeletonRows}" InCard="True" Visibility="{x:Bind IsLoading, Mode=OneWay}" />
+                                                <controls:ServiceStatusInline Margin="8,4" Status="{x:Bind Status}" Visibility="{x:Bind ShowError, Mode=OneWay}" />
+                                                <StackPanel Visibility="{x:Bind ShowRows, Mode=OneWay}">
+                                                    <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}"
+                                                                   controls:GroupedRows.IsEnabled="True" controls:GroupedRows.InCard="True"
+                                                                   controls:FadeIn.Together="True" controls:FadeIn.RowHeight="52">
+                                                        <ItemsRepeater.Layout>
+                                                            <!-- One non-virtualizing column: rows stay realized while the page is cached, so Back
+                                                                 never re-estimates them and moves the page (#276). The rows touch (in-card slices). -->
+                                                            <controls:LeaderboardsCardGridLayout MinColumnWidth="0" MaxColumns="1" Spacing="0" />
+                                                        </ItemsRepeater.Layout>
+                                                        <ItemsRepeater.ItemTemplate>
+                                                            <DataTemplate x:DataType="vm:RankingRowViewModel">
+                                                                <controls:LeaderboardEntryRow Row="{x:Bind}" />
+                                                            </DataTemplate>
+                                                        </ItemsRepeater.ItemTemplate>
+                                                    </ItemsRepeater>
+                                                    <controls:LeaderboardsSpotlight Spotlight="{x:Bind Spotlight}" IdPrefix="{x:Bind SpotlightAutomationId}" InCard="True" />
+                                                </StackPanel>
+                                                <Button Content="{x:Bind ViewAllText, Mode=OneWay}" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}"
+                                                        Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName, Mode=OneWay}"
+                                                        AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
+                                            </StackPanel>
                                         </Border>
-                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
-                                                       controls:FadeIn.Together="True" controls:FadeIn.RowHeight="52">
-                                            <ItemsRepeater.Layout>
-                                                <!-- One non-virtualizing column: rows stay realized while the page is cached, so Back
-                                                     never re-estimates them and moves the page (#276). -->
-                                                <controls:LeaderboardsCardGridLayout MinColumnWidth="0" MaxColumns="1" Spacing="4" />
-                                            </ItemsRepeater.Layout>
-                                            <ItemsRepeater.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:RankingRowViewModel">
-                                                    <controls:LeaderboardEntryRow Row="{x:Bind}" />
-                                                </DataTemplate>
-                                            </ItemsRepeater.ItemTemplate>
-                                        </ItemsRepeater>
-                                        <controls:LeaderboardsSpotlight Spotlight="{x:Bind Spotlight}" IdPrefix="{x:Bind SpotlightAutomationId}"
-                                                                        Visibility="{x:Bind ShowRows, Mode=OneWay}" />
-                                        <Button Content="{x:Bind ViewAllText, Mode=OneWay}" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}"
-                                                Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName, Mode=OneWay}"
-                                                AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                 </StackPanel>
                             </StackPanel>
                         </controls:AccessibleGroup>
@@ -155,30 +163,33 @@
                             <StackPanel Spacing="8">
                                 <!-- Band-size header above the card: name only, no icon (web band RankingCard). -->
                                 <controls:CardHeader Title="{x:Bind Title}" TitleAutomationId="{x:Bind AutomationId}" />
-                                <!-- No card around the rows: each row is its own frosted row (web RankingCard cardBody,
-                                     operator batch 7.7); failed boards sit on their own card, empty boards use the shared compact EmptyStateView (#377). -->
-                                <StackPanel Spacing="4">
-                                        <controls:LeaderboardsSkeleton Rows="{x:Bind SkeletonRows}" Visibility="{x:Bind IsLoading, Mode=OneWay}" />
+                                <!-- One card per band board, like the instrument cards above (issue #643). -->
+                                <StackPanel>
                                         <controls:EmptyStateView IsCompact="True" Title="{x:Bind EmptyText}" Visibility="{x:Bind ShowEmpty, Mode=OneWay}" />
-                                        <Border Style="{StaticResource FSTCardStyle}" Visibility="{x:Bind ShowError, Mode=OneWay}">
-                                            <controls:ServiceStatusInline Status="{x:Bind Status}" />
+                                        <Border x:Name="BandBoardCard" Style="{StaticResource FSTCardStyle}" Padding="8,8,8,12"
+                                                Visibility="{x:Bind ShowEmpty, Mode=OneWay, Converter={StaticResource FSTInverseVisibility}}">
+                                            <StackPanel Spacing="4">
+                                                <controls:LeaderboardsSkeleton Rows="{x:Bind SkeletonRows}" InCard="True" Visibility="{x:Bind IsLoading, Mode=OneWay}" />
+                                                <controls:ServiceStatusInline Margin="8,4" Status="{x:Bind Status}" Visibility="{x:Bind ShowError, Mode=OneWay}" />
+                                                <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
+                                                               controls:GroupedRows.IsEnabled="True" controls:GroupedRows.InCard="True"
+                                                               controls:FadeIn.Together="True" controls:FadeIn.RowHeight="52">
+                                                    <ItemsRepeater.Layout>
+                                                        <!-- One non-virtualizing column: rows stay realized while the page is cached, so Back
+                                                             never re-estimates them and moves the page (#276). The rows touch (in-card slices). -->
+                                                        <controls:LeaderboardsCardGridLayout MinColumnWidth="0" MaxColumns="1" Spacing="0" />
+                                                    </ItemsRepeater.Layout>
+                                                    <ItemsRepeater.ItemTemplate>
+                                                        <DataTemplate x:DataType="vm:BandRankingRowViewModel">
+                                                            <controls:LeaderboardEntryRow Row="{x:Bind}" />
+                                                        </DataTemplate>
+                                                    </ItemsRepeater.ItemTemplate>
+                                                </ItemsRepeater>
+                                                <Button Content="{x:Bind ViewAllText, Mode=OneWay}" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}"
+                                                        Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName, Mode=OneWay}"
+                                                        AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
+                                            </StackPanel>
                                         </Border>
-                                        <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Rows, Mode=OneWay}" Visibility="{x:Bind ShowRows, Mode=OneWay}"
-                                                       controls:FadeIn.Together="True" controls:FadeIn.RowHeight="52">
-                                            <ItemsRepeater.Layout>
-                                                <!-- One non-virtualizing column: rows stay realized while the page is cached, so Back
-                                                     never re-estimates them and moves the page (#276). -->
-                                                <controls:LeaderboardsCardGridLayout MinColumnWidth="0" MaxColumns="1" Spacing="4" />
-                                            </ItemsRepeater.Layout>
-                                            <ItemsRepeater.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:BandRankingRowViewModel">
-                                                    <controls:LeaderboardEntryRow Row="{x:Bind}" />
-                                                </DataTemplate>
-                                            </ItemsRepeater.ItemTemplate>
-                                        </ItemsRepeater>
-                                        <Button Content="{x:Bind ViewAllText, Mode=OneWay}" Tag="{x:Bind}" Click="OnViewAll" Style="{StaticResource FSTViewAllButtonStyle}"
-                                                Visibility="{x:Bind ShowRows, Mode=OneWay}" AutomationProperties.Name="{x:Bind ViewAllName, Mode=OneWay}"
-                                                AutomationProperties.AutomationId="{x:Bind ViewAllAutomationId}" />
                                 </StackPanel>
                             </StackPanel>
                         </controls:AccessibleGroup>

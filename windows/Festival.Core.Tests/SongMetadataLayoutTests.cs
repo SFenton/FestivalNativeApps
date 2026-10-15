@@ -27,7 +27,7 @@ public class SongMetadataLayoutTests
         Assert.Equal(Enum.GetValues<MetadataField>().Length - 1, all.Count);
         Assert.DoesNotContain(all, s => s.Kind == MetadataField.LastPlayed);
         Assert.Equal(all.Count, all.Select(s => s.Kind).Distinct().Count());
-        Assert.Contains(all, s => s.Kind == MetadataField.Percentage && s.Text == "100% FC" && s.FullCombo);
+        Assert.Contains(all, s => s.Kind == MetadataField.Percentage && s.Text == "100%" && s.FullCombo);
         Assert.Contains(all, s => s.Kind == MetadataField.Stars && s.Stars == (5, true));
         Assert.Contains(all, s => s.Kind == MetadataField.Difficulty && s.Text == "M");
         Assert.Contains(all, s => s.Kind == MetadataField.Intensity && s.IntensityRaw == 6);
