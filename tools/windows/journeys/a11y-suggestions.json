@@ -1,7 +1,8 @@
 [
   {
     "name": "suggestions-cards",
-    "note": "Issue #205 (#513): each card is one Narrator list item named by its title, which is a Level 2 heading (H/Shift+H stop), in page order after Filter; every row is one 40+ epx focusable Button named with its song, artist, year and reason.",
+    "sizes": ["compact", "medium"],
+    "note": "Issue #205 (#513): in one column each card is one Narrator list item named by its title, which is a Level 2 heading (H/Shift+H stop), in page order after Filter; every row is one 40+ epx focusable Button named with its song, artist, year and reason. Two columns (a wide window, #653) pair cards into one list item per line: wide-columns-suggestions-two in a11y-wide-columns.json.",
     "route": "/suggestions",
     "profile": "fixture-suggest:Fixture Player",
     "fixture": ["suggestions_fixture_server.py"],
@@ -30,7 +31,8 @@
   },
   {
     "name": "suggestions-keyboard",
-    "note": "Issue #205 (#513): a card's rows are one Tab stop; Down/Up move row by row inside a card and across card boundaries (they used to scroll the list); Tab/Shift+Tab move between cards and back to Filter; Enter opens the filter on Instruments and Esc returns focus to Filter.",
+    "sizes": ["compact", "medium"],
+    "note": "Issue #205 (#513): a card's rows are one Tab stop; Down/Up move row by row inside a card and across card boundaries (they used to scroll the list) in one column (two columns: wide-columns-suggestions-two in a11y-wide-columns.json, #653); Tab/Shift+Tab move between cards and back to Filter; Enter opens the filter on Instruments and Esc returns focus to Filter.",
     "route": "/suggestions",
     "profile": "fixture-suggest:Fixture Player",
     "fixture": ["suggestions_fixture_server.py"],
