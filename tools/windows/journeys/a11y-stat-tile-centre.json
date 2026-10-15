@@ -1,0 +1,20 @@
+[
+  {"name": "stat-tile-centre", "route": "/statistics", "profile": "fixture-player-1:Demo Player", "scan": true, "tabs": 0,
+   "sizes": ["compact", "medium", "wide"],
+   "note": "Issue #651 (pattern stat-tile-grid): a linked stat tile's value and label are centred on the whole card, not on the space left of its trailing chevron, at every text size; the tile stays one named 40+ epx button with the label and value read once, in grid order.",
+   "ready": ["waitfor:id=fst.player.stat.overview.songs-played@30", "waitfor:id=fst.player.stat.overview.full-combos@10",
+             "scrollinset:id=fst.player.overview|id=fst.player.available|8", "wait:1"],
+   "after_ready": [
+     "assertaligned:id=fst.player.stat.overview.songs-played|raw=fst.player.stat.overview.songs-played.value",
+     "assertaligned:id=fst.player.stat.overview.songs-played|raw=fst.player.stat.overview.songs-played.label",
+     "assertaligned:id=fst.player.stat.overview.full-combos|raw=fst.player.stat.overview.full-combos.value",
+     "assertaligned:id=fst.player.stat.overview.full-combos|raw=fst.player.stat.overview.full-combos.label",
+     "assertstate:id=fst.player.stat.overview.songs-played|type=button",
+     "assertstate:id=fst.player.stat.overview.songs-played|invoke=true",
+     "assertread:id=fst.player.stat.overview.songs-played|~^Songs Played: ",
+     "assertsize:id=fst.player.stat.overview.songs-played|0x40",
+     "assertsize:id=fst.player.stat.overview.full-combos|0x40",
+     "assertorder:id=fst.player.overview|id=fst.player.stat.overview.songs-played|id=fst.player.stat.overview.full-combos",
+     "shot:{stem}.png"
+   ]}
+]
