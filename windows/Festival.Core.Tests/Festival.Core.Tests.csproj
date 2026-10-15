@@ -33,5 +33,7 @@
   <ItemGroup>
     <!-- Suggestions parity fixture + Apple reference output (tools/windows/suggestion_parity). -->
     <None Include="Fixtures\suggestions-parity*.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Two-rival fixture for Suggestions rule R1 (#656) + its Apple output, owned by the parity harness. -->
+    <None Include="..\..\tools\windows\suggestion_parity\fixtures\named-rival-parity*.json" Link="Fixtures\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

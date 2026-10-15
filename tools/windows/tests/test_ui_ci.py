@@ -114,7 +114,7 @@ class UiCiTests(unittest.TestCase):
         pages = {page["name"]: page for page in json.loads((ci.JOURNEYS / "a11y-suggestions.json").read_text(encoding="utf-8"))}
         row = "fst.suggestions.row."
         for name, (song, pill) in {"suggestions-row-centre": ("s032|Solo_PeripheralGuitar", "season"),
-                                   "suggestions-row-centre-rival": ("s034|Solo_Guitar", "rival")}.items():
+                                   "suggestions-row-centre-rival": ("s046|Solo_Guitar", "rival")}.items():
             with self.subTest(page=name):
                 steps = pages[name]["after_ready"]
                 raw = f"raw={row}{song.replace('|', '.')}"
@@ -376,9 +376,9 @@ class UiCiTests(unittest.TestCase):
         pages = {page["name"]: page for page in
                  json.loads((ci.JOURNEYS / "a11y-suggestions.json").read_text(encoding="utf-8"))}
         self.assertEqual({"suggestions-cards", "suggestions-keyboard", "suggestions-filter", "suggestions-syncing",
-                          "suggestions-no-results", "suggestions-rival-pill-contrast", "suggestions-load-more",
-                          "suggestions-load-more-keyboard", "suggestions-row-centre", "suggestions-row-centre-rival"},
-                         set(pages))
+                          "suggestions-no-results", "suggestions-rival-pill-contrast", "suggestions-named-rival",
+                          "suggestions-load-more", "suggestions-load-more-keyboard", "suggestions-row-centre",
+                          "suggestions-row-centre-rival"}, set(pages))
         cards = pages["suggestions-cards"]["after_ready"]
         self.assertIn("assertstate:name=Pro Lead Untouched for 2 Seasons&class=TextBlock|heading=2", cards)
         keyboard = pages["suggestions-keyboard"]["after_ready"]
@@ -392,6 +392,11 @@ class UiCiTests(unittest.TestCase):
                          [step for step in filter_steps[expand + 1:] if step.startswith(("key:", "assertfocus:"))][:2])
         for name in ("suggestions-syncing", "suggestions-no-results"):
             self.assertTrue(any(step.endswith("|heading=2") for step in pages[name]["after_ready"]), name)
+        # Issue #656 (Suggestions R1): a card that names a rival lists only that rival.
+        named = pages["suggestions-named-rival"]["after_ready"]
+        self.assertIn("assertstate:name=Gain Stars & Beat Rival B3&class=TextBlock|heading=2", named)
+        self.assertTrue(all(step.split("|")[0].endswith("Rival B3") for step in named
+                            if step.startswith(("assertread:name=Track", "assertsize:name=Track"))))
         contrast = pages["suggestions-rival-pill-contrast"]
         self.assertEqual(["medium"], contrast["sizes"])
         self.assertIn("contrast:desert", contrast["after_ready"])
@@ -414,21 +419,21 @@ class UiCiTests(unittest.TestCase):
                  json.loads((ci.JOURNEYS / "a11y-suggestions.json").read_text(encoding="utf-8"))}
         self.assertEqual(set(ci.SUGGESTIONS_LOAD_MORE.split(",")), {"suggestions-load-more", "suggestions-load-more-keyboard"})
         labels = pages["suggestions-load-more"]["after_ready"]
-        row = "name=Track 16, Artist R · 1989, Pro Lead, 2 ranks behind Rival B0"
-        # Card 12 only exists once the second batch (cards 11-16) has loaded.
-        self.assertIn("scrollinto:id=fst.suggestions.category.song_rival_gap_rival-below-0@15", labels)
-        self.assertIn("assertstate:name=Close the Gap vs Rival B0&class=TextBlock|heading=2", labels)
+        row = "name=Track 19, X · 2004, Lead, 60 ranks ahead of Rival A2"
+        # This card only exists once the second batch (cards 11-16) has loaded.
+        self.assertIn("scrollinto:id=fst.suggestions.category.song_rival_dominate_rival-above-2@15", labels)
+        self.assertIn("assertstate:name=Dominate Rival A2&class=TextBlock|heading=2", labels)
         self.assertIn(f"assertread:{row}|{row[5:]}, button", labels)
         self.assertIn(f"assertsize:{row}|40x40", labels)
-        self.assertIn("assertorder:name=New on Pro Lead|name=Climb Past Rival B4", labels)
+        self.assertIn("assertorder:name=New on Pro Lead|name=Protect Your Lead vs Rival B2", labels)
         keyboard = pages["suggestions-load-more-keyboard"]
         self.assertEqual(0, keyboard["tabs"])
         steps = keyboard["after_ready"]
         down = steps.index("key:down")
-        self.assertEqual(["assertfocus:id=fst.suggestions.row.s034|Solo_Guitar@3", "key:up",
+        self.assertEqual(["assertfocus:id=fst.suggestions.row.s006|Solo_Guitar@3", "key:up",
                           "assertfocus:id=fst.suggestions.row.s055@3"], steps[down + 1:down + 4])
         # Tab ends on card 17's row, in the third batch, which only exists once Tab has walked to the end of the second.
-        self.assertIn("assertfocus:id=fst.suggestions.row.s050|Solo_Drums@5", steps)
+        self.assertIn("assertfocus:id=fst.suggestions.row.s022|Solo_Bass@5", steps)
         self.assertEqual("key:shift+tab", steps[-3])
         # The Axe scan follows: pin a card 8 epx below the list top so no card ends on the viewport edge (item 3).
         self.assertTrue(steps[-1].startswith("scrollinset:") and steps[-1].endswith("|id=fst.suggestions.list|8"))

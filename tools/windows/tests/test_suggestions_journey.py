@@ -10,6 +10,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import suggestions_journey as j  # noqa: E402  (sibling module)
 
+# A named-rival card (Suggestions R1, #656) as a later remix shows it.
+CLIMB_CARD = "fst.suggestions.category.song_rival_pct_push.2"
+CLIMB_ROW_NAME = "Track 42, Artist B · 2004, Lead, 5 ranks behind Rival B4"
+
 
 class LockBoundTests(unittest.TestCase):
     """Only a time-bounded state that expired behind the desktop lock is retried."""
@@ -41,19 +45,24 @@ class RivalCardTests(unittest.TestCase):
         '        Text "Track 41" id= class= rect=1038,476,2358,55',
         '        Text "-2" id= class=TextBlock rect=3432,503,42,55',
         '      Button "Track 14, Artist C · 2004, Pro Lead, 9 ranks ahead of Rival B1" id=fst.suggestions.row.s014 rect=1',
-        '  ListItem "Climb Past Rival B4" id= class=ListViewItem rect=795,1641,2970,371',
-        f'    Group "Climb Past Rival B4" id={j.MIXED_CARD} class=NamedContainerAutomationPeer rect=1,1,1,1',
+        '  ListItem "Stale Songs Your Rivals Are Beating You On" id= class=ListViewItem rect=795,1641,2970,371',
+        f'    Group "Stale Songs Your Rivals Are Beating You On" id={j.MIXED_CARD} class=NamedContainerAutomationPeer rect=1',
         f'      Button "{j.MIXED_ROW_NAME}" id=fst.suggestions.row.s034|Solo_Guitar class=Button rect=1',
         '        Text "Rival B4" id= class=TextBlock rect=3231,1854,153,56',
         '        Text "-2" id= class=TextBlock rect=3432,1854,42,56',
         '      Button "Track 40, Artist A · 2004, Pro Lead, rival Rival B2" id=fst.suggestions.row.s040 rect=1',
         '        Text "Rival B2" id= class=TextBlock rect=1,1,1,1',
+        '  ListItem "Climb Past Rival B4" id= class=ListViewItem rect=795,2100,2970,371',
+        f'    Group "Climb Past Rival B4" id={CLIMB_CARD} class=NamedContainerAutomationPeer rect=1,1,1,1',
+        f'      Button "{CLIMB_ROW_NAME}" id=fst.suggestions.row.s042|Solo_Guitar class=Button rect=1',
+        '        Text "-5" id= class=TextBlock rect=3432,2200,42,56',
+        '      Button "Track 34, Artist O · 1999, Lead, 2 ranks behind Rival B4" id=fst.suggestions.row.s034 rect=1',
     ])
 
     def test_subtree_stops_at_the_next_card(self):
         card = j.card_subtree(self.TREE, j.SPOTLIGHT_CARD)
         self.assertEqual(6, len(card))
-        self.assertFalse(any("Climb Past" in line for line in card))
+        self.assertFalse(any("Stale Songs" in line for line in card))
 
     def test_subtree_skips_offscreen_copies(self):
         tree = f'Group "x" id={j.MIXED_CARD} class=C rect=0,0,0,0 [offscreen]\n  Text "Rival B4" id= rect=0'
@@ -61,7 +70,8 @@ class RivalCardTests(unittest.TestCase):
         self.assertEqual(["card not on screen"], j.rival_card_problems([], "Rival B4", True))
 
     def test_spotlight_and_mixed_cards_pass(self):
-        for card, rival, pill in ((j.SPOTLIGHT_CARD, "Rival B1", False), (j.MIXED_CARD, "Rival B4", True)):
+        for card, rival, pill in ((j.SPOTLIGHT_CARD, "Rival B1", False), (j.MIXED_CARD, "Rival B4", True),
+                                  (CLIMB_CARD, "Rival B4", False)):
             self.assertEqual([], j.rival_card_problems(j.card_subtree(self.TREE, card), rival, pill), card)
 
     def test_spotlight_pill_is_a_failure(self):
@@ -82,8 +92,46 @@ class RivalCardTests(unittest.TestCase):
         problems = j.rival_card_problems(j.card_subtree(tree, j.MIXED_CARD), "Rival B4", True)
         self.assertEqual(["name pill 'Rival B4' missing", "no row is named 'rival Rival B4'"], problems)
 
+    def test_named_card_listing_another_rival_fails(self):
+        # Issue #656: "Climb Past Rival B4" must not list a song whose closest rival is someone else.
+        tree = self.TREE.replace("5 ranks behind Rival B4", "5 ranks behind Rival B2")
+        problems = j.rival_card_problems(j.card_subtree(tree, CLIMB_CARD), "Rival B4", False)
+        self.assertEqual(1, len(problems))
+        self.assertIn("row does not name 'Rival B4'", problems[0])
+
     def test_rows_without_buttons_fail(self):
         self.assertEqual(["card has no rows"], j.rival_card_problems(['Group "x" id=c'], "R", False))
+
+    def test_named_sweep_checks_each_card_against_its_title(self):
+        checked, problems = j.named_card_problems([self.TREE, self.TREE])
+        self.assertEqual(["song_rival_pct_push.2"], checked)
+        self.assertEqual([], problems)
+
+    def test_named_sweep_flags_a_row_for_another_rival(self):
+        tree = self.TREE.replace("2 ranks behind Rival B4", "2 ranks behind Rival B2")
+        checked, problems = j.named_card_problems([tree])
+        self.assertEqual(["song_rival_pct_push.2"], checked)
+        self.assertEqual(1, len(problems))
+        self.assertIn("song_rival_pct_push.2: row does not name 'Rival B4'", problems[0])
+
+    def test_named_sweep_flags_a_pill_and_reads_fc_titles(self):
+        tree = "\n".join([
+            '  Group "FC These to Beat Rival A1!" id=fst.suggestions.category.song_rival_near_fc.1 class=C rect=1',
+            '    Button "Track 9, Artist Z, Drums, 3 ranks behind Rival A1" id=fst.suggestions.row.s009 rect=1',
+            '      Text "Rival A1" id= class=TextBlock rect=1',
+        ])
+        checked, problems = j.named_card_problems([tree])
+        self.assertEqual(["song_rival_near_fc.1"], checked)
+        self.assertEqual(["song_rival_near_fc.1: name pill 'Rival A1' still drawn"], problems)
+
+    def test_named_sweep_skips_offscreen_cards(self):
+        tree = f'Group "Climb Past Rival B4" id={CLIMB_CARD} class=C rect=0,0,0,0 [offscreen]\n  Button "x" rect=0'
+        self.assertEqual(([], []), j.named_card_problems([tree]))
+
+    def test_named_sweep_scenarios_load_more(self):
+        self.assertLessEqual(j.NAMED_SWEEPS, set(j.SCENARIOS))
+        steps = j.SCENARIOS["rival-rows"][2]
+        self.assertEqual(j.NAMED_LOADS, sum(step.startswith("tree:{scans}/named-") for step in steps))
 
     def test_checks_name_real_scenarios(self):
         self.assertLessEqual(set(j.RIVAL_CHECKS), set(j.SCENARIOS))

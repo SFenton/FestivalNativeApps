@@ -1002,8 +1002,6 @@ public sealed class SuggestionGenerator
             : item;
     }
 
-    private string ClosestRivalName(Candidate candidate) => ClosestMatch(candidate)?.Rival.DisplayName ?? "a rival";
-
     private IReadOnlyList<RivalSongMatch>? MatchesFor(string rivalId) =>
         rivalData is { } data && data.ByRival.TryGetValue(rivalId, out var matches) && matches.Count > 0 ? matches : null;
 
@@ -1126,37 +1124,71 @@ public sealed class SuggestionGenerator
             $"You're crushing {rival.DisplayName} on these. Keep up the dominance.", rival, MatchLookup(matches), pool);
     }
 
-    /// <summary>Shared body of the four cross-pollination families.</summary>
-    private List<SuggestionCategory> CrossPollinate(string key, Func<SuggestionScore, bool> predicate, bool requireRivalAhead,
-        Func<string, string> title, string description)
+    /// <summary>Candidates matching <paramref name="predicate"/> that have a closest rival (ahead of the player when <paramref name="requireRivalAhead"/>).</summary>
+    /// <param name="predicate">Score filter.</param>
+    /// <param name="requireRivalAhead">Keep only charts where the closest rival leads (<c>RankDelta &lt; 0</c>).</param>
+    /// <returns>Unshuffled pool in catalogue order.</returns>
+    private List<Candidate> CrossPollinationPool(Func<SuggestionScore, bool> predicate, bool requireRivalAhead) =>
+        Candidates(predicate).Where(c => ClosestMatch(c) is { } m && (!requireRivalAhead || m.RankDelta < 0)).ToList();
+
+    /// <summary>
+    /// Shared body of the cross-pollination families whose title names one rival (<c>song_rival_near_fc</c>,
+    /// <c>song_rival_star_gains</c>, <c>song_rival_pct_push</c>); Suggestions rule R1 (#656), Apple <c>namedRivalCategory</c>.
+    /// </summary>
+    /// <remarks>
+    /// The card's rival is chosen before selection so every row is about that rival: after the shuffle the headline rival is the
+    /// closest rival on the first candidate the session hasn't shown (else the first candidate), and the pool keeps only candidates
+    /// whose closest rival is that account. The emit roll, new-first selection and rows use the narrowed pool. The web titles the
+    /// card from the first selected song and keeps every row's own closest rival; this is a deliberate native fix of that bug.
+    /// </remarks>
+    /// <param name="key">Category key.</param>
+    /// <param name="pool">Unshuffled candidates, each with a closest-rival match.</param>
+    /// <param name="title">Builds the title from the headline rival's display name.</param>
+    /// <param name="description">Category description.</param>
+    /// <returns>Zero or one category.</returns>
+    private List<SuggestionCategory> NamedRivalCategory(string key, List<Candidate> pool, Func<string, string> title, string description)
     {
-        if (rivalData is null) return [];
-        var pool = Candidates(predicate).Where(c => ClosestMatch(c) is { } m && (!requireRivalAhead || m.RankDelta < 0)).ToList();
-        if (pool.Count == 0) return [];
+        if (rivalData is null || pool.Count == 0) return [];
         ShuffleInPlace(pool);
+        var leadIndex = pool.FindIndex(c => !sessionShownSongs.Contains(c.Song.SongId));
+        if (ClosestMatch(pool[Math.Max(leadIndex, 0)])?.Rival is not { } rival) return [];
+        pool = pool.Where(c => ClosestMatch(c)?.Rival.AccountId == rival.AccountId).ToList();
         if (!ShouldEmit(key, FreshCount(pool))) return [];
         var final = SelectNewFirst(key, pool, DisplayCount());
         if (final.Count == 0) return [];
-        return One(key, title(ClosestRivalName(final[0])), description, SuggestionCategoryType.SongRivals, null,
+        return One(key, title(rival.DisplayName), description, SuggestionCategoryType.SongRivals, null,
             final.Select(MapWithClosestRival).ToList());
     }
 
     private List<SuggestionCategory> SongRivalNearFc() =>
-        CrossPollinate("song_rival_near_fc", IsRelaxedNearFc, false, name => $"FC These to Beat {name}!",
+        rivalData is null ? [] :
+        NamedRivalCategory("song_rival_near_fc", CrossPollinationPool(IsRelaxedNearFc, false), name => $"FC These to Beat {name}!",
             "Almost FC songs where your rival also competes. Nail the combo to pull ahead.");
 
-    private List<SuggestionCategory> SongRivalStale() =>
-        currentSeason == 0 ? [] :
-        CrossPollinate("song_rival_stale", s => s.Season is { } season && season != 0 && currentSeason - season >= 2, true,
-            _ => "Stale Songs Your Rivals Are Beating You On", "Songs you haven't touched in a while where rivals have pulled ahead.");
+    /// <summary>Stale charts where the closest rival leads; names no rival, so its rows stay mixed (rule R1 does not apply).</summary>
+    private List<SuggestionCategory> SongRivalStale()
+    {
+        if (rivalData is null || currentSeason == 0) return [];
+        var pool = CrossPollinationPool(s => s.Season is { } season && season != 0 && currentSeason - season >= 2, true);
+        if (pool.Count == 0) return [];
+        ShuffleInPlace(pool);
+        const string key = "song_rival_stale";
+        if (!ShouldEmit(key, FreshCount(pool))) return [];
+        var final = SelectNewFirst(key, pool, DisplayCount());
+        if (final.Count == 0) return [];
+        return One(key, "Stale Songs Your Rivals Are Beating You On", "Songs you haven't touched in a while where rivals have pulled ahead.",
+            SuggestionCategoryType.SongRivals, null, final.Select(MapWithClosestRival).ToList());
+    }
 
     private List<SuggestionCategory> SongRivalStarGains() =>
-        CrossPollinate("song_rival_star_gains", s => (s.Stars ?? 0) is >= 3 and <= 5, true, name => $"Gain Stars & Beat {name}",
-            "Improving your star count on these would also overtake a rival.");
+        rivalData is null ? [] :
+        NamedRivalCategory("song_rival_star_gains", CrossPollinationPool(s => (s.Stars ?? 0) is >= 3 and <= 5, true),
+            name => $"Gain Stars & Beat {name}", "Improving your star count on these would also overtake a rival.");
 
     private List<SuggestionCategory> SongRivalPctPush() =>
-        CrossPollinate("song_rival_pct_push", s => PercentileBucket(s) is > 1, true, name => $"Climb Past {name}",
-            "A percentile push on these would also move you past a rival.");
+        rivalData is null ? [] :
+        NamedRivalCategory("song_rival_pct_push", CrossPollinationPool(s => PercentileBucket(s) is > 1, true),
+            name => $"Climb Past {name}", "A percentile push on these would also move you past a rival.");
     #endregion
 }
 #endregion
