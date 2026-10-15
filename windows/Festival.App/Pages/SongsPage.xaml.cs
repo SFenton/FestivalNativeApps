@@ -760,27 +760,35 @@ public sealed partial class SongsPage : Page, IPageBack
         trailing.Children.Clear();
         secondary.Children.Clear();
         var inlineChips = wideLayout;
+        var songId = row.Song.SongId;
         if (row.Chips.Count > 0)
         {
             var target = inlineChips ? trailing : secondary;
-            foreach (var chip in row.Chips) target.Children.Add(SongRowVisuals.Chip(chip, row.Song.SongId, row.Keyboard));
+            foreach (var chip in row.Chips) target.Children.Add(SongRowVisuals.Chip(chip, songId, row.Keyboard));
+            // Web SongRow: the Last Played sort's latest play (chart icon + date) follows the chips; when they wrap it stays top-right.
+            foreach (var field in row.Metadata) trailing.Children.Add(SongRowVisuals.Pill(field, songId, row.Keyboard));
             // Web mobile SongRow: balanced, centred chip rows across the card under the art and title (issue #645).
             secondary.BalanceLines = true;
             secondary.LineAlignment = HorizontalAlignment.Center;
         }
         else if (row.Metadata.Count > 0)
         {
-            var songId = row.Song.SongId;
-            if (row.NamesChart)
-            {
-                var icon = new InstrumentIcon { File = row.Chart!.Value.IconFile(row.Keyboard), Label = row.Chart.Value.Label(), Width = 20, Height = 20 };
-                // Raw like the pills: the row item already speaks "<chart> chart".
-                AutomationProperties.SetAutomationId(icon, SongMetadataLayout.ChartAutomationId(songId));
-                AutomationProperties.SetAccessibilityView(icon, AccessibilityView.Raw);
-                trailing.Children.Add(icon);
-            }
+            var named = !row.NamesChart;
             for (var i = 0; i < row.Metadata.Count; i++)
-                (i == 0 || metadataInline ? trailing : secondary).Children.Add(SongRowVisuals.Pill(row.Metadata[i], songId));
+            {
+                var field = row.Metadata[i];
+                var target = i == 0 || metadataInline ? trailing : secondary;
+                if (!named && field.PlayedChart is null)
+                {
+                    var icon = new InstrumentIcon { File = row.Chart!.Value.IconFile(row.Keyboard), Label = row.Chart.Value.Label(), Width = 20, Height = 20 };
+                    // Raw like the pills: the row item already speaks "<chart> chart".
+                    AutomationProperties.SetAutomationId(icon, SongMetadataLayout.ChartAutomationId(songId));
+                    AutomationProperties.SetAccessibilityView(icon, AccessibilityView.Raw);
+                    target.Children.Add(icon);
+                    named = true;
+                }
+                target.Children.Add(SongRowVisuals.Pill(field, songId, row.Keyboard));
+            }
             secondary.BalanceLines = false;
             secondary.LineAlignment = HorizontalAlignment.Right;
         }
@@ -906,9 +914,11 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <returns>Whether rows put every pill inline.</returns>
     private bool MetadataInline()
     {
-        var first = ViewModel.Sections.SelectMany(s => s.Rows).FirstOrDefault(r => r.Metadata.Count > 0);
+        var first = ViewModel.Sections.SelectMany(s => s.Rows).FirstOrDefault(r => r.Chips.Count == 0 && r.Metadata.Count > 0);
         if (first is null) return metadataInline;
-        return SongMetadataLayout.Inline(ListWidth(), MetadataRequiredWidth(first.NamesChart), metadataInline);
+        var lastPlayed = first.Metadata.Any(m => m.Kind == MetadataField.LastPlayed);
+        var lastPlayedChart = first.Metadata.Any(m => m.PlayedChart is not null);
+        return SongMetadataLayout.Inline(ListWidth(), MetadataRequiredWidth(first.NamesChart, lastPlayed, lastPlayedChart), metadataInline);
     }
 
     /// <summary>
@@ -916,17 +926,19 @@ public sealed partial class SongsPage : Page, IPageBack
     /// settings/text-size/contrast combination.
     /// </summary>
     /// <param name="namesChart">A non-Lead chart icon precedes the pills.</param>
+    /// <param name="lastPlayed">Rows lead with a Last Played date (the Last Played sort).</param>
+    /// <param name="lastPlayedChart">That date follows its chart icon (no chart filter).</param>
     /// <returns>Required list width in epx.</returns>
-    private double MetadataRequiredWidth(bool namesChart)
+    private double MetadataRequiredWidth(bool namesChart, bool lastPlayed, bool lastPlayedChart)
     {
         var settings = App.Session.Settings;
         var indicator = settings.FilterInvalidScores && App.Session.HasPlayer;
         var key = string.Join('|', settings.MetadataScore, settings.MetadataPercentage, settings.MetadataPercentile, settings.MetadataStars,
-            settings.MetadataSeason, settings.MetadataIntensity, settings.MetadataDifficulty, settings.MetadataLastPlayed, namesChart,
+            settings.MetadataSeason, settings.MetadataIntensity, settings.MetadataDifficulty, lastPlayed, lastPlayedChart, namesChart,
             indicator, fadeUiSettings.TextScaleFactor, ContrastTheme.IsOn);
         if (key == metadataMeasureKey) return metadataRequired;
         var unbounded = new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity);
-        var widths = SongMetadataLayout.WidestSamples(settings).Select(field =>
+        var widths = SongMetadataLayout.WidestSamples(settings, lastPlayed, lastPlayedChart).Select(field =>
         {
             var pill = SongRowVisuals.Pill(field);
             pill.Measure(unbounded);
