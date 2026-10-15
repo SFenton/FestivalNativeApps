@@ -25,7 +25,14 @@
       "assertread:id=fst.band.song-row.fixture-pulse|~^Fixture Pulse, Top 10%, rank #1 of 10, button$",
       "assertsize:id=fst.band.song-row.fixture-pulse|0x40",
       "assertname:id=fst.band.song-row.fixture-ghost-song|*, rank #8 of 10",
-      "assertorder:id=fst.band.history-row.2024-01-03|name=Five Best Songs|id=fst.band.song-row.fixture-pulse|name=Five Worst Songs|id=fst.band.song-row.fixture-ghost-song",
+      "scrollinto:id=fst.band.history-row.2024-01-03@10",
+      "scrollinset:id=fst.band.history-row.2024-01-03|id=fst.band.screen|8|end",
+      "assertorder:id=fst.band.history-row.2024-01-03|name=Five Best Songs",
+      "scrollinset:name=Five Best Songs|id=fst.band.screen|8|end",
+      "assertorder:name=Five Best Songs|id=fst.band.song-row.fixture-pulse|name=Five Worst Songs",
+      "scrollinset:name=Five Worst Songs|id=fst.band.screen|8|end",
+      "assertorder:name=Five Worst Songs|id=fst.band.song-row.fixture-ghost-song",
+      "scrollinto:id=fst.band.song-row.fixture-pulse@5",
       "focus:id=fst.band.song-row.fixture-pulse",
       "assertfocus:id=fst.band.song-row.fixture-pulse"
     ]

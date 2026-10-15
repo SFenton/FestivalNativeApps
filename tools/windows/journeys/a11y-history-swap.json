@@ -67,7 +67,7 @@
                    "wait:1"]},
   {"name": "history-swap-reduced-access", "route": "/songs/fixture-pulse", "profile": "fixture-history-multi:History Multi", "scan": true, "axe_allow": ["framework-popup"], "tabs": 0,
    "modes": ["app-reduced", "no-animations"],
-   "ready": ["scrollinto:id=fst.history.instrument.group@20", "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|72"],
+   "ready": ["scrollinto:id=fst.history.instrument.group@20", "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|160"],
    "after_ready": ["markspan:id=fst.history.subtitle|raw=fst.history.rows|card",
                    "markspan:id=fst.song-detail|id=fst.history|page",
                    "toggle:id=fst.history.instrument.Solo_Bass",

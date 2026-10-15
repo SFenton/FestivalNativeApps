@@ -5,6 +5,9 @@
     "sizes": [
       "wide"
     ],
+    "skip_modes": [
+      "text-225"
+    ],
     "tabs": 0,
     "setup": [
       "resize:medium",
@@ -30,6 +33,9 @@
     "sizes": [
       "medium"
     ],
+    "skip_modes": [
+      "text-225"
+    ],
     "tabs": 0,
     "setup": [
       "resize:medium",
@@ -49,6 +55,37 @@
       "waitfor:id=fst.settings.shop-highlights@10"
     ],
     "after_ready": [
+      "assertfocus:id=fst.settings.shop-highlights@3"
+    ]
+  },
+  {
+    "name": "settings-split-large-text",
+    "route": "/settings",
+    "sizes": [
+      "wide"
+    ],
+    "modes": [
+      "text-225"
+    ],
+    "tabs": 0,
+    "note": "Issue #652 (split-panes R6 Windows, R7 rule): each half needs 480 epx x the text scale from 130%, so at 225% text a wide window keeps the one-column Settings page: no detail rows or placeholder, and the focused inline control keeps focus across the resize. The split-swap pages run where the split exists.",
+    "setup": [
+      "resize:medium",
+      "wait:1.5",
+      "waitfor:id=fst.settings@20",
+      "scrollinto:id=fst.settings.feedback.feature@20",
+      "scrollinto:id=fst.settings.shop-highlights@10",
+      "focus:id=fst.settings.shop-highlights",
+      "assertfocus:id=fst.settings.shop-highlights@3",
+      "resize:wide",
+      "wait:1.5"
+    ],
+    "ready": [
+      "waitfor:id=fst.settings.shop-highlights@10"
+    ],
+    "after_ready": [
+      "waitgone:id=fst.settings.detail.placeholder.title@3",
+      "waitgone:id=fst.settings.detail-row.item-shop@3",
       "assertfocus:id=fst.settings.shop-highlights@3"
     ]
   }
