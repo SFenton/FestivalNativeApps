@@ -13,7 +13,8 @@ in-app Reduce Motion), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
 push (issue #452), the Songs scroll far jumps and keyboard End/Home (issue #520, also with Animation effects off), the
-Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438, also with "Always show
+Paths swap (issue #430, also with Animation effects off), the Paths selector surfaces (issue #650, also with
+Transparency effects off and under Desert contrast), the Paths chart (issue #438, also with "Always show
 scrollbars" on, issue #525), the Paths text table (issue #515, also under a contrast theme), long leaderboard names
 (issue #455, also with Animation effects off) and the Full
 Rankings pinned row (issue #466, also with in-app Reduce Motion), the Leaderboards card "your rank" row (issue #493,
@@ -472,6 +473,16 @@ RUNS: tuple[Run, ...] = (
     Run("paths-swap", "a11y-paths-swap.json", sizes="compact,medium,wide"),
     Run("paths-swap-text-225", "a11y-paths-swap.json", sizes="compact,wide", mode="text-225"),
     Run("paths-swap-no-animations", "a11y-paths-swap.json", sizes="compact", mode="no-animations"),
+    # Paths selector surfaces (issue #650, surface-materials R4): the wide Difficulty and Display boxes read as named
+    # combo boxes with their value, 40 epx, in instrument -> Difficulty -> Display -> zoom -> Close order, on the
+    # translucent card surface (default and 225% text); with Windows' Transparency effects off every box (wide, and the
+    # compact Instrument/Difficulty/Display row) is one opaque fill with a visible stroke; under Desert the boxes paint
+    # system colours. Each page picks its own mode and size.
+    Run("paths-selectors", "a11y-paths-selectors.json", sizes="wide", tabs=0),
+    Run("paths-selectors-text-225", "a11y-paths-selectors.json", sizes="wide", mode="text-225", tabs=0),
+    Run("paths-selectors-no-transparency", "a11y-paths-selectors.json", sizes="compact,wide", mode="no-transparency",
+        tabs=0),
+    Run("paths-selectors-contrast", "a11y-paths-selectors.json", sizes="wide", mode="hc-desert", tabs=0),
     # Paths chart (issues #87, #279, #438): "Path chart, pane" holds "<instrument> <difficulty> CHOpt path, image" in
     # zoom -> chart -> image -> Close order, centred in its scroller with no scroll bar at rest, zoomed (keyboard Enter on
     # Zoom in, then End/Home on the focused chart) and back at 100% with Zoom out unavailable and focus moved on to Zoom

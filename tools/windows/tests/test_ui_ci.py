@@ -780,6 +780,36 @@ class UiCiTests(unittest.TestCase):
         self.assertIn("assertsize:id=fst.paths.instrument.Solo_Guitar|40x40", wide[settled:])
         self.assertFalse([step for step in wide if "RadioButton" in step])
 
+    def test_paths_selector_surfaces_run_in_every_material_mode(self):
+        # Issue #650 (surface-materials R4): the selector boxes' translucent surface (default and 225% text), opaque
+        # Transparency-off fill (wide and compact) and Desert system colours each run in an explicit windows-ui Run,
+        # Axe-scanned, at the size the page supports; generated runs alone would skip 225% text.
+        explicit = {"paths-selectors", "paths-selectors-text-225", "paths-selectors-no-transparency",
+                    "paths-selectors-contrast"}
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-selectors.json"]
+        self.assertEqual(explicit, {run.name for run in runs})
+        self.assertTrue(all(run.scan and not run.only for run in runs))
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-selectors.json").read_text(encoding="utf-8"))
+        covered = {(page["name"], run.mode, size) for run in runs for page in m.mode_pages(pages, run.mode)
+                   for size in m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({("paths-selector-surface-wide", "normal", "wide"),
+                          ("paths-selector-surface-wide", "text-225", "wide"),
+                          ("paths-selector-surface-opaque-wide", "no-transparency", "wide"),
+                          ("paths-selector-surface-opaque-compact", "no-transparency", "compact"),
+                          ("paths-selector-surface-contrast-wide", "hc-desert", "wide")}, covered)
+        self.assertEqual({page["name"] for page in pages}, {name for name, _, _ in covered})
+        by_name = {page["name"]: page["after_ready"] for page in pages}
+        for box in ("difficulty", "display"):
+            self.assertIn(f"assertpaint:id=fst.paths.{box}|C0,T8!=#121826~1", by_name["paths-selector-surface-wide"])
+            self.assertIn(f"assertpaint:id=fst.paths.{box}|fill:C0,T8=#121826~1|C0,B8=@fill~0|L1,M0!=@fill~6",
+                          by_name["paths-selector-surface-opaque-wide"])
+            self.assertIn(f"assertpaint:id=fst.paths.{box}|fill:C0,T8|C0,B8=@fill~6",
+                          by_name["paths-selector-surface-contrast-wide"])
+        for box in ("instrument", "difficulty", "display"):
+            self.assertTrue([step for step in by_name["paths-selector-surface-opaque-compact"]
+                             if step.startswith(f"assertpaint:id=fst.paths.{box}.compact|fill:C0,T8=#121826~1")])
+        self.assertTrue([run for run in ci.tier_runs(runs, "pr") if run.name == "paths-selectors"])
+
     def test_paths_instrument_picker_runs_in_ci(self):
         # Issue #439 (#88): the compact Instrument ComboBox opens, reads each option by name in order without Karaoke,
         # every option is a 40 epx target, and pointer and keyboard switches announce and keep focus. Checked in
