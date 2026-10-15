@@ -362,7 +362,7 @@ public class SongRowProjectionTests
         Assert.Equal("Last played date unavailable", fields[^1].Text);
 
         var shown = SongMetadataPolicy.Fields(detail, Instrument.Lead, Song, 8, new AppSettings());
-        Assert.Equal(("100% FC", "Full combo, accuracy 100%"), (shown[1].Text, shown[1].Announcement));
+        Assert.Equal(("100%", "Full combo, accuracy 100%"), (shown[1].Text, shown[1].Announcement));
         var noAccuracy = SongMetadataPolicy.Fields(detail with { Accuracy = null }, Instrument.Lead, Song, 8, new AppSettings());
         Assert.Equal("Full combo, accuracy unavailable", noAccuracy[1].Announcement);
         var sparse = SongMetadataPolicy.Fields(new SongScoreDetail(5, Stars: 1, Difficulty: 1.5, Rank: 5, TotalEntries: 100), Instrument.Drums, Song, null, new AppSettings());

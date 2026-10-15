@@ -5239,7 +5239,7 @@
       "title": "Metadata pills",
       "status": "current",
       "doc": ".agents/patterns/metadata-pills.md",
-      "summary": "The season chip (S15) and percentile chip (Top N%) are one shared component each per platform, one size everywhere (chip label style, 24 dp tall, 8 dp corners, season >= 48 dp, percentile >= 5.5 em), with the web colours: seasons textSecondary on surfaceSubtle with a borderSubtle outline and the catalogue's current season inverted; Top 1% skewed gold outline, Top 5% gold outline, else 10% white. Season pills read 'Season N' / 'Current season N' (#606).",
+      "summary": "The season chip (S15) and percentile chip (Top N%) are one shared component each per platform, one size everywhere (chip label style, 24 dp tall, 8 dp corners, season >= 48 dp, percentile >= 5.5 em), with the web colours: seasons textSecondary on surfaceSubtle with a borderSubtle outline and the catalogue's current season inverted; Top 1% skewed gold outline, Top 5% gold outline, else 10% white. Season pills read 'Season N' / 'Current season N' (#606). In a metadata row every chip beside them (accuracy/FC, difficulty, stars, intensity) reads at the same visible pill height, and a full-combo accuracy is the percent alone in the Top 1% skewed gold outline (web AccuracyDisplay fcBadge, #644).",
       "keywords": [
         "season pill",
         "season chip",
@@ -5249,7 +5249,9 @@
         "top 1%",
         "top 5%",
         "chip contrast",
-        "metadata pill"
+        "metadata pill",
+        "chip height",
+        "full combo pill"
       ],
       "web": [
         {
@@ -5339,7 +5341,8 @@
         }
       ],
       "issues": [
-        606
+        606,
+        644
       ],
       "supersedes": [],
       "supersededBy": null

@@ -141,7 +141,7 @@ public sealed record SongMetadataField(MetadataField Kind, string Text, string A
 {
     /// <summary>Accuracy tint (non-FC accuracy only; the view applies 25% opacity).</summary>
     public (byte R, byte G, byte B)? Tint { get; init; }
-    /// <summary>Accuracy pill is a full combo (gold outline and visible FC).</summary>
+    /// <summary>Accuracy pill is a full combo (the skewed gold outline; <c>FC</c> as the text without an accuracy).</summary>
     public bool FullCombo { get; init; }
     /// <summary>Percentile tier.</summary>
     public SongPercentileTier Percentile { get; init; } = SongPercentileTier.Ordinary;
@@ -191,7 +191,7 @@ public static class SongMetadataPolicy
             {
                 var text = ScoreFormatting.Accuracy(value);
                 byKind[MetadataField.Percentage] = fc
-                    ? new(MetadataField.Percentage, $"{text} FC", $"Full combo, accuracy {text}") { FullCombo = true }
+                    ? new(MetadataField.Percentage, text, $"Full combo, accuracy {text}") { FullCombo = true }
                     : new(MetadataField.Percentage, text, $"Accuracy {text}") { Tint = ScoreFormatting.AccuracyTint(value) };
             }
             else if (fc)

@@ -188,6 +188,12 @@ RUNS: tuple[Run, ...] = (
     Run("songs-scroll", "a11y-songs-scroll.json", tabs=0),
     Run("songs-scroll-text-225", "a11y-songs-scroll.json", sizes="compact", mode="text-225", tabs=0),
     Run("songs-scroll-no-animations", "a11y-songs-scroll.json", sizes="compact", mode="no-animations", tabs=0),
+    # Songs metadata chips (issue #644): the row speaks score, accuracy (graded and the skewed gold "100%" full combo),
+    # Top %, stars, season, intensity and difficulty in visual order; every text pill is at least 24 epx and shares one
+    # height with the others, the 24-epx stars and meter line up with them, the current season paints its full height,
+    # Axe-scanned; at 225% text the text pills grow to one shared height, never clipped.
+    Run("songs-metadata-chips", "a11y-songs-metadata-chips.json", sizes="medium,wide"),
+    Run("songs-metadata-chips-text-225", "a11y-songs-metadata-chips.json", sizes="medium", mode="text-225"),
     # Songs toolbar (issue #646): Search, Sort, Filter and Jump share one 40 epx height, each button is at least
     # 40x40 epx, the search box fills the row so the tools end at the rows' right edge (one row at medium and wide;
     # search above the buttons at compact), and search -> Sort -> Filter -> Jump -> rows reading order.
