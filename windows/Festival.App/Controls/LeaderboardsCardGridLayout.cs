@@ -18,8 +18,8 @@ namespace Festival.App.Controls;
 /// top-ten rows inside cached pages' cards: a virtualizing <see cref="StackLayout"/> drops off-screen rows while the
 /// page is away and re-estimates their heights on Back, which moved the page (#276). Player Profile stacks its instrument
 /// sections and band groups the same way: re-estimating them near the page end pulled the scroll back (#533). Side by
-/// side, every card's <see cref="CardHeader"/> takes its row's tallest header height, so titles and card surfaces start
-/// on one line when one header is taller, such as a combo board's icon row (section-headers R14, #657).
+/// side, every card's <see cref="CardHeader"/> is padded so its title and its card surface start on the row's shared
+/// lines when one header is taller, such as a combo board's icon row or a subtitle (section-headers R14, #657).
 /// </summary>
 public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
 {
@@ -106,8 +106,8 @@ public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
     }
 
     /// <summary>
-    /// Gives every card header in a multi-column row the row's tallest header height (section-headers R14, issue #657),
-    /// then measures the changed cards again; one column removes any alignment space.
+    /// Pads every card header in a multi-column row so the titles share a line and the card surfaces share a line
+    /// (section-headers R14, issue #657), then measures the changed cards again; one column removes any alignment space.
     /// </summary>
     /// <param name="children">The measured cards.</param>
     /// <param name="columns">Cards per row.</param>
@@ -115,18 +115,18 @@ public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
     private static void AlignHeaders(IReadOnlyList<UIElement> children, int columns, Size childSize)
     {
         var headers = new CardHeader?[children.Count];
-        var naturals = new double?[children.Count];
+        var sizes = new CardHeaderSize?[children.Count];
         for (var i = 0; i < children.Count; i++)
         {
             // One column never looks for headers (Settings stacks hundreds of rows), it only resets ones it aligned.
             headers[i] = columns > 1 ? HeaderOf(children[i])
                 : Headers.TryGetValue(children[i], out var slot) ? slot.Header : null;
-            // A collapsed header isn't measured, so its last height is stale: it neither sets nor takes the row height.
-            naturals[i] = headers[i] is { Visibility: Visibility.Visible } h ? h.NaturalHeight : null;
+            // A collapsed header isn't measured, so its last size is stale: it neither sets nor takes the row's lines.
+            sizes[i] = headers[i] is { Visibility: Visibility.Visible } h ? h.NaturalSize : null;
         }
-        var heights = CardRowAlignment.HeaderHeights(naturals, columns);
+        var insets = CardRowAlignment.Insets(sizes, columns);
         for (var i = 0; i < children.Count; i++)
-            if (headers[i]?.AlignToRow(heights[i]) == true) children[i].Measure(childSize);
+            if (headers[i]?.AlignToRow(insets[i]) == true) children[i].Measure(childSize);
     }
 
     /// <summary>The card's header: the first <see cref="CardHeader"/> within a few levels of the card root.</summary>

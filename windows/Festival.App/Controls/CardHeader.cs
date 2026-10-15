@@ -14,9 +14,9 @@ namespace Festival.App.Controls;
 /// "12,345 total entries". Band-size headers (Duos/Trios/Quads) have no icon. A combo board (issue #602) shows its
 /// instruments' icons in a row above the title instead (web <c>CompeteScopeHeader</c>). Icons are decorative; the title
 /// carries the name. With an icon or icon row, the title sits in a band at least the icon's height, so a combo title and
-/// an instrument title share the same band. In a multi-column <see cref="LeaderboardsCardGridLayout"/> row every header
-/// takes the row's tallest height (space above a shorter header's content), so titles and cards start on one line
-/// (pattern <c>section-headers</c> R14, issue #657).
+/// an instrument title share the same band. In a multi-column <see cref="LeaderboardsCardGridLayout"/> row each header is
+/// padded above to the row's tallest icon row and below to the row's tallest title-and-subtitle part, so titles and
+/// cards start on one line (pattern <c>section-headers</c> R14, issue #657).
 /// </summary>
 public sealed partial class CardHeader : Grid
 {
@@ -50,6 +50,7 @@ public sealed partial class CardHeader : Grid
     private readonly MarqueeText title = new();
     private readonly MarqueeText subtitle = new();
     private readonly RowDefinition titleBand = new() { Height = new GridLength(1, GridUnitType.Star) };
+    private readonly StackPanel text = new() { VerticalAlignment = VerticalAlignment.Center };
 
     /// <summary>Creates the header.</summary>
     public CardHeader()
@@ -64,7 +65,6 @@ public sealed partial class CardHeader : Grid
         // Long titles scroll like the web's marquee headers (MarqueeText: only when they overflow and motion is on).
         title.TextStyle = (Style)Application.Current.Resources["FSTCardHeaderTitleStyle"];
         subtitle.TextStyle = (Style)Application.Current.Resources["FSTCardHeaderSubtitleStyle"];
-        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
         text.Children.Add(title);
         text.Children.Add(subtitle);
         SetColumnSpan(iconRow, 2);
@@ -142,22 +142,22 @@ public sealed partial class CardHeader : Grid
 
     #region Row alignment
     /// <summary>
-    /// The header's own height at its last measure (its content, or <see cref="FrameworkElement.MinHeight"/> when
-    /// larger), without the row-alignment space above it.
+    /// The header's own size at its last measure, without the row-alignment space: where its title starts (below the
+    /// icon row and the band's centring space) and its whole height (its content, or
+    /// <see cref="FrameworkElement.MinHeight"/> when larger).
     /// </summary>
-    internal double NaturalHeight { get; private set; }
+    internal CardHeaderSize NaturalSize { get; private set; }
 
     /// <summary>
-    /// Takes a grid row's header height by adding the shortfall above the content (<see cref="CardRowAlignment"/>);
-    /// 0 removes it.
+    /// Lines the header up with its grid row by adding space above and below its content (<see cref="CardRowAlignment"/>);
+    /// zero insets remove it.
     /// </summary>
-    /// <param name="rowHeight">The row's tallest header height, or 0 outside a multi-column row.</param>
+    /// <param name="insets">The space from <see cref="CardRowAlignment.Insets"/>, or zero outside a multi-column row.</param>
     /// <returns><see langword="true"/> when the space changed, so the card must be measured again.</returns>
-    internal bool AlignToRow(double rowHeight)
+    internal bool AlignToRow(CardHeaderInsets insets)
     {
-        var top = CardRowAlignment.TopInset(rowHeight, NaturalHeight);
-        if (Math.Abs(Padding.Top - top) < 0.5) return false;
-        Padding = new Thickness(Padding.Left, top, Padding.Right, Padding.Bottom);
+        if (Math.Abs(Padding.Top - insets.Top) < 0.5 && Math.Abs(Padding.Bottom - insets.Bottom) < 0.5) return false;
+        Padding = new Thickness(Padding.Left, insets.Top, Padding.Right, insets.Bottom);
         return true;
     }
 
@@ -166,10 +166,16 @@ public sealed partial class CardHeader : Grid
     {
         var size = base.MeasureOverride(availableSize);
         var minimum = double.IsNaN(MinHeight) ? 0 : MinHeight;
-        NaturalHeight = Math.Max(size.Height - Padding.Top, minimum);
-        // The alignment space sits above the whole natural height, MinHeight included, so the content keeps its usual
-        // centring in the band below it.
-        return new Size(size.Width, Math.Max(size.Height, Padding.Top + NaturalHeight));
+        var inset = Padding.Top + Padding.Bottom;
+        var natural = Math.Max(size.Height - inset, minimum);
+        // The title band (Star row) takes the height below the icon row and centres the text in it, so a single-line
+        // title under MinHeight starts lower than one with a subtitle.
+        var row = iconRow.DesiredSize.Height;
+        var band = Math.Max(natural - row, Math.Max(titleBand.MinHeight, text.DesiredSize.Height));
+        NaturalSize = new CardHeaderSize(row + Math.Max(0, (band - text.DesiredSize.Height) / 2), natural);
+        // The alignment space sits outside the whole natural height, MinHeight included, so the content keeps its usual
+        // centring between them.
+        return new Size(size.Width, Math.Max(size.Height, inset + natural));
     }
     #endregion
 }
