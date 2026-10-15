@@ -337,5 +337,20 @@ public class QuickLinksTests
         vm.SetSections([new QuickLinkSection("a", "Renamed"), Sections[1]]);
         Assert.Equal("Renamed", vm.Items[0].Title);
     }
+
+    [Fact]
+    public void ViewModel_GatedOnContentHidesTheEntryUntilTheContentShows()
+    {
+        // Issue #649 (load-transition R1): a gated page holds its menu and pane until its content reveals.
+        var vm = new QuickLinksViewModel("Leaderboards Quick Links", contentShown: false);
+        vm.SetSections(Sections);
+        Assert.False(vm.IsAvailable);
+        var changed = new List<string?>();
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        vm.IsContentShown = true;
+        Assert.True(vm.IsAvailable);
+        Assert.Contains(nameof(QuickLinksViewModel.IsAvailable), changed);
+        Assert.True(new QuickLinksViewModel().IsContentShown); // ungated pages show it with their sections
+    }
     #endregion
 }

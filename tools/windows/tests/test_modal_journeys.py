@@ -36,7 +36,7 @@ _CALLERS = {
 }
 #: Dismissing command labels; the Filtered Score alert's OK is the web InvalidScoreIcon alert's (issue #613).
 _DISMISS = ("Close", "Cancel", "Dismiss", "OK")
-#: The Karaoke notice is an alert with its own two choices and no Close (modal-shell R3 deviation, issue #239).
+#: The Karaoke notice has its own two choices and no Close (modal-shell R3 deviation, #239); inline in Paths since #649.
 _ALERTS = {"modal-paths-warning"}
 #: Hit probes at the edges of a 40x40 epx target (the hit-target journey's offsets, issue #271).
 _PROBES = ("-18.5,0", "18.5,0", "0,-18.5", "0,18.5")
@@ -114,14 +114,17 @@ class ModalJourneyTests(unittest.TestCase):
                 self.assertTrue(steps[keyed - 1].startswith("key:tab"))
 
     def test_alert_choices_are_named_ordered_and_sized(self):
+        # The Karaoke notice is an inline InfoBar in the Paths dialog that opens only after the first path loads (#649).
         page = next(p for p in _PAGES if p["name"] == "modal-paths-warning")
         steps = _steps(page)
-        for button in ("id=PrimaryButton", "id=SecondaryButton"):
-            self.assertTrue(any(s.startswith(f"assertread:{button}|") for s in steps))
+        self.assertLess(steps.index("waitfor:id=fst.paths.image@15"), steps.index("waitfor:id=fst.paths.warning@5"))
+        for button, probes in (("id=fst.paths.warning.ok", _PROBES), ("id=fst.paths.warning.never", _PROBES[2:])):
+            self.assertTrue(any(s.startswith(f"assertread:{button}|") and s.endswith(", button") for s in steps))
             self.assertIn(f"assertsize:{button}|40x40", steps)
-            self.assertEqual([f"assertat:{button}|{p}" for p in _PROBES], [s for s in steps if s.startswith(f"assertat:{button}|")])
-        self.assertIn("assertorder:name=Some Instruments Unavailable|id=PrimaryButton|id=SecondaryButton", steps)
-        self.assertIn("waitgone:id=CloseButton@2", steps)
+            self.assertEqual([f"assertat:{button}|{p}" for p in probes], [s for s in steps if s.startswith(f"assertat:{button}|")])
+        self.assertIn("assertorder:name=Some Instruments Unavailable|id=fst.paths.warning.ok"
+                      "|id=fst.paths.warning.never|id=fst.paths.image-scroller", steps)
+        self.assertIn("waitgone:id=fst.paths.warning@3", steps)
 
     def test_esc_closes_and_restores_focus(self):
         for page in _PAGES:
