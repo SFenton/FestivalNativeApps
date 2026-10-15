@@ -340,6 +340,19 @@
          the glyph still lands on the button (issue #72; HitTargetMarkupTests guards it). -->
     <x:Double x:Key="FSTMinTargetSize">40</x:Double>
 
+    <!-- A search box sharing a row with page tools is as tall as they are (page-tools-and-nav-chrome R10, issue #646):
+         WinUI's AutoSuggestBox text box is 32 epx, so beside the 40 epx Sort/Filter/Jump the row read as two heights.
+         The box keeps the default Stretch alignment, so it also follows the row when larger text grows the buttons. The
+         AutoSuggestBox template-binds its text box's VerticalContentAlignment, so Center is set on the box: the text and
+         placeholder stay vertically centred in the taller field. -->
+    <Style x:Key="FSTToolbarSearchTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource AutoSuggestBoxTextBoxStyle}">
+        <Setter Property="MinHeight" Value="{StaticResource FSTMinTargetSize}" />
+    </Style>
+    <Style x:Key="FSTToolbarSearchBoxStyle" TargetType="AutoSuggestBox" BasedOn="{StaticResource DefaultAutoSuggestBoxStyle}">
+        <Setter Property="TextBoxStyle" Value="{StaticResource FSTToolbarSearchTextBoxStyle}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
     <services:InverseVisibilityConverter x:Key="FSTInverseVisibility" />
 
     <!-- MenuFlyout presenters are UIA Menus and need a name (Axe); the invoking button already names the choice. -->

@@ -35,7 +35,7 @@
 | Width | Toolbar | Row trailing content |
 |---|---|---|
 | Compact (< 640 epx page) | Search full width; Sort/Filter/Jump (icon) below | Chips/pills wrap under the title (`FlowPanel`) |
-| Medium | One row: search (≤ 440) + Sort/Filter/Jump | Chips inline from 760 epx list width; first pill top-right, rest wrap right-aligned |
+| Medium | One row: search (fills the width the tools leave, #646) + Sort/Filter/Jump, all 40 epx tall, ending at the rows' right edge | Chips inline from 760 epx list width; first pill top-right, rest wrap right-aligned |
 | Wide (≥ 1100 epx page) | List + detail columns; list toolbar as compact | Chips/pills wrap under the title |
 
 ## Two columns (wide)

@@ -422,6 +422,15 @@ class StepTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             u.parse_step("assertapart:id=fst.songs.sort")
 
+    def test_assertheight_and_assertright_take_a_pair(self):
+        for verb in ("assertheight", "assertright"):
+            step = u.parse_step(f"{verb}:id=fst.songs.search|id=fst.songs.sort")
+            self.assertEqual(step["verb"], verb)
+            self.assertEqual(step["selector"], {"kind": "id", "value": "fst.songs.search"})
+            self.assertEqual(step["other"], {"kind": "id", "value": "fst.songs.sort"})
+            with self.assertRaises(ValueError):
+                u.parse_step(f"{verb}:id=fst.songs.search")
+
     def test_narrate(self):
         step = u.parse_step("narrate:id=fst.shell.titlebar@10")
         self.assertEqual(step["verb"], "narrate")
