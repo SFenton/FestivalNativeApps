@@ -84,8 +84,10 @@ def media_paint(row: str) -> list[str]:
     fill, its 1 epx stroke inset 4 epx from the row with a gap to the next card, the media rail (art over a white
     instrument grid only on the multi-chart row), the flag pill colour and the gold unread dot beside the chevron.
 
-    Probe offsets are effective pixels from the row's UIA bounds (which exclude the 4 epx bottom margin). The first
-    row carries the opening keyboard focus rectangle, so its stroke and gap are checked on the rows below it.
+    Probe offsets are effective pixels from the row's UIA bounds (which exclude the 4 epx bottom margin). The bottom
+    stroke band starts 1.5 epx up: at 300% scale a fractional scroll offset draws the 1 epx stroke (nominally 2-3 epx
+    up) up to 0.7 epx lower. The first row carries the opening keyboard focus rectangle, so its stroke and gap are
+    checked on the rows below it.
 
     Args:
         row: A :data:`MEDIA_ROWS` key.
@@ -95,7 +97,7 @@ def media_paint(row: str) -> list[str]:
     """
     probes = [f"fill:L8,M0={CARD_FILL}~4"]
     if row != MEDIA_ROWS[0]:
-        probes += ["L1,M0!=@fill~4", f"L4,M-10,L5,M10={CARD_STROKE}~4", f"C-20,B2.5,C20,B4={CARD_STROKE}~4",
+        probes += ["L1,M0!=@fill~4", f"L4,M-10,L5,M10={CARD_STROKE}~4", f"C-20,B1.5,C20,B4={CARD_STROKE}~4",
                    "C-20,B1,C20,B-3!=@fill~4", f"C-20,B1,C20,B-3!={CARD_STROKE}~4"]
     if row == "grid":
         # Flag chips group per chart (web flag groups): the bottom line is the Drums icon, then its First Play pill.
