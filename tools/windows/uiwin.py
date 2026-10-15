@@ -337,7 +337,8 @@ def parse_step(step: str) -> dict:
     ``assertapart:<sel>|<sel>`` fails if the two elements' bounds overlap (results in ``apart``, the gap in epx);
     ``assertheight:<sel>|<sel>`` fails unless both elements are the same height and ``assertright:<sel>|<sel>`` unless
     their right edges line up, each within 1 epx (results in ``matched``), e.g. a search box as tall as the page tools
-    beside it and a toolbar row that ends where the list rows end (issue #646);
+    beside it and a toolbar row that ends where the list rows end (issue #646), or metadata pills that share one
+    height at any text size, where ``assertsize`` only sets a minimum (issue #644);
     ``assertat:<sel>|<dx>,<dy>`` hit-tests the point ``<dx>``,``<dy>`` epx from the element's centre without input
     (outside the title bar's non-client caption region, where a press drags the window, and UIA ``ElementFromPoint``
     must return the element or one of its parts, or the point must be inside its bounds when another process covers
