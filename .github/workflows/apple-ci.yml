@@ -120,6 +120,7 @@ jobs:
             SongsChromeJourneyTests/testProgrammaticScrollNeverRestsPartWayOnTheLegacyScrollPath
             SongsChromeJourneyTests/testSlowDragsNearTheTopKeepTheTopOfSongsAccessible
             SongsChromeJourneyTests/testSlowDragsNearTheTopKeepTheTopOfSongsAccessibleAtAX5
+            SongsChromeJourneyTests/testSlowScrollFromTheTopPinsTheFirstTitleWithoutAJump
             FirstRunJourneyTests/testSongDemoSlideAccessibleAtLargestText
             FirstRunJourneyTests/testSongDemoRotationKeepsSlideAccessibleAtLargestText
             FirstRunJourneyTests/testSongsGuideRealControlDemosAccessibleAtLargestText

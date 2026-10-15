@@ -15,14 +15,44 @@ private func decisions(
 }
 
 /// While the large title collapses the inset tracks the offset, so the list is not
-/// "scrolled" until it moves past the collapsed bar by the enter distance.
-@Test func gateWaitsForTheCollapsedTitlePlusEnterDistance() {
+/// "scrolled" until it moves past the collapsed bar: where the first section title
+/// leaves its pin line (issue #631), within the title-pass tolerance.
+@Test func gateWaitsForTheCollapsedTitleThenFlipsAtThePinLine() {
     var gate = ScrollAwayGate()
     let result = decisions(
-        [(-228, 228), (-200, 200), (-116, 116), (-100, 116), (-92, 116), (-91, 116)],
+        [(-228, 228), (-200, 200), (-140, 140), (-116, 116), (-115.5, 116), (-115, 116),
+         (-114.5, 116)],
         gate: &gate
     )
-    #expect(result == [false, false, false, false, false, true])
+    #expect(result == [false, false, false, false, false, false, true])
+}
+
+/// Issue #631: the pinned section title took over 24 pt past the collapsed top, after
+/// the in-list title had slid that far under the navigation bar, and handed back 8 pt
+/// above the line. Both hand-offs now sit within a point of the pin line, so a slow drag
+/// shows the title stop at the line instead of rising and jumping back.
+@Test func handOffsSitWithinAPointOfThePinLine() {
+    #expect(ScrollAwayGate.enterDistance <= SongsScrollChrome.headerTolerance)
+    #expect(ScrollAwayGate.exitDistance > 0)
+    #expect(ScrollAwayGate.exitDistance < ScrollAwayGate.enterDistance)
+    var gate = ScrollAwayGate()
+    // Slow drag down from the top in 2 pt steps: scrolled from the first step past 1 pt.
+    let down = decisions(
+        [(-228, 228), (-172, 172), (-116, 116), (-114, 116), (-112, 116)], gate: &gate
+    )
+    #expect(down == [false, false, false, true, true])
+    // And back: still scrolled at 0.5 pt, back at the top below it and while the title
+    // expands again.
+    let up = decisions([(-115, 116), (-115.5, 116), (-116, 116), (-150, 150)], gate: &gate)
+    #expect(up == [true, true, false, false])
+}
+
+/// A list with no collapsing title (macOS, a landscape bar) rests at distance 0, which
+/// always counts as the top, so returning there forgets passed titles (#297).
+@Test func aListAtItsOwnTopIsNeverScrolled() {
+    var gate = ScrollAwayGate()
+    let result = decisions([(-60, 60), (-50, 60), (-59.4, 60), (-60, 60)], gate: &gate)
+    #expect(result == [false, true, true, false])
 }
 
 /// The issue #5 loop: moving the tools into the bar restores or removes the title,
@@ -39,28 +69,33 @@ private func decisions(
     }
 }
 
-/// The recorded freeze: offset −95.67 with the inset alternating 232/116. Measured
-/// from the collapsed inset this is 20.3pt (not scrolled) whatever the chrome does.
+/// The recorded freeze: the inset alternating 232/116 at a fixed offset. Measured
+/// from the collapsed inset the decision holds whatever the chrome does: −116.5 is
+/// −0.5 pt (not scrolled), −95.67 is 20.3 pt (scrolled).
 @Test func recordedFreezeGeometryIsStable() {
     var gate = ScrollAwayGate()
-    _ = decisions([(-228, 228), (-116, 116), (-95.67, 116)], gate: &gate)
+    _ = decisions([(-228, 228), (-116, 116), (-116.5, 116)], gate: &gate)
     #expect(!gate.isScrolled)
+    _ = decisions([(-116.5, 232), (-116.5, 116), (-116.5, 232)], gate: &gate)
+    #expect(!gate.isScrolled)
+    _ = decisions([(-95.67, 116)], gate: &gate)
+    #expect(gate.isScrolled)
     _ = decisions([(-95.67, 232), (-95.67, 116), (-95.67, 232)], gate: &gate)
-    #expect(!gate.isScrolled)
+    #expect(gate.isScrolled)
     // A transient expanded inset at a *moving* offset still measures from the collapsed bar.
     _ = decisions([(-90, 232), (-80, 232)], gate: &gate)
     #expect(gate.isScrolled)
-    _ = decisions([(-109, 116), (-119, 232), (-125, 232)], gate: &gate)
+    _ = decisions([(-116, 116), (-119, 232), (-125, 232)], gate: &gate)
     #expect(!gate.isScrolled)
 }
 
 /// Hysteresis: once scrolled, the list stays scrolled until it is within the exit
-/// distance of the top, so a slow drag across 24pt cannot flicker the chrome.
+/// distance of the top, so jitter around the enter distance cannot flicker the chrome.
 @Test func hysteresisKeepsTheDecisionNearTheThreshold() {
     var gate = ScrollAwayGate()
     let result = decisions(
-        [(-116, 116), (-80, 116), (-100, 116), (-106, 116), (-108, 116), (-109, 116),
-         (-100, 116), (-92.5, 116), (-91, 116)],
+        [(-116, 116), (-80, 116), (-114, 116), (-115, 116), (-115.4, 116), (-116, 116),
+         (-115.4, 116), (-115, 116), (-114.9, 116)],
         gate: &gate
     )
     #expect(result == [false, true, true, true, true, false, false, false, true])
