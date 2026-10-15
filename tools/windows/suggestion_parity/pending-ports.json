@@ -1,9 +1,0 @@
-{
-  "rule": "Suggestions R1 (#656): a card that names one rival lists only that rival",
-  "awaiting": [
-    "windows",
-    "android"
-  ],
-  "baseline": "windows/Festival.Core.Tests/Fixtures/suggestions-parity.expected.json",
-  "appleOutputSha256": "0969ae04a479d66d1634560b26996ca6548b86f181ca7bed8a889c1ea028b0f0"
-}

@@ -550,10 +550,10 @@ public sealed class SuggestionCoreTests
     [InlineData("song_rival_dominate_abc", false)]
     [InlineData("SONG_RIVAL_SPOTLIGHT_abc", false)]
     [InlineData("song_rival_battleground", true)]
-    [InlineData("song_rival_near_fc", true)]
+    [InlineData("song_rival_near_fc", false)]
     [InlineData("song_rival_stale", true)]
-    [InlineData("song_rival_star_gains", true)]
-    [InlineData("song_rival_pct_push", true)]
+    [InlineData("song_rival_star_gains", false)]
+    [InlineData("song_rival_pct_push", false)]
     [InlineData("lb_rival_x", true)]
     [InlineData("near_fc_any", true)]
     public void ShowsRivalNameOnlyOnMixedRivalCategories(string key, bool shows) =>
