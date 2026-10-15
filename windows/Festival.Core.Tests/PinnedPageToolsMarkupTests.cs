@@ -131,6 +131,28 @@ public class PinnedPageToolsMarkupTests
     }
 
     [Fact]
+    public void BandStats_StayRealizedUnderThePinnedHeader()
+    {
+        // Issue #658: the pinned header's shorter viewport left Best Song Rank unrealized at 225% text, so Tab skipped it.
+        var stats = Load("Pages/BandsDetailPage.xaml").Descendants()
+            .Single(e => e.Name.LocalName == "ItemsRepeater" && Attr(e, "ItemsSource") == "{x:Bind ViewModel.Statistics, Mode=OneWay}");
+        Assert.Equal("Local", Attr(stats, "TabFocusNavigation"));
+        Assert.True(double.Parse(Attr(stats, "VerticalCacheLength") ?? "0", System.Globalization.CultureInfo.InvariantCulture) >= 20);
+    }
+
+    [Fact]
+    public void OverlayHardEdge_IsAClipNotASubPixelGradient()
+    {
+        // Issue #658 (scroll-edge R7): with the hard edge, CI's software compositor drew only ~40 epx of Song Details
+        // below the bar when the cut was a 0.01 epx mask gradient. The cut is the sprite's inset clip at the clear edge
+        // over the unmasked copy; the masked copy is only for the ramp.
+        var code = File.ReadAllText(Path.Combine(AppRoot, "Controls", "TopEdgeFade.cs"));
+        Assert.Contains("sprite.Brush = hard ? content : mask;", code, StringComparison.Ordinal);
+        Assert.Contains("clip.StartAnimation(nameof(clip.TopInset), top);", code, StringComparison.Ordinal);
+        Assert.Contains("sprite.Clip = clip;", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ShopButtons_UseTheBorderlessShopStyle()
     {
         var styles = Load("Themes/Styles.xaml");

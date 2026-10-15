@@ -8,6 +8,7 @@
       "waitfor:id=fst.song-detail.title@20",
       "scrollinto:id=fst.song-detail.band-row.Band_Duets.9@20",
       "scrollinto:id=fst.song-detail.band-selected.Band_Duets@10",
+      "scrollinset:id=fst.song-detail.band-selected.Band_Duets|id=fst.song-detail|400|end",
       "assertname:raw=fst.song-detail.band-selected.Band_Duets.rank|#1,234",
       "assertaligned:raw=fst.song-detail.band-row.Band_Duets.9.rank|raw=fst.song-detail.band-selected.Band_Duets.rank",
       "assertaligned:raw=fst.song-detail.band-row.Band_Duets.9.members|raw=fst.song-detail.band-selected.Band_Duets.members",
@@ -441,15 +442,15 @@
     "sizes": ["medium", "wide"],
     "modes": ["no-transparency"],
     "tabs": 0,
-    "note": "Issue #426 (for #64), surface-materials R4: with Windows transparency effects off, each band row is the opaque #121826 card fill at four interior points with a 1 epx rim (left, top, bottom) distinct from both fill and page.",
+    "note": "Issue #426 (for #64), surface-materials R4: with Windows transparency effects off, the band preview card is the opaque #121826 fill at four interior points of each row with a 1 epx rim (left, top, right) distinct from both fill and page. Since #643 the rows are in-card slices of one FSTCardStyle card (surface-materials R6, leaderboard-row R10): the rows paint no fill or rim of their own, so the fill probes read the card through them and the rim probes read the card's 1 epx border 9 epx outside the rows (1 epx border + 8 epx padding).",
     "ready": [
       "waitfor:id=fst.song-detail.title@20",
       "scrollinto:id=fst.song-detail.band-row.Band_Duets.1@20",
       "wait:2"
     ],
     "after_ready": [
-      "assertpaint:id=fst.song-detail.band-row.Band_Duets.0|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|bg:L-6,M0|L0,M0!=@fill~6|C0,T0!=@fill~6|C0,B1!=@fill~6|L0,M0!=@bg~6|C0,T0!=@bg~6|C0,B1!=@bg~6",
-      "assertpaint:id=fst.song-detail.band-row.Band_Duets.1|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|bg:L-6,M0|L0,M0!=@fill~6|C0,T0!=@fill~6|C0,B1!=@fill~6|L0,M0!=@bg~6|C0,T0!=@bg~6|C0,B1!=@bg~6",
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.0|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|bg:L-15,M0|L-9,M0!=@fill~6|C0,T-9!=@fill~6|R-8,M0!=@fill~6|L-9,M0!=@bg~6|C0,T-9!=@bg~6|R-8,M0!=@bg~6",
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.1|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|bg:L-15,M0|L-9,M0!=@fill~6|R-8,M0!=@fill~6|L-9,M0!=@bg~6|R-8,M0!=@bg~6",
       "shot:{stem}.png"
     ]
   },
@@ -461,15 +462,15 @@
     "sizes": ["medium"],
     "modes": ["normal"],
     "tabs": 0,
-    "note": "Issue #426 (for #64), surface-materials R4: in-app Less Transparency gives the band rows the same opaque #121826 fill and visible rim as Windows transparency off.",
+    "note": "Issue #426 (for #64), surface-materials R4: in-app Less Transparency gives the band preview card the same opaque #121826 fill and visible rim as Windows transparency off. Since #643 the rows are in-card slices of one FSTCardStyle card (surface-materials R6, leaderboard-row R10): the rows paint no fill or rim of their own, so the fill probes read the card through them and the rim probes read the card's 1 epx border 9 epx outside the rows (1 epx border + 8 epx padding).",
     "ready": [
       "waitfor:id=fst.song-detail.title@20",
       "scrollinto:id=fst.song-detail.band-row.Band_Duets.1@20",
       "wait:2"
     ],
     "after_ready": [
-      "assertpaint:id=fst.song-detail.band-row.Band_Duets.0|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|bg:L-6,M0|L0,M0!=@fill~6|C0,T0!=@fill~6|C0,B1!=@fill~6|L0,M0!=@bg~6|C0,T0!=@bg~6|C0,B1!=@bg~6",
-      "assertpaint:id=fst.song-detail.band-row.Band_Duets.1|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|bg:L-6,M0|L0,M0!=@fill~6|C0,T0!=@fill~6|C0,B1!=@fill~6|L0,M0!=@bg~6|C0,T0!=@bg~6|C0,B1!=@bg~6"
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.0|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|bg:L-15,M0|L-9,M0!=@fill~6|C0,T-9!=@fill~6|R-8,M0!=@fill~6|L-9,M0!=@bg~6|C0,T-9!=@bg~6|R-8,M0!=@bg~6",
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.1|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|bg:L-15,M0|L-9,M0!=@fill~6|R-8,M0!=@fill~6|L-9,M0!=@bg~6|R-8,M0!=@bg~6"
     ]
   },
   {
@@ -480,15 +481,15 @@
     "sizes": ["medium"],
     "modes": ["normal"],
     "tabs": 0,
-    "note": "Issue #426 (for #64), surface-materials R4: in-app Increase Contrast makes the band rows opaque #121826 with the 50% white rim.",
+    "note": "Issue #426 (for #64), surface-materials R4: in-app Increase Contrast makes the band preview card opaque #121826 with the 50% white rim. Since #643 the rows are in-card slices of one FSTCardStyle card (surface-materials R6, leaderboard-row R10): the rows paint no fill or rim of their own, so the fill probes read the card through them and the rim probes read the card's 1 epx border 9 epx outside the rows (1 epx border + 8 epx padding).",
     "ready": [
       "waitfor:id=fst.song-detail.title@20",
       "scrollinto:id=fst.song-detail.band-row.Band_Duets.1@20",
       "wait:2"
     ],
     "after_ready": [
-      "assertpaint:id=fst.song-detail.band-row.Band_Duets.0|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|L0,M0=#84828A~40|C0,T0=#84828A~40|C0,B1=#84828A~40",
-      "assertpaint:id=fst.song-detail.band-row.Band_Duets.1|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|L0,M0=#84828A~40|C0,T0=#84828A~40|C0,B1=#84828A~40"
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.0|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|L-9,M0=#84828A~40|C0,T-9=#84828A~40|R-8,M0=#84828A~40",
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.1|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|L-9,M0=#84828A~40|R-8,M0=#84828A~40"
     ]
   },
   {
@@ -498,15 +499,15 @@
     "sizes": ["medium", "wide"],
     "modes": ["app-contrast"],
     "tabs": 0,
-    "note": "Issue #426 (for #64), surface-materials R4: in-app Increase Contrast + Less Transparency together keep the band rows opaque #121826 with the 50% white rim.",
+    "note": "Issue #426 (for #64), surface-materials R4: in-app Increase Contrast + Less Transparency together keep the band preview card opaque #121826 with the 50% white rim. Since #643 the rows are in-card slices of one FSTCardStyle card (surface-materials R6, leaderboard-row R10): the rows paint no fill or rim of their own, so the fill probes read the card through them and the rim probes read the card's 1 epx border 9 epx outside the rows (1 epx border + 8 epx padding).",
     "ready": [
       "waitfor:id=fst.song-detail.title@20",
       "scrollinto:id=fst.song-detail.band-row.Band_Duets.1@20",
       "wait:2"
     ],
     "after_ready": [
-      "assertpaint:id=fst.song-detail.band-row.Band_Duets.0|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|L0,M0=#84828A~40|C0,T0=#84828A~40|C0,B1=#84828A~40",
-      "assertpaint:id=fst.song-detail.band-row.Band_Duets.1|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|L0,M0=#84828A~40|C0,T0=#84828A~40|C0,B1=#84828A~40",
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.0|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|L-9,M0=#84828A~40|C0,T-9=#84828A~40|R-8,M0=#84828A~40",
+      "assertpaint:id=fst.song-detail.band-row.Band_Duets.1|fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0|L-9,M0=#84828A~40|R-8,M0=#84828A~40",
       "shot:{stem}.png"
     ]
   }

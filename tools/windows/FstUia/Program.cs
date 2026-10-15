@@ -2390,7 +2390,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         using var process = Process.GetProcessById(pid);
         // Open the handle while the app runs: Process.ExitCode refuses processes this driver did not start.
         var handle = process.SafeHandle;
-        window.Close();
+        RequestClose(window, pid, process);
         var killed = !process.WaitForExit(5000);
         if (killed)
         {
@@ -2400,6 +2400,32 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         // A fail-fast during shutdown (e.g. 0xc000027b) is a crash, not a clean close (issue #247).
         long? exitCode = process.HasExited && Native.GetExitCodeProcess(handle, out var code) ? (int)code : null;
         return new JsonObject { ["pid"] = pid, ["closed"] = true, ["killed"] = killed, ["exitCode"] = exitCode };
+    }
+
+    /// <summary>
+    /// Asks the app to close the way a user would. <see cref="TopWindow"/> can return a windowed popup host (no title
+    /// bar, no Window pattern), on which FlaUI's <c>Close</c> throws (#658), so fall back to the process's top-level
+    /// element that supports the Window pattern, then to <c>WM_CLOSE</c> on its main window.
+    /// </summary>
+    /// <param name="window">Window <see cref="FindWindow"/> returned.</param>
+    /// <param name="pid">App process ID.</param>
+    /// <param name="process">App process.</param>
+    private void RequestClose(Window window, int pid, Process process)
+    {
+        try
+        {
+            window.Close();
+            return;
+        }
+        catch (FlaUI.Core.Exceptions.MethodNotSupportedException)
+        {
+        }
+        var app = automation.GetDesktop().FindAllChildren(cf => cf.ByProcessId(pid))
+            .FirstOrDefault(e => e.Patterns.Window.IsSupported);
+        if (app is not null)
+            app.Patterns.Window.Pattern.Close();
+        else
+            process.CloseMainWindow();
     }
 
     #endregion
