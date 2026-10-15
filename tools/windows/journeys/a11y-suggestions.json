@@ -277,5 +277,45 @@
       "assertfocus:id=fst.suggestions.row.s038|Solo_Drums@3",
       "scrollinset:id=fst.suggestions.category.song_rival_gap_rival-below-4|id=fst.suggestions.list|8"
     ]
+  },
+  {
+    "name": "suggestions-row-centre",
+    "note": "Issue #654: a one-line Suggestions row's art and right-side metadata sit on the row's vertical centre line within 1 epx, with or without the separator above it and at every text size (an empty second grid line's 6 epx spacing used to lift them 3 epx). The art is a raw view, so each row stays one 40+ epx button read once by its name.",
+    "route": "/suggestions",
+    "profile": "fixture-suggest:Fixture Player",
+    "fixture": ["suggestions_fixture_server.py"],
+    "env": {"FST_DEBUG_SUGGESTIONS_SEED": "1"},
+    "tabs": 0,
+    "ready": ["waitfor:id=fst.suggestions.row.s044|Solo_PeripheralGuitar@30", "wait:1.5"],
+    "after_ready": [
+      "assertmiddle:raw=fst.suggestions.row.s044.Solo_PeripheralGuitar.art|id=fst.suggestions.row.s044|Solo_PeripheralGuitar|1",
+      "assertmiddle:raw=fst.suggestions.row.s044.Solo_PeripheralGuitar.season|id=fst.suggestions.row.s044|Solo_PeripheralGuitar|1",
+      "assertmiddle:raw=fst.suggestions.row.s032.Solo_PeripheralGuitar.art|id=fst.suggestions.row.s032|Solo_PeripheralGuitar|1",
+      "assertmiddle:raw=fst.suggestions.row.s032.Solo_PeripheralGuitar.season|id=fst.suggestions.row.s032|Solo_PeripheralGuitar|1",
+      "assertsize:name=Track 44, Artist E · 2012, last played season 8|0x40",
+      "assertsize:name=Track 32, Artist M · 2023, last played season 1|0x40",
+      "assertread:name=Track 44, Artist E · 2012, last played season 8|Track 44, Artist E · 2012, last played season 8, button",
+      "reveal:id=fst.suggestions.row.s091",
+      "wait:0.5",
+      "assertmiddle:raw=fst.suggestions.row.s091.art|id=fst.suggestions.row.s091|1",
+      "shot:{stem}.png"
+    ]
+  },
+  {
+    "name": "suggestions-row-centre-rival",
+    "note": "Issue #654: a mixed-rival row whose rival pill and delta sit beside the title (rows 440 epx and wider) keeps its art and rival pill on the row's vertical centre line within 1 epx.",
+    "route": "/suggestions",
+    "profile": "fixture-suggest:Fixture Player",
+    "fixture": ["suggestions_fixture_server.py"],
+    "env": {"FST_DEBUG_SUGGESTIONS_SEED": "1"},
+    "sizes": ["medium", "wide"],
+    "tabs": 0,
+    "ready": ["waitfor:id=fst.suggestions.list@30", "scrollinto:id=fst.suggestions.category.song_rival_pct_push@30", "waitfor:raw=fst.suggestions.row.s034.Solo_Guitar.rival@10", "scrollinset:id=fst.suggestions.category.song_rival_pct_push|id=fst.suggestions.list|8", "wait:1"],
+    "after_ready": [
+      "assertmiddle:raw=fst.suggestions.row.s034.Solo_Guitar.art|id=fst.suggestions.row.s034|Solo_Guitar|1",
+      "assertmiddle:raw=fst.suggestions.row.s034.Solo_Guitar.rival|id=fst.suggestions.row.s034|Solo_Guitar|1",
+      "assertsize:name=Track 34, Artist O · 1999, Lead, rival Rival B4, behind by 2 ranks|0x40",
+      "shot:{stem}.png"
+    ]
   }
 ]

@@ -22,11 +22,11 @@ public sealed partial class SuggestionSongRow : Button
         nameof(Item), typeof(SuggestionRowItem), typeof(SuggestionSongRow), new PropertyMetadata(null, (d, _) => ((SuggestionSongRow)d).Build()));
 
     private const double ArtSize = 44;
-    private const double NarrowWidth = 440;
     private static readonly SolidColorBrush RivalFill = new(Color.FromArgb(0x33, 0x42, 0x85, 0xF4));
     private static readonly SolidColorBrush RivalText = new(Color.FromArgb(0xFF, 0x6E, 0xA8, 0xFF));
 
-    private readonly Grid root = new() { ColumnSpacing = 12, RowSpacing = 6, MinHeight = 64, Padding = new Thickness(24, 10, 24, 10) };
+    // RowSpacing follows SuggestionRowMetrics: none until the metadata takes a second line (issue #654).
+    private readonly Grid root = new() { ColumnSpacing = 12, RowSpacing = 0, MinHeight = 64, Padding = new Thickness(24, 10, 24, 10) };
     private readonly Image art = new() { Stretch = Stretch.UniformToFill };
     private readonly MarqueeText title = new();
     private readonly MarqueeText subtitle = new();
@@ -188,6 +188,8 @@ public sealed partial class SuggestionSongRow : Button
         AutomationProperties.SetName(this, p.AccessibleName);
         BorderThickness = new Thickness(0, item.IsFirst ? 0 : 1, 0, 0);
         AutomationProperties.SetAutomationId(this, item.AutomationId);
+        // Raw-view test ID for the vertical-centre check (issue #654); Narrator still reads the row once.
+        AutomationProperties.SetAutomationId(art, PillId(item, "art"));
         BuildMetadata(item);
         if (IsLoaded) LoadArt();
     }
@@ -269,7 +271,7 @@ public sealed partial class SuggestionSongRow : Button
     /// ID with its <c>|</c> made a dot, so a UI step (which splits on <c>|</c>) can select it.
     /// </summary>
     /// <param name="item">Row.</param>
-    /// <param name="kind"><c>season</c> or <c>percentile</c>.</param>
+    /// <param name="kind"><c>season</c>, <c>percentile</c>, <c>rival</c> or <c>art</c>.</param>
     /// <returns>Automation ID.</returns>
     private static string PillId(SuggestionRowItem item, string kind) => $"{item.AutomationId.Replace('|', '.')}.{kind}";
 
@@ -302,10 +304,15 @@ public sealed partial class SuggestionSongRow : Button
         };
     }
 
-    /// <summary>Places metadata beside the title, or under it on a narrow row.</summary>
+    /// <summary>
+    /// Places metadata beside the title, or under it on a narrow row (<see cref="SuggestionRowMetrics"/>). A one-line row
+    /// has no row spacing, so its art, text, metadata and chevron share the row's vertical centre (issue #654).
+    /// </summary>
+    /// <param name="width">Row width (epx).</param>
     private void ApplyWidth(double width)
     {
-        var shouldBeNarrow = width > 0 && width < NarrowWidth && Item?.Presentation.Layout is SuggestionRowLayout.InstrumentChips or SuggestionRowLayout.Rival;
+        var shouldBeNarrow = SuggestionRowMetrics.StacksMetadata(Item?.Presentation.Layout, width, metadata.Children.Count > 0);
+        root.RowSpacing = SuggestionRowMetrics.RowSpacing(shouldBeNarrow);
         if (shouldBeNarrow == narrow && metadata.Parent is not null && (Grid.GetRow(metadata) == 1) == narrow) return;
         narrow = shouldBeNarrow;
         Grid.SetRow(metadata, narrow ? 1 : 0);

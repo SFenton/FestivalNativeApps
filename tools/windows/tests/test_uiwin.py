@@ -260,6 +260,16 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertmiddle(self):
+        step = u.parse_step("assertmiddle:raw=fst.suggestions.row.s001.Solo_Guitar.art|id=fst.suggestions.row.s001|Solo_Guitar|1")
+        self.assertEqual(step["verb"], "assertmiddle")
+        self.assertEqual(step["selector"], {"kind": "raw", "value": "fst.suggestions.row.s001.Solo_Guitar.art"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.suggestions.row.s001|Solo_Guitar"})
+        self.assertEqual(step["epx"], 1.0)
+        for bad in ("assertmiddle:id=a|id=b", "assertmiddle:id=a|id=b|wide", "assertmiddle:id=a|1,2|1"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_assertpaint(self):
         step = u.parse_step("assertpaint:id=fst.notifications.row.x|fill:L8,M0=#162133~4|L4,M-10,L5,M10=#1e2a3a"
                             "|R25,M-24!=@fill~40|C-0.5,B2.5,C20,B-3!=@fill")

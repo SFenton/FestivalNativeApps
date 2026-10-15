@@ -108,6 +108,29 @@ class UiCiTests(unittest.TestCase):
             self.assertIn("assertsize:raw=fst.songs.metadata.stars.fixture-song-1|126x24", steps)
             self.assertIn("assertsize:raw=fst.songs.metadata.intensity.fixture-song-1|74x24", steps)
 
+    def test_suggestions_row_centre_runs_at_every_size_and_largest_text(self):
+        # Issue #654: a one-line Suggestions row's art and metadata pill sit on the row's vertical centre within 1 epx
+        # (assertmiddle), at compact, medium and wide and at 225% text, with the row still one 40+ epx button.
+        pages = {page["name"]: page for page in json.loads((ci.JOURNEYS / "a11y-suggestions.json").read_text(encoding="utf-8"))}
+        row = "fst.suggestions.row."
+        for name, (song, pill) in {"suggestions-row-centre": ("s032|Solo_PeripheralGuitar", "season"),
+                                   "suggestions-row-centre-rival": ("s034|Solo_Guitar", "rival")}.items():
+            with self.subTest(page=name):
+                steps = pages[name]["after_ready"]
+                raw = f"raw={row}{song.replace('|', '.')}"
+                self.assertIn(f"assertmiddle:{raw}.art|id={row}{song}|1", steps)
+                self.assertIn(f"assertmiddle:{raw}.{pill}|id={row}{song}|1", steps)
+                self.assertTrue(any(step.startswith("assertsize:") and step.endswith("|0x40") for step in steps))
+                covered = {(mode, size) for run in ci.RUNS if run.pages == "a11y-suggestions.json"
+                           and (not run.only or name in run.only.split(","))
+                           for mode in [run.mode] for size in m.page_sizes(pages[name], run.sizes.split(","), mode)}
+                self.assertLessEqual({("normal", "medium"), ("normal", "wide"), ("text-225", "medium"),
+                                      ("text-225", "wide")}, covered)
+        # Partial runs come before the full ones, so generated_runs still sees the file as covered.
+        names = [run.name for run in ci.RUNS]
+        for run in (run for run in ci.RUNS if run.only == ci.SUGGESTIONS_ROW_CENTRE):
+            self.assertLess(names.index(run.name), names.index("suggestions"))
+
     def test_songs_chip_rows_run_at_default_and_largest_text(self):
         # Issue #645 review: the narrow chip-row journey gates the release-branch suite at default and 225% text,
         # scanned, at compact: balanced 5 + 4 lines (Pro Lead level with Lead, Pro Bass below it), each line centred on
@@ -309,7 +332,8 @@ class UiCiTests(unittest.TestCase):
                  json.loads((ci.JOURNEYS / "a11y-suggestions.json").read_text(encoding="utf-8"))}
         self.assertEqual({"suggestions-cards", "suggestions-keyboard", "suggestions-filter", "suggestions-syncing",
                           "suggestions-no-results", "suggestions-rival-pill-contrast", "suggestions-load-more",
-                          "suggestions-load-more-keyboard"}, set(pages))
+                          "suggestions-load-more-keyboard", "suggestions-row-centre", "suggestions-row-centre-rival"},
+                         set(pages))
         cards = pages["suggestions-cards"]["after_ready"]
         self.assertIn("assertstate:name=Pro Lead Untouched for 2 Seasons&class=TextBlock|heading=2", cards)
         keyboard = pages["suggestions-keyboard"]["after_ready"]
@@ -333,7 +357,8 @@ class UiCiTests(unittest.TestCase):
         # keyboard path run with motion on (default and 225% text, the full runs) and with in-app Reduce Motion and
         # Animation effects off, before the full runs so generated_runs still sees the file as covered.
         names = [run.name for run in ci.RUNS]
-        partial = {run.mode: run for run in ci.RUNS if run.pages == "a11y-suggestions.json" and run.only}
+        partial = {run.mode: run for run in ci.RUNS if run.pages == "a11y-suggestions.json" and run.only
+                   and run.only == ci.SUGGESTIONS_LOAD_MORE}
         self.assertEqual({"app-reduced", "no-animations"}, set(partial))
         for run in partial.values():
             self.assertEqual(ci.SUGGESTIONS_LOAD_MORE, run.only)
