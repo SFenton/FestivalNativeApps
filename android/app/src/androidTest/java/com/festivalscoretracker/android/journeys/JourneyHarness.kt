@@ -477,6 +477,21 @@ class JourneyHarness(private val rule: JourneyRule) {
     fun waitGone(tag: String) = rule.waitUntil(15_000) { !exists(tag) }
 
     /**
+     * Wait for the open Paths sheet's first load to settle, then accept its "Some Instruments
+     * Unavailable" alert when Karaoke is visible: the alert waits for that load (#649), so an
+     * immediate `exists` check would miss it and it would cover the next step.
+     */
+    fun settlePathsWarning() {
+        val settled = hasTestTag("fst.paths.status") and !SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo)
+        rule.waitUntil(15_000) { exists("fst.paths.karaoke-warning") || rule.onAllNodes(settled, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        rule.waitForIdle()
+        if (exists("fst.paths.karaoke-warning")) {
+            tap("fst.paths.warning.ok")
+            waitGone("fst.paths.karaoke-warning")
+        }
+    }
+
+    /**
      * Wait until the window's accessibility tree (what TalkBack and [readingOrder] read) shows
      * [present] and no longer shows [absent]. UiAutomation's node cache trails Compose's
      * semantics by a few throttled content-change events, so a [readingOrder] straight after a

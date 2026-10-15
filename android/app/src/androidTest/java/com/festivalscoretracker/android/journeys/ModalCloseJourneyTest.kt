@@ -200,10 +200,7 @@ class ModalCloseJourneyTest {
         }
         h.tap("fst.song-detail.paths.open")
         h.waitForTag("fst.paths.close")
-        if (h.exists("fst.paths.karaoke-warning")) {
-            h.tap("fst.paths.warning.ok")
-            h.waitGone("fst.paths.karaoke-warning")
-        }
+        h.settlePathsWarning()
         assertCloseAndDismiss("modal-paths", "fst.paths.close", "fst.song-detail.paths")
         h.assertAccessible()
     }

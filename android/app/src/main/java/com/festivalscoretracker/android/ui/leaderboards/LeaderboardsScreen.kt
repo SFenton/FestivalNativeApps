@@ -115,10 +115,20 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
         val layout = remember(ready, instruments, selected, columns, folded) {
             if (ready) OverviewLayout(instruments, showHistory = selected != null && instruments.isNotEmpty(), columns, pairHistory = folded) else null
         }
+        // Web load phase (operator batch 6, 6.41): a spinner until settings are read and
+        // the first card has data, then the page fades in and each card's rows fade in with it as one (R11, #614). A Rank By
+        // change first fades the old cards out (issue #71). The list stays composed
+        // (hidden) under the spinner so its cards load meanwhile.
+        val lead = layout?.instruments?.firstOrNull()?.let { viewModel.card(it) }?.collectAsStateWithLifecycle()
+        val contentReady = layout != null && (lead == null || lead.value !is LoadState.Loading)
+        val swap = rememberLoadSwap(metric, contentReady, key = metric)
         // Cards still loading (or reloading for a new Rank By) after the list has scrolled show
         // in place; only what is visible at load fades in. Quick Links jumps rush it (load-transition R5).
         val fadeWindow = rememberFadeInWindow(listState)
-        val quickLinks = rememberQuickLinks(listState, QUICK_LINKS_TITLE, layout?.sections.orEmpty(), fadeInWindow = fadeWindow) { id -> layout?.indexOf(id) }
+        // Quick Links wait for the swap's gate like Compete (load-transition R1, #649; web
+        // `loadPhase === ContentIn`): never beside the spinner while the first card loads.
+        val sections = if (swap.showsContent) layout?.sections.orEmpty() else emptyList()
+        val quickLinks = rememberQuickLinks(listState, QUICK_LINKS_TITLE, sections, fadeInWindow = fadeWindow) { id -> layout?.indexOf(id) }
         FestivalScreen(
             title = "Leaderboards",
             isRoot = isRoot,
@@ -130,13 +140,6 @@ fun LeaderboardsScreen(viewModel: LeaderboardsViewModel, isRoot: Boolean) {
             },
         ) { padding ->
             PullToRefreshBox(isRefreshing = refreshing, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-                // Web load phase (operator batch 6, 6.41): a spinner until settings are read and
-                // the first card has data, then the page fades in and each card's rows fade in with it as one (R11, #614). A Rank By
-                // change first fades the old cards out (issue #71). The list stays composed
-                // (hidden) under the spinner so its cards load meanwhile.
-                val lead = layout?.instruments?.firstOrNull()?.let { viewModel.card(it) }?.collectAsStateWithLifecycle()
-                val contentReady = layout != null && (lead == null || lead.value !is LoadState.Loading)
-                val swap = rememberLoadSwap(metric, contentReady, key = metric)
                 // Under the spinner the hidden list is silent to TalkBack and ignores touches, so a
                 // tap on the spinner never opens a card nobody can see (load-transition R2, #178).
                 val pageModifier = when (swap.phase) {

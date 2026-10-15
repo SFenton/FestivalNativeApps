@@ -458,6 +458,40 @@ class SongPathsSheetUiTest {
     // region Warning and large text
 
     @Test
+    fun karaokeWarningWaitsForTheFirstPathToLoad() {
+        // Issue #649: the alert covered the spinner before the first path had loaded.
+        val gate = CompletableDeferred<Unit>()
+        show(viewModel(loadImage = { _, _ -> gate.await(); image() }), warning = true)
+        settle(1_000)
+        assertEquals(1, count("fst.paths.loading", unmerged = true))
+        assertEquals(0, count("fst.paths.karaoke-warning"))
+        assertEquals("Loading Lead Expert path", status())
+
+        gate.complete(Unit)
+        waitForStatus("Lead Expert path image loaded")
+        waitForTag("fst.paths.karaoke-warning")
+        assertEquals(0, count("fst.paths.loading", unmerged = true))
+        // A later switch's spinner neither hides nor re-asks an answered alert.
+        click("fst.paths.warning.ok")
+        click("fst.paths.difficulty.open")
+        click("fst.paths.difficulty.hard")
+        waitForStatus("Lead Hard path image loaded")
+        assertEquals(0, count("fst.paths.karaoke-warning"))
+    }
+
+    @Test
+    fun karaokeWarningFollowsAFailedFirstLoad() {
+        // A settled failure counts as loaded: the alert follows the readable error, not the spinner.
+        val gate = CompletableDeferred<Unit>()
+        show(viewModel(loadImage = { _, _ -> gate.await(); throw IOException("offline") }), warning = true)
+        settle(1_000)
+        assertEquals(0, count("fst.paths.karaoke-warning"))
+        gate.complete(Unit)
+        waitForTag("fst.paths.error")
+        waitForTag("fst.paths.karaoke-warning")
+    }
+
+    @Test
     fun karaokeWarningOkKeepsAskingAndNeverPersists() {
         show(viewModel(), warning = true)
         waitForTag("fst.paths.karaoke-warning")

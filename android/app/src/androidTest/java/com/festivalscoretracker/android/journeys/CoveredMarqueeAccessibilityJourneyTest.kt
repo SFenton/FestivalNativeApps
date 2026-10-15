@@ -255,10 +255,7 @@ class CoveredMarqueeAccessibilityJourneyTest {
     private fun openPaths() {
         h.tap(PATHS_OPEN)
         h.waitForTag(PATHS_CLOSE)
-        if (h.exists(PATHS_WARNING)) {
-            h.tap(PATHS_WARNING_OK)
-            h.waitGone(PATHS_WARNING)
-        }
+        h.settlePathsWarning()
     }
 
     /**

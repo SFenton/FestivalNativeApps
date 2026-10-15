@@ -42,6 +42,7 @@ import com.festivalscoretracker.android.ui.shell.FestivalApp
 import java.time.Duration
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -199,6 +200,45 @@ class RivalsUiTest {
         assertTrue(rule.spinnerShowsDuring("fst.rivals.loading") { rule.onNodeWithTag("fst.rivals.tab.leaderboard").performSemanticsAction(SemanticsActions.OnClick) })
         waitForTag("fst.rivals.section.leaderboard.Solo_Guitar")
         rule.waitUntil(5_000) { settle(100); rule.onAllNodesWithTag("fst.rivals.loading").fetchSemanticsNodes().isEmpty() }
+    }
+
+    @Test
+    fun hubQuickLinksNeverShowBesideTheSpinner() {
+        // Issue #649 (load-transition R1): Quick Links appeared while the spinner faded out.
+        fun present(tag: String) = rule.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty()
+
+        /** Steps frame by frame after [action]; returns how many frames showed the spinner. */
+        fun spinnerFramesWithoutQuickLinks(action: () -> Unit): Int {
+            rule.mainClock.autoAdvance = false
+            try {
+                action()
+                var spinnerFrames = 0
+                for (frame in 0 until 400) {
+                    rule.mainClock.advanceTimeBy(16)
+                    shadowOf(Looper.getMainLooper()).idle()
+                    val loading = present("fst.rivals.loading")
+                    if (loading) {
+                        spinnerFrames++
+                        assertFalse("Quick Links beside the spinner (frame $frame)", present("fst.quick-links.open"))
+                    }
+                    if (!loading && spinnerFrames > 0 && present("fst.quick-links.open")) break
+                }
+                return spinnerFrames
+            } finally {
+                rule.mainClock.autoAdvance = true
+            }
+        }
+        assertTrue("the first load must run the spinner", spinnerFramesWithoutQuickLinks {
+            val container = AppContainer(rule.activity, OkHttpClient(), DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true), transport = transport, settingsStore = InMemoryPreferences())
+            rule.setContent { FestivalApp(container, DebugLaunch(route = RivalsRoute, profile = player, stillBackground = true)) }
+        } > 0)
+        waitForTag("fst.quick-links.open")
+        rule.onNodeWithTag("fst.rivals.section.common").assertExists()
+        assertTrue("the tab switch must run the spinner", spinnerFramesWithoutQuickLinks {
+            rule.onNodeWithTag("fst.rivals.tab.leaderboard").performSemanticsAction(SemanticsActions.OnClick)
+        } > 0)
+        waitForTag("fst.rivals.section.leaderboard.Solo_Guitar")
+        waitForTag("fst.quick-links.open")
     }
 
     @Test

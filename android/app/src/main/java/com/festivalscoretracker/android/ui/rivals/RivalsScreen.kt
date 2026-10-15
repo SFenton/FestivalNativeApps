@@ -27,8 +27,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,6 +62,7 @@ import com.festivalscoretracker.android.ui.bands.windowWidthDp
 import com.festivalscoretracker.android.ui.common.FestivalScreen
 import com.festivalscoretracker.android.core.service.ServiceIssue
 import com.festivalscoretracker.android.ui.common.LoadSwapSpinner
+import com.festivalscoretracker.android.core.shell.LoadSwapPhase
 import com.festivalscoretracker.android.ui.common.rememberLoadSwap
 import com.festivalscoretracker.android.ui.common.LocalShellActions
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
@@ -96,7 +99,11 @@ fun RivalsScreen(viewModel: RivalsHubViewModel?, isRoot: Boolean, visibleCount: 
         (if (tab == RivalsHubTab.Song) it.songContent else it.leaderboardContent).collectAsStateWithLifecycle().value
     }
     val cards = content?.takeIf { it.settled && it.fullPageIssue == null }?.sections.orEmpty()
+    // The tab's load swap publishes whether its content shows, so Quick Links never sit beside
+    // the spinner, even while it fades out (load-transition R1, #649; same gate as Compete).
+    var tabShown by remember { mutableStateOf(false) }
     val sections = cards
+        .takeIf { tabShown }.orEmpty()
         .filter { (it.state as? LoadState.Loaded)?.value?.isNotEmpty() == true }
         .map { RivalQuickLinks.hub(it.id, it.title, it.instrument) }
     // The page's fade window, here so Quick Links jumps rush it (load-transition R5).
@@ -170,6 +177,7 @@ fun RivalsScreen(viewModel: RivalsHubViewModel?, isRoot: Boolean, visibleCount: 
                 gridState = gridState,
                 bottomPadding = padding.calculateBottomPadding(),
                 navigate = shell.navigate,
+                onContentShown = { tabShown = it },
             )
         }
     }
@@ -195,11 +203,16 @@ private fun HubBody(
     gridState: androidx.compose.foundation.lazy.grid.LazyGridState,
     bottomPadding: androidx.compose.ui.unit.Dp,
     navigate: (AppRoute) -> Unit,
+    onContentShown: (Boolean) -> Unit = {},
 ) {
     // First loads and tab switches run the shared load swap (issue #71): the old tab fades out,
     // the spinner shows until the new tab settles, then its cards stagger in. A return visit
     // (already settled) shows at once.
     val swap = rememberLoadSwap(tab to content, content.settled || content.fullPageIssue != null, key = tab)
+    // ContentIn rather than showsContent: during a tab switch's fade-out the old tab still shows,
+    // and its links must not be replaced by the new tab's.
+    val showsContent = swap.phase == LoadSwapPhase.ContentIn
+    SideEffect { onContentShown(showsContent) }
     val (shownTab, shown) = swap.shown
     val issue = shown.fullPageIssue
     val pageRevealed = swap.revealed

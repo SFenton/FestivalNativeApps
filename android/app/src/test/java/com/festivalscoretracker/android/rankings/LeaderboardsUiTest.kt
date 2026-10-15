@@ -354,6 +354,42 @@ class LeaderboardsUiTest : LeaderboardsHarness() {
     fun overviewRankByHidesTheOldCardsUnderReduceMotion() = assertOverviewRankByHidesTheOldCards(reduceMotion = true)
 
     @Test
+    fun overviewQuickLinksWaitForTheLoadGate() {
+        // Issue #649: Quick Links showed beside the spinner while the first card still loaded.
+        val first = CompletableDeferred<Unit>()
+        val fcRate = CompletableDeferred<Unit>()
+        hold = { request ->
+            when {
+                !request.url.contains("/api/rankings/Solo_Guitar") -> null
+                request.url.contains("rankBy=fcrate") -> fcRate
+                else -> first
+            }
+        }
+        launch("leaderboards")
+        waitForTag("fst.leaderboards.loading")
+        settle(1_000)
+        assertTrue(exists("fst.leaderboards.loading"))
+        assertFalse("Quick Links must wait for the content", exists("fst.quick-links.open"))
+        // Rank By acts on the board, not the loaded cards, so it stays usable.
+        assertTrue(exists("fst.rankings.rank-by-menu"))
+
+        first.complete(Unit)
+        rule.waitUntil(10_000) { settle(100); !exists("fst.leaderboards.loading") }
+        waitForTag("fst.quick-links.open")
+        assertTrue(exists(lead))
+
+        // A Rank By reload hides the cards behind the spinner, and their Quick Links with them (web ContentIn gate).
+        click("fst.rankings.rank-by-menu")
+        node("fst.rankings.rank-by.fcrate").performSemanticsAction(SemanticsActions.OnClick)
+        waitForTag("fst.leaderboards.loading")
+        settle()
+        assertFalse(exists("fst.quick-links.open"))
+        fcRate.complete(Unit)
+        rule.waitUntil(10_000) { settle(100); !exists("fst.leaderboards.loading") }
+        waitForTag("fst.quick-links.open")
+    }
+
+    @Test
     fun rankHistoryAndQuickLinksOnTheOverview() {
         launch("leaderboards", selected)
         waitForTag("fst.leaderboards.rank-history")

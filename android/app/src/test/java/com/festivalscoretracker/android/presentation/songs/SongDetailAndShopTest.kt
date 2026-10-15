@@ -405,6 +405,20 @@ class SongDetailAndShopTest {
     }
 
     @Test
+    fun pathsContentSettledOnlyOnceAResultIsIn() {
+        // Issue #649: the Karaoke alert waits for this, so it never covers the spinner.
+        val base = SongPathsState(Instrument.Lead)
+        assertFalse(base.contentSettled)
+        listOf(PathSwapPhase.ContentOut, PathSwapPhase.Spinner, PathSwapPhase.SpinnerOut).forEach { phase ->
+            assertFalse(phase.name, base.copy(phase = phase, load = PathLoad.NotGenerated).contentSettled)
+        }
+        assertFalse(base.copy(phase = PathSwapPhase.Content, load = PathLoad.Loading).contentSettled)
+        listOf(PathLoad.NotGenerated, PathLoad.Failed(ServiceIssue.Offline), PathLoad.Text(text())).forEach { load ->
+            assertTrue(load.toString(), base.copy(phase = PathSwapPhase.Content, load = load).contentSettled)
+        }
+    }
+
+    @Test
     fun pathsSwapFadesOutHoldsSpinnerThenFadesIn() = runTest(main.dispatcher) {
         val vm = SongPathsViewModel(listOf(Instrument.Lead), PathDisplayMode.Image, { _, _ -> image() }, { _, _ -> text() })
         advanceUntilIdle()

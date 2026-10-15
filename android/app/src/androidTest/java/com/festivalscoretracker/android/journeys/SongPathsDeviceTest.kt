@@ -28,6 +28,8 @@ import com.festivalscoretracker.android.testing.Fixtures
 import com.festivalscoretracker.android.testing.ProfileFixtures
 import com.festivalscoretracker.android.testing.SongsFixtures
 import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.CompletableDeferred
+import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -54,6 +56,8 @@ class SongPathsDeviceTest {
         return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
     }
 
+    private var pathGate: CompletableDeferred<Unit>? = null
+
     private val transport = FakeTransport.standard().apply {
         on("/api/songs", headers = mapOf("X-FST-Publication-Id" to "7")) { Fixtures.songsJson.replace("\"alpha-512.jpg\"", "null") }
         on("/api/shop", headers = mapOf("X-FST-Publication-Id" to "7")) { SongsFixtures.shopJson.replace("\"b.jpg\"", "null") }
@@ -61,6 +65,12 @@ class SongPathsDeviceTest {
         onRaw("/api/paths/s-alpha/Solo_Guitar/expert") { HttpResult(200, image, mapOf("X-FST-Publication-Id" to "7")) }
         on("/api/paths/s-alpha/Solo_Guitar/expert/data", headers = mapOf("X-FST-Publication-Id" to "7")) { SongsFixtures.pathJson }
         ProfileFixtures.register(this)
+        beforeRespond = { request -> if (request.url.contains("/api/paths/")) pathGate?.await() }
+    }
+
+    @After
+    fun releasePaths() {
+        pathGate?.complete(Unit)
     }
 
     /** Karaoke visible: the sheet opens with its warning. */
@@ -96,6 +106,34 @@ class SongPathsDeviceTest {
                 assertFalse("$state: \"$text\" is ellipsized", lines.any { layout.isLineEllipsized(it) })
             }
         }
+    }
+
+    /**
+     * Issue #649: while the first path loads, TalkBack reads only the sheet and its spinner (no
+     * "Karaoke not supported" alert); the alert, read alone and fully accessible, follows the load.
+     */
+    @Test
+    fun karaokeWarningWaitsForTheFirstPath() {
+        h.enableAccessibilityChecks()
+        val gate = CompletableDeferred<Unit>().also { pathGate = it }
+        h.launch(DebugLaunch(songQuery = "s-alpha", stillBackground = true), transport, preferences)
+        h.waitForTag("fst.song-detail.list")
+        h.tap("fst.song-detail.paths.open")
+        h.waitForTag("fst.paths.status")
+        Thread.sleep(1_000)
+        assertFalse("the alert shows before the path loads", h.exists("fst.paths.karaoke-warning"))
+        val loading = h.readingOrder("paths-first-load", fresh = true)
+        assertFalse("TalkBack reads the alert before the path loads: $loading", loading.any { it.contains("Instruments Unavailable") })
+        h.assertAccessible()
+
+        gate.complete(Unit)
+        h.waitForTag("fst.paths.karaoke-warning")
+        val warning = h.readingOrder("paths-warning-after-load", fresh = true)
+        assertTrue("the alert is not read after the load: $warning", warning.any { it.contains("Instruments Unavailable") })
+        h.assertAccessible()
+        h.tap("fst.paths.warning.ok")
+        h.waitGone("fst.paths.karaoke-warning")
+        h.waitForTag("fst.paths.image")
     }
 
     @Test

@@ -108,6 +108,12 @@ data class SongPathsState(
     /** Whether the spinner is mounted. */
     val spinnerVisible: Boolean get() = phase == PathSwapPhase.Spinner || phase == PathSwapPhase.SpinnerOut
 
+    /**
+     * Whether a load has settled and its result (path, table, "not generated" or failure) is in.
+     * The Karaoke alert waits for the first one, so it never covers the spinner (#649).
+     */
+    val contentSettled: Boolean get() = phase == PathSwapPhase.Content && load != PathLoad.Loading
+
     /** TalkBack status for the live region: loading, then what loaded. */
     val status: String
         get() = if (phase != PathSwapPhase.Content) {
