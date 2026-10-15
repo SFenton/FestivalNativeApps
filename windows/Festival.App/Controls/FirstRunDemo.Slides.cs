@@ -440,8 +440,31 @@ public sealed partial class FirstRunDemo
         IEnumerable<object> rows = history
             ? FirstRunDemoContent.History(id, 3, DateTimeOffset.Now, DemoSeason)
             : FirstRunDemoContent.TopScores(id).Take(3);
-        foreach (var row in rows) Stage(new LeaderboardEntryRow { Row = row });
-        Stage(PulsingButton(history ? "View All Scores" : "View Full Leaderboard"));
+        // One card like the page's Score History and Top Scores cards (issues #588, #643), View All inside it, last.
+        Stage(RowsCard([.. rows], PulsingButton(history ? "View All Scores" : "View Full Leaderboard")));
+    }
+
+    /// <summary>
+    /// One preview card like the real Song Detail and Leaderboards cards (issue #643, <c>leaderboard-row</c> R10): the
+    /// rows as in-card <see cref="GroupedRows"/> slices (touching, a hairline between them, the selected player's row
+    /// purple), then the footer (View All) last.
+    /// </summary>
+    /// <param name="rows">Row models.</param>
+    /// <param name="footer">View All, or <see langword="null"/>.</param>
+    /// <returns>The card.</returns>
+    private static Border RowsCard(object[] rows, UIElement? footer = null)
+    {
+        var list = new StackPanel();
+        for (var i = 0; i < rows.Length; i++)
+        {
+            var row = new LeaderboardEntryRow { Row = rows[i] };
+            row.Slice = GroupedRows.SliceFor(i, rows.Length, rows[i], i > 0 ? rows[i - 1] : null, inCard: true);
+            list.Children.Add(row);
+        }
+        var stack = new StackPanel { Spacing = 4 };
+        stack.Children.Add(list);
+        if (footer is not null) stack.Children.Add(footer);
+        return new Border { Style = S("FSTCardStyle"), Padding = new Thickness(8, 8, 8, 12), Child = stack };
     }
 
     /// <summary>The page's View All button inside the web <c>pulseWrap</c> accent ring.</summary>
@@ -921,10 +944,11 @@ public sealed partial class FirstRunDemo
     #region Leaderboards and Compete
     /// <summary>
     /// Leaderboards card (web <c>LeaderboardOverviewDemo</c>, <c>CompeteLeaderboardsDemo</c>, <c>YourRankDemo</c>): the
-    /// page's card header and ranking rows, then View All Rankings, or for Your Rank the player's floating row.
+    /// page's card header, then one card of ranking rows (issue #643) ending with View All Rankings, or for Your Rank
+    /// with the player's purple row in the card.
     /// </summary>
     /// <param name="id">Slide.</param>
-    /// <param name="yourRank">Whether the player's floating row replaces View All.</param>
+    /// <param name="yourRank">Whether the player's row ends the card instead of View All.</param>
     private void BuildRankingsCard(string id, bool yourRank)
     {
         Stage(new CardHeader
@@ -938,9 +962,7 @@ public sealed partial class FirstRunDemo
         var rankings = yourRank
             ? FirstRunDemoContent.Rankings(FirstRunDemos.Rankings.Take(2).Append(FirstRunDemos.PlayerRanking), id)
             : FirstRunDemoContent.Rankings(FirstRunDemos.Rankings.Take(3), id);
-        foreach (var row in rankings)
-            Stage(new LeaderboardEntryRow { Row = row, IsFloating = row.IsSelected });
-        if (!yourRank) Stage(new Button { Content = "View All Rankings", Style = S("FSTViewAllButtonStyle") });
+        Stage(RowsCard([.. rankings], yourRank ? null : new Button { Content = "View All Rankings", Style = S("FSTViewAllButtonStyle") }));
     }
 
     /// <summary>
@@ -988,19 +1010,22 @@ public sealed partial class FirstRunDemo
         {
             mode = next % 2;
             host.Children.Clear();
-            var panel = new StackPanel { Spacing = 4 };
+            var panel = new StackPanel { Spacing = 8 };
             if (mode == 0)
             {
+                // One card of rows like the Leaderboards page's cards (issue #643).
                 panel.Children.Add(new CardHeader { Title = "Leaderboards", Subtitle = "Lead · Total Score", IconFile = Instrument.Lead.IconFile(), HeadingLevel = AutomationHeadingLevel.Level3, MinHeight = 44 });
-                foreach (var row in FirstRunDemoContent.Rankings(FirstRunDemos.Rankings.Take(2).Append(FirstRunDemos.PlayerRanking), SlideId ?? ""))
-                    panel.Children.Add(new LeaderboardEntryRow { Row = row, IsFloating = row.IsSelected });
+                panel.Children.Add(RowsCard([.. FirstRunDemoContent.Rankings(FirstRunDemos.Rankings.Take(2).Append(FirstRunDemos.PlayerRanking), SlideId ?? "")]));
             }
             else
             {
+                // One card of rival rows like the Rivals page's lists (issue #603, rival-rows R6).
                 panel.Children.Add(new CardHeader { Title = "Rivals", Subtitle = "Players just above and below you", IconFile = Instrument.Lead.IconFile(), HeadingLevel = AutomationHeadingLevel.Level3, MinHeight = 44 });
+                var rivals = new StackPanel { Spacing = 4 };
                 foreach (var rival in FirstRunDemos.RivalsAbove.Take(2))
-                    panel.Children.Add(RivalRow(FirstRunDemoContent.RivalRow(rival, RivalDirection.Above)));
-                panel.Children.Add(RivalRow(FirstRunDemoContent.RivalRow(FirstRunDemos.RivalsBelow[0], RivalDirection.Below)));
+                    rivals.Children.Add(RivalRow(FirstRunDemoContent.RivalRow(rival, RivalDirection.Above)));
+                rivals.Children.Add(RivalRow(FirstRunDemoContent.RivalRow(FirstRunDemos.RivalsBelow[0], RivalDirection.Below)));
+                panel.Children.Add(new Border { Style = S("FSTCardStyle"), Padding = new Thickness(8, 8, 8, 12), Child = rivals });
             }
             host.Children.Add(panel);
             QueueInert();

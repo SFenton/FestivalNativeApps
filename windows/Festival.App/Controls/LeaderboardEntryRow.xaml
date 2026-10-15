@@ -17,7 +17,8 @@
         On a full board (GroupedRows, issue #543, owner-approved variant) the rows touch and each draws its slice of one
         grouped card: rounded top on the first row, rounded bottom on the last, side strokes between, and the Separator
         hairline above every row but the first and those beside the selected row, which keeps its full purple outline.
-        Inside a card that draws the surface (GroupedRows.InCard, Song Detail's Score History, issue #588) a row draws no
+        Inside a card that draws the surface (GroupedRows.InCard: Song Detail's Score History, issue #588; the Song Detail and
+        Leaderboards preview cards, issue #643) a row draws no
         surface or outline of its own, only the hairline; the selected row keeps its purple fill and outline with 4 epx corners.
     -->
     <Grid>
