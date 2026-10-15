@@ -102,6 +102,35 @@ public class PinnedPageToolsMarkupTests
     }
 
     [Fact]
+    public void SongDetailPinnedBar_IsClearAndMasksTheContentScrollingUnderIt()
+    {
+        // Issue #640 (scroll-edge R1–R3, R7): the bar shows the backdrop art instead of a purple plate, and the canonical
+        // top-edge mask hides content behind it and fades it in over 40 epx below it.
+        var doc = Load("Pages/SongDetailPage.xaml");
+        var bar = Named(doc, "PinnedHeader");
+        Assert.Equal("{ThemeResource FSTPinnedHeaderBrush}", Attr(bar, "Background"));
+        Assert.Equal("{ThemeResource FSTPinnedHeaderStrokeBrush}", Attr(bar, "BorderBrush"));
+        var source = Named(doc, "ScrollFadeSource");
+        Assert.Equal("Scroller", Attr(source.Elements().Single(), "Name"));
+        Assert.False(bar.Ancestors().Contains(source), "the bar must not be masked with the content");
+        var layer = ById(doc, "fst.song-detail.edge-fade");
+        Assert.Equal("EdgeFadeLayer", layer.Name.LocalName);
+        Assert.Equal("ScrollFadeHost", Attr(layer, "Name"));
+        var code = File.ReadAllText(Path.Combine(AppRoot, "Pages", "SongDetailPage.xaml.cs"));
+        Assert.Contains("OverlayHeaderFade.Attach(ScrollFadeSource, ScrollFadeHost, Scroller, PinnedHeader)", code, StringComparison.Ordinal);
+
+        var styles = Load("Themes/Styles.xaml");
+        string Brush(string theme, string key) => Attr(styles.Descendants()
+            .Single(e => e.Name.LocalName == "ResourceDictionary" && Attr(e, "Key") == theme)
+            .Elements().Single(e => Attr(e, "Key") == key), "Color")!;
+        Assert.Equal("Transparent", Brush("Default", "FSTPinnedHeaderBrush"));
+        Assert.Equal("Transparent", Brush("Default", "FSTPinnedHeaderStrokeBrush"));
+        // Contrast themes keep a solid window-colour plate and a visible stroke (hard edge, no content behind chrome).
+        Assert.Equal("{ThemeResource SystemColorWindowColor}", Brush("HighContrast", "FSTPinnedHeaderBrush"));
+        Assert.Equal("{ThemeResource SystemColorWindowTextColor}", Brush("HighContrast", "FSTPinnedHeaderStrokeBrush"));
+    }
+
+    [Fact]
     public void ShopButtons_UseTheBorderlessShopStyle()
     {
         var styles = Load("Themes/Styles.xaml");

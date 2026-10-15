@@ -24,8 +24,10 @@
             <SolidColorBrush x:Key="FSTRowHoverBrush" Color="#1AFFFFFF" />
             <SolidColorBrush x:Key="FSTRowPressedBrush" Color="#0FFFFFFF" />
             <SolidColorBrush x:Key="FSTSectionHeaderBrush" Color="#FFFFFFFF" />
-            <!-- Pinned page headers (Song Detail): the web headerFrosted tint, near-opaque instead of a per-frame blur. -->
-            <SolidColorBrush x:Key="FSTPinnedHeaderBrush" Color="#F70B0318" />
+            <!-- Pinned page headers (Song Detail): clear, so the backdrop art shows through; content fades out under the bar
+                 instead (OverlayHeaderFade, scroll-edge R2, #640). Contrast themes keep a window-colour plate. -->
+            <SolidColorBrush x:Key="FSTPinnedHeaderBrush" Color="Transparent" />
+            <SolidColorBrush x:Key="FSTPinnedHeaderStrokeBrush" Color="Transparent" />
             <!-- Text is white by default over the dimmed artwork (operator 2026-09-28): "secondary" lines differ by size and
                  weight, not by a gray tint. Only true de-emphasis (timestamps) uses the web's textSecondary tint. -->
             <SolidColorBrush x:Key="FSTSecondaryTextBrush" Color="#FFFFFFFF" />
@@ -213,6 +215,7 @@
             <SolidColorBrush x:Key="FSTRowPressedBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FSTSectionHeaderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTPinnedHeaderBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FSTPinnedHeaderStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTSecondaryTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTDeemphasisTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FSTMeterFilledBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
