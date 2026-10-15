@@ -62,14 +62,14 @@ public sealed class SongRowItem
             if (Metadata.Count > 0)
             {
                 var named = !NamesChart;
-                foreach (var field in Metadata)
+                foreach (var entry in Metadata)
                 {
-                    if (!named && field.PlayedChart is null)
+                    if (!named && entry.PlayedChart is null)
                     {
                         parts.Add(Chart!.Value.Label() + " chart");
                         named = true;
                     }
-                    parts.Add(field.Announcement);
+                    parts.Add(entry.Announcement);
                 }
             }
             else if (Chart is { } chart && ChartRaw is { } raw)
