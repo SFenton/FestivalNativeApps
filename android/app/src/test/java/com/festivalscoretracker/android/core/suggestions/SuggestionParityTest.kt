@@ -124,40 +124,78 @@ class SuggestionParityTest {
     fun everyScenarioMatchesApple() {
         val expectedScenarios = expected.getValue("scenarios").jsonArray.associateBy { it.jsonObject.getValue("name").jsonPrimitive.content }
         assertEquals(fixture.scenarios.size, expectedScenarios.size)
-        val scores = scoreIndex()
         var pages = 0
         for (scenario in fixture.scenarios) {
-            val rivals = RivalDataIndex.build(fixture.rivalsAll)
-            val generator = SuggestionGenerator(
-                SuggestionGenerator.Options(
-                    seed = scenario.seed,
-                    disableSkipping = scenario.disableSkipping ?: false,
-                    fixedDisplayCount = scenario.fixedDisplayCount,
-                    currentSeason = scenario.currentSeason,
-                ),
-            )
-            generator.setSource(fixture.songs, scores)
-            if (scenario.rivals == "early") generator.setRivalData(rivals)
-            val actualPages = buildJsonArray {
-                scenario.pages.forEachIndexed { n, count ->
-                    add(page(generator.getNext(count)))
-                    if (n == 0 && scenario.rivals == "late") generator.setRivalData(rivals)
-                }
-            }
-            val actualResets = buildJsonArray {
-                scenario.resetPages?.let { counts ->
-                    repeat(scenario.resetCycles ?: 1) {
-                        generator.resetForEndless()
-                        counts.forEach { add(page(generator.getNext(it))) }
-                    }
-                }
-            }
+            val (pageList, resetList) = run(scenario)
+            val actualPages = buildJsonArray { pageList.forEach { add(page(it)) } }
+            val actualResets = buildJsonArray { resetList.forEach { add(page(it)) } }
             val want = expectedScenarios.getValue(scenario.name).jsonObject
             assertSame(want.getValue("pages"), actualPages, "${scenario.name}.pages")
             assertSame(want.getValue("resetPages"), actualResets, "${scenario.name}.resetPages")
             pages += actualPages.size + actualResets.size
         }
         assertEquals("228 scenario pages + 27 endless-remix pages", 255, pages)
+    }
+
+    /**
+     * Issue #656: a card whose title names one rival ("Climb Past {name}", "Gain Stars & Beat
+     * {name}", "FC These to Beat {name}!") lists only songs against that rival, on every page
+     * of every shared scenario. The pre-fix generator titled from the first row and kept every
+     * other row's own closest rival.
+     */
+    @Test
+    fun namedRivalCardsListOnlyTheTitlesRival() {
+        val titles = mapOf<String, (String) -> String>(
+            "song_rival_pct_push" to { "Climb Past $it" },
+            "song_rival_star_gains" to { "Gain Stars & Beat $it" },
+            "song_rival_near_fc" to { "FC These to Beat $it!" },
+        )
+        val seen = HashMap<String, Int>()
+        for (scenario in fixture.scenarios) {
+            val (pageList, resetList) = run(scenario)
+            for (category in (pageList + resetList).flatten()) {
+                val title = titles[category.key] ?: continue
+                val names = category.songs.map { it.rivalName }
+                val rival = requireNotNull(names.first()) { "${scenario.name}/${category.key} has no rival" }
+                assertEquals("${scenario.name}/${category.key} title", title(rival), category.title)
+                assertEquals("${scenario.name}/${category.key} rows", List(names.size) { rival }, names)
+                assertEquals("${scenario.name}/${category.key} rival ids", 1, category.songs.mapNotNull { it.rivalAccountId }.toSet().size)
+                if (category.key != "song_rival_near_fc") {
+                    assertTrue("${scenario.name}/${category.key}: the rival leads every row", category.songs.all { (it.rivalRankDelta ?: 0) < 0 })
+                }
+                seen[category.key] = (seen[category.key] ?: 0) + 1
+            }
+        }
+        assertEquals("every named family emits in the shared scenarios", titles.keys, seen.keys)
+    }
+
+    /** Run one fixture scenario: its pages, then its endless-remix pages. */
+    private fun run(scenario: Scenario): Pair<List<List<SuggestionCategory>>, List<List<SuggestionCategory>>> {
+        val scores = scoreIndex()
+        val rivals = RivalDataIndex.build(fixture.rivalsAll)
+        val generator = SuggestionGenerator(
+            SuggestionGenerator.Options(
+                seed = scenario.seed,
+                disableSkipping = scenario.disableSkipping ?: false,
+                fixedDisplayCount = scenario.fixedDisplayCount,
+                currentSeason = scenario.currentSeason,
+            ),
+        )
+        generator.setSource(fixture.songs, scores)
+        if (scenario.rivals == "early") generator.setRivalData(rivals)
+        val pages = ArrayList<List<SuggestionCategory>>()
+        scenario.pages.forEachIndexed { n, count ->
+            pages += generator.getNext(count)
+            if (n == 0 && scenario.rivals == "late") generator.setRivalData(rivals)
+        }
+        val resets = ArrayList<List<SuggestionCategory>>()
+        scenario.resetPages?.let { counts ->
+            repeat(scenario.resetCycles ?: 1) {
+                generator.resetForEndless()
+                counts.forEach { resets += generator.getNext(it) }
+            }
+        }
+        return pages to resets
     }
 
     private fun page(categories: List<SuggestionCategory>): JsonArray = buildJsonArray {
