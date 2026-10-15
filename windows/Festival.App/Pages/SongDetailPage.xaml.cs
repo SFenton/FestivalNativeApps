@@ -39,6 +39,8 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         // The pinned bar's copy keeps Quick Links reachable once the header menu has scrolled away (#639).
         host.AddMenu(PinnedQuickLinksMenu);
         CollapsedToolTip.CloseWhenCollapsed(PinnedHeader);
+        // Content fades out under the clear pinned bar instead of showing behind it (scroll-edge R2, R7; #640).
+        OverlayHeaderFade.Attach(ScrollFadeSource, ScrollFadeHost, Scroller, PinnedHeader);
         PinnedShopFill.Live = false;
         // Realize a card on demand for a jump (the card grid realizes all, but a jump can run before the first layout).
         host.Binder.Resolve = id => ViewModel?.Leaderboards.FindIndex(c => c.QuickLinkId == id) is >= 0 and var index

@@ -14,6 +14,9 @@
     </Page.Resources>
 
     <Grid x:Name="Root">
+        <!-- Wrapper the overlay header fade masks (OverlayHeaderFade, #640): content is hidden under the pinned bar and fades
+             in over 40 epx below it; the scroller's own visual stays free for the load entrance. -->
+        <Grid x:Name="ScrollFadeSource">
         <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}"
                       ViewChanged="OnScrollerViewChanged" AutomationProperties.AutomationId="fst.song-detail">
             <StackPanel Padding="24,12,24,32" Spacing="8" MaxWidth="1200" HorizontalAlignment="Stretch"
@@ -319,12 +322,17 @@
                 </ItemsRepeater>
             </StackPanel>
         </ScrollViewer>
+        </Grid>
+        <!-- Paints ScrollFadeSource with its content cut under the pinned bar while the bar shows; never hit-testable.
+             Raw-view status for UI tests: hidden, fading or hard-edge (scroll-edge R7). -->
+        <controls:EdgeFadeLayer x:Name="ScrollFadeHost" AutomationProperties.AutomationId="fst.song-detail.edge-fade" />
 
         <!-- Compact header pinned once the full header scrolls away (web sticky song header): art, title and the page tools
              (Paths, Item Shop, compact-window Quick Links), so they stay reachable while the page scrolls (#639). The tools
-             move under the title when the title would get less than SongDetailLayout.MinPinnedTitleWidth. -->
+             move under the title when the title would get less than SongDetailLayout.MinPinnedTitleWidth. Its fill is clear
+             so the backdrop art shows through; content fades out under it instead (#640). -->
         <Border x:Name="PinnedHeader" VerticalAlignment="Top" Visibility="Collapsed" Padding="24,8" controls:FadeIn.OnShow="True"
-                Background="{ThemeResource FSTPinnedHeaderBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}" BorderThickness="0,0,0,1"
+                Background="{ThemeResource FSTPinnedHeaderBrush}" BorderBrush="{ThemeResource FSTPinnedHeaderStrokeBrush}" BorderThickness="0,0,0,1"
                 AutomationProperties.AutomationId="fst.song-detail.pinned-header">
             <Grid x:Name="PinnedBar" ColumnSpacing="12" RowSpacing="8" MaxWidth="1152" SizeChanged="OnPinnedBarSizeChanged">
                 <Grid.ColumnDefinitions>

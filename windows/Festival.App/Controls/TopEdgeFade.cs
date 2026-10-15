@@ -1,7 +1,10 @@
+using System.ComponentModel;
 using System.Numerics;
+using Festival.App.Services;
 using Festival.Core.Domain;
 using Microsoft.UI.Composition;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Hosting;
 
 namespace Festival.App.Controls;
@@ -25,9 +28,12 @@ internal sealed class TopEdgeFade
     /// title tops A + s.Translation.Y / B + s.Translation.Y (A, B: content tops). The floor keeps the gradient non-degenerate.
     /// </summary>
     private const string DepthExpression =
-        "Vector2(0, Max(0.01, Min(p.R, Min(-s.Translation.Y, Min(" +
+        "Vector2(0, p.E + Max(0.01, Min(p.R, Min(-s.Translation.Y, Min(" +
         "Max(Max(p.A + s.Translation.Y, -(p.A + s.Translation.Y) - p.H), 0), " +
         "Max(Max(p.B + s.Translation.Y, -(p.B + s.Translation.Y) - p.H), 0))))))";
+
+    /// <summary>The clear edge, <c>p.E</c> below the source's top; the clamped gradient hides everything above it.</summary>
+    private const string EdgeExpression = "Vector2(0, p.E)";
 
     private readonly UIElement source;
     private readonly UIElement host;
@@ -61,7 +67,22 @@ internal sealed class TopEdgeFade
         scroll = scrollSet;
         props = scrollSet.Compositor.CreatePropertySet();
         props.InsertScalar("R", (float)SongHeaderEdgeFade.Depth);
+        props.InsertScalar("E", 0);
         SetTitles(null, null, 0);
+    }
+
+    /// <summary>
+    /// Moves the clear edge below the source's top, for chrome that overlays the scroller (Song Details' pinned bar,
+    /// issue #640): content above <paramref name="edgeTop"/> is hidden, and the ramp starts there. A hard edge keeps the
+    /// cut at <paramref name="edgeTop"/> with no ramp (scroll-edge R7), so nothing shows behind the chrome in any mode.
+    /// </summary>
+    /// <param name="edgeTop">Chrome bottom in the source's coordinates, epx (0 = the source's top).</param>
+    /// <param name="hardEdge">Whether to cut without a ramp.</param>
+    public void SetEdge(double edgeTop, bool hardEdge)
+    {
+        if (props is null) return;
+        props.InsertScalar("E", (float)Math.Max(0, edgeTop));
+        props.InsertScalar("R", hardEdge ? 0f : (float)SongHeaderEdgeFade.Depth);
     }
 
     /// <summary>
@@ -122,6 +143,9 @@ internal sealed class TopEdgeFade
         depth.SetReferenceParameter("s", scroll!);
         depth.SetReferenceParameter("p", props!);
         gradient.StartAnimation(nameof(gradient.EndPoint), depth);
+        var edge = compositor.CreateExpressionAnimation(EdgeExpression);
+        edge.SetReferenceParameter("p", props!);
+        gradient.StartAnimation(nameof(gradient.StartPoint), edge);
         var mask = compositor.CreateMaskBrush();
         mask.Source = content;
         mask.Mask = gradient;
@@ -129,6 +153,111 @@ internal sealed class TopEdgeFade
         sprite.RelativeSizeAdjustment = Vector2.One;
         sprite.Brush = mask;
         ElementCompositionPreview.SetElementChildVisual(host, sprite);
+    }
+}
+#endregion
+
+#region Overlay header fade
+/// <summary>
+/// Content fading under page chrome that overlays the page scroller rather than sitting in a row above it: Song Details'
+/// pinned compact bar (scroll-edge R2, R3, R7; issue #640). While the chrome shows, the scroller's content is hidden down
+/// to the chrome's bottom and ramps in over 40 epx below it (<see cref="TopEdgeFade"/> with <see cref="TopEdgeFade.SetEdge"/>),
+/// so the chrome needs no fill and the page's backdrop art stays visible behind it. A contrast theme, Windows
+/// transparency effects off, or in-app Less Transparency / Increase Contrast keep the cut with no ramp, so content never
+/// shows behind the chrome. Pages call <see cref="Attach"/> once; it follows scrolling, the chrome's visibility and size,
+/// and the appearance settings, and publishes <see cref="SongHeaderEdgeFade.OverlayEdge"/>'s status on the host.
+/// </summary>
+internal sealed class OverlayHeaderFade
+{
+    private readonly FrameworkElement source;
+    private readonly EdgeFadeLayer host;
+    private readonly ScrollViewer scroller;
+    private readonly FrameworkElement chrome;
+    private readonly TopEdgeFade fade;
+    private readonly Windows.UI.ViewManagement.UISettings uiSettings = new();
+    private bool following;
+    private bool tracking;
+
+    /// <summary>Creates the fade; it follows the page while <paramref name="source"/> is loaded.</summary>
+    /// <param name="source">Wrapper around the scroller (never the scroller itself: the fade hides this visual).</param>
+    /// <param name="host">Fade layer over the same cell that paints the masked copy.</param>
+    /// <param name="scroller">The page scroller.</param>
+    /// <param name="chrome">The chrome pinned over the scroller's top.</param>
+    private OverlayHeaderFade(FrameworkElement source, EdgeFadeLayer host, ScrollViewer scroller, FrameworkElement chrome)
+    {
+        (this.source, this.host, this.scroller, this.chrome) = (source, host, scroller, chrome);
+        fade = new TopEdgeFade(source, host);
+        scroller.ViewChanged += (_, _) => Update();
+        chrome.SizeChanged += (_, _) => Update();
+        chrome.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => Update());
+        scroller.RegisterPropertyChangedCallback(UIElement.VisibilityProperty, (_, _) => Update());
+        source.Loaded += (_, _) => Follow(true);
+        source.Unloaded += (_, _) => Follow(false);
+    }
+
+    /// <summary>Fades a page's content under chrome that overlays its scroller.</summary>
+    /// <param name="source">Wrapper around the scroller.</param>
+    /// <param name="host">Fade layer over the same cell (give it a <c>….edge-fade</c> AutomationId).</param>
+    /// <param name="scroller">The page scroller.</param>
+    /// <param name="chrome">The overlaying chrome.</param>
+    /// <returns>The fade.</returns>
+    public static OverlayHeaderFade Attach(FrameworkElement source, EdgeFadeLayer host, ScrollViewer scroller, FrameworkElement chrome) =>
+        new(source, host, scroller, chrome);
+
+    /// <summary>Whether the mask is currently drawn.</summary>
+    public bool IsActive => fade.IsActive;
+
+    /// <summary>Starts or stops following the appearance settings while the page is in the tree.</summary>
+    /// <param name="on">Whether the page is loaded.</param>
+    private void Follow(bool on)
+    {
+        if (on == following) return;
+        following = on;
+        if (on)
+        {
+            App.Session.PropertyChanged += OnSessionChanged;
+            uiSettings.AdvancedEffectsEnabledChanged += OnSystemChanged;
+            // HighContrastChanged needs a CoreWindow; a contrast-theme switch raises ColorValuesChanged instead.
+            uiSettings.ColorValuesChanged += OnSystemChanged;
+            Update();
+            return;
+        }
+        App.Session.PropertyChanged -= OnSessionChanged;
+        uiSettings.AdvancedEffectsEnabledChanged -= OnSystemChanged;
+        uiSettings.ColorValuesChanged -= OnSystemChanged;
+    }
+
+    /// <summary>Re-evaluates when the in-app settings change.</summary>
+    /// <param name="sender">Session.</param>
+    /// <param name="e">Changed property.</param>
+    private void OnSessionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == "Settings") source.DispatcherQueue.TryEnqueue(Update);
+    }
+
+    /// <summary>Re-evaluates when Windows transparency effects or the contrast theme change (any thread).</summary>
+    /// <param name="sender">Settings source.</param>
+    /// <param name="args">Ignored.</param>
+    private void OnSystemChanged(Windows.UI.ViewManagement.UISettings sender, object args) => source.DispatcherQueue.TryEnqueue(Update);
+
+    /// <summary>Places (or removes) the clear edge for the chrome and settings, then publishes the state.</summary>
+    private void Update()
+    {
+        if (!following) return;
+        if (!tracking)
+        {
+            fade.Track(ElementCompositionPreview.GetScrollViewerManipulationPropertySet(scroller));
+            tracking = true;
+        }
+        var settings = App.Session.Settings;
+        var enabled = SongHeaderEdgeFade.IsEnabled(ContrastTheme.IsOn, uiSettings.AdvancedEffectsEnabled,
+            settings.LessTransparency, settings.MoreContrast);
+        var shown = chrome.Visibility == Visibility.Visible && scroller.Visibility == Visibility.Visible && chrome.ActualHeight > 0;
+        var bottom = shown ? chrome.TransformToVisual(source).TransformPoint(default).Y + chrome.ActualHeight : 0;
+        var (masked, edge, hard, status) = SongHeaderEdgeFade.OverlayEdge(shown, bottom, enabled, scroller.VerticalOffset);
+        fade.SetEdge(edge, hard);
+        fade.Update(masked);
+        host.SetStatus(status);
     }
 }
 #endregion

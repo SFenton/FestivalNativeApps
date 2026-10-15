@@ -151,6 +151,10 @@
             "symbol": "AutoScrollEdgeFade"
           },
           {
+            "path": "windows/Festival.App/Controls/TopEdgeFade.cs",
+            "symbol": "OverlayHeaderFade"
+          },
+          {
             "path": "windows/Festival.Core/Domain/FirstRunDemoContent.cs",
             "symbol": "FirstRunAutoScroll"
           }
