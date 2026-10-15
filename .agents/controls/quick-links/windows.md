@@ -101,6 +101,7 @@ Design (`winui-design` skill, Fluent layout and scrolling): no markup, brush or 
 - `qla-leaderboards-menu` (compact, medium): the same for Drums (card group at 32 epx, its heading before its View All button, focus on its first row), with Lead, Bass and Drums measured at ≥ 40×40 epx.
 - `qla-leaderboards-pane` (wide at display 100% or 150%): the Lead, Bass and Drums rows are each ≥ 40×40 epx; Enter on the focused Drums row does the same and moves the UIA selection from Lead to Drums.
 - `assertstate:…|heading=2` (new driver key) proves the landed title is a heading; the Narrator model's phrase omits heading levels.
+- The button is pinned above the scroller (#639), so `scrollinto:id=fst.quick-links.open` never scrolls the content back. A page's closing focus target (off the button's windowed tooltip) is either on screen at the landing (Settings: Reduce Motion) or scrolled to explicitly first (Leaderboards: `scrollinto:` its row). A Settings page never scrolls to Settings content before the Feedback-rows wait (#535, `test_ui_ci`).
 
 | Configuration | Result |
 |---|---|
