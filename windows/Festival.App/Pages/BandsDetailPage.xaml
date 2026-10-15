@@ -199,9 +199,11 @@
                                       SelectionChanged="OnRankByChanged" AutomationProperties.Name="Rank By"
                                       AutomationProperties.AutomationId="fst.band.rank-by" />
                         </Grid>
-                        <!-- Local: Tab visits every link card (Rank and Best Song Rank), arrows move between cards. -->
+                        <!-- Local: Tab visits every link card (Rank and Best Song Rank), arrows move between cards.
+                             VerticalCacheLength 20 keeps all nine cards realized: an unrealized Best Song Rank isn't in the
+                             Tab order, which the pinned header's shorter viewport caused at 225% text (#658, Song Detail precedent). -->
                         <ItemsRepeater controls:TextScaleLayout.ScaleWithText="True" ItemsSource="{x:Bind ViewModel.Statistics, Mode=OneWay}" ItemTemplate="{StaticResource StatTemplates}"
-                                       TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled">
+                                       TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" VerticalCacheLength="20">
                             <ItemsRepeater.Layout>
                                 <UniformGridLayout MinItemWidth="200" MinRowSpacing="12" MinColumnSpacing="12" ItemsStretch="Fill" />
                             </ItemsRepeater.Layout>

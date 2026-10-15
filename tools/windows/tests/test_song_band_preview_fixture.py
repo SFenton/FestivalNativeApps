@@ -101,13 +101,17 @@ class PayloadTests(unittest.TestCase):
     def test_surface_pages_pin_the_opaque_bordered_fallback(self):
         # surface-materials R4 (issue #426, for #64): transparency off, in-app Less Transparency or Increase Contrast make
         # every plain band row's FSTCardSurfaceBrush opaque #121826 with a visible rim; with transparency on the fill stays
-        # translucent at the same probe point, so the opaque probe is not vacuous.
+        # translucent at the same probe point, so the opaque probe is not vacuous. Since the one-card previews (#643,
+        # surface-materials R6, leaderboard-row R10) the in-card rows draw no rim: the visible edge is the card's border,
+        # 9 epx outside the rows (1 border + 8 padding), probed beside both rows and above the first (#658).
         from tools.windows import a11y_matrix as m
         from tools.windows import uiwin as u
         pages = {p["name"]: p for p in json.loads(JOURNEY.read_text(encoding="utf-8"))}
         opaque = "fill:L6,M0=#121826~1|R6,M0=@fill~0|C0,T4=@fill~0|C0,B4=@fill~0"
-        visible = "bg:L-6,M0|L0,M0!=@fill~6|C0,T0!=@fill~6|C0,B1!=@fill~6|L0,M0!=@bg~6|C0,T0!=@bg~6|C0,B1!=@bg~6"
-        strong = "L0,M0=#84828A~40|C0,T0=#84828A~40|C0,B1=#84828A~40"
+        visible = {"Band_Duets.0": "bg:L-15,M0|L-9,M0!=@fill~6|C0,T-9!=@fill~6|R-8,M0!=@fill~6|L-9,M0!=@bg~6|C0,T-9!=@bg~6|R-8,M0!=@bg~6",
+                   "Band_Duets.1": "bg:L-15,M0|L-9,M0!=@fill~6|R-8,M0!=@fill~6|L-9,M0!=@bg~6|R-8,M0!=@bg~6"}
+        strong = {"Band_Duets.0": "L-9,M0=#84828A~40|C0,T-9=#84828A~40|R-8,M0=#84828A~40",
+                  "Band_Duets.1": "L-9,M0=#84828A~40|R-8,M0=#84828A~40"}
         rows = ("Band_Duets.0", "Band_Duets.1")
         cases = {
             "bp-a11y-surface-no-transparency": ("no-transparency", {}, visible),
@@ -127,7 +131,7 @@ class PayloadTests(unittest.TestCase):
                 for step in steps:
                     u.parse_step(step.replace("{stem}", "x"))
                 for row in rows:
-                    self.assertIn(f"assertpaint:id=fst.song-detail.band-row.{row}|{opaque}|{edge}", steps)
+                    self.assertIn(f"assertpaint:id=fst.song-detail.band-row.{row}|{opaque}|{edge[row]}", steps)
         translucent = pages["bp-a11y-surface-translucent"]
         self.assertEqual(translucent["modes"], ["normal"])
         self.assertNotIn("settings", translucent)
