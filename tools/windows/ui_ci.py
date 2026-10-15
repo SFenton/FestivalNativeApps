@@ -188,6 +188,11 @@ RUNS: tuple[Run, ...] = (
     Run("songs-scroll", "a11y-songs-scroll.json", tabs=0),
     Run("songs-scroll-text-225", "a11y-songs-scroll.json", sizes="compact", mode="text-225", tabs=0),
     Run("songs-scroll-no-animations", "a11y-songs-scroll.json", sizes="compact", mode="no-animations", tabs=0),
+    # Scroll paging (issue #642): keyboard PageDown on Statistics and Song Details moves the Quick Links current section
+    # off the first section while the scroll moves (throttled reports) and keeps it at rest; later Statistics sections
+    # still load once the loaded ones stop watching the viewport (tiles named, 40 epx, in order); Axe at the paged state.
+    Run("scroll-paging", "a11y-scroll-paging.json", tabs=0),
+    Run("scroll-paging-text-225", "a11y-scroll-paging.json", sizes="compact", mode="text-225", tabs=0),
     # Songs metadata chips (issue #644): the row speaks score, accuracy (graded and the skewed gold "100%" full combo),
     # Top %, stars, season, intensity and difficulty in visual order; every text pill is at least 24 epx and shares one
     # height with the others, the 24-epx stars and meter line up with them, the current season paints its full height,
@@ -414,6 +419,10 @@ RUNS: tuple[Run, ...] = (
     # pinned combo rank) and Back restores focus; rows stay 40+ epx stops with Down between them.
     Run("combo-boards", "a11y-combo-boards.json", tabs=0),
     Run("combo-boards-text-225", "a11y-combo-boards.json", sizes="compact", mode="text-225", tabs=0),
+    # Stat tiles (issue #651, stat-tile-grid R6): a linked tile's value and label are centred on the whole card, not on
+    # the space left of its chevron, at every size and at 225% text; the tile stays a 40+ epx button in grid order.
+    Run("stat-tile-centre", "a11y-stat-tile-centre.json", tabs=0),
+    Run("stat-tile-centre-text-225", "a11y-stat-tile-centre.json", mode="text-225", tabs=0),
     # Long leaderboard names (issues #292, #455): on Full Rankings and the Leaderboards overview a name too wide for its
     # column scrolls on one line while one that fits stays still, the row reads the whole name once, stays a 40+ epx
     # stop in visual order with Up/Down between rows; at 150%, 200% and 225% text the name wraps and the row grows,

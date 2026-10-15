@@ -122,6 +122,36 @@ public sealed class StaggerArmTests
         Assert.Equal(ArmScroll.Rushed, Loaded().Scrolled(StaggerArm.ScrollSlop, 0, Ms(1100)));
 
     [Fact]
+    public void WatchesScroll_OnlyUntilAScrollEndsTheLoad()
+    {
+        var arm = new StaggerArm();
+        Assert.False(arm.WatchesScroll);
+        arm.Arm(0, Ms(1000));
+        // Before the first layout settles and after the window ran out, the first scroll still closes the load.
+        Assert.True(arm.WatchesScroll);
+        arm.Settle(0, 0);
+        Assert.Equal(ArmScroll.Closed, arm.Scrolled(0, 240, Ms(5000)));
+        Assert.False(arm.WatchesScroll);
+        Assert.Equal(ArmScroll.None, arm.Scrolled(0, 900, Ms(5100)));
+        // A new load watches again; a rush ends it like a close.
+        arm.Arm(0, Ms(6000));
+        arm.Settle(0, 900);
+        Assert.True(arm.WatchesScroll);
+        Assert.Equal(ArmScroll.Rushed, arm.Scrolled(0, 1200, Ms(6100)));
+        Assert.False(arm.WatchesScroll);
+        // An appended batch is never rushed or closed by scrolling.
+        arm.Arm(20, Ms(8000));
+        Assert.False(arm.WatchesScroll);
+        // A batch appended into a running load keeps the load watching until a scroll keeps only the batch.
+        arm.Arm(0, Ms(9000));
+        arm.Settle(0, 0);
+        arm.Arm(20, Ms(9100));
+        Assert.True(arm.WatchesScroll);
+        Assert.Equal(ArmScroll.Rushed, arm.Scrolled(0, 300, Ms(9200)));
+        Assert.False(arm.WatchesScroll);
+    }
+
+    [Fact]
     public void BeforeTheFirstLayoutSettles_AResetToTheTopIsPartOfTheReload()
     {
         var arm = new StaggerArm();

@@ -250,6 +250,13 @@ public sealed class StaggerArm
     public bool NeedsSettle => armed && !closed && closesOnScroll && anchor is null;
 
     /// <summary>
+    /// Whether a scroll movement can still change the arm (rush or close its load). Once it can't, until the next
+    /// <see cref="Arm"/>, a list stops following its scroller: every followed scroll frame hands .NET new WinRT event
+    /// args, whose wrappers add GC memory pressure (#642).
+    /// </summary>
+    public bool WatchesScroll => armed && !closed && closesOnScroll;
+
+    /// <summary>
     /// Records a scroll position: movement from the anchor rushes the load arm while its entrance runs, else closes it
     /// (keeping only a batch appended into it, which is never rushed).
     /// </summary>

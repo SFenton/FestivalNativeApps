@@ -210,11 +210,8 @@ class SongsAccessibilityJourneyTest {
         h.tap("fst.song-detail.paths.open")
         h.waitForTag("fst.paths.difficulty.open")
         h.readingOrder("paths")
-        if (h.exists("fst.paths.karaoke-warning")) {
-            h.tap("fst.paths.warning.ok")
-            h.waitGone("fst.paths.karaoke-warning")
-            h.readingOrder("paths-sheet")
-        }
+        h.settlePathsWarning()
+        h.readingOrder("paths-sheet")
         h.tap("fst.paths.close")
         h.waitGone("fst.paths.close")
         h.scrollTo("fst.song-detail.list", "fst.song-detail.view-all.Solo_Guitar")
