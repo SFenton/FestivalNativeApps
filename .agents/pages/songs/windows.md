@@ -35,12 +35,11 @@
 | Width | Toolbar | Row trailing content |
 |---|---|---|
 | Compact (< 640 epx page) | Search full width; Sort/Filter/Jump (icon) below | Chips: their own line across the card under the art and title, in balanced, centred lines ([instrument-chip-rows](../../patterns/instrument-chip-rows.md)). Pills wrap right-aligned under the title (`FlowPanel`) |
-| Medium | One row: search (fills the width the tools leave, #646) + Sort/Filter/Jump, all 40 epx tall, ending at the rows' right edge | Chips inline from 760 epx list width; first pill top-right, rest wrap right-aligned |
-| Wide (≥ 1100 epx page) | List + detail columns; list toolbar as compact | As compact: chips on their own centred line, pills under the title |
+| Medium and wide | One row: search (fills the width the tools leave, #646) + Sort/Filter/Jump, all 40 epx tall, ending at the rows' right edge | Chips inline from 760 epx list width; first pill top-right, rest wrap right-aligned |
 
-## Two columns (wide)
+## No list/detail split (#652)
 
-From a **1100 epx page** (e.g. a 1440 epx window with the expanded pane) the page splits into a 560 epx list and the selected song's Song Detail (`DetailFrame`, `fst.songs.detail-pane`; operator 2026-09-28, mirroring Android foldables/iPad). The list switches to single selection, the first row is selected so the detail is never empty, a sort/filter keeps the selection when the song survives (else the first row), and keyboard arrowing loads the detail 180 ms after it stops. Clicks select instead of pushing. The list column uses the narrow toolbar (search on its own row) and wraps chips under titles. With no rows, or below 1100 epx, it is a single column again and the embedded page is released. Links inside the embedded detail push full pages on the Songs stack.
+Songs is one full-width list at every width, and a click or Enter pushes Song Detail full width, as on iPad, the iPhone Duo and Android ([split-panes](../../patterns/split-panes.md) R7 Windows variant; owner #652: "songs shouldn't click and then we see songs on right side"). From 1100 epx the page used to split into a 560 epx list and the first song's detail (`fst.songs.detail-pane`, operator 2026-09-28); that split, its auto-selection and the delayed keyboard preview were removed. Song Detail itself is a split list page: its instrument board, band board and Score History open beside it when the window allows. Journey: `songs-push-wide` in `tools/windows/journeys/split-panes.json`.
 
 ## Native decisions
 
