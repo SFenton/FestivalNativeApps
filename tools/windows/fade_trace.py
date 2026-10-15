@@ -58,7 +58,7 @@ CLOCK_SLOP_MS = 2
 #: ``(file, regex, what breaks without it)``: the page wiring behind each fade journey assertion.
 WIRING: tuple[tuple[str, str, str], ...] = (
     ("windows/Festival.App/Pages/SuggestionsPage.xaml.cs",
-     r"CardsAdded\s*\+=\s*\(_,\s*(\w+)\)\s*=>\s*FadeIn\.Restagger\(CardList,\s*\1\)",
+     r"CardsAdded\s*\+=\s*\(_,\s*(\w+)\)\s*=>\s*FadeIn\.Restagger\(CardList,\s*(?:ViewModel\.FirstWholeLineFrom\(\1\)|\1)\)",
      "Suggestions batches after the first never fade (journey suggestions fade: load-more)"),
     ("windows/Festival.App/Pages/SearchPage.xaml.cs",
      r"SectionShown\s*\+=\s*OnSectionShown",

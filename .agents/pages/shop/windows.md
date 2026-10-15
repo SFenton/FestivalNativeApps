@@ -22,7 +22,7 @@
 | Compact (page < 640 epx) | Album-art grid forced (2 per row, as in the installed PWA; gap 7); toggle hidden |
 | Medium / wide | Grid or list; **List View / Grid View** toggle (`fst.shop.view-toggle`, 40 epx like Sort and Filter) persisted in `AppSettings.ShopViewMode`, shown only while offers are on screen |
 
-Grid geometry (`Domain/ShopGridMetrics`, web `ShopPage.tsx`): 2 columns below 600 epx, 3 from 600, 4 from 860, 5 from 1100; 10 epx gaps; the grid is at most 1040 epx wide (web `min(window, 1080) - 40`), left-aligned, so wide windows keep ~200 epx tiles; tiles get explicit square sizes from the scroller's width (a `UniformGridLayout` Fill stretch rounded an exact two-column fit down to one column at 150%). Tile text follows the web card: 16 epx scrim padding, 16 epx semibold title, artist below.
+Grid geometry (`Domain/ShopGridMetrics`, web `ShopPage.tsx`): 2 columns below 600 epx, 3 from 600, 4 from 860, 5 from 1100, then one more column whenever another 200 epx tile and gap fit (`MinimumTileWidth`; 6 from 1250, 11 at 2400); 10 epx gaps; the grid fills the page width, left-aligned, and tiles share it (owner #653: "when stretched wide, item shop doesn't continue expanding to fill space"). **Native deviation from the web:** the web caps the grid at 1040 epx (`min(window, 1080) - 40`), which left wide Windows windows mostly empty; Windows follows the Apple adaptive grid instead (columns of a minimum width, [hinge-columns](../../patterns/hinge-columns.md) R2). Below 1100 epx nothing changes. Tiles get explicit square sizes from the scroller's width (a `UniformGridLayout` Fill stretch rounded an exact two-column fit down to one column at 150%). Tile text follows the web card: 16 epx scrim padding, 16 epx semibold title, artist below. Unit tests `ShopGridMetricsTests` (`WideGrid_FillsTheWidth`); journey `a11y-wide-columns.json` `wide-columns-shop-grid-fill` (`--mode scale-100 --sizes 1700x1000`). The list stays one column; its two-column form (Apple #378) is a follow-up.
 
 ## Native decisions
 
@@ -43,7 +43,7 @@ Debug build, 3840×2160 at 150%, against the fixture service (every reachable st
 |---|---|
 | Compact 500×800 | ✅ Two-column grid, toggle hidden (also with List saved). Tab: Filter → grid (one stop) → out; Enter opens Song Detail. "Song details unavailable" notice now spans the same width as the header and tiles (was 12 epx short) |
 | Medium 900×700 / wide 1440×900 | ✅ Grid (3/5 columns) and list; Filter and toggle both 40 epx (toggle was 32). Tab stops 9 (was one per tile); arrows move between tiles in two dimensions, Up/Down between list rows |
-| Snapped left / maximized | ✅ Grid reflows (2 / 5 columns, 1040 epx cap left-aligned) |
+| Snapped left / maximized | ✅ Grid reflows (2 / 5 columns, 1040 epx cap left-aligned; since #653 the grid fills the width) |
 | Dark (system) / Light (system) | ✅ Identical: the app is dark-only (deliberate, as on Songs) |
 | Desert / Night sky contrast | ✅ Tile text gets system backplates; pills and focus use Highlight/HighlightText; filter flyout and empty state readable |
 | Text 200% | ✅ after fix: the compact tile's **Leaving Tomorrow** pill was clipped to "Leaving Tomorro"; it now wraps. Filter flyout scrolls with Reset pinned; header, list badges and no-match state wrap |

@@ -21,6 +21,60 @@
                               AutomationProperties.Name="{x:Bind Label}" AutomationProperties.AutomationId="{x:Bind AutomationId}" />
             </Grid>
         </DataTemplate>
+        <!-- One Suggestions card: header above it (title, description, the category's instrument), rows inside it
+             (web CategoryCard: 10 x 24 epx rows with subtle separators). Shown alone or paired in a line (#653). -->
+        <DataTemplate x:Key="SuggestionCardBody" x:DataType="vm:SuggestionCardItem">
+            <StackPanel Spacing="8">
+                <Grid Padding="4,0,0,0" ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" FontSize="16"
+                                   TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" />
+                        <TextBlock Text="{x:Bind Description}" Style="{StaticResource FSTSecondaryTextStyle}" FontSize="12" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <controls:InstrumentIcon Grid.Column="1" File="{x:Bind HeaderIcon}" Label="{x:Bind HeaderIconLabel}"
+                                             Width="36" Height="36" VerticalAlignment="Center" Visibility="{x:Bind HasHeaderIcon}" />
+                </Grid>
+                <Border Style="{StaticResource FSTCardStyle}" Padding="0">
+                    <!-- A card's rows are one Tab stop with Up/Down between rows (design/windows.md Collections). -->
+                    <ItemsControl ItemsSource="{x:Bind Rows}" IsTabStop="False" TabFocusNavigation="Once" XYFocusKeyboardNavigation="Enabled">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SuggestionRowItem">
+                                <controls:SuggestionSongRow Item="{x:Bind}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+            </StackPanel>
+        </DataTemplate>
+        <!-- One column: the list item is the card, named by its title (unchanged reading, #205/#513). -->
+        <DataTemplate x:Key="SuggestionSingleLine" x:DataType="vm:SuggestionCardLine">
+            <StackPanel MaxWidth="1100" HorizontalAlignment="Stretch"
+                        AutomationProperties.AutomationId="{x:Bind Start.AutomationId}" AutomationProperties.Name="{x:Bind Start.Title}">
+                <ContentPresenter Content="{x:Bind Start}" ContentTemplate="{StaticResource SuggestionCardBody}" />
+            </StackPanel>
+        </DataTemplate>
+        <!-- Two columns (pattern wide-columns R2, #653): the list item is a row-major line named by both titles; each card
+             is a named group with its own automation ID and heading, read start then end. -->
+        <DataTemplate x:Key="SuggestionPairLine" x:DataType="vm:SuggestionCardLine">
+            <Grid ColumnSpacing="16" AutomationProperties.Name="{x:Bind Name, Mode=OneWay}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <controls:AccessibleGroup VerticalAlignment="Top" Content="{x:Bind Start}" ContentTemplate="{StaticResource SuggestionCardBody}"
+                                          AutomationProperties.AutomationId="{x:Bind Start.AutomationId}" AutomationProperties.Name="{x:Bind Start.Title}" />
+                <controls:AccessibleGroup Grid.Column="1" VerticalAlignment="Top" Content="{x:Bind End, Mode=OneWay}"
+                                          ContentTemplate="{StaticResource SuggestionCardBody}" Visibility="{x:Bind HasEnd, Mode=OneWay}"
+                                          AutomationProperties.AutomationId="{x:Bind EndAutomationId, Mode=OneWay}"
+                                          AutomationProperties.Name="{x:Bind EndTitle, Mode=OneWay}" />
+            </Grid>
+        </DataTemplate>
+        <controls:SuggestionLineTemplateSelector x:Key="SuggestionLineSelector" Single="{StaticResource SuggestionSingleLine}"
+                                                 Pair="{StaticResource SuggestionPairLine}" />
     </Page.Resources>
 
     <Grid Padding="24,12,12,0" RowSpacing="12">
@@ -152,8 +206,10 @@
         </Grid>
 
         <Grid Grid.Row="1">
-            <!-- One virtualized list of category cards; the third-from-last realized card loads the next batch. -->
-            <ListView x:Name="CardList" ItemsSource="{x:Bind ViewModel.Cards}" SelectionMode="None" IsItemClickEnabled="False"
+            <!-- One virtualized list of category card lines (one card each, two in a wide window: pattern wide-columns,
+                 #653); the line holding the third-from-last card loads the next batch. -->
+            <ListView x:Name="CardList" ItemsSource="{x:Bind ViewModel.Lines}" ItemTemplateSelector="{StaticResource SuggestionLineSelector}"
+                      SelectionMode="None" IsItemClickEnabled="False" SizeChanged="OnCardListSizeChanged"
                       ContainerContentChanging="OnCardContainerChanging" PreviewKeyDown="OnCardListPreviewKeyDown" Padding="0,0,12,24"
                       TabNavigation="Local"
                       controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="360"
@@ -167,38 +223,6 @@
                         <Setter Property="IsTabStop" Value="False" />
                     </Style>
                 </ListView.ItemContainerStyle>
-                <ListView.ItemTemplate>
-                    <DataTemplate x:DataType="vm:SuggestionCardItem">
-                        <!-- Header above the card (title, description, the category's instrument), rows inside it
-                             (web CategoryCard: 10 x 24 epx rows with subtle separators). -->
-                        <StackPanel MaxWidth="1100" HorizontalAlignment="Stretch" Spacing="8"
-                                    AutomationProperties.AutomationId="{x:Bind AutomationId}" AutomationProperties.Name="{x:Bind Title}">
-                            <Grid Padding="4,0,0,0" ColumnSpacing="12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Spacing="2" VerticalAlignment="Center">
-                                    <TextBlock Text="{x:Bind Title}" Style="{StaticResource BodyStrongTextBlockStyle}" FontSize="16"
-                                               TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level2" />
-                                    <TextBlock Text="{x:Bind Description}" Style="{StaticResource FSTSecondaryTextStyle}" FontSize="12" TextWrapping="Wrap" />
-                                </StackPanel>
-                                <controls:InstrumentIcon Grid.Column="1" File="{x:Bind HeaderIcon}" Label="{x:Bind HeaderIconLabel}"
-                                                         Width="36" Height="36" VerticalAlignment="Center" Visibility="{x:Bind HasHeaderIcon}" />
-                            </Grid>
-                            <Border Style="{StaticResource FSTCardStyle}" Padding="0">
-                                <!-- A card's rows are one Tab stop with Up/Down between rows (design/windows.md Collections). -->
-                                <ItemsControl ItemsSource="{x:Bind Rows}" IsTabStop="False" TabFocusNavigation="Once" XYFocusKeyboardNavigation="Enabled">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="vm:SuggestionRowItem">
-                                            <controls:SuggestionSongRow Item="{x:Bind}" />
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </Border>
-                        </StackPanel>
-                    </DataTemplate>
-                </ListView.ItemTemplate>
                 <ListView.Footer>
                     <StackPanel HorizontalAlignment="Center" Spacing="8" Padding="0,8,0,16">
                         <ProgressRing IsActive="{x:Bind ViewModel.HasMore, Mode=OneWay}" Width="24" Height="24"

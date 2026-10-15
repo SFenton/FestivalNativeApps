@@ -24,8 +24,9 @@ motion off), the
 Song Band Leaderboard rows, empty and error states (issue #510), the Suggestions cards, keyboard, filter and states
 (issue #513), the Item Shop offers grid, List/Grid toggle, rings and states (issue #516, also with in-app Reduce
 Motion), the real-control First Run demos (issue #498, also with Animation effects off), the profile title row
-(issue #446), the Score History chart (issue #512, also under Desert contrast) and the loading placement with
-Leaderboards' Quick Links gated on its cards (issue #649) run at default and 225% text, that the
+(issue #446), the wide columns (issue #653, the one-column fallback also in a wide window at 150% text), the Score
+History chart (issue #512, also under Desert contrast) and the loading placement with Leaderboards' Quick Links gated
+on its cards (issue #649) run at default and 225% text, that the
 generated leaderboard-columns normal run switches a contrast theme with a song board open (issue #519), and that the
 generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
@@ -135,6 +136,9 @@ SUGGESTIONS_LOAD_MORE = "suggestions-load-more,suggestions-load-more-keyboard"
 
 #: The ``a11y-suggestions.json`` row centre-line pages (issue #654), also run at wide and at 225% text beside the title.
 SUGGESTIONS_ROW_CENTRE = "suggestions-row-centre,suggestions-row-centre-rival"
+
+#: The ``a11y-wide-columns.json`` one-column pages (issue #653): narrow windows, and wide ones from 150% text.
+WIDE_COLUMNS_ONE = "wide-columns-statistics-one,wide-columns-suggestions-one"
 
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
@@ -316,6 +320,14 @@ RUNS: tuple[Run, ...] = (
     # pushes full width instead. Wide only: compact and medium never split.
     Run("split-panes", "a11y-split-panes.json", sizes="wide", tabs=0),
     Run("split-panes-text-225", "a11y-split-panes.json", sizes="wide", mode="text-225", tabs=0),
+    # Wide columns (issue #653, pattern wide-columns R1/R2): Profile sections and Suggestions cards pair row-major in a
+    # wide window at default text and reflow in place on resize, and the Item Shop grid fills a wide window. The
+    # one-column pages also run in a wide window at 150% (the large-text threshold) and 225% text, where text size
+    # alone keeps one column. (The partial run comes first: generated_runs reads a file's last explicit run as its
+    # coverage.)
+    Run("wide-columns-one-text-150", "a11y-wide-columns.json", sizes="wide", mode="text-150", only=WIDE_COLUMNS_ONE),
+    Run("wide-columns", "a11y-wide-columns.json", sizes="compact,medium,wide"),
+    Run("wide-columns-text-225", "a11y-wide-columns.json", sizes="compact,wide", mode="text-225"),
     # Quick Links landings on Settings and Leaderboards (issues #51, #416): entry name and current section, 40 epx
     # entry and items, keyboard order, the jump announcement, heading landing inset and focus. The wide pane page
     # (scale-100/150 modes) stays in the host matrix.

@@ -57,6 +57,54 @@ public sealed record SuggestionCardItem(SuggestionCategory Category, List<Sugges
     /// <summary>Whether the header shows an instrument icon.</summary>
     public bool HasHeaderIcon => Category.Instrument is not null;
 }
+
+/// <summary>
+/// One row-major line of Suggestions cards (pattern <c>wide-columns</c> R2, issue #653; Android <c>WideColumnLines</c>):
+/// one card in one column, two (start, then end) in two. The list shows lines, so its virtualization, incremental loading
+/// and fade-in stay per line while each card keeps its own automation ID, name and heading.
+/// </summary>
+public sealed partial class SuggestionCardLine : ObservableObject
+{
+    /// <summary>Creates a line.</summary>
+    /// <param name="start">Leading card.</param>
+    /// <param name="startIndex">Index of <paramref name="start"/> in <see cref="SuggestionsViewModel.Cards"/>.</param>
+    /// <param name="paired">Whether the line has room for a second card (two columns).</param>
+    public SuggestionCardLine(SuggestionCardItem start, int startIndex, bool paired)
+    {
+        Start = start;
+        StartIndex = startIndex;
+        Paired = paired;
+    }
+
+    /// <summary>Leading card.</summary>
+    public SuggestionCardItem Start { get; }
+
+    /// <summary>Index of <see cref="Start"/> among the cards.</summary>
+    public int StartIndex { get; }
+
+    /// <summary>Whether the line has two columns (its template; fixed for the line's lifetime, as a reflow rebuilds lines).</summary>
+    public bool Paired { get; }
+
+    /// <summary>Trailing card of a paired line, once generated.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasEnd), nameof(Name), nameof(EndAutomationId), nameof(EndTitle))]
+    private SuggestionCardItem? end;
+
+    /// <summary>Whether the trailing card is present.</summary>
+    public bool HasEnd => End is not null;
+
+    /// <summary>Accessible line name: its card titles in reading order.</summary>
+    public string Name => End is null ? Start.Title : $"{Start.Title}, {End.Title}";
+
+    /// <summary>Trailing card automation ID (empty until it exists).</summary>
+    public string EndAutomationId => End?.AutomationId ?? "";
+
+    /// <summary>Trailing card title (empty until it exists).</summary>
+    public string EndTitle => End?.Title ?? "";
+
+    /// <summary>Index of the line's last card.</summary>
+    public int LastIndex => StartIndex + (End is null ? 0 : 1);
+}
 #endregion
 
 #region Suggestions
@@ -109,6 +157,7 @@ public sealed partial class SuggestionsViewModel : ObservableObject
         Status = new ServiceStatusViewModel("suggestions", "Suggestions Unavailable", () => LoadAsync(force: true), session.Time);
         FilterDraft = new SuggestionsFilterDraft(this);
         session.PropertyChanged += OnSessionChanged;
+        Cards.CollectionChanged += OnCardsChanged;
         phase = session.HasPlayer ? SuggestionsPhase.Loading : SuggestionsPhase.NoPlayer;
     }
 
@@ -121,6 +170,68 @@ public sealed partial class SuggestionsViewModel : ObservableObject
 
     /// <summary>Visible category cards.</summary>
     public ObservableCollection<SuggestionCardItem> Cards { get; } = [];
+
+    /// <summary>
+    /// <see cref="Cards"/> in row-major lines of <see cref="Columns"/> (pattern <c>wide-columns</c>, issue #653): the list
+    /// shows these. Appended cards fill the last line or start a new one; a column change rebuilds the lines from the
+    /// same cards without generating anything (R4).
+    /// </summary>
+    public ObservableCollection<SuggestionCardLine> Lines { get; } = [];
+
+    /// <summary>Cards per line: 1, or 2 in a wide window (<see cref="Domain.WideColumns.Count"/>, decided by the page).</summary>
+    public int Columns { get; private set; } = 1;
+
+    /// <summary>Re-chunks the cards into lines of a new column count; nothing reloads.</summary>
+    /// <param name="columns">1 or 2.</param>
+    /// <returns><see langword="true"/> when the count changed (and the lines were rebuilt).</returns>
+    public bool SetColumns(int columns)
+    {
+        columns = Math.Clamp(columns, 1, 2);
+        if (columns == Columns) return false;
+        Columns = columns;
+        RebuildLines();
+        return true;
+    }
+
+    /// <summary>The line showing a card.</summary>
+    /// <param name="cardIndex">Card index.</param>
+    /// <returns>Line index.</returns>
+    public int LineOf(int cardIndex) => Domain.WideColumns.RowOf(cardIndex, Columns);
+
+    /// <summary>The first line holding only cards from <paramref name="cardIndex"/> on (a batch's first line to fade).</summary>
+    /// <param name="cardIndex">First new card.</param>
+    /// <returns>Line index (a batch that fills an existing line's end fades from the next line).</returns>
+    public int FirstWholeLineFrom(int cardIndex) => Domain.WideColumns.RowCount(cardIndex, Columns);
+
+    /// <summary>Mirrors card changes into <see cref="Lines"/>.</summary>
+    /// <param name="sender">Cards.</param>
+    /// <param name="e">Change (the page model only appends and clears).</param>
+    private void OnCardsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add && e.NewItems is { } added
+            && e.NewStartingIndex == Cards.Count - added.Count)
+        {
+            for (var i = 0; i < added.Count; i++) AppendLine((SuggestionCardItem)added[i]!, e.NewStartingIndex + i);
+            return;
+        }
+        RebuildLines();
+    }
+
+    /// <summary>Places an appended card: the end of an open paired line, else a new line.</summary>
+    /// <param name="card">Card.</param>
+    /// <param name="index">Its index.</param>
+    private void AppendLine(SuggestionCardItem card, int index)
+    {
+        if (Lines.Count > 0 && Lines[^1] is { Paired: true, End: null } open && open.StartIndex == index - 1) open.End = card;
+        else Lines.Add(new SuggestionCardLine(card, index, Columns == 2));
+    }
+
+    /// <summary>Rebuilds every line from <see cref="Cards"/>.</summary>
+    private void RebuildLines()
+    {
+        Lines.Clear();
+        for (var i = 0; i < Cards.Count; i++) AppendLine(Cards[i], i);
+    }
 
     /// <summary>
     /// Raised after cards were added with the index of the first new card (web <c>revealedCountRef</c>): the end of
@@ -317,6 +428,12 @@ public sealed partial class SuggestionsViewModel : ObservableObject
     /// <param name="index">Realized card index.</param>
     /// <returns><see langword="true"/> near the end of the list.</returns>
     public bool ShouldLoadMore(int index) => HasMore && index >= Cards.Count - 3;
+
+    /// <summary>Whether a realized line should trigger <see cref="LoadMore"/>: its last card is third-from-last or later.</summary>
+    /// <param name="lineIndex">Realized line index.</param>
+    /// <returns><see langword="true"/> near the end of the list.</returns>
+    public bool ShouldLoadMoreLine(int lineIndex) =>
+        lineIndex >= 0 && lineIndex < Lines.Count && ShouldLoadMore(Lines[lineIndex].LastIndex);
 
     /// <summary>
     /// Pulls categories until <paramref name="count"/> new cards are visible (the filter may hide some) or the

@@ -229,13 +229,31 @@ public class ShopGridMetricsTests
     [InlineData(599, 2, 294)]
     [InlineData(600, 3, 193)]
     [InlineData(860, 4, 207)]
-    [InlineData(1100, 5, 200)]
-    [InlineData(2400, 5, 200)]
+    [InlineData(1099, 4, 267)]
+    [InlineData(1100, 5, 212)]
+    [InlineData(1249, 5, 241)]
+    [InlineData(1250, 6, 200)]
+    [InlineData(2400, 11, 209)]
     [InlineData(0, 2, 1)]
     public void Columns_AndSquareTiles(double width, int columns, double tile)
     {
         Assert.Equal(columns, ShopGridMetrics.Columns(width));
         Assert.Equal(tile, ShopGridMetrics.TileSize(width));
-        Assert.Equal(Math.Min(width, 1040), ShopGridMetrics.ContentWidth(width));
+    }
+
+    /// <summary>Issue #653: the grid fills the whole width as the window grows (no 1040 epx cap) with tiles of at least 200 epx.</summary>
+    [Theory]
+    [InlineData(1040)]
+    [InlineData(1400)]
+    [InlineData(1920)]
+    [InlineData(3000)]
+    public void WideGrid_FillsTheWidth(double width)
+    {
+        Assert.Equal(width, ShopGridMetrics.ContentWidth(width));
+        var columns = ShopGridMetrics.Columns(width);
+        var tile = ShopGridMetrics.TileSize(width);
+        var used = columns * tile + ShopGridMetrics.Gap * (columns - 1);
+        Assert.InRange(width - used, 0, columns);
+        Assert.True(tile >= ShopGridMetrics.MinimumTileWidth);
     }
 }
