@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Windows.UI.ViewManagement;
 
 namespace Festival.App.Controls;
 
@@ -30,7 +31,16 @@ public sealed partial class PlayerProfileView : UserControl
         // Web PlayerPage: spinner until the profile is ready, then title, Overview and sections fade in, staggered.
         Scroller.RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => StaggerIn());
         Scroller.Loaded += (_, _) => StaggerIn();
+        // Pattern wide-columns (#653): crossing the 150% text size switches the instrument sections between one and two
+        // columns without a reload. Window resizes re-measure the sections themselves.
+        Loaded += (_, _) => OnDemandSplitHost.TextScaleChanged += OnTextScaleChanged;
+        Unloaded += (_, _) => OnDemandSplitHost.TextScaleChanged -= OnTextScaleChanged;
     }
+
+    /// <summary>Re-lays out the instrument sections for a new Windows text size, on the UI thread.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="args">Unused.</param>
+    private void OnTextScaleChanged(UISettings sender, object args) => DispatcherQueue.TryEnqueue(InstrumentsRepeater.InvalidateMeasure);
 
     /// <summary>Page model; set before <see cref="Bind"/>.</summary>
     public PlayerProfileViewModel ViewModel { get; private set; } = null!;

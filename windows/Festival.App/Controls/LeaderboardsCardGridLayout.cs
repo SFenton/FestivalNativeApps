@@ -14,7 +14,9 @@ namespace Festival.App.Controls;
 /// <see cref="MaxColumns"/> 1 and <see cref="MinColumnWidth"/> 0 it is a plain non-virtualizing stack, used for the
 /// top-ten rows inside cached pages' cards: a virtualizing <see cref="StackLayout"/> drops off-screen rows while the
 /// page is away and re-estimates their heights on Back, which moved the page (#276). Player Profile stacks its instrument
-/// sections and band groups the same way: re-estimating them near the page end pulled the scroll back (#533).
+/// sections and band groups the same way: re-estimating them near the page end pulled the scroll back (#533). With
+/// <see cref="UsesWideColumns"/> its instrument sections flow into pattern <c>wide-columns</c>' two row-major columns in
+/// wide windows (#653).
 /// </summary>
 public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
 {
@@ -33,12 +35,22 @@ public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
     /// <summary>Gap between cards.</summary>
     public double Spacing { get; set; } = 16;
 
+    /// <summary>
+    /// Takes the column count from pattern <c>wide-columns</c> (<see cref="WideColumnsHost"/>: two in a wide window at
+    /// standard text sizes when both keep 320 epx, else one) instead of <see cref="MinColumnWidth"/> and
+    /// <see cref="MaxColumns"/>. The host invalidates the layout when the text size changes; window resizes re-measure it.
+    /// </summary>
+    public bool UsesWideColumns { get; set; }
+
+    /// <summary>Columns of the last measure, so arrange places cards in the widths they were measured at.</summary>
+    private int measuredColumns = 1;
+
     /// <inheritdoc />
     protected override Size MeasureOverride(NonVirtualizingLayoutContext context, Size availableSize)
     {
         var children = context.Children;
         var width = double.IsInfinity(availableSize.Width) ? MinColumnWidth : availableSize.Width;
-        var columns = Columns(width);
+        var columns = measuredColumns = Columns(children, width);
         var columnWidth = ColumnWidth(width, columns);
         double height = 0, rowHeight = 0;
         for (var i = 0; i < children.Count; i++)
@@ -58,7 +70,7 @@ public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
     protected override Size ArrangeOverride(NonVirtualizingLayoutContext context, Size finalSize)
     {
         var children = context.Children;
-        var columns = Columns(finalSize.Width);
+        var columns = UsesWideColumns ? measuredColumns : Columns(children, finalSize.Width);
         var columnWidth = ColumnWidth(finalSize.Width, columns);
         double y = 0;
         for (var start = 0; start < children.Count; start += columns)
@@ -74,10 +86,12 @@ public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
     }
 
     /// <summary>Columns that fit the width.</summary>
+    /// <param name="children">Realized cards (any one locates the window for <see cref="UsesWideColumns"/>).</param>
     /// <param name="width">Available width.</param>
-    /// <returns>1…<see cref="MaxColumns"/>.</returns>
-    private int Columns(double width) =>
-        Math.Clamp((int)Math.Floor((width + Spacing) / (EffectiveMinColumnWidth + Spacing)), 1, Math.Max(1, MaxColumns));
+    /// <returns>1…<see cref="MaxColumns"/>, or the wide-columns count.</returns>
+    private int Columns(IReadOnlyList<UIElement> children, double width) => UsesWideColumns
+        ? WideColumnsHost.Count(children.Count > 0 ? children[0] : null, width, Spacing)
+        : Math.Clamp((int)Math.Floor((width + Spacing) / (EffectiveMinColumnWidth + Spacing)), 1, Math.Max(1, MaxColumns));
 
     /// <summary>Minimum column width after text scaling.</summary>
     private double EffectiveMinColumnWidth => ScaleWithText ? MinColumnWidth * TextScaleLayout.Factor : MinColumnWidth;
