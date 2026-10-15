@@ -377,7 +377,9 @@ public class HitTargetMarkupTests
         Assert.Equal("OnProfileButtonClick", Attr(profile, "Click"));
         var bell = Assert.Single(ById(Load(Path.Combine("Controls", "NotificationsBell.xaml")), "fst.shell.notifications"));
         Assert.Equal("{x:Bind Model.BellName, Mode=OneWay}", Attr(bell, "AutomationProperties.Name"));
-        Assert.Contains(bell.Elements(), e => e.Name.LocalName == "Button.Flyout");
+        // Issue #638: the bell opens the shared edge-docked dialog, not an anchored Flyout.
+        Assert.Equal("OnBellClick", Attr(bell, "Click"));
+        Assert.DoesNotContain(bell.Elements(), e => e.Name.LocalName == "Button.Flyout");
     }
 
     [Fact]
