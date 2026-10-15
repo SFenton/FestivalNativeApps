@@ -125,13 +125,13 @@ Issue #434 (2026-10-08): the `windows-ui` CI job runs `a11y-whats-new.json` (`to
 
 ## Notifications validation (issue #229, 2026-10-04)
 
-Scope: the title-bar bell and flyout only. Results per configuration are in [notifications/windows.md](../controls/notifications/windows.md#validation-issue-229-2026-10-04). `a11y_matrix.py --scan --pages journeys/a11y-notifications.json --fixture notifications_fixture.py` gave 0 Axe errors for loaded, empty, not generated and failed at compact, medium and wide. Loaded also gave 0 at maximized and snap-left, and loaded and failed gave 0 at medium under Desert, Night sky, light and dark system theme, text 200% and display 100% and 150%. At text 200% the loaded and scrolled-to-end pages also gave 0 at compact. No run had focus leaving the window. The keyboard pages `kb-notifications-rows` and `kb-notifications-esc` pass at all three sizes, and `notifications_journey.py` drives every reachable state. Scanning after Esc (focus back on the bell, tooltip open) shows only open item 8.
+Scope: the title-bar bell and the Notifications panel / bottom sheet (the shared modal docked to the window edge since #638, [modal-shell](../patterns/modal-shell.md) R17; an anchored flyout before it). Results per configuration are in [notifications/windows.md](../controls/notifications/windows.md#validation-issue-229-2026-10-04). `a11y_matrix.py --scan --pages journeys/a11y-notifications.json --fixture notifications_fixture.py` gave 0 Axe errors for loaded, empty, not generated and failed at compact, medium and wide. Loaded also gave 0 at maximized and snap-left, and loaded and failed gave 0 at medium under Desert, Night sky, light and dark system theme, text 200% and display 100% and 150%. At text 200% the loaded and scrolled-to-end pages also gave 0 at compact. No run had focus leaving the window. The keyboard pages `kb-notifications-rows` and `kb-notifications-esc` pass at all three sizes, and `notifications_journey.py` drives every reachable state. Scanning after Esc (focus back on the bell, tooltip open) shows only open item 8.
 
 Fixed:
 - Each row read as an unnamed list item followed by a nested group, and the row IDs never reached UIA. The `ListViewItem` now carries the name and ID (`ContainerContentChanging`).
 - State IDs sat on panels, which have no UIA peer, so they now sit on text.
 - Under contrast themes the flag pills kept their web colours and the section headers stayed white.
-- With nothing focusable (loading, empty, not generated), focus rested on an unnamed "Popup" window, which is now named "Notifications".
+- With nothing focusable (loading, empty, not generated), focus rested on an unnamed "Popup" window (pre-#638 flyout). Since #638 focus rests on Close inside the modal window named "Notifications".
 - At 200% text the unread `InfoBadge` count outgrew its 16 epx circle and covered the bell glyph. The badge now keeps a fixed text size (`IsTextScaleFactorEnabled="False"`), like the system's own badges.
 
 ## Song Band Leaderboard validation (issue #196, 2026-10-03)
