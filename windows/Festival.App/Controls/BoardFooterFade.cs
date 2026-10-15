@@ -43,6 +43,7 @@ internal sealed class BoardFooterFade
     private bool active;
     private double cut = double.NaN;
     private double depth = double.NaN;
+    private double? footerTop;
 
     /// <summary>Creates the fade; composition objects are built on first use.</summary>
     /// <param name="source">Wrapper whose rows fade (never the load-swap element itself: the fade hides this visual).</param>
@@ -112,7 +113,9 @@ internal sealed class BoardFooterFade
     {
         if (scroller is null && (scroller = FindScrollViewer(list)) is not null)
         {
-            scroller.ViewChanged += (_, _) => Update();
+            // Scrolling moves the rows, never the floating footer: an intermediate view change reuses its measured top
+            // (each TransformToVisual hands .NET a new WinRT object, #642); the final one re-measures it.
+            scroller.ViewChanged += (_, e) => Update(measure: !e.IsIntermediate);
             // Rows arriving (or a page swap) change the extent without a scroll; a board that loads long shows the
             // ramp at once, with or without the selected player's pinned row (issues #283, #305).
             scroller.RegisterPropertyChangedCallback(ScrollViewer.ScrollableHeightProperty, (_, _) => Update());
@@ -136,18 +139,19 @@ internal sealed class BoardFooterFade
     /// <param name="e">Changed property.</param>
     private void OnSessionChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == "Settings") source.DispatcherQueue.TryEnqueue(Update);
+        if (e.PropertyName == "Settings") source.DispatcherQueue.TryEnqueue(() => Update());
     }
 
     /// <summary>Re-evaluates when Windows transparency effects or the contrast theme change (any thread).</summary>
     /// <param name="sender">Settings source.</param>
     /// <param name="args">Ignored.</param>
-    private void OnSystemChanged(Windows.UI.ViewManagement.UISettings sender, object args) => source.DispatcherQueue.TryEnqueue(Update);
+    private void OnSystemChanged(Windows.UI.ViewManagement.UISettings sender, object args) => source.DispatcherQueue.TryEnqueue(() => Update());
     #endregion
 
     #region Drawing
     /// <summary>Places (or removes) the ramp for the current scroll position, footer and settings, then publishes the state.</summary>
-    private void Update()
+    /// <param name="measure">Whether to measure the footer's top again (else the last measurement, if any, is reused).</param>
+    private void Update(bool measure = true)
     {
         if (!following) return;
         var settings = App.Session.Settings;
@@ -160,7 +164,8 @@ internal sealed class BoardFooterFade
             if (contrast && shown) plate.Height = footer.ActualHeight + footer.Margin.Bottom;
         }
         var enabled = SongHeaderEdgeFade.IsEnabled(contrast, uiSettings.AdvancedEffectsEnabled, settings.LessTransparency, settings.MoreContrast);
-        double? top = shown ? footer.TransformToVisual(source).TransformPoint(default).Y : null;
+        if (shown && (measure || footerTop is null)) footerTop = footer.TransformToVisual(source).TransformPoint(default).Y;
+        double? top = shown ? footerTop : null;
         var viewer = EnsureScroller();
         Apply(top, viewer is null ? 0 : BoardFooterEdgeFade.FadeDepth(viewer.ScrollableHeight, viewer.VerticalOffset, enabled));
         var drawn = active && gradient is not null ? gradient.EndPoint.Y - gradient.StartPoint.Y : 0;

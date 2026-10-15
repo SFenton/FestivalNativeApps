@@ -21,7 +21,8 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
         <!-- Spans the wrapped second row only while it has content (SetWrapped): a Grid shares a spanning child's height
-             across Auto rows, so an empty second row got half the art's height as dead space (operator batch 6.3). -->
+             across Auto rows, so an empty second row got half the art's height as dead space (operator batch 6.3).
+             A full-width second row (Songs instrument chips, issue #645) runs under the art instead. -->
         <Grid x:Name="ArtHost" Width="44" Height="44" VerticalAlignment="Center">
             <Border CornerRadius="6" Background="{StaticResource FSTSurfaceMutedBrush}">
                 <Image x:Name="ArtImage" Stretch="UniformToFill" AutomationProperties.AccessibilityView="Raw" />

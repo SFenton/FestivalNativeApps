@@ -44,8 +44,9 @@ public sealed class SongRowItem
     /// <summary>Invalid-score indicator (Filter Invalid Scores replaced, dropped or kept a raw score), or <see langword="null"/>.</summary>
     public InvalidScoreWarning? Warning { get; init; }
 
-    /// <summary>Whether the chart name is spoken/shown with metadata (a non-Lead chart).</summary>
-    public bool NamesChart => Chart is { } chart && chart != Instrument.Lead && Metadata.Count > 0;
+    /// <summary>Whether the chart name is spoken/shown with metadata (a non-Lead chart with at least one of its own fields;
+    /// the unfiltered Last Played entry names its own chart).</summary>
+    public bool NamesChart => Chart is { } chart && chart != Instrument.Lead && Metadata.Any(m => m.PlayedChart is null);
 
     /// <summary>Whether the keys icon variant applies.</summary>
     public bool Keyboard => Song.UsesKeyboardIcon;
@@ -60,8 +61,16 @@ public sealed class SongRowItem
             if (Chips.Count > 0) parts.AddRange(Chips.Select(c => c.Announcement));
             if (Metadata.Count > 0)
             {
-                if (NamesChart) parts.Add(Chart!.Value.Label() + " chart");
-                parts.AddRange(Metadata.Select(m => m.Announcement));
+                var named = !NamesChart;
+                foreach (var entry in Metadata)
+                {
+                    if (!named && entry.PlayedChart is null)
+                    {
+                        parts.Add(Chart!.Value.Label() + " chart");
+                        named = true;
+                    }
+                    parts.Add(entry.Announcement);
+                }
             }
             else if (Chart is { } chart && ChartRaw is { } raw)
             {

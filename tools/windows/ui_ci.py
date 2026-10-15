@@ -120,7 +120,7 @@ HISTORY_SWAP_REDUCED = "history-swap-reduced-access"
 
 #: The canonical ``a11y.json`` header-flyout pages (issue #534: every app flyout is constrained to the window, so none
 #: may open a windowed ``PopupHost``; the file's other pages stay host matrix checks).
-POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-flyout,notifications-flyout"
+POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-flyout,notifications-panel"
 
 #: The ``a11y-search.json`` All section-title pages (issue #348's titles, #483); the file's other pages are generated runs.
 SEARCH_SECTIONS = "search-all-sections,search-all-sections-keyboard"
@@ -189,12 +189,28 @@ RUNS: tuple[Run, ...] = (
     Run("songs-scroll", "a11y-songs-scroll.json", tabs=0),
     Run("songs-scroll-text-225", "a11y-songs-scroll.json", sizes="compact", mode="text-225", tabs=0),
     Run("songs-scroll-no-animations", "a11y-songs-scroll.json", sizes="compact", mode="no-animations", tabs=0),
+    # Scroll paging (issue #642): keyboard PageDown on Statistics and Song Details moves the Quick Links current section
+    # off the first section while the scroll moves (throttled reports) and keeps it at rest; later Statistics sections
+    # still load once the loaded ones stop watching the viewport (tiles named, 40 epx, in order); Axe at the paged state.
+    Run("scroll-paging", "a11y-scroll-paging.json", tabs=0),
+    Run("scroll-paging-text-225", "a11y-scroll-paging.json", sizes="compact", mode="text-225", tabs=0),
     # Songs metadata chips (issue #644): the row speaks score, accuracy (graded and the skewed gold "100%" full combo),
     # Top %, stars, season, intensity and difficulty in visual order; every text pill is at least 24 epx and shares one
     # height with the others, the 24-epx stars and meter line up with them, the current season paints its full height,
     # Axe-scanned; at 225% text the text pills grow to one shared height, never clipped.
     Run("songs-metadata-chips", "a11y-songs-metadata-chips.json", sizes="medium,wide"),
     Run("songs-metadata-chips-text-225", "a11y-songs-metadata-chips.json", sizes="medium", mode="text-225"),
+    # Songs Last Played pill (issue #647): hidden under every sort but Last Played even with its Settings switch on; under
+    # Last Played it leads the row as "Last played <date> on <chart>" (the chart only when unfiltered), wraps below the
+    # pills at compact and sits on their line when wide, and the row speaks it first; at 225% text it still reads.
+    Run("songs-last-played", "a11y-songs-last-played.json", sizes="compact,medium,wide"),
+    Run("songs-last-played-text-225", "a11y-songs-last-played.json", sizes="compact,medium", mode="text-225"),
+    # Songs instrument chip rows (issue #645, instrument-chip-rows R1-R5): in a 360 epx window the nine chips read
+    # 5 + 4 in lines centred on the row (assertmidline), not 7 + 2 or left-aligned; lines never overlap, each chip
+    # icon keeps 21 epx and the row speaks every chart in visual order; widening re-flows them to one centred line.
+    # At 225% text the chips keep their size and the same balanced, centred lines.
+    Run("songs-chip-rows", "a11y-songs-chip-rows.json", sizes="compact"),
+    Run("songs-chip-rows-text-225", "a11y-songs-chip-rows.json", sizes="compact", mode="text-225"),
     # Songs toolbar (issue #646): Search, Sort, Filter and Jump share one 40 epx height, each button is at least
     # 40x40 epx, the search box fills the row so the tools end at the rows' right edge (one row at medium and wide;
     # search above the buttons at compact), and search -> Sort -> Filter -> Jump -> rows reading order.
@@ -409,6 +425,10 @@ RUNS: tuple[Run, ...] = (
     # pinned combo rank) and Back restores focus; rows stay 40+ epx stops with Down between them.
     Run("combo-boards", "a11y-combo-boards.json", tabs=0),
     Run("combo-boards-text-225", "a11y-combo-boards.json", sizes="compact", mode="text-225", tabs=0),
+    # Stat tiles (issue #651, stat-tile-grid R6): a linked tile's value and label are centred on the whole card, not on
+    # the space left of its chevron, at every size and at 225% text; the tile stays a 40+ epx button in grid order.
+    Run("stat-tile-centre", "a11y-stat-tile-centre.json", tabs=0),
+    Run("stat-tile-centre-text-225", "a11y-stat-tile-centre.json", mode="text-225", tabs=0),
     # Long leaderboard names (issues #292, #455): on Full Rankings and the Leaderboards overview a name too wide for its
     # column scrolls on one line while one that fits stays still, the row reads the whole name once, stays a 40+ epx
     # stop in visual order with Up/Down between rows; at 150%, 200% and 225% text the name wraps and the row grows,

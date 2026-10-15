@@ -99,5 +99,24 @@ public static class SongHeaderEdgeFade
         : !(verticalOffset > 0) ? StatusTop
         : depth >= 1 ? StatusFading
         : StatusClear;
+
+    /// <summary>
+    /// The top edge under page chrome that overlays its scroller instead of sitting in a row above it (Song Details'
+    /// pinned bar, issue #640): while the chrome shows, content is hidden down to the chrome's bottom and ramps in over
+    /// <see cref="FadeDepth"/> (no section titles) below it, or is cut hard there (<see cref="IsEnabled"/> false). The
+    /// chrome's own background stays clear, so the page's backdrop art shows through it. Hidden chrome masks nothing.
+    /// </summary>
+    /// <param name="chromeShown">Whether the overlaying chrome shows and has been laid out.</param>
+    /// <param name="chromeBottom">The chrome's bottom below the scroller's top, epx.</param>
+    /// <param name="enabled">Whether the settings allow the ramp (<see cref="IsEnabled"/>).</param>
+    /// <param name="verticalOffset">Scroll offset in epx.</param>
+    /// <returns>Whether to mask, the clear edge (epx below the scroller's top), whether it is a hard cut, and the UIA status.</returns>
+    public static (bool Masked, double Edge, bool HardEdge, string Status) OverlayEdge(
+        bool chromeShown, double chromeBottom, bool enabled, double verticalOffset)
+    {
+        var shown = chromeShown && chromeBottom > 0;
+        var edge = shown ? chromeBottom : 0;
+        return (shown, edge, !enabled, Status(shown, enabled, verticalOffset, FadeDepth(verticalOffset, null, null, 0)));
+    }
 }
 #endregion

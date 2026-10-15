@@ -26,55 +26,55 @@
                     <AdaptiveTrigger MinWindowWidth="0" />
                 </VisualState.StateTriggers>
                 <VisualState.Setters>
-                    <Setter Target="PageContent.Padding" Value="12,8,12,24" />
+                    <Setter Target="Header.Padding" Value="12,8,12,12" />
+                    <Setter Target="PageContent.Padding" Value="12,0,12,24" />
                     <Setter Target="HeaderActions.(Grid.Row)" Value="1" />
                     <Setter Target="HeaderActions.(Grid.Column)" Value="0" />
                 </VisualState.Setters>
             </VisualState>
         </VisualStateGroup>
     </VisualStateManager.VisualStateGroups>
+    <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
     <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <ColumnDefinition Width="Auto" />
     </Grid.ColumnDefinitions>
-    <ScrollViewer x:Name="Scroller" VerticalContentAlignment="Stretch" AutomationProperties.AutomationId="fst.leaderboards">
-        <Grid x:Name="PageContent" Padding="24,12,24,32" RowSpacing="12" MaxWidth="1800">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-            <!-- Title and the page action (Rank By). -->
-            <Grid ColumnSpacing="12" RowSpacing="8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-                <TextBlock Text="Leaderboards" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1"
-                           VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
-                           AutomationProperties.AutomationId="fst.leaderboards.title" />
-                <StackPanel x:Name="HeaderActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                <DropDownButton x:Name="RankByButton" VerticalAlignment="Center" MinHeight="{StaticResource FSTMinTargetSize}"
-                                Visibility="{x:Bind ViewModel.ShowRankBy, Mode=OneWay}"
-                                AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
-                                AutomationProperties.AutomationId="fst.rankings.rank-by-menu">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon Glyph="&#xE8CB;" FontSize="14" />
-                        <TextBlock Text="{x:Bind ViewModel.MetricLabel, Mode=OneWay}" />
-                    </StackPanel>
-                    <DropDownButton.Flyout>
-                        <MenuFlyout x:Name="MetricMenu" Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True" Opening="OnMetricMenuOpening" />
-                    </DropDownButton.Flyout>
-                </DropDownButton>
-                <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" />
-                </StackPanel>
-            </Grid>
-
-            <!-- The scroll presenter fills at least the viewport; this star row is the region below the retained header. -->
-            <controls:AccessibleGroup Grid.Row="1" AutomationProperties.AccessibilityView="Raw"
+    <!-- Pinned page header (#639): title, Rank By and Quick Links stay put; content scrolls and clips below it. -->
+    <Grid x:Name="Header" Padding="24,12,24,12" MaxWidth="1800" ColumnSpacing="12" RowSpacing="8">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <TextBlock Text="Leaderboards" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1"
+                   VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"
+                   AutomationProperties.AutomationId="fst.leaderboards.title" />
+        <StackPanel x:Name="HeaderActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <DropDownButton x:Name="RankByButton" VerticalAlignment="Center" MinHeight="{StaticResource FSTMinTargetSize}"
+                        Visibility="{x:Bind ViewModel.ShowRankBy, Mode=OneWay}"
+                        AutomationProperties.Name="{x:Bind ViewModel.MetricButtonName, Mode=OneWay}"
+                        AutomationProperties.AutomationId="fst.rankings.rank-by-menu">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <FontIcon Glyph="&#xE8CB;" FontSize="14" />
+                <TextBlock Text="{x:Bind ViewModel.MetricLabel, Mode=OneWay}" />
+            </StackPanel>
+            <DropDownButton.Flyout>
+                <MenuFlyout x:Name="MetricMenu" Placement="BottomEdgeAlignedRight" ShouldConstrainToRootBounds="True" Opening="OnMetricMenuOpening" />
+            </DropDownButton.Flyout>
+        </DropDownButton>
+        <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" />
+        </StackPanel>
+    </Grid>
+    <ScrollViewer x:Name="Scroller" Grid.Row="1" VerticalContentAlignment="Stretch" AutomationProperties.AutomationId="fst.leaderboards">
+        <Grid x:Name="PageContent" Padding="24,0,24,32" MaxWidth="1800">
+            <!-- The scroll presenter fills at least the viewport below the pinned header; the ring centres in it. -->
+            <controls:AccessibleGroup AutomationProperties.AccessibilityView="Raw"
                                       AutomationProperties.AutomationId="fst.leaderboards.loading-region"
                                       Visibility="{x:Bind pages:LeaderboardsPage.Collapsed(ViewModel.IsReady), Mode=OneWay}" IsHitTestVisible="False">
                 <!-- Transparent fill: the Raw region's UI Automation bounds are its layout box, not the ring's. -->
@@ -86,7 +86,7 @@
                                   AutomationProperties.Name="Loading leaderboards" AutomationProperties.AutomationId="fst.leaderboards.loading" />
                 </Grid>
             </controls:AccessibleGroup>
-            <StackPanel Grid.Row="1" Spacing="12">
+            <StackPanel Spacing="12">
             <ItemsRepeater x:Name="InstrumentRepeater" TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind ViewModel.InstrumentCards, Mode=OneWay}"
                            Visibility="{x:Bind ViewModel.IsReady, Mode=OneWay}"
                            controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
@@ -199,6 +199,6 @@
             </StackPanel>
         </Grid>
     </ScrollViewer>
-    <controls:QuickLinksPane x:Name="Pane" Grid.Column="1" Width="240" Margin="0,64,24,24" Visibility="Collapsed" />
+    <controls:QuickLinksPane x:Name="Pane" Grid.Row="1" Grid.Column="1" Width="240" Margin="0,0,24,24" Visibility="Collapsed" />
     </Grid>
 </Page>

@@ -873,6 +873,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertcentred":
                 AssertCentred(window, step);
                 break;
+            case "assertdock":
+                AssertDock(window, step);
+                break;
+            case "assertmidline":
+                AssertMidline(window, step);
+                break;
             case "assertinset":
                 AssertInset(window, step);
                 break;
@@ -1690,6 +1696,60 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         if (Math.Abs(top - bottom) > 2 || Math.Abs(dx) > 2)
             throw new InvalidOperationException(
                 $"off centre: {top:0.#} epx above, {bottom:0.#} epx below, {dx:0.#} epx sideways ({(string)step["arg"]!})");
+    }
+
+    /// <summary>
+    /// Fails unless each named edge of the element is the given number of effective pixels inside the same edge of the
+    /// region, and its width the given width, each within 1.5 epx (UIA rounds each edge to a device pixel): a modal
+    /// surface docked to the window's trailing edge or bottom (issue #638). Records the measured insets in <c>docks</c>.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c>, <c>other</c> (the region) and <c>edges</c>.</param>
+    /// <exception cref="InvalidOperationException">An edge or the width is off.</exception>
+    private void AssertDock(Window window, JsonObject step)
+    {
+        var element = Find(window, step).BoundingRectangle;
+        var region = Find(window, step, "other").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var measured = new Dictionary<string, double>
+        {
+            ["left"] = (element.Left - region.Left) / scale,
+            ["top"] = (element.Top - region.Top) / scale,
+            ["right"] = (region.Right - element.Right) / scale,
+            ["bottom"] = (region.Bottom - element.Bottom) / scale,
+            ["width"] = element.Width / scale,
+        };
+        var record = new JsonObject { ["arg"] = (string)step["arg"]!, ["scale"] = scale };
+        foreach (var (key, value) in measured) record[key] = Math.Round(value, 1);
+        response["docks"] ??= new JsonArray();
+        response["docks"]!.AsArray().Add(record);
+        var off = step["edges"]!.AsObject()
+            .Where(edge => Math.Abs(measured[edge.Key] - (double)edge.Value!) > 1.5)
+            .Select(edge => $"{edge.Key} {measured[edge.Key]:0.#} epx is not {(double)edge.Value!:0.#}")
+            .ToList();
+        if (off.Count > 0)
+            throw new InvalidOperationException($"{string.Join("; ", off)} ({(string)step["arg"]!})");
+    }
+
+    /// <summary>
+    /// Fails unless the midpoint from the first element's left edge to the last element's right edge is the region's
+    /// horizontal centre within <c>epx</c> effective pixels: a wrapped line of chips centred across its row rather than
+    /// left-aligned under the title (issue #645).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> (first), <c>other</c> (last), <c>region</c> and <c>epx</c>.</param>
+    /// <exception cref="InvalidOperationException">The line is off centre.</exception>
+    private void AssertMidline(Window window, JsonObject step)
+    {
+        var first = Find(window, step).BoundingRectangle;
+        var last = Find(window, step, "other").BoundingRectangle;
+        var region = Find(window, step, "region").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var dx = ((first.Left + last.Right) / 2.0 - (region.Left + region.Width / 2.0)) / scale;
+        response["midlines"] ??= new JsonArray();
+        response["midlines"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["dx"] = Math.Round(dx, 1) });
+        if (Math.Abs(dx) > (double)step["epx"]!)
+            throw new InvalidOperationException($"line off centre by {dx:0.#} epx ({(string)step["arg"]!})");
     }
 
     #region Hit targets

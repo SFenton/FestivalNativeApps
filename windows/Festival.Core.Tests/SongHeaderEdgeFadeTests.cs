@@ -97,4 +97,21 @@ public sealed class SongHeaderEdgeFadeTests
     [InlineData(true, true, 100, 40, "fading")]
     public void Status_NamesEachReachableEdgeState(bool headerShown, bool enabled, double offset, double depth, string expected) =>
         Assert.Equal(expected, SongHeaderEdgeFade.Status(headerShown, enabled, offset, depth));
+
+    [Theory]
+    [InlineData(false, 64, true, 300, false, 0, "hidden")] // the bar has not pinned: nothing is masked
+    [InlineData(true, 0, true, 300, false, 0, "hidden")] // pinned but not laid out yet
+    [InlineData(true, -4, true, 300, false, 0, "hidden")]
+    [InlineData(true, 64, true, 300, true, 64, "fading")] // clear bar over the art, content ramps in below it (#640)
+    [InlineData(true, 64, true, 12, true, 64, "fading")]
+    [InlineData(true, 64, false, 300, true, 64, "hard-edge")] // R7: content cut hard at the bar's bottom
+    public void OverlayEdge_HidesContentBehindClearChromeAndFadesItBelow(
+        bool chromeShown, double chromeBottom, bool enabled, double offset, bool masked, double edge, string status)
+    {
+        var result = SongHeaderEdgeFade.OverlayEdge(chromeShown, chromeBottom, enabled, offset);
+        Assert.Equal(masked, result.Masked);
+        Assert.Equal(edge, result.Edge, 6);
+        Assert.Equal(!enabled, result.HardEdge);
+        Assert.Equal(status, result.Status);
+    }
 }

@@ -414,6 +414,45 @@
     ]
   },
   {
+    "name": "modal-notifications",
+    "tab": "songs",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "fixture": [
+      "notifications_fixture.py"
+    ],
+    "tabs": 6,
+    "ready": [
+      "waitfor:id=fst.songs.row.fixture-pulse@30",
+      "focus:id=fst.shell.notifications",
+      "key:enter",
+      "waitfor:id=fst.notifications.sheet@10",
+      "assertname:id=CloseButton|Close",
+      "waitgone:id=PrimaryButton@2",
+      "waitgone:id=SecondaryButton@2"
+    ],
+    "after_ready": [
+      "waitfor:name=Notifications@5",
+      "waitfor:id=fst.notifications.row.fixture-notif-rank@15",
+      "assertread:id=CloseButton|Close, button",
+      "assertorder:name=Notifications|id=fst.notifications.row.fixture-notif-rank|id=CloseButton",
+      "assertsize:id=CloseButton|40x40",
+      "assertat:id=CloseButton|-18.5,0",
+      "assertat:id=CloseButton|18.5,0",
+      "assertat:id=CloseButton|0,-18.5",
+      "assertat:id=CloseButton|0,18.5",
+      "focus:id=CloseButton",
+      "key:shift+tab",
+      "key:tab",
+      "assertfocus:id=CloseButton@3",
+      "wait:0.5"
+    ],
+    "teardown": [
+      "key:esc",
+      "waitgone:id=fst.notifications.sheet@5",
+      "assertfocus:id=fst.shell.notifications@3"
+    ]
+  },
+  {
     "name": "modal-invalid-score",
     "route": "/songs",
     "profile": "fixture-player-1:Fixture Player 1",

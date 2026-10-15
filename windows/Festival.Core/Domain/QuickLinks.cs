@@ -104,6 +104,21 @@ public static class QuickLinks
     /// </summary>
     public const double BringIntoViewOffset = LandingOffset;
 
+    /// <summary>
+    /// Shortest gap (ms) between two current-section reports while a scroll is still moving (#642). A scroller raises
+    /// a view change every rendered frame (120 per second on a 120 Hz display); measuring every anchor each time took
+    /// 1–8 ms of the 8.3 ms frame and dropped frames. A rest (final) view change always reports at once.
+    /// </summary>
+    public const double IntermediateReportInterval = 100;
+
+    /// <summary>How long a moving scroll's current-section report waits (#642).</summary>
+    /// <param name="sinceLastReportMs">Time since the previous report, in ms.</param>
+    /// <returns>0 to report now, otherwise the wait in ms before the trailing report.</returns>
+    public static double IntermediateReportDelay(double sinceLastReportMs) =>
+        sinceLastReportMs >= IntermediateReportInterval || sinceLastReportMs < 0 || double.IsNaN(sinceLastReportMs)
+            ? 0
+            : IntermediateReportInterval - sinceLastReportMs;
+
     /// <summary>Scroll offset that puts an anchor <paramref name="landingMargin"/> below the viewport top.</summary>
     /// <param name="verticalOffset">Current scroll offset.</param>
     /// <param name="anchorTop">Anchor top relative to the viewport.</param>

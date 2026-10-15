@@ -66,6 +66,8 @@ public class HitTargetMarkupTests
     [InlineData("Pages/LeaderboardsBandRankingsPage.xaml", "fst.band-rankings.band-type-menu", false)]
     [InlineData("Pages/LeaderboardsBandRankingsPage.xaml", "fst.band-rankings.rank-by-menu", false)]
     [InlineData("Pages/SongDetailPage.xaml", "fst.song-detail.pinned-paths", false)]
+    [InlineData("Pages/SongDetailPage.xaml", "fst.song-detail.shop", false)]
+    [InlineData("Pages/SongDetailPage.xaml", "fst.song-detail.pinned-shop", false)]
     public void ToolButtons_UseMinTarget(string file, string id, bool iconOnly)
     {
         var button = Assert.Single(ById(Load(file), id));
@@ -375,7 +377,9 @@ public class HitTargetMarkupTests
         Assert.Equal("OnProfileButtonClick", Attr(profile, "Click"));
         var bell = Assert.Single(ById(Load(Path.Combine("Controls", "NotificationsBell.xaml")), "fst.shell.notifications"));
         Assert.Equal("{x:Bind Model.BellName, Mode=OneWay}", Attr(bell, "AutomationProperties.Name"));
-        Assert.Contains(bell.Elements(), e => e.Name.LocalName == "Button.Flyout");
+        // Issue #638: the bell opens the shared edge-docked dialog, not an anchored Flyout.
+        Assert.Equal("OnBellClick", Attr(bell, "Click"));
+        Assert.DoesNotContain(bell.Elements(), e => e.Name.LocalName == "Button.Flyout");
     }
 
     [Fact]

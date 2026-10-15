@@ -338,6 +338,44 @@ public static class SongDetailLayout
         var inset = Math.Max(double.IsFinite(pinnedHeaderHeight) ? pinnedHeaderHeight : 0, MinFocusTopInset);
         return (top - inset, Math.Max(0, height) + inset);
     }
+
+    /// <summary>Pinned bar's cover art width (epx).</summary>
+    public const double PinnedArtWidth = 40;
+
+    /// <summary>Pinned bar's column spacing (epx).</summary>
+    public const double PinnedColumnSpacing = 12;
+
+    /// <summary>Narrowest title column (epx) the pinned bar keeps beside its tools; narrower, the tools move under it.</summary>
+    public const double MinPinnedTitleWidth = 160;
+
+    /// <summary>Natural width of a row of tools: their widths plus the spacing between them.</summary>
+    /// <param name="widths">Visible tools' desired widths.</param>
+    /// <param name="spacing">Spacing between tools.</param>
+    /// <returns>Row width in epx (0 with no tools).</returns>
+    public static double ToolsRowWidth(IEnumerable<double> widths, double spacing)
+    {
+        var count = 0;
+        var total = 0.0;
+        foreach (var width in widths)
+        {
+            if (!double.IsFinite(width) || width <= 0) continue;
+            total += width;
+            count++;
+        }
+        return count == 0 ? 0 : total + spacing * (count - 1);
+    }
+
+    /// <summary>
+    /// Whether the pinned bar's tools (Paths, Item Shop, Quick Links) move to a row under the art and title, so the
+    /// title keeps at least <see cref="MinPinnedTitleWidth"/> (issue #639). The tools' natural width is the same in
+    /// either row, so the placement never oscillates.
+    /// </summary>
+    /// <param name="barWidth">Pinned bar's content width.</param>
+    /// <param name="toolsWidth">Tools' natural row width (<see cref="ToolsRowWidth"/>).</param>
+    /// <returns><see langword="true"/> to put the tools under the title.</returns>
+    public static bool PinnedToolsBelowTitle(double barWidth, double toolsWidth) =>
+        double.IsFinite(barWidth) && barWidth > 0 && toolsWidth > 0
+        && barWidth - PinnedArtWidth - 2 * PinnedColumnSpacing - toolsWidth < MinPinnedTitleWidth;
 }
 
 /// <summary>One Intensity row: icon, meter and spoken level.</summary>
