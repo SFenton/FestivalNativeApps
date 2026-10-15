@@ -98,16 +98,20 @@ public sealed record SuggestionRowPresentation
         return SuggestionRowLayout.InstrumentChips;
     }
 
-    /// <summary>Key prefixes of rival categories built around one rival, whose title already names that rival ("Rival Spotlight: {name}", "Close the Gap vs {name}", …).</summary>
+    /// <summary>
+    /// Key prefixes of rival categories built around one rival, whose title already names that rival ("Rival Spotlight: {name}",
+    /// "Close the Gap vs {name}", "Climb Past {name}", …). The named cross-pollination families list only their rival since #656 (rule R1).
+    /// </summary>
     private static readonly string[] SingleRivalPrefixes =
     [
         "song_rival_spotlight_", "song_rival_gap_", "song_rival_protect_", "song_rival_slipping_", "song_rival_dominate_",
+        "song_rival_near_fc", "song_rival_star_gains", "song_rival_pct_push",
     ];
 
     /// <summary>
     /// Whether a rival row draws the rival's name badge beside its rank difference (Apple <c>SuggestionRowLayout.showsRivalName</c>).
     /// Single-rival cards name the rival in their title, so a per-row badge only repeats it (issue #29); mixed-rival cards
-    /// (Battleground and the cross-pollination families) keep it because each row can be about a different rival.
+    /// (Battleground and Stale Songs Your Rivals Are Beating You On) keep it because each row can be about a different rival.
     /// </summary>
     /// <param name="categoryKey">Generator key.</param>
     /// <returns>False for single-rival categories, true otherwise.</returns>

@@ -20,13 +20,26 @@ public sealed class SuggestionParityTests
 
     internal sealed record Fixture(List<Song> Songs, List<FixtureScore> Scores, RivalsAllResponse RivalsAll, uint[] RngSeeds, List<Scenario> Scenarios);
 
-    private static readonly Lazy<(Fixture Fixture, JsonNode Expected)> Data = new(() =>
+    private static (Fixture Fixture, JsonNode Expected) Load(string name)
     {
         var dir = Path.Combine(AppContext.BaseDirectory, "Fixtures");
-        var fixture = JsonSerializer.Deserialize<Fixture>(File.ReadAllText(Path.Combine(dir, "suggestions-parity.json")), Web)!;
-        var expected = JsonNode.Parse(File.ReadAllText(Path.Combine(dir, "suggestions-parity.expected.json")))!;
+        var fixture = JsonSerializer.Deserialize<Fixture>(File.ReadAllText(Path.Combine(dir, $"{name}.json")), Web)!;
+        var expected = JsonNode.Parse(File.ReadAllText(Path.Combine(dir, $"{name}.expected.json")))!;
         return (fixture, expected);
-    });
+    }
+
+    private static readonly Lazy<(Fixture Fixture, JsonNode Expected)> Data = new(() => Load("suggestions-parity"));
+
+    /// <summary>Two rivals, each the closest on alternating songs: the cross-platform case for Suggestions rule R1 (#656).</summary>
+    private static readonly Lazy<(Fixture Fixture, JsonNode Expected)> NamedRivalData = new(() => Load("named-rival-parity"));
+
+    /// <summary>Category key → title template of the cards that name one rival (rule R1; <c>run_parity.py</c> <c>NAMED_RIVAL_TITLES</c>).</summary>
+    private static readonly Dictionary<string, string> NamedRivalTitles = new(StringComparer.Ordinal)
+    {
+        ["song_rival_pct_push"] = "Climb Past {0}",
+        ["song_rival_star_gains"] = "Gain Stars & Beat {0}",
+        ["song_rival_near_fc"] = "FC These to Beat {0}!",
+    };
 
     internal static Fixture LoadFixture() => Data.Value.Fixture;
 
@@ -76,12 +89,63 @@ public sealed class SuggestionParityTests
 
     public static TheoryData<string> ScenarioNames() => new(LoadFixture().Scenarios.Select(s => s.Name));
 
+    public static TheoryData<string> NamedRivalScenarioNames() => new(NamedRivalData.Value.Fixture.Scenarios.Select(s => s.Name));
+
     [Theory]
     [MemberData(nameof(ScenarioNames))]
-    public void ScenarioMatchesApple(string name)
+    public void ScenarioMatchesApple(string name) => AssertScenarioMatches(Data.Value, name);
+
+    /// <summary>Rule R1 (#656): the two-rival fixture's every page matches Apple, and every named card lists only its rival.</summary>
+    [Theory]
+    [MemberData(nameof(NamedRivalScenarioNames))]
+    public void NamedRivalScenarioMatchesApple(string name)
     {
-        var (fixture, expected) = Data.Value;
-        var scenario = fixture.Scenarios.Single(s => s.Name == name);
+        var (pages, resetPages) = AssertScenarioMatches(NamedRivalData.Value, name);
+        var named = 0;
+        foreach (var category in pages.Concat(resetPages).SelectMany(p => p!.AsArray()).Select(c => c!.AsObject()))
+        {
+            if (!NamedRivalTitles.TryGetValue(category["key"]!.GetValue<string>(), out var template)) continue;
+            named++;
+            var songs = category["songs"]!.AsArray();
+            var accounts = songs.Select(s => s!["rivalAccountId"]?.GetValue<string>()).Distinct().ToList();
+            var names = songs.Select(s => s!["rivalName"]?.GetValue<string>()).Distinct().ToList();
+            var title = category["title"]!.GetValue<string>();
+            Assert.True(accounts is [{ }] && names is [{ } rival] && title == string.Format(template, rival),
+                $"{name}: '{title}' lists rivals {string.Join(", ", names)}");
+        }
+        Assert.True(named > 0, $"{name}: no named-rival card to check");
+    }
+
+    /// <summary>The only cards whose rows may name different rivals are the ones that name none in their title.</summary>
+    [Fact]
+    public void SharedFixtureNamedRivalCardsListOnlyTheirRival()
+    {
+        var (fixture, _) = Data.Value;
+        foreach (var scenario in fixture.Scenarios)
+        {
+            var (pages, resetPages) = Run(fixture, scenario);
+            foreach (var category in pages.Concat(resetPages).SelectMany(p => p!.AsArray()).Select(c => c!.AsObject()))
+            {
+                if (!NamedRivalTitles.ContainsKey(category["key"]!.GetValue<string>())) continue;
+                var accounts = category["songs"]!.AsArray().Select(s => s!["rivalAccountId"]?.GetValue<string>()).Distinct().Count();
+                Assert.True(accounts == 1, $"{scenario.Name}: '{category["title"]}' lists {accounts} rivals");
+            }
+        }
+    }
+
+    private static (JsonArray Pages, JsonArray ResetPages) AssertScenarioMatches((Fixture Fixture, JsonNode Expected) data, string name)
+    {
+        var (fixture, expected) = data;
+        var (pages, resetPages) = Run(fixture, fixture.Scenarios.Single(s => s.Name == name));
+        var expectedScenario = expected["scenarios"]!.AsArray().Single(s => s!["name"]!.GetValue<string>() == name)!;
+        AssertSame(expectedScenario["pages"], pages, $"{name}.pages");
+        AssertSame(expectedScenario["resetPages"], resetPages, $"{name}.resetPages");
+        return (pages, resetPages);
+    }
+
+    /// <summary>Runs one scenario exactly as <c>tools/windows/suggestion_parity/main.swift</c> does.</summary>
+    private static (JsonArray Pages, JsonArray ResetPages) Run(Fixture fixture, Scenario scenario)
+    {
         var rivals = RivalDataIndex.Build(fixture.RivalsAll);
         var generator = new SuggestionGenerator(new SuggestionGenerator.Options(
             scenario.Seed, scenario.DisableSkipping ?? false, scenario.FixedDisplayCount, scenario.CurrentSeason));
@@ -102,9 +166,7 @@ public sealed class SuggestionParityTests
                 foreach (var count in counts) resetPages.Add(Page(generator.GetNext(count)));
             }
         }
-        var expectedScenario = expected["scenarios"]!.AsArray().Single(s => s!["name"]!.GetValue<string>() == name)!;
-        AssertSame(expectedScenario["pages"], pages, $"{name}.pages");
-        AssertSame(expectedScenario["resetPages"], resetPages, $"{name}.resetPages");
+        return (pages, resetPages);
     }
 
     private static JsonArray Page(IReadOnlyList<SuggestionCategory> categories) =>
