@@ -50,6 +50,8 @@ import java.util.concurrent.CopyOnWriteArrayList
  *   at least 48 dp and the pickers speak their new choice; the new rows are read before the pager.
  * - Leaderboards overview Rank By change: the cards that keep loading under the spinner are silent
  *   to TalkBack (R2, #178), the spinner reads "Loading leaderboards" and Rank By its new choice.
+ * - Leaderboards overview first load and Rank By reload (#649, R1): Quick Links leaves TalkBack's
+ *   tree with the cards and returns with them as a 48 dp stop.
  * - Song leaderboard instrument switch (#575): no pager and no placeholder "Page 1 of 1" is read
  *   until the new board's page count loads; then the pager reads "Page 1 of 3" at 48 dp.
  *
@@ -396,6 +398,39 @@ class LoadSwapAccessibilityJourneyTest {
         val order = h.readingOrder("leaderboards-adjusted", fresh = true)
         assertTrue("spinner still read after the reload: $order", order.none { it.startsWith("Loading leaderboards") })
         assertTrue("overview content not readable after the reload", visibleNodes("fst.leaderboards.").isNotEmpty())
+        h.assertAccessible()
+    }
+
+    /**
+     * Leaderboards overview first load and Rank By reload (#649, `load-transition` R1): Quick Links
+     * is not in TalkBack's tree while the spinner shows (Rank By stays usable at 48 dp), then
+     * arrives with the cards as a 48 dp, enabled stop.
+     */
+    @Test
+    fun leaderboardsQuickLinksArriveWithTheCards() {
+        h.enableAccessibilityChecks()
+        val first = hold { it.contains("/api/rankings/Solo_Guitar") && !it.contains("rankBy=adjusted") }
+        h.launch(DebugLaunch(route = DebugLaunch.parseRoute("leaderboards"), profile = player, stillBackground = true), transport, experimentalRanks())
+        assertSpinner("leaderboards-first-load", "fst.leaderboards.loading", "Loading leaderboards", "fst.leaderboards", "fst.quick-links.open", after = null)
+        assertTrue("Quick Links readable beside the spinner", visibleNodes("fst.quick-links.open").isEmpty())
+        assertTarget("fst.rankings.rank-by-menu")
+        h.assertAccessible()
+
+        first.complete(Unit)
+        h.waitGone("fst.leaderboards.loading")
+        h.awaitAccessibilityTree(present = "fst.quick-links.open", absent = "fst.leaderboards.loading")
+        assertTarget("fst.quick-links.open", enabled = true)
+        h.readingOrder("leaderboards-quick-links", fresh = true)
+        h.assertAccessible()
+
+        val adjusted = hold { it.contains("/api/rankings/") && it.contains("rankBy=adjusted") }
+        h.tap("fst.rankings.rank-by-menu")
+        h.tap("fst.rankings.rank-by.adjusted")
+        assertSpinner("leaderboards-rank-by-quick-links", "fst.leaderboards.loading", "Loading leaderboards", "fst.leaderboards", "fst.quick-links.open", after = null)
+        adjusted.complete(Unit)
+        h.waitGone("fst.leaderboards.loading")
+        h.awaitAccessibilityTree(present = "fst.quick-links.open", absent = "fst.leaderboards.loading")
+        assertTarget("fst.quick-links.open", enabled = true)
         h.assertAccessible()
     }
 }
