@@ -97,84 +97,106 @@
                       AutomationProperties.Name="Display" AutomationProperties.AutomationId="fst.paths.display.compact" />
         </Grid>
 
-        <Grid x:Name="ChartArea" Grid.Row="1" MinHeight="240">
-            <!-- Web PathsModal swap: content fades out, the spinner fades in/holds/fades out, the new content fades in
-                 (300 ms opacity transitions set in code; none without motion). -->
-            <ProgressRing x:Name="PathSpinner" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="40" Height="40"
-                          Opacity="{x:Bind ViewModel.SpinnerOpacity, Mode=OneWay}"
-                          AutomationProperties.Name="Loading path" AutomationProperties.AutomationId="fst.paths.loading" />
+        <!-- Karaoke notice (web "Some Instruments Unavailable" alert): an inline Fluent InfoBar above the chart that opens
+             only once the first read has settled, so it never shows before the content (issue #649, load-transition R1).
+             Not a second ContentDialog: a non-blocking hint stays inline and doesn't take focus. -->
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <InfoBar x:Name="PathNotice" Severity="Informational" IsClosable="False" Margin="0,0,0,12"
+                     Title="Some Instruments Unavailable" Message="Karaoke is not available for path visualization yet."
+                     IsOpen="{x:Bind ViewModel.ShowWarning, Mode=OneWay}" Visibility="{x:Bind ViewModel.ShowWarning, Mode=OneWay}"
+                     AutomationProperties.AutomationId="fst.paths.warning">
+                <!-- Fluent's 40 epx minimum targets, like the dialog buttons they replace (FeedbackDialog's discard bar). -->
+                <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,12">
+                    <Button Content="OK" Click="OnNoticeOk" MinHeight="{StaticResource FSTMinTargetSize}"
+                            AutomationProperties.AutomationId="fst.paths.warning.ok" />
+                    <Button Content="Don't Show Again" Click="OnNoticeNeverAgain" MinHeight="{StaticResource FSTMinTargetSize}"
+                            AutomationProperties.AutomationId="fst.paths.warning.never" />
+                </StackPanel>
+            </InfoBar>
 
-            <Grid x:Name="ChartContent" Opacity="{x:Bind ViewModel.ContentOpacity, Mode=OneWay}">
-                <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
-                                            Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
-                                            AutomationProperties.AutomationId="fst.paths.error" />
+            <Grid x:Name="ChartArea" Grid.Row="1" MinHeight="240">
+                <!-- Web PathsModal swap: content fades out, the spinner fades in/holds/fades out, the new content fades in
+                     (300 ms opacity transitions set in code; none without motion). -->
+                <ProgressRing x:Name="PathSpinner" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="40" Height="40"
+                              Opacity="{x:Bind ViewModel.SpinnerOpacity, Mode=OneWay}"
+                              AutomationProperties.Name="Loading path" AutomationProperties.AutomationId="fst.paths.loading" />
 
-                <!-- Shared EmptyStateView (compact: the chart region's header is the heading), centred, no card (#377). -->
-                <controls:EmptyStateView IsCompact="True" Title="No path has been generated for this instrument and difficulty yet."
-                                         Visibility="{x:Bind ViewModel.ShowNotGenerated, Mode=OneWay}" TitleAutomationId="fst.paths.empty" />
+                <Grid x:Name="ChartContent" Opacity="{x:Bind ViewModel.ContentOpacity, Mode=OneWay}">
+                    <controls:ServiceStatusView Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
+                                                Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}"
+                                                AutomationProperties.AutomationId="fst.paths.error" />
 
-                <!-- Image: native pinch / Ctrl+wheel zoom plus explicit buttons; fades in with ChartContent (web fadeInImage).
-                     Centred with equal margins at fit zoom (issue #87); Fluent's auto-hiding scroll bars overlay it. -->
-                <Grid RowSpacing="8" Visibility="{x:Bind ViewModel.ShowImage, Mode=OneWay}">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <!-- Zoom out/in keep Fluent's 40 epx minimum touch target (FSTMinTargetSize, issue #430). -->
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Click="OnZoomOut" MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}" IsEnabled="{x:Bind ViewModel.CanZoomOut, Mode=OneWay}" AutomationProperties.Name="Zoom out"
-                                AutomationProperties.AutomationId="fst.paths.zoom-out">
-                            <FontIcon Glyph="&#xE71F;" FontSize="14" />
-                        </Button>
-                        <TextBlock Text="{x:Bind ViewModel.ZoomText, Mode=OneWay}" VerticalAlignment="Center" MinWidth="48" TextAlignment="Center"
-                                   AutomationProperties.LiveSetting="Polite" />
-                        <Button Click="OnZoomIn" MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}" IsEnabled="{x:Bind ViewModel.CanZoomIn, Mode=OneWay}" AutomationProperties.Name="Zoom in"
-                                AutomationProperties.AutomationId="fst.paths.zoom-in">
-                            <FontIcon Glyph="&#xE8A3;" FontSize="14" />
-                        </Button>
-                    </StackPanel>
-                    <!-- A tab stop (named, own ID) so keyboard users can pan a zoomed or tall chart with arrow/Page keys.
-                         Bars Hidden (no indicator beside the chart, issues #87/#279) unless Windows always shows scroll
-                         bars (ApplyScrollBars); the scroll modes and zoom stay enabled. -->
-                    <ScrollViewer x:Name="ImageScroller" Grid.Row="1" ZoomMode="Enabled" MinZoomFactor="1" MaxZoomFactor="3"
-                                  HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"
-                                  HorizontalScrollMode="Auto" VerticalScrollMode="Auto"
-                                  IsTabStop="True" AutomationProperties.Name="Path chart" AutomationProperties.AutomationId="fst.paths.image-scroller"
-                                  ViewChanged="OnImageViewChanged" SizeChanged="OnImageScrollerSizeChanged">
-                        <Image x:Name="PathImage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Top"
-                               AutomationProperties.Name="{x:Bind ViewModel.ImageDescription, Mode=OneWay}"
-                               AutomationProperties.AutomationId="fst.paths.image" />
-                    </ScrollViewer>
-                </Grid>
+                    <!-- Shared EmptyStateView (compact: the chart region's header is the heading), centred, no card (#377). -->
+                    <controls:EmptyStateView IsCompact="True" Title="No path has been generated for this instrument and difficulty yet."
+                                             Visibility="{x:Bind ViewModel.ShowNotGenerated, Mode=OneWay}" TitleAutomationId="fst.paths.empty" />
 
-                <!-- Text (web PathDataTable): a column header row, then one card per activation in the saved column order;
-                     no summary or max score. Narrow sheets stack each card like the web's mobile rows. -->
-                <Grid Visibility="{x:Bind ViewModel.ShowTable, Mode=OneWay}" RowSpacing="4" SizeChanged="OnTableSizeChanged">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <Grid x:Name="TableHeader" Padding="13,4,25,4" ColumnSpacing="10" AutomationProperties.AccessibilityView="Raw" />
-                    <!-- A tab stop so keyboard users can scroll a long activation list (the cards themselves aren't focusable). -->
-                    <ScrollViewer Grid.Row="1" Padding="0,0,12,0" IsTabStop="True" AutomationProperties.Name="Path table"
-                                  AutomationProperties.AutomationId="fst.paths.table">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="Paths Not Available" Visibility="{x:Bind ViewModel.HasNoActivations, Mode=OneWay}"
-                                       HorizontalAlignment="Center" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
-                            <ItemsRepeater x:Name="Activations" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" ElementPrepared="OnActivationPrepared"
-                                           controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48"
-                                           AutomationProperties.Name="Path activations">
-                                <ItemsRepeater.Layout>
-                                    <StackLayout Spacing="4" />
-                                </ItemsRepeater.Layout>
-                                <ItemsRepeater.ItemTemplate>
-                                    <DataTemplate x:DataType="data:PathActivationRow">
-                                        <Border Style="{StaticResource FSTCardStyle}" Padding="12,8" />
-                                    </DataTemplate>
-                                </ItemsRepeater.ItemTemplate>
-                            </ItemsRepeater>
+                    <!-- Image: native pinch / Ctrl+wheel zoom plus explicit buttons; fades in with ChartContent (web fadeInImage).
+                         Centred with equal margins at fit zoom (issue #87); Fluent's auto-hiding scroll bars overlay it. -->
+                    <Grid RowSpacing="8" Visibility="{x:Bind ViewModel.ShowImage, Mode=OneWay}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <!-- Zoom out/in keep Fluent's 40 epx minimum touch target (FSTMinTargetSize, issue #430). -->
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Click="OnZoomOut" MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}" IsEnabled="{x:Bind ViewModel.CanZoomOut, Mode=OneWay}" AutomationProperties.Name="Zoom out"
+                                    AutomationProperties.AutomationId="fst.paths.zoom-out">
+                                <FontIcon Glyph="&#xE71F;" FontSize="14" />
+                            </Button>
+                            <TextBlock Text="{x:Bind ViewModel.ZoomText, Mode=OneWay}" VerticalAlignment="Center" MinWidth="48" TextAlignment="Center"
+                                       AutomationProperties.LiveSetting="Polite" />
+                            <Button Click="OnZoomIn" MinWidth="{StaticResource FSTMinTargetSize}" MinHeight="{StaticResource FSTMinTargetSize}" IsEnabled="{x:Bind ViewModel.CanZoomIn, Mode=OneWay}" AutomationProperties.Name="Zoom in"
+                                    AutomationProperties.AutomationId="fst.paths.zoom-in">
+                                <FontIcon Glyph="&#xE8A3;" FontSize="14" />
+                            </Button>
                         </StackPanel>
-                    </ScrollViewer>
+                        <!-- A tab stop (named, own ID) so keyboard users can pan a zoomed or tall chart with arrow/Page keys.
+                             Bars Hidden (no indicator beside the chart, issues #87/#279) unless Windows always shows scroll
+                             bars (ApplyScrollBars); the scroll modes and zoom stay enabled. -->
+                        <ScrollViewer x:Name="ImageScroller" Grid.Row="1" ZoomMode="Enabled" MinZoomFactor="1" MaxZoomFactor="3"
+                                      HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"
+                                      HorizontalScrollMode="Auto" VerticalScrollMode="Auto"
+                                      IsTabStop="True" AutomationProperties.Name="Path chart" AutomationProperties.AutomationId="fst.paths.image-scroller"
+                                      ViewChanged="OnImageViewChanged" SizeChanged="OnImageScrollerSizeChanged">
+                            <Image x:Name="PathImage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Top"
+                                   AutomationProperties.Name="{x:Bind ViewModel.ImageDescription, Mode=OneWay}"
+                                   AutomationProperties.AutomationId="fst.paths.image" />
+                        </ScrollViewer>
+                    </Grid>
+
+                    <!-- Text (web PathDataTable): a column header row, then one card per activation in the saved column order;
+                         no summary or max score. Narrow sheets stack each card like the web's mobile rows. -->
+                    <Grid Visibility="{x:Bind ViewModel.ShowTable, Mode=OneWay}" RowSpacing="4" SizeChanged="OnTableSizeChanged">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Grid x:Name="TableHeader" Padding="13,4,25,4" ColumnSpacing="10" AutomationProperties.AccessibilityView="Raw" />
+                        <!-- A tab stop so keyboard users can scroll a long activation list (the cards themselves aren't focusable). -->
+                        <ScrollViewer Grid.Row="1" Padding="0,0,12,0" IsTabStop="True" AutomationProperties.Name="Path table"
+                                      AutomationProperties.AutomationId="fst.paths.table">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Paths Not Available" Visibility="{x:Bind ViewModel.HasNoActivations, Mode=OneWay}"
+                                           HorizontalAlignment="Center" Foreground="{ThemeResource FSTSecondaryTextBrush}" />
+                                <ItemsRepeater x:Name="Activations" ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}" ElementPrepared="OnActivationPrepared"
+                                               controls:FadeIn.Stagger="True" controls:FadeIn.RowHeight="48"
+                                               AutomationProperties.Name="Path activations">
+                                    <ItemsRepeater.Layout>
+                                        <StackLayout Spacing="4" />
+                                    </ItemsRepeater.Layout>
+                                    <ItemsRepeater.ItemTemplate>
+                                        <DataTemplate x:DataType="data:PathActivationRow">
+                                            <Border Style="{StaticResource FSTCardStyle}" Padding="12,8" />
+                                        </DataTemplate>
+                                    </ItemsRepeater.ItemTemplate>
+                                </ItemsRepeater>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
                 </Grid>
             </Grid>
         </Grid>

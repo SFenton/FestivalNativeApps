@@ -6,12 +6,14 @@
     "ready": [
       "waitfor:id=fst.song-detail.paths@20",
       "invoke:id=fst.song-detail.paths",
-      "waitfor:id=fst.paths.warning@10",
+      "waitfor:id=fst.paths@10",
+      "waitfor:id=fst.paths.image@15",
+      "waitfor:id=fst.paths.warning@5",
       "waitfor:name=Don't Show Again@5"
     ],
     "teardown": [
-      "invoke:name=OK",
-      "waitfor:id=fst.paths@10",
+      "invoke:id=fst.paths.warning.ok",
+      "waitgone:id=fst.paths.warning@3",
       "key:esc"
     ]
   },
@@ -980,8 +982,8 @@
       "waitfor:id=fst.song-detail.paths@20",
       "invoke:id=fst.song-detail.paths",
       "waitfor:id=fst.paths@10",
-      "waitgone:id=fst.paths.warning@1",
       "waitfor:id=fst.paths.image@15",
+      "waitgone:id=fst.paths.warning@1",
       "assertstate:id=fst.paths.instrument.compact|value=Lead@5",
       "expand:id=fst.paths.instrument.compact",
       "waitfor:name=Drums&class=ComboBoxItem@5",
@@ -1021,8 +1023,8 @@
       "waitfor:id=fst.song-detail.paths@20",
       "invoke:id=fst.song-detail.paths",
       "waitfor:id=fst.paths@10",
-      "waitgone:id=fst.paths.warning@1",
       "waitfor:id=fst.paths.image@15",
+      "waitgone:id=fst.paths.warning@1",
       "waitfor:id=fst.paths.instrument.Solo_Drums@5",
       "waitgone:id=fst.paths.instrument.Solo_Bass@1",
       "waitgone:id=fst.paths.instrument.Solo_Vocals@1",

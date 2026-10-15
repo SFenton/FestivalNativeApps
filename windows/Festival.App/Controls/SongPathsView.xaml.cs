@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage.Streams;
@@ -108,8 +109,9 @@ public sealed partial class SongPathsView : UserControl
 
     #region Presentation
     /// <summary>
-    /// Opens Paths as a modal dialog. The first opening per app session while Karaoke is visible first shows the web's
-    /// "Some Instruments Unavailable" alert as its own native dialog (OK, or "Don't show again" to persist the choice).
+    /// Opens Paths as a modal dialog. The first opening per app session while Karaoke is visible shows the web's
+    /// "Some Instruments Unavailable" alert as an inline InfoBar above the chart once the first read settles (issue #649;
+    /// before, a separate dialog showed it ahead of the content).
     /// </summary>
     /// <param name="xamlRoot">Window root.</param>
     /// <param name="paths">Paths session.</param>
@@ -117,19 +119,6 @@ public sealed partial class SongPathsView : UserControl
     /// <returns>Completes when the dialog closes (reads are cancelled).</returns>
     public static async Task ShowAsync(XamlRoot xamlRoot, SongPathsViewModel paths, string title)
     {
-        if (paths.ShowWarning)
-        {
-            var notice = FestivalDialog.Create(
-                xamlRoot,
-                "Some Instruments Unavailable",
-                "Karaoke is not available for path visualization yet.",
-                "fst.paths.warning",
-                closeText: "",
-                primaryText: "OK",
-                secondaryText: "Don't Show Again",
-                defaultButton: ContentDialogButton.Primary);
-            paths.DismissWarning(await FestivalDialog.ShowAsync(notice) == ContentDialogResult.Secondary);
-        }
         // Near full-window at compact sizes (the chart fills the sheet); never wider than the window. The content gets
         // the width explicitly: a dialog sizes to its content, and the layout picks its selectors from that width. The
         // content box is the dialog less its padding and border; a view wider than it is clipped on the right (#269).
@@ -264,6 +253,25 @@ public sealed partial class SongPathsView : UserControl
 
     /// <summary>Shows the current instrument in the wide Instrument Selector (the compact ComboBox binds the index).</summary>
     private void SyncInstrument() => InstrumentPicker.Selected = ViewModel.Instrument;
+
+    /// <summary>Closes the Karaoke notice for this opening; focus moves to the chart region's first stop.</summary>
+    /// <param name="sender">OK button.</param>
+    /// <param name="e">Unused.</param>
+    private void OnNoticeOk(object sender, RoutedEventArgs e) => DismissNotice(permanently: false);
+
+    /// <summary>Closes the Karaoke notice and keeps it closed ("Don't show again").</summary>
+    /// <param name="sender">Don't Show Again button.</param>
+    /// <param name="e">Unused.</param>
+    private void OnNoticeNeverAgain(object sender, RoutedEventArgs e) => DismissNotice(permanently: true);
+
+    /// <summary>Dismisses the notice, handing keyboard focus on to the next stop rather than letting it fall out of the sheet.</summary>
+    /// <param name="permanently">Persist "Don't show again".</param>
+    private void DismissNotice(bool permanently)
+    {
+        var hadFocus = CollapsedToolTip.HasFocusWithin(PathNotice);
+        ViewModel.DismissWarning(permanently);
+        if (hadFocus && FocusManager.FindFirstFocusableElement(ChartArea) is Control next) next.Focus(FocusState.Programmatic);
+    }
 
     /// <summary>A wide Instrument Selector pick (required: it never clears).</summary>
     /// <param name="sender">Selector.</param>
