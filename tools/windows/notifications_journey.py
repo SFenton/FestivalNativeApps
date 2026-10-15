@@ -1,4 +1,4 @@
-"""Notifications (bell + flyout) UI journeys on Windows for every reachable state (issue #229).
+"""Notifications (bell + side panel or bottom sheet) UI journeys on Windows for every reachable state (issue #229).
 
 Starts ``tools/windows/notifications_fixture.py`` (the synthetic mock plus switchable notification feeds) on a free
 loopback port, then for each scenario launches this worktree's app with a throwaway settings file and app-data folder
@@ -119,8 +119,23 @@ def open_flyout() -> list[str]:
     return ["waitfor:id=fst.songs.row.fixture-pulse@30", f"invoke:{BELL}", "waitfor:id=fst.notifications.sheet@10"]
 
 
+def reveal(row: str) -> str:
+    """Step that scrolls a notification row into the list's viewport.
+
+    The side panel and bottom sheet (issue #638) hold fewer rows than the old flyout, so a row is revealed before a step
+    that needs it on screen.
+
+    Args:
+        row: Row key after ``fixture-notif-``.
+
+    Returns:
+        Drive step.
+    """
+    return f"scrollinto:{ROW}fixture-notif-{row}"
+
+
 def rows_present(section: str) -> list[str]:
-    """Steps asserting every rich row is on screen in one section.
+    """Steps asserting every rich row is listed in one section, revealing each in turn, then the list's top again.
 
     Args:
         section: ``New`` or ``Older``.
@@ -133,8 +148,27 @@ def rows_present(section: str) -> list[str]:
         "waitfor:id=fst.notifications.list@15",
         f"waitfor:name={section} notifications",
         f"waitgone:name={other} notifications",
-        *[f"waitfor:{ROW}fixture-notif-{row}" for row in RICH_ROWS],
+        *[step for row in RICH_ROWS for step in (reveal(row), f"waitfor:{ROW}fixture-notif-{row}")],
+        reveal(RICH_ROWS[0]),
     ]
+
+
+def media_row(row: str) -> list[str]:
+    """Steps checking one media row's Narrator name, paint and bold runs.
+
+    Rows after the first are placed 8 epx below the list's top (or the list's end) first, so the whole card is in the
+    viewport for the paint probes.
+
+    Args:
+        row: A :data:`MEDIA_ROWS` key.
+
+    Returns:
+        Drive steps.
+    """
+    place = [] if row == MEDIA_ROWS[0] else [
+        reveal(row), f"scrollinset:{ROW}fixture-notif-{row}|id=fst.notifications.list|8|end", "wait:0.5"]
+    return [*place, f"waitfor:{ROW}fixture-notif-{row}@5",
+            f"assertstate:{ROW}fixture-notif-{row}|name=Unread. {MEDIA_NAMES[row]}", *media_paint(row)]
 
 
 # name -> (environment, route, steps, sizes or None for every size).
@@ -215,9 +249,11 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, list[str], set[str] | None]] = {
         [
             *open_flyout(),
             *rows_present("New"),
+            reveal("total"),
             f"invoke:{ROW}fixture-notif-total",
             "wait:1",
             "waitfor:id=fst.notifications.list@5",
+            reveal("total"),
             f"assertstate:{ROW}fixture-notif-total|name={TOTAL_ROW} Jan 2@5",
             "assertstate:" + BELL + "|name=Notifications, 4 unread@5",
             "waitfor:id=fst.songs.row.fixture-pulse",
@@ -248,6 +284,7 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, list[str], set[str] | None]] = {
         [
             *open_flyout(),
             *rows_present("New"),
+            reveal("fcrate"),
             f"invoke:{ROW}fixture-notif-fcrate",
             "waitgone:id=fst.notifications.sheet@5",
             "waitfor:name=Rank by: FC Rate@20",
@@ -265,7 +302,7 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, list[str], set[str] | None]] = {
             "assertstate:" + BELL + "|name=Notifications, 4 unread@15",
             f"invoke:{BELL}",
             "waitfor:id=fst.notifications.list@15",
-            *[f"waitfor:{ROW}fixture-notif-{row}" for row in RICH_ROWS if row != "fcrate"],
+            *[step for row in RICH_ROWS if row != "fcrate" for step in (reveal(row), f"waitfor:{ROW}fixture-notif-{row}")],
             f"waitgone:{ROW}fixture-notif-fcrate",
             "{shot:notifications-experimental-ranks-off}",
         ],
@@ -297,18 +334,13 @@ SCENARIOS: dict[str, tuple[dict[str, str], str, list[str], set[str] | None]] = {
             "@feed=media",
             *open_flyout(),
             "waitfor:id=fst.notifications.list@15",
-            *[f"waitfor:{ROW}fixture-notif-{row}@10" for row in MEDIA_ROWS[:3]],
+            f"waitfor:{ROW}fixture-notif-{MEDIA_ROWS[0]}@10",
             "assertstate:" + BELL + f"|name=Notifications, {len(MEDIA_ROWS)} unread@5",
-            *[f"assertstate:{ROW}fixture-notif-{row}|name=Unread. {MEDIA_NAMES[row]}" for row in MEDIA_ROWS[:3]],
-            # The grid row's per-chart clauses and flag groups make it tall, so only the first two cards are whole on
-            # the opening screen; the rest are painted once the list is scrolled to its end.
-            *[step for row in MEDIA_ROWS[:2] for step in media_paint(row)],
+            # The grid row's per-chart clauses and flag groups make it tall, so each later card is placed whole in the
+            # list's viewport before it is checked.
+            *[step for row in MEDIA_ROWS[:2] for step in media_row(row)],
             "{shot:notifications-media}",
-            f"scrollinto:{ROW}fixture-notif-{MEDIA_ROWS[-1]}",
-            *[f"waitfor:{ROW}fixture-notif-{row}@5" for row in MEDIA_ROWS[3:]],
-            *[f"assertstate:{ROW}fixture-notif-{row}|name=Unread. {MEDIA_NAMES[row]}" for row in MEDIA_ROWS[3:]],
-            "wait:0.5",
-            *[step for row in MEDIA_ROWS[2:] for step in media_paint(row)],
+            *[step for row in MEDIA_ROWS[2:] for step in media_row(row)],
             "{shot:notifications-media-end}",
         ],
         None,
