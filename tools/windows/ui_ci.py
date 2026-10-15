@@ -188,6 +188,11 @@ RUNS: tuple[Run, ...] = (
     Run("songs-scroll", "a11y-songs-scroll.json", tabs=0),
     Run("songs-scroll-text-225", "a11y-songs-scroll.json", sizes="compact", mode="text-225", tabs=0),
     Run("songs-scroll-no-animations", "a11y-songs-scroll.json", sizes="compact", mode="no-animations", tabs=0),
+    # Scroll paging (issue #642): keyboard PageDown on Statistics and Song Details moves the Quick Links current section
+    # off the first section while the scroll moves (throttled reports) and keeps it at rest; later Statistics sections
+    # still load once the loaded ones stop watching the viewport (tiles named, 40 epx, in order); Axe at the paged state.
+    Run("scroll-paging", "a11y-scroll-paging.json", tabs=0),
+    Run("scroll-paging-text-225", "a11y-scroll-paging.json", sizes="compact", mode="text-225", tabs=0),
     # Song leaderboard footer and paging (issues #93, #443): pinned row and pager names, states and 40x40 targets,
     # header -> rows -> pinned row -> pager order, the fade layer kept out of the control view, the Tab/Shift+Tab order
     # at rest, mid-load and on page 2, and a keyboard page change that keeps the header, pinned row and pager in order

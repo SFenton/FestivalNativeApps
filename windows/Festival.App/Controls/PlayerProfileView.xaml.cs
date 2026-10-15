@@ -204,17 +204,28 @@ public sealed partial class PlayerProfileView : UserControl
         element.EffectiveViewportChanged += OnInstrumentViewportChanged;
     }
 
-    /// <summary>Loads a section when its effective viewport is within one viewport height of it.</summary>
+    /// <summary>
+    /// Loads a section when its effective viewport is within one viewport height of it, then stops listening: a loaded
+    /// section never needs its viewport again, and each viewport change hands .NET a new WinRT args object, whose
+    /// wrappers add GC memory pressure on every scroll frame (#642).
+    /// </summary>
     /// <param name="sender">Section element.</param>
     /// <param name="args">Viewport, in the section's coordinates.</param>
     private void OnInstrumentViewportChanged(FrameworkElement sender, EffectiveViewportChangedEventArgs args)
     {
+        var cost = Services.ScrollCost.Begin();
         var viewport = args.EffectiveViewport;
-        if (viewport.IsEmpty || !LazySectionReach.IsNear(viewport.Y, viewport.Height, sender.ActualHeight)) return;
-        // The x:Bind template root has no DataContext: resolve the section from the element's current index.
-        var index = InstrumentsRepeater.GetElementIndex(sender);
-        if (index >= 0 && InstrumentsRepeater.ItemsSourceView?.GetAt(index) is PlayerInstrumentViewModel section)
-            _ = section.EnsureLoadedAsync();
+        if (!viewport.IsEmpty && LazySectionReach.IsNear(viewport.Y, viewport.Height, sender.ActualHeight))
+        {
+            // The x:Bind template root has no DataContext: resolve the section from the element's current index.
+            var index = InstrumentsRepeater.GetElementIndex(sender);
+            if (index >= 0 && InstrumentsRepeater.ItemsSourceView?.GetAt(index) is PlayerInstrumentViewModel section)
+            {
+                sender.EffectiveViewportChanged -= OnInstrumentViewportChanged;
+                _ = section.EnsureLoadedAsync();
+            }
+        }
+        Services.ScrollCost.End("profile-viewport", cost);
     }
     #endregion
 

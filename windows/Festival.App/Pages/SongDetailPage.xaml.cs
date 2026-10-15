@@ -341,9 +341,11 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     /// <param name="e">Unused.</param>
     private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
+        var cost = Services.ScrollCost.Begin();
         var pinned = SongDetailLayout.PinsHeader(Scroller.VerticalOffset, FullHeader.ActualHeight);
         var wanted = pinned ? Visibility.Visible : Visibility.Collapsed;
         if (PinnedHeader.Visibility != wanted) PinnedHeader.Visibility = wanted;
+        Services.ScrollCost.End("detail-pin", cost);
     }
 
     /// <summary>

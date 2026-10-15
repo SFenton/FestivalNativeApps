@@ -77,6 +77,60 @@ public static class SongSectionHeader
         return row >= 0;
     }
 
+    /// <summary>Most rows <see cref="TryFirstVisibleRowNear"/> steps from its hint before it gives up.</summary>
+    public const int MaxHintSteps = 64;
+
+    /// <summary>
+    /// Finds the same row as <see cref="TryFirstVisibleRow"/> by stepping from a hint (the panel's first-visible index)
+    /// through neighbouring realized rows instead of measuring every realized container (#642: measuring them all took
+    /// about 1 ms of every scroll frame, with spikes past 20 ms). Rows are laid out in index order, so the first visible
+    /// row is the visible row whose predecessor is scrolled away or not realized. The result is still checked against
+    /// the rows' geometry, so a hint describing an earlier layout (issue #48) only costs more steps.
+    /// </summary>
+    /// <param name="hint">Row to start from.</param>
+    /// <param name="count">Row count.</param>
+    /// <param name="rowAt">A realized row's geometry by index, or <see langword="null"/> when it is not realized.</param>
+    /// <param name="viewportHeight">Viewport height.</param>
+    /// <param name="row">Index of the first visible row, or -1.</param>
+    /// <returns>
+    /// <see langword="false"/> when the walk meets an unrealized row or runs past <see cref="MaxHintSteps"/>; callers then
+    /// fall back to <see cref="TryFirstVisibleRow"/>.
+    /// </returns>
+    public static bool TryFirstVisibleRowNear(int hint, int count, Func<int, RealizedRow?> rowAt, double viewportHeight, out int row)
+    {
+        row = -1;
+        if (count <= 0) return false;
+        var index = Math.Clamp(hint, 0, count - 1);
+        if (rowAt(index) is not { } current) return false;
+        for (var steps = 0; ; steps++)
+        {
+            if (steps > MaxHintSteps) return false;
+            if (current.Bottom <= Tolerance)
+            {
+                // Scrolled away: the first visible row is further down.
+                if (++index >= count || rowAt(index) is not { } next) return false;
+                current = next;
+                continue;
+            }
+            if (current.Top >= viewportHeight)
+            {
+                // Below the viewport: the first visible row is further up.
+                if (--index < 0 || rowAt(index) is not { } previous) return false;
+                current = previous;
+                continue;
+            }
+            // Visible: step up while the previous row is realized and visible too.
+            if (index > 0 && rowAt(index - 1) is { } above && above.Bottom > Tolerance && above.Top < viewportHeight)
+            {
+                index--;
+                current = above;
+                continue;
+            }
+            row = index;
+            return true;
+        }
+    }
+
     /// <summary>Maps a first-visible row to its section label.</summary>
     /// <param name="sectionStarts">Ascending first-row index of each section.</param>
     /// <param name="labels">Section labels, parallel to <paramref name="sectionStarts"/>.</param>
