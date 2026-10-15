@@ -18,6 +18,17 @@
      "waitfor:id=fst.leaderboards.card.0f.view-all@15",
      "assertfocus:id=fst.leaderboards.card.0f.view-all@3"
    ]},
+  {"name": "a11y-combo-board-row-align", "route": "/leaderboards", "profile": "fixture-player-1:Fixture Player 1", "scan": true, "tabs": 0,
+   "sizes": ["medium", "wide"],
+   "note": "Issue #657 (section-headers R14): the combo card's icon row makes its header taller, so every header in its grid row takes that height. The combo and Lead titles sit on one line and, with three rows each, both cards' View All Rankings buttons do too (the cards start on one line). The alignment space is not a stop: the headings keep their order and the View All buttons stay 40+ epx.",
+   "ready": ["waitfor:id=fst.leaderboards.card.0f.view-all@20", "waitfor:id=fst.leaderboards.card.Solo_Guitar.view-all@20", "wait:1"],
+   "after_ready": [
+     "assertlevel:id=fst.leaderboards.card.0f|id=fst.leaderboards.card.Solo_Guitar",
+     "assertlevel:id=fst.leaderboards.card.0f.view-all|id=fst.leaderboards.card.Solo_Guitar.view-all",
+     "assertstate:id=fst.leaderboards.card.Solo_Guitar|heading=2",
+     "assertorder:id=fst.leaderboards.card.0f|id=fst.leaderboards.card.0f.view-all|id=fst.leaderboards.card.Solo_Guitar|id=fst.leaderboards.card.Solo_Guitar.view-all",
+     "assertsize:id=fst.leaderboards.card.Solo_Guitar.view-all|0x40"
+   ]},
   {"name": "a11y-combo-full-rankings", "route": "/leaderboards/all?combo=0f", "profile": "fixture-player-2:Fixture Player 2", "scan": true, "tabs": 0,
    "note": "Issue #602: combo Full Rankings has no instrument picker (web), keeps its rows as 40+ epx Button stops and pins the selected player's combo rank. Its title is a visible heading 1 below the decorative (raw-view) icon row and is read before the rows (agent decision, page-tools-and-nav-chrome R18 Windows variant).",
    "ready": ["waitfor:id=fst.rankings.row.fixture-player-2@20", "waitfor:id=fst.full-rankings.spotlight-footer@15", "wait:1"],

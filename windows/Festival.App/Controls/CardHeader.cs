@@ -1,7 +1,9 @@
+using Festival.Core.Domain;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Windows.Foundation;
 
 namespace Festival.App.Controls;
 
@@ -11,7 +13,10 @@ namespace Festival.App.Controls;
 /// an optional 36 epx instrument icon, a white title (UIA heading) and an optional subtitle such as
 /// "12,345 total entries". Band-size headers (Duos/Trios/Quads) have no icon. A combo board (issue #602) shows its
 /// instruments' icons in a row above the title instead (web <c>CompeteScopeHeader</c>). Icons are decorative; the title
-/// carries the name.
+/// carries the name. With an icon or icon row, the title sits in a band at least the icon's height, so a combo title and
+/// an instrument title share the same band. In a multi-column <see cref="LeaderboardsCardGridLayout"/> row every header
+/// takes the row's tallest height (space above a shorter header's content), so titles and cards start on one line
+/// (pattern <c>section-headers</c> R14, issue #657).
 /// </summary>
 public sealed partial class CardHeader : Grid
 {
@@ -44,6 +49,7 @@ public sealed partial class CardHeader : Grid
     private readonly InstrumentIconRow iconRow = new() { Margin = new Thickness(0, 0, 0, 4) };
     private readonly MarqueeText title = new();
     private readonly MarqueeText subtitle = new();
+    private readonly RowDefinition titleBand = new() { Height = new GridLength(1, GridUnitType.Star) };
 
     /// <summary>Creates the header.</summary>
     public CardHeader()
@@ -52,15 +58,20 @@ public sealed partial class CardHeader : Grid
         Padding = new Thickness(4, 0, 0, 0);
         ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        RowDefinitions.Add(titleBand);
         AutomationProperties.SetAccessibilityView(icon, AccessibilityView.Raw);
         // Long titles scroll like the web's marquee headers (MarqueeText: only when they overflow and motion is on).
         title.TextStyle = (Style)Application.Current.Resources["FSTCardHeaderTitleStyle"];
         subtitle.TextStyle = (Style)Application.Current.Resources["FSTCardHeaderSubtitleStyle"];
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(iconRow);
         text.Children.Add(title);
         text.Children.Add(subtitle);
+        SetColumnSpan(iconRow, 2);
+        SetRow(icon, 1);
+        SetRow(text, 1);
         SetColumn(text, 1);
+        Children.Add(iconRow);
         Children.Add(icon);
         Children.Add(text);
         Update();
@@ -126,6 +137,40 @@ public sealed partial class CardHeader : Grid
             icon.Label = Title;
         }
         ColumnSpacing = hasIcon ? 12 : 0;
+        titleBand.MinHeight = hasIcon || hasRow ? icon.Height : 0;
     }
+
+    #region Row alignment
+    /// <summary>
+    /// The header's own height at its last measure (its content, or <see cref="FrameworkElement.MinHeight"/> when
+    /// larger), without the row-alignment space above it.
+    /// </summary>
+    internal double NaturalHeight { get; private set; }
+
+    /// <summary>
+    /// Takes a grid row's header height by adding the shortfall above the content (<see cref="CardRowAlignment"/>);
+    /// 0 removes it.
+    /// </summary>
+    /// <param name="rowHeight">The row's tallest header height, or 0 outside a multi-column row.</param>
+    /// <returns><see langword="true"/> when the space changed, so the card must be measured again.</returns>
+    internal bool AlignToRow(double rowHeight)
+    {
+        var top = CardRowAlignment.TopInset(rowHeight, NaturalHeight);
+        if (Math.Abs(Padding.Top - top) < 0.5) return false;
+        Padding = new Thickness(Padding.Left, top, Padding.Right, Padding.Bottom);
+        return true;
+    }
+
+    /// <inheritdoc />
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        var size = base.MeasureOverride(availableSize);
+        var minimum = double.IsNaN(MinHeight) ? 0 : MinHeight;
+        NaturalHeight = Math.Max(size.Height - Padding.Top, minimum);
+        // The alignment space sits above the whole natural height, MinHeight included, so the content keeps its usual
+        // centring in the band below it.
+        return new Size(size.Width, Math.Max(size.Height, Padding.Top + NaturalHeight));
+    }
+    #endregion
 }
 #endregion
