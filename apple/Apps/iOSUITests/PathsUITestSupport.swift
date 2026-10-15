@@ -4,8 +4,9 @@ import XCTest
 
 /// Shared steps for the Paths sheet journeys that run against the large-catalogue fixture
 /// (`PathsSwitchAccessibilityJourneyTests`, #430; `PathsDismissAccessibilityJourneyTests`,
-/// #445): open `fixture-pulse`'s Paths from Songs, find elements by identifier, pick a
-/// menu option and audit with one retry of XCTest's own deadline.
+/// #445; `PathsKaraokeNoticeAccessibilityJourneyTests`, #649): open `fixture-pulse`'s Paths
+/// from Songs, find elements by identifier, pick a menu option, check the Karaoke notice
+/// against the chart behind it and hold Paths reads with the fixture's control.
 enum PathsUITestSupport {
     /// Filter Songs to `fixture-pulse` (the large catalogue lists it under F), open it, then
     /// its Paths sheet from the page tools, dismissing the Karaoke notice.
@@ -13,6 +14,15 @@ enum PathsUITestSupport {
     /// - Parameter app: The launched app on Songs.
     @MainActor
     static func openPaths(in app: XCUIApplication) {
+        openSongDetail(in: app)
+        openPathsFromSongDetail(in: app)
+    }
+
+    /// Filter Songs to `fixture-pulse` and open its Song Detail, leaving Paths closed.
+    ///
+    /// - Parameter app: The launched app on Songs.
+    @MainActor
+    static func openSongDetail(in app: XCUIApplication) {
         let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.songs.row."))
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(20)), "No Songs rows")
         let field = SongsUITestSupport.songsSearchField(in: app)
@@ -32,7 +42,8 @@ enum PathsUITestSupport {
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
         song.tap()
-        openPathsFromSongDetail(in: app)
+        XCTAssertTrue(app.buttons["fst.song-detail.paths"].waitForExistence(timeout: FestivalApp.budget(20)),
+                      "No Paths button")
     }
 
     /// Tap Song Detail's Paths button and wait for the sheet, past the Karaoke notice.
@@ -62,16 +73,24 @@ enum PathsUITestSupport {
         )).firstMatch
     }
 
-    /// Wait for the first chart, then for the "Some Instruments Unavailable" notice that
-    /// follows it: the sheet never shows the notice over its spinner (load-transition R1).
+    /// Wait for the "Some Instruments Unavailable" notice, checking the sheet the moment it
+    /// shows: the loaded chart behind it and no spinner (load-transition R1, issue #649).
+    /// A notice raised over the spinner fails here even if the chart loads behind it later.
     ///
     /// - Parameter app: The running app, with the Paths sheet just opened.
     /// - Returns: True when the notice is showing.
     @MainActor
     @discardableResult
     static func waitForKaraokeNotice(in app: XCUIApplication) -> Bool {
-        _ = loadedChart(in: app).waitForExistence(timeout: FestivalApp.budget(15))
-        return app.alerts["Some Instruments Unavailable"].waitForExistence(timeout: FestivalApp.budget(3))
+        let warning = app.alerts["Some Instruments Unavailable"]
+        let chart = loadedChart(in: app)
+        let deadline = Date().addingTimeInterval(FestivalApp.budget(15))
+        while Date() < deadline, !warning.exists, !chart.exists {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        guard warning.exists || warning.waitForExistence(timeout: FestivalApp.budget(3)) else { return false }
+        assertKaraokeNoticeFollowsLoadedChart(in: app, "Paths notice")
+        return true
     }
 
     /// Answer the Karaoke notice with OK once it follows the loaded chart, if it shows.
@@ -95,10 +114,45 @@ enum PathsUITestSupport {
     @MainActor
     static func assertKaraokeNoticeFollowsLoadedChart(in app: XCUIApplication, _ context: String) {
         XCTAssertTrue(loadedChart(in: app).exists, "\(context): notice showed before the path loaded")
-        let spinner = app.descendants(matching: .any).matching(NSPredicate(
-            format: "label BEGINSWITH %@ AND label ENDSWITH %@", "Loading ", " path"
-        )).firstMatch
-        XCTAssertFalse(spinner.exists, "\(context): notice covers the loading spinner")
+        XCTAssertFalse(spinner(in: app).exists, "\(context): notice covers the loading spinner")
+    }
+
+    /// A Paths form's spinner ("Loading image path" / "Loading text path").
+    ///
+    /// - Parameters:
+    ///   - app: The running app.
+    ///   - form: `image` or `text` for that form's spinner, nil for either.
+    /// - Returns: The first matching spinner.
+    @MainActor
+    static func spinner(in app: XCUIApplication, form: String? = nil) -> XCUIElement {
+        let predicate = form.map { NSPredicate(format: "label == %@", "Loading \($0) path") }
+            ?? NSPredicate(format: "label BEGINSWITH %@ AND label ENDSWITH %@", "Loading ", " path")
+        return app.descendants(matching: .any).matching(predicate).firstMatch
+    }
+
+    // MARK: Fixture hold control (#430, #649)
+
+    /// Call the fixture's `/__fixture__/hold-paths` control.
+    ///
+    /// - Parameters:
+    ///   - origin: The fixture listener, e.g. `http://127.0.0.1:8765`.
+    ///   - query: `seconds=<n>` (with `&form=image|data` to hold one form), or nil for the status.
+    /// - Returns: Whether reads are held and how many wait, or nil without the control.
+    static func pathHold(origin: String, _ query: String?) -> (held: Bool, waiting: Int)? {
+        guard let url = URL(string: "\(origin)/__fixture__/hold-paths" + (query.map { "?\($0)" } ?? "")) else {
+            return nil
+        }
+        let done = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var body: [String: Any]?
+        URLSession.shared.dataTask(with: url) { data, response, _ in
+            if (response as? HTTPURLResponse)?.statusCode == 200, let data {
+                body = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            }
+            done.signal()
+        }.resume()
+        guard done.wait(timeout: .now() + 5) == .success,
+              let held = body?["held"] as? Bool, let waiting = body?["waiting"] as? Int else { return nil }
+        return (held, waiting)
     }
 
     /// The first element with an identifier, of any type.
