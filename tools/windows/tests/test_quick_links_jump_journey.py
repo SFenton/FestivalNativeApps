@@ -98,8 +98,10 @@ class QuickLinksJumpJourneyTests(unittest.TestCase):
 
     def test_menu_returns_focus_and_meets_target_size(self):
         steps = _steps(_BY_NAME["qlj-profile-menu"])
-        self.assertEqual(steps[-4], "assertfocus:id=fst.quick-links.open@3")
-        self.assertEqual(steps[-6], "key:esc")
+        self.assertEqual(steps[-5], "assertfocus:id=fst.quick-links.open@3")
+        self.assertEqual(steps[-7], "key:esc")
+        # The button is pinned above the scroller (#639), so the page scrolls back to the overview before the last tile.
+        self.assertEqual(steps[-4], "scrollinto:id=fst.player.overview@5")
         # Focus back on Quick Links opens its tooltip, which WinUI always windows (open item 8, #534), so the page ends
         # on a tile without one before the final scan.
         self.assertEqual(steps[-2:], ["focus:id=fst.player.stat.overview.songs-played",

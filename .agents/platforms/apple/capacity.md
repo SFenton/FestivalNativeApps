@@ -13,7 +13,7 @@ Worktrees keep whatever copy they branched with, so the Mac also has a **shared 
 | Gate | Slots | Taken by |
 |---|---|---|
 | `device-<UDID>` | 1 | `--sim UDID` or `--device UDID`: one lane per simulator or physical device |
-| `simulator` | RAM / 20 GB, 1–4 | `--sim UDID`: one per simulator in use |
+| `simulator` | RAM / 16 GB, 1–6 (4 on a 64 GB Mac) | `--sim UDID`: one per simulator in use |
 | `build` | cores / 4, 1–4 | `--pool build`: heavy `xcodebuild` / `swift build` compiles |
 
 State lives in `~/.devcap/<gate>/`: per-slot OS locks (released by the OS when a holder dies), a FIFO ticket queue (dead waiters pruned), holder records, and `~/.devcap/devcap.log`. Override counts with `DEVCAP_SLOTS_<POOL>` or `~/.devcap/config.json`.
@@ -39,4 +39,4 @@ python3 tools/devcap.py run --sim "$UDID" --shutdown -- <command>  # anything el
 python3 tools/devcap.py run --pool build -- <compile command>
 ```
 
-`run` waits up to `--wait` seconds (3600, then exit 75), holds up to `--hold` seconds (1800, max 7200, `0` = no limit; overrun kills the process group and exits 124) and forwards Ctrl-C to the command. `--shutdown` shuts the `--sim` simulators down before the slots are released, including after a hold timeout, so a killed run never leaves a simulator booted outside a hold. `--shutdown-on-timeout` keeps the simulator warm after a normal run and shuts it down only when the hold times out (a hung run).
+`python3 tools/devcap.py pick-sim --name "<simulator name>" [--prefer <UDID>]` prints a free member of that device type's pool ("<name>", "<name> (pool 2)", …, one per simulator slot, created on demand with the same type and runtime), so lanes that want the same device type run in parallel instead of queuing on one device gate. `run` waits up to `--wait` seconds (3600, then exit 75), holds up to `--hold` seconds (1800, max 7200, `0` = no limit; overrun kills the process group and exits 124) and forwards Ctrl-C to the command. `--shutdown` shuts the `--sim` simulators down before the slots are released, including after a hold timeout, so a killed run never leaves a simulator booted outside a hold. `--shutdown-on-timeout` keeps the simulator warm after a normal run and shuts it down only when the hold times out (a hung run).

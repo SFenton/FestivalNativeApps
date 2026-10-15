@@ -39,6 +39,9 @@ motion was on, and with motion off in ``app-reduced`` and ``no-animations`` (:fu
 ``load-transition`` R6): UIA cannot see a composition fade, so this is what proves a Reduce Motion show or hide is
 instant.
 
+A page with ``"jump_trace": N`` (the times its drive opens the Songs jump index) also launches with ``--perf-log`` and
+fails unless every opening rendered its letters once in their final place (:func:`jump_trace_problems`, issue #648).
+
 Outputs in ``--out``: ``<page>-<size>[-<mode>].png``, ``results.json`` and ``summary.md`` (page × size:
 Axe errors, tab stops, stops outside the app, repeated stops). Exit code 1 when any page failed to load
 or (with ``--scan``, or on a ``"scan": true`` page) any scan reported errors.
@@ -65,6 +68,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fade_trace  # noqa: E402  (sibling module: FadeIn perf-log lines for pages with "fade_trace")
+import jump_trace  # noqa: E402  (sibling module: Songs jump index perf-log lines for pages with "jump_trace")
 import journey_exe  # noqa: E402  (sibling module: --exe debug|release|aot)
 import ui_journey  # noqa: E402  (sibling tool; shares the fixture-list contract)
 import uiwin  # noqa: E402  (sibling tool; provides the lock, driver and step parser)
@@ -162,6 +166,30 @@ def fade_trace_problems(page: dict, mode: str, lines: list[str]) -> list[str]:
             for problem in fade_trace.check_show_hide(events, element, list(sequence), motion)]
 
 
+def jump_trace_problems(page: dict, lines: list[str]) -> list[str]:
+    """Judge a page's ``jump_trace``: the Songs jump index never re-lays out while it opens (issue #648).
+
+    A page sets ``"jump_trace": N``, the number of times its drive opens the index: each opening must render its cells
+    once in their final place (:func:`jump_trace.check_opens`). UIA reads only the settled index, so a ``waitfor``
+    passes whether or not the letters jumped as it opened.
+
+    Args:
+        page: Page definition.
+        lines: The launch's perf-log lines.
+
+    Returns:
+        Failures (empty when the page has no ``jump_trace`` or every opening passed).
+    """
+    if not page.get("jump_trace"):
+        return []
+    return jump_trace.check_opens(jump_trace.parse(lines), int(page["jump_trace"]))
+
+
+def traced(page: dict) -> bool:
+    """Whether a page launches with ``--perf-log`` (it judges a ``fade_trace`` or a ``jump_trace``)."""
+    return bool(page.get("fade_trace") or page.get("jump_trace"))
+
+
 def restore_values(previous: dict, applied: dict | list[str]) -> dict:
     """The subset of ``previous`` settings that ``applied`` changed (what to restore).
 
@@ -248,7 +276,7 @@ def launch_args(port: int | None, page: dict, settings: Path, perf_log: Path | N
         port: Loopback fixture port, or ``None`` for the app's default keyless public origin (``--live``).
         page: Page definition (``first_run``; optional ``args``, extra app flags such as ``--auto-scroll-span``).
         settings: Isolated settings file.
-        perf_log: The launch's ``--perf-log`` file (a page with ``fade_trace``), or ``None``.
+        perf_log: The launch's ``--perf-log`` file (a page with ``fade_trace`` or ``jump_trace``), or ``None``.
 
     Returns:
         Command-line arguments.
@@ -517,7 +545,7 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
     warning = uiwin.prepare_automation(exe, env)
     if warning:
         print(f"warning: {warning}", file=sys.stderr)
-    args = launch_args(port, page, settings, state / "perf.log" if page.get("fade_trace") else None)
+    args = launch_args(port, page, settings, state / "perf.log" if traced(page) else None)
     record: dict = {"page": page["name"], "size": size, "mode": mode, "ok": False, "scan_required": bool(page.get("scan"))}
     lock = uiwin.HostLock("desktop", purpose=f"a11y {page['name']} {size} {mode} [{REPO_ROOT.name}]",
                           hold_seconds=hold, wait_seconds=1800)
@@ -563,6 +591,12 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
                 problems = fade_trace_problems(page, mode, lines)
                 if problems:
                     raise RuntimeError("fade trace: " + "; ".join(problems))
+            if page.get("jump_trace"):
+                lines = fade_trace.read_lines(state / "perf.log")
+                record["jump_trace"] = [line for line in lines if line.startswith("jump-")]
+                problems = jump_trace_problems(page, lines)
+                if problems:
+                    raise RuntimeError("jump trace: " + "; ".join(problems))
         except RuntimeError as error:
             record["ok"] = False
             record["error"] = str(error)

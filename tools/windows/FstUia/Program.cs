@@ -876,6 +876,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertdock":
                 AssertDock(window, step);
                 break;
+            case "assertmidline":
+                AssertMidline(window, step);
+                break;
             case "assertinset":
                 AssertInset(window, step);
                 break;
@@ -922,6 +925,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 break;
             case "assertapart":
                 AssertApart(window, step);
+                break;
+            case "assertheight":
+            case "assertright":
+                AssertMatch(window, step, verb == "assertheight");
                 break;
             case "assertat":
                 AssertAt(window, step);
@@ -1724,6 +1731,27 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             throw new InvalidOperationException($"{string.Join("; ", off)} ({(string)step["arg"]!})");
     }
 
+    /// <summary>
+    /// Fails unless the midpoint from the first element's left edge to the last element's right edge is the region's
+    /// horizontal centre within <c>epx</c> effective pixels: a wrapped line of chips centred across its row rather than
+    /// left-aligned under the title (issue #645).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> (first), <c>other</c> (last), <c>region</c> and <c>epx</c>.</param>
+    /// <exception cref="InvalidOperationException">The line is off centre.</exception>
+    private void AssertMidline(Window window, JsonObject step)
+    {
+        var first = Find(window, step).BoundingRectangle;
+        var last = Find(window, step, "other").BoundingRectangle;
+        var region = Find(window, step, "region").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var dx = ((first.Left + last.Right) / 2.0 - (region.Left + region.Width / 2.0)) / scale;
+        response["midlines"] ??= new JsonArray();
+        response["midlines"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["dx"] = Math.Round(dx, 1) });
+        if (Math.Abs(dx) > (double)step["epx"]!)
+            throw new InvalidOperationException($"line off centre by {dx:0.#} epx ({(string)step["arg"]!})");
+    }
+
     #region Hit targets
 
     /// <summary>
@@ -1770,6 +1798,32 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         response["apart"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["gap_epx"] = Math.Round(gap, 1) });
         if (horizontal < 0 && vertical < 0)
             throw new InvalidOperationException($"{(string)step["arg"]!}: bounds overlap ({a} and {b}, physical px)");
+    }
+
+    /// <summary>
+    /// Fails unless two on-screen elements share a height (<c>assertheight</c>: one row of controls drawn at one height)
+    /// or a right edge (<c>assertright</c>: a row that ends where the content below it ends), within 1 epx. Records both
+    /// values in epx.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> and <c>other</c>.</param>
+    /// <param name="height">Compare heights (else right edges).</param>
+    /// <exception cref="InvalidOperationException">The values differ by more than 1 epx.</exception>
+    private void AssertMatch(Window window, JsonObject step, bool height)
+    {
+        var a = Find(window, step).BoundingRectangle;
+        var b = Find(window, step, "other").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var first = (height ? a.Height : a.Right) / scale;
+        var second = (height ? b.Height : b.Right) / scale;
+        var what = height ? "heights" : "right edges";
+        response["matched"] ??= new JsonArray();
+        response["matched"]!.AsArray().Add(new JsonObject
+        {
+            ["arg"] = (string)step["arg"]!, ["what"] = what, ["epx"] = Math.Round(first, 1), ["other_epx"] = Math.Round(second, 1),
+        });
+        if (Math.Abs(first - second) > 1)
+            throw new InvalidOperationException($"{what} differ: {first:0.#} vs {second:0.#} epx ({(string)step["arg"]!})");
     }
 
     /// <summary>

@@ -58,7 +58,7 @@ jobs:
           IN_BUILD: ${{ inputs.build }}
           IN_DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          set -uo pipefail
+          set +e -uo pipefail  # Actions runs bash -e; exit 3 (refused) is handled below
           if [ "${IN_COMMAND:-submit}" = "status" ]; then
             args=(flight-status --flight "$FLIGHT" --group "$GROUP")
           else

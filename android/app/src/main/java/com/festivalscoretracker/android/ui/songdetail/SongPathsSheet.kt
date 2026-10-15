@@ -137,7 +137,7 @@ import com.festivalscoretracker.android.ui.common.FestivalModalSheet
  * control row — instrument, difficulty and view buttons, each expanding its panel
  * above the row (the shared Instrument Selector, a 2×2 difficulty grid, Image/Text).
  * Karaoke's missing paths are announced once in a native alert (OK / Don't Show
- * Again), not a banner. The sheet is modal and focus returns on close. On a half-open
+ * Again), not a banner, after the first path has loaded (#649). The sheet is modal and focus returns on close. On a half-open
  * fold, [FestivalModalSheet] keeps the whole sheet on one side of a separating hinge,
  * so neither the path nor its controls straddle the fold.
  *
@@ -162,6 +162,11 @@ fun SongPathsSheet(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var warning by rememberSaveable { mutableStateOf(showKaraokeWarning) }
+    // The Karaoke alert waits for the first path to load (owner, #649): the sheet shows its
+    // spinner, never the alert, until content is in (load-transition R1).
+    var settledOnce by rememberSaveable { mutableStateOf(false) }
+    val contentSettled = state.contentSettled
+    SideEffect { if (contentSettled) settledOnce = true }
     var panel by rememberSaveable { mutableStateOf<PathPanel?>(null) }
     val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
     SideEffect { viewModel.reduceMotion = reduceMotion }
@@ -227,7 +232,7 @@ fun SongPathsSheet(
             }
         }
     }
-    if (warning) {
+    if (warning && (settledOnce || contentSettled)) {
         FestivalAlertDialog(
             title = "Some Instruments Unavailable",
             text = "Karaoke is not available for path visualization yet.",

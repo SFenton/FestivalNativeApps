@@ -1,4 +1,4 @@
-"""Songs Jump index accessibility pages: ``journeys/a11y-section-index.json`` (issues #48, #231, #248, #415, #517).
+"""Songs Jump index accessibility pages: ``journeys/a11y-section-index.json`` (issues #48, #231, #248, #415, #517, #648).
 
 Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root.
 """
@@ -141,6 +141,18 @@ class SectionIndexJourneyTests(unittest.TestCase):
         self.assertFalse(a11y_matrix.mode_motion("app-reduced"))
         self.assertTrue(any(run.mode == "app-reduced" and run.pages == JOURNEY.name and "index-open-escape" in run.only
                             for run in ui_ci.RUNS))
+
+    def test_jump_pages_judge_every_index_opening(self):
+        """#648: UIA reads only the settled index, so the pages judge the ``jump-frame`` trace of every opening their
+        drive performs: the index's letters must render once in place, not jump when the zoom-out settles."""
+        pages = load()
+        for name, opens in (("index-backward-after-scroll", 2), ("index-open-escape", 3), ("index-shop-labels", 2)):
+            page = pages[name]
+            self.assertEqual(page.get("jump_trace"), opens, name)
+            self.assertTrue(a11y_matrix.traced(page), name)
+            drive = steps(page)
+            self.assertGreaterEqual(sum(s in (f"invoke:{JUMP}", "key:enter", "key:ctrl+minus") for s in drive), opens,
+                                    name)
 
     def test_windows_ui_ci_runs_jump_pages_with_text_scaling_and_reduced_motion(self):
         """#517: the ``windows-ui`` job runs the #231 pages Axe-scanned at 100% (compact and medium), 225% text and

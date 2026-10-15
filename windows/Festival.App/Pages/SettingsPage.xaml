@@ -120,19 +120,30 @@
             <ColumnDefinition x:Name="DetailColumn" Width="Auto" />
         </Grid.ColumnDefinitions>
 
-        <ScrollViewer x:Name="Scroller" controls:FadeIn.OnShow="True" AutomationProperties.AutomationId="fst.settings">
-            <StackPanel Padding="24,12,24,32" Spacing="4" MaxWidth="880" HorizontalAlignment="Left">
-                <Grid Margin="0,0,0,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="Settings" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1" />
-                    <Border x:Name="MenuHost" Grid.Column="1" VerticalAlignment="Center">
-                        <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" />
-                    </Border>
-                </Grid>
-
+        <!-- Pinned page header (#639): the title and Quick Links stay put above the list; content scrolls and clips below
+             it. The capped first column keeps the header as wide as the left-aligned 880 epx content: its large star
+             weight takes the whole width up to the cap, and only the excess goes to the empty second column. -->
+        <Grid x:Name="ListHost" controls:FadeIn.OnShow="True">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="10000*" MaxWidth="880" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid x:Name="Header" Padding="24,12,24,12" AutomationProperties.AutomationId="fst.settings.header">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Settings" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1" />
+                <Border x:Name="MenuHost" Grid.Column="1" VerticalAlignment="Center">
+                    <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" />
+                </Border>
+            </Grid>
+        <ScrollViewer x:Name="Scroller" Grid.Row="1" Grid.ColumnSpan="2" AutomationProperties.AutomationId="fst.settings">
+            <StackPanel Padding="24,0,24,32" Spacing="4" MaxWidth="880" HorizontalAlignment="Left">
                 <!-- App Settings -->
                 <StackPanel controls:QuickLinkAnchor.Id="app-settings">
                     <TextBlock Text="App Settings" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2" />
@@ -699,6 +710,7 @@
                 </Grid>
             </StackPanel>
         </ScrollViewer>
+        </Grid>
 
         <!-- List/detail trailing pane (issue #371). Nothing selected: the centred placeholder (the Rivals empty-state shape:
              icon, subtitle heading, secondary line). Selected: the setting's title and description over its moved card or

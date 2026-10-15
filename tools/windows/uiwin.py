@@ -106,11 +106,12 @@ STEP_VERBS = {
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
     "scrollto": "scrollto",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
-    "assertcentred": "centred", "assertdock": "dock",
+    "assertcentred": "centred", "assertdock": "dock", "assertmidline": "midline",
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
-    "assertsize": "size", "assertapart": "pair", "assertat": "offset", "tapat": "offset", "clickat": "offset",
+    "assertsize": "size", "assertapart": "pair", "assertheight": "pair", "assertright": "pair",
+    "assertat": "offset", "tapat": "offset", "clickat": "offset",
     "drag": "drag",
     "narrate": "selector", "assertread": "read", "assertorder": "order",
     "assertpaint": "paint", "assertbold": "bold", "assertannouncedcount": "announcedcount",
@@ -284,6 +285,9 @@ def parse_step(step: str) -> dict:
     ``bottom``) of the element is ``<epx>`` effective pixels inside the same edge of the region, and ``width=<epx>``
     unless the element is that wide, each within 1.5 epx (results in ``docks``), e.g. a modal surface docked to the
     window's trailing edge or bottom (issue #638: a dialog's own UIA Popup spans the window's client area);
+    ``assertmidline:<first>|<last>|<region>|<epx>`` fails unless the midpoint from the first element's left edge to the
+    last's right edge is the region's horizontal centre within ``<epx>`` effective pixels, e.g. a wrapped line of chips
+    centred across its row;
     ``assertinset:<sel>|<sel>|<epx>`` waits (up to 3 s) until the first element's top edge is ``<epx>`` effective
     pixels below the second's top edge within 1 epx, e.g. a Quick Links target landed under its page scroller's top;
     ``scrollinset:<sel>|<scroller>|<epx>`` scrolls the second element (UIA Scroll pattern, no input) until the first
@@ -338,6 +342,10 @@ def parse_step(step: str) -> dict:
     ``assertsize:<sel>|<w>x<h>`` fails unless the element's UIA bounds are at least ``<w>`` x ``<h>`` effective pixels
     (one device pixel rounding allowance; results in ``sizes``), e.g. Fluent's 40x40 epx touch target (issue #271);
     ``assertapart:<sel>|<sel>`` fails if the two elements' bounds overlap (results in ``apart``, the gap in epx);
+    ``assertheight:<sel>|<sel>`` fails unless both elements are the same height and ``assertright:<sel>|<sel>`` unless
+    their right edges line up, each within 1 epx (results in ``matched``), e.g. a search box as tall as the page tools
+    beside it and a toolbar row that ends where the list rows end (issue #646), or metadata pills that share one
+    height at any text size, where ``assertsize`` only sets a minimum (issue #644);
     ``assertat:<sel>|<dx>,<dy>`` hit-tests the point ``<dx>``,``<dy>`` epx from the element's centre without input
     (outside the title bar's non-client caption region, where a press drags the window, and UIA ``ElementFromPoint``
     must return the element or one of its parts, or the point must be inside its bounds when another process covers
@@ -416,6 +424,14 @@ def parse_step(step: str) -> dict:
         result["epx"] = float(epx)
         if verb == "scrollinset" and result["epx"] <= 0:
             raise ValueError(f"scrollinset needs a positive inset (a clipped top reads as 0), not {epx!r}")
+    elif shape == "midline":
+        parts = arg.split("|")
+        if len(parts) != 4 or not all(part.strip() for part in parts[:3]) or not re.fullmatch(r"\d+(\.\d+)?", parts[3].strip()):
+            raise ValueError(f"bad {verb} {arg!r}; use <first>|<last>|<region>|<epx>")
+        result["selector"], result["other"], result["region"] = (parse_selector(part) for part in parts[:3])
+        if any(result[key]["kind"] == "xy" for key in ("selector", "other", "region")):
+            raise ValueError(f"{verb} needs element selectors, not coordinates")
+        result["epx"] = float(parts[3])
     elif shape == "centred":
         parts = arg.split("|")
         if len(parts) != 3 or not all(part.strip() for part in parts):

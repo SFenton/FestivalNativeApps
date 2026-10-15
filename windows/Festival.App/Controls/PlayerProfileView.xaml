@@ -16,50 +16,57 @@
     </UserControl.Resources>
 
     <Grid x:Name="Root">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <ScrollViewer x:Name="Scroller" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" AutomationProperties.AutomationId="fst.player.available">
-            <StackPanel Padding="24,12,24,32" Spacing="12" MaxWidth="1280">
-                <!-- Page title (issue #97): the player's name as a plain H1 like other pages' titles, with no avatar or card;
-                     Select/Deselect, Quick Links and the selection notices sit under it. The actions wrap (like the Rivals
-                     header's Commands) so Quick Links moves to its own line instead of clipping at large text sizes (#285). -->
-                <StackPanel x:Name="TitleRow" Spacing="12">
-                    <TextBlock Text="{x:Bind ViewModel.DisplayName, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}"
-                               TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level1"
-                               AutomationProperties.AutomationId="fst.player.name" />
-                    <controls:WrapPanel x:Name="TitleActions" HorizontalSpacing="8" VerticalSpacing="8">
-                        <Button Content="{x:Bind ViewModel.SelectLabel, Mode=OneWay}" Click="OnSelectClick"
-                                Style="{StaticResource AccentButtonStyle}" MinHeight="{StaticResource FSTMinTargetSize}"
-                                Visibility="{x:Bind ViewModel.CanSelect, Mode=OneWay}"
-                                AutomationProperties.AutomationId="fst.player.select" />
-                        <Button Content="Deselect Profile" Click="OnDeselectClick" MinHeight="{StaticResource FSTMinTargetSize}" FontWeight="SemiBold"
-                                Background="{ThemeResource FSTDangerBackgroundBrush}" Foreground="{ThemeResource FSTDangerForegroundBrush}"
-                                BorderBrush="{ThemeResource FSTDangerBorderBrush}"
-                                Visibility="{x:Bind ViewModel.CanDeselect, Mode=OneWay}"
-                                AutomationProperties.AutomationId="fst.player.deselect">
-                            <Button.Resources>
-                                <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTDangerBackgroundPointerOverBrush" />
-                                <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTDangerBackgroundPressedBrush" />
-                                <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="FSTDangerForegroundPointerOverBrush" />
-                                <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="FSTDangerForegroundPressedBrush" />
-                                <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="FSTDangerBorderPointerOverBrush" />
-                                <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="FSTDangerBorderPressedBrush" />
-                            </Button.Resources>
-                        </Button>
-                        <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" MinHeight="{StaticResource FSTMinTargetSize}" />
-                    </controls:WrapPanel>
-                    <TextBlock Text="{x:Bind ViewModel.IdentityNotice, Mode=OneWay}" TextWrapping="Wrap"
-                               Foreground="{ThemeResource FSTEmphasisBrush}"
-                               Visibility="{x:Bind ViewModel.HasIdentityNotice, Mode=OneWay}"
-                               AutomationProperties.AutomationId="fst.player.identity-notice" />
-                    <TextBlock Text="{x:Bind ViewModel.ActionError, Mode=OneWay}" TextWrapping="Wrap"
-                               Foreground="{ThemeResource FSTEmphasisBrush}" AutomationProperties.LiveSetting="Assertive"
-                               Visibility="{x:Bind ViewModel.HasActionError, Mode=OneWay}"
-                               AutomationProperties.AutomationId="fst.player.action-error" />
-                </StackPanel>
+        <!-- Pinned page header (#639): it stays above the scroller, so Select and Quick Links never scroll away, and
+             content clips below it. Page title (issue #97): the player's name as a plain H1 like other pages' titles,
+             with no avatar or card; Select/Deselect, Quick Links and the selection notices sit under it. The actions
+             wrap (like the Rivals header's Commands) so Quick Links moves to its own line instead of clipping at large
+             text sizes (#285). -->
+        <StackPanel x:Name="TitleRow" Spacing="12" Padding="24,12,24,12" MaxWidth="1280"
+                    Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" AutomationProperties.AutomationId="fst.player.header">
+            <TextBlock Text="{x:Bind ViewModel.DisplayName, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}"
+                       TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level1"
+                       AutomationProperties.AutomationId="fst.player.name" />
+            <controls:WrapPanel x:Name="TitleActions" HorizontalSpacing="8" VerticalSpacing="8">
+                <Button Content="{x:Bind ViewModel.SelectLabel, Mode=OneWay}" Click="OnSelectClick"
+                        Style="{StaticResource AccentButtonStyle}" MinHeight="{StaticResource FSTMinTargetSize}"
+                        Visibility="{x:Bind ViewModel.CanSelect, Mode=OneWay}"
+                        AutomationProperties.AutomationId="fst.player.select" />
+                <Button Content="Deselect Profile" Click="OnDeselectClick" MinHeight="{StaticResource FSTMinTargetSize}" FontWeight="SemiBold"
+                        Background="{ThemeResource FSTDangerBackgroundBrush}" Foreground="{ThemeResource FSTDangerForegroundBrush}"
+                        BorderBrush="{ThemeResource FSTDangerBorderBrush}"
+                        Visibility="{x:Bind ViewModel.CanDeselect, Mode=OneWay}"
+                        AutomationProperties.AutomationId="fst.player.deselect">
+                    <Button.Resources>
+                        <StaticResource x:Key="ButtonBackgroundPointerOver" ResourceKey="FSTDangerBackgroundPointerOverBrush" />
+                        <StaticResource x:Key="ButtonBackgroundPressed" ResourceKey="FSTDangerBackgroundPressedBrush" />
+                        <StaticResource x:Key="ButtonForegroundPointerOver" ResourceKey="FSTDangerForegroundPointerOverBrush" />
+                        <StaticResource x:Key="ButtonForegroundPressed" ResourceKey="FSTDangerForegroundPressedBrush" />
+                        <StaticResource x:Key="ButtonBorderBrushPointerOver" ResourceKey="FSTDangerBorderPointerOverBrush" />
+                        <StaticResource x:Key="ButtonBorderBrushPressed" ResourceKey="FSTDangerBorderPressedBrush" />
+                    </Button.Resources>
+                </Button>
+                <controls:QuickLinksMenuButton x:Name="QuickLinksMenu" MinHeight="{StaticResource FSTMinTargetSize}" />
+            </controls:WrapPanel>
+            <TextBlock Text="{x:Bind ViewModel.IdentityNotice, Mode=OneWay}" TextWrapping="Wrap"
+                       Foreground="{ThemeResource FSTEmphasisBrush}"
+                       Visibility="{x:Bind ViewModel.HasIdentityNotice, Mode=OneWay}"
+                       AutomationProperties.AutomationId="fst.player.identity-notice" />
+            <TextBlock Text="{x:Bind ViewModel.ActionError, Mode=OneWay}" TextWrapping="Wrap"
+                       Foreground="{ThemeResource FSTEmphasisBrush}" AutomationProperties.LiveSetting="Assertive"
+                       Visibility="{x:Bind ViewModel.HasActionError, Mode=OneWay}"
+                       AutomationProperties.AutomationId="fst.player.action-error" />
+        </StackPanel>
 
+        <ScrollViewer x:Name="Scroller" Grid.Row="1" Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" AutomationProperties.AutomationId="fst.player.available">
+            <StackPanel Padding="24,0,24,32" Spacing="12" MaxWidth="1280">
                 <!-- Overview: one card per stat -->
                 <TextBlock x:Name="OverviewHeading" Text="Overview" Style="{StaticResource FSTSectionHeaderStyle}" AutomationProperties.HeadingLevel="Level2"
                            AutomationProperties.AutomationId="fst.player.overview" controls:QuickLinkAnchor.Id="global" />
@@ -261,13 +268,13 @@
             </StackPanel>
         </ScrollViewer>
 
-        <controls:QuickLinksPane x:Name="Pane" Grid.Column="1" Width="240" Margin="0,12,24,24" Visibility="Collapsed" />
+        <controls:QuickLinksPane x:Name="Pane" Grid.Column="1" Grid.RowSpan="2" Width="240" Margin="0,12,24,24" Visibility="Collapsed" />
 
-        <ProgressRing Grid.ColumnSpan="2" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
+        <ProgressRing Grid.RowSpan="2" Grid.ColumnSpan="2" IsActive="{x:Bind ViewModel.IsLoading, Mode=OneWay}" Width="48" Height="48"
                       AutomationProperties.Name="Loading profile" AutomationProperties.AutomationId="fst.player.loading" />
 
         <!-- 202: scores still syncing (never an empty profile) -->
-        <Border Grid.ColumnSpan="2" Style="{StaticResource FSTCardStyle}" MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center"
+        <Border Grid.RowSpan="2" Grid.ColumnSpan="2" Style="{StaticResource FSTCardStyle}" MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center"
                 Visibility="{x:Bind ViewModel.IsSyncing, Mode=OneWay}">
             <StackPanel Spacing="12">
                 <TextBlock Text="Scores Are Syncing" Style="{StaticResource SubtitleTextBlockStyle}" AutomationProperties.HeadingLevel="Level2"
@@ -277,11 +284,11 @@
             </StackPanel>
         </Border>
 
-        <controls:ServiceStatusView Grid.ColumnSpan="2" Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
+        <controls:ServiceStatusView Grid.RowSpan="2" Grid.ColumnSpan="2" Status="{x:Bind ViewModel.Status}" VerticalAlignment="Center"
                                     Visibility="{x:Bind ViewModel.ShowError, Mode=OneWay}" />
 
         <!-- Statistics with no selection (brief window between deselect and the section hiding) -->
-        <TextBlock Grid.ColumnSpan="2" Text="Select a player profile to see statistics." HorizontalAlignment="Center" VerticalAlignment="Center"
+        <TextBlock Grid.RowSpan="2" Grid.ColumnSpan="2" Text="Select a player profile to see statistics." HorizontalAlignment="Center" VerticalAlignment="Center"
                    Style="{StaticResource FSTSecondaryTextStyle}" Visibility="{x:Bind controls:PlayerProfileView.Not(ViewModel.HasAccount), Mode=OneWay}"
                    AutomationProperties.AutomationId="fst.player.no-profile" />
     </Grid>

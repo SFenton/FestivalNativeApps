@@ -205,6 +205,31 @@ public sealed class MotionPolicyTests
 public sealed class SongDetailLayoutTests
 {
     [Theory]
+    [InlineData(new double[0], 8, 0)]
+    [InlineData(new[] { 90.0 }, 8, 90)]
+    [InlineData(new[] { 90.0, 120, 140 }, 8, 366)]
+    [InlineData(new[] { 90.0, 0, 140 }, 8, 238)]
+    [InlineData(new[] { 90.0, double.NaN, 140 }, 8, 238)]
+    public void ToolsRowWidth_SumsVisibleToolsAndGaps(double[] widths, double spacing, double expected) =>
+        Assert.Equal(expected, Festival.Core.ViewModels.SongDetailLayout.ToolsRowWidth(widths, spacing));
+
+    [Theory]
+    // Compact window (500 epx, 452 epx bar): Paths, Item Shop and Quick Links leave the title too little room.
+    [InlineData(452, 366, true)]
+    // Paths alone fits beside the title.
+    [InlineData(452, 90, false)]
+    // Boundary: 40 art + 2 × 12 gaps + tools + 160 title.
+    [InlineData(40 + 24 + 160 + 200, 200, false)]
+    [InlineData(40 + 24 + 160 + 200 - 1, 200, true)]
+    // Medium/wide bars keep one row; no tools or an unmeasured bar never move.
+    [InlineData(1152, 366, false)]
+    [InlineData(452, 0, false)]
+    [InlineData(0, 366, false)]
+    [InlineData(double.NaN, 366, false)]
+    public void PinnedToolsBelowTitle_KeepsTheTitleReadable(double bar, double tools, bool below) =>
+        Assert.Equal(below, Festival.Core.ViewModels.SongDetailLayout.PinnedToolsBelowTitle(bar, tools));
+
+    [Theory]
     [InlineData(500, 9, 3)]
     [InlineData(900, 9, 3)]
     [InlineData(1100, 9, 9)]

@@ -36,6 +36,10 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     {
         InitializeComponent();
         var host = new QuickLinksHost(Root, Scroller, quickLinks, QuickLinksMenu, pane: null, menuMaxWidth: 640);
+        // The pinned bar's copy keeps Quick Links reachable once the header menu has scrolled away (#639).
+        host.AddMenu(PinnedQuickLinksMenu);
+        CollapsedToolTip.CloseWhenCollapsed(PinnedHeader);
+        PinnedShopFill.Live = false;
         // Realize a card on demand for a jump (the card grid realizes all, but a jump can run before the first layout).
         host.Binder.Resolve = id => ViewModel?.Leaderboards.FindIndex(c => c.QuickLinkId == id) is >= 0 and var index
             ? Boards.GetOrCreateElement(index) as FrameworkElement
@@ -333,17 +337,62 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     private int BoardColumns() => Boards.ActualWidth >= 2 * 320 + 16 ? 2 : 1;
     #endregion
 
-    /// <summary>Applies the Item Shop button's status fill (gold New, red Leaving Tomorrow, green otherwise).</summary>
-    private void ApplyShopPulse() => ShopFill.Apply(ViewModel.ShopHighlight, ViewModel.ShopPulses);
+    /// <summary>Applies the Item Shop buttons' status fill (gold New, red Leaving Tomorrow, green otherwise).</summary>
+    private void ApplyShopPulse()
+    {
+        ShopFill.Apply(ViewModel.ShopHighlight, ViewModel.ShopPulses);
+        PinnedShopFill.Apply(ViewModel.ShopHighlight, ViewModel.ShopPulses);
+    }
 
     /// <summary>Pins the compact header once the full header has scrolled out of view.</summary>
     /// <param name="sender">Scroller.</param>
     /// <param name="e">Unused.</param>
     private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
+        var cost = Services.ScrollCost.Begin();
         var pinned = SongDetailLayout.PinsHeader(Scroller.VerticalOffset, FullHeader.ActualHeight);
         var wanted = pinned ? Visibility.Visible : Visibility.Collapsed;
-        if (PinnedHeader.Visibility != wanted) PinnedHeader.Visibility = wanted;
+        if (PinnedHeader.Visibility == wanted)
+        {
+            Services.ScrollCost.End("detail-pin", cost);
+            return;
+        }
+        // A pinned tool with focus hands it to the same tool in the header that scrolls back into view (#571 swaps).
+        var handOff = pinned ? null : PinnedHeaderFocusTarget();
+        PinnedHeader.Visibility = wanted;
+        // The pinned Item Shop fill breathes only while its bar shows, so nothing loops unseen.
+        PinnedShopFill.Live = pinned;
+        if (handOff is not null) CollapsedToolTip.HandFocus(Scroller, () => handOff);
+        Services.ScrollCost.End("detail-pin", cost);
+    }
+
+    /// <summary>The full header's copy of the focused pinned tool, or <see langword="null"/> when none has focus.</summary>
+    /// <returns>Paths, Item Shop or the Quick Links menu in the full header.</returns>
+    private Control? PinnedHeaderFocusTarget() =>
+        CollapsedToolTip.HasFocusWithin(PinnedPathsButton) ? PathsButton
+        : CollapsedToolTip.HasFocusWithin(PinnedShopButton) ? ShopButton
+        : CollapsedToolTip.HasFocusWithin(PinnedQuickLinksMenu) ? QuickLinksMenu
+        : null;
+
+    /// <summary>
+    /// Keeps the pinned bar's title readable: its tools sit beside the title when the title keeps
+    /// <see cref="SongDetailLayout.MinPinnedTitleWidth"/>, and on a row under the art and title otherwise (#639).
+    /// </summary>
+    /// <param name="sender">Pinned bar or its tools.</param>
+    /// <param name="e">New size.</param>
+    private void OnPinnedBarSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var widths = PinnedTools.Children.OfType<FrameworkElement>()
+            .Where(tool => tool.Visibility == Visibility.Visible)
+            .Select(tool => tool.DesiredSize.Width);
+        var below = SongDetailLayout.PinnedToolsBelowTitle(PinnedBar.ActualWidth,
+            SongDetailLayout.ToolsRowWidth(widths, PinnedTools.HorizontalSpacing));
+        if (Grid.GetRow(PinnedTools) == (below ? 1 : 0)) return;
+        Grid.SetRow(PinnedTools, below ? 1 : 0);
+        Grid.SetColumn(PinnedTools, below ? 0 : 2);
+        Grid.SetColumnSpan(PinnedTools, below ? 3 : 1);
+        Grid.SetColumnSpan(PinnedTitle, below ? 2 : 1);
+        PinnedTools.HorizontalAlignment = below ? HorizontalAlignment.Left : HorizontalAlignment.Stretch;
     }
 
     /// <summary>

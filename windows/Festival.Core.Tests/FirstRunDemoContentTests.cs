@@ -241,7 +241,7 @@ public class FirstRunDemoContentTests
         var fields = FirstRunDemoContent.MetadataFields(sample, FirstRunDemoMetadataLayout.ScoreAccuracy);
         Assert.Equal([MetadataField.Score, MetadataField.Percentage], fields.Select(f => f.Kind));
         Assert.True(fields[1].FullCombo);
-        Assert.EndsWith("FC", fields[1].Text);
+        Assert.Equal("100%", fields[1].Text); // web fcBadge: the percent in the gold skew, no "FC" (issue #644)
 
         var plain = sample with { FullCombo = false, Accuracy = 960000 };
         Assert.False(FirstRunDemoContent.MetadataFields(plain, FirstRunDemoMetadataLayout.AccuracyDifficulty)[0].FullCombo);

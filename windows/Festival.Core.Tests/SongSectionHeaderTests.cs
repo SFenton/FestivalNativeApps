@@ -37,6 +37,45 @@ public class SongSectionHeaderTests
     }
 
     [Fact]
+    public void FirstVisibleRowNear_MatchesTheFullScan()
+    {
+        // #642: stepping from the panel's hint finds the same row as measuring every realized container, whatever the
+        // hint (a stale pre-jump index, issue #48, only costs steps).
+        foreach (var top in new[] { 0, 5, 18, 26 })
+        {
+            var rows = Layout(top, Math.Max(0, top * 4 - 6), Math.Min(Count - 1, top * 4 + 12)).Select(r => r with { Top = r.Top - 30, Bottom = r.Bottom - 30 }).ToList();
+            var byIndex = rows.ToDictionary(r => r.Index);
+            SongSectionHeader.RealizedRow? At(int i) => byIndex.TryGetValue(i, out var r) ? r : null;
+            Assert.True(SongSectionHeader.TryFirstVisibleRow(Count, rows, Viewport, out var expected));
+            foreach (var hint in rows.Select(r => r.Index))
+            {
+                Assert.True(SongSectionHeader.TryFirstVisibleRowNear(hint, Count, At, Viewport, out var row));
+                Assert.Equal(expected, row);
+            }
+        }
+    }
+
+    [Fact]
+    public void FirstVisibleRowNear_FailsOverToTheFullScan()
+    {
+        var s = Array.IndexOf(Labels, "S");
+        var rows = Layout(s, s * 4 - 3, s * 4 + 8).ToDictionary(r => r.Index);
+        SongSectionHeader.RealizedRow? At(int i) => rows.TryGetValue(i, out var r) ? r : null;
+        // A hint outside the realized rows (issue #248's stale index after a far scroll) or no rows at all.
+        Assert.False(SongSectionHeader.TryFirstVisibleRowNear(0, Count, At, Viewport, out var row));
+        Assert.Equal(-1, row);
+        Assert.False(SongSectionHeader.TryFirstVisibleRowNear(0, 0, At, Viewport, out _));
+        // Every realized row scrolled away: the walk meets an unrealized row.
+        var gone = rows.Values.ToDictionary(r => r.Index, r => r with { Top = r.Top - 50_000, Bottom = r.Bottom - 50_000 });
+        Assert.False(SongSectionHeader.TryFirstVisibleRowNear(s * 4, Count, i => gone.TryGetValue(i, out var r) ? r : null, Viewport, out _));
+        // A walk longer than the bound gives up rather than measuring the whole list.
+        var tall = Enumerable.Range(0, 200).ToDictionary(i => i, i => new SongSectionHeader.RealizedRow(i, (i - 150) * Row, (i - 149) * Row));
+        Assert.False(SongSectionHeader.TryFirstVisibleRowNear(0, 200, i => tall.TryGetValue(i, out var r) ? r : null, Viewport, out _));
+        Assert.True(SongSectionHeader.TryFirstVisibleRowNear(140, 200, i => tall.TryGetValue(i, out var r) ? r : null, Viewport, out row));
+        Assert.Equal(150, row);
+    }
+
+    [Fact]
     public void FarScroll_StaleRowsAboveTheViewport_ReportNoVisibleRow()
     {
         // Issue #248: a far scroll (thumb, UIA SetScrollPercent) ends before the panel realizes S; the old # rows now sit

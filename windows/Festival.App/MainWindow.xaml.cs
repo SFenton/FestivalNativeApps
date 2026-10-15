@@ -578,9 +578,13 @@ public sealed partial class MainWindow : Window
         Motion.Update(hidden: !windowVisible || minimized || occlusion?.IsHidden == true);
     }
 
+    /// <summary>App acrylic surfaces that switch to their solid fallback with <see cref="ApplyTransparency"/>.</summary>
+    private static readonly string[] AcrylicSurfaceKeys = ["FSTOverlayPaneBrush", "FSTFlyoutSurfaceBrush"];
+
     /// <summary>
-    /// Makes cards opaque and the overlay pane's acrylic use its solid fallback when Windows transparency effects are off
-    /// or the in-app Less Transparency or Increase Contrast setting is on (<see cref="CardSurfaceOpacity"/>, surface-materials R4).
+    /// Makes cards opaque and the overlay pane's and flyout surface's acrylic use their solid fallbacks when Windows
+    /// transparency effects are off or the in-app Less Transparency or Increase Contrast setting is on
+    /// (<see cref="CardSurfaceOpacity"/>, surface-materials R4).
     /// </summary>
     private void ApplyTransparency()
     {
@@ -595,8 +599,11 @@ public sealed partial class MainWindow : Window
                 color.A = transparent ? CardSurfaceOpacity.TranslucentAlpha : CardSurfaceOpacity.OpaqueAlpha;
                 brush.Color = color;
             }
-            if (defaults.TryGetValue("FSTOverlayPaneBrush", out var pane) && pane is AcrylicBrush acrylic)
-                acrylic.AlwaysUseFallback = !transparent;
+            foreach (var key in AcrylicSurfaceKeys)
+            {
+                if (defaults.TryGetValue(key, out var surface) && surface is AcrylicBrush acrylic)
+                    acrylic.AlwaysUseFallback = !transparent;
+            }
         }
     }
     #endregion

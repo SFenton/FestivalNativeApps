@@ -262,6 +262,7 @@ class SuggestionCoreTest {
         for (key in listOf(
             "song_rival_spotlight_abc", "song_rival_gap_abc", "song_rival_protect_abc",
             "song_rival_slipping_abc", "song_rival_dominate_abc", "SONG_RIVAL_SPOTLIGHT_abc",
+            "song_rival_near_fc", "song_rival_star_gains", "song_rival_pct_push",
         )) {
             assertFalse(key, SuggestionRowPresentation.showsRivalName(key))
         }
@@ -269,10 +270,7 @@ class SuggestionCoreTest {
 
     @Test
     fun mixedRivalCategoriesKeepTheRivalName() {
-        for (key in listOf(
-            "song_rival_battleground", "song_rival_near_fc", "song_rival_stale",
-            "song_rival_star_gains", "song_rival_pct_push", "lb_rival_x", "near_fc_any",
-        )) {
+        for (key in listOf("song_rival_battleground", "song_rival_stale", "lb_rival_x", "near_fc_any")) {
             assertTrue(key, SuggestionRowPresentation.showsRivalName(key))
         }
     }

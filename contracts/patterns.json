@@ -319,7 +319,7 @@
       "title": "Section-jump landing",
       "status": "current",
       "doc": ".agents/patterns/section-jump-landing.md",
-      "summary": "Quick Links and Songs section-index jumps land ordinary targets' titles (not their headers' padding) 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear and never leave a large title resting part-way collapsed; a section index fits the height it is given, condensing its labels rather than growing the page, and its labels follow the text size within that fit; the index is one adjustable control assistive technologies can name and step.",
+      "summary": "Quick Links and Songs section-index jumps land ordinary targets' titles (not their headers' padding) 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear and never leave a large title resting part-way collapsed; a section index fits the height it is given, condensing its labels rather than growing the page, opens in its final layout without the region around it resizing, and its labels follow the text size within that fit; the index is one adjustable control assistive technologies can name and step.",
       "keywords": [
         "quick links",
         "section jump",
@@ -678,7 +678,10 @@
         "uncarded section",
         "reset row",
         "reading pane card",
-        "privacy policy pane"
+        "privacy policy pane",
+        "flyout surface",
+        "menu background",
+        "dropdown background"
       ],
       "web": [
         {
@@ -759,6 +762,10 @@
           {
             "path": "windows/Festival.Core/Domain/GroupedRowSlice.cs",
             "symbol": "GroupedRowSlice"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTFlyoutSurfaceBrush"
           }
         ]
       },
@@ -859,7 +866,8 @@
         461,
         588,
         596,
-        632
+        632,
+        643
       ]
     },
     {
@@ -867,7 +875,7 @@
       "title": "Page tools and navigation chrome",
       "status": "current",
       "doc": ".agents/patterns/page-tools-and-nav-chrome.md",
-      "summary": "Native shell navigation owns destinations; page tools use Apple's registry-drawn floating Liquid Glass buttons above every horizontal tab bar (iPhone, iPhone Duo inner portrait, compact iPad) with Notifications beside Profile in one header pill and leading titles (owner-approved, R28, #632; extended by agent decision #633: rail items on the Duo vertical bar, trailing bar items in the regular iPad sidebar shell, the Mac window toolbar with every toolbar item also a menu-bar command), Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android, Windows and Apple Rival pages name the rival and the section in the bar (Windows: the page header; Apple: R18's in-list InstrumentPageTitle with a subtitle line, pinned title over subtitle once it scrolls away): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too. Apple system bar items (the iPhone Duo rail's board switchers, Choose Profile) keep their system metrics, and tests prove their 44 pt target by hit region, not by element frame (R27, agent decision #625).",
+      "summary": "Native shell navigation owns destinations; page tools use Apple's registry-drawn floating Liquid Glass buttons above every horizontal tab bar (iPhone, iPhone Duo inner portrait, compact iPad) with Notifications beside Profile in one header pill and leading titles (owner-approved, R28, #632; extended by agent decision #633: rail items on the Duo vertical bar, trailing bar items in the regular iPad sidebar shell, the Mac window toolbar with every toolbar item also a menu-bar command), Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android, Windows and Apple Rival pages name the rival and the section in the bar (Windows: the page header; Apple: R18's in-list InstrumentPageTitle with a subtitle line, pinned title over subtitle once it scrolls away): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too. Apple system bar items (the iPhone Duo rail's board switchers, Choose Profile) keep their system metrics, and tests prove their 44 pt target by hit region, not by element frame (R27, agent decision #625). Windows page tools stay put while content scrolls: each page's header (title, Quick Links, Rank By, Select/Switch/Deselect Profile) sits above its ScrollViewer with content clipped under it, and Song Details' pinned bar carries Paths, Item Shop and Quick Links at one 40 epx height (R29, agent decision #639).",
       "keywords": [
         "navigation",
         "page tools",
@@ -891,7 +899,9 @@
         "rival detail",
         "rivalry",
         "rival name",
-        "select profile"
+        "select profile",
+        "pinned page header",
+        "stays visible on scroll"
       ],
       "web": [
         {
@@ -1099,6 +1109,10 @@
           },
           {
             "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTToolbarSearchBoxStyle"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
             "symbol": "FSTMenuItemMinHeight"
           },
           {
@@ -1124,6 +1138,22 @@
           {
             "path": "windows/Festival.Core/ViewModels/RivalDetailViewModels.cs",
             "symbol": "RivalDetailText"
+          },
+          {
+            "path": "windows/Festival.App/Pages/RivalsPage.xaml",
+            "symbol": "Header"
+          },
+          {
+            "path": "windows/Festival.App/Pages/SongDetailPage.xaml",
+            "symbol": "PinnedTools"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTShopButtonStyle"
+          },
+          {
+            "path": "windows/Festival.App/Controls/QuickLinksHost.cs",
+            "symbol": "AddMenu"
           }
         ]
       },
@@ -1268,7 +1298,9 @@
         604,
         611,
         625,
-        632
+        632,
+        639,
+        646
       ]
     },
     {
@@ -1558,7 +1590,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, whose own row inside a board or preview speaks its rank as \"Your rank, <ordinal>\" (bands \"Your band, …\") so the highlight is never the only cue (#457), a pinned row that follows the rows instead when at accessibility text sizes it would cover more than a third of the board (#386), with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score, keyboard or screen-reader focus that scrolls a row clear of the floating pinned row and pager (WCAG 2.4.11, #409), and the owner-approved #543 variant that native song boards, Full Rankings, Band Rankings and Song Detail band previews draw a page's rows in one card with separators (the web keeps a card per row), and rank-history rows (Leaderboards, Profile, Band) that draw rank and value in fixed right-aligned tabular columns measured once over every chart day, so the bold newest row and the tapped bar's detail line up, the date moves above the columns at large text and, when even the columns don't fit side by side, each keeps its measured width right-aligned on its own line, in rows at least 48 units tall (#594).",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, whose own row inside a board or preview speaks its rank as \"Your rank, <ordinal>\" (bands \"Your band, …\") so the highlight is never the only cue (#457), a pinned row that follows the rows instead when at accessibility text sizes it would cover more than a third of the board (#386), with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score, keyboard or screen-reader focus that scrolls a row clear of the floating pinned row and pager (WCAG 2.4.11, #409), and the owner-approved #543 variant that native song boards, Full Rankings, Band Rankings and Song Detail band previews draw a page's rows in one card with separators (the web keeps a card per row), extended on Windows by #643 to Song Detail's instrument and band previews, the Leaderboards overview boards and their First Run demos (in-card GroupedRows slices, View All inside the card), and rank-history rows (Leaderboards, Profile, Band) that draw rank and value in fixed right-aligned tabular columns measured once over every chart day, so the bold newest row and the tapped bar's detail line up, the date moves above the columns at large text and, when even the columns don't fit side by side, each keeps its measured width right-aligned on its own line, in rows at least 48 units tall (#594).",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -1981,7 +2013,8 @@
         409,
         461,
         594,
-        578
+        578,
+        643
       ]
     },
     {
@@ -2436,7 +2469,8 @@
         561,
         614,
         616,
-        634
+        634,
+        649
       ]
     },
     {
@@ -4814,6 +4848,83 @@
       ]
     },
     {
+      "id": "instrument-chip-rows",
+      "title": "Instrument chip rows",
+      "status": "current",
+      "doc": ".agents/patterns/instrument-chip-rows.md",
+      "summary": "Songs row instrument status chips that don't fit one line wrap onto the fewest balanced lines (9 → 5 + 4, earlier lines take the extra chip), each centred across the card under the art and title, measured from the chip area's own width, in service order with one spoken row name. Chips never clip, overlap or shrink; natives drop the web's three-row cap, four-chip rule and hysteresis (agent decision #645).",
+      "keywords": [
+        "instrument chips",
+        "status chips",
+        "chip rows",
+        "wrap",
+        "multi-row",
+        "balanced rows",
+        "narrow",
+        "instrument icons"
+      ],
+      "web": [
+        {
+          "path": "pages/songs/layoutMode.ts",
+          "symbol": "resolveInstrumentChipRows"
+        },
+        {
+          "path": "pages/songs/layoutMode.ts",
+          "symbol": "splitInstrumentRows"
+        },
+        {
+          "path": "pages/songs/components/SongRow.tsx",
+          "symbol": "mobileInstrumentRows"
+        },
+        {
+          "path": "pages/songs/firstRun/demo/SongIconsDemo.tsx",
+          "symbol": "SongIconsDemo"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongInstrumentStatusChips.swift",
+            "symbol": "SongChipRows"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt",
+            "symbol": "ChipGrid"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/InstrumentChipRows.cs",
+            "symbol": "InstrumentChipRows"
+          },
+          {
+            "path": "windows/Festival.App/Controls/FlowPanel.cs",
+            "symbol": "BalanceLines"
+          }
+        ]
+      },
+      "guards": [],
+      "related": {
+        "patterns": [
+          "metadata-pills"
+        ],
+        "controls": [
+          "songs-instrument-status-chips",
+          "first-run"
+        ],
+        "pages": [
+          "songs"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        645
+      ]
+    },
+    {
       "id": "shop-offer-status",
       "title": "Item Shop offer status",
       "status": "current",
@@ -5247,7 +5358,7 @@
       "title": "Metadata pills",
       "status": "current",
       "doc": ".agents/patterns/metadata-pills.md",
-      "summary": "The season chip (S15) and percentile chip (Top N%) are one shared component each per platform, one size everywhere (chip label style, 24 dp tall, 8 dp corners, season >= 48 dp, percentile >= 5.5 em), with the web colours: seasons textSecondary on surfaceSubtle with a borderSubtle outline and the catalogue's current season inverted; Top 1% skewed gold outline, Top 5% gold outline, else 10% white. Season pills read 'Season N' / 'Current season N' (#606).",
+      "summary": "The season chip (S15) and percentile chip (Top N%) are one shared component each per platform, one size everywhere (chip label style, 24 dp tall, 8 dp corners, season >= 48 dp, percentile >= 5.5 em), with the web colours: seasons textSecondary on surfaceSubtle with a borderSubtle outline and the catalogue's current season inverted; Top 1% skewed gold outline, Top 5% gold outline, else 10% white. Season pills read 'Season N' / 'Current season N' (#606). In a metadata row every chip beside them (accuracy/FC, difficulty, stars, intensity) reads at the same visible pill height, and a full-combo accuracy is the percent alone in the Top 1% skewed gold outline (web AccuracyDisplay fcBadge, #644).",
       "keywords": [
         "season pill",
         "season chip",
@@ -5257,7 +5368,9 @@
         "top 1%",
         "top 5%",
         "chip contrast",
-        "metadata pill"
+        "metadata pill",
+        "chip height",
+        "full combo pill"
       ],
       "web": [
         {
@@ -5347,7 +5460,8 @@
         }
       ],
       "issues": [
-        606
+        606,
+        644
       ],
       "supersedes": [],
       "supersededBy": null

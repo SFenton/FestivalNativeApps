@@ -77,7 +77,10 @@
             <SolidColorBrush x:Key="FSTSeasonPillStrokeBrush" Color="#FF1E2A3A" />
             <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="#FFD7DEE8" />
             <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="#FF162133" />
-            <SolidColorBrush x:Key="FSTCurrentSeasonStrokeBrush" Color="#FF162133" />
+            <!-- Fill-coloured ring: the web's surfaceSubtle ring sits outside its 24 px light block and vanishes into the
+                 page, but the Windows stroke is inside the 24-epx pill, so a dark ring shrank the visible pill to 20 epx
+                 (issue #644). -->
+            <SolidColorBrush x:Key="FSTCurrentSeasonStrokeBrush" Color="#FFD7DEE8" />
             <SolidColorBrush x:Key="FSTPercentileNeutralFillBrush" Color="#FF223047" />
             <SolidColorBrush x:Key="FSTPercentileNeutralTextBrush" Color="#FFD7DEE8" />
             <SolidColorBrush x:Key="FSTPercentileNeutralStrokeBrush" Color="#00000000" />
@@ -167,6 +170,19 @@
             <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
             <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
             <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
+            <!--
+                One surface for every menu, flyout and ComboBox drop-down (issue #641): Fluent's default flyout acrylic
+                (AcrylicBackgroundFillColorDefault, dark values). WinUI 2.x menus paint a transparent presenter and rely on
+                a system backdrop that exists only in a windowed popup; app popups open in-window (#534), so without
+                this the page shows through. Less Transparency / Increase Contrast / transparency off switch it to its
+                solid fallback (MainWindow.ApplyTransparency); contrast themes keep the system Window colour.
+            -->
+            <AcrylicBrush x:Key="FSTFlyoutSurfaceBrush" TintColor="#FF2C2C2C" TintOpacity="0.15" TintLuminosityOpacity="0.96"
+                          FallbackColor="#FF2C2C2C" />
+            <StaticResource x:Key="MenuFlyoutPresenterBackground" ResourceKey="FSTFlyoutSurfaceBrush" />
+            <StaticResource x:Key="CommandBarFlyoutBackground" ResourceKey="FSTFlyoutSurfaceBrush" />
+            <StaticResource x:Key="FlyoutPresenterBackground" ResourceKey="FSTFlyoutSurfaceBrush" />
+            <StaticResource x:Key="ComboBoxDropDownBackground" ResourceKey="FSTFlyoutSurfaceBrush" />
             <!-- Title-bar chrome over the dimmed artwork is white, active or not (operator batch 6.6): the WinUI TitleBar
                  otherwise grays its title and glyphs while the window is inactive. -->
             <SolidColorBrush x:Key="TitleBarForegroundBrush" Color="#FFFFFFFF" />
@@ -327,6 +343,19 @@
          the glyph still lands on the button (issue #72; HitTargetMarkupTests guards it). -->
     <x:Double x:Key="FSTMinTargetSize">40</x:Double>
 
+    <!-- A search box sharing a row with page tools is as tall as they are (page-tools-and-nav-chrome R10, issue #646):
+         WinUI's AutoSuggestBox text box is 32 epx, so beside the 40 epx Sort/Filter/Jump the row read as two heights.
+         The box keeps the default Stretch alignment, so it also follows the row when larger text grows the buttons. The
+         AutoSuggestBox template-binds its text box's VerticalContentAlignment, so Center is set on the box: the text and
+         placeholder stay vertically centred in the taller field. -->
+    <Style x:Key="FSTToolbarSearchTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource AutoSuggestBoxTextBoxStyle}">
+        <Setter Property="MinHeight" Value="{StaticResource FSTMinTargetSize}" />
+    </Style>
+    <Style x:Key="FSTToolbarSearchBoxStyle" TargetType="AutoSuggestBox" BasedOn="{StaticResource DefaultAutoSuggestBoxStyle}">
+        <Setter Property="TextBoxStyle" Value="{StaticResource FSTToolbarSearchTextBoxStyle}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+
     <services:InverseVisibilityConverter x:Key="FSTInverseVisibility" />
 
     <!-- MenuFlyout presenters are UIA Menus and need a name (Axe); the invoking button already names the choice. -->
@@ -430,6 +459,17 @@
         <Setter Property="MinHeight" Value="{StaticResource FSTMinTargetSize}" />
         <Setter Property="Margin" Value="0,4,0,0" />
         <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- Song Detail's Item Shop button (hero, pinned bar and the first-run demo replica): the ShopPulseFill status layer
+         is the button's content, so the button draws no border (the default 1 epx border inset the fill to 38 of the
+         40 epx beside Paths, issue #639) and stretches its content to the full height. -->
+    <Style x:Key="FSTShopButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="Background" Value="{ThemeResource FSTShopButtonSurfaceBrush}" />
+        <Setter Property="Foreground" Value="{ThemeResource FSTShopBadgeTextBrush}" />
     </Style>
 
     <!-- Instrument / band header above a card (web InstrumentHeader MD): 36 epx icon, bold title, optional subtitle. -->

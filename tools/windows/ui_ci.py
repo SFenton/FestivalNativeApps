@@ -188,6 +188,28 @@ RUNS: tuple[Run, ...] = (
     Run("songs-scroll", "a11y-songs-scroll.json", tabs=0),
     Run("songs-scroll-text-225", "a11y-songs-scroll.json", sizes="compact", mode="text-225", tabs=0),
     Run("songs-scroll-no-animations", "a11y-songs-scroll.json", sizes="compact", mode="no-animations", tabs=0),
+    # Scroll paging (issue #642): keyboard PageDown on Statistics and Song Details moves the Quick Links current section
+    # off the first section while the scroll moves (throttled reports) and keeps it at rest; later Statistics sections
+    # still load once the loaded ones stop watching the viewport (tiles named, 40 epx, in order); Axe at the paged state.
+    Run("scroll-paging", "a11y-scroll-paging.json", tabs=0),
+    Run("scroll-paging-text-225", "a11y-scroll-paging.json", sizes="compact", mode="text-225", tabs=0),
+    # Songs metadata chips (issue #644): the row speaks score, accuracy (graded and the skewed gold "100%" full combo),
+    # Top %, stars, season, intensity and difficulty in visual order; every text pill is at least 24 epx and shares one
+    # height with the others, the 24-epx stars and meter line up with them, the current season paints its full height,
+    # Axe-scanned; at 225% text the text pills grow to one shared height, never clipped.
+    Run("songs-metadata-chips", "a11y-songs-metadata-chips.json", sizes="medium,wide"),
+    Run("songs-metadata-chips-text-225", "a11y-songs-metadata-chips.json", sizes="medium", mode="text-225"),
+    # Songs instrument chip rows (issue #645, instrument-chip-rows R1-R5): in a 360 epx window the nine chips read
+    # 5 + 4 in lines centred on the row (assertmidline), not 7 + 2 or left-aligned; lines never overlap, each chip
+    # icon keeps 21 epx and the row speaks every chart in visual order; widening re-flows them to one centred line.
+    # At 225% text the chips keep their size and the same balanced, centred lines.
+    Run("songs-chip-rows", "a11y-songs-chip-rows.json", sizes="compact"),
+    Run("songs-chip-rows-text-225", "a11y-songs-chip-rows.json", sizes="compact", mode="text-225"),
+    # Songs toolbar (issue #646): Search, Sort, Filter and Jump share one 40 epx height, each button is at least
+    # 40x40 epx, the search box fills the row so the tools end at the rows' right edge (one row at medium and wide;
+    # search above the buttons at compact), and search -> Sort -> Filter -> Jump -> rows reading order.
+    Run("songs-toolbar", "a11y-songs-toolbar.json", sizes="compact,medium,wide", tabs=0),
+    Run("songs-toolbar-text-225", "a11y-songs-toolbar.json", sizes="compact,medium", mode="text-225", tabs=0),
     # Song leaderboard footer and paging (issues #93, #443): pinned row and pager names, states and 40x40 targets,
     # header -> rows -> pinned row -> pager order, the fade layer kept out of the control view, the Tab/Shift+Tab order
     # at rest, mid-load and on page 2, and a keyboard page change that keeps the header, pinned row and pager in order
@@ -413,6 +435,11 @@ RUNS: tuple[Run, ...] = (
     # as in-card rows that touch (0 epx) in score order, ending on a 40+ epx View All Scores named for the chart.
     Run("score-history-card", "a11y-score-history-card.json", tabs=0),
     Run("score-history-card-text-225", "a11y-score-history-card.json", sizes="compact", mode="text-225", tabs=0),
+    # Preview cards (issue #643): each Leaderboards board (instrument, combo and Duos/Trios/Quads) and each Song Detail
+    # instrument and band preview is one card whose rows touch (0 epx) as in-card slices in rank order, ending on a
+    # 40+ epx View All inside the card; Tab returns to it from the rows.
+    Run("preview-cards", "a11y-preview-cards.json", tabs=0),
+    Run("preview-cards-text-225", "a11y-preview-cards.json", sizes="compact", mode="text-225", tabs=0),
     # Song Detail's Score History chart (issues #198, #512): Left/Right move focus between bar ToggleButtons and select
     # them, at 225% text the axis titles keep clear of the measured tick labels and date bands, under Desert the bars
     # paint the theme's Window/WindowText/Highlight (also after a live switch), and the syncing and failed states expose

@@ -61,7 +61,7 @@ public static class SongMetadataLayout
 
     /// <summary>
     /// The widest value each enabled field can show, for measuring the inline threshold at the current text size:
-    /// a six-digit score, <c>100% FC</c> (or <c>FC</c> with Percentage hidden), <c>Top 100%</c>, five stars, a two-digit
+    /// a six-digit score, the full-combo <c>100%</c> (or <c>FC</c> with Percentage hidden), <c>Top 100%</c>, five stars, a two-digit
     /// current season, the intensity meter, the widest difficulty letter and a long Last Played date.
     /// </summary>
     /// <param name="settings">Visibility settings.</param>
@@ -72,7 +72,7 @@ public static class SongMetadataLayout
         if (settings.MetadataScore)
             samples.Add(new(MetadataField.Score, ScoreFormatting.Score(999_999), ""));
         // A full combo always shows, even with Percentage hidden (FC-only).
-        samples.Add(new(MetadataField.Percentage, settings.MetadataPercentage ? $"{ScoreFormatting.Accuracy(1_000_000)} FC" : "FC", "")
+        samples.Add(new(MetadataField.Percentage, settings.MetadataPercentage ? ScoreFormatting.Accuracy(1_000_000) : "FC", "")
             { FullCombo = true });
         if (settings.MetadataPercentile)
             samples.Add(new(MetadataField.Percentile, "Top 100%", "") { Percentile = SongPercentileTier.TopOne });

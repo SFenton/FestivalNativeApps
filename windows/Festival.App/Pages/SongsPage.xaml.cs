@@ -80,6 +80,12 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>The in-list title made transparent while PushLayer draws it.</summary>
     private TextBlock? hiddenTitle;
 
+    /// <summary>
+    /// The incoming title's left edge and viewport-to-PushLayer offset, kept for that title at the list and bar size they
+    /// were measured at.
+    /// </summary>
+    private (TextBlock Title, (double Width, double Height, double Bar) Size, double Left, double Offset)? pushOrigin;
+
     /// <summary>Section a jump-index pick still has to pin under the bar, or -1.</summary>
     private int pendingPin = -1;
 
@@ -94,6 +100,9 @@ public sealed partial class SongsPage : Page, IPageBack
 
     /// <summary>Section the pinned bar names while the list is shown; the open index focuses its letter.</summary>
     private int stickySection;
+
+    /// <summary>Whether the semantic zoom is between views (opening or closing the jump index).</summary>
+    private bool zoomChanging;
 
     /// <summary>Whether a settled view change's after-layout header re-read is queued (<see cref="OnScrollerViewChanged"/>).</summary>
     private bool stickySettlePending;
@@ -128,11 +137,12 @@ public sealed partial class SongsPage : Page, IPageBack
         // Page-wide, so Escape also closes the index while focus is back on the Jump button or the toolbar (issue #231).
         PreviewKeyDown += OnZoomKeyDown;
         Zoom.ViewChangeCompleted += OnZoomViewChangeCompleted;
-        Zoom.ViewChangeStarted += (_, _) => SizeJumpCells();
+        Zoom.ViewChangeStarted += OnZoomViewChangeStarted;
         edgeFade = new TopEdgeFade(ListFadeSource, ListFadeHost);
         Loaded += (_, _) => AttachEdgeFadeSettings();
         Loaded += OnReturned;
         Unloaded += (_, _) => DetachEdgeFadeSettings();
+        Unloaded += (_, _) => StopJumpTrace();
     }
 
     /// <summary>Page model.</summary>
@@ -294,23 +304,26 @@ public sealed partial class SongsPage : Page, IPageBack
     /// first visible row comes from the realized rows' geometry: <see cref="ItemsStackPanel.FirstVisibleIndex"/> can
     /// still describe the layout before a jump-index pick (issue #48: R → B kept "A" pinned). When no realized row is in
     /// view yet (a far scroll's last view change precedes realization, issue #248), it reads the rows again after the
-    /// next layout pass.
+    /// next layout pass. The search starts at the panel's first-visible index and measures only the rows next to it
+    /// (#642), falling back to measuring every realized row.
     /// </summary>
     private void UpdateStickyHeader()
     {
         EnsureScroller();
         var panel = SongList.ItemsPanelRoot as ItemsStackPanel;
         var fallback = panel is { FirstVisibleIndex: >= 0 } ? panel.FirstVisibleIndex : 0;
-        if (!SongSectionHeader.TryFirstVisibleRow(stickyRowCount, RealizedRows(panel),
-                scroller?.ViewportHeight ?? SongList.ActualHeight, out var row))
+        var viewport = scroller?.ViewportHeight ?? SongList.ActualHeight;
+        var origin = PanelTop(panel);
+        if (!SongSectionHeader.TryFirstVisibleRowNear(fallback, stickyRowCount, i => RealizedRowAt(i, panel, origin), viewport, out var row)
+            && !SongSectionHeader.TryFirstVisibleRow(stickyRowCount, RealizedRows(panel, origin), viewport, out row))
         {
             row = stickyRowCount > 0 ? Math.Clamp(fallback, 0, stickyRowCount - 1) : 0;
             RecheckHeaderAfterLayout();
         }
         else headerRechecks = 0;
         var section = SongSectionHeader.SectionAt(groupStarts, row);
-        var own = TitleAt(section);
-        var next = TitleAt(section + 1);
+        var own = TitleAt(section, panel, origin);
+        var next = TitleAt(section + 1, panel, origin);
         var push = SongSectionHeader.Push(section, stickyLabels.Length, own?.Top, next?.Top, StickyBar.ActualHeight,
             SongHeaderEdgeFade.Depth);
         (fadeOwnTop, fadeNextTop) = (own?.Top, next?.Top);
@@ -342,14 +355,22 @@ public sealed partial class SongsPage : Page, IPageBack
         SongList.LayoutUpdated += Settled;
     }
 
-    /// <summary>Sets the pinned header's text and visibility.</summary>
+    /// <summary>
+    /// Sets the pinned header's text and visibility. While the jump index is open (from the moment it starts opening
+    /// until a pick or close has zoomed back in) the bar keeps its height but is transparent and out of UI Automation:
+    /// collapsing it changed the index's height after the zoom-out had played, so the centred letters jumped (issue #648).
+    /// </summary>
     /// <param name="label">Section label ("" hides the bar).</param>
     /// <param name="incoming">The next section's in-list title pushing it out, if any.</param>
     private void ShowStickyHeader(string label, (TextBlock Text, double Top)? incoming = null)
     {
         StickyHeader.Text = label;
-        var shown = label.Length > 0 && Zoom.IsZoomedInViewActive && ViewModel.ShowList && Zoom.Opacity > 0;
-        StickyHeader.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        var placed = label.Length > 0 && ViewModel.ShowList && Zoom.Opacity > 0;
+        var indexShowing = zoomChanging || !Zoom.IsZoomedInViewActive;
+        var shown = placed && !indexShowing;
+        StickyHeader.Visibility = placed ? Visibility.Visible : Visibility.Collapsed;
+        StickyHeader.Opacity = shown ? 1 : 0;
+        AutomationProperties.SetAccessibilityView(StickyHeader, shown ? AccessibilityView.Content : AccessibilityView.Raw);
         ShowIncoming(shown ? incoming : null);
         UpdateEdgeFade(shown);
     }
@@ -378,7 +399,9 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <param name="e">View change.</param>
     private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
+        var cost = Services.ScrollCost.Begin();
         UpdateStickyHeader();
+        Services.ScrollCost.End("songs-sticky", cost);
         if (e.IsIntermediate || stickySettlePending) return;
         stickySettlePending = true;
         void Settle(object? _, object __)
@@ -423,16 +446,29 @@ public sealed partial class SongsPage : Page, IPageBack
 
     /// <summary>A section's visible in-list title and its text top relative to the list viewport's top.</summary>
     /// <param name="section">Section index.</param>
+    /// <param name="panel">Items panel.</param>
+    /// <param name="origin">The panel's top relative to the viewport's (<see cref="PanelTop"/>).</param>
     /// <returns>The title, or <see langword="null"/> when it has none (the first section) or is not realized.</returns>
-    private (TextBlock Text, double Top)? TitleAt(int section)
+    private (TextBlock Text, double Top)? TitleAt(int section, ItemsStackPanel? panel, double? origin)
     {
-        if (scroller is null || section <= 0 || section >= groupStarts.Length) return null;
+        if (scroller is null || panel is null || origin is not { } panelTop || section <= 0 || section >= groupStarts.Length) return null;
         var end = section + 1 < groupStarts.Length ? groupStarts[section + 1] : stickyRowCount;
         if (end <= groupStarts[section] || SongList.ContainerFromIndex(groupStarts[section]) is not ListViewItem item) return null;
         if (SongList.GroupHeaderContainerFromItemContainer(item) is not ListViewHeaderItem
             { ContentTemplateRoot: TextBlock { Visibility: Visibility.Visible } text }) return null;
-        return (text, text.TransformToVisual(scroller).TransformPoint(default).Y);
+        return LayoutGeometry.TopWithin(text, panel) is { } top ? (text, panelTop + top) : null;
     }
+
+    /// <summary>
+    /// The items panel's top relative to the list viewport's top: the one transform a header update reads (#642). Rows
+    /// and titles are then placed by their layout offsets in the panel (<see cref="LayoutGeometry"/>): every
+    /// <c>TransformToVisual</c> creates a WinRT object whose .NET wrapper adds GC memory pressure, which on every scroll
+    /// frame induced full (gen2) collections that stalled scrolling.
+    /// </summary>
+    /// <param name="panel">Items panel.</param>
+    /// <returns>Top (epx), or <see langword="null"/> without a panel or scroller.</returns>
+    private double? PanelTop(ItemsStackPanel? panel) =>
+        panel is null || scroller is null ? null : panel.TransformToVisual(scroller).TransformPoint(default).Y;
 
     /// <summary>
     /// Ties the pinned title's and the incoming copy's offsets to the scroll position on the compositor, so they move
@@ -484,10 +520,17 @@ public sealed partial class SongsPage : Page, IPageBack
             return;
         }
         var top = incoming!.Value.Top;
-        var origin = title.TransformToVisual(PushLayer).TransformPoint(default);
+        // The title's place in PushLayer moves with its place in the viewport, so the offset between them (V) and its
+        // left edge hold while it scrolls: transform once per title and layout, not on every scroll frame (#642).
+        var size = (SongList.ActualWidth, SongList.ActualHeight, StickyBar.ActualHeight);
+        if (pushOrigin is not { } cached || cached.Title != title || cached.Size != size)
+        {
+            var origin = title.TransformToVisual(PushLayer).TransformPoint(default);
+            pushOrigin = cached = (title, size, origin.X, origin.Y - top);
+        }
         IncomingHeader.Text = title.Text;
-        Canvas.SetLeft(IncomingHeader, origin.X);
-        pushProps.InsertScalar("V", (float)(origin.Y - top));
+        Canvas.SetLeft(IncomingHeader, cached.Left);
+        pushProps.InsertScalar("V", (float)cached.Offset);
         pushProps.InsertScalar("H", (float)StickyBar.ActualHeight);
         pushProps.InsertScalar("C", (float)(top + scroller.VerticalOffset));
         IncomingHeader.Visibility = Visibility.Visible;
@@ -565,20 +608,52 @@ public sealed partial class SongsPage : Page, IPageBack
         UpdateButtonTints();
     });
 
+    /// <summary>A realized row's edges relative to the list viewport's top (#642: measures one container, not all).</summary>
+    /// <param name="index">Flat row index.</param>
+    /// <param name="panel">Items panel.</param>
+    /// <param name="origin">The panel's top relative to the viewport's (<see cref="PanelTop"/>).</param>
+    /// <returns>The row, or <see langword="null"/> when it is not realized or not shown.</returns>
+    private SongSectionHeader.RealizedRow? RealizedRowAt(int index, ItemsStackPanel? panel, double? origin)
+    {
+        if (panel is null || origin is not { } panelTop
+            || SongList.ContainerFromIndex(index) is not ListViewItem { Visibility: Visibility.Visible } item) return null;
+        var top = panelTop + item.ActualOffset.Y;
+        return new(index, top, top + item.ActualHeight);
+    }
+
     /// <summary>Realized row containers with their edges relative to the list viewport's top.</summary>
     /// <param name="panel">Items panel.</param>
+    /// <param name="origin">The panel's top relative to the viewport's (<see cref="PanelTop"/>).</param>
     /// <returns>Rows (recycled containers excluded).</returns>
-    private IEnumerable<SongSectionHeader.RealizedRow> RealizedRows(ItemsStackPanel? panel)
+    private IEnumerable<SongSectionHeader.RealizedRow> RealizedRows(ItemsStackPanel? panel, double? origin)
     {
-        if (panel is null || scroller is null) yield break;
+        if (panel is null || origin is not { } panelTop) yield break;
         foreach (var child in panel.Children)
         {
             if (child is not ListViewItem item || item.Visibility != Visibility.Visible) continue;
             var index = SongList.IndexFromContainer(item);
             if (index < 0) continue;
-            var top = item.TransformToVisual(scroller).TransformPoint(default).Y;
+            var top = panelTop + item.ActualOffset.Y;
             yield return new(index, top, top + item.ActualHeight);
         }
+    }
+
+    /// <summary>
+    /// Sizes the index's cells before it shows and, when it starts opening, hides the pinned header in place (its bar
+    /// keeps its height, so the index's region is final before its first frame, issue #648).
+    /// </summary>
+    /// <param name="sender">Semantic zoom.</param>
+    /// <param name="e">View change.</param>
+    private void OnZoomViewChangeStarted(object sender, SemanticZoomViewChangedEventArgs e)
+    {
+        zoomChanging = true;
+        SizeJumpCells();
+        if (e.IsSourceZoomedInView)
+        {
+            ShowStickyHeader(StickyHeader.Text);
+            TraceJumpOpen();
+        }
+        else StopJumpTrace();
     }
 
     /// <summary>
@@ -590,6 +665,7 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <param name="e">View change.</param>
     private void OnZoomViewChangeCompleted(object sender, SemanticZoomViewChangedEventArgs e)
     {
+        zoomChanging = false;
         pendingPin = -1;
         if (Zoom.IsZoomedInViewActive && e.DestinationItem?.Item is SongGroup group)
         {
@@ -688,7 +764,9 @@ public sealed partial class SongsPage : Page, IPageBack
         {
             var target = inlineChips ? trailing : secondary;
             foreach (var chip in row.Chips) target.Children.Add(SongRowVisuals.Chip(chip, row.Song.SongId, row.Keyboard));
-            secondary.LineAlignment = HorizontalAlignment.Left;
+            // Web mobile SongRow: balanced, centred chip rows across the card under the art and title (issue #645).
+            secondary.BalanceLines = true;
+            secondary.LineAlignment = HorizontalAlignment.Center;
         }
         else if (row.Metadata.Count > 0)
         {
@@ -703,6 +781,7 @@ public sealed partial class SongsPage : Page, IPageBack
             }
             for (var i = 0; i < row.Metadata.Count; i++)
                 (i == 0 || metadataInline ? trailing : secondary).Children.Add(SongRowVisuals.Pill(row.Metadata[i], songId));
+            secondary.BalanceLines = false;
             secondary.LineAlignment = HorizontalAlignment.Right;
         }
         else
@@ -727,7 +806,7 @@ public sealed partial class SongsPage : Page, IPageBack
             trailing.Children.Add(indicator);
         }
         var wrapped = secondary.Children.Count > 0;
-        card.SetWrapped(wrapped);
+        card.SetWrapped(wrapped, fullWidth: wrapped && row.Chips.Count > 0);
     }
 
     /// <summary>
@@ -793,11 +872,10 @@ public sealed partial class SongsPage : Page, IPageBack
         // The split list column is as narrow as a compact page, so the search gets its own row there too.
         var narrowList = compact || split;
         JumpLabel.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        Grid.SetColumnSpan(SearchBox, narrowList ? 5 : 1);
-        SearchColumn.MaxWidth = narrowList ? double.PositiveInfinity : 440;
+        Grid.SetColumnSpan(SearchBox, narrowList ? 2 : 1);
         Grid.SetRow(ActionButtons, narrowList ? 1 : 0);
         Grid.SetColumn(ActionButtons, narrowList ? 0 : 1);
-        Grid.SetColumnSpan(ActionButtons, narrowList ? 5 : 1);
+        Grid.SetColumnSpan(ActionButtons, narrowList ? 2 : 1);
         // Compact: the list's scroll indicator overlays the rows, so no right gutter is reserved for it and rows end
         // 12 epx from the edge like the left side (operator 7.24; was 16 epx).
         Root.Padding = compact ? new Thickness(12, 8, 12, 0) : new Thickness(24, 12, 12, 0);
@@ -1063,6 +1141,68 @@ public sealed partial class SongsPage : Page, IPageBack
         });
         var available = (Zoom.ActualWidth > 0 ? Zoom.ActualWidth : ActualWidth) - JumpItemGap;
         panel.ItemWidth = SongSectionHeader.JumpCellWidth(widths, available) + JumpItemGap;
+    }
+    #endregion
+
+    #region Jump index trace
+    /// <summary>How long after the index starts opening its layout is traced.</summary>
+    private const double JumpTraceMs = 1000;
+
+    /// <summary>When the traced opening started (<see cref="System.Diagnostics.Stopwatch"/> timestamp).</summary>
+    private long jumpTraceStart;
+
+    /// <summary>The traced opening's frame lines, or <see langword="null"/> while not tracing.</summary>
+    private List<string>? jumpTraceFrames;
+
+    /// <summary>
+    /// Starts tracing an opening (<c>--perf-log</c> only): one <c>jump-open</c> line now, then one <c>jump-frame</c> line
+    /// per rendered frame for <see cref="JumpTraceMs"/> or until the index starts closing, written together with a
+    /// closing <c>jump-done</c> line, so a journey can prove the index's laid-out region and letters never move once
+    /// they render (<c>tools/windows/jump_trace.py</c>, issue #648).
+    /// </summary>
+    private void TraceJumpOpen()
+    {
+        if (!PerfLog.Enabled) return;
+        StopJumpTrace();
+        jumpTraceStart = System.Diagnostics.Stopwatch.GetTimestamp();
+        jumpTraceFrames = [];
+        PerfLog.Write("jump-open");
+        CompositionTarget.Rendering += OnJumpTraceFrame;
+    }
+
+    /// <summary>Records the index's size, cell width, first and last cell and scroll offset for one rendered frame.</summary>
+    /// <param name="sender">Ignored.</param>
+    /// <param name="e">Ignored.</param>
+    private void OnJumpTraceFrame(object? sender, object e)
+    {
+        if (jumpTraceFrames is null) return;
+        var t = System.Diagnostics.Stopwatch.GetElapsedTime(jumpTraceStart).TotalMilliseconds;
+        if (t > JumpTraceMs || (Zoom.IsZoomedInViewActive && !zoomChanging))
+        {
+            StopJumpTrace();
+            return;
+        }
+        var panel = JumpIndex.ItemsPanelRoot as ItemsWrapGrid;
+        var cells = panel?.Children.OfType<GridViewItem>().Where(c => c.Visibility == Visibility.Visible).ToList() ?? [];
+        string At(FrameworkElement? cell)
+        {
+            if (cell is null) return "-";
+            var point = cell.TransformToVisual(JumpIndex).TransformPoint(default);
+            return FormattableString.Invariant($"{point.X:F1},{point.Y:F1}");
+        }
+        var offset = cells.Count > 0 && FindScrollViewer(JumpIndex) is { } viewer ? viewer.VerticalOffset : 0;
+        jumpTraceFrames.Add(FormattableString.Invariant(
+            $"jump-frame t={t:F0} height={JumpIndex.ActualHeight:F1} width={JumpIndex.ActualWidth:F1} cells={cells.Count} cell={(panel?.ItemWidth ?? 0):F1} first={At(cells.FirstOrDefault())} last={At(cells.LastOrDefault())} offset={offset:F1}"));
+    }
+
+    /// <summary>Writes the traced opening's frames and its <c>jump-done</c> line.</summary>
+    private void StopJumpTrace()
+    {
+        CompositionTarget.Rendering -= OnJumpTraceFrame;
+        if (jumpTraceFrames is null) return;
+        jumpTraceFrames.Add(FormattableString.Invariant($"jump-done frames={jumpTraceFrames.Count}"));
+        PerfLog.Write(string.Join(Environment.NewLine, jumpTraceFrames));
+        jumpTraceFrames = null;
     }
     #endregion
 
