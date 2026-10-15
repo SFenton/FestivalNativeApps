@@ -194,6 +194,12 @@ RUNS: tuple[Run, ...] = (
     # Axe-scanned; at 225% text the text pills grow to one shared height, never clipped.
     Run("songs-metadata-chips", "a11y-songs-metadata-chips.json", sizes="medium,wide"),
     Run("songs-metadata-chips-text-225", "a11y-songs-metadata-chips.json", sizes="medium", mode="text-225"),
+    # Songs instrument chip rows (issue #645, instrument-chip-rows R1-R5): in a 360 epx window the nine chips read
+    # 5 + 4 in lines centred on the row (assertmidline), not 7 + 2 or left-aligned; lines never overlap, each chip
+    # icon keeps 21 epx and the row speaks every chart in visual order; widening re-flows them to one centred line.
+    # At 225% text the chips keep their size and the same balanced, centred lines.
+    Run("songs-chip-rows", "a11y-songs-chip-rows.json", sizes="compact"),
+    Run("songs-chip-rows-text-225", "a11y-songs-chip-rows.json", sizes="compact", mode="text-225"),
     # Songs toolbar (issue #646): Search, Sort, Filter and Jump share one 40 epx height, each button is at least
     # 40x40 epx, the search box fills the row so the tools end at the rows' right edge (one row at medium and wide;
     # search above the buttons at compact), and search -> Sort -> Filter -> Jump -> rows reading order.

@@ -319,7 +319,7 @@
       "title": "Section-jump landing",
       "status": "current",
       "doc": ".agents/patterns/section-jump-landing.md",
-      "summary": "Quick Links and Songs section-index jumps land ordinary targets' titles (not their headers' padding) 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear and never leave a large title resting part-way collapsed; a section index fits the height it is given, condensing its labels rather than growing the page, and its labels follow the text size within that fit; the index is one adjustable control assistive technologies can name and step.",
+      "summary": "Quick Links and Songs section-index jumps land ordinary targets' titles (not their headers' padding) 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear and never leave a large title resting part-way collapsed; a section index fits the height it is given, condensing its labels rather than growing the page, opens in its final layout without the region around it resizing, and its labels follow the text size within that fit; the index is one adjustable control assistive technologies can name and step.",
       "keywords": [
         "quick links",
         "section jump",
@@ -875,7 +875,7 @@
       "title": "Page tools and navigation chrome",
       "status": "current",
       "doc": ".agents/patterns/page-tools-and-nav-chrome.md",
-      "summary": "Native shell navigation owns destinations; page tools use Apple's registry-drawn floating Liquid Glass buttons above every horizontal tab bar (iPhone, iPhone Duo inner portrait, compact iPad) with Notifications beside Profile in one header pill and leading titles (owner-approved, R28, #632; extended by agent decision #633: rail items on the Duo vertical bar, trailing bar items in the regular iPad sidebar shell, the Mac window toolbar with every toolbar item also a menu-bar command), Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android, Windows and Apple Rival pages name the rival and the section in the bar (Windows: the page header; Apple: R18's in-list InstrumentPageTitle with a subtitle line, pinned title over subtitle once it scrolls away): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too. Apple system bar items (the iPhone Duo rail's board switchers, Choose Profile) keep their system metrics, and tests prove their 44 pt target by hit region, not by element frame (R27, agent decision #625).",
+      "summary": "Native shell navigation owns destinations; page tools use Apple's registry-drawn floating Liquid Glass buttons above every horizontal tab bar (iPhone, iPhone Duo inner portrait, compact iPad) with Notifications beside Profile in one header pill and leading titles (owner-approved, R28, #632; extended by agent decision #633: rail items on the Duo vertical bar, trailing bar items in the regular iPad sidebar shell, the Mac window toolbar with every toolbar item also a menu-bar command), Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android, Windows and Apple Rival pages name the rival and the section in the bar (Windows: the page header; Apple: R18's in-list InstrumentPageTitle with a subtitle line, pinned title over subtitle once it scrolls away): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too. Apple system bar items (the iPhone Duo rail's board switchers, Choose Profile) keep their system metrics, and tests prove their 44 pt target by hit region, not by element frame (R27, agent decision #625). Windows page tools stay put while content scrolls: each page's header (title, Quick Links, Rank By, Select/Switch/Deselect Profile) sits above its ScrollViewer with content clipped under it, and Song Details' pinned bar carries Paths, Item Shop and Quick Links at one 40 epx height (R29, agent decision #639).",
       "keywords": [
         "navigation",
         "page tools",
@@ -899,7 +899,9 @@
         "rival detail",
         "rivalry",
         "rival name",
-        "select profile"
+        "select profile",
+        "pinned page header",
+        "stays visible on scroll"
       ],
       "web": [
         {
@@ -1136,6 +1138,22 @@
           {
             "path": "windows/Festival.Core/ViewModels/RivalDetailViewModels.cs",
             "symbol": "RivalDetailText"
+          },
+          {
+            "path": "windows/Festival.App/Pages/RivalsPage.xaml",
+            "symbol": "Header"
+          },
+          {
+            "path": "windows/Festival.App/Pages/SongDetailPage.xaml",
+            "symbol": "PinnedTools"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTShopButtonStyle"
+          },
+          {
+            "path": "windows/Festival.App/Controls/QuickLinksHost.cs",
+            "symbol": "AddMenu"
           }
         ]
       },
@@ -1281,6 +1299,7 @@
         611,
         625,
         632,
+        639,
         646
       ]
     },
@@ -4805,6 +4824,83 @@
       "supersedes": [],
       "issues": [
         541
+      ]
+    },
+    {
+      "id": "instrument-chip-rows",
+      "title": "Instrument chip rows",
+      "status": "current",
+      "doc": ".agents/patterns/instrument-chip-rows.md",
+      "summary": "Songs row instrument status chips that don't fit one line wrap onto the fewest balanced lines (9 → 5 + 4, earlier lines take the extra chip), each centred across the card under the art and title, measured from the chip area's own width, in service order with one spoken row name. Chips never clip, overlap or shrink; natives drop the web's three-row cap, four-chip rule and hysteresis (agent decision #645).",
+      "keywords": [
+        "instrument chips",
+        "status chips",
+        "chip rows",
+        "wrap",
+        "multi-row",
+        "balanced rows",
+        "narrow",
+        "instrument icons"
+      ],
+      "web": [
+        {
+          "path": "pages/songs/layoutMode.ts",
+          "symbol": "resolveInstrumentChipRows"
+        },
+        {
+          "path": "pages/songs/layoutMode.ts",
+          "symbol": "splitInstrumentRows"
+        },
+        {
+          "path": "pages/songs/components/SongRow.tsx",
+          "symbol": "mobileInstrumentRows"
+        },
+        {
+          "path": "pages/songs/firstRun/demo/SongIconsDemo.tsx",
+          "symbol": "SongIconsDemo"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongInstrumentStatusChips.swift",
+            "symbol": "SongChipRows"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt",
+            "symbol": "ChipGrid"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/InstrumentChipRows.cs",
+            "symbol": "InstrumentChipRows"
+          },
+          {
+            "path": "windows/Festival.App/Controls/FlowPanel.cs",
+            "symbol": "BalanceLines"
+          }
+        ]
+      },
+      "guards": [],
+      "related": {
+        "patterns": [
+          "metadata-pills"
+        ],
+        "controls": [
+          "songs-instrument-status-chips",
+          "first-run"
+        ],
+        "pages": [
+          "songs"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        645
       ]
     },
     {

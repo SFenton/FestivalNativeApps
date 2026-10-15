@@ -461,6 +461,17 @@
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
+    <!-- Song Detail's Item Shop button (hero, pinned bar and the first-run demo replica): the ShopPulseFill status layer
+         is the button's content, so the button draws no border (the default 1 epx border inset the fill to 38 of the
+         40 epx beside Paths, issue #639) and stretches its content to the full height. -->
+    <Style x:Key="FSTShopButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        <Setter Property="Background" Value="{ThemeResource FSTShopButtonSurfaceBrush}" />
+        <Setter Property="Foreground" Value="{ThemeResource FSTShopBadgeTextBrush}" />
+    </Style>
+
     <!-- Instrument / band header above a card (web InstrumentHeader MD): 36 epx icon, bold title, optional subtitle. -->
     <Style x:Key="FSTCardHeaderTitleStyle" TargetType="TextBlock" BasedOn="{StaticResource SubtitleTextBlockStyle}">
         <Setter Property="Foreground" Value="{ThemeResource FSTSectionHeaderBrush}" />

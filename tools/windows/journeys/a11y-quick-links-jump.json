@@ -54,7 +54,8 @@
       "wait:1",
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section Bands",
       "assertinset:id=fst.player.bands-section|id=fst.player.available|32",
-      "scrollinto:id=fst.quick-links.open@5",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Bands",
+      "scrollinto:id=fst.player.overview@5",
       "assertstate:id=fst.quick-links.open|name=Quick Links, current section Global Statistics@5",
       "focus:id=fst.quick-links.open",
       "key:enter",
@@ -76,6 +77,7 @@
       "key:esc",
       "waitgone:id=fst.quick-links.item.bands@5",
       "assertfocus:id=fst.quick-links.open@3",
+      "scrollinto:id=fst.player.overview@5",
       "scrollinto:id=fst.player.stat.overview.songs-played@10",
       "focus:id=fst.player.stat.overview.songs-played",
       "assertfocus:id=fst.player.stat.overview.songs-played@3"

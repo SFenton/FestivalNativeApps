@@ -873,6 +873,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertcentred":
                 AssertCentred(window, step);
                 break;
+            case "assertmidline":
+                AssertMidline(window, step);
+                break;
             case "assertinset":
                 AssertInset(window, step);
                 break;
@@ -1690,6 +1693,27 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         if (Math.Abs(top - bottom) > 2 || Math.Abs(dx) > 2)
             throw new InvalidOperationException(
                 $"off centre: {top:0.#} epx above, {bottom:0.#} epx below, {dx:0.#} epx sideways ({(string)step["arg"]!})");
+    }
+
+    /// <summary>
+    /// Fails unless the midpoint from the first element's left edge to the last element's right edge is the region's
+    /// horizontal centre within <c>epx</c> effective pixels: a wrapped line of chips centred across its row rather than
+    /// left-aligned under the title (issue #645).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> (first), <c>other</c> (last), <c>region</c> and <c>epx</c>.</param>
+    /// <exception cref="InvalidOperationException">The line is off centre.</exception>
+    private void AssertMidline(Window window, JsonObject step)
+    {
+        var first = Find(window, step).BoundingRectangle;
+        var last = Find(window, step, "other").BoundingRectangle;
+        var region = Find(window, step, "region").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var dx = ((first.Left + last.Right) / 2.0 - (region.Left + region.Width / 2.0)) / scale;
+        response["midlines"] ??= new JsonArray();
+        response["midlines"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["dx"] = Math.Round(dx, 1) });
+        if (Math.Abs(dx) > (double)step["epx"]!)
+            throw new InvalidOperationException($"line off centre by {dx:0.#} epx ({(string)step["arg"]!})");
     }
 
     #region Hit targets
