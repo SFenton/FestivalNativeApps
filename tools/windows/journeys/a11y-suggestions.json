@@ -198,9 +198,9 @@
     "tabs": 0,
     "ready": [
       "waitfor:id=fst.suggestions.list@30",
-      "scrollinto:id=fst.suggestions.category.song_rival_pct_push@30",
+      "scrollinto:id=fst.suggestions.category.song_rival_stale@30",
       "waitfor:raw=fst.suggestions.row.s034.Solo_Guitar.rival@10",
-      "scrollinset:id=fst.suggestions.category.song_rival_pct_push|id=fst.suggestions.list|8",
+      "scrollinset:id=fst.suggestions.category.song_rival_stale|id=fst.suggestions.list|8",
       "wait:1"
     ],
     "after_ready": [
@@ -211,6 +211,29 @@
       "shot:{stem}-desert.png",
       "contrast:off", "wait:2",
       "assertpaint:raw=fst.suggestions.row.s034.Solo_Guitar.rival|L-5,M0!=#FFFAEF~40"
+    ]
+  },
+  {
+    "name": "suggestions-named-rival",
+    "note": "Issue #656 (Suggestions R1): a card that names one rival lists only that rival. In seed 1 the first remix's \"Gain Stars & Beat Rival B3\" (Level 2 heading, one Narrator list item after Filter) holds rows that are each a 40+ epx Button whose name ends with that rival (\"5 ranks behind Rival B3\"), and the rows draw no rival name pill because the title already names the rival (suggestions_journey.py rival-rows checks the pill and every named card it loads).",
+    "route": "/suggestions",
+    "profile": "fixture-suggest:Fixture Player",
+    "fixture": ["suggestions_fixture_server.py"],
+    "env": {"FST_DEBUG_SUGGESTIONS_SEED": "1"},
+    "ready": [
+      "waitfor:id=fst.suggestions.list@30",
+      "scrollinto:id=fst.suggestions.category.song_rival_star_gains.1@240",
+      "waitfor:name=Track 31, Artist L · 2019, Bass, 5 ranks behind Rival B3@10",
+      "scrollinset:id=fst.suggestions.category.song_rival_star_gains.1|id=fst.suggestions.list|8",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertstate:name=Gain Stars & Beat Rival B3&class=TextBlock|heading=2",
+      "assertread:name=Track 31, Artist L · 2019, Bass, 5 ranks behind Rival B3|Track 31, Artist L · 2019, Bass, 5 ranks behind Rival B3, button",
+      "assertread:name=Track 23, Artist D, Pro Lead, 12 ranks behind Rival B3|Track 23, Artist D, Pro Lead, 12 ranks behind Rival B3, button",
+      "assertsize:name=Track 31, Artist L · 2019, Bass, 5 ranks behind Rival B3|40x40",
+      "narrate:id=fst.suggestions.list",
+      "assertorder:id=fst.suggestions.filter-button|name=Gain Stars & Beat Rival B3"
     ]
   },
   {
@@ -226,17 +249,17 @@
     ],
     "after_ready": [
       "reveal:id=fst.suggestions.category.unplayed_Solo_PeripheralGuitar",
-      "scrollinto:id=fst.suggestions.category.song_rival_gap_rival-below-0@15",
-      "scrollinset:id=fst.suggestions.category.song_rival_gap_rival-below-0|id=fst.suggestions.list|160",
-      "assertstate:name=Close the Gap vs Rival B0&class=TextBlock|heading=2",
-      "assertread:name=Track 16, Artist R · 1989, Pro Lead, 2 ranks behind Rival B0|Track 16, Artist R · 1989, Pro Lead, 2 ranks behind Rival B0, button",
-      "assertstate:name=Track 16, Artist R · 1989, Pro Lead, 2 ranks behind Rival B0|focusable=true",
-      "assertsize:name=Track 16, Artist R · 1989, Pro Lead, 2 ranks behind Rival B0|40x40",
-      "scrollinset:id=fst.suggestions.category.song_rival_pct_push|id=fst.suggestions.list|160",
-      "assertstate:name=Climb Past Rival B4&class=TextBlock|heading=2",
+      "scrollinto:id=fst.suggestions.category.song_rival_dominate_rival-above-2@15",
+      "scrollinset:id=fst.suggestions.category.song_rival_dominate_rival-above-2|id=fst.suggestions.list|160",
+      "assertstate:name=Dominate Rival A2&class=TextBlock|heading=2",
+      "assertread:name=Track 19, X · 2004, Lead, 60 ranks ahead of Rival A2|Track 19, X · 2004, Lead, 60 ranks ahead of Rival A2, button",
+      "assertstate:name=Track 19, X · 2004, Lead, 60 ranks ahead of Rival A2|focusable=true",
+      "assertsize:name=Track 19, X · 2004, Lead, 60 ranks ahead of Rival A2|40x40",
+      "scrollinset:id=fst.suggestions.category.song_rival_protect_rival-below-2|id=fst.suggestions.list|160",
+      "assertstate:name=Protect Your Lead vs Rival B2&class=TextBlock|heading=2",
       "narrate:id=fst.suggestions.list",
-      "assertorder:name=New on Pro Lead|name=Climb Past Rival B4",
-      "scrollinset:id=fst.suggestions.category.song_rival_pct_push|id=fst.suggestions.list|8"
+      "assertorder:name=New on Pro Lead|name=Protect Your Lead vs Rival B2",
+      "scrollinset:id=fst.suggestions.category.song_rival_protect_rival-below-2|id=fst.suggestions.list|8"
     ]
   },
   {
@@ -256,26 +279,26 @@
       "focus:id=fst.suggestions.row.s055",
       "assertfocus:id=fst.suggestions.row.s055@3",
       "key:down",
-      "assertfocus:id=fst.suggestions.row.s034|Solo_Guitar@3",
+      "assertfocus:id=fst.suggestions.row.s006|Solo_Guitar@3",
       "key:up",
       "assertfocus:id=fst.suggestions.row.s055@3",
       "key:tab",
-      "assertfocus:id=fst.suggestions.row.s034|Solo_Guitar@3",
-      "key:tab",
-      "assertfocus:id=fst.suggestions.row.s017|Solo_PeripheralGuitar@3",
-      "key:tab",
-      "assertfocus:id=fst.suggestions.row.s010|Solo_Vocals@3",
+      "assertfocus:id=fst.suggestions.row.s006|Solo_Guitar@3",
       "key:tab",
       "assertfocus:id=fst.suggestions.row.s019|Solo_Guitar@3",
       "key:tab",
       "assertfocus:id=fst.suggestions.row.s055|Solo_Guitar@3",
       "key:tab",
-      "assertfocus:id=fst.suggestions.row.s038|Solo_Drums@3",
+      "assertfocus:id=fst.suggestions.row.s039|Solo_Bass@3",
       "key:tab",
-      "assertfocus:id=fst.suggestions.row.s050|Solo_Drums@5",
+      "assertfocus:id=fst.suggestions.row.s029|Solo_Bass@3",
+      "key:tab",
+      "assertfocus:id=fst.suggestions.row.s035|Solo_Vocals@3",
+      "key:tab",
+      "assertfocus:id=fst.suggestions.row.s022|Solo_Bass@5",
       "key:shift+tab",
-      "assertfocus:id=fst.suggestions.row.s038|Solo_Drums@3",
-      "scrollinset:id=fst.suggestions.category.song_rival_gap_rival-below-4|id=fst.suggestions.list|8"
+      "assertfocus:id=fst.suggestions.row.s035|Solo_Vocals@3",
+      "scrollinset:id=fst.suggestions.category.song_rival_protect_rival-below-4|id=fst.suggestions.list|8"
     ]
   }
 ]

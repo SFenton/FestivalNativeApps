@@ -21,6 +21,7 @@ Usage: ``python tools/windows/suggestions_journey.py [--port 18767] [--shots DIR
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
@@ -46,12 +47,23 @@ NEXT_CARD_ROW = "id=fst.suggestions.row.s091"
 TENTH_CARD = "id=fst.suggestions.category.unplayed_Solo_PeripheralGuitar"
 RIVAL_CARD = "id=fst.suggestions.category.song_rival_gap_rival-below-0"
 TWELFTH_CARD = RIVAL_CARD
-# Seed 1 rival cards (issue #259): a single-rival spotlight (no name pill; Narrator names the rival in the delta) and a
-# mixed-rival cross-pollination card whose rows keep the pill because each can be about a different rival.
+# Seed 1 rival cards (issues #259, #656): a single-rival spotlight (no name pill; Narrator names the rival in the delta),
+# the mixed-rival Stale card whose rows keep the pill because each can be about a different rival, and the named-rival
+# cross-pollination cards (Suggestions R1), which list only the rival in their title and so drop the pill too.
 SPOTLIGHT_CARD = "fst.suggestions.category.song_rival_spotlight_rival-below-1"
 SPOTLIGHT_ROW_NAME = "Track 41, Artist B · 1968, Pro Lead, 2 ranks behind Rival B1"
-MIXED_CARD = "fst.suggestions.category.song_rival_pct_push"
+MIXED_CARD = "fst.suggestions.category.song_rival_stale"
 MIXED_ROW_NAME = "Track 34, Artist O · 1999, Lead, rival Rival B4, behind by 2 ranks"
+# Seed 1 shows the named cards only in remixes; the first remix ("….1") reliably holds Gain Stars.
+STAR_GAINS_CARD = "fst.suggestions.category.song_rival_star_gains.1"
+STAR_GAINS_ROW_NAME = "Track 31, Artist L · 2019, Bass, 5 ranks behind Rival B3"
+# Later remixes depend on when /rivals/all answers, so which named cards they hold varies run to run: after Gain
+# Stars the journey pins the list's end NAMED_LOADS times, dumps the tree after each load and checks every named card
+# it finds (named_card_problems).
+NAMED_LOADS = 16
+NAMED_TITLES = {"song_rival_near_fc": ("FC These to Beat ", "!"), "song_rival_star_gains": ("Gain Stars & Beat ", ""),
+                "song_rival_pct_push": ("Climb Past ", "")}
+"""Named-rival family -> (title prefix, title suffix) around the rival's name (Suggestions R1)."""
 TYPES = ("nearFC", "starProgress", "unplayed", "varietyPack", "artistEssentials", "artistDiscover", "sameName",
          "almostElite", "percentilePush", "stale", "pctImprove", "nearMax", "songRivals")
 LOADED = [f"waitfor:{ROW}@30", f"waitfor:{CARD}@5", "waitfor:id=fst.suggestions.filter-button@5"]
@@ -150,12 +162,18 @@ SCENARIOS: dict[str, tuple[str | None, dict[str, str], list[str]]] = {
         {},
         [
             *LOADED,
-            # The mixed card comes first in the seed 1 mix; scrolling on loads the batch with the spotlight card.
+            # The mixed Stale card comes first in the seed 1 mix; scrolling on loads the batch with the spotlight card.
             f"scrollinto:id={MIXED_CARD}@30", f"waitfor:id={MIXED_CARD}@10", f"waitfor:name={MIXED_ROW_NAME}@10",
             "{shot:rival-mixed}", "tree:{scans}/rival-mixed.txt",
             f"scrollinto:id={SPOTLIGHT_CARD}@30", f"waitfor:id={SPOTLIGHT_CARD}@10",
             f"waitfor:name={SPOTLIGHT_ROW_NAME}@10",
             "{shot:rival-spotlight}", "tree:{scans}/rival-spotlight.txt", "scan:{scans}/rival-rows",
+            # Named-rival cards (#656): paging on loads the first remix, which holds Gain Stars.
+            f"scrollinto:id={STAR_GAINS_CARD}@240", f"waitfor:name={STAR_GAINS_ROW_NAME}@10",
+            "{shot:rival-star-gains}", "tree:{scans}/rival-star-gains.txt",
+            # Pin the list's end through its Scroll pattern to load later remixes (scrollinto's paging stalls there).
+            *[step for index in range(NAMED_LOADS) for step in (
+                "scrollto:id=fst.suggestions.list,100", "wait:1.5", f"tree:{{scans}}/named-{index:02}.txt")],
         ],
     ),
     "end-of-mix": (
@@ -376,11 +394,49 @@ def rival_card_problems(card: list[str], rival: str, pill: bool) -> list[str]:
     return problems
 
 
+def named_card_problems(trees: list[str]) -> tuple[list[str], list[str]]:
+    """Checks every on-screen named-rival card (Suggestions R1, #656) in a series of tree dumps.
+
+    Each card's rival comes from its title ("Climb Past Rival B4" -> "Rival B4"); every row must name that rival and
+    none may draw a name pill, because a named card lists only the rival in its title.
+
+    Args:
+        trees: ``uiwin.py tree`` dumps taken while loading more cards.
+
+    Returns:
+        The checked card AutomationIds (each once) and readable problems (empty when every card is right).
+    """
+    pattern = re.compile(r'^\s*Group "([^"]*)" id=fst\.suggestions\.category\.((' +
+                         "|".join(NAMED_TITLES) + r')(?:\.\d+)?) ')
+    checked: list[str] = []
+    problems: list[str] = []
+    for tree in trees:
+        for line in tree.splitlines():
+            match = pattern.match(line)
+            if not match or "[offscreen]" in line or match.group(2) in checked:
+                continue
+            title, card_id, family = match.groups()
+            prefix, suffix = NAMED_TITLES[family]
+            if not title.startswith(prefix) or not title.endswith(suffix):
+                problems.append(f"{card_id}: unexpected title {title!r}")
+                continue
+            rival = title[len(prefix):len(title) - len(suffix)]
+            checked.append(card_id)
+            problems += [f"{card_id}: {problem}" for problem in
+                         rival_card_problems(card_subtree(tree, f"fst.suggestions.category.{card_id}"), rival, False)]
+    return checked, problems
+
+
 RIVAL_CHECKS: dict[str, list[tuple[str, str, str, bool]]] = {
     "rival-rows": [("rival-mixed.txt", MIXED_CARD, "Rival B4", True),
-                   ("rival-spotlight.txt", SPOTLIGHT_CARD, "Rival B1", False)],
+                   ("rival-spotlight.txt", SPOTLIGHT_CARD, "Rival B1", False),
+                   ("rival-star-gains.txt", STAR_GAINS_CARD, "Rival B3", False)],
 }
 """Scenario -> (tree file in the scan folder, card AutomationId, rival, pill expected) checks run after the drive."""
+
+NAMED_SWEEPS = {"rival-rows"}
+"""Scenarios whose ``named-NN.txt`` dumps are checked with :func:`named_card_problems` (best effort: later remixes
+may hold no named card; the fixed Gain Stars check in :data:`RIVAL_CHECKS` always runs)."""
 
 SIZED = {"loaded", "rival-rows"}
 """Scenarios run at every ``--sizes`` preset; the rest run at medium."""
@@ -435,6 +491,8 @@ def run(name: str, port: int, shots: Path | None, size: str, exe: Path) -> None:
     """
     scans = (shots or WORK) / "axe" / f"{name}-{size}"
     scans.mkdir(parents=True, exist_ok=True)
+    for stale in scans.glob("named-*.txt"):
+        stale.unlink()
     uiwin(*launch_args(name, port, size, exe))
     try:
         if name == "fade":
@@ -465,6 +523,13 @@ def run(name: str, port: int, shots: Path | None, size: str, exe: Path) -> None:
                         card_subtree((scans / file).read_text(encoding="utf-8", errors="replace"), card), rival, pill)]
         if problems:
             raise RuntimeError("Rival rows:\n" + "\n".join(problems))
+        if name in NAMED_SWEEPS:
+            dumps = sorted(scans.glob("named-*.txt"))
+            checked, problems = named_card_problems(
+                [dump.read_text(encoding="utf-8", errors="replace") for dump in dumps])
+            if problems:
+                raise RuntimeError("Named-rival cards:\n" + "\n".join(problems))
+            print(f"named-rival cards checked [{size}]: {', '.join(checked) or 'none on screen'}")
         print(f"PASS {name} [{size}]")
     finally:
         uiwin("close")
@@ -527,6 +592,7 @@ def main() -> int:
                             continue
                         failures += 1
                         print(f"FAIL {name} [{size}]: {error}")
+                        break
     finally:
         server.terminate()
     return 1 if failures else 0
