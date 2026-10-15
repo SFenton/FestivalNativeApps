@@ -133,6 +133,9 @@ public sealed partial class SongPathsViewModel : ObservableObject
     private Instrument presentedInstrument;
     private PathDifficulty presentedDifficulty = PathDifficulty.Expert;
 
+    /// <summary>Whether this opening may show the Karaoke notice once its first read settles (Karaoke is visible).</summary>
+    private bool warningDue;
+
     /// <summary>Creates a Paths session.</summary>
     /// <param name="session">Shared session.</param>
     /// <param name="song">Song.</param>
@@ -147,9 +150,7 @@ public sealed partial class SongPathsViewModel : ObservableObject
         showText = presentedText = session.Settings.PathDefaultView == PathDisplayMode.Text;
         presentedInstrument = Instruments[0];
         Status = new ServiceStatusViewModel($"paths:{song.SongId}", "Path Unavailable", LoadAsync, session.Time);
-        ShowWarning = session.Settings.VisibleInstruments.Contains(Instrument.Karaoke) && !session.Settings.PathUnavailableWarningDismissed &&
-                      !session.PathNoticeShown;
-        if (ShowWarning) session.PathNoticeShown = true;
+        warningDue = session.Settings.VisibleInstruments.Contains(Instrument.Karaoke);
     }
 
     /// <summary>Song.</summary>
@@ -173,7 +174,11 @@ public sealed partial class SongPathsViewModel : ObservableObject
     /// <summary>Failed-read presentation.</summary>
     public ServiceStatusViewModel Status { get; }
 
-    /// <summary>Whether the Karaoke-unavailable notice shows (first opening per app session, until "Don't show again").</summary>
+    /// <summary>
+    /// Whether the inline Karaoke-unavailable notice shows: on the first opening per app session, until "Don't show
+    /// again", and only once the opening read has settled, so it never appears before the chart, empty or error state
+    /// it sits above (issue #649; load-transition R1).
+    /// </summary>
     [ObservableProperty]
     private bool showWarning;
 
@@ -327,6 +332,7 @@ public sealed partial class SongPathsViewModel : ObservableObject
             if (mine != revision) return;
             var summary = Present(result, instrument, difficulty);
             Phase = PathSwapPhase.Content;
+            RevealWarning();
             if (announce && summary is not null) Announced?.Invoke(this, new Announcement(summary, AnnouncementKind.Completed));
         }
         catch (OperationCanceledException)
@@ -403,6 +409,19 @@ public sealed partial class SongPathsViewModel : ObservableObject
     {
         request?.Cancel();
         revision++;
+    }
+
+    /// <summary>
+    /// Opens the Karaoke notice with the first presented content (chart, not-generated or error state) if this app
+    /// session hasn't shown it and it wasn't dismissed for good. Closing Paths before then leaves it for the next opening.
+    /// </summary>
+    private void RevealWarning()
+    {
+        if (!warningDue) return;
+        warningDue = false;
+        if (session.PathNoticeShown || session.Settings.PathUnavailableWarningDismissed) return;
+        session.PathNoticeShown = true;
+        ShowWarning = true;
     }
 
     /// <summary>Dismisses the warning for this opening, or permanently.</summary>

@@ -24,7 +24,8 @@ motion off), the
 Song Band Leaderboard rows, empty and error states (issue #510), the Suggestions cards, keyboard, filter and states
 (issue #513), the Item Shop offers grid, List/Grid toggle, rings and states (issue #516, also with in-app Reduce
 Motion), the real-control First Run demos (issue #498, also with Animation effects off), the profile title row
-(issue #446) and the Score History chart (issue #512, also under Desert contrast) run at default and 225% text, that the
+(issue #446), the Score History chart (issue #512, also under Desert contrast) and the loading placement with
+Leaderboards' Quick Links gated on its cards (issue #649) run at default and 225% text, that the
 generated leaderboard-columns normal run switches a contrast theme with a song board open (issue #519), and that the
 generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
@@ -485,6 +486,12 @@ RUNS: tuple[Run, ...] = (
     # -> row order, Narrator row names, 40 epx target); a cold frozen /songs shows "Scores are updating" + Retry Now.
     Run("band-freeze", "a11y-band-freeze.json", tabs=0),
     Run("band-freeze-text-225", "a11y-band-freeze.json", sizes="compact", mode="text-225", tabs=0),
+    # Loading placement (issues #431, #649, load-transition R1): each page's spinner is centred in its content region,
+    # named "Busy Loading …, ProgressRing", not focusable and read after the header tools; Leaderboards' Quick Links
+    # entry and pane stay out of UIA until the cards arrive, and stay available during an F5 reload. The text-225 run
+    # adds medium for the medium-only reload pages, so both Leaderboards pages run at both text sizes.
+    Run("loading-placement", "a11y-loading-placement.json", tabs=0),
+    Run("loading-placement-text-225", "a11y-loading-placement.json", mode="text-225", tabs=0),
     # Score History's instrument switch with motion off (issues #61, #423): the instant swap (new chart named within
     # 0.1 s, card and page held) by pointer and keys, under in-app Reduce Motion and Windows' Animation effects off,
     # the two paths that turn the fade off. Its other pages run as the generated a11y-history-swap-normal/-text-225.

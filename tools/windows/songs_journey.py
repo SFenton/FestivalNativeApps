@@ -138,10 +138,12 @@ SCENARIOS: dict[str, tuple[dict[str, str], str | None, dict, list[str]]] = {
         [
             "waitfor:id=fst.song-detail.paths@20",
             "click:id=fst.song-detail.paths",
-            # The Karaoke notice is its own ContentDialog before the sheet (7f45f884): OK, then the sheet opens.
-            "waitfor:id=fst.paths.warning@10",
-            "key:enter",
+            # The Karaoke notice is an InfoBar inside the sheet that opens once the first read settles (#649).
             "waitfor:id=fst.paths@10",
+            "waitfor:id=fst.paths.image@15",
+            "waitfor:id=fst.paths.warning@5",
+            "invoke:id=fst.paths.warning.ok",
+            "waitgone:id=fst.paths.warning@3",
             "key:escape",
         ],
     ),

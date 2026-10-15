@@ -217,6 +217,26 @@ class UiCiTests(unittest.TestCase):
                         <= set(pages))
         self.assertIn("assertsize:id=fst.history.retry|40x40", pages["history-states-syncing"]["after_ready"])
 
+    def test_loading_placement_runs_both_leaderboards_pages_at_default_and_largest_text(self):
+        # Issue #649 review (load-transition R1): Quick Links is absent during the first Leaderboards spinner and stays
+        # available during an F5 reload; both pages gate the release-branch suite at default and 225% text, scanned.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-loading-placement.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan and not run.only for run in runs.values()))
+        for run in runs.values():
+            with self.subTest(mode=run.mode):
+                sizes = run.sizes.split(",")
+                ran = {page["name"]: m.page_sizes(page, sizes, run.mode) for page in ci.run_pages(run)}
+                self.assertTrue(ran["leaderboards-loading-centred"], "first-load page skipped")
+                self.assertTrue(ran["leaderboards-reload-centred"], "reload page skipped")
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-loading-placement.json").read_text(encoding="utf-8"))}
+        first = pages["leaderboards-loading-centred"]["ready"]
+        self.assertLess(first.index("waitgone:id=fst.quick-links.open@1"), first.index("waitfor:id=fst.leaderboards.card.0f@25"))
+        self.assertIn("waitgone:id=fst.quick-links.pane@1", first)
+        reload = pages["leaderboards-reload-centred"]["after_ready"]
+        self.assertLess(reload.index("waitfor:id=fst.leaderboards.loading@5"), reload.index("waitfor:id=fst.quick-links.open@1"))
+
     def test_song_band_board_runs_at_default_and_largest_text(self):
         # Issue #510 (#196): the full band board's single-stop rows, empty and error states run in CI at default and
         # 225% text, and its accuracy pill's contrast-theme colours at default size.
