@@ -14,7 +14,7 @@ Source: `FortniteFestivalWeb/src/pages/songinfo/SongDetailPage.tsx:163-167,302-3
 | State | Web behavior |
 |---|---|
 | Open / default | Mobile FAB / desktop header action; first visible path chart, Expert, saved image/text default |
-| Warning | Enabled Karaoke warns once per opening, or "Don't show again" persists |
+| Warning | Enabled Karaoke warns once per opening, once every path form on screen (the one view, or both Side by Side panes) has replaced its spinner with its image, table or error; never while any visible pane still shows a spinner (load-transition R1, #649). "Don't show again" persists |
 | Image | Separate PNG load/error, scroll and pinch zoom |
 | Text | Activation note, beat, time, OD and score table; desktop columns drag-reorder and save to Settings |
 | Switch | Instrument, four difficulties, image/text; an old request never paints after a new choice. Content fades out (300 ms), spinner fades in for at least 400 ms (image) / 500 ms (text), fades out (300 ms), new content fades in (`PathsModal.tsx:537-750`) |
