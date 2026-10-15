@@ -408,6 +408,10 @@ RUNS: tuple[Run, ...] = (
     # pinned combo rank) and Back restores focus; rows stay 40+ epx stops with Down between them.
     Run("combo-boards", "a11y-combo-boards.json", tabs=0),
     Run("combo-boards-text-225", "a11y-combo-boards.json", sizes="compact", mode="text-225", tabs=0),
+    # Stat tiles (issue #651, stat-tile-grid R6): a linked tile's value and label are centred on the whole card, not on
+    # the space left of its chevron, at every size and at 225% text; the tile stays a 40+ epx button in grid order.
+    Run("stat-tile-centre", "a11y-stat-tile-centre.json", tabs=0),
+    Run("stat-tile-centre-text-225", "a11y-stat-tile-centre.json", mode="text-225", tabs=0),
     # Long leaderboard names (issues #292, #455): on Full Rankings and the Leaderboards overview a name too wide for its
     # column scrolls on one line while one that fits stays still, the row reads the whole name once, stays a 40+ epx
     # stop in visual order with Up/Down between rows; at 150%, 200% and 225% text the name wraps and the row grows,

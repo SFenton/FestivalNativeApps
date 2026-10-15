@@ -5,14 +5,16 @@ using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Festival.Core.Domain;
 
 namespace Festival.App.Controls;
 
 #region Player stat tile
 /// <summary>
 /// One player-page stat as its own card (web <c>StatBox</c> in a frosted grid cell): the value over an uppercase label,
-/// centred. A linked tile is a button with an in-card trailing chevron (web <c>StatBox</c> chevron) and a 0.985 press
-/// scale; a plain tile is one static element with no chevron. Loading values keep their final size, dimmed.
+/// centred on the card. A linked tile is a button with an in-card trailing chevron (web <c>StatBox</c> chevron) and a
+/// 0.985 press scale; the chevron's clearance pads both sides (<see cref="StatTileInsets"/>) so the text stays centred;
+/// a plain tile is one static element with no chevron. Loading values keep their final size, dimmed.
 /// </summary>
 public sealed partial class PlayerStatTileView : ContentControl
 {
@@ -44,10 +46,10 @@ public sealed partial class PlayerStatTileView : ContentControl
     private readonly FontIcon chevron = new()
     {
         Glyph = "",
-        FontSize = 12,
+        FontSize = StatTileInsets.ChevronSize,
         HorizontalAlignment = HorizontalAlignment.Right,
         VerticalAlignment = VerticalAlignment.Center,
-        Margin = new Thickness(0, 0, 16, 0),
+        Margin = new Thickness(0, 0, StatTileInsets.ChevronMargin, 0),
     };
 
     private Button? button;
@@ -107,7 +109,11 @@ public sealed partial class PlayerStatTileView : ContentControl
         stars.Visibility = tile.GoldStars ? Visibility.Visible : Visibility.Collapsed;
         label.Text = tile.Label.ToUpperInvariant();
         chevron.Visibility = tile.IsLinked ? Visibility.Visible : Visibility.Collapsed;
-        body.Padding = tile.IsLinked ? new Thickness(12, 18, 36, 18) : new Thickness(12, 18, 12, 18);
+        // Symmetric so the value and label stay centred on the card, not on the space left of the chevron (#651).
+        var inset = StatTileInsets.Horizontal(tile.IsLinked);
+        body.Padding = new Thickness(inset, 18, inset, 18);
+        AutomationProperties.SetAutomationId(value, tile.AutomationId + ".value");
+        AutomationProperties.SetAutomationId(label, tile.AutomationId + ".label");
         if (builtLinked != tile.IsLinked) Build(tile.IsLinked);
         FrameworkElement host = (FrameworkElement?)button ?? card!;
         AutomationProperties.SetName(host, tile.Announcement);
