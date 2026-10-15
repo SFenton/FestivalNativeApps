@@ -463,7 +463,7 @@
       "title": "Section headers",
       "status": "current",
       "doc": ".agents/patterns/section-headers.md",
-      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap, the list end lets the last push finish, and Songs titles its sections in every sort, A–Z included.",
+      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap, the list end lets the last push finish, Songs titles its sections in every sort, A–Z included, and side-by-side card headers share their row's height so titles and cards start on one line.",
       "keywords": [
         "section header",
         "section title",
@@ -474,7 +474,9 @@
         "see all",
         "view all link",
         "fold",
-        "hinge"
+        "hinge",
+        "card row alignment",
+        "uneven cards"
       ],
       "web": [
         {
@@ -551,6 +553,10 @@
           {
             "path": "windows/Festival.App/Controls/CardHeader.cs",
             "symbol": "CardHeader"
+          },
+          {
+            "path": "windows/Festival.App/Controls/LeaderboardsCardGridLayout.cs",
+            "symbol": "LeaderboardsCardGridLayout"
           },
           {
             "path": "windows/Festival.App/Pages/SongsPage.xaml",
@@ -659,7 +665,8 @@
         348,
         557,
         560,
-        600
+        600,
+        657
       ]
     },
     {
