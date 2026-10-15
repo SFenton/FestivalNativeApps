@@ -80,6 +80,12 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <summary>The in-list title made transparent while PushLayer draws it.</summary>
     private TextBlock? hiddenTitle;
 
+    /// <summary>
+    /// The incoming title's left edge and viewport-to-PushLayer offset, kept for that title at the list and bar size they
+    /// were measured at.
+    /// </summary>
+    private (TextBlock Title, (double Width, double Height, double Bar) Size, double Left, double Offset)? pushOrigin;
+
     /// <summary>Section a jump-index pick still has to pin under the bar, or -1.</summary>
     private int pendingPin = -1;
 
@@ -298,23 +304,26 @@ public sealed partial class SongsPage : Page, IPageBack
     /// first visible row comes from the realized rows' geometry: <see cref="ItemsStackPanel.FirstVisibleIndex"/> can
     /// still describe the layout before a jump-index pick (issue #48: R → B kept "A" pinned). When no realized row is in
     /// view yet (a far scroll's last view change precedes realization, issue #248), it reads the rows again after the
-    /// next layout pass.
+    /// next layout pass. The search starts at the panel's first-visible index and measures only the rows next to it
+    /// (#642), falling back to measuring every realized row.
     /// </summary>
     private void UpdateStickyHeader()
     {
         EnsureScroller();
         var panel = SongList.ItemsPanelRoot as ItemsStackPanel;
         var fallback = panel is { FirstVisibleIndex: >= 0 } ? panel.FirstVisibleIndex : 0;
-        if (!SongSectionHeader.TryFirstVisibleRow(stickyRowCount, RealizedRows(panel),
-                scroller?.ViewportHeight ?? SongList.ActualHeight, out var row))
+        var viewport = scroller?.ViewportHeight ?? SongList.ActualHeight;
+        var origin = PanelTop(panel);
+        if (!SongSectionHeader.TryFirstVisibleRowNear(fallback, stickyRowCount, i => RealizedRowAt(i, panel, origin), viewport, out var row)
+            && !SongSectionHeader.TryFirstVisibleRow(stickyRowCount, RealizedRows(panel, origin), viewport, out row))
         {
             row = stickyRowCount > 0 ? Math.Clamp(fallback, 0, stickyRowCount - 1) : 0;
             RecheckHeaderAfterLayout();
         }
         else headerRechecks = 0;
         var section = SongSectionHeader.SectionAt(groupStarts, row);
-        var own = TitleAt(section);
-        var next = TitleAt(section + 1);
+        var own = TitleAt(section, panel, origin);
+        var next = TitleAt(section + 1, panel, origin);
         var push = SongSectionHeader.Push(section, stickyLabels.Length, own?.Top, next?.Top, StickyBar.ActualHeight,
             SongHeaderEdgeFade.Depth);
         (fadeOwnTop, fadeNextTop) = (own?.Top, next?.Top);
@@ -390,7 +399,9 @@ public sealed partial class SongsPage : Page, IPageBack
     /// <param name="e">View change.</param>
     private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
+        var cost = Services.ScrollCost.Begin();
         UpdateStickyHeader();
+        Services.ScrollCost.End("songs-sticky", cost);
         if (e.IsIntermediate || stickySettlePending) return;
         stickySettlePending = true;
         void Settle(object? _, object __)
@@ -435,16 +446,29 @@ public sealed partial class SongsPage : Page, IPageBack
 
     /// <summary>A section's visible in-list title and its text top relative to the list viewport's top.</summary>
     /// <param name="section">Section index.</param>
+    /// <param name="panel">Items panel.</param>
+    /// <param name="origin">The panel's top relative to the viewport's (<see cref="PanelTop"/>).</param>
     /// <returns>The title, or <see langword="null"/> when it has none (the first section) or is not realized.</returns>
-    private (TextBlock Text, double Top)? TitleAt(int section)
+    private (TextBlock Text, double Top)? TitleAt(int section, ItemsStackPanel? panel, double? origin)
     {
-        if (scroller is null || section <= 0 || section >= groupStarts.Length) return null;
+        if (scroller is null || panel is null || origin is not { } panelTop || section <= 0 || section >= groupStarts.Length) return null;
         var end = section + 1 < groupStarts.Length ? groupStarts[section + 1] : stickyRowCount;
         if (end <= groupStarts[section] || SongList.ContainerFromIndex(groupStarts[section]) is not ListViewItem item) return null;
         if (SongList.GroupHeaderContainerFromItemContainer(item) is not ListViewHeaderItem
             { ContentTemplateRoot: TextBlock { Visibility: Visibility.Visible } text }) return null;
-        return (text, text.TransformToVisual(scroller).TransformPoint(default).Y);
+        return LayoutGeometry.TopWithin(text, panel) is { } top ? (text, panelTop + top) : null;
     }
+
+    /// <summary>
+    /// The items panel's top relative to the list viewport's top: the one transform a header update reads (#642). Rows
+    /// and titles are then placed by their layout offsets in the panel (<see cref="LayoutGeometry"/>): every
+    /// <c>TransformToVisual</c> creates a WinRT object whose .NET wrapper adds GC memory pressure, which on every scroll
+    /// frame induced full (gen2) collections that stalled scrolling.
+    /// </summary>
+    /// <param name="panel">Items panel.</param>
+    /// <returns>Top (epx), or <see langword="null"/> without a panel or scroller.</returns>
+    private double? PanelTop(ItemsStackPanel? panel) =>
+        panel is null || scroller is null ? null : panel.TransformToVisual(scroller).TransformPoint(default).Y;
 
     /// <summary>
     /// Ties the pinned title's and the incoming copy's offsets to the scroll position on the compositor, so they move
@@ -496,10 +520,17 @@ public sealed partial class SongsPage : Page, IPageBack
             return;
         }
         var top = incoming!.Value.Top;
-        var origin = title.TransformToVisual(PushLayer).TransformPoint(default);
+        // The title's place in PushLayer moves with its place in the viewport, so the offset between them (V) and its
+        // left edge hold while it scrolls: transform once per title and layout, not on every scroll frame (#642).
+        var size = (SongList.ActualWidth, SongList.ActualHeight, StickyBar.ActualHeight);
+        if (pushOrigin is not { } cached || cached.Title != title || cached.Size != size)
+        {
+            var origin = title.TransformToVisual(PushLayer).TransformPoint(default);
+            pushOrigin = cached = (title, size, origin.X, origin.Y - top);
+        }
         IncomingHeader.Text = title.Text;
-        Canvas.SetLeft(IncomingHeader, origin.X);
-        pushProps.InsertScalar("V", (float)(origin.Y - top));
+        Canvas.SetLeft(IncomingHeader, cached.Left);
+        pushProps.InsertScalar("V", (float)cached.Offset);
         pushProps.InsertScalar("H", (float)StickyBar.ActualHeight);
         pushProps.InsertScalar("C", (float)(top + scroller.VerticalOffset));
         IncomingHeader.Visibility = Visibility.Visible;
@@ -577,18 +608,32 @@ public sealed partial class SongsPage : Page, IPageBack
         UpdateButtonTints();
     });
 
+    /// <summary>A realized row's edges relative to the list viewport's top (#642: measures one container, not all).</summary>
+    /// <param name="index">Flat row index.</param>
+    /// <param name="panel">Items panel.</param>
+    /// <param name="origin">The panel's top relative to the viewport's (<see cref="PanelTop"/>).</param>
+    /// <returns>The row, or <see langword="null"/> when it is not realized or not shown.</returns>
+    private SongSectionHeader.RealizedRow? RealizedRowAt(int index, ItemsStackPanel? panel, double? origin)
+    {
+        if (panel is null || origin is not { } panelTop
+            || SongList.ContainerFromIndex(index) is not ListViewItem { Visibility: Visibility.Visible } item) return null;
+        var top = panelTop + item.ActualOffset.Y;
+        return new(index, top, top + item.ActualHeight);
+    }
+
     /// <summary>Realized row containers with their edges relative to the list viewport's top.</summary>
     /// <param name="panel">Items panel.</param>
+    /// <param name="origin">The panel's top relative to the viewport's (<see cref="PanelTop"/>).</param>
     /// <returns>Rows (recycled containers excluded).</returns>
-    private IEnumerable<SongSectionHeader.RealizedRow> RealizedRows(ItemsStackPanel? panel)
+    private IEnumerable<SongSectionHeader.RealizedRow> RealizedRows(ItemsStackPanel? panel, double? origin)
     {
-        if (panel is null || scroller is null) yield break;
+        if (panel is null || origin is not { } panelTop) yield break;
         foreach (var child in panel.Children)
         {
             if (child is not ListViewItem item || item.Visibility != Visibility.Visible) continue;
             var index = SongList.IndexFromContainer(item);
             if (index < 0) continue;
-            var top = item.TransformToVisual(scroller).TransformPoint(default).Y;
+            var top = panelTop + item.ActualOffset.Y;
             yield return new(index, top, top + item.ActualHeight);
         }
     }
