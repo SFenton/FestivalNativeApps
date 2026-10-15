@@ -241,6 +241,7 @@ public static class FadeIn
         var arm = ArmOf(list);
         arm.Arm(batchStart, Now);
         Trace("fade-arm", list, $"start={arm.BatchStart}");
+        if (list is FrameworkElement owner && owner.GetValue(TrackerProperty) is ScrollTracker tracker) tracker.Listen();
         if (arm.NeedsSettle && list is FrameworkElement element) SettleAfterLayout(element, arm);
     }
 
@@ -581,6 +582,7 @@ public static class FadeIn
     {
         private ScrollViewer? viewer;
         private bool hooked;
+        private bool listening;
 
         /// <summary>Whether a layout-settle hook is pending.</summary>
         public bool Settling { get; set; }
@@ -595,7 +597,7 @@ public static class FadeIn
             if (list.IsLoaded) Attach();
         }
 
-        /// <summary>Finds the scroller and listens to its view changes.</summary>
+        /// <summary>Finds the scroller and listens to its view changes while the arm watches scrolling.</summary>
         public void Attach()
         {
             Detach();
@@ -605,18 +607,36 @@ public static class FadeIn
                 ListViewBase => Descendant(list),
                 _ => Ancestor(list),
             };
-            if (viewer is null) return;
+            Listen();
+        }
+
+        /// <summary>Stops listening and forgets the scroller.</summary>
+        public void Detach()
+        {
+            Mute();
+            viewer = null;
+        }
+
+        /// <summary>
+        /// Follows the scroller's view changes while the list's arm can still react to a scroll (a load the first scroll
+        /// rushes or closes); after that, until the next arm, scrolling changes nothing and following it would only hand
+        /// .NET new WinRT event args on every frame (#642).
+        /// </summary>
+        public void Listen()
+        {
+            if (listening || viewer is null || list.GetValue(ArmProperty) is not StaggerArm { WatchesScroll: true }) return;
+            listening = true;
             viewer.ViewChanging += OnViewChanging;
             viewer.ViewChanged += OnViewChanged;
         }
 
-        /// <summary>Stops listening.</summary>
-        public void Detach()
+        /// <summary>Stops following the scroller's view changes.</summary>
+        private void Mute()
         {
-            if (viewer is null) return;
+            if (!listening || viewer is null) return;
+            listening = false;
             viewer.ViewChanging -= OnViewChanging;
             viewer.ViewChanged -= OnViewChanged;
-            viewer = null;
         }
 
         /// <summary>The scroller's offsets, or NaN while it is unknown (no movement is measured then).</summary>
@@ -641,8 +661,11 @@ public static class FadeIn
         private void Moved(double x, double y)
         {
             if (list.GetValue(ArmProperty) is not StaggerArm arm) return;
+            var cost = Services.ScrollCost.Begin();
             var now = Now;
             OnScrolled(list, arm, arm.Scrolled(x, y, now), now);
+            if (!arm.WatchesScroll) Mute();
+            Services.ScrollCost.End("fade-tracker", cost);
         }
 
         /// <summary>A list view's template scroller.</summary>

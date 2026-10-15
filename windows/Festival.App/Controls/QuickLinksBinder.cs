@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Festival.App.Services;
 using Festival.Core.ViewModels;
 using Microsoft.UI.Dispatching;
@@ -32,8 +33,9 @@ public static class QuickLinkAnchor
 #region Binder
 /// <summary>
 /// Connects a page <see cref="ScrollViewer"/> to a <see cref="QuickLinksViewModel"/>: measures anchors only when the
-/// view changes (no per-frame work while idle), reports frames, and scrolls on jump requests (instant under reduced
-/// motion). Anchors are found once per load by <see cref="QuickLinkAnchor"/>.
+/// view changes (no per-frame work while idle, and at most one report per
+/// <see cref="QuickLinks.IntermediateReportInterval"/> while a scroll moves, #642), reports frames, and scrolls on jump
+/// requests (instant under reduced motion). Anchors are found once per load by <see cref="QuickLinkAnchor"/>.
 /// </summary>
 public sealed class QuickLinksBinder
 {
@@ -58,6 +60,15 @@ public sealed class QuickLinksBinder
 
     /// <summary>Whether a repeater realized or recycled a section since the last <see cref="Collect"/>.</summary>
     private bool stale;
+
+    /// <summary>Repeater elements realized since the last report, searched for anchors without a full walk (#642).</summary>
+    private readonly List<FrameworkElement> prepared = [];
+
+    /// <summary>Trailing report for a moving scroll (<see cref="QuickLinks.IntermediateReportInterval"/>).</summary>
+    private DispatcherQueueTimer? reportTimer;
+
+    /// <summary><see cref="Stopwatch"/> timestamp of the last report, or 0 before the first.</summary>
+    private long lastReport;
 
     /// <summary>Scrolled content whose size changes trigger a re-measure (see <see cref="WatchContent"/>).</summary>
     private FrameworkElement? watchedContent;
@@ -94,7 +105,8 @@ public sealed class QuickLinksBinder
         watchedContent = content;
         content.SizeChanged += (_, _) =>
         {
-            if (landing is null) Report(false);
+            // Repeaters realizing cards resize the content mid-scroll: only the newly realized cards are searched.
+            if (landing is null) Report(false, moving: true);
         };
     }
 
@@ -128,8 +140,53 @@ public sealed class QuickLinksBinder
     public void Collect()
     {
         anchors.Clear();
+        prepared.Clear();
         stale = false;
         if (scroller.Content is DependencyObject root) Walk(root);
+    }
+
+    /// <summary>
+    /// Brings <see cref="anchors"/> up to date for a report. While a scroll moves, only the repeater elements realized
+    /// since the last report are searched (recycled ones were already dropped by <see cref="Forget"/>): a full content
+    /// walk on every realization cost 3–8 ms per frame on Song Detail and Statistics (#642). A rest report or a jump
+    /// re-walks everything once, so the anchors at rest are exactly those of a full walk.
+    /// </summary>
+    /// <param name="full">Whether to re-walk the whole content if any repeater changed.</param>
+    private void EnsureAnchors(bool full)
+    {
+        if (anchors.Count == 0 || (stale && full))
+        {
+            var walk = Services.ScrollCost.Begin();
+            Collect();
+            Services.ScrollCost.End("ql-report:collect", walk);
+            return;
+        }
+        if (prepared.Count == 0) return;
+        var pending = prepared.ToArray();
+        prepared.Clear();
+        foreach (var element in pending) Walk(element);
+    }
+
+    /// <summary>Drops anchors inside a repeater element being recycled (it keeps its last section's ID while pooled).</summary>
+    /// <param name="cleared">Element being cleared.</param>
+    private void Forget(UIElement cleared)
+    {
+        prepared.RemoveAll(e => e == cleared);
+        List<string>? gone = null;
+        foreach (var (id, element) in anchors)
+            if (IsWithin(element, cleared)) (gone ??= []).Add(id);
+        if (gone is not null) foreach (var id in gone) anchors.Remove(id);
+    }
+
+    /// <summary>Whether an element is a given ancestor or inside it.</summary>
+    /// <param name="element">Element.</param>
+    /// <param name="ancestor">Candidate ancestor.</param>
+    /// <returns><see langword="true"/> when <paramref name="ancestor"/> contains <paramref name="element"/>.</returns>
+    private bool IsWithin(DependencyObject element, UIElement ancestor)
+    {
+        for (DependencyObject? node = element; node is not null && node != scroller; node = VisualTreeHelper.GetParent(node))
+            if (node == ancestor) return true;
+        return false;
     }
 
     /// <summary>Re-reads anchors and reports their frames (after data-driven sections were laid out).</summary>
@@ -141,18 +198,32 @@ public sealed class QuickLinksBinder
 
     /// <summary>Measures anchors and reports them.</summary>
     /// <param name="isFinal">Whether scrolling came to rest.</param>
-    private void Report(bool isFinal)
+    /// <param name="moving">Whether a scroll is still moving (searches only newly realized elements for anchors).</param>
+    private void Report(bool isFinal, bool moving = false)
     {
-        if (anchors.Count == 0 || stale) Collect();
+        var cost = Services.ScrollCost.Begin();
+        reportTimer?.Stop();
+        lastReport = Stopwatch.GetTimestamp();
+        EnsureAnchors(full: !moving);
         var frames = new Dictionary<string, QuickLinkFrame>();
         var inset = QuickLinks.ObscuredHeight(ObscuredTop, scroller.VerticalOffset);
+        // While a scroll moves, one transform places the content and anchors follow by layout offsets (#642: a transform
+        // per anchor per report fed the GC pressure that stalled scrolling). At rest every anchor is measured exactly.
+        var content = moving ? scroller.Content as UIElement : null;
+        var contentTop = content?.TransformToVisual(scroller).TransformPoint(default).Y;
         foreach (var (id, element) in anchors)
         {
             if (QuickLinkAnchor.GetId(element) != id || element.Visibility != Visibility.Visible || element.ActualHeight <= 0) continue;
-            var top = element.TransformToVisual(scroller).TransformPoint(default).Y - inset;
+            var placed = content is not null && contentTop is { } origin && LayoutGeometry.TopWithin(element, content) is { } within
+                ? origin + within
+                : element.TransformToVisual(scroller).TransformPoint(default).Y;
+            var top = placed - inset;
             frames[id] = new QuickLinkFrame(top, top + element.ActualHeight);
         }
+        var model0 = Services.ScrollCost.Begin();
         model.ReportLayout(frames, Math.Max(0, scroller.ViewportHeight - inset), isFinal);
+        Services.ScrollCost.End("ql-report:model", model0);
+        Services.ScrollCost.End("ql-report", cost);
     }
 
     /// <summary>Scrolls a section's top to <see cref="QuickLinks.LandingOffset"/> below the viewport top.</summary>
@@ -224,6 +295,11 @@ public sealed class QuickLinksBinder
     /// <param name="isFinal">Whether scrolling came to rest.</param>
     private void OnViewChanged(bool isFinal)
     {
+        if (!isFinal && landing is null)
+        {
+            ReportMoving();
+            return;
+        }
         if (landing is null || !isFinal)
         {
             Report(isFinal);
@@ -231,6 +307,34 @@ public sealed class QuickLinksBinder
         }
         Report(false);
         scroller.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, CheckLanding);
+    }
+
+    /// <summary>
+    /// Reports a moving scroll at most once per <see cref="QuickLinks.IntermediateReportInterval"/>, with a trailing
+    /// report for the latest position (#642). The current section still follows the scroll; the frames in between are
+    /// left to rendering.
+    /// </summary>
+    private void ReportMoving()
+    {
+        var wait = QuickLinks.IntermediateReportDelay(lastReport == 0 ? double.NaN : Stopwatch.GetElapsedTime(lastReport).TotalMilliseconds);
+        if (wait <= 0)
+        {
+            Report(false, moving: true);
+            return;
+        }
+        if (reportTimer is null)
+        {
+            reportTimer = scroller.DispatcherQueue.CreateTimer();
+            reportTimer.IsRepeating = false;
+            reportTimer.Tick += (_, _) =>
+            {
+                // The page may have left the tree during the wait (a navigation mid-scroll).
+                if (scroller.IsLoaded && landing is null) Report(false, moving: true);
+            };
+        }
+        if (reportTimer.IsRunning) return;
+        reportTimer.Interval = TimeSpan.FromMilliseconds(wait);
+        reportTimer.Start();
     }
 
     /// <summary>
@@ -311,9 +415,18 @@ public sealed class QuickLinksBinder
     {
         if (node is ItemsRepeater repeater && watched.Add(repeater))
         {
-            // Sections realized or recycled after the first walk change which element carries which ID.
-            repeater.ElementPrepared += (_, _) => stale = true;
-            repeater.ElementClearing += (_, _) => stale = true;
+            // Sections realized or recycled after the first walk change which element carries which ID: a moving scroll
+            // searches only the realized element, and a rest report re-walks everything (EnsureAnchors).
+            repeater.ElementPrepared += (_, e) =>
+            {
+                stale = true;
+                if (e.Element is FrameworkElement element) prepared.Add(element);
+            };
+            repeater.ElementClearing += (_, e) =>
+            {
+                stale = true;
+                Forget(e.Element);
+            };
         }
         if (node is FrameworkElement element)
         {

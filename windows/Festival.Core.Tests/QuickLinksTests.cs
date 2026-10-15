@@ -53,6 +53,20 @@ public class QuickLinksTests
     }
 
     [Fact]
+    public void MovingScrollReportsAtMostEveryInterval()
+    {
+        // #642: a moving scroll's current-section report waits out the rest of the interval since the last one.
+        Assert.Equal(0, QuickLinks.IntermediateReportDelay(double.NaN));
+        Assert.Equal(0, QuickLinks.IntermediateReportDelay(QuickLinks.IntermediateReportInterval));
+        Assert.Equal(0, QuickLinks.IntermediateReportDelay(250));
+        Assert.Equal(0, QuickLinks.IntermediateReportDelay(-1));
+        Assert.Equal(QuickLinks.IntermediateReportInterval - 8, QuickLinks.IntermediateReportDelay(8));
+        Assert.Equal(QuickLinks.IntermediateReportInterval, QuickLinks.IntermediateReportDelay(0));
+        // Still several updates a second, so the highlighted section follows the scroll.
+        Assert.InRange(QuickLinks.IntermediateReportInterval, 16, 150);
+    }
+
+    [Fact]
     public void SectionDefaults()
     {
         Assert.Equal(0, new QuickLinkSection("a", "A", Depth: -3).Depth);

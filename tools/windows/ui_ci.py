@@ -188,6 +188,11 @@ RUNS: tuple[Run, ...] = (
     Run("songs-scroll", "a11y-songs-scroll.json", tabs=0),
     Run("songs-scroll-text-225", "a11y-songs-scroll.json", sizes="compact", mode="text-225", tabs=0),
     Run("songs-scroll-no-animations", "a11y-songs-scroll.json", sizes="compact", mode="no-animations", tabs=0),
+    # Scroll paging (issue #642): keyboard PageDown on Statistics and Song Details moves the Quick Links current section
+    # off the first section while the scroll moves (throttled reports) and keeps it at rest; later Statistics sections
+    # still load once the loaded ones stop watching the viewport (tiles named, 40 epx, in order); Axe at the paged state.
+    Run("scroll-paging", "a11y-scroll-paging.json", tabs=0),
+    Run("scroll-paging-text-225", "a11y-scroll-paging.json", sizes="compact", mode="text-225", tabs=0),
     # Songs metadata chips (issue #644): the row speaks score, accuracy (graded and the skewed gold "100%" full combo),
     # Top %, stars, season, intensity and difficulty in visual order; every text pill is at least 24 epx and shares one
     # height with the others, the 24-epx stars and meter line up with them, the current season paints its full height,

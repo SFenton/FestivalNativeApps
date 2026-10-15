@@ -293,6 +293,8 @@ public class LaunchAndBackgroundTests
         Assert.True(options.NoArt);
         Assert.True(options.AutoScroll);
         Assert.True(options.FrameStats);
+        Assert.False(options.ScrollProbe);
+        Assert.True(LaunchOptions.Parse(["--scroll-probe"], Env()).ScrollProbe);
         Assert.Equal(30, options.DriftFps);
         Assert.Null(LaunchOptions.Parse(["--drift-fps", "999"], Env()).DriftFps);
         Assert.Null(options.AutoScrollSpeed);
