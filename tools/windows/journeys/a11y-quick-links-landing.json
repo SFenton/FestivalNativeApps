@@ -68,9 +68,8 @@
       "key:esc",
       "waitgone:id=fst.quick-links.item.accessibility@5",
       "assertfocus:id=fst.quick-links.open@3",
-      "scrollinto:id=fst.settings.show-instrument-icons@10",
-      "focus:id=fst.settings.show-instrument-icons",
-      "assertfocus:id=fst.settings.show-instrument-icons@3"
+      "focus:id=fst.settings.reduce-motion",
+      "assertfocus:id=fst.settings.reduce-motion@3"
     ]
   },
   {
