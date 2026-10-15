@@ -71,11 +71,12 @@ public sealed class QuickLinksHost
         Apply();
     }
 
-    /// <summary>Re-reads anchors once the new sections have been laid out.</summary>
+    /// <summary>Shows or hides the entry points with availability and re-reads anchors once new sections have been laid out.</summary>
     /// <param name="sender">Model.</param>
     /// <param name="e">Change.</param>
     private void OnModelChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(QuickLinksViewModel.IsAvailable)) Apply();
         if (e.PropertyName != nameof(QuickLinksViewModel.Items)) return;
         Apply();
         DispatcherQueue.GetForCurrentThread()?.TryEnqueue(DispatcherQueuePriority.Low, Binder.Refresh);

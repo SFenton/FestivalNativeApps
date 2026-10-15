@@ -158,6 +158,96 @@ public sealed class LeaderboardsOverviewTests
     }
 
     [Fact]
+    public async Task QuickLinksAppearWithTheFirstRevealAndStayThroughReloads()
+    {
+        // Issue #649 (load-transition R1): Quick Links act on the cards, so neither the menu nor the pane shows while the
+        // first-load spinner is up; they arrive with the cards and stay while a metric change refreshes them.
+        var fake = new RankingsFake();
+        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Lead, Instrument.Bass], ExperimentalRanks = true });
+        var vm = new LeaderboardsViewModel(session, new FakeReader().Read);
+        var readyWhenShown = new List<bool>();
+        vm.QuickLinks.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(QuickLinksViewModel.IsAvailable) && vm.QuickLinks.IsAvailable) readyWhenShown.Add(vm.IsReady);
+        };
+        Assert.False(vm.QuickLinks.IsAvailable);
+        await vm.ActivateAsync();
+        Assert.True(vm.IsReady);
+        Assert.True(vm.QuickLinks.IsAvailable);
+        Assert.NotEmpty(readyWhenShown);
+        Assert.All(readyWhenShown, Assert.True);
+
+        var during = new List<bool>();
+        vm.PropertyChanged += (_, e) => { if (e.PropertyName == nameof(vm.IsReady)) during.Add(vm.QuickLinks.IsAvailable); };
+        await vm.SelectMetricCommand.ExecuteAsync(RankingMetric.FcRate);
+        Assert.Equal([true, true], during);
+        vm.Deactivate();
+    }
+
+    [Fact]
+    public async Task RevealDoesNotWaitForTheSelectedPlayersOwnRows()
+    {
+        // Web: player rankings aren't part of the overview's load phase. The cards reveal on their top tens and the
+        // spotlight shows its own "loading your rank" state until the own-row read lands (issue #649).
+        var fake = new RankingsFake();
+        var reader = new FakeReader { Gate = new TaskCompletionSource() };
+        var session = fake.Session(RankingsFake.Selected("me", [Instrument.Lead, Instrument.Bass]));
+        var vm = new LeaderboardsViewModel(session, reader.Read);
+        var load = vm.ActivateAsync();
+        await Async.Until(() => vm.IsReady);
+        Assert.True(vm.QuickLinks.IsAvailable);
+        Assert.Contains(vm.InstrumentCards, c => c.Spotlight.ShowLoading);
+        Assert.All(vm.InstrumentCards, c => Assert.True(c.ShowRows));
+        reader.Gate.SetResult();
+        await load;
+        Assert.True(vm.InstrumentCards[1].Spotlight.ShowRow);
+        vm.Deactivate();
+    }
+
+    [Fact]
+    public async Task ASlowFirstScreenfulBoardRevealsAfterTheDeadline()
+    {
+        // A cold combo board took 5.5 s on the live service (#649) and held the whole page behind its spinner. Once
+        // another first-screen board has settled, RevealDeadline later the page shows; the slow card keeps its own
+        // loading state until its read lands. While every first-screen board is still reading, the spinner stays.
+        var fake = new RankingsFake();
+        var combo = new TaskCompletionSource();
+        var solo = new TaskCompletionSource();
+        fake.Service.Handler.Responder = async (request, token) =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path == "/api/rankings/combo") await combo.Task.WaitAsync(token);
+            else if (path is "/api/rankings/Solo_Guitar" or "/api/rankings/Solo_Bass") await solo.Task.WaitAsync(token);
+            return fake.Service.Override!(request) ?? (path == "/api/publication"
+                ? Wire.Ok(Wire.Publication()) : Wire.Response(HttpStatusCode.NotFound));
+        };
+        var time = new FakeTimeProvider();
+        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Lead, Instrument.Bass] }, time);
+        var vm = new LeaderboardsViewModel(session, new FakeReader().Read);
+        var load = vm.ActivateAsync();
+        await Async.Until(() => vm.InstrumentCards.Count == 3);
+        await Async.Settle();
+        time.Advance(LeaderboardsViewModel.RevealDeadline * 3);
+        await Async.Settle();
+        Assert.False(vm.IsReady);
+        Assert.False(vm.QuickLinks.IsAvailable);
+
+        solo.SetResult();
+        await Async.Until(() => vm.InstrumentCards.Skip(1).All(c => c.ShowRows));
+        await Async.Settle();
+        Assert.False(vm.IsReady);
+        time.Advance(LeaderboardsViewModel.RevealDeadline);
+        await Async.Until(() => vm.IsReady);
+        Assert.True(vm.QuickLinks.IsAvailable);
+        Assert.True(vm.InstrumentCards[0].IsLoading);
+        combo.SetResult();
+        await load;
+        Assert.True(vm.InstrumentCards[0].ShowRows);
+        Assert.True(vm.IsReady);
+        vm.Deactivate();
+    }
+
+    [Fact]
     public async Task MetricSelectionPersistsNarrowsBandsAndReloads()
     {
         var fake = new RankingsFake();

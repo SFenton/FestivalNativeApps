@@ -66,8 +66,9 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
     [ObservableProperty]
     private List<BandRankingCardViewModel> bandCards = [];
 
-    /// <summary>Quick Links: one per card in page order (web <c>instrument:&lt;key&gt;</c>, <c>band:&lt;type&gt;</c>).</summary>
-    public QuickLinksViewModel QuickLinks { get; } = new("Leaderboards Quick Links");
+    /// <summary>Quick Links: one per card in page order (web <c>instrument:&lt;key&gt;</c>, <c>band:&lt;type&gt;</c>). Held until the
+    /// first reveal (web <c>loadPhase === ContentIn</c>), then kept while later reloads run (load-transition R1, issue #649).</summary>
+    public QuickLinksViewModel QuickLinks { get; } = new("Leaderboards Quick Links", contentShown: false);
 
     /// <summary>Whole-page cards load-swap gate.</summary>
     public LoadSwap LoadSwap { get; }
@@ -154,12 +155,49 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
         using var gate = new SemaphoreSlim(MaxConcurrentLoads);
         var loads = cards.Select(c => Throttled(gate, () => c.LoadAsync(token)))
             .Concat(bands.Select(b => Throttled(gate, () => b.LoadAsync(token)))).ToList();
-        // Instrument cards start first (the gate admits them in order), so the first screenful settles first.
-        await Task.WhenAll(loads.Take(Math.Min(RevealCardCount, cards.Count)));
+        // Instrument cards start first (the gate admits them in order), so the first screenful settles first. The reveal
+        // waits for their top tens only: a selected player's own row arrives later in its card (web: player rankings are
+        // not part of the page's load phase), and once one of them has settled a slow board (a cold combo read took
+        // 5.5 s, #649) shows its own skeleton after RevealDeadline rather than holding the whole page behind the spinner.
+        var first = Math.Min(RevealCardCount, cards.Count);
+        await RevealGateAsync(cards.Take(first).Select((c, i) => Task.WhenAny(c.RowsSettled, loads[i])), token);
         if (!token.IsCancellationRequested)
             await LoadSwap.CommitAsync(swapRequest, () => IsReady = true, AnimateLoadSwaps());
         await Task.WhenAll(loads);
         if (!token.IsCancellationRequested) IsReady = true;
+    }
+
+    /// <summary>
+    /// Longest the rest of the first screenful's top tens hold the page behind its spinner once one of them has settled;
+    /// cards still reading then show their own skeleton, as the cards below the first screenful always do (issue #649).
+    /// A page whose first-screen boards are all still reading keeps its spinner rather than revealing only skeletons.
+    /// </summary>
+    public static readonly TimeSpan RevealDeadline = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// Waits until the given cards' top tens settle, or <see cref="RevealDeadline"/> after the first of them settles,
+    /// whichever is first.
+    /// </summary>
+    /// <param name="settled">The first screenful's top-ten tasks (each completes on settling or on the card's load ending).</param>
+    /// <param name="cancellationToken">Cancelled by a newer load.</param>
+    /// <returns>Wait task (never faults).</returns>
+    private async Task RevealGateAsync(IEnumerable<Task> settled, CancellationToken cancellationToken)
+    {
+        var tops = settled.ToList();
+        if (tops.Count == 0) return;
+        var all = Task.WhenAll(tops);
+        await Task.WhenAny(tops);
+        if (all.IsCompleted) return;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        await Task.WhenAny(all, Task.Delay(RevealDeadline, session.Time, deadline.Token));
+        deadline.Cancel();
+    }
+
+    /// <summary>Opens Quick Links with the first revealed content (load-transition R1).</summary>
+    /// <param name="value">Readiness.</param>
+    partial void OnIsReadyChanged(bool value)
+    {
+        if (value) QuickLinks.IsContentShown = true;
     }
 
     /// <summary>Glyph for combo sections (the Rivals hub's combo glyph; the web shows the combo's instrument icons).</summary>
@@ -376,6 +414,14 @@ public sealed partial class RankingCardViewModel : ObservableObject
     /// <summary>Empty text.</summary>
     public string EmptyText => $"No ranked {Board.Label} players yet.";
 
+    private readonly TaskCompletionSource rowsSettled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Completes once the first top-ten read settles (rows, empty, failed or cancelled), before the selected player's own
+    /// row is read: the overview reveals on it (issue #649).
+    /// </summary>
+    public Task RowsSettled => rowsSettled.Task;
+
     /// <summary>Loads the top ten, then the spotlight when the selected player is not among them.</summary>
     /// <param name="cancellationToken">Cancelled by a newer overview load.</param>
     /// <returns>Load task.</returns>
@@ -393,12 +439,14 @@ public sealed partial class RankingCardViewModel : ObservableObject
         }
         catch (OperationCanceledException)
         {
+            rowsSettled.TrySetResult();
             return;
         }
         catch (FestivalApiException error)
         {
             Status.Report(error);
             State = LoadState.Failed;
+            rowsSettled.TrySetResult();
             return;
         }
         Status.Clear();
@@ -407,6 +455,7 @@ public sealed partial class RankingCardViewModel : ObservableObject
         State = entries.Count == 0 ? LoadState.Empty : LoadState.Loaded;
         Spotlight.Apply(selected, entries, Metric, 1, LeaderboardPaging.CardSize);
         RankingRowViewModel.ShareColumns(Rows, Spotlight.Row);
+        rowsSettled.TrySetResult();
         await Spotlight.EnsureLoadedAsync(selected, !entries.Any(e => RankingSpotlight.SameAccount(e.AccountId, selected)), cancellationToken);
     }
 }
