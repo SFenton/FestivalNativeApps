@@ -70,7 +70,7 @@ public class EmptyStateMarkupTests
     [InlineData(@"Pages\SearchPage.xaml", 1)]
     [InlineData(@"Pages\PlayerHistoryPage.xaml", 1)]
     [InlineData(@"Pages\SongDetailPage.xaml", 2)]
-    [InlineData(@"Controls\NotificationsBell.xaml", 2)]
+    [InlineData(@"Controls\NotificationsPanel.xaml", 2)]
     [InlineData(@"Controls\PlayerProfileView.xaml", 2)]
     [InlineData(@"Controls\SongPathsView.xaml", 1)]
     public void EmptyRegions_UseTheSharedView(string file, int count)

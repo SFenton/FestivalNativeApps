@@ -1,16 +1,14 @@
+using Festival.Core.ViewModels;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Media;
 
 namespace Festival.App.Controls;
 
 #region Bell
 /// <summary>
-/// Title-bar bell with an unread <see cref="InfoBadge"/>; its light-dismiss flyout lists New/Older rows. Opening
-/// refreshes the feed (no background polling); closing marks every loaded row seen; a row with a destination closes
-/// the flyout and navigates.
+/// Title-bar bell with an unread <see cref="InfoBadge"/>. It opens Notifications (<see cref="NotificationsPanel"/>) in the
+/// shared modal docked to the window edge (issue #638). Opening refreshes the feed (no background polling); closing marks
+/// every loaded row seen; a row with a destination closes the modal and navigates.
 /// </summary>
 public sealed partial class NotificationsBell : UserControl
 {
@@ -30,6 +28,13 @@ public sealed partial class NotificationsBell : UserControl
     /// <summary>Navigation callback.</summary>
     private Action<NotificationDestination> Navigate { get; }
 
+    /// <summary>Modal title (web <c>MobileNotificationsModal</c>).</summary>
+    private const string NotificationsTitle = "Notifications";
+
+    private NotificationsPanel? panel;
+    private ContentDialog? open;
+    private NotificationDestination? pending;
+
     /// <summary>
     /// Clears the contrast-theme text backplate from the badge's template parts. <see cref="UIElement.HighContrastAdjustment"/>
     /// is per element, and the count's <see cref="TextBlock"/> only exists once the badge is first shown and measured, so
@@ -39,59 +44,50 @@ public sealed partial class NotificationsBell : UserControl
     /// <param name="e">Unused.</param>
     private void OnBadgeLayout(object sender, RoutedEventArgs e) => DialogChrome.WithoutBackplate(UnreadBadge);
 
-    /// <summary>Refreshes on open.</summary>
-    /// <param name="sender">Flyout.</param>
-    /// <param name="e">Unused.</param>
-    private void OnOpening(object sender, object e) => _ = Model.RefreshAsync();
-
     /// <summary>
-    /// Names the flyout's popup. While loading, empty or not generated the flyout has nothing focusable, so focus rests
-    /// on the popup itself, which UI Automation otherwise reports as an unnamed "Popup" window.
+    /// Opens Notifications in the shared modal, docked to the window edge (issue #638): a trailing panel in a wide window,
+    /// a bottom sheet once navigation collapses to the hamburger menu. Opening refreshes the feed; closing (Close, Esc, an
+    /// outside click or a row's navigation) marks every loaded row seen, and focus returns to the bell.
     /// </summary>
-    /// <param name="sender">Flyout.</param>
+    /// <param name="sender">Bell.</param>
     /// <param name="e">Unused.</param>
-    private void OnOpened(object sender, object e)
+    private async void OnBellClick(object sender, RoutedEventArgs e)
     {
-        if (XamlRoot is null) return;
-        var ancestors = new HashSet<DependencyObject>();
-        for (DependencyObject? node = PanelRoot; node is not null; node = VisualTreeHelper.GetParent(node))
+        if (open is not null || XamlRoot is null) return;
+        panel ??= new NotificationsPanel(Model, OnActivated);
+        var dialog = FestivalDialog.Create(XamlRoot, NotificationsTitle, panel, "fst.notifications.sheet");
+        DialogChrome.WindowEdge(dialog, MainWindow.Instance?.NavigationMinimalBelow ?? ModalEdgeLayout.MinimalNavigationBelow);
+        open = dialog;
+        _ = Model.RefreshAsync();
+        try
         {
-            if (node is Popup host) AutomationProperties.SetName(host, "Notifications");
-            ancestors.Add(node);
+            await FestivalDialog.ShowAsync(dialog);
         }
-        foreach (var popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(XamlRoot))
-            if (popup.Child is { } child && ancestors.Contains(child))
-                AutomationProperties.SetName(popup, "Notifications");
+        catch (Exception error) when (error is InvalidOperationException or System.Runtime.InteropServices.COMException)
+        {
+            Services.CrashLog.Write(error, "Notifications dialog");
+            pending = null;
+        }
+        finally
+        {
+            open = null;
+            // The body is reused by the next opening, so it leaves this dialog.
+            dialog.Content = null;
+            Model.MarkAllSeen();
+        }
+        if (pending is { } destination)
+        {
+            pending = null;
+            Navigate(destination);
+        }
     }
 
-    /// <summary>Marks everything seen on close.</summary>
-    /// <param name="sender">Flyout.</param>
-    /// <param name="e">Unused.</param>
-    private void OnClosed(object sender, object e) => Model.MarkAllSeen();
-
-    /// <summary>Marks the row seen and navigates.</summary>
-    /// <param name="sender">List.</param>
-    /// <param name="e">Clicked row.</param>
-    private void OnRowClick(object sender, ItemClickEventArgs e)
+    /// <summary>A row with a destination closes the modal, then navigates once it has closed.</summary>
+    /// <param name="destination">Destination.</param>
+    private void OnActivated(NotificationDestination destination)
     {
-        if (e.ClickedItem is not NotificationRowViewModel row) return;
-        var destination = Model.Activate(row);
-        // The row stays on screen when it has no destination: drop "Unread." from its Narrator name.
-        if (sender is ListViewBase list && list.ContainerFromItem(row) is DependencyObject container)
-            AutomationProperties.SetName(container, row.AccessibleName);
-        if (destination is null) return;
-        Panel.Hide();
-        Navigate(destination);
-    }
-
-    /// <summary>Names each row's ListViewItem for UI Automation (one Narrator stop per row).</summary>
-    /// <param name="sender">List.</param>
-    /// <param name="args">Container.</param>
-    private void OnContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
-    {
-        if (args.InRecycleQueue || args.Item is not NotificationRowViewModel row) return;
-        AutomationProperties.SetName(args.ItemContainer, row.AccessibleName);
-        AutomationProperties.SetAutomationId(args.ItemContainer, row.AutomationId);
+        pending = destination;
+        open?.Hide();
     }
 }
 #endregion
