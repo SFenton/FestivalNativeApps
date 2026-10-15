@@ -39,6 +39,8 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
         // The pinned bar's copy keeps Quick Links reachable once the header menu has scrolled away (#639).
         host.AddMenu(PinnedQuickLinksMenu);
         CollapsedToolTip.CloseWhenCollapsed(PinnedHeader);
+        // Content fades out under the clear pinned bar instead of showing behind it (scroll-edge R2, R7; #640).
+        OverlayHeaderFade.Attach(ScrollFadeSource, ScrollFadeHost, Scroller, PinnedHeader);
         PinnedShopFill.Live = false;
         // Realize a card on demand for a jump (the card grid realizes all, but a jump can run before the first layout).
         host.Binder.Resolve = id => ViewModel?.Leaderboards.FindIndex(c => c.QuickLinkId == id) is >= 0 and var index
@@ -349,15 +351,21 @@ public sealed partial class SongDetailPage : Page, IBackdropPage
     /// <param name="e">Unused.</param>
     private void OnScrollerViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
     {
+        var cost = Services.ScrollCost.Begin();
         var pinned = SongDetailLayout.PinsHeader(Scroller.VerticalOffset, FullHeader.ActualHeight);
         var wanted = pinned ? Visibility.Visible : Visibility.Collapsed;
-        if (PinnedHeader.Visibility == wanted) return;
+        if (PinnedHeader.Visibility == wanted)
+        {
+            Services.ScrollCost.End("detail-pin", cost);
+            return;
+        }
         // A pinned tool with focus hands it to the same tool in the header that scrolls back into view (#571 swaps).
         var handOff = pinned ? null : PinnedHeaderFocusTarget();
         PinnedHeader.Visibility = wanted;
         // The pinned Item Shop fill breathes only while its bar shows, so nothing loops unseen.
         PinnedShopFill.Live = pinned;
         if (handOff is not null) CollapsedToolTip.HandFocus(Scroller, () => handOff);
+        Services.ScrollCost.End("detail-pin", cost);
     }
 
     /// <summary>The full header's copy of the focused pinned tool, or <see langword="null"/> when none has focus.</summary>

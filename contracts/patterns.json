@@ -151,6 +151,10 @@
             "symbol": "AutoScrollEdgeFade"
           },
           {
+            "path": "windows/Festival.App/Controls/TopEdgeFade.cs",
+            "symbol": "OverlayHeaderFade"
+          },
+          {
             "path": "windows/Festival.Core/Domain/FirstRunDemoContent.cs",
             "symbol": "FirstRunAutoScroll"
           }
@@ -2449,7 +2453,8 @@
         561,
         614,
         616,
-        634
+        634,
+        649
       ]
     },
     {
@@ -3478,7 +3483,7 @@
       "title": "Stat tile grid",
       "status": "current",
       "doc": ".agents/patterns/stat-tile-grid.md",
-      "summary": "Profile and Band stat tile grids: a tile whose value or label would wrap in one slot spans two (owner-approved variant #591, Android), tiles keep web order with the row's last tile widening instead of holes, every tile takes the grid's tallest height, and text that doesn't fit two slots wraps rather than truncating. One grid component per platform.",
+      "summary": "Profile and Band stat tile grids: a tile whose value or label would wrap in one slot spans two (owner-approved variant #591, Android), tiles keep web order with the row's last tile widening instead of holes, every tile takes the grid's tallest height, and text that doesn't fit two slots wraps rather than truncating. A centred tile with a trailing chevron pads both sides by the chevron's clearance so its text is centred on the card (#651). One grid component per platform.",
       "keywords": [
         "stat tile",
         "stat grid",
@@ -3490,7 +3495,9 @@
         "wrap",
         "large text",
         "band statistics",
-        "profile statistics"
+        "profile statistics",
+        "chevron",
+        "centred"
       ],
       "web": [
         {
@@ -3527,6 +3534,10 @@
           {
             "path": "windows/Festival.App/Controls/PlayerStatTileView.cs",
             "symbol": "PlayerStatTileView"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/StatTileInsets.cs",
+            "symbol": "StatTileInsets"
           }
         ]
       },
@@ -4824,6 +4835,83 @@
       "supersedes": [],
       "issues": [
         541
+      ]
+    },
+    {
+      "id": "instrument-chip-rows",
+      "title": "Instrument chip rows",
+      "status": "current",
+      "doc": ".agents/patterns/instrument-chip-rows.md",
+      "summary": "Songs row instrument status chips that don't fit one line wrap onto the fewest balanced lines (9 → 5 + 4, earlier lines take the extra chip), each centred across the card under the art and title, measured from the chip area's own width, in service order with one spoken row name. Chips never clip, overlap or shrink; natives drop the web's three-row cap, four-chip rule and hysteresis (agent decision #645).",
+      "keywords": [
+        "instrument chips",
+        "status chips",
+        "chip rows",
+        "wrap",
+        "multi-row",
+        "balanced rows",
+        "narrow",
+        "instrument icons"
+      ],
+      "web": [
+        {
+          "path": "pages/songs/layoutMode.ts",
+          "symbol": "resolveInstrumentChipRows"
+        },
+        {
+          "path": "pages/songs/layoutMode.ts",
+          "symbol": "splitInstrumentRows"
+        },
+        {
+          "path": "pages/songs/components/SongRow.tsx",
+          "symbol": "mobileInstrumentRows"
+        },
+        {
+          "path": "pages/songs/firstRun/demo/SongIconsDemo.tsx",
+          "symbol": "SongIconsDemo"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongInstrumentStatusChips.swift",
+            "symbol": "SongChipRows"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt",
+            "symbol": "ChipGrid"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/InstrumentChipRows.cs",
+            "symbol": "InstrumentChipRows"
+          },
+          {
+            "path": "windows/Festival.App/Controls/FlowPanel.cs",
+            "symbol": "BalanceLines"
+          }
+        ]
+      },
+      "guards": [],
+      "related": {
+        "patterns": [
+          "metadata-pills"
+        ],
+        "controls": [
+          "songs-instrument-status-chips",
+          "first-run"
+        ],
+        "pages": [
+          "songs"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        645
       ]
     },
     {
