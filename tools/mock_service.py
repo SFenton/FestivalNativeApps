@@ -862,6 +862,7 @@ class FixtureServer(ThreadingHTTPServer):
         self._lock = threading.Lock()
         self._path_hold = threading.Condition(self._lock)
         self._path_hold_until = 0.0
+        self._path_hold_form: str | None = None
         self._path_hold_waiting = 0
         super().__init__(address, handler)
 
@@ -898,17 +899,20 @@ class FixtureServer(ThreadingHTTPServer):
             self._publication_id = 8
             return True
 
-    def hold_paths(self, seconds: int) -> dict:
-        """Hold every Paths artifact read for up to `seconds`, or release them with 0.
+    def hold_paths(self, seconds: int, form: str | None = None) -> dict:
+        """Hold Paths artifact reads for up to `seconds`, or release them with 0.
 
         Args:
             seconds: Hold length, 0 to ``PATH_HOLD_LIMIT_SECONDS``; 0 answers held reads now.
+            form: ``image`` or ``data`` to hold only that form's reads (issue #649: one
+                Side by Side pane loads while the other waits), or None for every read.
 
         Returns:
             The hold's status (see ``path_hold_status``).
         """
         with self._path_hold:
             self._path_hold_until = time.monotonic() + seconds if seconds else 0.0
+            self._path_hold_form = form if seconds else None
             self._path_hold.notify_all()
             return self._path_hold_status_locked()
 
@@ -928,28 +932,36 @@ class FixtureServer(ThreadingHTTPServer):
             "waiting": self._path_hold_waiting,
         }
 
-    def path_hold_active(self) -> bool:
-        """Return whether a Paths read arriving now would be held."""
-        with self._path_hold:
-            return time.monotonic() < self._path_hold_until
+    def _path_hold_applies_locked(self, form: str) -> bool:
+        """Whether the hold lasts and covers `form`; the caller holds the lock."""
+        return (time.monotonic() < self._path_hold_until
+                and self._path_hold_form in (None, form))
 
-    def wait_for_path_release(self, keepalive: Callable[[], None] | None = None) -> None:
-        """Block one Paths read while a hold lasts (returns at once without one).
+    def path_hold_active(self, form: str) -> bool:
+        """Return whether a Paths read of `form` (``image`` or ``data``) arriving now would be held."""
+        with self._path_hold:
+            return self._path_hold_applies_locked(form)
+
+    def wait_for_path_release(self, form: str, keepalive: Callable[[], None] | None = None) -> None:
+        """Block one Paths read while a hold covering its form lasts (returns at once without one).
 
         Args:
+            form: The read's form, ``image`` or ``data``.
             keepalive: Called every ``PATH_HOLD_KEEPALIVE_SECONDS`` while held, outside
                 the lock, so the read's connection never goes idle.
         """
         with self._path_hold:
+            if not self._path_hold_applies_locked(form):
+                return
             self._path_hold_waiting += 1
         try:
             while True:
                 with self._path_hold:
                     remaining = self._path_hold_until - time.monotonic()
-                    if remaining <= 0:
+                    if remaining <= 0 or not self._path_hold_applies_locked(form):
                         return
                     self._path_hold.wait(timeout=min(remaining, PATH_HOLD_KEEPALIVE_SECONDS))
-                    if self._path_hold_until <= time.monotonic():
+                    if not self._path_hold_applies_locked(form):
                         return
                 if keepalive:
                     keepalive()
@@ -1235,7 +1247,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
         if data:
             self.wfile.write(data)
 
-    def _respond_after_path_hold(self, respond: Callable[[], None]) -> None:
+    def _respond_after_path_hold(self, respond: Callable[[], None], form: str) -> None:
         """Answer a Paths read, keeping its connection alive while a hold lasts.
 
         Held, the finished response's status line and headers go out at once and its
@@ -1244,9 +1256,10 @@ class FixtureHandler(BaseHTTPRequestHandler):
 
         Args:
             respond: Writes the complete response to ``self.wfile``.
+            form: The read's form, ``image`` (PNG) or ``data`` (JSON).
         """
-        if not self.fixture.path_hold_active():
-            self.fixture.wait_for_path_release()
+        if not self.fixture.path_hold_active(form):
+            self.fixture.wait_for_path_release(form)
             respond()
             return
         stream, buffer = self.wfile, io.BytesIO()
@@ -1268,7 +1281,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
         try:
             stream.write(data[:sent])
             stream.flush()
-            self.fixture.wait_for_path_release(keepalive)
+            self.fixture.wait_for_path_release(form, keepalive)
             stream.write(data[sent:])
             stream.flush()
         except (BrokenPipeError, ConnectionResetError):
@@ -1312,16 +1325,19 @@ class FixtureHandler(BaseHTTPRequestHandler):
             else:
                 self._json(200, self.fixture.publication_join_reads())
         elif path == "/__fixture__/hold-paths":
-            # Holds Paths reads so a UI test can inspect the switch spinner (issue #430).
+            # Holds Paths reads so a UI test can inspect the switch spinner (issue #430);
+            # `form=image|data` holds only that form's reads (issue #649).
             seconds = query.get("seconds", [])
-            if set(query) - {"seconds"} or len(seconds) > 1:
+            forms = query.get("form", [])
+            if (set(query) - {"seconds", "form"} or len(seconds) > 1 or len(forms) > 1
+                    or (forms and (not seconds or forms[0] not in ("image", "data")))):
                 self._json(400, {"status": "invalid_fixture_query"})
             elif not seconds:
                 self._json(200, self.fixture.path_hold_status())
             elif not seconds[0].isdigit() or int(seconds[0]) > PATH_HOLD_LIMIT_SECONDS:
                 self._json(400, {"status": "invalid_fixture_query"})
             else:
-                self._json(200, self.fixture.hold_paths(int(seconds[0])))
+                self._json(200, self.fixture.hold_paths(int(seconds[0]), forms[0] if forms else None))
         elif path == "/__fixture__/last-score-query":
             self._json(200, {"last": self.fixture.last_score_query()})
         elif path == "/__fixture__/last-full-score-query":
@@ -2119,7 +2135,7 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 else:
                     self._path_image(difficulty, etag)
 
-            self._respond_after_path_hold(respond)
+            self._respond_after_path_hold(respond, "data" if data_route else "image")
         elif match := SONG_BAND_LEADERBOARDS_ALL.fullmatch(path):
             # Checked before the per-size route, whose pattern also matches `all`.
             account_ids = query.get("accountId", [])

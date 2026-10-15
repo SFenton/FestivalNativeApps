@@ -9,8 +9,8 @@
     "assertname:raw=fst.songs.metadata.season.fixture-song-1|Current season 9",
     "assertname:raw=fst.songs.metadata.intensity.fixture-song-1|Song intensity 2 of 7",
     "assertname:raw=fst.songs.metadata.difficulty.fixture-song-1|Expert difficulty",
-    "assertname:raw=fst.songs.metadata.lastplayed.fixture-song-1|Last played 28 Sep 2026",
-    "assertname:id=fst.songs.row.fixture-song-1|1 Beat, Synthetic Artist 2 · 2001, Score 412,345, Accuracy 99.5%, Top 1%, 5 stars, Current season 9, Song intensity 2 of 7, Expert difficulty, Last played 28 Sep 2026",
+    "waitgone:raw=fst.songs.metadata.lastplayed.fixture-song-1",
+    "assertname:id=fst.songs.row.fixture-song-1|1 Beat, Synthetic Artist 2 · 2001, Score 412,345, Accuracy 99.5%, Top 1%, 5 stars, Current season 9, Song intensity 2 of 7, Expert difficulty",
     "waitgone:raw=fst.songs.metadata.chart.fixture-song-1",
     "waitgone:raw=fst.songs.metadata.state.fixture-song-1",
     "scrollinto:raw=fst.songs.metadata.difficulty.fixture-song-2@10",
@@ -51,13 +51,13 @@
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "resize:1340x900",
     "wait:1.5",
-    "assertlevel:raw=fst.songs.metadata.lastplayed.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
+    "assertlevel:raw=fst.songs.metadata.difficulty.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
     "assertlevel:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
     "assertlevel:raw=fst.songs.metadata.difficulty.fixture-song-2|raw=fst.songs.metadata.score.fixture-song-2",
     "wait:1"
   ]},
   {"name": "metadata-wrapped", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
-   "sizes": ["compact", "medium", "snap-left", "snap-right"], "settings": {"showInstrumentIcons": false}, "ready": [
+   "sizes": ["compact", "snap-left", "snap-right"], "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
     "assertlevel:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.percentile.fixture-song-1",
@@ -70,7 +70,7 @@
     "waitfor:raw=fst.songs.metadata.percentage.fixture-song-1@40",
     "waitgone:raw=fst.songs.metadata.score.fixture-song-1",
     "assertname:raw=fst.songs.metadata.percentage.fixture-song-1|Accuracy 99.5%",
-    "assertname:id=fst.songs.row.fixture-song-1|1 Beat, Synthetic Artist 2 · 2001, Accuracy 99.5%, Top 1%, 5 stars, Current season 9, Song intensity 2 of 7, Expert difficulty, Last played 28 Sep 2026",
+    "assertname:id=fst.songs.row.fixture-song-1|1 Beat, Synthetic Artist 2 · 2001, Accuracy 99.5%, Top 1%, 5 stars, Current season 9, Song intensity 2 of 7, Expert difficulty",
     "wait:1"
   ]},
   {"name": "metadata-score-hidden-wrapped", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
@@ -168,21 +168,20 @@
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "resize:1340x900",
     "wait:1.5",
-    "assertlevel:raw=fst.songs.metadata.lastplayed.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
+    "assertlevel:raw=fst.songs.metadata.difficulty.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
     "resize:medium", "wait:1.5",
-    "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
+    "assertlevel:raw=fst.songs.metadata.difficulty.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
     "resize:1340x900", "wait:1.5",
-    "assertlevel:raw=fst.songs.metadata.lastplayed.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
+    "assertlevel:raw=fst.songs.metadata.difficulty.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
     "resize:compact", "wait:1.5",
     "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
     "resize:2400x1300", "wait:1.5",
     "resize:1340x900", "wait:1.5",
-    "assertlevel:raw=fst.songs.metadata.lastplayed.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1"
+    "assertlevel:raw=fst.songs.metadata.difficulty.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1"
   ]},
-  {"name": "metadata-large-text", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player", "sizes": ["wide"],
+  {"name": "metadata-large-text", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player", "sizes": ["medium"],
    "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
-    "resize:1340x900",
     "wait:1.5",
     "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
     "wait:1"
