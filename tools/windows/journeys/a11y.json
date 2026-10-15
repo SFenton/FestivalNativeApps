@@ -766,7 +766,7 @@
     "tabs": 20
   },
   {
-    "name": "notifications-flyout",
+    "name": "notifications-panel",
     "tab": "songs",
     "profile": "fixture-player-1:Demo Player",
     "ready": [

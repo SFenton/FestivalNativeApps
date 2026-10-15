@@ -224,6 +224,19 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertdock(self):
+        step = u.parse_step("assertdock:id=ContentScrollViewer|id=fst.notifications.sheet|top=49,right=1,width=458")
+        self.assertEqual(step["verb"], "assertdock")
+        self.assertEqual(step["selector"], {"kind": "id", "value": "ContentScrollViewer"})
+        self.assertEqual(step["other"], {"kind": "id", "value": "fst.notifications.sheet"})
+        self.assertEqual(step["edges"], {"top": 49.0, "right": 1.0, "width": 458.0})
+        self.assertEqual(u.parse_step("assertdock:id=a|id=b|bottom=24.5")["edges"], {"bottom": 24.5})
+        for bad in ("assertdock:id=a|id=b", "assertdock:id=a|right=1", "assertdock:id=a|id=b|middle=1",
+                    "assertdock:id=a|id=b|right=-1", "assertdock:id=a|id=b|right=1,right=2", "assertdock:id=a|id=b|right",
+                    "assertdock:1,2|id=b|right=1"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_assertcentred(self):
         step = u.parse_step("assertcentred:id=fst.shop.filter.empty-region|id=fst.shop.filter.empty|name=No Item Shop songs")
         self.assertEqual(step["verb"], "assertcentred")

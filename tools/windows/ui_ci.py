@@ -119,7 +119,7 @@ HISTORY_SWAP_REDUCED = "history-swap-reduced-access"
 
 #: The canonical ``a11y.json`` header-flyout pages (issue #534: every app flyout is constrained to the window, so none
 #: may open a windowed ``PopupHost``; the file's other pages stay host matrix checks).
-POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-flyout,notifications-flyout"
+POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-flyout,notifications-panel"
 
 #: The ``a11y-search.json`` All section-title pages (issue #348's titles, #483); the file's other pages are generated runs.
 SEARCH_SECTIONS = "search-all-sections,search-all-sections-keyboard"

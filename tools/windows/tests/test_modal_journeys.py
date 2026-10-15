@@ -25,6 +25,7 @@ _APP = _REPO / "windows" / "Festival.App"
 _CALLERS = {
     "Controls/FeedbackDialog.cs": ("modal-feedback-bug", "modal-feedback-feature"),
     "Controls/FirstRunCarousel.xaml.cs": ("modal-first-run",),
+    "Controls/NotificationsBell.xaml.cs": ("modal-notifications",),
     "Controls/PlayerProfileView.xaml.cs": ("modal-profile-switch", "modal-profile-deselect"),
     "Controls/PrivacyPolicyDialog.cs": ("modal-privacy-policy",),
     "Controls/SongPathsView.xaml.cs": ("modal-paths", "modal-paths-warning"),

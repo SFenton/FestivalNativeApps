@@ -106,7 +106,7 @@ STEP_VERBS = {
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
     "scrollto": "scrollto",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
-    "assertcentred": "centred",
+    "assertcentred": "centred", "assertdock": "dock",
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
@@ -280,6 +280,10 @@ def parse_step(step: str) -> dict:
     ``assertcentred:<region>|<first>|<last>`` fails unless the block from the first element's top edge to the last
     element's bottom edge sits in the region's vertical middle (top and bottom gaps within 2 epx) and the first element's
     horizontal centre is the region's within 2 epx, e.g. an empty state centred in its page region rather than top-aligned;
+    ``assertdock:<sel>|<region>|<edge>=<epx>[,...]`` fails unless each named edge (``left``, ``top``, ``right``,
+    ``bottom``) of the element is ``<epx>`` effective pixels inside the same edge of the region, and ``width=<epx>``
+    unless the element is that wide, each within 1.5 epx (results in ``docks``), e.g. a modal surface docked to the
+    window's trailing edge or bottom (issue #638: a dialog's own UIA Popup spans the window's client area);
     ``assertinset:<sel>|<sel>|<epx>`` waits (up to 3 s) until the first element's top edge is ``<epx>`` effective
     pixels below the second's top edge within 1 epx, e.g. a Quick Links target landed under its page scroller's top;
     ``scrollinset:<sel>|<scroller>|<epx>`` scrolls the second element (UIA Scroll pattern, no input) until the first
@@ -419,6 +423,24 @@ def parse_step(step: str) -> dict:
         result["selector"], result["other"], result["last"] = (parse_selector(part) for part in parts)
         if any(result[key]["kind"] == "xy" for key in ("selector", "other", "last")):
             raise ValueError(f"{verb} needs element selectors, not coordinates")
+    elif shape == "dock":
+        first, sep, rest = arg.partition("|")
+        second, sep2, spec = rest.rpartition("|")
+        edges = {}
+        for part in spec.split(","):
+            key, eq, value = part.strip().partition("=")
+            if key not in ("left", "top", "right", "bottom", "width") or not eq or key in edges or not re.fullmatch(
+                    r"\d+(\.\d+)?", value.strip()):
+                edges = {}
+                break
+            edges[key] = float(value)
+        if not sep or not sep2 or not edges:
+            raise ValueError(f"bad {verb} {arg!r}; use <selector>|<region>|<edge>=<epx>[,...] "
+                             "(edges left, top, right, bottom; width)")
+        result["selector"], result["other"] = parse_selector(first), parse_selector(second)
+        if "xy" in (result["selector"]["kind"], result["other"]["kind"]):
+            raise ValueError(f"{verb} needs element selectors, not coordinates")
+        result["edges"] = edges
     elif shape == "span":
         first, sep, rest = arg.partition("|")
         second, sep2, name = rest.rpartition("|")
