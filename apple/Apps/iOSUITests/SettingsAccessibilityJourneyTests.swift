@@ -229,13 +229,14 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
         let toggle = app.switches[id]
         XCTAssertTrue(toggle.isHittable, "\(id) is not on screen after the landing at \(size)", file: file, line: line)
         let original = toggle.value as? String ?? ""
-        // The switch's own tap lands on its track's centre, not on the thumb's outer rim (#626).
-        let steps: [(place: String, target: XCUICoordinate, expected: String)] = [
-            ("title", toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)), original == "1" ? "0" : "1"),
-            ("switch", SongsUITestSupport.switchTrackCentre(of: toggle), original),
+        // The switch's own tap lands on the track the thumb leaves bare, never on the thumb
+        // (#626, #659), so its point is read after the title tap has moved the thumb.
+        let steps: [(place: String, target: () -> XCUICoordinate, expected: String)] = [
+            ("title", { toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)) }, original == "1" ? "0" : "1"),
+            ("switch", { SongsUITestSupport.switchBareTrack(of: toggle) }, original),
         ]
         for step in steps {
-            step.target.tap()
+            step.target().tap()
             let flipped = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "value == %@", step.expected), object: toggle
             )
