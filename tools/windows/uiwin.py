@@ -106,7 +106,7 @@ STEP_VERBS = {
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
     "scrollto": "scrollto",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
-    "assertcentred": "centred", "assertdock": "dock", "assertmidline": "midline",
+    "assertcentred": "centred", "assertdock": "dock", "assertmidline": "midline", "assertmiddle": "gap",
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
@@ -288,6 +288,8 @@ def parse_step(step: str) -> dict:
     ``assertmidline:<first>|<last>|<region>|<epx>`` fails unless the midpoint from the first element's left edge to the
     last's right edge is the region's horizontal centre within ``<epx>`` effective pixels, e.g. a wrapped line of chips
     centred across its row;
+    ``assertmiddle:<sel>|<region>|<epx>`` fails unless the element's vertical centre is the region's within ``<epx>``
+    effective pixels, e.g. a row's art and chevron on the row's centre line (issue #654; ``assertlevel`` allows 4 px);
     ``assertinset:<sel>|<sel>|<epx>`` waits (up to 3 s) until the first element's top edge is ``<epx>`` effective
     pixels below the second's top edge within 1 epx, e.g. a Quick Links target landed under its page scroller's top;
     ``scrollinset:<sel>|<scroller>|<epx>`` scrolls the second element (UIA Scroll pattern, no input) until the first
