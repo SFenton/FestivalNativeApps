@@ -56,11 +56,37 @@
     "assertlevel:raw=fst.songs.metadata.difficulty.fixture-song-2|raw=fst.songs.metadata.score.fixture-song-2",
     "wait:1"
   ]},
+  {"name": "metadata-chip-heights", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
+   "sizes": ["medium", "wide"], "scan": true, "skip_modes": ["hc-aquatic", "hc-desert", "hc-dusk", "hc-night-sky"],
+   "note": "Issue #644: every Songs metadata chip reads at the one 24-epx pill height: accuracy (graded and the skewed gold full combo, web 3.75em minimum), Top %, season (the current season's ring is its fill, so the light block is the full 24 epx), the difficulty letter, 24-epx star circles and the intensity meter scaled to 24 epx (74.4 wide).",
+   "settings": {"showInstrumentIcons": false}, "ready": [
+    "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
+    "wait:1",
+    "assertsize:raw=fst.songs.metadata.percentage.fixture-song-1|52x24",
+    "assertsize:raw=fst.songs.metadata.percentile.fixture-song-1|77x24",
+    "assertsize:raw=fst.songs.metadata.season.fixture-song-1|48x24",
+    "assertsize:raw=fst.songs.metadata.difficulty.fixture-song-1|16x24",
+    "assertsize:raw=fst.songs.metadata.stars.fixture-song-1|126x24",
+    "assertsize:raw=fst.songs.metadata.intensity.fixture-song-1|74x24",
+    "assertlevel:raw=fst.songs.metadata.season.fixture-song-1|raw=fst.songs.metadata.stars.fixture-song-1",
+    "assertlevel:raw=fst.songs.metadata.intensity.fixture-song-1|raw=fst.songs.metadata.difficulty.fixture-song-1",
+    "assertpaint:raw=fst.songs.metadata.season.fixture-song-1|L1,M0=#D7DEE8~16|C0,T1=#D7DEE8~16|C0,B1=#D7DEE8~16",
+    "assertpaint:raw=fst.songs.metadata.intensity.fixture-song-1|L5,M0=#FFFFFF~24|L15,M0=#FFFFFF~24|L26,M0=#666666~24|L70,M0=#666666~24",
+    "scrollinto:raw=fst.songs.metadata.difficulty.fixture-song-2@10",
+    "assertname:raw=fst.songs.metadata.percentage.fixture-song-2|Full combo, accuracy 100%",
+    "assertsize:raw=fst.songs.metadata.percentage.fixture-song-2|52x24",
+    "assertsize:raw=fst.songs.metadata.stars.fixture-song-2|126x24",
+    "assertlevel:raw=fst.songs.metadata.percentage.fixture-song-2|raw=fst.songs.metadata.season.fixture-song-2",
+    "assertread:id=fst.songs.row.fixture-song-2|~Full combo, accuracy 100%, Top 3%, 5 gold stars, Season 4, ",
+    "shot:{stem}.png",
+    "wait:0.5"
+  ]},
   {"name": "metadata-wrapped", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
    "sizes": ["compact", "medium", "snap-left", "snap-right"], "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
-    "assertlevel:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.difficulty.fixture-song-1",
+    "assertlevel:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.percentile.fixture-song-1",
+    "assertbelow:raw=fst.songs.metadata.difficulty.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
     "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-2|raw=fst.songs.metadata.score.fixture-song-2",
     "wait:1"
   ]},
@@ -69,7 +95,8 @@
    "settings": {"showInstrumentIcons": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
     "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
-    "assertlevel:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.difficulty.fixture-song-1",
+    "assertlevel:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.percentile.fixture-song-1",
+    "assertbelow:raw=fst.songs.metadata.difficulty.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
     "wait:1"
   ]},
   {"name": "metadata-score-hidden", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",

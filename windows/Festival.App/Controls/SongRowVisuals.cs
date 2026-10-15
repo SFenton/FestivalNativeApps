@@ -73,17 +73,23 @@ public static class SongRowVisuals
         var element = field.Kind switch
         {
             MetadataField.Score => Plain(Text(field.Text, 14, FontWeights.SemiBold, null)),
-            MetadataField.Percentage when field.FullCombo => Box(Text(field.Text, PillFont, FontWeights.Bold, Brush("FSTEmphasisBrush")),
-                background: null, border: Brush("FSTEmphasisBrush")),
-            MetadataField.Percentage when Services.ContrastTheme.IsOn => Neutral(field.Text),
-            MetadataField.Percentage => Box(Text(field.Text, PillFont, FontWeights.SemiBold, null),
-                background: field.Tint is { } t ? new SolidColorBrush(Color.FromArgb(0x40, t.R, t.G, t.B)) : Brush("FSTSurfaceMutedBrush"), border: null),
+            // A full combo is the web AccuracyDisplay fcBadge: "100%" in the shared skewed gold outline (issue #644).
+            MetadataField.Percentage when field.FullCombo => MetadataPills.FullCombo(field.Text),
+            MetadataField.Percentage when Services.ContrastTheme.IsOn => Accuracy(Neutral(field.Text)),
+            MetadataField.Percentage => Accuracy(Box(Text(field.Text, PillFont, FontWeights.SemiBold, null),
+                background: field.Tint is { } t ? new SolidColorBrush(Color.FromArgb(0x40, t.R, t.G, t.B)) : Brush("FSTSurfaceMutedBrush"), border: null)),
             // The shared percentile and season pills (pattern metadata-pills, issue #606).
             MetadataField.Percentile => MetadataPills.Percentile(field.Text, field.Percentile),
-            // Stars and intensity sit in the same pill-height slot as the text pills so every pill lines up (operator batch 7.18).
-            MetadataField.Stars => Slot(new StarRow { Stars = field.Stars.Gold ? StarRating.GoldValue : field.Stars.Count, StarSize = 14 }),
+            // Stars and intensity fill the pill height so they line up with the text pills (operator batch 7.18, issue
+            // #644): 24-epx star circles (web MiniStars) and the meter scaled from 20 to 24 epx (Apple Songs rows).
+            MetadataField.Stars => Slot(new StarRow { Stars = field.Stars.Gold ? StarRating.GoldValue : field.Stars.Count, StarSize = RowStarSize }),
             MetadataField.Season => MetadataPills.Season(field.Text, field.CurrentSeason),
-            MetadataField.Intensity => Slot(new DifficultyMeter { Raw = field.IntensityRaw ?? 0, VerticalAlignment = VerticalAlignment.Center }),
+            MetadataField.Intensity => Slot(new Viewbox
+            {
+                Height = PillHeight,
+                Stretch = Stretch.Uniform,
+                Child = new DifficultyMeter { Raw = field.IntensityRaw ?? 0 },
+            }),
             MetadataField.Difficulty when Services.ContrastTheme.IsOn => Neutral(field.Text),
             MetadataField.Difficulty => Box(
                 Text(field.Text, PillFont, FontWeights.Bold, new SolidColorBrush(field.GameDifficulty is 0 or 2 ? Colors.Black : Colors.White)),
@@ -122,6 +128,19 @@ public static class SongRowVisuals
 
     /// <summary>Boxed pill label size: the shared pill label, so accuracy and difficulty match the season and percentile.</summary>
     private const double PillFont = MetadataPillStyle.FontSize;
+
+    /// <summary>Star image edge: <see cref="StarRow"/> rings it in a 1.25× circle, so the circle is the pill height.</summary>
+    private const double RowStarSize = MetadataPillStyle.StarCircle / 1.25;
+
+    /// <summary>Gives a graded accuracy pill the web accuracy minimum width, so it lines up with the full-combo pill.</summary>
+    /// <param name="pill">Pill.</param>
+    /// <returns>The pill.</returns>
+    private static MetadataPill Accuracy(MetadataPill pill)
+    {
+        pill.MinWidth = MetadataPillStyle.AccuracyMinWidth;
+        if (pill.Children.Count == 1 && pill.Children[0] is TextBlock label) label.HorizontalAlignment = HorizontalAlignment.Center;
+        return pill;
+    }
 
     /// <summary>Centres unboxed content (stars, the intensity meter) in a pill-height slot.</summary>
     /// <param name="content">Content.</param>

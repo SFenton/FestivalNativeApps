@@ -77,7 +77,10 @@
             <SolidColorBrush x:Key="FSTSeasonPillStrokeBrush" Color="#FF1E2A3A" />
             <SolidColorBrush x:Key="FSTCurrentSeasonFillBrush" Color="#FFD7DEE8" />
             <SolidColorBrush x:Key="FSTCurrentSeasonTextBrush" Color="#FF162133" />
-            <SolidColorBrush x:Key="FSTCurrentSeasonStrokeBrush" Color="#FF162133" />
+            <!-- Fill-coloured ring: the web's surfaceSubtle ring sits outside its 24 px light block and vanishes into the
+                 page, but the Windows stroke is inside the 24-epx pill, so a dark ring shrank the visible pill to 20 epx
+                 (issue #644). -->
+            <SolidColorBrush x:Key="FSTCurrentSeasonStrokeBrush" Color="#FFD7DEE8" />
             <SolidColorBrush x:Key="FSTPercentileNeutralFillBrush" Color="#FF223047" />
             <SolidColorBrush x:Key="FSTPercentileNeutralTextBrush" Color="#FFD7DEE8" />
             <SolidColorBrush x:Key="FSTPercentileNeutralStrokeBrush" Color="#00000000" />
