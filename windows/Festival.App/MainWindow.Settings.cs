@@ -26,6 +26,12 @@ public sealed partial class MainWindow
     /// <summary>Notifications bell model.</summary>
     public NotificationsViewModel? Notifications { get; private set; }
 
+    /// <summary>
+    /// Window width below which the navigation pane collapses to the hamburger menu (<c>Nav</c>'s Minimal mode); the
+    /// Notifications modal becomes a bottom sheet there (issue #638).
+    /// </summary>
+    public double NavigationMinimalBelow => Nav.CompactModeThresholdWidth;
+
     /// <summary>Creates first-run and notification services and the bell (called once from the constructor).</summary>
     private void InitializeSettingsFeatures()
     {

@@ -136,6 +136,8 @@ targets:
       - path: Apps/iOSUITests/BoardFooterFadeJourneyTests.swift
       # Issue #480: the split band and Close's 44 pt hit region, shared with the Duo journey.
       - path: Apps/iOSUITests/SplitBandUITestSupport.swift
+      # Issue #649: the Paths audit checks the Karaoke notice follows the loaded chart.
+      - path: Apps/iOSUITests/PathsUITestSupport.swift
     dependencies:
       - target: FestivalMobile
     settings:

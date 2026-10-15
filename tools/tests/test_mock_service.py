@@ -921,6 +921,52 @@ class MockServiceTests(unittest.TestCase):
                 urlopen(control + bad)
             self.assertEqual(failure.exception.code, 400)
 
+    def test_hold_paths_form_holds_only_that_forms_reads(self):
+        """`hold-paths?form=data` holds the table read while the image answers (issue #649)."""
+        control = self.base + "/__fixture__/hold-paths"
+        data = self.base + "/api/paths/fixture-pulse/Solo_Guitar/hard/data"
+        image = self.base + "/api/paths/fixture-pulse/Solo_Guitar/hard"
+        with urlopen(control + "?seconds=30&form=data") as response:
+            self.assertEqual(json.load(response), {"held": True, "waiting": 0})
+        answered = threading.Event()
+
+        def read() -> None:
+            with urlopen(data) as held:
+                held.read()
+            answered.set()
+
+        reader = threading.Thread(target=read, daemon=True)
+        reader.start()
+        for _ in range(100):
+            with urlopen(control) as response:
+                status = json.load(response)
+            if status["waiting"]:
+                break
+            threading.Event().wait(0.02)
+        self.assertEqual(status, {"held": True, "waiting": 1})
+        # The image is not held, and answering it parks nothing.
+        with urlopen(image, timeout=5) as response:
+            self.assertEqual(response.status, 200)
+            self.assertTrue(response.read().startswith(b"\x89PNG"))
+        self.assertFalse(answered.wait(0.3), "The held table read was answered")
+        with urlopen(control) as response:
+            self.assertEqual(json.load(response), {"held": True, "waiting": 1})
+        with urlopen(control + "?seconds=0") as response:
+            self.assertFalse(json.load(response)["held"])
+        self.assertTrue(answered.wait(5), "Releasing did not answer the held table read")
+        reader.join(timeout=2)
+        # An image-only hold leaves the table free.
+        with urlopen(control + "?seconds=30&form=image"):
+            pass
+        with urlopen(data, timeout=5) as response:
+            self.assertEqual(response.status, 200)
+        with urlopen(control + "?seconds=0"):
+            pass
+        for bad in ("?form=data", "?seconds=5&form=png", "?seconds=5&form=data&form=image"):
+            with self.subTest(query=bad), self.assertRaises(HTTPError) as failure:
+                urlopen(control + bad)
+            self.assertEqual(failure.exception.code, 400)
+
     def test_held_path_read_keeps_its_connection_alive(self):
         """A held read sends headers, then body bytes, never idling a client out (#620)."""
         port = self.server.server_port
