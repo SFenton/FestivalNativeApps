@@ -78,6 +78,30 @@ class UiCiTests(unittest.TestCase):
             with self.subTest(page=name):
                 self.assertNotIn("axe_allow", pages[name])
 
+    def test_songs_metadata_chips_run_at_default_and_largest_text(self):
+        # Issue #644 review: the chip-height journey gates the release-branch suite at default and 225% text, scanned,
+        # with each text pill's height compared to the others (assertheight) and the row's spoken order.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-songs-metadata-chips.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan and not run.only for run in runs.values()))
+        self.assertFalse([run for run in ci.RUNS if run.name.startswith("a11y-songs-metadata-chips")])
+        pages = json.loads((ci.JOURNEYS / "a11y-songs-metadata-chips.json").read_text(encoding="utf-8"))
+        for mode, run in runs.items():
+            chosen = m.mode_pages(pages, mode)
+            self.assertEqual(1, len(chosen), mode)
+            page = chosen[0]
+            self.assertTrue(m.page_sizes(page, run.sizes.split(","), mode), mode)
+            steps = page["ready"]
+            self.assertTrue(page["scan"])
+            for song in ("fixture-song-1", "fixture-song-2"):
+                self.assertIn(f"assertheight:raw=fst.songs.metadata.difficulty.{song}|raw=fst.songs.metadata.season.{song}",
+                              steps)
+                self.assertIn(f"assertheight:raw=fst.songs.metadata.percentage.{song}|raw=fst.songs.metadata.percentile.{song}",
+                              steps)
+                self.assertTrue(any(s.startswith(f"assertread:id=fst.songs.row.{song}|") for s in steps))
+            self.assertIn("assertsize:raw=fst.songs.metadata.stars.fixture-song-1|126x24", steps)
+            self.assertIn("assertsize:raw=fst.songs.metadata.intensity.fixture-song-1|74x24", steps)
+
     def test_songs_scroll_runs_at_default_largest_text_and_animations_off(self):
         # Issue #520 (#247): the pinned Songs title after far UIA jumps, a fling back to the top and keyboard End/Home.
         runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-songs-scroll.json"}

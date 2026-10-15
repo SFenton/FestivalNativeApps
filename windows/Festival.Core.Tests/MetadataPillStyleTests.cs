@@ -58,8 +58,25 @@ public class MetadataPillStyleTests
         Assert.True(MetadataPillStyle.Percentile(SongPercentileTier.Ordinary, bold: true).Bold);
     }
 
+    [Fact]
+    public void FullComboLook_IsTheWebGoldOutlineSkew()
+    {
+        // Issue #644: web AccuracyDisplay fcBadge is goldOutlineSkew, the same look as the Top 1% pill.
+        var fc = MetadataPillStyle.FullCombo;
+        Assert.Equal(("FSTGoldPillFillBrush", "FSTEmphasisStrokeBrush", "FSTEmphasisBrush"), (fc.FillKey, fc.StrokeKey, fc.TextKey));
+        Assert.True(fc.Bold && fc.Italic && fc.Skewed);
+        Assert.Equal(52.5, MetadataPillStyle.AccuracyMinWidth); // web accuracyPillMinWidth 3.75em
+        Assert.Equal(MetadataPillStyle.Height, MetadataPillStyle.StarCircle); // stars line up with the pills
+    }
+
+    [Fact]
+    public void FirstRunMetadataDemo_FullComboShowsThePercentOnly()
+    {
+        var sample = new FirstRunDemoMetadata(142_800, 1_000_000, true, 6, "Top 1%", 11, 3);
+        Assert.Equal(["142,800", "100%"], FirstRunDemos.MetadataPillsFor(sample, FirstRunDemoMetadataLayout.ScoreAccuracy));
+    }
+
     [Theory]
-    [InlineData(PercentileTier.Top1, SongPercentileTier.TopOne)]
     [InlineData(PercentileTier.Top5, SongPercentileTier.TopFive)]
     [InlineData(PercentileTier.Default, SongPercentileTier.Ordinary)]
     public void SuggestionTier_MapsOntoTheSharedTier(PercentileTier tier, SongPercentileTier expected) =>

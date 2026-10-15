@@ -118,4 +118,51 @@ public class RivalsCardMarkupTests
     }
 
     #endregion
+
+    #region First Run demos
+
+    /// <summary>A method's source, from its signature to the next member.</summary>
+    /// <param name="code">File text.</param>
+    /// <param name="signature">Signature text.</param>
+    /// <returns>The member's text.</returns>
+    private static string Member(string code, string signature)
+    {
+        var start = code.IndexOf(signature, StringComparison.Ordinal);
+        Assert.True(start >= 0, signature);
+        var next = code.IndexOf("\n    private ", start + signature.Length, StringComparison.Ordinal);
+        return next < 0 ? code[start..] : code[start..next];
+    }
+
+    [Fact]
+    public void FirstRunRivalDemosAreOneSeparatedCard()
+    {
+        // Issue #643 (rival-rows R6): the guide's rival lists use the pages' treatment, touching rows in one card with
+        // the shared hairline shown by RowSeparators above every row after the first.
+        var code = File.ReadAllText(Path.Combine(AppRoot, "Controls", "FirstRunDemo.Slides.cs"));
+        Assert.Contains("RowSeparators.Apply(row, index)", Member(code, "private static DemoSeparatedRow SeparatedRow("), StringComparison.Ordinal);
+        Assert.Contains("SeparatedRow(new RivalRowView", Member(code, "private static LeaderboardRowButton RivalRow("), StringComparison.Ordinal);
+
+        var row = Member(code, "private sealed partial class DemoSeparatedRow");
+        Assert.Contains("ISeparatedRow", row, StringComparison.Ordinal);
+        Assert.Contains("B(\"FSTRowSeparatorBrush\")", row, StringComparison.Ordinal);
+        Assert.Contains("Visibility = Visibility.Collapsed", row, StringComparison.Ordinal);
+        Assert.Contains("AccessibilityView.Raw", row, StringComparison.Ordinal);
+        Assert.Contains("IsHitTestVisible = false", row, StringComparison.Ordinal);
+
+        foreach (var demo in new[] { "private void BuildCompeteHub()", "private void BuildRivalsSection()", "private void BuildInstrumentRivals()", "private void BuildRivalDetail()" })
+        {
+            var body = Member(code, demo);
+            Assert.Contains("RivalRowsCard(", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Style = S(\"FSTCardStyle\")", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Spacing = 2 }", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Spacing = 4 }", body, StringComparison.Ordinal);
+            Assert.DoesNotContain("Background = B(\"FSTRowSeparatorBrush\")", body, StringComparison.Ordinal);
+        }
+
+        // The overview's below half continues the card's row indices, so its first row has a hairline too.
+        Assert.Contains("RivalDirection.Below, above.Rows.Count)", Member(code, "private void BuildRivalsSection()"), StringComparison.Ordinal);
+        Assert.Contains("SeparatedRow(new RivalSongRowView", Member(code, "private void BuildRivalDetail()"), StringComparison.Ordinal);
+    }
+
+    #endregion
 }

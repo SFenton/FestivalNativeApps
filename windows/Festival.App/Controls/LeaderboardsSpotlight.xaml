@@ -19,18 +19,23 @@
         <Grid Visibility="{x:Bind Spotlight.ShowFailed, Mode=OneWay, FallbackValue=Collapsed}">
             <Border x:Name="FailedBackplate" CornerRadius="12" IsHitTestVisible="False" Visibility="Collapsed"
                     Background="{ThemeResource FSTFloatingBackplateBrush}" />
-            <Border Padding="12,8" CornerRadius="12" BorderThickness="1"
+            <Border x:Name="FailedSurface" Padding="12,8" CornerRadius="12" BorderThickness="1"
                     Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}">
                 <controls:ServiceStatusInline x:Name="Failed" Status="{x:Bind Spotlight.Status, Mode=OneWay}" />
             </Border>
+            <Border x:Name="FailedLine" Height="1" Margin="12,0" VerticalAlignment="Top" IsHitTestVisible="False" Visibility="Collapsed"
+                    Background="{ThemeResource FSTRowSeparatorBrush}" AutomationProperties.AccessibilityView="Raw" />
         </Grid>
-        <!-- Board rows are separate frosted rows (operator batch 7.7), so the unranked note sits on the same surface. -->
+        <!-- Under a board of separate frosted rows the unranked note sits on the same surface; inside an overview card
+             (InCard, issue #643) the failure and the note drop their own surface and sit on the card under a hairline. -->
         <Grid Visibility="{x:Bind Spotlight.ShowUnranked, Mode=OneWay, FallbackValue=Collapsed}">
             <Border x:Name="UnrankedBackplate" CornerRadius="12" IsHitTestVisible="False" Visibility="Collapsed"
                     Background="{ThemeResource FSTFloatingBackplateBrush}" />
-            <Border Style="{StaticResource FSTCardStyle}" Padding="12,10" CornerRadius="12">
+            <Border x:Name="UnrankedSurface" Style="{StaticResource FSTCardStyle}" Padding="12,10" CornerRadius="12">
                 <TextBlock x:Name="Unranked" Text="{x:Bind Spotlight.UnrankedText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" />
             </Border>
+            <Border x:Name="UnrankedLine" Height="1" Margin="12,0" VerticalAlignment="Top" IsHitTestVisible="False" Visibility="Collapsed"
+                    Background="{ThemeResource FSTRowSeparatorBrush}" AutomationProperties.AccessibilityView="Raw" />
         </Grid>
         <!-- The pinned row is full width like the board's rows, so its rank, name and value line up with them
              (operator batch 7.9). It is itself the control (pattern leaderboard-row R7, issue #318): on Full Rankings,

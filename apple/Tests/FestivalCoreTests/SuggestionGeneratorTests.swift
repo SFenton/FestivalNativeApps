@@ -1168,6 +1168,113 @@ private func inertRivalSongs(prefix: String, count: Int) throws -> (songs: [Song
     #expect(category.title == "Climb Past Push Rival")
 }
 
+// MARK: - Named-rival cross-pollination cards list only that rival (#656)
+
+/// Two rivals, each the only (so the closest) rival on alternating Lead songs: "Alpha Rival"
+/// on even indexes, "Beta Rival" on odd ones.
+private func twoRivalResponse(songIds: [String], userRank: Int, rivalRank: Int) throws -> RivalsAllResponse {
+    func samples(_ parity: Int) -> [[String: Any]] {
+        songIds.indices.filter { $0 % 2 == parity }.map {
+            rivalSample(songIndex: $0, .lead, userRank: userRank, rivalRank: rivalRank)
+        }
+    }
+    return try rivalsAllFixture(
+        songs: songIds,
+        combos: [(
+            combo: "01",
+            above: [
+                rivalEntry("riv-a", name: "Alpha Rival", direction: "above", samples: samples(0)),
+                rivalEntry("riv-b", name: "Beta Rival", direction: "above", samples: samples(1)),
+            ],
+            below: []
+        )]
+    )
+}
+
+/// Across many seeds, a named-rival card lists only the rival its title names, every row is
+/// annotated with that rival, and the named rival varies with the shuffle.
+private func expectNamedRivalOnly(
+    key: String, title: (String) -> String, songs: [Song], records: [[String: Any]], response: RivalsAllResponse
+) throws {
+    var headlines = Set<String>()
+    var largestCard = 0
+    for seed in UInt32(1)...24 {
+        let generator = try makeGenerator(songs: songs, records: records, fixedDisplayCount: 4, seed: seed)
+        generator.setRivalData(RivalDataIndex.build(from: response))
+        guard let category = allCategories(generator).first(where: { $0.key == key }) else { continue }
+        let names = Set(category.songs.map { $0.rivalName ?? "<none>" })
+        #expect(names.count == 1, "seed \(seed): \(category.title) lists \(names.sorted())")
+        let accounts = Set(category.songs.map { $0.rivalAccountId ?? "<none>" })
+        #expect(accounts.count == 1, "seed \(seed): \(accounts.sorted())")
+        guard let name = names.first else { continue }
+        #expect(category.title == title(name), "seed \(seed): \(category.title)")
+        headlines.insert(name)
+        largestCard = max(largestCard, category.songs.count)
+    }
+    #expect(largestCard >= 2, "at least one card had several rows to compare")
+    #expect(headlines == ["Alpha Rival", "Beta Rival"], "the named rival comes from the shuffle: \(headlines)")
+}
+
+@Test func climbPastListsOnlyTheNamedRival() throws {
+    let fixture = try signalSongs(
+        prefix: "cpx", count: 30, instrument: .lead, stars: 4, accuracy: 800_000, rankStart: 51, totalEntries: 1_000
+    )
+    let response = try twoRivalResponse(songIds: fixture.songs.map(\.songId), userRank: 10, rivalRank: 51)
+    try expectNamedRivalOnly(
+        key: "song_rival_pct_push", title: { "Climb Past \($0)" },
+        songs: fixture.songs, records: fixture.records, response: response
+    )
+}
+
+@Test func gainStarsAndBeatListsOnlyTheNamedRival() throws {
+    let fixture = try signalSongs(prefix: "gsx", count: 16, instrument: .lead, stars: 4, accuracy: 700_000)
+    let response = try twoRivalResponse(songIds: fixture.songs.map(\.songId), userRank: 2, rivalRank: 10)
+    try expectNamedRivalOnly(
+        key: "song_rival_star_gains", title: { "Gain Stars & Beat \($0)" },
+        songs: fixture.songs, records: fixture.records, response: response
+    )
+}
+
+@Test func fcTheseToBeatListsOnlyTheNamedRival() throws {
+    let fixture = try signalSongs(prefix: "fcx", count: 16, instrument: .lead, stars: 6, accuracy: 930_000)
+    let response = try twoRivalResponse(songIds: fixture.songs.map(\.songId), userRank: 5, rivalRank: 2)
+    try expectNamedRivalOnly(
+        key: "song_rival_near_fc", title: { "FC These to Beat \($0)!" },
+        songs: fixture.songs, records: fixture.records, response: response
+    )
+}
+
+/// A named rival with a single candidate song gets a one-row card; it never borrows another
+/// rival's songs to fill the card.
+@Test func namedRivalCardNeverBorrowsAnotherRivalsSongs() throws {
+    // Alpha leads on one song, Beta on fifteen: whichever is named, every row is theirs.
+    let fixture = try signalSongs(
+        prefix: "cpy", count: 16, instrument: .lead, stars: 4, accuracy: 800_000, rankStart: 51, totalEntries: 1_000
+    )
+    let ids = fixture.songs.map(\.songId)
+    let response = try rivalsAllFixture(
+        songs: ids,
+        combos: [(
+            combo: "01",
+            above: [
+                rivalEntry("riv-a", name: "Alpha Rival", direction: "above",
+                           samples: [rivalSample(songIndex: 0, .lead, userRank: 10, rivalRank: 51)]),
+                rivalEntry("riv-b", name: "Beta Rival", direction: "above",
+                           samples: (1..<16).map { rivalSample(songIndex: $0, .lead, userRank: 10, rivalRank: 51) }),
+            ],
+            below: []
+        )]
+    )
+    for seed in UInt32(1)...12 {
+        let generator = try makeGenerator(songs: fixture.songs, records: fixture.records, fixedDisplayCount: 4, seed: seed)
+        generator.setRivalData(RivalDataIndex.build(from: response))
+        guard let category = allCategories(generator).first(where: { $0.key == "song_rival_pct_push" }) else { continue }
+        let expected = category.title == "Climb Past Alpha Rival" ? ["cpy0"] : nil
+        if let expected { #expect(category.songs.map(\.song.songId) == expected, "seed \(seed)") }
+        #expect(category.songs.allSatisfy { "Climb Past \($0.rivalName ?? "")" == category.title }, "seed \(seed)")
+    }
+}
+
 @Test func noRivalCategoriesEmitWithoutRivalData() throws {
     let songs = try [fixtureSong("nr0")]
     let generator = try makeGenerator(songs: songs)

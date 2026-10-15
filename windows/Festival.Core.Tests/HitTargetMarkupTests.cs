@@ -101,6 +101,38 @@ public class HitTargetMarkupTests
     }
 
     [Fact]
+    public void SongsSearch_MatchesToolHeightAndFillsTheRow()
+    {
+        // Issue #646: the Songs search box was WinUI's 32 epx beside the 40 epx Sort/Filter/Jump, and its column stopped
+        // at 440 epx with a spacer after the tools, so the row neither shared one height nor spanned the content width.
+        var styles = Load(Path.Combine("Themes", "Styles.xaml")).Descendants().Where(e => e.Name.LocalName == "Style").ToList();
+        string? Setter(XElement style, string property) =>
+            Attr(style.Elements().Single(e => Attr(e, "Property") == property), "Value");
+        var text = styles.Single(e => Attr(e, "Key") == "FSTToolbarSearchTextBoxStyle");
+        Assert.Equal("{StaticResource AutoSuggestBoxTextBoxStyle}", Attr(text, "BasedOn"));
+        Assert.Equal(Resource, Setter(text, "MinHeight"));
+        var box = styles.Single(e => Attr(e, "Key") == "FSTToolbarSearchBoxStyle");
+        Assert.Equal("{StaticResource DefaultAutoSuggestBoxStyle}", Attr(box, "BasedOn"));
+        Assert.Equal("{StaticResource FSTToolbarSearchTextBoxStyle}", Setter(box, "TextBoxStyle"));
+        Assert.Equal("Center", Setter(box, "VerticalContentAlignment"));
+
+        var page = Load(Path.Combine("Pages", "SongsPage.xaml"));
+        var search = page.Descendants().Single(e => e.Name.LocalName == "AutoSuggestBox"
+                                                    && Attr(e, "AutomationProperties.AutomationId") == "fst.songs.search");
+        Assert.Equal("{StaticResource FSTToolbarSearchBoxStyle}", Attr(search, "Style"));
+        Assert.True(Attr(search, "VerticalAlignment") is null && Attr(search, "Height") is null && Attr(search, "MaxWidth") is null,
+            "the search box overrides its height or width");
+        // The search column takes every epx the tools leave; no cap, no spacer column after the tools.
+        var actions = page.Descendants().Single(e => Attr(e, "Name") == "Actions");
+        var columns = actions.Elements().Single(e => e.Name.LocalName == "Grid.ColumnDefinitions").Elements().ToList();
+        Assert.Equal(["*", "Auto"], columns.Select(c => Attr(c, "Width")));
+        Assert.All(columns, c => Assert.Null(Attr(c, "MaxWidth")));
+        // The tools fill the row, so larger text that grows one control keeps them one height.
+        foreach (var id in new[] { "fst.songs.sort", "fst.songs.filter", "fst.songs.section-index-button" })
+            Assert.Equal("Stretch", Attr(Assert.Single(ById(page, id)), "VerticalAlignment"));
+    }
+
+    [Fact]
     public void EveryDropDownButton_UsesMinTarget()
     {
         // Issue #271: #72 listed its buttons one by one and missed the Full/Band Rankings pickers (31 epx tall). Every
