@@ -917,6 +917,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertsize":
                 AssertSize(window, step);
                 break;
+            case "assertsameheight":
+                AssertSameHeight(window, step);
+                break;
             case "assertapart":
                 AssertApart(window, step);
                 break;
@@ -1713,6 +1716,27 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         if (rect.Width < minWidth * scale - 1.01 || rect.Height < minHeight * scale - 1.01)
             throw new InvalidOperationException(
                 $"{(string)step["arg"]!}: {width:0.#}x{height:0.#} epx is smaller than {minWidth:0.#}x{minHeight:0.#} epx");
+    }
+
+    /// <summary>
+    /// Fails unless two elements' UIA heights are within 1 epx (window DPI): pills that must share one height at any text
+    /// size, where <c>assertsize</c> only proves a minimum (issue #644). Records both heights in epx.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> and <c>other</c>.</param>
+    /// <exception cref="InvalidOperationException">The heights differ.</exception>
+    private void AssertSameHeight(Window window, JsonObject step)
+    {
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var a = Find(window, step).BoundingRectangle.Height / scale;
+        var b = Find(window, step, "other").BoundingRectangle.Height / scale;
+        response["heights"] ??= new JsonArray();
+        response["heights"]!.AsArray().Add(new JsonObject
+        {
+            ["arg"] = (string)step["arg"]!, ["height"] = Math.Round(a, 1), ["other"] = Math.Round(b, 1),
+        });
+        if (Math.Abs(a - b) > 1)
+            throw new InvalidOperationException($"heights {a:0.#} vs {b:0.#} epx differ ({(string)step["arg"]!})");
     }
 
     /// <summary>

@@ -158,21 +158,26 @@ public static class SongRowVisuals
 
     /// <summary>
     /// Wraps content in a rounded pill. The height is a minimum so the pill grows with text scaling instead of clipping
-    /// (spec: "grow rather than clip at large text").
+    /// (spec: "grow rather than clip at large text"). A pill without an outline pads by the outline width instead, so it
+    /// has the shared pills' insets (<see cref="MetadataPills"/>) and the same height when the text grows (issue #644).
     /// </summary>
     /// <param name="content">Content.</param>
     /// <param name="background">Fill, or none.</param>
     /// <param name="border">Outline, or none.</param>
     /// <returns>Pill.</returns>
-    private static MetadataPill Box(UIElement content, Brush? background, Brush? border) => Host(content, new MetadataPill
+    private static MetadataPill Box(UIElement content, Brush? background, Brush? border)
     {
-        Padding = new Thickness(6, 0, 6, 0),
-        MinHeight = PillHeight,
-        CornerRadius = new CornerRadius(MetadataPillStyle.CornerRadius),
-        Background = background ?? new SolidColorBrush(Colors.Transparent),
-        BorderBrush = border,
-        BorderThickness = new Thickness(border is null ? 0 : MetadataPillStyle.StrokeWidth),
-    });
+        const double stroke = MetadataPillStyle.StrokeWidth, inset = MetadataPillStyle.HorizontalPadding;
+        return Host(content, new MetadataPill
+        {
+            Padding = border is null ? new Thickness(inset + stroke, stroke, inset + stroke, stroke) : new Thickness(inset, 0, inset, 0),
+            MinHeight = PillHeight,
+            CornerRadius = new CornerRadius(MetadataPillStyle.CornerRadius),
+            Background = background ?? new SolidColorBrush(Colors.Transparent),
+            BorderBrush = border,
+            BorderThickness = new Thickness(border is null ? 0 : stroke),
+        });
+    }
 
     /// <summary>Puts content in a pill host.</summary>
     /// <param name="content">Content.</param>

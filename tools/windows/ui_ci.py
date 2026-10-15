@@ -188,6 +188,12 @@ RUNS: tuple[Run, ...] = (
     Run("songs-scroll", "a11y-songs-scroll.json", tabs=0),
     Run("songs-scroll-text-225", "a11y-songs-scroll.json", sizes="compact", mode="text-225", tabs=0),
     Run("songs-scroll-no-animations", "a11y-songs-scroll.json", sizes="compact", mode="no-animations", tabs=0),
+    # Songs metadata chips (issue #644): the row speaks score, accuracy (graded and the skewed gold "100%" full combo),
+    # Top %, stars, season, intensity and difficulty in visual order; every text pill is at least 24 epx and shares one
+    # height with the others, the 24-epx stars and meter line up with them, the current season paints its full height,
+    # Axe-scanned; at 225% text the text pills grow to one shared height, never clipped.
+    Run("songs-metadata-chips", "a11y-songs-metadata-chips.json", sizes="medium,wide"),
+    Run("songs-metadata-chips-text-225", "a11y-songs-metadata-chips.json", sizes="medium", mode="text-225"),
     # Song leaderboard footer and paging (issues #93, #443): pinned row and pager names, states and 40x40 targets,
     # header -> rows -> pinned row -> pager order, the fade layer kept out of the control view, the Tab/Shift+Tab order
     # at rest, mid-load and on page 2, and a keyboard page change that keeps the header, pinned row and pager in order

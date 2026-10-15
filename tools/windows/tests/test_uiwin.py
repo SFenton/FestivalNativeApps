@@ -383,6 +383,15 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_assertsameheight(self):
+        step = u.parse_step("assertsameheight:raw=fst.songs.metadata.percentage.a|raw=fst.songs.metadata.season.a")
+        self.assertEqual(step["verb"], "assertsameheight")
+        self.assertEqual(step["selector"], {"kind": "raw", "value": "fst.songs.metadata.percentage.a"})
+        self.assertEqual(step["other"], {"kind": "raw", "value": "fst.songs.metadata.season.a"})
+        for bad in ("assertsameheight:raw=a", "assertsameheight:raw=a|1,2"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_assertat(self):
         step = u.parse_step("assertat:id=fst.shell.profile|0,-18.5")
         self.assertEqual(step["verb"], "assertat")

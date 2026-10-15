@@ -110,7 +110,7 @@ STEP_VERBS = {
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
-    "assertsize": "size", "assertapart": "pair", "assertat": "offset", "tapat": "offset", "clickat": "offset",
+    "assertsize": "size", "assertsameheight": "pair", "assertapart": "pair", "assertat": "offset", "tapat": "offset", "clickat": "offset",
     "drag": "drag",
     "narrate": "selector", "assertread": "read", "assertorder": "order",
     "assertpaint": "paint", "assertbold": "bold", "assertannouncedcount": "announcedcount",
@@ -275,6 +275,8 @@ def parse_step(step: str) -> dict:
     ``assertscrollbar:<sel>`` is its inverse (a scroller that honours Windows' "Always show scrollbars", issue #525);
     ``assertbelow:<sel>|<sel>`` fails unless the first element's vertical centre is at least 8 px below the second's,
     and ``assertlevel:<sel>|<sel>`` unless both vertical centres are within 4 px (a line);
+    ``assertsameheight:<sel>|<sel>`` fails unless both elements' heights are within 1 epx, e.g. metadata pills that
+    share one height at any text size (``assertsize`` only sets a minimum);
     ``assertgap:<sel>|<sel>|<epx>`` fails unless the gap from the first element's bottom edge to the second's top
     edge is ``<epx>`` effective pixels (window DPI) within 1 epx, e.g. a list's last row above a pinned footer;
     ``assertcentred:<region>|<first>|<last>`` fails unless the block from the first element's top edge to the last
