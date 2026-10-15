@@ -17,12 +17,6 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <!-- Wide pages (>= 1100 epx) show the rankings beside the chosen player's profile (operator 2026-09-28: two
-             populated columns). ApplySplit sets the widths. -->
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition x:Name="ListColumn" Width="*" />
-            <ColumnDefinition x:Name="DetailColumn" Width="0" />
-        </Grid.ColumnDefinitions>
 
         <Grid x:Name="Header" ColumnSpacing="12" RowSpacing="8">
             <Grid.ColumnDefinitions>
@@ -87,7 +81,6 @@
                           controls:LoadSwapVisual.Swap="{x:Bind ViewModel.LoadSwap, Mode=OneWay}" controls:LoadSwapVisual.Role="Content"
                           AutomationProperties.AutomationId="fst.full-rankings.list">
                 <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" Margin="0,4,0,0" VerticalAlignment="Top"
-                               ElementPrepared="OnRowPrepared"
                                controls:FadeIn.Together="True" controls:FadeIn.RowHeight="48" controls:GroupedRows.IsEnabled="True"
                                ItemsSource="{x:Bind ViewModel.Rows, Mode=OneWay}">
                     <ItemsRepeater.Layout>
@@ -142,10 +135,6 @@
             <controls:LeaderboardsPager x:Name="BoardPager" Pager="{x:Bind ViewModel.Pager}"
                                         Visibility="{x:Bind ViewModel.ShowContent, Mode=OneWay}" />
         </StackPanel>
-
-        <Frame x:Name="DetailFrame" Grid.Column="1" Grid.RowSpan="4" Margin="12,-12,-24,-12" Visibility="Collapsed"
-               IsNavigationStackEnabled="False" AutomationProperties.Name="Player profile"
-               AutomationProperties.AutomationId="fst.full-rankings.detail-pane" />
 
         <VisualStateManager.VisualStateGroups>
             <VisualStateGroup>

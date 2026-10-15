@@ -21,7 +21,6 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
     private static Windows.UI.ViewManagement.AccessibilitySettings? accessibility;
 
     private double width = double.NaN;
-    private bool current;
     private GroupedRowSlice? slice;
     private string? rowAutomationId;
     private Rectangle[]? bars;
@@ -131,21 +130,6 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
 
     /// <summary>The row's destination, if it has one.</summary>
     public AppRoute? Route => (Row as ILeaderboardEntryRow)?.Route;
-
-    /// <summary>
-    /// Whether this row's destination is showing in the page's detail column (list + detail layout): a muted fill so the
-    /// list shows which entry the detail belongs to. The selected player's own accent wins.
-    /// </summary>
-    public bool IsCurrent
-    {
-        get => current;
-        set
-        {
-            if (current == value) return;
-            current = value;
-            ApplySurface();
-        }
-    }
 
     /// <summary>
     /// The row's slice of its board's single grouped card (<see cref="GroupedRows"/>, issue #543), or
@@ -333,7 +317,7 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
     }
 
     /// <summary>
-    /// Selected (purpleHighlight), current (muted) or plain frosted surface, the matching text colours and a score row's
+    /// Selected (purpleHighlight) or plain frosted surface, the matching text colours and a score row's
     /// accuracy badge brushes. Re-run on a system colour change, because code-set brushes do not follow a contrast theme.
     /// </summary>
     private void ApplySurface()
@@ -355,8 +339,8 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
         }
         PillText.HighContrastAdjustment = badgeOnHighlight ? ElementHighContrastAdjustment.None : ElementHighContrastAdjustment.Application;
         // A row inside a card that draws the surface (in-card slice, issue #588) adds no second translucent fill
-        // (surface-materials R6); the selected and current rows keep theirs.
-        Surface.Background = selected ? (Brush)resources["FSTPlayerRowBrush"] : current ? (Brush)resources["FSTCurrentRowBrush"]
+        // (surface-materials R6); the selected row keeps its own.
+        Surface.Background = selected ? (Brush)resources["FSTPlayerRowBrush"]
             : slice is { InCard: true } ? null : (Brush)resources["FSTCardSurfaceBrush"];
         Surface.BorderBrush = (Brush)resources[selected ? "FSTPlayerRowStrokeBrush" : "FSTCardStrokeBrush"];
         if (bars is not null)
@@ -507,7 +491,7 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
         UpdateColumns();
     }
 
-    /// <summary>Runs the in-page action when it applies, else opens the row's destination (in the page's detail column when it hosts one).</summary>
+    /// <summary>Runs the in-page action when it applies, else opens the row's destination (the shell decides whether it opens in a split pane).</summary>
     /// <param name="sender">Button.</param>
     /// <param name="e">Unused.</param>
     private void OnClick(object sender, RoutedEventArgs e)
@@ -517,10 +501,7 @@ public sealed partial class LeaderboardEntryRow : UserControl, IGroupedRow
             command.Execute(null);
             return;
         }
-        if (Route is not { } route) return;
-        for (DependencyObject? node = this; node is not null; node = VisualTreeHelper.GetParent(node))
-            if (node is IRouteHost host && host.TryShow(route)) return;
-        MainWindow.Instance?.Navigate(route);
+        if (Route is { } route) MainWindow.Instance?.Navigate(route);
     }
 }
 #endregion

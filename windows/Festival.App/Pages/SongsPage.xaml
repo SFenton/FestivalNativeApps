@@ -39,12 +39,6 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
-        <!-- Wide windows (page >= 1100 epx) split into the list and the selected song's detail (operator 2026-09-28:
-             two populated columns, never an empty detail pane). SongsPage.ApplySplit sets the widths. -->
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition x:Name="ListColumn" Width="*" />
-            <ColumnDefinition x:Name="DetailColumn" Width="0" />
-        </Grid.ColumnDefinitions>
 
         <StackPanel Orientation="Horizontal" Spacing="12">
             <TextBlock Text="Songs" Style="{StaticResource FSTPageTitleStyle}" AutomationProperties.HeadingLevel="Level1" />
@@ -475,9 +469,5 @@
                                      TitleAutomationId="fst.songs.empty" SubtitleAutomationId="fst.songs.empty-message"
                                      RegionAutomationId="fst.songs.empty-region" />
         </Grid>
-
-        <Frame x:Name="DetailFrame" Grid.Column="1" Grid.RowSpan="4" Margin="12,-12,0,0" Visibility="Collapsed"
-               IsNavigationStackEnabled="False" AutomationProperties.Name="Song details"
-               AutomationProperties.AutomationId="fst.songs.detail-pane" />
     </Grid>
 </Page>

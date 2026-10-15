@@ -44,13 +44,13 @@ Design review (`winui-design`): Fluent `DropDownButton` + `MenuFlyout` radio ite
 
 ## IDs
 
-`fst.band-rankings.title`, `.list`, `.empty`, `.band-type-menu`, `.band-type.<bandType>`, `.rank-by-menu`, `.rank-by.<metric>`, `.page-first|page-previous|page-info|page-next|page-last`, `.row.<teamKey>`, `.detail-pane`.
+`fst.band-rankings.title`, `.list`, `.empty`, `.band-type-menu`, `.band-type.<bandType>`, `.rank-by-menu`, `.rank-by.<metric>`, `.page-first|page-previous|page-info|page-next|page-last`, `.row.<teamKey>`.
 
 ## Open
 
 - No selected-band pinned row (no selected-band identity on Windows) and no band-combo filter.
 - Narrator audio was not scripted; announcements are covered by the UIA tree and `LoadAnnouncer` tests.
 
-## Two columns
+## Split view (#652)
 
-From a 1100 epx page the rankings keep a 560 epx column and the chosen band's Band Detail (`BandsDetailPage` in `DetailFrame`, `fst.band-rankings.detail-pane`) fills the rest (operator 2026-09-28: two populated columns, never an empty detail). It starts on the first openable row, follows row clicks (`IRouteHost`) and survives paging while that band is listed; its row gets `LeaderboardEntryRow.IsCurrent`. Below 1100 epx, or without openable rows, the page is one 1100 epx column. Journey: `tools/windows/journeys/split-panes.json`.
+Band Rankings is a split sub-page like [Full Rankings](../full-rankings/windows.md#split-view-652): beside the Leaderboards hub when the content area holds two 480 epx halves, else pushed full width. A row opens Band Detail full width over the split. The page-local band column (1100 epx page, 560 epx list, `IRouteHost`, `LeaderboardEntryRow.IsCurrent`) was removed. Journey: `leaderboards-split-wide` in `tools/windows/journeys/split-panes.json`.

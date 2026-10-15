@@ -65,15 +65,6 @@
     "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-2|raw=fst.songs.metadata.score.fixture-song-2",
     "wait:1"
   ]},
-  {"name": "metadata-split", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player", "sizes": ["maximized"],
-   "note": "Split view (page >= 1100 epx, list 560 epx) wraps. Run where maximized reaches it, e.g. --mode scale-100 on a 3840-px display; at 300% (1280 epx) maximized is inline.",
-   "settings": {"showInstrumentIcons": false}, "ready": [
-    "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
-    "assertbelow:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
-    "assertlevel:raw=fst.songs.metadata.percentage.fixture-song-1|raw=fst.songs.metadata.percentile.fixture-song-1",
-    "assertbelow:raw=fst.songs.metadata.difficulty.fixture-song-1|raw=fst.songs.metadata.score.fixture-song-1",
-    "wait:1"
-  ]},
   {"name": "metadata-score-hidden", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
    "settings": {"showInstrumentIcons": false, "metadataScore": false}, "ready": [
     "waitfor:raw=fst.songs.metadata.percentage.fixture-song-1@40",

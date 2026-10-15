@@ -3712,7 +3712,7 @@
       "title": "Back keeps place",
       "status": "current",
       "doc": ".agents/patterns/back-keeps-place.md",
-      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it. A player or band profile is a full page that covers the split, and its Back returns to the kept split (#352). Android (#583) follows the same order: system Back pops the pane's stack, then closes the pane, then leaves the page.",
+      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it. A player or band profile is a full page that covers the split, and its Back returns to the kept split (#352). Android (#583) and Windows (#652) follow the same order: Back pops the pane's stack, then closes the pane, then leaves the page.",
       "keywords": [
         "back",
         "back navigation",
@@ -3770,6 +3770,10 @@
           {
             "path": "windows/Festival.App/Services/CachedPageScroll.cs",
             "symbol": "CachedPageScroll"
+          },
+          {
+            "path": "windows/Festival.App/Controls/OnDemandSplitHost.cs",
+            "symbol": "TryGoBack"
           },
           {
             "path": "windows/Festival.Core/ViewModels/SuggestionsViewModel.cs",
@@ -4338,7 +4342,7 @@
       "title": "Split panes",
       "status": "current",
       "doc": ".agents/patterns/split-panes.md",
-      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under the system's or the app's Increase Contrast (the band is never an accessibility element), and the split's one backdrop and top gradient run unbroken across the band. Owner-approved variant R6 (#371; iPad, iPhone Duo inner landscape and Android tablets/foldables): Settings always splits, showing a vertically centred placeholder (Settings icon, \"Settings\", \"Select a setting to see more options here\") until a chevron row opens its options on the right; plain toggles act in the list. Owner-approved Android variant R7 (#583): Android tablets, foldables and wide windows use the iPhone Duo's on-demand split: Rivals/All Rivals/Compete open Rival Detail, Leaderboards opens Full/Band Rankings and Song Detail opens its boards and Score History in a trailing pane when the window is landscape, regular and leaves 360 dp a pane, or at the fold in book posture; everything else stays one page, and Back closes the pane first.",
+      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under the system's or the app's Increase Contrast (the band is never an accessibility element), and the split's one backdrop and top gradient run unbroken across the band. Owner-approved variant R6 (#371; iPad, iPhone Duo inner landscape and Android tablets/foldables): Settings always splits, showing a vertically centred placeholder (Settings icon, \"Settings\", \"Select a setting to see more options here\") until a chevron row opens its options on the right; plain toggles act in the list. Owner-approved Android variant R7 (#583): Android tablets, foldables and wide windows use the iPhone Duo's on-demand split: Rivals/All Rivals/Compete open Rival Detail, Leaderboards opens Full/Band Rankings and Song Detail opens its boards and Score History in a trailing pane when the window is landscape, regular and leaves 360 dp a pane, or at the fold in book posture; everything else stays one page, and Back closes the pane first. Owner-approved Windows variant (#652): the same pages split into equal star halves of the section content area, each at least 480 epx (x text scale from 130%), through one shell OnDemandSplitHost per section; Songs pushes Song Detail full width, no page hosts its own detail column, a narrowed split shows the pane alone (stacked), and Back pops the pane, then closes it, then the section.",
       "keywords": [
         "split view",
         "split",
@@ -4417,6 +4421,14 @@
         ],
         "windows": [
           {
+            "path": "windows/Festival.Core/Domain/OnDemandSplitPolicy.cs",
+            "symbol": "OnDemandSplitPolicy"
+          },
+          {
+            "path": "windows/Festival.App/Controls/OnDemandSplitHost.cs",
+            "symbol": "OnDemandSplitHost"
+          },
+          {
             "path": "windows/Festival.Core/Domain/SettingsDetails.cs",
             "symbol": "SettingsDetails"
           },
@@ -4454,6 +4466,16 @@
           "allow": [],
           "debt": [],
           "message": "Split panes are separated by space, not a drawn divider; a hairline only under high contrast at a midpoint (split-panes R1, R2)."
+        },
+        {
+          "id": "windows-page-local-split",
+          "glob": "windows/Festival.App/Pages/*.xaml",
+          "regex": "x:Name=\"DetailFrame\"",
+          "allow": [
+            "windows/Festival.App/Pages/SettingsPage.xaml"
+          ],
+          "debt": [],
+          "message": "Windows list/detail splits go through the shell's OnDemandSplitHost (split-panes R7 Windows variant, #652); a page never hosts its own detail Frame. Settings' R6 Licenses pane is the one exception."
         }
       ],
       "supersedes": [],

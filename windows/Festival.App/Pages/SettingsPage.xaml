@@ -112,8 +112,9 @@
         </Style>
     </Page.Resources>
 
-    <!-- One column (Quick Links menu or pane) below Core SettingsDetails.SplitWidth; from it the list/detail layout
-         (issue #371): the list in a fixed ListColumn and the selected setting's options in the DetailHost. -->
+    <!-- One column (Quick Links menu or pane) below the shared split rule (Core SettingsDetails.UsesSplit: two equal panes
+         of at least 480 epx, #652); from it the list/detail layout (issue #371): the list and the selected setting's
+         options in the DetailHost share the page in equal halves that grow and shrink with the window. -->
     <Grid x:Name="Root" SizeChanged="OnRootSizeChanged">
         <Grid.ColumnDefinitions>
             <ColumnDefinition x:Name="ListColumn" Width="*" />
