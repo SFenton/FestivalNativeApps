@@ -424,6 +424,11 @@ RUNS: tuple[Run, ...] = (
     # as in-card rows that touch (0 epx) in score order, ending on a 40+ epx View All Scores named for the chart.
     Run("score-history-card", "a11y-score-history-card.json", tabs=0),
     Run("score-history-card-text-225", "a11y-score-history-card.json", sizes="compact", mode="text-225", tabs=0),
+    # Preview cards (issue #643): each Leaderboards board (instrument, combo and Duos/Trios/Quads) and each Song Detail
+    # instrument and band preview is one card whose rows touch (0 epx) as in-card slices in rank order, ending on a
+    # 40+ epx View All inside the card; Tab returns to it from the rows.
+    Run("preview-cards", "a11y-preview-cards.json", tabs=0),
+    Run("preview-cards-text-225", "a11y-preview-cards.json", sizes="compact", mode="text-225", tabs=0),
     # Song Detail's Score History chart (issues #198, #512): Left/Right move focus between bar ToggleButtons and select
     # them, at 225% text the axis titles keep clear of the measured tick labels and date bands, under Desert the bars
     # paint the theme's Window/WindowText/Highlight (also after a live switch), and the syncing and failed states expose

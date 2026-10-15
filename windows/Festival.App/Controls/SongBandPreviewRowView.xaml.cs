@@ -13,9 +13,13 @@ namespace Festival.App.Controls;
 /// the top rows jumps to the full band leaderboard's page containing its rank and reveals that row (pattern
 /// <c>leaderboard-row</c> R7, issue #307, the same rule as the solo spotlight row); every other row, including the selected
 /// band ranked in the top rows, opens Band Detail. The selected player's band uses the purple player-row surface.
+/// In the preview's one card (<see cref="GroupedRows"/> in-card slices, issue #643) the row drops its own surface.
 /// </summary>
-public sealed partial class SongBandPreviewRowView : UserControl
+public sealed partial class SongBandPreviewRowView : UserControl, IGroupedRow
 {
+    /// <summary>The row's slice of the preview card, or <see langword="null"/> for a standalone row card.</summary>
+    private GroupedRowSlice? slice;
+
     /// <summary>Row model.</summary>
     public static readonly DependencyProperty RowProperty = DependencyProperty.Register(
         nameof(Row), typeof(SongBandPreviewRow), typeof(SongBandPreviewRowView),
@@ -44,6 +48,27 @@ public sealed partial class SongBandPreviewRowView : UserControl
         set => SetValue(RowProperty, value);
     }
 
+    /// <summary>
+    /// The row's slice of the preview's one card (issue #643), or <see langword="null"/> for a standalone row card. An
+    /// in-card slice drops the row's own surface so the card's shows through and draws the hairline above the row; the
+    /// focus ring draws inside the row's bounds, because the next row touches it.
+    /// </summary>
+    public GroupedRowSlice? Slice
+    {
+        set
+        {
+            if (slice == value) return;
+            slice = value;
+            var radius = value is { } s ? GroupedRows.Radius(s) : new CornerRadius(GroupedRowSlice.CornerRadius);
+            Surface.CornerRadius = RowButton.CornerRadius = radius;
+            Surface.BorderThickness = value is { } t ? GroupedRows.Outline(t) : new Thickness(GroupedRowSlice.Stroke);
+            Separator.Visibility = value is { ShowSeparator: true } ? Visibility.Visible : Visibility.Collapsed;
+            if (value is null) RowButton.ClearValue(FocusVisualMarginProperty);
+            else RowButton.FocusVisualMargin = new Thickness(0);
+            ApplySurface();
+        }
+    }
+
     /// <summary>Re-applies the row's brushes on the UI thread after a system colour change.</summary>
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
@@ -60,7 +85,9 @@ public sealed partial class SongBandPreviewRowView : UserControl
     private void ApplySurface()
     {
         var selected = Row?.IsSelected == true;
-        Surface.Background = ContrastTheme.Brush(selected ? "FSTPlayerRowBrush" : "FSTCardSurfaceBrush");
+        // In the preview card (in-card slice) only the selected band adds a fill (surface-materials R6).
+        Surface.Background = selected ? ContrastTheme.Brush("FSTPlayerRowBrush")
+            : slice is { InCard: true } ? null : ContrastTheme.Brush("FSTCardSurfaceBrush");
         Surface.BorderBrush = ContrastTheme.Brush(selected ? "FSTPlayerRowStrokeBrush" : "FSTCardStrokeBrush");
         RankText.FontWeight = selected ? FontWeights.Bold : FontWeights.SemiBold;
         // Selected-row text follows the purple fill (HighlightText under a contrast theme).
