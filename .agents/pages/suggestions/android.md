@@ -66,7 +66,7 @@ Filter sheet (operator 2026-09-28): **applies live** — every switch, cascade a
 | `suggestions/SuggestionsViewModelTest` | Batching, rival splice, remix to the cap + new mix, filter/visibility refilter, syncing/failure retry, player switch, new publication |
 | `suggestions/SuggestionsUiTest`, `SuggestionsRenderTest` (Robolectric) | Whole-shell journeys (load, scroll, open Song Detail, live filter/Done/reset, all types off, no player, syncing → failure → loaded), traversal order (top bar → Filter → cards; Song Detail and other pages unchanged) and hosted renders of every phase/row layout, phone and expanded |
 | `suggestions/SuggestionRivalRowUiTest` (Robolectric, native graphics) | Rival rows' pixels at 360/600 dp × font 1.0/2.0: Spotlight and Climb Past rows draw no badge and an unclipped delta (readable red, never `statusRed`), ≥ 48 dp, TalkBack names the rival; mixed rows keep the badge; delta and badge text ≥ 4.5:1 over the card on any backdrop |
-| `journeys/SuggestionsAccessibilityJourneyTest` (connected, `device.py test`) | ATF on the feed and filter sheet, reading order in logcat `FST_A11Y`, no card across a separating hinge |
+| `journeys/SuggestionsAccessibilityJourneyTest` (connected, `device.py test`) | ATF on the feed and filter sheet, reading order in logcat `FST_A11Y`, no card across a separating hinge; `@DeviceCi` `climbPastNamesOnlyItsRivalWithoutABadge` (#656): the seed-7 "Climb Past Rival rv-b" heading is followed only by rows read "… behind Rival rv-b", with no badge stop and no badge pixels |
 
 Fixtures: `testing/SuggestionFixtures` (shared with `androidTest`).
 
