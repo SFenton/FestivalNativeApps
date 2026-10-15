@@ -31,6 +31,7 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
         this.comboReader = comboReader ?? LeaderboardPreferences.DefaultComboReader(session);
         metric = LeaderboardPreferences.RankBy(session);
         LoadSwap = new LoadSwap(session.Time);
+        LoadSwap.ContentRevealed += (_, _) => QuickLinks.IsContentShown = true;
     }
 
     /// <summary>Metrics offered by the Rank By picker (web <c>getEnabledRankingMetrics</c>).</summary>
@@ -67,7 +68,8 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
     private List<BandRankingCardViewModel> bandCards = [];
 
     /// <summary>Quick Links: one per card in page order (web <c>instrument:&lt;key&gt;</c>, <c>band:&lt;type&gt;</c>). Held until the
-    /// first reveal (web <c>loadPhase === ContentIn</c>), then kept while later reloads run (load-transition R1, issue #649).</summary>
+    /// first reveal's cards enter (web <c>loadPhase === ContentIn</c>, after the spinner's fade-out), then kept while later
+    /// reloads run (load-transition R1, issue #649).</summary>
     public QuickLinksViewModel QuickLinks { get; } = new("Leaderboards Quick Links", contentShown: false);
 
     /// <summary>Whole-page cards load-swap gate.</summary>
@@ -191,13 +193,6 @@ public sealed partial class LeaderboardsViewModel : ObservableObject
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         await Task.WhenAny(all, Task.Delay(RevealDeadline, session.Time, deadline.Token));
         deadline.Cancel();
-    }
-
-    /// <summary>Opens Quick Links with the first revealed content (load-transition R1).</summary>
-    /// <param name="value">Readiness.</param>
-    partial void OnIsReadyChanged(bool value)
-    {
-        if (value) QuickLinks.IsContentShown = true;
     }
 
     /// <summary>Glyph for combo sections (the Rivals hub's combo glyph; the web shows the combo's instrument icons).</summary>

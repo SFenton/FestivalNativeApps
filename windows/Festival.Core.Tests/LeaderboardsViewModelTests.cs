@@ -185,6 +185,26 @@ public sealed class LeaderboardsOverviewTests
     }
 
     [Fact]
+    public async Task QuickLinksWaitForTheCardsEntranceAfterTheSpinnerFades()
+    {
+        // The cards enter only after the spinner's 500 ms fade-out (web ContentIn); Quick Links opened at IsReady used to
+        // lead them by that fade (#649 follow-up evidence).
+        var fake = new RankingsFake();
+        var time = new FakeTimeProvider();
+        var session = fake.Session(new AppSettings { VisibleInstruments = [Instrument.Lead, Instrument.Bass] }, time);
+        var vm = new LeaderboardsViewModel(session, new FakeReader().Read) { AnimateLoadSwaps = () => true };
+        var load = vm.ActivateAsync();
+        await Async.Until(() => vm.LoadSwap.Phase == LoadSwapPhase.SpinnerOut);
+        Assert.True(vm.IsReady);
+        Assert.False(vm.QuickLinks.IsAvailable);
+        time.Advance(LoadSwapTiming.SpinnerOut);
+        await Async.Until(() => vm.LoadSwap.Phase == LoadSwapPhase.ContentIn);
+        Assert.True(vm.QuickLinks.IsAvailable);
+        await load;
+        vm.Deactivate();
+    }
+
+    [Fact]
     public async Task RevealDoesNotWaitForTheSelectedPlayersOwnRows()
     {
         // Web: player rankings aren't part of the overview's load phase. The cards reveal on their top tens and the
