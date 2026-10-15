@@ -838,11 +838,10 @@ public sealed partial class SongsPage : Page, IPageBack
         // The split list column is as narrow as a compact page, so the search gets its own row there too.
         var narrowList = compact || split;
         JumpLabel.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        Grid.SetColumnSpan(SearchBox, narrowList ? 5 : 1);
-        SearchColumn.MaxWidth = narrowList ? double.PositiveInfinity : 440;
+        Grid.SetColumnSpan(SearchBox, narrowList ? 2 : 1);
         Grid.SetRow(ActionButtons, narrowList ? 1 : 0);
         Grid.SetColumn(ActionButtons, narrowList ? 0 : 1);
-        Grid.SetColumnSpan(ActionButtons, narrowList ? 5 : 1);
+        Grid.SetColumnSpan(ActionButtons, narrowList ? 2 : 1);
         // Compact: the list's scroll indicator overlays the rows, so no right gutter is reserved for it and rows end
         // 12 epx from the edge like the left side (operator 7.24; was 16 epx).
         Root.Padding = compact ? new Thickness(12, 8, 12, 0) : new Thickness(24, 12, 12, 0);

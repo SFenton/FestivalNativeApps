@@ -80,6 +80,8 @@ class SuggestionRivalRowUiTest {
 
     private val spotlight = card("song_rival_spotlight_r1", "Rival Spotlight: TempoTide", behind, ahead)
     private val battleground = card("song_rival_battleground", "Rival Battleground", mixed)
+    private val climb = SuggestionSongItem(song("d"), Instrument.Lead, rivalName = "TempoTide", rivalAccountId = "r1", rivalRankDelta = -4)
+    private val climbPast = card("song_rival_pct_push", "Climb Past TempoTide", climb)
 
     /** One rendered configuration: card, column width, narrow (two-line) rows and font scale. */
     private data class Setup(val card: SuggestionCard, val widthDp: Int, val narrow: Boolean, val fontScale: Float)
@@ -131,6 +133,26 @@ class SuggestionRivalRowUiTest {
         }
         rule.onNodeWithContentDescription("Rival Track a, Rival Artist · 2001, Lead, 2 ranks behind TempoTide").assertExists()
         rule.onNodeWithContentDescription("Rival Track b, Rival Artist · 2001, Bass, 3 ranks ahead of TempoTide").assertExists()
+    }
+
+    /**
+     * Issue #656: "Climb Past {name}" (and its two named siblings) lists only that rival, so
+     * its rows drop the repeated badge like Spotlight while TalkBack still names the rival.
+     */
+    @Test
+    fun climbPastRowsDrawNoBadgeAndStillNameTheRival() {
+        showCard()
+        for ((width, narrow, scale) in configurations) {
+            setup = Setup(climbPast, width, narrow, scale)
+            settle()
+            val where = "width $width, narrow $narrow, font $scale"
+            val row = capture(rowTag(climb))
+            assertFalse("song-rival badge on a Climb Past row ($where)", hasColour(row, SuggestionTokens.songRivalText))
+            assertFalse("song-rival badge on a Climb Past row ($where)", hasColour(row, SuggestionTokens.songRival))
+            assertTrue("readable behind delta missing or clipped ($where)", hasColour(row, SuggestionTokens.rivalBehindText))
+            rule.onNodeWithTag(rowTag(climb)).assertHeightIsAtLeast(48.dp)
+        }
+        rule.onNodeWithContentDescription("Rival Track d, Rival Artist · 2001, Lead, 4 ranks behind TempoTide").assertExists()
     }
 
     @Test

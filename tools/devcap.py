@@ -107,7 +107,7 @@ from typing import Callable, Iterable, Iterator, Sequence
 # region Configuration
 
 #: Bump when the on-disk layout or the CLI changes; vendored copies must match.
-VERSION = "1.3.1"
+VERSION = "1.4.0"
 
 #: Exit code when a wait gives up (``EX_TEMPFAIL``).
 WAIT_TIMEOUT_EXIT = 75
@@ -162,12 +162,13 @@ def default_slots(pool: str, memory_gb: float | None = None, cpus: int | None = 
         cpus: Core count override (tests).
 
     Returns:
-        ``simulator``: one per 20 GB of RAM, 1–4. ``build``: one per 4 cores,
+        ``simulator``: one per 16 GB of RAM, 1–6 (4 on a 64 GB Mac; owner
+        request for more parallel lanes, 2026-10-15). ``build``: one per 4 cores,
         1–4. Anything else: 1.
     """
     if pool == "simulator":
         memory_gb = _memory_gb() if memory_gb is None else memory_gb
-        return max(1, min(4, int(memory_gb // 20)))
+        return max(1, min(6, int(memory_gb // 16)))
     if pool == "build":
         cpus = (os.cpu_count() or 4) if cpus is None else cpus
         return max(1, min(4, cpus // 4))
@@ -830,7 +831,10 @@ def reap_grace(root: Path | None = None) -> float | None:
 
 
 def list_sims() -> list[dict] | None:
-    """Every simulator as ``{"udid", "name", "booted"}``; [] without Xcode, None when ``simctl`` fails."""
+    """Every simulator as ``{"udid", "name", "booted", "type", "runtime", "available"}``.
+
+    Returns [] without Xcode and None when ``simctl`` fails.
+    """
     try:
         out = subprocess.run(["xcrun", "simctl", "list", "devices", "-j"],
                              capture_output=True, text=True, timeout=60)
@@ -844,8 +848,69 @@ def list_sims() -> list[dict] | None:
         devices = json.loads(out.stdout).get("devices", {})
     except (TypeError, ValueError, AttributeError):
         return None
-    return [{"udid": d["udid"].upper(), "name": d.get("name", d["udid"]), "booted": d.get("state") == "Booted"}
-            for runtime in devices.values() for d in runtime if "udid" in d]
+    return [{"udid": d["udid"].upper(), "name": d.get("name", d["udid"]), "booted": d.get("state") == "Booted",
+             "type": d.get("deviceTypeIdentifier", ""), "runtime": runtime, "available": d.get("isAvailable", True)}
+            for runtime, items in devices.items() for d in items if "udid" in d]
+
+
+def pool_names(name: str, size: int) -> list[str]:
+    """Names of a simulator pool: the base device, then ``"<name> (pool 2)"`` and up."""
+    return [name] + [f"{name} (pool {index})" for index in range(2, max(1, size) + 1)]
+
+
+def pick_sim(name: str, size: int, prefer: str | None = None, root: Path | None = None) -> str | None:
+    """Pick a simulator for a run from the pool of identical devices named after ``name``.
+
+    Lanes that want the same device type would otherwise queue on one
+    device gate while simulator slots sit free. Missing pool members are
+    created with the base device's type and runtime (never booted here).
+    The choice is ``prefer`` (the lane's last device, still warm) if nobody
+    holds or waits for it, else the first free member, else ``prefer`` or
+    the base to queue on. A lane that races another for the same free member
+    simply waits on its device gate.
+
+    Args:
+        name: Base simulator name, e.g. ``"iPad Pro 11-inch (M5)"``.
+        size: Pool size (the base counts as one).
+        prefer: UDID this lane used last.
+        root: State directory.
+
+    Returns:
+        A UDID, or None when no available simulator has the base name.
+    """
+    root = root or lock_root()
+    sims = [s for s in (list_sims() or []) if s.get("available", True)]
+    base = next((s for s in sims if s["name"] == name), None)
+    if base is None:
+        return None
+    members = [s["udid"] for s in sims if s["name"] == name]  # every same-named device joins the pool
+    for member in pool_names(name, size)[1:]:
+        found = next((s for s in sims if s["name"] == member), None)
+        if found is None and base.get("type") and base.get("runtime"):
+            try:
+                created = subprocess.run(["xcrun", "simctl", "create", member, base["type"], base["runtime"]],
+                                         capture_output=True, text=True, timeout=120)
+            except (OSError, subprocess.SubprocessError):
+                continue
+            udid = created.stdout.strip().upper()
+            if created.returncode != 0 or not SIM_UDID.fullmatch(udid):
+                continue
+            log_event(f"create pool simulator {member} ({udid})", root)
+            found = {"udid": udid, "name": member}
+        if found is not None:
+            members.append(found["udid"])
+
+    def free(udid: str) -> bool:
+        gate = Gate(device_gate(udid), root, 1)
+        return not gate.holders() and not gate.waiting()
+
+    prefer = prefer.upper() if prefer else None
+    if prefer in members and free(prefer):
+        return prefer
+    for udid in members:
+        if free(udid):
+            return udid
+    return prefer if prefer in members else members[0]
 
 
 def debugged_from_ps(text: str) -> set[str]:
@@ -1257,6 +1322,15 @@ def cmd_reap(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_pick_sim(args: argparse.Namespace) -> int:
+    udid = pick_sim(args.name, args.pool if args.pool else configured_slots("simulator"), args.prefer)
+    if udid is None:
+        print(f"devcap pick-sim: no available simulator named {args.name!r}", file=sys.stderr)
+        return 1
+    print(udid)
+    return 0
+
+
 def cmd_slots(args: argparse.Namespace) -> int:
     for pool in args.pool or ["simulator", "build"]:
         print(f"{pool}={configured_slots(pool)}")
@@ -1300,6 +1374,12 @@ def build_parser() -> argparse.ArgumentParser:
     install = sub.add_parser("install", help="make this copy the machine-wide one every newer copy defers to")
     install.add_argument("--force", action="store_true", help="replace even a newer installed copy")
     install.set_defaults(func=cmd_install)
+
+    pick = sub.add_parser("pick-sim", help="print a free simulator from the pool named after --name")
+    pick.add_argument("--name", required=True, help="base simulator name, e.g. 'iPad Pro 11-inch (M5)'")
+    pick.add_argument("--pool", type=int, default=0, help="pool size (default: the simulator slot count)")
+    pick.add_argument("--prefer", default=None, metavar="UDID", help="the lane's last simulator, kept if free")
+    pick.set_defaults(func=cmd_pick_sim)
 
     slots = sub.add_parser("slots", help="print configured slot counts")
     slots.add_argument("pool", nargs="*")

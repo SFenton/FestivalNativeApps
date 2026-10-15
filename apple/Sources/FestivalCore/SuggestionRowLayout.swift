@@ -61,17 +61,19 @@ public enum SuggestionRowLayout: Equatable, Sendable {
     }
 
     /// Key prefixes of rival categories built around one rival, whose title already names
-    /// that rival ("Rival Spotlight: {name}", "Close the Gap vs {name}", …).
+    /// that rival ("Rival Spotlight: {name}", "Close the Gap vs {name}", "Climb Past {name}", …).
+    /// The named cross-pollination families list only their named rival since #656.
     static let singleRivalPrefixes = [
         "song_rival_spotlight_", "song_rival_gap_", "song_rival_protect_",
         "song_rival_slipping_", "song_rival_dominate_",
+        "song_rival_near_fc", "song_rival_star_gains", "song_rival_pct_push",
     ]
 
     /// Whether a rival row draws the rival's name badge beside its rank difference.
     ///
     /// Single-rival categories name the rival in their title, so a per-row badge only
-    /// repeats it (issue #29). Mixed-rival categories (Battleground and the cross-pollination
-    /// families) keep it, because each row can be about a different rival.
+    /// repeats it (issue #29). Mixed-rival categories (Battleground and Stale Songs Your
+    /// Rivals Are Beating You On) keep it, because each row can be about a different rival.
     ///
     /// - Parameter categoryKey: `SuggestionCategory.key`.
     /// - Returns: False for single-rival categories, true otherwise.

@@ -20,7 +20,8 @@ public interface IGroupedRow
 /// <c>StackLayout Spacing="0"</c>) slices each realized row; a ListView page calls <see cref="Apply"/> from
 /// <c>ContainerContentChanging</c>. Rows opt in by implementing <see cref="IGroupedRow"/>, or with a template root
 /// <see cref="Grid"/> (its corners and outline) and an element named <c>RowSeparator</c> (the hairline).
-/// Rows inside a card that already draws the surface (Song Detail's Score History, issue #588) add
+/// Rows inside a card that already draws the surface (Song Detail's Score History, issue #588; the Song Detail and
+/// Leaderboards preview cards, issue #643) add
 /// <c>controls:GroupedRows.InCard="True"</c>: they draw no surface or outline of their own, only the hairlines and the
 /// selected row's purple fill.
 /// </summary>
@@ -64,6 +65,7 @@ public static class GroupedRows
     {
         ILeaderboardEntryRow row => row.IsSelected,
         SongBandRow band => band.IsSelected,
+        SongBandPreviewRow preview => preview.IsSelected,
         _ => false,
     };
 

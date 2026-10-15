@@ -678,7 +678,10 @@
         "uncarded section",
         "reset row",
         "reading pane card",
-        "privacy policy pane"
+        "privacy policy pane",
+        "flyout surface",
+        "menu background",
+        "dropdown background"
       ],
       "web": [
         {
@@ -759,6 +762,10 @@
           {
             "path": "windows/Festival.Core/Domain/GroupedRowSlice.cs",
             "symbol": "GroupedRowSlice"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTFlyoutSurfaceBrush"
           }
         ]
       },
@@ -859,7 +866,8 @@
         461,
         588,
         596,
-        632
+        632,
+        643
       ]
     },
     {
@@ -1099,6 +1107,10 @@
           },
           {
             "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTToolbarSearchBoxStyle"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
             "symbol": "FSTMenuItemMinHeight"
           },
           {
@@ -1268,7 +1280,8 @@
         604,
         611,
         625,
-        632
+        632,
+        646
       ]
     },
     {
@@ -1538,7 +1551,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, whose own row inside a board or preview speaks its rank as \"Your rank, <ordinal>\" (bands \"Your band, …\") so the highlight is never the only cue (#457), a pinned row that follows the rows instead when at accessibility text sizes it would cover more than a third of the board (#386), with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score, keyboard or screen-reader focus that scrolls a row clear of the floating pinned row and pager (WCAG 2.4.11, #409), and the owner-approved #543 variant that native song boards, Full Rankings, Band Rankings and Song Detail band previews draw a page's rows in one card with separators (the web keeps a card per row), and rank-history rows (Leaderboards, Profile, Band) that draw rank and value in fixed right-aligned tabular columns measured once over every chart day, so the bold newest row and the tapped bar's detail line up, the date moves above the columns at large text and, when even the columns don't fit side by side, each keeps its measured width right-aligned on its own line, in rows at least 48 units tall (#594).",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, whose own row inside a board or preview speaks its rank as \"Your rank, <ordinal>\" (bands \"Your band, …\") so the highlight is never the only cue (#457), a pinned row that follows the rows instead when at accessibility text sizes it would cover more than a third of the board (#386), with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score, keyboard or screen-reader focus that scrolls a row clear of the floating pinned row and pager (WCAG 2.4.11, #409), and the owner-approved #543 variant that native song boards, Full Rankings, Band Rankings and Song Detail band previews draw a page's rows in one card with separators (the web keeps a card per row), extended on Windows by #643 to Song Detail's instrument and band previews, the Leaderboards overview boards and their First Run demos (in-card GroupedRows slices, View All inside the card), and rank-history rows (Leaderboards, Profile, Band) that draw rank and value in fixed right-aligned tabular columns measured once over every chart day, so the bold newest row and the tapped bar's detail line up, the date moves above the columns at large text and, when even the columns don't fit side by side, each keeps its measured width right-aligned on its own line, in rows at least 48 units tall (#594).",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -1961,7 +1974,8 @@
         409,
         461,
         594,
-        578
+        578,
+        643
       ]
     },
     {
@@ -5227,7 +5241,7 @@
       "title": "Metadata pills",
       "status": "current",
       "doc": ".agents/patterns/metadata-pills.md",
-      "summary": "The season chip (S15) and percentile chip (Top N%) are one shared component each per platform, one size everywhere (chip label style, 24 dp tall, 8 dp corners, season >= 48 dp, percentile >= 5.5 em), with the web colours: seasons textSecondary on surfaceSubtle with a borderSubtle outline and the catalogue's current season inverted; Top 1% skewed gold outline, Top 5% gold outline, else 10% white. Season pills read 'Season N' / 'Current season N' (#606).",
+      "summary": "The season chip (S15) and percentile chip (Top N%) are one shared component each per platform, one size everywhere (chip label style, 24 dp tall, 8 dp corners, season >= 48 dp, percentile >= 5.5 em), with the web colours: seasons textSecondary on surfaceSubtle with a borderSubtle outline and the catalogue's current season inverted; Top 1% skewed gold outline, Top 5% gold outline, else 10% white. Season pills read 'Season N' / 'Current season N' (#606). In a metadata row every chip beside them (accuracy/FC, difficulty, stars, intensity) reads at the same visible pill height, and a full-combo accuracy is the percent alone in the Top 1% skewed gold outline (web AccuracyDisplay fcBadge, #644).",
       "keywords": [
         "season pill",
         "season chip",
@@ -5237,7 +5251,9 @@
         "top 1%",
         "top 5%",
         "chip contrast",
-        "metadata pill"
+        "metadata pill",
+        "chip height",
+        "full combo pill"
       ],
       "web": [
         {
@@ -5327,7 +5343,8 @@
         }
       ],
       "issues": [
-        606
+        606,
+        644
       ],
       "supersedes": [],
       "supersededBy": null
