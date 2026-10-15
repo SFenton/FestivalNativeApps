@@ -123,9 +123,10 @@ public class SongPathsViewModelTests
         Assert.Equal(["Lead", "Bass"], vm.InstrumentLabels);
         Assert.Equal(PathDifficulty.Expert, vm.Difficulty);
         Assert.True(vm.IsLoading);
-        Assert.True(vm.ShowWarning); // Karaoke visible by default
+        Assert.False(vm.ShowWarning); // Karaoke visible by default, but never before the content (#649)
         await vm.LoadAsync();
         Assert.True(vm.ShowImage);
+        Assert.True(vm.ShowWarning);
         Assert.Equal("Lead Expert CHOpt path", vm.ImageDescription);
         vm.DisplayIndex = 1;
         await Async.Until(() => vm.ShowTable);
@@ -245,13 +246,56 @@ public class SongPathsViewModelTests
         Assert.False(vm.ShowWarning);
         Assert.False(session.Settings.PathUnavailableWarningDismissed);
         // Once per app session: the next opening doesn't repeat it; a new session does.
-        Assert.False(new SongPathsViewModel(session, Song(), [Instrument.Lead]).ShowWarning);
+        Assert.False(await OpenedWarning(session));
         session.PathNoticeShown = false;
-        Assert.True(new SongPathsViewModel(session, Song(), [Instrument.Lead]).ShowWarning);
+        Assert.True(await OpenedWarning(session));
         vm.DismissWarning(true);
         Assert.True(session.Settings.PathUnavailableWarningDismissed);
         session.PathNoticeShown = false;
-        Assert.False(new SongPathsViewModel(session, Song(), [Instrument.Lead]).ShowWarning);
+        Assert.False(await OpenedWarning(session));
+    }
+
+    /// <summary>Opens Paths, lets its first read settle and reports whether the Karaoke notice showed.</summary>
+    private static async Task<bool> OpenedWarning(FestivalSession session)
+    {
+        var vm = new SongPathsViewModel(session, Song(), [Instrument.Lead]);
+        await vm.LoadAsync();
+        vm.Close();
+        return vm.ShowWarning;
+    }
+
+    [Fact]
+    public async Task Warning_WaitsForTheFirstReadAndSurvivesAnEarlyClose()
+    {
+        var service = new FakeService();
+        SongsWire.Install(service);
+        var session = service.Session();
+        var vm = new SongPathsViewModel(session, Song(), [Instrument.Lead]);
+        // Closed while the spinner is still up: the notice never showed, so the next opening still owes it.
+        vm.Close();
+        Assert.False(vm.ShowWarning);
+        Assert.False(session.PathNoticeShown);
+        var next = new SongPathsViewModel(session, Song(), [Instrument.Lead]);
+        var loadingWhenShown = new List<bool>();
+        next.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SongPathsViewModel.ShowWarning) && next.ShowWarning) loadingWhenShown.Add(next.IsLoading || !next.ShowImage);
+        };
+        await next.LoadAsync();
+        // It opens with the content, never while the spinner is up.
+        Assert.True(next.ShowWarning);
+        Assert.Equal([false], loadingWhenShown);
+        Assert.True(session.PathNoticeShown);
+        // A later switch in the same opening doesn't re-open a dismissed notice.
+        next.DismissWarning(false);
+        next.DisplayIndex = 1;
+        await Async.Until(() => next.ShowTable);
+        Assert.False(next.ShowWarning);
+        next.Close();
+        // Karaoke hidden in Settings: no notice at all.
+        session.PathNoticeShown = false;
+        session.UpdateSettings(s => s with { VisibleInstruments = [.. s.VisibleInstruments.Where(i => i != Instrument.Karaoke)] });
+        Assert.False(await OpenedWarning(session));
     }
 
     [Fact]

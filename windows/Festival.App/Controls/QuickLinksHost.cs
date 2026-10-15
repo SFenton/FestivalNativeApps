@@ -71,14 +71,35 @@ public sealed class QuickLinksHost
         Apply();
     }
 
-    /// <summary>Re-reads anchors once the new sections have been laid out.</summary>
+    /// <summary>
+    /// Shows or hides the entry points with availability and re-reads anchors once new sections have been laid out. When
+    /// a page's content gate opens, the entry points fade in with the content's entrance (load-transition R1, #649).
+    /// </summary>
     /// <param name="sender">Model.</param>
     /// <param name="e">Change.</param>
     private void OnModelChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(QuickLinksViewModel.IsContentShown) && model.IsContentShown) FadeAfterLayout();
+        if (e.PropertyName == nameof(QuickLinksViewModel.IsAvailable)) Apply();
         if (e.PropertyName != nameof(QuickLinksViewModel.Items)) return;
         Apply();
         DispatcherQueue.GetForCurrentThread()?.TryEnqueue(DispatcherQueuePriority.Low, Binder.Refresh);
+    }
+
+    /// <summary>
+    /// Fades the entry points in once the layout that realizes the gated content has run, so they start with the content's
+    /// first fade rather than finishing theirs while that (often long) layout pass is still building it.
+    /// </summary>
+    private void FadeAfterLayout()
+    {
+        void OnLayout(object? sender, object e)
+        {
+            menu.LayoutUpdated -= OnLayout;
+            FadeIn.Play(menu);
+            foreach (var copy in copies) FadeIn.Play(copy);
+            if (pane is not null) FadeIn.Play(pane);
+        }
+        menu.LayoutUpdated += OnLayout;
     }
 
     /// <summary>Menu below the pane width (or below <see cref="MenuMaxWidth"/> without a pane), pane from it.</summary>
