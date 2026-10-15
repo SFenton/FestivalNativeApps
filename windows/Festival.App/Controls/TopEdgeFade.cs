@@ -39,10 +39,13 @@ internal sealed class TopEdgeFade
     private readonly UIElement host;
     private Visual? sourceVisual;
     private CompositionVisualSurface? surface;
+    private CompositionSurfaceBrush? content;
+    private CompositionMaskBrush? mask;
     private SpriteVisual? sprite;
     private CompositionPropertySet? props;
     private CompositionPropertySet? scroll;
     private bool active;
+    private bool hard;
 
     /// <summary>Creates the fade; composition objects are built on first use.</summary>
     /// <param name="source">Element whose top edge fades (its XAML opacity is left alone).</param>
@@ -75,6 +78,8 @@ internal sealed class TopEdgeFade
     /// Moves the clear edge below the source's top, for chrome that overlays the scroller (Song Details' pinned bar,
     /// issue #640): content above <paramref name="edgeTop"/> is hidden, and the ramp starts there. A hard edge keeps the
     /// cut at <paramref name="edgeTop"/> with no ramp (scroll-edge R7), so nothing shows behind the chrome in any mode.
+    /// The hard cut is the sprite's inset clip over the unmasked copy, never a sub-pixel gradient: with a 0.01 epx mask
+    /// gradient, CI's software-rendered desktop drew only about 40 epx below the bar and left the page blank (issue #658).
     /// </summary>
     /// <param name="edgeTop">Chrome bottom in the source's coordinates, epx (0 = the source's top).</param>
     /// <param name="hardEdge">Whether to cut without a ramp.</param>
@@ -83,6 +88,15 @@ internal sealed class TopEdgeFade
         if (props is null) return;
         props.InsertScalar("E", (float)Math.Max(0, edgeTop));
         props.InsertScalar("R", hardEdge ? 0f : (float)SongHeaderEdgeFade.Depth);
+        hard = hardEdge;
+        ApplyBrush();
+    }
+
+    /// <summary>Paints the masked copy (ramp) or the plain copy cut by the sprite's clip (hard edge).</summary>
+    private void ApplyBrush()
+    {
+        if (sprite is null) return;
+        sprite.Brush = hard ? content : mask;
     }
 
     /// <summary>
@@ -128,7 +142,7 @@ internal sealed class TopEdgeFade
         surface = compositor.CreateVisualSurface();
         surface.SourceVisual = sourceVisual;
         surface.SourceSize = source.ActualSize;
-        var content = compositor.CreateSurfaceBrush(surface);
+        content = compositor.CreateSurfaceBrush(surface);
         content.Stretch = CompositionStretch.None;
         content.HorizontalAlignmentRatio = 0;
         content.VerticalAlignmentRatio = 0;
@@ -146,12 +160,18 @@ internal sealed class TopEdgeFade
         var edge = compositor.CreateExpressionAnimation(EdgeExpression);
         edge.SetReferenceParameter("p", props!);
         gradient.StartAnimation(nameof(gradient.StartPoint), edge);
-        var mask = compositor.CreateMaskBrush();
+        mask = compositor.CreateMaskBrush();
         mask.Source = content;
         mask.Mask = gradient;
+        // Everything above the clear edge is hidden in both modes; the clip is what cuts the hard edge.
+        var clip = compositor.CreateInsetClip();
+        var top = compositor.CreateExpressionAnimation("p.E");
+        top.SetReferenceParameter("p", props!);
+        clip.StartAnimation(nameof(clip.TopInset), top);
         sprite = compositor.CreateSpriteVisual();
         sprite.RelativeSizeAdjustment = Vector2.One;
-        sprite.Brush = mask;
+        sprite.Clip = clip;
+        ApplyBrush();
         ElementCompositionPreview.SetElementChildVisual(host, sprite);
     }
 }
