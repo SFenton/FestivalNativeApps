@@ -188,6 +188,11 @@ RUNS: tuple[Run, ...] = (
     Run("songs-scroll", "a11y-songs-scroll.json", tabs=0),
     Run("songs-scroll-text-225", "a11y-songs-scroll.json", sizes="compact", mode="text-225", tabs=0),
     Run("songs-scroll-no-animations", "a11y-songs-scroll.json", sizes="compact", mode="no-animations", tabs=0),
+    # Songs toolbar (issue #646): Search, Sort, Filter and Jump share one 40 epx height, each button is at least
+    # 40x40 epx, the search box fills the row so the tools end at the rows' right edge (one row at medium and wide;
+    # search above the buttons at compact), and search -> Sort -> Filter -> Jump -> rows reading order.
+    Run("songs-toolbar", "a11y-songs-toolbar.json", sizes="compact,medium,wide", tabs=0),
+    Run("songs-toolbar-text-225", "a11y-songs-toolbar.json", sizes="compact,medium", mode="text-225", tabs=0),
     # Song leaderboard footer and paging (issues #93, #443): pinned row and pager names, states and 40x40 targets,
     # header -> rows -> pinned row -> pager order, the fade layer kept out of the control view, the Tab/Shift+Tab order
     # at rest, mid-load and on page 2, and a keyboard page change that keeps the header, pinned row and pager in order

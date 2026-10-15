@@ -1069,6 +1069,10 @@
           },
           {
             "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTToolbarSearchBoxStyle"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
             "symbol": "FSTMenuItemMinHeight"
           },
           {
@@ -1222,7 +1226,8 @@
         578,
         604,
         611,
-        625
+        625,
+        646
       ]
     },
     {
