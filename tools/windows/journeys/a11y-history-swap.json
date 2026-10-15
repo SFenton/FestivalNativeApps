@@ -67,7 +67,7 @@
                    "wait:1"]},
   {"name": "history-swap-reduced-access", "route": "/songs/fixture-pulse", "profile": "fixture-history-multi:History Multi", "scan": true, "axe_allow": ["framework-popup"], "tabs": 0,
    "modes": ["app-reduced", "no-animations"],
-   "ready": ["scrollinto:id=fst.history.instrument.group@20", "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|160"],
+   "ready": ["scrollinto:id=fst.history.instrument.group@20", "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|72"],
    "after_ready": ["markspan:id=fst.history.subtitle|raw=fst.history.rows|card",
                    "markspan:id=fst.song-detail|id=fst.history|page",
                    "toggle:id=fst.history.instrument.Solo_Bass",
@@ -76,12 +76,14 @@
                    "assertspan:id=fst.song-detail|id=fst.history|page",
                    "assertread:id=fst.history.instrument.Solo_Bass|Bass, button, on",
                    "assertorder:id=fst.history.instrument.Solo_Drums|id=fst.history|id=fst.history.subtitle|id=fst.history.chart|id=fst.history.bar.1",
+                   "scrollinset:id=fst.history.instrument.group|id=fst.song-detail|160|end",
                    "focus:id=fst.history.instrument.Solo_Bass", "assertfocus:id=fst.history.instrument.Solo_Bass@3",
                    "key:right", "assertfocus:id=fst.history.instrument.Solo_Drums@3",
                    "key:space",
                    "assertname:id=fst.history.chart@0.1|Drums score history, * of 3 scores *",
                    "assertfocus:id=fst.history.instrument.Solo_Drums@3",
                    "assertread:id=fst.history.instrument.Solo_Drums|Drums, button, on",
+                   "scrollinset:id=fst.history|id=fst.song-detail|72",
                    "assertspan:id=fst.history.subtitle|raw=fst.history.rows|card",
                    "wait:1"]}
 ]
