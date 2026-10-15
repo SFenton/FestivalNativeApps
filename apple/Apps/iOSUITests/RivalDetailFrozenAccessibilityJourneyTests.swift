@@ -334,8 +334,10 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         let window = app.windows.firstMatch.frame
         let band = try screenTexts(app)
         // `system-bar-title-size`: the pinned title (#604) is bar text, which UIKit caps.
+        // Read when each issue is raised, not before the audit: the leading title (#632)
+        // can settle a few points after the screenshot (#659), so a stale frame missed it.
         let pinned = app.descendants(matching: .any).matching(identifier: Self.pinnedTitle).firstMatch
-        let pinnedFrame = pinned.exists ? pinned.frame.intersection(app.navigationBars.firstMatch.frame.insetBy(dx: 0, dy: -1)) : .null
+        let pinnedFrame = { pinned.exists ? pinned.frame.intersection(app.navigationBars.firstMatch.frame.insetBy(dx: 0, dy: -1)) : .null }
         var evidence: [String] = []
         var open: [String] = []
         var unattributedContrast = 0
@@ -366,11 +368,11 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
                 // same launch, which accepts no unattributed clipping (Drawer journey precedent).
                 pending.append(Growth(key: "", height: 0, summary: summary, rule: Self.predictedClipping))
                 return true
-            case (.dynamicType, let element?) where element.elementType == .staticText && !pinnedFrame.isNull
-                && pinnedFrame.insetBy(dx: -1, dy: -1).contains(element.frame):
+            case (.dynamicType, let element?) where element.elementType == .staticText
+                && Self.contains(pinnedFrame(), element.frame):
                 // UIKit caps the text a bar hosts; the pinned copy offers the Large Content Viewer
                 // (testing/apple/accessibility.md `system-bar-title-size`, as `RivalsJourneyTests`).
-                evidence.append("system-bar-title-size: \(summary), inside the pinned title \(pinnedFrame)")
+                evidence.append("system-bar-title-size: \(summary), inside the pinned title \(pinnedFrame())")
                 return true
             case (.textClipped, let element?), (.dynamicType, let element?):
                 var summary = summary
@@ -412,6 +414,16 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
         attach(evidence, name: "audit-evidence")
         XCTAssertEqual(open, [], "open audit issues", file: file, line: line)
         return pending
+    }
+
+    /// Whether `frame` lies inside the shown pinned title's frame, within a point.
+    ///
+    /// - Parameters:
+    ///   - pinned: The pinned title's frame in the bar, or `.null` when it is not shown.
+    ///   - frame: The flagged element's frame.
+    /// - Returns: True when the title is shown and holds the frame.
+    private static func contains(_ pinned: CGRect, _ frame: CGRect) -> Bool {
+        !pinned.isNull && pinned.insetBy(dx: -1, dy: -1).contains(frame)
     }
 
     /// Identifier of Rival Detail's pinned bar title (`InstrumentPageTitleToolbarItem`, #604).
@@ -518,13 +530,25 @@ final class RivalDetailFrozenAccessibilityJourneyTests: XCTestCase {
     }
 
     /// Text heights by identifier, or by label without one (the smallest of repeats), for
-    /// `audit`'s Dynamic Type baseline; the countdown's label changes every second.
+    /// `audit`'s Dynamic Type baseline; the countdown's label changes every second. Buttons
+    /// with an identifier count by it too: the audit can flag the button itself (Retry Now,
+    /// `fst.service-status.retry`, #659), whose inner text has no identifier, and `Growth`
+    /// keys a flag by its element's identifier.
     @MainActor
     private func textHeights(_ app: XCUIApplication) throws -> [String: CGFloat] {
-        try screenTexts(app).texts.reduce(into: [:]) { heights, text in
+        let heights: [String: CGFloat] = try screenTexts(app).texts.reduce(into: [:]) { heights, text in
             let key = text.identifier.isEmpty ? text.label : text.identifier
             heights[key] = min(heights[key] ?? .infinity, text.frame.height)
         }
+        var buttons: [String: CGFloat] = [:]
+        func walk(_ node: any XCUIElementSnapshot) {
+            if node.elementType == .button, !node.identifier.isEmpty, node.frame.height > 2 {
+                buttons[node.identifier] = min(buttons[node.identifier] ?? .infinity, node.frame.height)
+            }
+            node.children.forEach(walk)
+        }
+        walk(try app.snapshot())
+        return heights.merging(buttons) { text, _ in text }
     }
 
     // MARK: - Rebuilt comparison
