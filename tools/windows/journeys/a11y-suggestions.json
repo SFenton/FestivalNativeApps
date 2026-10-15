@@ -217,7 +217,8 @@
   },
   {
     "name": "suggestions-load-more",
-    "note": "Issue #260 (#521): the cards Suggestions loads as the list nears its end (a batch of six after the first ten) fade in on arrival with motion on and appear in place under Reduce Motion or with Animation effects off; either way they arrive whole for Narrator: each new card is a list item named by its Level 2 title heading, read after the last card of the first batch, and its rows are 40+ epx Buttons named with song, artist, year and reason.",
+    "sizes": ["compact", "medium"],
+    "note": "Issue #260 (#521): in one column (two columns: wide-columns-suggestions-load-more in a11y-wide-columns.json, #653) the cards Suggestions loads as the list nears its end (a batch of six after the first ten) fade in on arrival with motion on and appear in place under Reduce Motion or with Animation effects off; either way they arrive whole for Narrator: each new card is a list item named by its Level 2 title heading, read after the last card of the first batch, and its rows are 40+ epx Buttons named with song, artist, year and reason.",
     "route": "/suggestions",
     "profile": "fixture-suggest:Fixture Player",
     "fixture": ["suggestions_fixture_server.py"],
@@ -243,7 +244,8 @@
   },
   {
     "name": "suggestions-load-more-keyboard",
-    "note": "Issue #260 (#521): the keyboard crosses from the first batch of cards into the ones loaded after it, with motion on or off: Down from the last row of card 10 lands on the first row of card 11 and Up returns; Tab walks one stop per card through the loaded batch into the next one it loads, and Shift+Tab walks back.",
+    "sizes": ["compact", "medium"],
+    "note": "Issue #260 (#521): in one column (two columns: wide-columns-suggestions-load-more, #653) the keyboard crosses from the first batch of cards into the ones loaded after it, with motion on or off: Down from the last row of card 10 lands on the first row of card 11 and Up returns; Tab walks one stop per card through the loaded batch into the next one it loads, and Shift+Tab walks back.",
     "route": "/suggestions",
     "profile": "fixture-suggest:Fixture Player",
     "fixture": ["suggestions_fixture_server.py"],
