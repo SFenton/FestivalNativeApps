@@ -13,12 +13,17 @@ public class SettingsDetailsTests
     }
 
     [Theory]
-    [InlineData(1099.9, false)]
-    [InlineData(1100, true)]
-    [InlineData(1600, true)]
-    [InlineData(0, false)]
-    public void UsesSplit_FromSharedListDetailWidth(double width, bool split) =>
-        Assert.Equal(split, SettingsDetails.UsesSplit(width));
+    [InlineData(959.9, 1.0, false)]
+    [InlineData(960, 1.0, true)]
+    [InlineData(1040, 1.0, true)]
+    [InlineData(1600, 1.0, true)]
+    [InlineData(1600, 2.25, false)]
+    [InlineData(0, 1.0, false)]
+    public void UsesSplit_FollowsTheSharedOnDemandSplitRule(double width, double scale, bool split)
+    {
+        Assert.Equal(split, SettingsDetails.UsesSplit(width, scale));
+        Assert.Equal(OnDemandSplitPolicy.AllowsSplit(width, scale), SettingsDetails.UsesSplit(width, scale));
+    }
 
     [Fact]
     public void Items_CoverEveryEntryOnceInPageOrderWithOwnerNamedSections()

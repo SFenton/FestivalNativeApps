@@ -463,7 +463,7 @@
       "title": "Section headers",
       "status": "current",
       "doc": ".agents/patterns/section-headers.md",
-      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap, the list end lets the last push finish, and Songs titles its sections in every sort, A–Z included.",
+      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque and push one-for-one without overlap, the list end lets the last push finish, Songs titles its sections in every sort, A–Z included, and side-by-side card headers share their row's height so titles and cards start on one line.",
       "keywords": [
         "section header",
         "section title",
@@ -474,7 +474,9 @@
         "see all",
         "view all link",
         "fold",
-        "hinge"
+        "hinge",
+        "card row alignment",
+        "uneven cards"
       ],
       "web": [
         {
@@ -551,6 +553,10 @@
           {
             "path": "windows/Festival.App/Controls/CardHeader.cs",
             "symbol": "CardHeader"
+          },
+          {
+            "path": "windows/Festival.App/Controls/LeaderboardsCardGridLayout.cs",
+            "symbol": "LeaderboardsCardGridLayout"
           },
           {
             "path": "windows/Festival.App/Pages/SongsPage.xaml",
@@ -659,7 +665,8 @@
         348,
         557,
         560,
-        600
+        600,
+        657
       ]
     },
     {
@@ -1312,7 +1319,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586), and no sheet or dialog draws a line under the shared header (owner, #607); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612); while the feedback form sends and files, its fields fade out to a centred white spinner with a title and subtitle (Uploading Media over a determinate bar, then Filing Issue/Request), the spinner staying across the cross-fade (owner-approved, #634; Apple, Android, Windows; without media it reads as filing from Submit).",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586), and no sheet or dialog draws a line under the shared header (owner, #607); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612), and its Difficulty and Display pickers are frosted selector boxes at every width, ComboBoxes with FSTSelectorComboBoxStyle in place of the wide plain RadioButtons (agent decision, #650); while the feedback form sends and files, its fields fade out to a centred white spinner with a title and subtitle (Uploading Media over a determinate bar, then Filing Issue/Request), the spinner staying across the cross-fade (owner-approved, #634; Apple, Android, Windows; without media it reads as filing from Submit); on Windows the Notifications bell opens the shared dialog docked to the window edge: a full-height trailing panel below the title bar like the web desktop drawer, or a full-width bottom sheet once navigation collapses to the hamburger menu (DialogChrome.WindowEdge, ModalEdgeLayout; owner-approved, #638, Windows Notifications only).",
       "keywords": [
         "modal",
         "sheet",
@@ -1330,7 +1337,9 @@
         "half height",
         "partially expanded",
         "sending status",
-        "upload progress"
+        "upload progress",
+        "side panel",
+        "drawer"
       ],
       "web": [
         {
@@ -1455,6 +1464,14 @@
           {
             "path": "windows/Festival.App/Controls/FeedbackDialog.cs",
             "symbol": "SwapStatus"
+          },
+          {
+            "path": "windows/Festival.App/Controls/DialogChrome.cs",
+            "symbol": "WindowEdge"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/ModalEdgeLayout.cs",
+            "symbol": "ModalEdgeLayout"
           }
         ]
       },
@@ -1528,6 +1545,15 @@
           "regex": "\"ContentScrollViewer\"",
           "allow": [],
           "message": "ContentDialog's template scroller never scrolls vertically; give a tall body its own ScrollViewer instead of reaching into the template (modal-shell R5, #420)."
+        },
+        {
+          "id": "windows-edge-dialog",
+          "glob": "windows/Festival.App/**/*.cs",
+          "regex": "\\bDialogChrome\\.WindowEdge\\s*\\(",
+          "allow": [
+            "windows/Festival.App/Controls/NotificationsBell.xaml.cs"
+          ],
+          "message": "Only Notifications docks its dialog to the window edge (modal-shell R17, owner-approved #638); every other modal keeps the centred shell."
         }
       ],
       "related": {
@@ -1566,7 +1592,8 @@
         400,
         420,
         607,
-        634
+        634,
+        638
       ]
     },
     {
@@ -2006,7 +2033,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence, chart swaps keep the card's size and paging a chart slides it to the new window over the web 400 ms (#593 decision); the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant); a new publication refreshes open pages in place without pausing their rows (R9; Android one announced Songs spinner and in-place re-reads elsewhere, #616).",
+      "summary": "Initial loads use one gate, and page tools and notices acting on the gated content appear with it (the Paths Karaoke notice waits until every path form on screen has loaded, #649); selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence, chart swaps keep the card's size and paging a chart slides it to the new window over the web 400 ms (#593 decision); the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant); a new publication refreshes open pages in place without pausing their rows (R9; Android one announced Songs spinner and in-place re-reads elsewhere, #616).",
       "keywords": [
         "loading",
         "spinner",
@@ -3746,7 +3773,7 @@
       "title": "Back keeps place",
       "status": "current",
       "doc": ".agents/patterns/back-keeps-place.md",
-      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it. A player or band profile is a full page that covers the split, and its Back returns to the kept split (#352). Android (#583) follows the same order: system Back pops the pane's stack, then closes the pane, then leaves the page.",
+      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it. A player or band profile is a full page that covers the split, and its Back returns to the kept split (#352). Android (#583) and Windows (#652) follow the same order: Back pops the pane's stack, then closes the pane, then leaves the page.",
       "keywords": [
         "back",
         "back navigation",
@@ -3804,6 +3831,10 @@
           {
             "path": "windows/Festival.App/Services/CachedPageScroll.cs",
             "symbol": "CachedPageScroll"
+          },
+          {
+            "path": "windows/Festival.App/Controls/OnDemandSplitHost.cs",
+            "symbol": "TryGoBack"
           },
           {
             "path": "windows/Festival.Core/ViewModels/SuggestionsViewModel.cs",
@@ -4372,7 +4403,7 @@
       "title": "Split panes",
       "status": "current",
       "doc": ".agents/patterns/split-panes.md",
-      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under the system's or the app's Increase Contrast (the band is never an accessibility element), and the split's one backdrop and top gradient run unbroken across the band. Owner-approved variant R6 (#371; iPad, iPhone Duo inner landscape and Android tablets/foldables): Settings always splits, showing a vertically centred placeholder (Settings icon, \"Settings\", \"Select a setting to see more options here\") until a chevron row opens its options on the right; plain toggles act in the list. Owner-approved Android variant R7 (#583): Android tablets, foldables and wide windows use the iPhone Duo's on-demand split: Rivals/All Rivals/Compete open Rival Detail, Leaderboards opens Full/Band Rankings and Song Detail opens its boards and Score History in a trailing pane when the window is landscape, regular and leaves 360 dp a pane, or at the fold in book posture; everything else stays one page, and Back closes the pane first.",
+      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under the system's or the app's Increase Contrast (the band is never an accessibility element), and the split's one backdrop and top gradient run unbroken across the band. Owner-approved variant R6 (#371; iPad, iPhone Duo inner landscape and Android tablets/foldables): Settings always splits, showing a vertically centred placeholder (Settings icon, \"Settings\", \"Select a setting to see more options here\") until a chevron row opens its options on the right; plain toggles act in the list. Owner-approved Android variant R7 (#583): Android tablets, foldables and wide windows use the iPhone Duo's on-demand split: Rivals/All Rivals/Compete open Rival Detail, Leaderboards opens Full/Band Rankings and Song Detail opens its boards and Score History in a trailing pane when the window is landscape, regular and leaves 360 dp a pane, or at the fold in book posture; everything else stays one page, and Back closes the pane first. Owner-approved Windows variant (#652): the same pages split into equal star halves of the section content area, each at least 480 epx (x text scale from 130%), through one shell OnDemandSplitHost per section; Songs pushes Song Detail full width, no page hosts its own detail column, a narrowed split shows the pane alone (stacked), and Back pops the pane, then closes it, then the section.",
       "keywords": [
         "split view",
         "split",
@@ -4451,6 +4482,14 @@
         ],
         "windows": [
           {
+            "path": "windows/Festival.Core/Domain/OnDemandSplitPolicy.cs",
+            "symbol": "OnDemandSplitPolicy"
+          },
+          {
+            "path": "windows/Festival.App/Controls/OnDemandSplitHost.cs",
+            "symbol": "OnDemandSplitHost"
+          },
+          {
             "path": "windows/Festival.Core/Domain/SettingsDetails.cs",
             "symbol": "SettingsDetails"
           },
@@ -4488,6 +4527,16 @@
           "allow": [],
           "debt": [],
           "message": "Split panes are separated by space, not a drawn divider; a hairline only under high contrast at a midpoint (split-panes R1, R2)."
+        },
+        {
+          "id": "windows-page-local-split",
+          "glob": "windows/Festival.App/Pages/*.xaml",
+          "regex": "x:Name=\"DetailFrame\"",
+          "allow": [
+            "windows/Festival.App/Pages/SettingsPage.xaml"
+          ],
+          "debt": [],
+          "message": "Windows list/detail splits go through the shell's OnDemandSplitHost (split-panes R7 Windows variant, #652); a page never hosts its own detail Frame. Settings' R6 Licenses pane is the one exception."
         }
       ],
       "supersedes": [],

@@ -333,18 +333,7 @@ final class PathsSwitchAccessibilityJourneyTests: XCTestCase {
     /// - Parameter query: `seconds=<n>`, or nil for the status.
     /// - Returns: The status, or nil when the listener has no hold control.
     private func fixture(_ query: String?) throws -> (held: Bool, waiting: Int)? {
-        let url = try XCTUnwrap(URL(string: "\(Self.origin)/__fixture__/hold-paths" + (query.map { "?\($0)" } ?? "")))
-        let done = DispatchSemaphore(value: 0)
-        nonisolated(unsafe) var body: [String: Any]?
-        URLSession.shared.dataTask(with: url) { data, response, _ in
-            if (response as? HTTPURLResponse)?.statusCode == 200, let data {
-                body = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-            }
-            done.signal()
-        }.resume()
-        guard done.wait(timeout: .now() + 5) == .success,
-              let held = body?["held"] as? Bool, let waiting = body?["waiting"] as? Int else { return nil }
-        return (held, waiting)
+        PathsUITestSupport.pathHold(origin: Self.origin, query)
     }
 
     // MARK: - App helpers

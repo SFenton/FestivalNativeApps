@@ -25,6 +25,8 @@
       "assertcentred:raw=fst.leaderboards.loading-region|id=fst.leaderboards.loading|id=fst.leaderboards.loading",
       "assertsize:id=fst.rankings.rank-by-menu|40x40",
       "waitgone:id=fst.leaderboards.card.0f@2",
+      "waitgone:id=fst.quick-links.open@1",
+      "waitgone:id=fst.quick-links.pane@1",
       "shot:{stem}-loading.png",
       "scan:{stem}-loading",
       "waitfor:id=fst.leaderboards.card.0f@25",
@@ -53,12 +55,14 @@
     "scan": true,
     "ready": [
       "waitfor:id=fst.leaderboards.card.0f@40",
-      "waitgone:id=fst.leaderboards.loading@5"
+      "waitgone:id=fst.leaderboards.loading@5",
+      "waitfor:id=fst.quick-links.open@5"
     ],
     "after_ready": [
       "focus:id=fst.rankings.rank-by-menu",
       "key:f5",
       "waitfor:id=fst.leaderboards.loading@5",
+      "waitfor:id=fst.quick-links.open@1",
       "assertread:id=fst.leaderboards.loading|Busy Loading leaderboards, ProgressRing",
       "assertorder:id=fst.rankings.rank-by-menu|id=fst.leaderboards.loading",
       "assertstate:id=fst.rankings.rank-by-menu|enabled=true",

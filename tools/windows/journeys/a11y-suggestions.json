@@ -215,14 +215,14 @@
   },
   {
     "name": "suggestions-named-rival",
-    "note": "Issue #656 (Suggestions R1): a card that names one rival lists only that rival. In seed 1 the first remix's \"Gain Stars & Beat Rival B3\" (Level 2 heading, one Narrator list item after Filter) holds rows that are each a 40+ epx Button whose name ends with that rival (\"5 ranks behind Rival B3\"), and the rows draw no rival name pill because the title already names the rival (suggestions_journey.py rival-rows checks the pill and every named card it loads).",
+    "note": "Issue #656 (Suggestions R1): a card that names one rival lists only that rival. In seed 1 the first remix's \"Gain Stars & Beat Rival B3\" (Level 2 heading, one Narrator list item after Filter) holds rows that are each a 40+ epx Button whose name ends with that rival (\"5 ranks behind Rival B3\"), and the rows draw no rival name pill because the title already names the rival (suggestions_journey.py rival-rows checks the pill and every named card it loads). Paging down to that first remix takes about 4 minutes at compact with 225% text, hence the 600 s scroll budget.",
     "route": "/suggestions",
     "profile": "fixture-suggest:Fixture Player",
     "fixture": ["suggestions_fixture_server.py"],
     "env": {"FST_DEBUG_SUGGESTIONS_SEED": "1"},
     "ready": [
       "waitfor:id=fst.suggestions.list@30",
-      "scrollinto:id=fst.suggestions.category.song_rival_star_gains.1@240",
+      "scrollinto:id=fst.suggestions.category.song_rival_star_gains.1@600",
       "waitfor:name=Track 31, Artist L · 2019, Bass, 5 ranks behind Rival B3@10",
       "scrollinset:id=fst.suggestions.category.song_rival_star_gains.1|id=fst.suggestions.list|8",
       "wait:1"
@@ -299,6 +299,48 @@
       "key:shift+tab",
       "assertfocus:id=fst.suggestions.row.s035|Solo_Vocals@3",
       "scrollinset:id=fst.suggestions.category.song_rival_protect_rival-below-4|id=fst.suggestions.list|8"
+    ]
+  },
+  {
+    "name": "suggestions-row-centre",
+    "note": "Issue #654: a one-line Suggestions row's art and right-side metadata sit on the row's vertical centre line within 1 epx, with or without the separator above it and at every text size (an empty second grid line's 6 epx spacing used to lift them 3 epx). The art is a raw view, so each row stays one 40+ epx button read once by its name.",
+    "route": "/suggestions",
+    "profile": "fixture-suggest:Fixture Player",
+    "fixture": ["suggestions_fixture_server.py"],
+    "env": {"FST_DEBUG_SUGGESTIONS_SEED": "1"},
+    "tabs": 0,
+    "ready": ["waitfor:id=fst.suggestions.row.s044|Solo_PeripheralGuitar@30", "wait:1.5"],
+    "after_ready": [
+      "assertmiddle:raw=fst.suggestions.row.s044.Solo_PeripheralGuitar.art|id=fst.suggestions.row.s044|Solo_PeripheralGuitar|1",
+      "assertmiddle:raw=fst.suggestions.row.s044.Solo_PeripheralGuitar.season|id=fst.suggestions.row.s044|Solo_PeripheralGuitar|1",
+      "assertmiddle:raw=fst.suggestions.row.s032.Solo_PeripheralGuitar.art|id=fst.suggestions.row.s032|Solo_PeripheralGuitar|1",
+      "assertmiddle:raw=fst.suggestions.row.s032.Solo_PeripheralGuitar.season|id=fst.suggestions.row.s032|Solo_PeripheralGuitar|1",
+      "assertsize:name=Track 44, Artist E · 2012, last played season 8|0x40",
+      "assertsize:name=Track 32, Artist M · 2023, last played season 1|0x40",
+      "assertread:name=Track 44, Artist E · 2012, last played season 8|Track 44, Artist E · 2012, last played season 8, button",
+      "reveal:id=fst.suggestions.row.s091",
+      "wait:0.5",
+      "assertmiddle:raw=fst.suggestions.row.s091.art|id=fst.suggestions.row.s091|1",
+      "shot:{stem}.png"
+    ]
+  },
+  {
+    "name": "suggestions-row-centre-rival",
+    "note": "Issue #654: a mixed-rival row whose rival pill and delta sit beside the title (rows 440 epx and wider) keeps its art and rival pill on the row's vertical centre line within 1 epx. Named-rival cards draw no pill since #656, so this probe uses Track 46 in the mixed-rival \"Stale Songs Your Rivals Are Beating You On\" card (its art ID is unique on the page; Track 34 also appears in an earlier card).",
+    "route": "/suggestions",
+    "profile": "fixture-suggest:Fixture Player",
+    "fixture": ["suggestions_fixture_server.py"],
+    "env": {"FST_DEBUG_SUGGESTIONS_SEED": "1"},
+    "sizes": ["medium", "wide"],
+    "tabs": 0,
+    "ready": ["waitfor:id=fst.suggestions.list@30", "scrollinto:id=fst.suggestions.category.song_rival_stale@240", "waitfor:raw=fst.suggestions.row.s046.Solo_Guitar.rival@10", "scrollinset:id=fst.suggestions.category.song_rival_stale|id=fst.suggestions.list|8", "wait:1"],
+    "after_ready": [
+      "scrollinset:raw=fst.suggestions.row.s046.Solo_Guitar.art|id=fst.suggestions.list|60",
+      "wait:0.5",
+      "assertmiddle:raw=fst.suggestions.row.s046.Solo_Guitar.art|id=fst.suggestions.row.s046|Solo_Guitar|1",
+      "assertmiddle:raw=fst.suggestions.row.s046.Solo_Guitar.rival|id=fst.suggestions.row.s046|Solo_Guitar|1",
+      "assertsize:name=Track 46, Artist G · 2008, Lead, rival Rival B3, behind by 5 ranks|0x40",
+      "shot:{stem}.png"
     ]
   }
 ]

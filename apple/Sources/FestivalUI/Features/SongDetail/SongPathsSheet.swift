@@ -29,6 +29,8 @@ struct SongPathsSheet: View {
     @State private var zoom: CGFloat = 1
     @State private var pinchOrigin: CGFloat = 1
     @State private var warningPresented = false
+    /// The Karaoke notice has had its one chance this opening (issue #649).
+    @State private var warningConsidered = false
     @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
     /// Settings' in-app Reduce Motion, honored like the system setting (load-transition R6).
     @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
@@ -139,7 +141,10 @@ struct SongPathsSheet: View {
         .task(id: requestKey(for: .image)) { await loadPath(.image) }
         .task(id: requestKey(for: .text)) { await loadPath(.text) }
         .onChange(of: switchKey) { announcesSwitches = true }
-        .onAppear { warningPresented = warnAboutKaraoke && !warningDismissed }
+        // The notice explains the loaded chart, so it waits for it: never over the
+        // spinner (load-transition R1, issue #649; HIG Alerts: "Prefer conveying
+        // information in context").
+        .onChange(of: Set(shown.keys), initial: true) { presentWarningIfDue() }
         .alert("Some Instruments Unavailable", isPresented: $warningPresented) {
             Button("OK") {}
             Button("Don't show again") { warningDismissed = true }
@@ -199,6 +204,37 @@ struct SongPathsSheet: View {
                 .accessibilityIdentifier("fst.paths.zoom-in")
             }
         }
+    }
+
+    // MARK: - Karaoke notice
+
+    /// Show the "Some Instruments Unavailable" notice once the chart on screen resolves.
+    private func presentWarningIfDue() {
+        guard Self.presentsUnavailableWarning(
+            warnAboutKaraoke: warnAboutKaraoke, dismissed: warningDismissed,
+            alreadyConsidered: warningConsidered, resolved: Set(shown.keys), onScreen: shownMode.displays
+        ) else { return }
+        warningConsidered = true
+        warningPresented = true
+    }
+
+    /// Whether the Karaoke notice shows now: once per opening, only after every form on
+    /// screen has replaced its spinner with its image, table or error (load-transition
+    /// R1, issue #649), and never after "Don't show again".
+    ///
+    /// - Parameters:
+    ///   - warnAboutKaraoke: An enabled chart (Karaoke) has no CHOpt path.
+    ///   - dismissed: The persistent "Don't show again" choice.
+    ///   - alreadyConsidered: The notice already showed this opening.
+    ///   - resolved: Forms showing their image, table or error.
+    ///   - onScreen: Forms the shown view mode displays.
+    /// - Returns: True when the notice should appear now.
+    nonisolated static func presentsUnavailableWarning(
+        warnAboutKaraoke: Bool, dismissed: Bool, alreadyConsidered: Bool,
+        resolved: Set<PathDisplayMode>, onScreen: [PathDisplayMode]
+    ) -> Bool {
+        warnAboutKaraoke && !dismissed && !alreadyConsidered
+            && !onScreen.isEmpty && onScreen.allSatisfy(resolved.contains)
     }
 
     /// The View menu shows the mode on screen; choosing one becomes the selection.
