@@ -65,6 +65,8 @@ import Testing
     for key in [
         "song_rival_spotlight_abc", "song_rival_gap_abc", "song_rival_protect_abc",
         "song_rival_slipping_abc", "song_rival_dominate_abc", "SONG_RIVAL_SPOTLIGHT_abc",
+        // Named cross-pollination cards list only their named rival (#656).
+        "song_rival_near_fc", "song_rival_star_gains", "song_rival_pct_push",
     ] {
         #expect(!SuggestionRowLayout.showsRivalName(categoryKey: key), "\(key)")
     }
@@ -72,8 +74,7 @@ import Testing
 
 @Test func mixedRivalCategoriesKeepTheRivalName() {
     for key in [
-        "song_rival_battleground", "song_rival_near_fc", "song_rival_stale",
-        "song_rival_star_gains", "song_rival_pct_push", "lb_rival_x", "near_fc_any",
+        "song_rival_battleground", "song_rival_stale", "lb_rival_x", "near_fc_any",
     ] {
         #expect(SuggestionRowLayout.showsRivalName(categoryKey: key), "\(key)")
     }
