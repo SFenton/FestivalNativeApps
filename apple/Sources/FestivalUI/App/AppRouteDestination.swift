@@ -244,8 +244,8 @@ struct FestivalTabStack<Root: View>: View {
     var body: some View {
         NavigationStack(path: $path) {
             root
-                // Each page's tools show in the iPhone tab-bar accessory only while it
-                // is the front page of the selected tab (issues #92, #487).
+                // Each page's tools float above the iPhone tab bar only while it is the
+                // front page of the selected tab (issues #92, #487, #632).
                 .pageToolsScope(inSelectedTab: isVisible)
                 .modifier(TopEdgeScrim())
                 .menuBarColumn(isTop: isVisible && path.isEmpty, isList: isListPane)
@@ -266,6 +266,8 @@ struct FestivalTabStack<Root: View>: View {
                 .rootTabBarVisibility()
             }
         }
+        // Outside the stack, so a push or pop fades the tools rather than sliding them.
+        .floatingPageTools(isSelected: isVisible)
     }
 }
 

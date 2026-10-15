@@ -233,9 +233,7 @@ struct PlayerProfileContent: View {
     var body: some View {
         content
             .festivalNavigationTitle(displayName)
-            #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
-            #endif
+            .festivalTitleDisplayMode(.large)
             .task(id: loadKey) {
                 guard loadedKey != loadKey else { return }
                 let key = loadKey
@@ -294,6 +292,22 @@ struct PlayerProfileContent: View {
                 }
             }
             .preference(key: FestivalRootTrailingProvidedKey.self, value: showsRootTrailingItems)
+            // Mac and iPad menu bar: Profile › Select / Switch to This Profile mirrors the
+            // header button, disabled while it is (issue #633).
+            .macProfilePageCommands(macProfileCommands)
+    }
+
+    /// The header's Select / Switch for the Profile menu: enabled once the read proves
+    /// it, its planned title (disabled) while the button holds its place; none on the
+    /// selected player's own page.
+    private var macProfileCommands: MacProfilePageCommands {
+        if let identity, identity != .deselect {
+            return MacProfilePageCommands(identity: identity, performIdentity: { perform(identity) })
+        }
+        if showsIdentityPlaceholder, plannedIdentity != .deselect {
+            return MacProfilePageCommands(identity: plannedIdentity)
+        }
+        return MacProfilePageCommands()
     }
 
     /// Whether to hold the identity button's place (disabled) instead of hiding it:

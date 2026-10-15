@@ -3,7 +3,7 @@ import XCTest
 /// Quick Links instrument icons on device (#303, tests backfilled by #460).
 ///
 /// #303 drew the chooser's instrument artwork at its 144 pt intrinsic size: on Profile
-/// the Lead row's icon covered its title in the iPhone accessory sheet and the iPad and
+/// the Lead row's icon covered its title in the iPhone tool sheet and the iPad and
 /// iPhone Duo menus. `QuickLinkLabel` now pre-sizes the artwork to the visual weight of
 /// the neighbouring SF Symbols and scales it with Dynamic Type. Each journey opens the
 /// real chooser on the fixture Profile and checks the Lead row against its symbol
@@ -22,7 +22,7 @@ import XCTest
 /// whose VoiceOver label is exactly its section's spoken title, and the audit covers every
 /// unidentified element inside the menu.
 ///
-/// Forms, each at the default size and AX5: the iPhone accessory sheet, the folded
+/// Forms, each at the default size and AX5: the iPhone tool sheet, the folded
 /// iPhone Duo's menu (simulated on the iPhone, `FST_DEBUG_DUO_WINDOW`) and the iPad
 /// navigation-bar menu. Hosted macOS twins: `QuickLinksInstrumentIconAccessibilityTests`.
 ///
@@ -58,18 +58,18 @@ final class QuickLinksIconAccessibilityJourneyTests: XCTestCase {
 
     // MARK: - iPhone sheet
 
-    /// iPhone accessory sheet at the default text size.
+    /// iPhone tool sheet at the default text size.
     @MainActor
     func testSheetInstrumentIconMatchesSymbolRow() throws {
-        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The accessory sheet is the iPhone chooser")
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The tool sheet is the iPhone chooser")
         try assertInstrumentRow(category: nil, duoWindow: nil, menu: false, name: "quick-links-icon-sheet")
     }
 
-    /// iPhone accessory sheet at the largest accessibility size: the icon grows with the
+    /// iPhone tool sheet at the largest accessibility size: the icon grows with the
     /// symbols and the title.
     @MainActor
     func testSheetInstrumentIconMatchesSymbolRowAtAX5() throws {
-        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The accessory sheet is the iPhone chooser")
+        try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The tool sheet is the iPhone chooser")
         try assertInstrumentRow(category: Self.largest, duoWindow: nil, menu: false, name: "quick-links-icon-sheet-ax5")
     }
 

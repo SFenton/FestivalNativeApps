@@ -1289,7 +1289,7 @@ struct RankByMenu: View {
         .accessibilityIdentifier("fst.rankings.rank-by-menu")
     }
 
-    /// The metrics for the inline-accessory sheet (``PageToolMenu``).
+    /// The metrics for the floating tool's sheet (``PageToolMenu``).
     private func choices() -> [PageToolMenuChoice] {
         metrics.map { metric in
             PageToolMenuChoice(
@@ -1324,7 +1324,7 @@ struct BandRankByMenu: View {
         .accessibilityIdentifier("fst.band-rankings.rank-by-menu")
     }
 
-    /// The metrics for the inline-accessory sheet (``PageToolMenu``).
+    /// The metrics for the floating tool's sheet (``PageToolMenu``).
     private func choices() -> [PageToolMenuChoice] {
         metrics.map { metric in
             PageToolMenuChoice(

@@ -24,6 +24,10 @@ import UIKit
 /// beside the form rather than over it (issue #373, ``FeedbackPhotoLibraryPlacement``).
 /// HIG (Entering data): "As much as possible, support drag and drop and paste."
 ///
+/// Submit fades the form out and a centred spinner with the stage's title and subtitle in
+/// ("Uploading Media" over a progress bar, then "Filing Issue"/"Filing Request"); only the
+/// text swaps between stages (issue #634, ``FeedbackSendingChoreography``).
+///
 /// Once the report is filed (or received) the form closes itself and hands its notice to
 /// the presenter, which shows "Report Sent" over Settings after the sheet has gone, so no
 /// Cancel or Submit is left behind the alert (issue #565, ``FeedbackSentPresentation``).
@@ -47,6 +51,13 @@ struct FeedbackFormSheet: View {
     @State private var dropTargets = 0
     /// How many times the drop highlight has appeared (Debug UI-test marker only).
     @State private var dropHighlights = 0
+    /// What the sheet shows of the form and its sending status (issue #634).
+    @State private var sending = FeedbackSendingChoreography.Presentation.editing
+    @State private var sendingSequence: Task<Void, Never>?
+    /// The focused text box, cleared on Submit so the keyboard leaves with the form.
+    @FocusState private var focusedField: String?
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    @AppStorage("fst.accessibility.reduceMotion") private var appReduceMotion = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.deviceLayout) private var layout
 
@@ -69,7 +80,18 @@ struct FeedbackFormSheet: View {
 
     var body: some View {
         NavigationStack {
-            panes
+            ZStack {
+                // Holds the sheet's full body for the status once the form leaves.
+                Color.clear
+                if sending.mountsForm {
+                    panes
+                        // Faded out, the form is gone for touch and assistive technology.
+                        .opacity(sending.showsForm ? 1 : 0)
+                        .allowsHitTesting(sending.showsForm)
+                        .accessibilityHidden(!sending.showsForm)
+                }
+            }
+                .overlay { sendingStatus }
                 .overlay {
                     if dropTargets > 0 && model.acceptsMedia {
                         FeedbackDropHighlight()
@@ -124,6 +146,11 @@ struct FeedbackFormSheet: View {
         ) { result in
             Task { await model.importFiles(result) }
         }
+        .onChange(of: sendingTarget) { _, target in
+            guard let target else { return }
+            moveSending(to: target)
+        }
+        .onDisappear { sendingSequence?.cancel() }
         .onChange(of: outcome) { _, outcome in
             // Sent: nothing on the form means anything any more, so it closes itself and
             // Settings shows the alert after the sheet has gone (issue #565).
@@ -206,6 +233,46 @@ struct FeedbackFormSheet: View {
         #endif
     }
 
+    // MARK: - Sending status
+
+    /// The centred spinner, title and subtitle while the report is sent (issue #634).
+    @ViewBuilder
+    private var sendingStatus: some View {
+        if sending.stage != nil {
+            FeedbackSendingStatusView(
+                kind: kind, presentation: sending,
+                progress: progress, onStop: { model.cancelSubmit() }
+            )
+            .modifier(ModalTopEdgeFadeModifier())
+            .opacity(sending.showsStatus ? 1 : 0)
+            .allowsHitTesting(sending.showsStatus)
+            .accessibilityHidden(!sending.showsStatus)
+        }
+    }
+
+    /// Where the form's phase says the sheet should be; nil holds while it closes.
+    private var sendingTarget: FeedbackSendingChoreography.Target? {
+        FeedbackSendingStage.target(for: model.phase, hasMedia: !model.attachments.isEmpty)
+    }
+
+    /// Start the fades to a target, replacing any sequence in progress.
+    ///
+    /// - Parameter target: The form or a sending stage.
+    private func moveSending(to target: FeedbackSendingChoreography.Target) {
+        if case .status = target { focusedField = nil }
+        sendingSequence?.cancel()
+        let steps = FeedbackSendingChoreography.plan(
+            from: sending, to: target, reduceMotion: systemReduceMotion || appReduceMotion
+        )
+        sendingSequence = FeedbackSendingChoreography.run(steps) { step in
+            sending = step.presentation
+            // HIG VoiceOver: "Inform VoiceOver of visible content or layout changes".
+            if step.announces, let stage = step.presentation.stage {
+                AccessibilityNotification.Announcement(stage.title(for: kind)).post()
+            }
+        }
+    }
+
     // MARK: - Form
 
     private var form: some View {
@@ -215,6 +282,7 @@ struct FeedbackFormSheet: View {
                     .accessibilityLabel("Title")
                     .accessibilityHint(titleDetail)
                     .accessibilityIdentifier("fst.settings.feedback.field.title")
+                    .focused($focusedField, equals: "title")
                     #if os(iOS)
                     .textInputAutocapitalization(.sentences)
                     #endif
@@ -239,9 +307,7 @@ struct FeedbackFormSheet: View {
                 )
             }
             mediaSection
-            if model.isBusy {
-                progressSection
-            } else if let issue = model.draft.validationIssue {
+            if !model.isBusy, let issue = model.draft.validationIssue {
                 Section {
                     Text(issue.message)
                         .font(.footnote)
@@ -265,6 +331,7 @@ struct FeedbackFormSheet: View {
                 .accessibilityLabel(label)
                 .accessibilityHint(detail)
                 .accessibilityIdentifier(identifier)
+                .focused($focusedField, equals: identifier)
                 .disabled(model.isBusy)
                 .modifier(dropTarget)
         } header: {
@@ -307,7 +374,7 @@ struct FeedbackFormSheet: View {
         )
         .accessibilityIdentifier("fst.settings.feedback.attach")
         if model.importing > 0 {
-            ProgressView("Adding media…")
+            FestivalLoadingView(status: "Adding media…")
                 .accessibilityIdentifier("fst.settings.feedback.attach.progress")
         }
         if let message = model.attachmentMessage {
@@ -332,29 +399,6 @@ struct FeedbackFormSheet: View {
     /// - Parameter providers: The dropped items.
     private func importDropped(_ providers: [NSItemProvider]) {
         Task { await model.importDropped(await FeedbackPickedMedia.load(from: providers)) }
-    }
-
-    private var progressSection: some View {
-        Section {
-            if model.isFiling {
-                // Indeterminate: the service is filing the issue and processing media.
-                ProgressView {
-                    Text("Filing your \(kind == .bug ? "report" : "request")…")
-                }
-                .accessibilityIdentifier("fst.settings.feedback.progress")
-                Text("It's been received. You can close this; it will still be filed.")
-                    .font(.footnote)
-                    .foregroundStyle(FestivalText.primary)
-            } else {
-                ProgressView(value: progress) {
-                    Text(model.attachments.isEmpty ? "Sending…" : "Uploading media…")
-                }
-                .accessibilityIdentifier("fst.settings.feedback.progress")
-                Button("Stop Sending", role: .destructive) { model.cancelSubmit() }
-                    .frame(minHeight: 44)
-                    .accessibilityIdentifier("fst.settings.feedback.stop")
-            }
-        }
     }
 
     @ToolbarContentBuilder

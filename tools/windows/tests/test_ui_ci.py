@@ -62,6 +62,12 @@ class UiCiTests(unittest.TestCase):
                 for page in pages:
                     self.assertLessEqual(set(page.get("axe_allow", ())), set(m.AXE_ALLOW), page["name"])
 
+    def test_songs_last_played_runs_at_default_and_largest_text(self):
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-songs-last-played.json"}
+        self.assertEqual(set(runs), {"normal", "text-225"})
+        self.assertIn("wide", runs["normal"].sizes.split(","))
+        self.assertIn("compact", runs["text-225"].sizes.split(","))
+
     def test_quick_links_landing_runs_at_default_and_largest_text(self):
         landing = {run.mode: run for run in ci.RUNS if run.pages == "a11y-quick-links-landing.json"}
         self.assertEqual({"normal", "text-225"}, set(landing))
@@ -77,6 +83,89 @@ class UiCiTests(unittest.TestCase):
         for name in ci.POPUP_PAGES.split(","):
             with self.subTest(page=name):
                 self.assertNotIn("axe_allow", pages[name])
+
+    def test_songs_metadata_chips_run_at_default_and_largest_text(self):
+        # Issue #644 review: the chip-height journey gates the release-branch suite at default and 225% text, scanned,
+        # with each text pill's height compared to the others (assertheight) and the row's spoken order.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-songs-metadata-chips.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan and not run.only for run in runs.values()))
+        self.assertFalse([run for run in ci.RUNS if run.name.startswith("a11y-songs-metadata-chips")])
+        pages = json.loads((ci.JOURNEYS / "a11y-songs-metadata-chips.json").read_text(encoding="utf-8"))
+        for mode, run in runs.items():
+            chosen = m.mode_pages(pages, mode)
+            self.assertEqual(1, len(chosen), mode)
+            page = chosen[0]
+            self.assertTrue(m.page_sizes(page, run.sizes.split(","), mode), mode)
+            steps = page["ready"]
+            self.assertTrue(page["scan"])
+            for song in ("fixture-song-1", "fixture-song-2"):
+                self.assertIn(f"assertheight:raw=fst.songs.metadata.difficulty.{song}|raw=fst.songs.metadata.season.{song}",
+                              steps)
+                self.assertIn(f"assertheight:raw=fst.songs.metadata.percentage.{song}|raw=fst.songs.metadata.percentile.{song}",
+                              steps)
+                self.assertTrue(any(s.startswith(f"assertread:id=fst.songs.row.{song}|") for s in steps))
+            self.assertIn("assertsize:raw=fst.songs.metadata.stars.fixture-song-1|126x24", steps)
+            self.assertIn("assertsize:raw=fst.songs.metadata.intensity.fixture-song-1|74x24", steps)
+
+    def test_suggestions_row_centre_runs_at_every_size_and_largest_text(self):
+        # Issue #654: a one-line Suggestions row's art and metadata pill sit on the row's vertical centre within 1 epx
+        # (assertmiddle), at compact, medium and wide and at 225% text, with the row still one 40+ epx button.
+        pages = {page["name"]: page for page in json.loads((ci.JOURNEYS / "a11y-suggestions.json").read_text(encoding="utf-8"))}
+        row = "fst.suggestions.row."
+        for name, (song, pill) in {"suggestions-row-centre": ("s032|Solo_PeripheralGuitar", "season"),
+                                   "suggestions-row-centre-rival": ("s034|Solo_Guitar", "rival")}.items():
+            with self.subTest(page=name):
+                steps = pages[name]["after_ready"]
+                raw = f"raw={row}{song.replace('|', '.')}"
+                self.assertIn(f"assertmiddle:{raw}.art|id={row}{song}|1", steps)
+                self.assertIn(f"assertmiddle:{raw}.{pill}|id={row}{song}|1", steps)
+                self.assertTrue(any(step.startswith("assertsize:") and step.endswith("|0x40") for step in steps))
+                covered = {(mode, size) for run in ci.RUNS if run.pages == "a11y-suggestions.json"
+                           and (not run.only or name in run.only.split(","))
+                           for mode in [run.mode] for size in m.page_sizes(pages[name], run.sizes.split(","), mode)}
+                self.assertLessEqual({("normal", "medium"), ("normal", "wide"), ("text-225", "medium"),
+                                      ("text-225", "wide")}, covered)
+        # Partial runs come before the full ones, so generated_runs still sees the file as covered.
+        names = [run.name for run in ci.RUNS]
+        for run in (run for run in ci.RUNS if run.only == ci.SUGGESTIONS_ROW_CENTRE):
+            self.assertLess(names.index(run.name), names.index("suggestions"))
+
+    def test_songs_chip_rows_run_at_default_and_largest_text(self):
+        # Issue #645 review: the narrow chip-row journey gates the release-branch suite at default and 225% text,
+        # scanned, at compact: balanced 5 + 4 lines (Pro Lead level with Lead, Pro Bass below it), each line centred on
+        # the row (assertmidline), lines apart, 21-epx icons and the row's spoken order; the normal run also re-flows the
+        # chips to one centred line after a resize.
+        chip = "raw=fst.songs.instrument-status.fixture-pulse."
+        row = "id=fst.songs.row.fixture-pulse"
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-songs-chip-rows.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan and not run.only and run.sizes == "compact" for run in runs.values()))
+        self.assertFalse([run for run in ci.RUNS if run.name.startswith("a11y-songs-chip-rows")])
+        pages = json.loads((ci.JOURNEYS / "a11y-songs-chip-rows.json").read_text(encoding="utf-8"))
+        balanced = [f"assertlevel:{chip}Solo_Guitar|{chip}Solo_PeripheralGuitar",
+                    f"assertbelow:{chip}Solo_PeripheralBass|{chip}Solo_PeripheralGuitar",
+                    f"assertmidline:{chip}Solo_Guitar|{chip}Solo_PeripheralGuitar|{row}|4",
+                    f"assertmidline:{chip}Solo_PeripheralBass|{chip}Solo_PeripheralDrums|{row}|4",
+                    f"assertapart:{chip}Solo_PeripheralGuitar|{chip}Solo_PeripheralDrums"]
+        for mode, run in runs.items():
+            chosen = m.mode_pages(pages, mode)
+            self.assertTrue(chosen, mode)
+            for page in chosen:
+                with self.subTest(mode=mode, page=page["name"]):
+                    self.assertTrue(page["scan"])
+                    self.assertTrue(m.page_sizes(page, run.sizes.split(","), mode))
+                    steps = page["ready"]
+                    self.assertIn("resize:360x800", steps)
+                    for step in balanced:
+                        self.assertIn(step, steps)
+        narrow = {page["name"]: page for page in pages}["songs-chip-rows-narrow"]
+        self.assertLessEqual({"normal", "text-225"}, set(narrow["modes"]))
+        self.assertIn(f"assertsize:{chip}Solo_Guitar|21x21", narrow["ready"])
+        self.assertTrue(any(step.startswith(f"assertname:{row}|") for step in narrow["ready"]))
+        resize = {page["name"]: page for page in m.mode_pages(pages, "normal")}["songs-chip-rows-resize"]
+        after = resize["ready"][resize["ready"].index("resize:compact"):]
+        self.assertIn(f"assertmidline:{chip}Solo_Guitar|{chip}Solo_PeripheralDrums|{row}|4", after)
 
     def test_songs_scroll_runs_at_default_largest_text_and_animations_off(self):
         # Issue #520 (#247): the pinned Songs title after far UIA jumps, a fling back to the top and keyboard End/Home.
@@ -127,6 +216,26 @@ class UiCiTests(unittest.TestCase):
                          "history-chart-contrast-switch", "history-states-syncing", "history-states-failed"}
                         <= set(pages))
         self.assertIn("assertsize:id=fst.history.retry|40x40", pages["history-states-syncing"]["after_ready"])
+
+    def test_loading_placement_runs_both_leaderboards_pages_at_default_and_largest_text(self):
+        # Issue #649 review (load-transition R1): Quick Links is absent during the first Leaderboards spinner and stays
+        # available during an F5 reload; both pages gate the release-branch suite at default and 225% text, scanned.
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-loading-placement.json"}
+        self.assertEqual({"normal", "text-225"}, set(runs))
+        self.assertTrue(all(run.scan and not run.only for run in runs.values()))
+        for run in runs.values():
+            with self.subTest(mode=run.mode):
+                sizes = run.sizes.split(",")
+                ran = {page["name"]: m.page_sizes(page, sizes, run.mode) for page in ci.run_pages(run)}
+                self.assertTrue(ran["leaderboards-loading-centred"], "first-load page skipped")
+                self.assertTrue(ran["leaderboards-reload-centred"], "reload page skipped")
+        pages = {page["name"]: page for page in
+                 json.loads((ci.JOURNEYS / "a11y-loading-placement.json").read_text(encoding="utf-8"))}
+        first = pages["leaderboards-loading-centred"]["ready"]
+        self.assertLess(first.index("waitgone:id=fst.quick-links.open@1"), first.index("waitfor:id=fst.leaderboards.card.0f@25"))
+        self.assertIn("waitgone:id=fst.quick-links.pane@1", first)
+        reload = pages["leaderboards-reload-centred"]["after_ready"]
+        self.assertLess(reload.index("waitfor:id=fst.leaderboards.loading@5"), reload.index("waitfor:id=fst.quick-links.open@1"))
 
     def test_song_band_board_runs_at_default_and_largest_text(self):
         # Issue #510 (#196): the full band board's single-stop rows, empty and error states run in CI at default and
@@ -243,7 +352,8 @@ class UiCiTests(unittest.TestCase):
                  json.loads((ci.JOURNEYS / "a11y-suggestions.json").read_text(encoding="utf-8"))}
         self.assertEqual({"suggestions-cards", "suggestions-keyboard", "suggestions-filter", "suggestions-syncing",
                           "suggestions-no-results", "suggestions-rival-pill-contrast", "suggestions-load-more",
-                          "suggestions-load-more-keyboard"}, set(pages))
+                          "suggestions-load-more-keyboard", "suggestions-row-centre", "suggestions-row-centre-rival"},
+                         set(pages))
         cards = pages["suggestions-cards"]["after_ready"]
         self.assertIn("assertstate:name=Pro Lead Untouched for 2 Seasons&class=TextBlock|heading=2", cards)
         keyboard = pages["suggestions-keyboard"]["after_ready"]
@@ -267,7 +377,8 @@ class UiCiTests(unittest.TestCase):
         # keyboard path run with motion on (default and 225% text, the full runs) and with in-app Reduce Motion and
         # Animation effects off, before the full runs so generated_runs still sees the file as covered.
         names = [run.name for run in ci.RUNS]
-        partial = {run.mode: run for run in ci.RUNS if run.pages == "a11y-suggestions.json" and run.only}
+        partial = {run.mode: run for run in ci.RUNS if run.pages == "a11y-suggestions.json" and run.only
+                   and run.only == ci.SUGGESTIONS_LOAD_MORE}
         self.assertEqual({"app-reduced", "no-animations"}, set(partial))
         for run in partial.values():
             self.assertEqual(ci.SUGGESTIONS_LOAD_MORE, run.only)
@@ -722,7 +833,7 @@ class UiCiTests(unittest.TestCase):
 
     def test_paths_swap_runs_every_page(self):
         # Issue #430 (#70): every Paths swap page (normal, 225% text, Reduce Motion, Animation effects off and the wide
-        # RadioButtons keyboard page) runs in windows-ui, Axe-scanned, at a size the page supports.
+        # selector-box keyboard page) runs in windows-ui, Axe-scanned, at a size the page supports.
         runs = [run for run in ci.RUNS if run.pages == "a11y-paths-swap.json"]
         self.assertEqual({"normal", "text-225", "no-animations"}, {run.mode for run in runs})
         self.assertTrue(all(run.scan and not run.only for run in runs))
@@ -740,16 +851,51 @@ class UiCiTests(unittest.TestCase):
                       "assertannounced:Lead Hard path image loaded@5", "assertsize:id=fst.paths.zoom-in|40x40",
                       "assertsize:id=fst.paths.zoom-out|40x40"):
             self.assertIn(check, swap)
-        # Design review: the wide instrument circles and every Difficulty/Display radio are 40 epx targets, mid-swap
-        # and settled (page-tools-and-nav-chrome R10).
+        # Design review: the wide instrument circles and the Difficulty/Display selector boxes (issue #650) are 40 epx
+        # targets, mid-swap and settled (page-tools-and-nav-chrome R10); both boxes read as named combo boxes with their
+        # value and keep keyboard focus across a swap.
         wide = next(page for page in pages if page["name"] == "paths-swap-keyboard-wide")["after_ready"]
         loading = wide.index("waitfor:id=fst.paths.loading@3")
         settled = wide.index("waitfor:name=Lead Hard CHOpt path@15")
-        for choice in ("Hard", "Expert"):
-            self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[loading:settled])
-        for choice in ("Easy", "Medium", "Hard", "Expert", "Image", "Text"):
-            self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[settled:])
+        for box in ("difficulty", "display"):
+            self.assertIn(f"assertsize:id=fst.paths.{box}|40x40", wide[loading:settled])
+        self.assertIn("assertread:id=fst.paths.difficulty|Difficulty, combo box, collapsed", wide[:loading])
+        self.assertIn("assertread:id=fst.paths.display|Display, combo box, collapsed", wide[:loading])
+        self.assertIn("assertstate:id=fst.paths.difficulty|value=Hard", wide[loading:settled])
+        self.assertIn("assertfocus:id=fst.paths.difficulty@3", wide[settled:])
+        self.assertIn("assertstate:id=fst.paths.display|value=Text", wide[settled:])
         self.assertIn("assertsize:id=fst.paths.instrument.Solo_Guitar|40x40", wide[settled:])
+        self.assertFalse([step for step in wide if "RadioButton" in step])
+
+    def test_paths_selector_surfaces_run_in_every_material_mode(self):
+        # Issue #650 (surface-materials R4): the selector boxes' translucent surface (default and 225% text), opaque
+        # Transparency-off fill (wide and compact) and Desert system colours each run in an explicit windows-ui Run,
+        # Axe-scanned, at the size the page supports; generated runs alone would skip 225% text.
+        explicit = {"paths-selectors", "paths-selectors-text-225", "paths-selectors-no-transparency",
+                    "paths-selectors-contrast"}
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-selectors.json"]
+        self.assertEqual(explicit, {run.name for run in runs})
+        self.assertTrue(all(run.scan and not run.only for run in runs))
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-selectors.json").read_text(encoding="utf-8"))
+        covered = {(page["name"], run.mode, size) for run in runs for page in m.mode_pages(pages, run.mode)
+                   for size in m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({("paths-selector-surface-wide", "normal", "wide"),
+                          ("paths-selector-surface-wide", "text-225", "wide"),
+                          ("paths-selector-surface-opaque-wide", "no-transparency", "wide"),
+                          ("paths-selector-surface-opaque-compact", "no-transparency", "compact"),
+                          ("paths-selector-surface-contrast-wide", "hc-desert", "wide")}, covered)
+        self.assertEqual({page["name"] for page in pages}, {name for name, _, _ in covered})
+        by_name = {page["name"]: page["after_ready"] for page in pages}
+        for box in ("difficulty", "display"):
+            self.assertIn(f"assertpaint:id=fst.paths.{box}|C0,T8!=#121826~1", by_name["paths-selector-surface-wide"])
+            self.assertIn(f"assertpaint:id=fst.paths.{box}|fill:C0,T8=#121826~1|C0,B8=@fill~0|L1,M0!=@fill~6",
+                          by_name["paths-selector-surface-opaque-wide"])
+            self.assertIn(f"assertpaint:id=fst.paths.{box}|fill:C0,T8|C0,B8=@fill~6",
+                          by_name["paths-selector-surface-contrast-wide"])
+        for box in ("instrument", "difficulty", "display"):
+            self.assertTrue([step for step in by_name["paths-selector-surface-opaque-compact"]
+                             if step.startswith(f"assertpaint:id=fst.paths.{box}.compact|fill:C0,T8=#121826~1")])
+        self.assertTrue([run for run in ci.tier_runs(runs, "pr") if run.name == "paths-selectors"])
 
     def test_paths_instrument_picker_runs_in_ci(self):
         # Issue #439 (#88): the compact Instrument ComboBox opens, reads each option by name in order without Karaoke,

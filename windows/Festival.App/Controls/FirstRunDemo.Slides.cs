@@ -440,8 +440,31 @@ public sealed partial class FirstRunDemo
         IEnumerable<object> rows = history
             ? FirstRunDemoContent.History(id, 3, DateTimeOffset.Now, DemoSeason)
             : FirstRunDemoContent.TopScores(id).Take(3);
-        foreach (var row in rows) Stage(new LeaderboardEntryRow { Row = row });
-        Stage(PulsingButton(history ? "View All Scores" : "View Full Leaderboard"));
+        // One card like the page's Score History and Top Scores cards (issues #588, #643), View All inside it, last.
+        Stage(RowsCard([.. rows], PulsingButton(history ? "View All Scores" : "View Full Leaderboard")));
+    }
+
+    /// <summary>
+    /// One preview card like the real Song Detail and Leaderboards cards (issue #643, <c>leaderboard-row</c> R10): the
+    /// rows as in-card <see cref="GroupedRows"/> slices (touching, a hairline between them, the selected player's row
+    /// purple), then the footer (View All) last.
+    /// </summary>
+    /// <param name="rows">Row models.</param>
+    /// <param name="footer">View All, or <see langword="null"/>.</param>
+    /// <returns>The card.</returns>
+    private static Border RowsCard(object[] rows, UIElement? footer = null)
+    {
+        var list = new StackPanel();
+        for (var i = 0; i < rows.Length; i++)
+        {
+            var row = new LeaderboardEntryRow { Row = rows[i] };
+            row.Slice = GroupedRows.SliceFor(i, rows.Length, rows[i], i > 0 ? rows[i - 1] : null, inCard: true);
+            list.Children.Add(row);
+        }
+        var stack = new StackPanel { Spacing = 4 };
+        stack.Children.Add(list);
+        if (footer is not null) stack.Children.Add(footer);
+        return new Border { Style = S("FSTCardStyle"), Padding = new Thickness(8, 8, 8, 12), Child = stack };
     }
 
     /// <summary>The page's View All button inside the web <c>pulseWrap</c> accent ring.</summary>
@@ -459,8 +482,9 @@ public sealed partial class FirstRunDemo
     }
 
     /// <summary>
-    /// Paths (web <c>PathPreviewDemo</c>): the Paths dialog's instrument selector, Difficulty and Display radio groups,
-    /// then its path image area (no path image is fetched for the demo).
+    /// Paths (web <c>PathPreviewDemo</c>): the Paths dialog's instrument selector, its Difficulty and Display selector
+    /// boxes (the same <c>FSTSelectorComboBoxStyle</c> and icon + label display template, issue #650), then its path
+    /// image area (no path image is fetched for the demo).
     /// </summary>
     private void BuildPaths()
     {
@@ -471,13 +495,11 @@ public sealed partial class FirstRunDemo
             Required = true,
             IdPrefix = $"fst.first-run.demo.{SlideId}.instrument",
         });
-        var pickers = new FlowPanel { Spacing = 20, HorizontalAlignment = HorizontalAlignment.Center };
-        pickers.Children.Add(new RadioButtons
-        {
-            Header = "Difficulty", MaxColumns = 4, SelectedIndex = 3,
-            ItemsSource = PathDifficultyInfo.All.Select(d => (object)d.Label()).ToList(),
-        });
-        pickers.Children.Add(new RadioButtons { Header = "Display", MaxColumns = 2, SelectedIndex = 0, ItemsSource = new List<object> { "Image", "Text" } });
+        var pickers = new FlowPanel { Spacing = 12, HorizontalAlignment = HorizontalAlignment.Center };
+        pickers.Children.Add(PathSelectorBox("Difficulty", PathDifficultyInfo.All.Select(d => (object)d.Label()).ToList(), 3));
+        var display = PathSelectorBox("Display", [PathDisplayOption.Image, PathDisplayOption.Text], 0);
+        display.ItemTemplate = (DataTemplate)Application.Current.Resources["FSTPathDisplayOptionTemplate"];
+        pickers.Children.Add(display);
         Stage(pickers);
         var image = new Border
         {
@@ -485,6 +507,22 @@ public sealed partial class FirstRunDemo
             Child = new FontIcon { Glyph = "\uE707", FontSize = 20, Foreground = B("FSTSecondaryTextBrush") },
         };
         Stage(image);
+    }
+
+    /// <summary>One of the Paths dialog's wide selector boxes, at least as wide as the dialog's minimum box.</summary>
+    /// <param name="name">Accessible name.</param>
+    /// <param name="items">Options.</param>
+    /// <param name="selected">Selected option index.</param>
+    /// <returns>The box.</returns>
+    private static ComboBox PathSelectorBox(string name, List<object> items, int selected)
+    {
+        var box = new ComboBox
+        {
+            Style = S("FSTSelectorComboBoxStyle"), MinWidth = PathSelectorLayout.WideBoxMinWidth,
+            ItemsSource = items, SelectedIndex = selected,
+        };
+        AutomationProperties.SetName(box, name);
+        return box;
     }
 
     /// <summary>
@@ -520,12 +558,11 @@ public sealed partial class FirstRunDemo
         var shopContent = new Grid();
         shopContent.Children.Add(fill);
         var label = GlyphLabel("\uE719", "Item Shop");
-        label.Padding = new Thickness(11, 5, 11, 6);
+        // The button's default padding plus the 1 epx border FSTShopButtonStyle drops, so it matches Paths beside it.
+        label.Padding = new Thickness(12, 6, 12, 7);
+        label.VerticalAlignment = VerticalAlignment.Center;
         shopContent.Children.Add(label);
-        buttons.Children.Add(new Button
-        {
-            Padding = new Thickness(0), Background = B("FSTShopButtonSurfaceBrush"), Foreground = B("FSTShopBadgeTextBrush"), Content = shopContent,
-        });
+        buttons.Children.Add(new Button { Style = S("FSTShopButtonStyle"), Content = shopContent });
         Stage(buttons);
     }
     #endregion
@@ -921,10 +958,11 @@ public sealed partial class FirstRunDemo
     #region Leaderboards and Compete
     /// <summary>
     /// Leaderboards card (web <c>LeaderboardOverviewDemo</c>, <c>CompeteLeaderboardsDemo</c>, <c>YourRankDemo</c>): the
-    /// page's card header and ranking rows, then View All Rankings, or for Your Rank the player's floating row.
+    /// page's card header, then one card of ranking rows (issue #643) ending with View All Rankings, or for Your Rank
+    /// with the player's purple row in the card.
     /// </summary>
     /// <param name="id">Slide.</param>
-    /// <param name="yourRank">Whether the player's floating row replaces View All.</param>
+    /// <param name="yourRank">Whether the player's row ends the card instead of View All.</param>
     private void BuildRankingsCard(string id, bool yourRank)
     {
         Stage(new CardHeader
@@ -938,9 +976,7 @@ public sealed partial class FirstRunDemo
         var rankings = yourRank
             ? FirstRunDemoContent.Rankings(FirstRunDemos.Rankings.Take(2).Append(FirstRunDemos.PlayerRanking), id)
             : FirstRunDemoContent.Rankings(FirstRunDemos.Rankings.Take(3), id);
-        foreach (var row in rankings)
-            Stage(new LeaderboardEntryRow { Row = row, IsFloating = row.IsSelected });
-        if (!yourRank) Stage(new Button { Content = "View All Rankings", Style = S("FSTViewAllButtonStyle") });
+        Stage(RowsCard([.. rankings], yourRank ? null : new Button { Content = "View All Rankings", Style = S("FSTViewAllButtonStyle") }));
     }
 
     /// <summary>
@@ -988,19 +1024,23 @@ public sealed partial class FirstRunDemo
         {
             mode = next % 2;
             host.Children.Clear();
-            var panel = new StackPanel { Spacing = 4 };
+            var panel = new StackPanel { Spacing = 8 };
             if (mode == 0)
             {
+                // One card of rows like the Leaderboards page's cards (issue #643).
                 panel.Children.Add(new CardHeader { Title = "Leaderboards", Subtitle = "Lead · Total Score", IconFile = Instrument.Lead.IconFile(), HeadingLevel = AutomationHeadingLevel.Level3, MinHeight = 44 });
-                foreach (var row in FirstRunDemoContent.Rankings(FirstRunDemos.Rankings.Take(2).Append(FirstRunDemos.PlayerRanking), SlideId ?? ""))
-                    panel.Children.Add(new LeaderboardEntryRow { Row = row, IsFloating = row.IsSelected });
+                panel.Children.Add(RowsCard([.. FirstRunDemoContent.Rankings(FirstRunDemos.Rankings.Take(2).Append(FirstRunDemos.PlayerRanking), SlideId ?? "")]));
             }
             else
             {
+                // One card of rival rows like the Rivals page's lists (issue #603, rival-rows R6).
                 panel.Children.Add(new CardHeader { Title = "Rivals", Subtitle = "Players just above and below you", IconFile = Instrument.Lead.IconFile(), HeadingLevel = AutomationHeadingLevel.Level3, MinHeight = 44 });
+                var rivals = new StackPanel { Spacing = 0 };
+                var index = 0;
                 foreach (var rival in FirstRunDemos.RivalsAbove.Take(2))
-                    panel.Children.Add(RivalRow(FirstRunDemoContent.RivalRow(rival, RivalDirection.Above)));
-                panel.Children.Add(RivalRow(FirstRunDemoContent.RivalRow(FirstRunDemos.RivalsBelow[0], RivalDirection.Below)));
+                    rivals.Children.Add(RivalRow(FirstRunDemoContent.RivalRow(rival, RivalDirection.Above), index++));
+                rivals.Children.Add(RivalRow(FirstRunDemoContent.RivalRow(FirstRunDemos.RivalsBelow[0], RivalDirection.Below), index));
+                panel.Children.Add(RivalRowsCard(rivals));
             }
             host.Children.Add(panel);
             QueueInert();
@@ -1017,16 +1057,63 @@ public sealed partial class FirstRunDemo
     /// A Rivals list row: the page's rival row button and view, with the page row's UIA name and ID
     /// (<c>RivalsPage.xaml</c>). <see cref="Inert"/> prefixes the ID and keeps the row a raw-view test hook, so UI tests
     /// can check the demo reads like the real row (ahead/behind, no shared count; issues #267, #522) while Narrator
-    /// still skips it (issue #421).
+    /// still skips it (issue #421). Like the page's template, the row's content carries the card's inset hairline, shown by
+    /// <see cref="RowSeparators.Apply"/> for every row after the card's first (rival-rows R6, #603, #643).
     /// </summary>
     /// <param name="item">Row.</param>
+    /// <param name="index">Row index in its card.</param>
     /// <returns>Button.</returns>
-    private static LeaderboardRowButton RivalRow(RivalRowItem item)
+    private static LeaderboardRowButton RivalRow(RivalRowItem item, int index)
     {
-        var button = new LeaderboardRowButton { Style = S("FSTRivalRowButtonStyle"), Content = new RivalRowView { Item = item } };
+        var button = new LeaderboardRowButton { Style = S("FSTRivalRowButtonStyle"), Content = SeparatedRow(new RivalRowView { Item = item }, index) };
         AutomationProperties.SetName(button, item.AccessibleName);
         AutomationProperties.SetAutomationId(button, item.AutomationId);
         return button;
+    }
+
+    /// <summary>
+    /// A row's content under the card's hairline, as the Rivals pages' <c>RowSeparator</c> template (<c>RivalsPage.xaml</c>):
+    /// the line sits on the row button's top edge (its 6 epx top padding) and <see cref="RowSeparators.Apply"/> shows it
+    /// for every row after the card's first.
+    /// </summary>
+    /// <param name="content">Row view.</param>
+    /// <param name="index">Row index in its card.</param>
+    /// <returns>The row content.</returns>
+    private static DemoSeparatedRow SeparatedRow(UIElement content, int index)
+    {
+        var row = new DemoSeparatedRow(content);
+        RowSeparators.Apply(row, index);
+        return row;
+    }
+
+    /// <summary>
+    /// One card of rival rows (rival-rows R6, #603): the rows touch (no spacing) inside one <c>FSTCardStyle</c> card, so the
+    /// hairlines alone separate them, as on the Rivals, Rival Detail and Rivalry pages.
+    /// </summary>
+    /// <param name="rows">Rows, stacked at zero spacing.</param>
+    /// <returns>The card.</returns>
+    private static Border RivalRowsCard(Panel rows) => new() { Style = S("FSTCardStyle"), Padding = new Thickness(8, 8, 8, 12), Child = rows };
+
+    /// <summary>A First Run row with the Rivals pages' inset top hairline (<see cref="ISeparatedRow"/>).</summary>
+    private sealed partial class DemoSeparatedRow : Grid, ISeparatedRow
+    {
+        private readonly Border separator = new()
+        {
+            Height = 1, Margin = new Thickness(0, -6, 0, 0), VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false,
+            Background = B("FSTRowSeparatorBrush"), Visibility = Visibility.Collapsed,
+        };
+
+        /// <summary>Wraps a row view.</summary>
+        /// <param name="content">Row view.</param>
+        public DemoSeparatedRow(UIElement content)
+        {
+            AutomationProperties.SetAccessibilityView(separator, AccessibilityView.Raw);
+            Children.Add(separator);
+            Children.Add(content);
+        }
+
+        /// <inheritdoc />
+        public bool ShowSeparator { set => separator.Visibility = value ? Visibility.Visible : Visibility.Collapsed; }
     }
 
     /// <summary>
@@ -1038,20 +1125,22 @@ public sealed partial class FirstRunDemo
         Stage(SectionHeader(Instrument.Lead, viewAll: true));
         var above = new FirstRunWindowRotation<FirstRunDemoRival>(FirstRunDemos.RivalsAbove, 2);
         var below = new FirstRunWindowRotation<FirstRunDemoRival>(FirstRunDemos.RivalsBelow, 2);
-        var aboveRows = new StackPanel { Spacing = 4 };
-        var belowRows = new StackPanel { Spacing = 4 };
-        void Set(StackPanel panel, IReadOnlyList<FirstRunDemoRival> rivals, RivalDirection direction)
+        var aboveRows = new StackPanel { Spacing = 0 };
+        var belowRows = new StackPanel { Spacing = 0 };
+        // The halves share one card, so the below half's rows continue the card's row indices (a hairline above its first).
+        void Set(StackPanel panel, IReadOnlyList<FirstRunDemoRival> rivals, RivalDirection direction, int first)
         {
             panel.Children.Clear();
-            foreach (var rival in rivals) panel.Children.Add(RivalRow(FirstRunDemoContent.RivalRow(rival, direction)));
+            var index = first;
+            foreach (var rival in rivals) panel.Children.Add(RivalRow(FirstRunDemoContent.RivalRow(rival, direction), index++));
             QueueInert();
         }
-        Set(aboveRows, above.Rows, RivalDirection.Above);
-        Set(belowRows, below.Rows, RivalDirection.Below);
-        var stack = new StackPanel { Spacing = 4 };
+        Set(aboveRows, above.Rows, RivalDirection.Above, 0);
+        Set(belowRows, below.Rows, RivalDirection.Below, above.Rows.Count);
+        var stack = new StackPanel { Spacing = 0 };
         stack.Children.Add(aboveRows);
         stack.Children.Add(belowRows);
-        Stage(new Border { Style = S("FSTCardStyle"), Padding = new Thickness(8, 8, 8, 12), Child = stack });
+        Stage(RivalRowsCard(stack));
         slots.Add(aboveRows);
         slots.Add(belowRows);
         advance = s =>
@@ -1059,12 +1148,12 @@ public sealed partial class FirstRunDemo
             if (s % 2 == 0)
             {
                 above.Advance();
-                Fade(aboveRows, () => Set(aboveRows, above.Rows, RivalDirection.Above), FirstRunDemoTiming.FadeOut, 4);
+                Fade(aboveRows, () => Set(aboveRows, above.Rows, RivalDirection.Above, 0), FirstRunDemoTiming.FadeOut, 4);
             }
             else
             {
                 below.Advance();
-                Fade(belowRows, () => Set(belowRows, below.Rows, RivalDirection.Below), FirstRunDemoTiming.FadeOut, 4);
+                Fade(belowRows, () => Set(belowRows, below.Rows, RivalDirection.Below, above.Rows.Count), FirstRunDemoTiming.FadeOut, 4);
             }
         };
     }
@@ -1112,11 +1201,12 @@ public sealed partial class FirstRunDemo
             {
                 var (rival, direction) = pool[n % pool.Count];
                 rowHost.Children.Clear();
-                rowHost.Children.Add(RivalRow(FirstRunDemoContent.RivalRow(rival, direction)));
+                rowHost.Children.Add(RivalRow(FirstRunDemoContent.RivalRow(rival, direction), 0));
                 QueueInert();
             }
             Set(0);
-            section.Children.Add(rowHost);
+            // One card per instrument section, like the Rivals page's instrument cards (rival-rows R6, #603).
+            section.Children.Add(RivalRowsCard(rowHost));
             Stage(section);
             slots.Add(rowHost);
             slotSetters.Add(Set);
@@ -1153,7 +1243,7 @@ public sealed partial class FirstRunDemo
             if (description is { } desc)
                 heading.Children.Add(new TextBlock { Text = desc.Subtitle, Style = S("CaptionTextBlockStyle"), Foreground = B("FSTSecondaryTextBrush"), TextTrimming = TextTrimming.CharacterEllipsis });
             host.Children.Add(heading);
-            var rows = new StackPanel { Spacing = 2 };
+            var rows = new StackPanel { Spacing = 0 };
             for (var i = 0; i < 3; i++)
             {
                 var song = songs[(index + i) % songs.Count];
@@ -1163,16 +1253,10 @@ public sealed partial class FirstRunDemo
                     rank.UserRank, rank.RivalRank, rank.RivalRank - rank.UserRank, rank.UserScore, rank.RivalScore);
                 var catalogSong = song.SongId is { } songId ? App.Session.Catalog?.Songs.FirstOrDefault(s => s.SongId == songId) : null;
                 // One card of rows with an inset hairline between them, like the page's category cards (rival-rows R6, #603).
-                var row = new Grid();
-                row.Children.Add(new Border
-                {
-                    Height = 1, Margin = new Thickness(0, -6, 0, 0), VerticalAlignment = VerticalAlignment.Top, IsHitTestVisible = false,
-                    Background = B("FSTRowSeparatorBrush"), Visibility = i > 0 ? Visibility.Visible : Visibility.Collapsed,
-                });
-                row.Children.Add(new RivalSongRowView { Item = new RivalSongItem(comparison, catalogSong, "You", "KeyDrifter") });
+                var row = SeparatedRow(new RivalSongRowView { Item = new RivalSongItem(comparison, catalogSong, "You", "KeyDrifter") }, i);
                 rows.Children.Add(new Button { Style = S("FSTRivalRowButtonStyle"), Content = row });
             }
-            host.Children.Add(new Border { Style = S("FSTCardStyle"), Padding = new Thickness(8, 8, 8, 12), Child = rows });
+            host.Children.Add(RivalRowsCard(rows));
             QueueInert();
         }
         Apply(0);

@@ -1,3 +1,7 @@
+using System.Numerics;
+using System.Runtime.CompilerServices;
+using Festival.App.Services;
+using Festival.Core.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -61,11 +65,108 @@ public static class DialogChrome
     /// </summary>
     /// <param name="dialog">Dialog, before it is shown.</param>
     /// <param name="captionHeight">Title bar height in effective pixels.</param>
-    public static void ClearOfTitleBar(ContentDialog dialog, double captionHeight) => dialog.Loaded += (_, _) =>
+    public static void ClearOfTitleBar(ContentDialog dialog, double captionHeight)
     {
-        if (captionHeight > 0 && Find(dialog, "BackgroundElement") is FrameworkElement surface)
-            surface.Margin = new Thickness(0, captionHeight, 0, captionHeight);
-    };
+        // An edge-docked surface (WindowEdge) lays itself out below the caption instead of centring between margins.
+        if (Edges.TryGetValue(dialog, out var edge))
+        {
+            edge.CaptionHeight = captionHeight;
+            return;
+        }
+        dialog.Loaded += (_, _) =>
+        {
+            if (captionHeight > 0 && Find(dialog, "BackgroundElement") is FrameworkElement surface)
+                surface.Margin = new Thickness(0, captionHeight, 0, captionHeight);
+        };
+    }
+
+    /// <summary>
+    /// Docks the dialog surface to a window edge instead of centring it (issue #638, modal-shell R17; owner-approved for
+    /// Windows Notifications only): a full-height panel at the trailing edge below the title bar, like the web's
+    /// <c>ModalShell</c> <c>rightDrawer</c>, or, once the window is narrow enough that navigation collapses to the
+    /// hamburger menu, a full-width bottom sheet like the mobile apps (<see cref="ModalEdgeLayout"/>). The surface keeps
+    /// everything else the shared shell gives it (title, Close command, Esc, light dismiss, focus trap and restore), follows
+    /// window resizes while open (switching between panel and sheet) and slides in from its edge unless motion is off.
+    /// </summary>
+    /// <param name="dialog">Dialog from <see cref="FestivalDialog.Create"/>, before it is shown.</param>
+    /// <param name="minimalBelow">Window width below which navigation is in hamburger (Minimal) mode.</param>
+    public static void WindowEdge(ContentDialog dialog, double minimalBelow = ModalEdgeLayout.MinimalNavigationBelow)
+    {
+        var edge = Edges.GetValue(dialog, _ => new EdgeState());
+        // The body (with its own scroller, R5) fills the surface between the title and the command row.
+        dialog.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        dialog.VerticalContentAlignment = VerticalAlignment.Stretch;
+
+        ModalEdgeFrame? Apply()
+        {
+            if (dialog.XamlRoot is not { } root || Find(dialog, "BackgroundElement") is not FrameworkElement surface) return null;
+            var frame = ModalEdgeLayout.Frame(root.Size.Width, root.Size.Height, edge.CaptionHeight, minimalBelow);
+            var panel = frame.Edge == ModalEdge.TrailingPanel;
+            surface.HorizontalAlignment = panel ? HorizontalAlignment.Right : HorizontalAlignment.Stretch;
+            surface.VerticalAlignment = VerticalAlignment.Top;
+            surface.Margin = new Thickness(0, frame.Top, 0, 0);
+            surface.MinWidth = surface.MaxWidth = surface.Width = frame.Width;
+            surface.MinHeight = 0;
+            surface.MaxHeight = surface.Height = frame.Height;
+            // The template's open/close zoom grows from the docked edge, so the surface never swells into the caption.
+            surface.RenderTransformOrigin = panel ? new Windows.Foundation.Point(1, 0) : new Windows.Foundation.Point(0.5, 1);
+            var radius = Application.Current?.Resources.TryGetValue("OverlayCornerRadius", out var value) == true
+                && value is CornerRadius r ? r.TopLeft : 8;
+            var corners = panel ? new CornerRadius(radius, 0, 0, radius) : new CornerRadius(radius, radius, 0, 0);
+            if (surface is Border border) border.CornerRadius = corners;
+            if (Find(dialog, "DialogSpace") is Grid space) space.CornerRadius = corners;
+            return frame;
+        }
+        void OnChanged(XamlRoot root, XamlRootChangedEventArgs args) => Apply();
+
+        XamlRoot? followed = null;
+        dialog.Loaded += (_, _) => Apply();
+        dialog.Opened += (_, _) =>
+        {
+            if (Apply() is { } frame && Find(dialog, "BackgroundElement") is UIElement surface) SlideIn(surface, frame);
+            if (followed is not null || dialog.XamlRoot is not { } root) return;
+            followed = root;
+            root.Changed += OnChanged;
+        };
+        dialog.Closed += (_, _) =>
+        {
+            if (followed is not null) followed.Changed -= OnChanged;
+            followed = null;
+        };
+    }
+
+    /// <summary>
+    /// Slides an edge-docked surface in from off its edge over the web's 250 ms modal transition (the element's
+    /// <c>Translation</c>, so the template's own zoom storyboard keeps its transform). Skipped while motion is off
+    /// (Reduce Motion, Windows animations off, a hidden window).
+    /// </summary>
+    /// <param name="surface">Dialog surface.</param>
+    /// <param name="frame">Its frame.</param>
+    private static void SlideIn(UIElement surface, ModalEdgeFrame frame)
+    {
+        if (!Motion.Allowed || Application.Current is null) return;
+        // The XAML Translation facade, not ElementCompositionPreview: a handed-out visual doubles the surface's offset in
+        // its UI Automation bounds, so Narrator's highlight and hit tests land off the panel.
+        var compositor = CompositionTarget.GetCompositorForCurrentThread();
+        var (x, y) = frame.SlideFrom;
+        var slide = compositor.CreateVector3KeyFrameAnimation();
+        slide.Target = "Translation";
+        slide.InsertKeyFrame(0f, new Vector3((float)x, (float)y, 0));
+        var (x1, y1, x2, y2) = ModalEdgeLayout.SlideEase;
+        slide.InsertKeyFrame(1f, Vector3.Zero, compositor.CreateCubicBezierEasingFunction(new Vector2(x1, y1), new Vector2(x2, y2)));
+        slide.Duration = ModalEdgeLayout.SlideDuration;
+        surface.StartAnimation(slide);
+    }
+
+    /// <summary>Edge-docked dialogs (<see cref="WindowEdge"/>) and the caption height they stay below.</summary>
+    private static readonly ConditionalWeakTable<ContentDialog, EdgeState> Edges = new();
+
+    /// <summary>An edge-docked dialog's layout inputs.</summary>
+    private sealed class EdgeState
+    {
+        /// <summary>Title bar height in epx (from <see cref="ClearOfTitleBar"/>).</summary>
+        public double CaptionHeight { get; set; }
+    }
 
     /// <summary>
     /// Resizes an open dialog with its window. The template takes its surface bounds from <c>ContentDialogMaxWidth</c>,
@@ -155,6 +256,11 @@ public static class DialogChrome
         if (element is UIElement ui) ui.HighContrastAdjustment = ElementHighContrastAdjustment.None;
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(element); i++) WithoutBackplate(VisualTreeHelper.GetChild(element, i));
     }
+
+    /// <summary>The dialog's Close (Cancel/Done) button from its template, once the dialog is loaded.</summary>
+    /// <param name="dialog">Dialog.</param>
+    /// <returns>The button, or <see langword="null"/> before the template is applied.</returns>
+    public static Button? CloseButton(ContentDialog dialog) => Find(dialog, "CloseButton") as Button;
 
     /// <summary>Finds a named template part below the dialog.</summary>
     /// <param name="dialog">Dialog.</param>

@@ -15,9 +15,9 @@ import Testing
 // pure gate is `ExperimentalRanksTests`; these host the real pages and their real Rank
 // By tools so a page that kept its menu, loaded a stale board or never reloaded fails.
 //
-// Account and band pages render beside the real iPhone tab-bar accessory
-// (`PageToolsAccessoryBar`, as in `NavButtonAccessibilityTests`), where their Rank By
-// page tool registers and opens as the inline choices sheet the accessory uses, so the
+// Account and band pages render beside the real iPhone floating page tools
+// (`FloatingPageToolsBar`, as in `NavButtonAccessibilityTests`), where their Rank By
+// page tool registers and opens as the inline choices sheet the floating tools use, so the
 // choices and picks go through the shipped `RankByMenu`/`BandRankByMenu`. Rivals keeps
 // its Rank By inline above the boards (`/duo` R2). The loopback fixture service
 // answers; a recording transport keeps each request's `rankBy`.
@@ -77,13 +77,13 @@ private func rankByFixture(player: Bool) async throws -> (FestivalSession, RankB
     return (FestivalSession(factory: { client }, selectionStorage: storage), transport, storage)
 }
 
-/// Host a page in a navigation stack above the real tab-bar accessory bar.
+/// Host a page in a navigation stack above the real floating page-tools row.
 ///
 /// - Parameters:
 ///   - page: The page.
 ///   - session: Its session.
 ///   - storage: The settings store the page and its tools read.
-///   - registry: The accessory's registry the page's tools register in.
+///   - registry: The floating page tools' registry the page's tools register in.
 ///   - height: Window height (tall enough for the content a test reads).
 /// - Returns: The retained host and window.
 @MainActor
@@ -96,8 +96,8 @@ private func hostRankByPage(
         VStack(spacing: 0) {
             NavigationStack { page.pageToolsScope(inSelectedTab: true) }
             if let registry {
-                PageToolsAccessoryBar(registry: registry)
-                    .frame(height: NavButtonAccessibilityTests.accessoryHeight)
+                FloatingPageToolsBar(registry: registry)
+                    .frame(height: FloatingPageToolsFit.reservedHeight)
                     .buttonStyle(.borderless)
             }
         }
@@ -127,12 +127,12 @@ private func waitFor(
     }
 }
 
-/// Press a page's Rank By tool in the accessory and return the choices sheet it opens,
+/// Press a page's Rank By tool in the floating row and return the choices sheet it opens,
 /// then clear it.
 ///
 /// - Parameters:
 ///   - identifier: The Rank By tool's identifier.
-///   - registry: The accessory's registry.
+///   - registry: The floating page tools' registry.
 ///   - host: The host.
 /// - Returns: The choices, in menu order.
 @MainActor

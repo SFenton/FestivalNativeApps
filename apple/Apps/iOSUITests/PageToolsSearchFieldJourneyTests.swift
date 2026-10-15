@@ -4,7 +4,7 @@ import XCTest
 ///
 /// #89 reported Sort and Filter drawn inside the Songs search capsule and a lone Quick
 /// Links stretched into a full-width text capsule. Since #92/#300 the tools are separate
-/// icon-only buttons: in the tab-bar accessory on iPhone (`PageToolsAccessoryBar`) and in
+/// icon-only buttons: in the floating page tools on iPhone (`FloatingPageToolsBar`) and in
 /// the navigation bar on iPhone Duo and iPad (`SongsPageTools`), while Songs' text filter
 /// is its own "Filter Songs" field (the system navigation-bar drawer, or
 /// `BottomSearchField` at the bottom of the Duo page). These journeys measure the production
@@ -17,9 +17,10 @@ import XCTest
 ///   hit region is at least 44x44 pt"; a navigation-bar item's 36 pt element gets its
 ///   44 pt region from the bar, proven by the audit), Quick Links one round icon button
 ///   rather than a wide capsule;
-/// - at the largest accessibility text size the same holds (iPhone folds Sort and Filter
-///   into one "Sort and Filter" button, `PageToolsAccessoryFit`; the Duo's navigation bar
-///   keeps them separate);
+/// - at the largest accessibility text size the same holds, with Sort and Filter still
+///   separate buttons (iPhone's fixed 44 pt floating circles fold only on a too-narrow
+///   window since #632, `FloatingPageToolsFit`; the Duo's navigation bar keeps them
+///   separate);
 /// - the system audit (hit region, description, Dynamic Type, clipping) reports nothing
 ///   on the tools or the field;
 /// - on iPad with a hardware keyboard, keyboard focus rests in the tools' navigation bar,
@@ -40,7 +41,6 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
 
     private static let sort = Tool(id: "fst.songs.sort", label: "Sort")
     private static let filter = Tool(id: "fst.songs.filter", label: "Filter Songs")
-    private static let folded = Tool(id: "fst.songs.tools", label: "Sort and Filter")
     private static let quickLinks = Tool(id: "fst.quick-links.open", label: "Quick Links")
 
     // MARK: - Songs
@@ -57,18 +57,16 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
         )
     }
 
-    /// Songs (Year sort) at the largest accessibility text size. On the iPhone tab bar
-    /// Sort and Filter fold into one "Sort and Filter" button; Quick Links stays its own
-    /// button; neither joins the field.
+    /// Songs (Year sort) at the largest accessibility text size: Sort, Filter Songs and
+    /// Quick Links stay separate buttons (the iPhone's floating circles do not grow, so
+    /// they no longer fold, #632); none joins the field.
     @MainActor
     func testSongsToolsSitApartFromTheFilterFieldAtAX5() throws {
         continueAfterFailure = false
         let app = try launchSongs(typeSize: Self.ax5, duoWindow: nil)
         defer { app.terminate() }
-        let phone = UIDevice.current.userInterfaceIdiom == .phone
         try assertToolsApartFromField(
-            in: app, tools: phone ? [Self.folded, Self.quickLinks] : [Self.sort, Self.filter, Self.quickLinks],
-            name: "songs-ax5"
+            in: app, tools: [Self.sort, Self.filter, Self.quickLinks], name: "songs-ax5"
         )
     }
 
@@ -86,8 +84,7 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
     }
 
     /// iPhone Duo folded at the largest accessibility text size: the Duo keeps Sort,
-    /// Filter Songs and Quick Links as separate navigation-bar buttons (only the iPhone
-    /// tab-bar accessory folds them), apart from the bottom Filter Songs field.
+    /// Filter Songs and Quick Links as separate navigation-bar buttons, apart from the bottom Filter Songs field.
     @MainActor
     func testSongsToolsSitApartFromTheFilterFieldAtAX5DuoFolded() throws {
         try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The Duo window is simulated on an iPhone")
@@ -110,7 +107,7 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
     }
 
     /// The same on the folded iPhone Duo, where Quick Links is a navigation-bar button
-    /// rather than the tab-bar accessory's.
+    /// rather than a floating page tool.
     @MainActor
     func testLeaderboardsQuickLinksIsOneIconButtonDuoFolded() throws {
         try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "The Duo window is simulated on an iPhone")
@@ -345,13 +342,13 @@ final class PageToolsSearchFieldJourneyTests: XCTestCase {
             let inBar = ancestors(of: index).contains { entries[$0].node.elementType == .navigationBar }
             // A system navigation bar drops a toolbar item's value, so there the tool's
             // state joins its name ("Sort, Year, ascending"; page-tools-and-nav-chrome R26,
-            // `BarItemSpokenState`); the accessory keeps the bare name.
+            // `BarItemSpokenState`); the floating tools keep the bare name.
             let named = node.label == tool.label || (inBar && node.label.hasPrefix("\(tool.label), "))
             XCTAssertTrue(named, "\(tool.id) name '\(node.label)'", file: file, line: line)
             // A navigation-bar item's element is the system's 36 pt glass shape and the
             // bar extends its hit region to 44 pt, so the `.hitRegion` audit below proves
             // it (same as Choose Profile, `NavButtonHitRegionJourneyTests`); the
-            // accessory's own slots are 44 pt elements.
+            // floating tools' own circles are 44 pt elements.
             let minimum: CGFloat = inBar ? 36 : 44
             XCTAssertGreaterThanOrEqual(node.frame.width, minimum, "\(tool.id) \(node.frame)", file: file, line: line)
             XCTAssertGreaterThanOrEqual(node.frame.height, minimum, "\(tool.id) \(node.frame)", file: file, line: line)

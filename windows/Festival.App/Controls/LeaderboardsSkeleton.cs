@@ -28,6 +28,25 @@ public sealed partial class LeaderboardsSkeleton : StackPanel
         AutomationProperties.SetAccessibilityView(this, AccessibilityView.Raw);
     }
 
+    /// <summary>Whether the placeholder rows sit inside their card (issue #643).</summary>
+    private bool inCard;
+
+    /// <summary>
+    /// Whether the placeholders sit inside the card that will hold the loaded rows (Leaderboards overview cards, issue #643):
+    /// they touch and draw in-card <see cref="GroupedRowSlice"/>s (no surface, a hairline between them), like the loaded rows.
+    /// </summary>
+    public bool InCard
+    {
+        get => inCard;
+        set
+        {
+            if (inCard == value) return;
+            inCard = value;
+            Spacing = value ? 0 : LeaderboardRowMetrics.Spacing;
+            Build();
+        }
+    }
+
     /// <summary>Placeholder rows.</summary>
     public IReadOnlyList<LeaderboardSkeletonRow>? Rows
     {
@@ -39,7 +58,13 @@ public sealed partial class LeaderboardsSkeleton : StackPanel
     private void Build()
     {
         Children.Clear();
-        foreach (var row in Rows ?? []) Children.Add(new LeaderboardEntryRow { Row = row });
+        var rows = Rows ?? [];
+        for (var i = 0; i < rows.Count; i++)
+        {
+            var row = new LeaderboardEntryRow { Row = rows[i] };
+            if (inCard) row.Slice = GroupedRowSlice.For(i, rows.Count, false, false, inCard: true);
+            Children.Add(row);
+        }
     }
 }
 #endregion

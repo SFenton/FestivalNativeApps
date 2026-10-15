@@ -10,7 +10,8 @@ namespace Festival.App.Controls;
 
 #region Metadata pills
 /// <summary>
-/// The one season pill and one "Top N%" percentile pill (pattern <c>metadata-pills</c>, issue #606). Songs rows, Suggestions,
+/// The one season pill, one "Top N%" percentile pill and the Songs full-combo accuracy pill (pattern <c>metadata-pills</c>,
+/// issues #606 and #644). Songs rows, Suggestions,
 /// leaderboard and Score History rows, the Profile percentile table and the first-run demos all build them here, so they
 /// share one size (<see cref="MetadataPillStyle"/>) and one set of contrast roles. Each pill is a
 /// <see cref="MetadataPill"/>: one raw-view UIA element whose host row speaks the value.
@@ -43,6 +44,19 @@ public static class MetadataPills
     {
         var pill = Create();
         ApplyPercentile(pill, text, tier, bold);
+        return pill;
+    }
+
+    /// <summary>
+    /// A Songs-row full-combo accuracy pill (web <c>AccuracyDisplay</c> <c>fcBadge</c>): the accuracy (<c>100%</c>, or
+    /// <c>FC</c> without one) in the skewed gold outline, at the shared pill height.
+    /// </summary>
+    /// <param name="text">Label, e.g. <c>100%</c>.</param>
+    /// <returns>Pill.</returns>
+    public static MetadataPill FullCombo(string text)
+    {
+        var pill = Create();
+        Apply(pill, text, MetadataPillStyle.FullCombo, MetadataPillStyle.AccuracyMinWidth);
         return pill;
     }
 

@@ -40,9 +40,9 @@ struct OpenDrawerAction: Equatable {
 
 /// Environment action that opens the root shell's notifications sheet.
 ///
-/// The iPhone tab-bar accessory (issue #92) cannot present a sheet of its own: its
-/// content is hosted outside the page hierarchy, and a `sheet` attached there never
-/// appears. Equatable for the same reason as ``OpenProfileAction``.
+/// The iPhone account pill's bell opens it (issue #632), so the floating page tools know
+/// to hide while it is open; the iPad menu bar opens it too. Equatable for the same
+/// reason as ``OpenProfileAction``.
 struct OpenNotificationsAction: Equatable {
     let handler: @MainActor () -> Void
 
@@ -232,12 +232,18 @@ extension ToolbarContent {
 @available(iOS 26.0, *)
 extension ToolbarContent {
     /// Hides the profile item's shared Liquid Glass while it shows the monogram, so the
-    /// avatar circle is the whole button with no glass ring around it (issue #311).
+    /// avatar circle is the whole button with no glass ring around it (issue #311),
+    /// except in the iPhone account pill, where the monogram shares the bell's glass
+    /// (issue #632).
     ///
-    /// - Parameter presentation: The profile button's current presentation.
+    /// - Parameters:
+    ///   - presentation: The profile button's current presentation.
+    ///   - inAccountPill: The bell and profile share one glass pill.
     /// - Returns: The toolbar content with the matching shared-background visibility.
-    func profileItemBackground(_ presentation: RootProfileButton.Presentation) -> some ToolbarContent {
-        sharedBackgroundVisibility(presentation.sharedBackground)
+    func profileItemBackground(
+        _ presentation: RootProfileButton.Presentation, inAccountPill: Bool = false
+    ) -> some ToolbarContent {
+        sharedBackgroundVisibility(presentation.sharedBackground(inAccountPill: inAccountPill))
     }
 }
 #endif
@@ -329,9 +335,12 @@ struct FestivalRootChrome: ViewModifier {
 /// and apply `.festivalProvidesRootTrailingItems()`, so the avatar stays rightmost.
 /// Global search is the Search tab, not a bar button.
 ///
-/// Where the iPhone tab-bar accessory hosts the account group (``PageToolsRegistry``,
-/// iOS 26.1+) this adds nothing: the accessory draws the bell and profile after the
-/// page's tools.
+/// Where page tools float above the iPhone tab bar (``PageToolsRegistry``, issue #632)
+/// the bell and profile form one shared Liquid Glass pill, Profile trailing-most: the
+/// monogram keeps the pill's glass and shrinks to sit inside it
+/// (``RootProfileButton/MonogramMetrics/resolve(liquidGlassBar:inAccountPill:)``), and
+/// the bell opens the root's Notifications sheet (`\.openNotifications`) so the
+/// floating tools hide while it is open.
 ///
 /// In horizontal bars a `ToolbarSpacer(.fixed)` separates this account group from the
 /// page tools before it (Sort, Filter, Quick Links), so the bar shows two Liquid Glass
@@ -348,9 +357,10 @@ struct FestivalRootTrailingItems: ToolbarContent {
     /// Notification rows open their destination on the current tab (issue #75).
     @Environment(\.pushRoute) private var pushRoute
     @Environment(\.deviceLayout) private var layout
-    /// Set where the bell lives in the iPhone tab-bar accessory instead; Profile stays
-    /// here, the bar's trailing-most item (issue #300).
+    /// Set where page tools float above the iPhone tab bar: the bell and profile then
+    /// share one glass pill (issue #632).
     @Environment(\.pageToolsRegistry) private var pageTools
+    @Environment(\.openNotifications) private var openNotifications
     #if !os(iOS)
     @Environment(\.openGlobalSearch) private var openGlobalSearch
     @Environment(\.shellOwnsGlobalToolbar) private var shellOwnsGlobalToolbar
@@ -358,11 +368,7 @@ struct FestivalRootTrailingItems: ToolbarContent {
 
     var body: some ToolbarContent {
         #if os(iOS)
-        if pageTools == nil {
-            barItems
-        } else {
-            accessoryProfileItem
-        }
+        barItems
         #else
         if !shellOwnsGlobalToolbar {
             if let openGlobalSearch {
@@ -383,23 +389,16 @@ struct FestivalRootTrailingItems: ToolbarContent {
         .resolve(displayName: session.selectedPlayer?.displayName, chrome: layout.sectionChrome)
     }
 
-    /// With the tab-bar accessory (iPhone, iOS 26.1+), Profile alone as the navigation
-    /// bar's trailing-most item, its own glass group: the accessory keeps only the page
-    /// tools and the bell, so its items never change while the system morphs it (issue
-    /// #300; HIG Toolbars: "Trailing: important always-available items"). The monogram
-    /// hides the group's glass (issue #311).
-    @ToolbarContentBuilder private var accessoryProfileItem: some ToolbarContent {
-        if #available(iOS 26.0, *) {
-            ToolbarSpacer(.fixed, placement: .topBarTrailing)
-            ToolbarItem(placement: .topBarTrailing) {
-                RootProfileButton(session: session) { profileButtonAction() }
-            }
-            .profileItemBackground(profilePresentation)
-        } else {
-            ToolbarItem(placement: .topBarTrailing) {
-                RootProfileButton(session: session) { profileButtonAction() }
-            }
-        }
+    /// Bell and profile share one glass pill (issues #632, #633): page tools float above
+    /// the horizontal tab bar.
+    private var inAccountPill: Bool { pageTools != nil }
+
+    /// The bell, opening the root's sheet in the account pill.
+    private var bell: NotificationsButton {
+        NotificationsButton(
+            session: session, pushRoute: pushRoute,
+            open: inAccountPill ? openNotifications.map { action in { action() } } : nil
+        )
     }
 
     /// The bell and profile as navigation-bar items.
@@ -412,30 +411,26 @@ struct FestivalRootTrailingItems: ToolbarContent {
         // Bell only with a selected profile (operator, 2026-09-28): notifications are per player.
         if showsNotifications && session.selectedPlayer != nil {
             if #available(iOS 27.0, *) {
-                ToolbarItem(placement: .topBarTrailing) {
-                    NotificationsButton(session: session, pushRoute: pushRoute)
-                }
-                .railVisibilityPriority(.bell)
+                ToolbarItem(placement: .topBarTrailing) { bell }
+                    .railVisibilityPriority(.bell)
             } else {
-                ToolbarItem(placement: .topBarTrailing) {
-                    NotificationsButton(session: session, pushRoute: pushRoute)
-                }
+                ToolbarItem(placement: .topBarTrailing) { bell }
             }
         }
         if #available(iOS 27.0, *) {
             ToolbarItem(placement: .topBarTrailing) {
-                RootProfileButton(session: session) { profileButtonAction() }
+                RootProfileButton(session: session, inAccountPill: inAccountPill) { profileButtonAction() }
             }
             .railVisibilityPriority(.profile)
-            .profileItemBackground(profilePresentation)
+            .profileItemBackground(profilePresentation, inAccountPill: inAccountPill)
         } else if #available(iOS 26.0, *) {
             ToolbarItem(placement: .topBarTrailing) {
-                RootProfileButton(session: session) { profileButtonAction() }
+                RootProfileButton(session: session, inAccountPill: inAccountPill) { profileButtonAction() }
             }
-            .profileItemBackground(profilePresentation)
+            .profileItemBackground(profilePresentation, inAccountPill: inAccountPill)
         } else {
             ToolbarItem(placement: .topBarTrailing) {
-                RootProfileButton(session: session) { profileButtonAction() }
+                RootProfileButton(session: session, inAccountPill: inAccountPill) { profileButtonAction() }
             }
         }
     }
@@ -570,8 +565,8 @@ struct VerticalBarActionItem: ToolbarContent {
 /// So in a system bar the state joins the label, as the bell's unread count does
 /// (``NotificationBadge``); VoiceOver still reads "Filter Songs, No filters". The rule
 /// follows the bar, not an OS version (iPad on iOS 26.5 kept the value), so every iOS
-/// navigation-bar tool reads the same way. The iPhone tab-bar accessory (a SwiftUI view,
-/// ``EnvironmentValues/pageToolsInAccessory``) and the Mac toolbar keep a separate value.
+/// navigation-bar tool reads the same way. The iPhone floating page tools (SwiftUI views,
+/// ``EnvironmentValues/pageToolsFloating``) and the Mac toolbar keep a separate value.
 /// HIG Accessibility: "Describe the element's current state (selected, disabled, value)".
 enum BarItemSpokenState {
     /// Where the tool is drawn.
@@ -579,8 +574,8 @@ enum BarItemSpokenState {
         /// An iOS system navigation bar (iPad, the iPhone Duo vertical bar, the Duo inner
         /// display, iOS before 26.1): drops the value.
         case systemBar
-        /// The iPhone tab-bar accessory, a SwiftUI view: keeps the value.
-        case accessory
+        /// The iPhone floating page tools, SwiftUI views: keep the value.
+        case floating
         /// The Mac toolbar: keeps the value.
         case mac
     }
@@ -600,13 +595,13 @@ enum BarItemSpokenState {
 
     /// The placement on this platform.
     ///
-    /// - Parameter inAccessory: The tool is rendered in the iPhone tab-bar accessory.
-    /// - Returns: ``Placement/mac`` on macOS, else the accessory or a system bar.
-    static func placement(inAccessory: Bool) -> Placement {
+    /// - Parameter floating: The tool is one of the iPhone floating page tools.
+    /// - Returns: ``Placement/mac`` on macOS, else floating or a system bar.
+    static func placement(floating: Bool) -> Placement {
         #if os(macOS)
         .mac
         #else
-        inAccessory ? .accessory : .systemBar
+        floating ? .floating : .systemBar
         #endif
     }
 }
@@ -615,11 +610,11 @@ enum BarItemSpokenState {
 private struct BarItemAccessibility: ViewModifier {
     let label: String
     let value: String
-    @Environment(\.pageToolsInAccessory) private var inAccessory
+    @Environment(\.pageToolsFloating) private var floating
 
     func body(content: Content) -> some View {
         let spoken = BarItemSpokenState.resolve(
-            label: label, value: value, placement: BarItemSpokenState.placement(inAccessory: inAccessory)
+            label: label, value: value, placement: BarItemSpokenState.placement(floating: floating)
         )
         content
             .accessibilityLabel(spoken.label)
@@ -699,9 +694,6 @@ struct NotificationsButton: View {
     /// Opens a sheet owned by the presenter instead of this button's own (the macOS
     /// shell, whose View menu also opens it); nil presents locally.
     var open: (() -> Void)?
-    /// Draws the count on the bell glyph itself: outside a toolbar (the iPhone tab-bar
-    /// accessory, issue #92) the system item badge is not shown.
-    var drawsBadgeOnIcon = false
     @State private var presented = false
     @AppStorage(ExperimentalRanks.storageKey) private var experimentalRanks = ExperimentalRanks.defaultValue
     private var center: NotificationsCenter { session.notificationsCenter }
@@ -711,21 +703,10 @@ struct NotificationsButton: View {
         Button {
             if let open { open() } else { presented = true }
         } label: {
-            if drawsBadgeOnIcon {
-                Label {
-                    Text("Notifications")
-                } icon: {
-                    Image(systemName: "bell")
-                        .overlay(alignment: .topTrailing) {
-                            if let badge { NotificationBadgeCapsule(text: badge) }
-                        }
-                }
-            } else {
-                Label("Notifications", systemImage: "bell")
-            }
+            Label("Notifications", systemImage: "bell")
         }
         .tint(BrandTokens.textPrimary)
-        .modifier(NotificationBadgeModifier(text: drawsBadgeOnIcon ? nil : badge))
+        .modifier(NotificationBadgeModifier(text: badge))
         .accessibilityLabel(NotificationBadge.accessibilityLabel(unreadCount: center.unreadCount))
         // The system badge also publishes its count as the accessibility value, which stays
         // stale after the badge clears; the label alone announces "N unread".
@@ -762,7 +743,7 @@ private struct NotificationBadgeModifier: ViewModifier {
 }
 
 /// The small numeric capsule drawn over the bell where no system badge shows (before
-/// iOS 26, and in the tab-bar accessory). Hidden from VoiceOver: the bell's label
+/// iOS 26). Hidden from VoiceOver: the bell's label
 /// carries the count.
 private struct NotificationBadgeCapsule: View {
     let text: String
@@ -791,6 +772,8 @@ private struct NotificationBadgeCapsule: View {
 /// player the button opens their Statistics page, not profile search (issue #290).
 struct RootProfileButton: View {
     let session: FestivalSession
+    /// Shares one glass pill with the bell (iPhone, issue #632): a smaller monogram.
+    var inAccountPill = false
     let action: () -> Void
     @Environment(\.deviceLayout) private var layout
     @Environment(\.displayScale) private var displayScale
@@ -831,8 +814,15 @@ struct RootProfileButton: View {
         /// would otherwise show as a ring around it (issue #311; web `HeaderActions`
         /// profile button: `background: 'none'`, `border: 'none'`). The add-profile and
         /// vertical-bar symbols keep the system glass like every other bar glyph.
-        var sharedBackground: Visibility {
-            if case .monogram = self { return .hidden }
+        var sharedBackground: Visibility { sharedBackground(inAccountPill: false) }
+
+        /// The shared background, also in the iPhone account pill (issue #632), where the
+        /// smaller monogram sits inside the glass it shares with the bell.
+        ///
+        /// - Parameter inAccountPill: The bell and profile share one glass pill.
+        /// - Returns: ``sharedBackground``, or always `.automatic` in the pill.
+        func sharedBackground(inAccountPill: Bool) -> Visibility {
+            if !inAccountPill, case .monogram = self { return .hidden }
             return .automatic
         }
     }
@@ -872,17 +862,40 @@ struct RootProfileButton: View {
         ///   the avatar fills exactly the circle the glass drew (issue #311); before that,
         ///   the 30 pt outlined avatar of a classic bar and the macOS toolbar.
         static func resolve(liquidGlassBar: Bool) -> MonogramMetrics {
-            liquidGlassBar
+            resolve(liquidGlassBar: liquidGlassBar, inAccountPill: false)
+        }
+
+        /// The diameter of the monogram inside the iPhone account pill (issue #632): the
+        /// size of a bar glyph's artwork, so it sits inside the pill's 44 pt glass with
+        /// the same clear space as the bell beside it.
+        static let pillDiameter: CGFloat = 30
+
+        /// Resolve the metrics for the bar the avatar sits in.
+        ///
+        /// - Parameters:
+        ///   - liquidGlassBar: The bar draws a glass circle per item (iOS 26+).
+        ///   - inAccountPill: The avatar shares one glass pill with the bell (iPhone,
+        ///     issue #632).
+        /// - Returns: In the pill, a ``pillDiameter`` avatar with no rim inside the
+        ///   shared glass; otherwise ``resolve(liquidGlassBar:)``'s full-circle avatar.
+        static func resolve(liquidGlassBar: Bool, inAccountPill: Bool) -> MonogramMetrics {
+            if liquidGlassBar && inAccountPill {
+                return MonogramMetrics(diameter: pillDiameter, outlined: false)
+            }
+            return liquidGlassBar
                 ? MonogramMetrics(diameter: 44, outlined: false, overhang: hiddenGlassPadding)
                 : MonogramMetrics(diameter: 30, outlined: true)
         }
 
         /// Metrics for the running system.
-        static var current: MonogramMetrics {
+        ///
+        /// - Parameter inAccountPill: The avatar shares one glass pill with the bell.
+        /// - Returns: The metrics.
+        static func current(inAccountPill: Bool = false) -> MonogramMetrics {
             #if os(iOS)
-            if #available(iOS 26.0, *) { return resolve(liquidGlassBar: true) }
+            if #available(iOS 26.0, *) { return resolve(liquidGlassBar: true, inAccountPill: inAccountPill) }
             #endif
-            return resolve(liquidGlassBar: false)
+            return resolve(liquidGlassBar: false, inAccountPill: inAccountPill)
         }
     }
 
@@ -894,7 +907,7 @@ struct RootProfileButton: View {
             case .choose:
                 Label("Choose Profile", systemImage: "person.crop.circle")
             case let .monogram(name):
-                MonogramLabel(name: name, scale: displayScale, metrics: .current)
+                MonogramLabel(name: name, scale: displayScale, metrics: .current(inAccountPill: inAccountPill))
             case let .symbol(title):
                 Label(title, systemImage: "person.crop.circle.fill")
             }

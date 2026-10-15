@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text.Json;
 using Festival.Core.ViewModels;
@@ -328,7 +329,7 @@ public class SongRowProjectionTests
         var detail = new SongScoreDetail(123456, 985000, false, 6, 9, 3, 4, 200, "2026-09-01T10:00:00Z");
         var fields = SongMetadataPolicy.Fields(detail, Instrument.Lead, Song, 9, new AppSettings());
         Assert.Equal([MetadataField.Score, MetadataField.Percentage, MetadataField.Percentile, MetadataField.Stars, MetadataField.Season,
-            MetadataField.Intensity, MetadataField.Difficulty, MetadataField.LastPlayed], fields.Select(f => f.Kind));
+            MetadataField.Intensity, MetadataField.Difficulty], fields.Select(f => f.Kind));
         Assert.Equal("Score 123,456", fields[0].Announcement);
         Assert.Equal(("98.5%", "Accuracy 98.5%"), (fields[1].Text, fields[1].Announcement));
         Assert.NotNull(fields[1].Tint);
@@ -337,8 +338,59 @@ public class SongRowProjectionTests
         Assert.Equal(("S9", "Current season 9", true), (fields[4].Text, fields[4].Announcement, fields[4].CurrentSeason));
         Assert.Equal(3, fields[5].IntensityRaw);
         Assert.Equal(("X", "Expert difficulty", 3), (fields[6].Text, fields[6].Announcement, fields[6].GameDifficulty));
-        Assert.StartsWith("Last played ", fields[7].Text);
         Assert.Empty(SongMetadataPolicy.Fields(detail with { Score = 0 }, Instrument.Lead, Song, 9, new AppSettings()));
+    }
+
+    [Fact]
+    public void Metadata_LastPlayedOnlyUnderItsSortAndLeads()
+    {
+        // Web SongsPage.visibleMetadataOrder: Last Played is injected only under the Last Played sort, whatever its toggle
+        // says, and SongRow.displayOrder puts the sort's value first; the cell is the date alone.
+        var detail = new SongScoreDetail(123456, 985000, false, 6, 9, 3, 4, 200, "2026-09-01T10:00:00Z");
+        Assert.DoesNotContain(SongMetadataPolicy.Fields(detail, Instrument.Lead, Song, 9, new AppSettings()), f => f.Kind == MetadataField.LastPlayed);
+        foreach (var toggle in new[] { true, false })
+        {
+            var sorted = SongMetadataPolicy.Fields(detail, Instrument.Lead, Song, 9, new AppSettings { MetadataLastPlayed = toggle }, lastPlayedSort: true);
+            Assert.Equal(MetadataField.LastPlayed, sorted[0].Kind);
+            Assert.Equal(8, sorted.Count);
+            var date = SongMetadataPolicy.LastPlayedDate("2026-09-01T10:00:00Z");
+            Assert.Equal((date, $"Last played {date}", (Instrument?)null), (sorted[0].Text, sorted[0].Announcement, sorted[0].PlayedChart));
+            Assert.DoesNotContain("Last played", sorted[0].Text);
+        }
+        Assert.DoesNotContain(SongMetadataPolicy.Fields(detail with { LastPlayedAt = null }, Instrument.Lead, Song, 9, new AppSettings(), lastPlayedSort: true),
+            f => f.Kind == MetadataField.LastPlayed);
+    }
+
+    [Theory]
+    [InlineData("en-US", "MMM d, yyyy", "Sep 28, 2026")]
+    [InlineData("en-GB", "d MMM yyyy", "28 Sep 2026")]
+    public void LastPlayedDate_UsesTheWebMediumDate(string culture, string pattern, string expected)
+    {
+        var info = CultureInfo.GetCultureInfo(culture);
+        Assert.Equal(pattern, SongMetadataPolicy.MediumDatePattern(info));
+        // Midday UTC stays on the same calendar day in every local time zone the tests run in.
+        Assert.Equal(expected, SongMetadataPolicy.LastPlayedDate("2026-09-28T12:00:00Z", info).Replace("Sept", "Sep"));
+        // Web shows an unparseable value as sent.
+        Assert.Equal("garbage", SongMetadataPolicy.LastPlayedDate("garbage", info));
+        var across = SongMetadataPolicy.LastPlayedField("2026-09-28T12:00:00Z", Instrument.ProDrums, info);
+        Assert.Equal(Instrument.ProDrums, across.PlayedChart);
+        Assert.Equal($"Last played {across.Text} on Pro Drums", across.Announcement);
+    }
+
+    [Fact]
+    public void LatestPlay_PicksTheMostRecentChartFirstOnTies()
+    {
+        var plays = new Dictionary<Instrument, SongScoreDetail>
+        {
+            [Instrument.Lead] = new(1, LastPlayedAt: "2026-09-01T10:00:00Z"),
+            [Instrument.Bass] = new(1, LastPlayedAt: "2026-09-20T10:00:00Z"),
+            [Instrument.Drums] = new(1, LastPlayedAt: "2026-09-20T10:00:00Z"),
+            [Instrument.Vocals] = new(1),
+        };
+        SongScoreDetail? Detail(Instrument i) => plays.GetValueOrDefault(i);
+        Assert.Equal((Instrument.Bass, "2026-09-20T10:00:00Z"), SongMetadataPolicy.LatestPlay(InstrumentInfo.All, Detail));
+        Assert.Equal((Instrument.Lead, "2026-09-01T10:00:00Z"), SongMetadataPolicy.LatestPlay([Instrument.Lead, Instrument.Vocals], Detail));
+        Assert.Null(SongMetadataPolicy.LatestPlay([Instrument.Vocals, Instrument.ProBass], Detail));
     }
 
     [Fact]
@@ -352,17 +404,23 @@ public class SongRowProjectionTests
         };
         var fields = SongMetadataPolicy.Fields(detail, Instrument.Lead, Song, 9, settings);
         Assert.Equal([MetadataField.Stars, MetadataField.Season, MetadataField.Percentile, MetadataField.Percentage, MetadataField.Intensity,
-            MetadataField.Difficulty, MetadataField.LastPlayed], fields.Select(f => f.Kind));
+            MetadataField.Difficulty], fields.Select(f => f.Kind));
         var fc = fields.Single(f => f.Kind == MetadataField.Percentage);
         Assert.Equal(("FC", "Full combo", true), (fc.Text, fc.Announcement, fc.FullCombo));
         Assert.Equal(("M", "Medium difficulty"), (fields[5].Text, fields[5].Announcement));
         Assert.Equal("3 stars", fields[0].Announcement);
         Assert.Equal("Season 8", fields[1].Announcement);
         Assert.Equal(SongPercentileTier.TopOne, fields[2].Percentile);
-        Assert.Equal("Last played date unavailable", fields[^1].Text);
+        // Under its sort Last Played leads whatever the visual order; an unparseable date shows as sent (web).
+        var sorted = SongMetadataPolicy.Fields(detail, Instrument.Lead, Song, 9, settings with
+        {
+            SongRowVisualOrder = [MetadataField.Stars, MetadataField.Season, MetadataField.Percentile, MetadataField.LastPlayed],
+        }, lastPlayedSort: true);
+        Assert.Equal([MetadataField.LastPlayed, MetadataField.Stars], sorted.Take(2).Select(f => f.Kind));
+        Assert.Equal(("garbage", "Last played garbage"), (sorted[0].Text, sorted[0].Announcement));
 
         var shown = SongMetadataPolicy.Fields(detail, Instrument.Lead, Song, 8, new AppSettings());
-        Assert.Equal(("100% FC", "Full combo, accuracy 100%"), (shown[1].Text, shown[1].Announcement));
+        Assert.Equal(("100%", "Full combo, accuracy 100%"), (shown[1].Text, shown[1].Announcement));
         var noAccuracy = SongMetadataPolicy.Fields(detail with { Accuracy = null }, Instrument.Lead, Song, 8, new AppSettings());
         Assert.Equal("Full combo, accuracy unavailable", noAccuracy[1].Announcement);
         var sparse = SongMetadataPolicy.Fields(new SongScoreDetail(5, Stars: 1, Difficulty: 1.5, Rank: 5, TotalEntries: 100), Instrument.Drums, Song, null, new AppSettings());
@@ -400,6 +458,20 @@ public class SongRowProjectionTests
         var meterRow = new SongRowItem(Song) { Chart = Instrument.Lead, ChartRaw = 3, ScoreState = "No score" };
         Assert.Equal("T, A, Lead, " + DifficultyScale.Announcement(3) + ", No score", meterRow.Announcement);
         Assert.False(meterRow.Keyboard);
+
+        // The unfiltered Last Played entry names its own chart; the row's chart is spoken before its own fields only.
+        var latest = SongMetadataPolicy.LastPlayedField("garbage", Instrument.Drums);
+        var latestOnly = new SongRowItem(Song) { Chart = Instrument.Bass, Metadata = [latest] };
+        Assert.False(latestOnly.NamesChart);
+        Assert.Equal("T, A, Last played garbage on Drums", latestOnly.Announcement);
+        var latestAndFields = new SongRowItem(Song) { Chart = Instrument.Bass, Metadata = [latest, new SongMetadataField(MetadataField.Score, "5", "Score 5")] };
+        Assert.True(latestAndFields.NamesChart);
+        Assert.Equal("T, A, Last played garbage on Drums, Bass chart, Score 5", latestAndFields.Announcement);
+        var filtered = new SongRowItem(Song)
+        {
+            Chart = Instrument.Bass, Metadata = [SongMetadataPolicy.LastPlayedField("garbage"), new SongMetadataField(MetadataField.Score, "5", "Score 5")],
+        };
+        Assert.Equal("T, A, Bass chart, Last played garbage, Score 5", filtered.Announcement);
     }
 }
 
@@ -455,6 +527,46 @@ public class SongsViewModelPlayerTests
         // Filter Invalid Scores shows resolved scores (web substitution) instead of pausing the row.
         Assert.Null(Row(vm, "s1").ScoreState);
         Assert.Equal(MetadataField.Score, Row(vm, "s1").Metadata[0].Kind);
+    }
+
+    [Fact]
+    public async Task LastPlayedSort_RowsShowTheWebLastPlayedEntry()
+    {
+        const string Lead = "2026-09-01T12:00:00Z", Bass = "2026-09-20T12:00:00Z", Other = "2026-09-10T12:00:00Z";
+        var profile = PlayerWire.Profile(PlayerWire.Id, "Fixture One",
+            PlayerWire.Score("s1", "01", 1000, extra: $",\"lp\":\"{Lead}\""),
+            PlayerWire.Score("s1", "02", 800, extra: $",\"lp\":\"{Bass}\""),
+            PlayerWire.Score("s2", "01", 900, extra: $",\"lp\":\"{Other}\""));
+        var (_, session, vm) = await Loaded(new AppSettings { SongSort = SongSortMode.LastPlayed },
+            profiles: new() { [PlayerWire.Id] = (HttpStatusCode.OK, profile) });
+
+        // Icons on, no chart filter: the chips, then the most recent play across charts (web SongRow).
+        var s1 = Row(vm, "s1");
+        Assert.NotEmpty(s1.Chips);
+        var entry = Assert.Single(s1.Metadata);
+        Assert.Equal((MetadataField.LastPlayed, Instrument.Bass, SongMetadataPolicy.LastPlayedDate(Bass)), (entry.Kind, entry.PlayedChart, entry.Text));
+        Assert.EndsWith($"Last played {entry.Text} on Bass", s1.Announcement);
+        Assert.Empty(Row(vm, "s3").Metadata);
+
+        // Any other sort: no Last Played, whatever the Settings toggle says.
+        session.UpdateSettings(s => s with { SongSort = SongSortMode.Title, MetadataLastPlayed = true });
+        Assert.Empty(Row(vm, "s1").Metadata);
+        session.UpdateSettings(s => s with { ShowInstrumentIcons = false });
+        Assert.DoesNotContain(Row(vm, "s1").Metadata, m => m.Kind == MetadataField.LastPlayed);
+
+        // Icons off, no chart filter: the across-chart entry leads the first visible chart's fields.
+        session.UpdateSettings(s => s with { SongSort = SongSortMode.LastPlayed, MetadataLastPlayed = false });
+        s1 = Row(vm, "s1");
+        Assert.Equal([MetadataField.LastPlayed, MetadataField.Score], s1.Metadata.Take(2).Select(m => m.Kind));
+        Assert.Equal(Instrument.Bass, s1.Metadata[0].PlayedChart);
+        Assert.Single(s1.Metadata, m => m.Kind == MetadataField.LastPlayed);
+
+        // A chart filter: that chart's own date leads its fields, after the chart name.
+        session.UpdateSettings(s => s with { SongFilter = new SongFilter(Instrument.Bass) });
+        s1 = Row(vm, "s1");
+        Assert.Equal((MetadataField.LastPlayed, (Instrument?)null, SongMetadataPolicy.LastPlayedDate(Bass)),
+            (s1.Metadata[0].Kind, s1.Metadata[0].PlayedChart, s1.Metadata[0].Text));
+        Assert.Contains($"Bass chart, Last played {s1.Metadata[0].Text}, Score 800", s1.Announcement);
     }
 
     [Fact]

@@ -117,6 +117,45 @@ object FeedbackCopy {
     val ATTACH_HELP: String =
         "Add up to ${FeedbackLimits.MAX_ATTACHMENTS} screenshots or screen recordings, " +
             "${FeedbackFormat.bytes(FeedbackLimits.MAX_REQUEST_BYTES)} in total. Tap one to open it."
+
+    /** Busy title while attachments upload (owner wording, issue #634). */
+    const val UPLOADING_TITLE = "Uploading Media"
+
+    /** TalkBack name of the upload bar; it reads the percentage as the bar's value. */
+    const val UPLOAD_PROGRESS_LABEL = "Upload progress"
+
+    /**
+     * What the busy state calls the form: "issue" or "request" (owner wording, issue #634).
+     *
+     * @param kind Form.
+     * @return Lowercase noun.
+     */
+    fun filingNoun(kind: FeedbackKind): String = if (kind == FeedbackKind.Bug) "issue" else "request"
+
+    /**
+     * Busy title while the service files the form.
+     *
+     * @param kind Form.
+     * @return "Filing Issue" or "Filing Request".
+     */
+    fun filingTitle(kind: FeedbackKind): String = "Filing " + filingNoun(kind).replaceFirstChar(Char::uppercaseChar)
+
+    /**
+     * Busy subtitle while the service files the form.
+     *
+     * @param kind Form.
+     * @return The owner's sentence for that form.
+     */
+    fun filingSubtitle(kind: FeedbackKind): String =
+        "We\u2019re filing your ${filingNoun(kind)}. Please wait while we upload it."
+
+    /**
+     * TalkBack name of the busy spinner, the same in every step so it stays one stop.
+     *
+     * @param kind Form.
+     * @return "Sending your issue" or "Sending your request".
+     */
+    fun busyLabel(kind: FeedbackKind): String = "Sending your ${filingNoun(kind)}"
 }
 
 // endregion

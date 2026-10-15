@@ -22,3 +22,7 @@ public struct PlayerScore: Decodable, Equatable, Sendable {
         case songId, instrument, score, accuracy, isFullCombo = "fullCombo", stars, season, rank, totalEntries
     }
 }
+
+/// Stand-in for `InvalidScorePolicy.swift`'s per-chart population curves, which `Song`
+/// carries but the suggestion generator never reads.
+public struct SongPopulationTierTable: Decodable, Equatable, Hashable, Sendable {}

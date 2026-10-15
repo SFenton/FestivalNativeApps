@@ -13,7 +13,8 @@ in-app Reduce Motion), the Quick Links landings
 (issue #416), the Item Shop Filters flyout and its keyboard journey (issue #428), the board load swap (issue #431, also
 with Animation effects off), the first-run song demos (issue #420), the header flyouts (issue #534), the Songs section
 push (issue #452), the Songs scroll far jumps and keyboard End/Home (issue #520, also with Animation effects off), the
-Paths swap (issue #430, also with Animation effects off), the Paths chart (issue #438, also with "Always show
+Paths swap (issue #430, also with Animation effects off), the Paths selector surfaces (issue #650, also with
+Transparency effects off and under Desert contrast), the Paths chart (issue #438, also with "Always show
 scrollbars" on, issue #525), the Paths text table (issue #515, also under a contrast theme), long leaderboard names
 (issue #455, also with Animation effects off) and the Full
 Rankings pinned row (issue #466, also with in-app Reduce Motion), the Leaderboards card "your rank" row (issue #493,
@@ -23,7 +24,8 @@ motion off), the
 Song Band Leaderboard rows, empty and error states (issue #510), the Suggestions cards, keyboard, filter and states
 (issue #513), the Item Shop offers grid, List/Grid toggle, rings and states (issue #516, also with in-app Reduce
 Motion), the real-control First Run demos (issue #498, also with Animation effects off), the profile title row
-(issue #446) and the Score History chart (issue #512, also under Desert contrast) run at default and 225% text, that the
+(issue #446), the Score History chart (issue #512, also under Desert contrast) and the loading placement with
+Leaderboards' Quick Links gated on its cards (issue #649) run at default and 225% text, that the
 generated leaderboard-columns normal run switches a contrast theme with a song board open (issue #519), and that the
 generated work-behind-dialogs runs (issues #83, #436) gate PRs and cover motion off.
 Add an entry with each new ``journeys/a11y-*.json``, at ``normal`` and ``text-225`` at least.
@@ -119,7 +121,7 @@ HISTORY_SWAP_REDUCED = "history-swap-reduced-access"
 
 #: The canonical ``a11y.json`` header-flyout pages (issue #534: every app flyout is constrained to the window, so none
 #: may open a windowed ``PopupHost``; the file's other pages stay host matrix checks).
-POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-flyout,notifications-flyout"
+POPUP_PAGES = "leaderboards-rank-by-menu,rank-by-menu,quick-links-menu,profile-flyout,notifications-panel"
 
 #: The ``a11y-search.json`` All section-title pages (issue #348's titles, #483); the file's other pages are generated runs.
 SEARCH_SECTIONS = "search-all-sections,search-all-sections-keyboard"
@@ -130,6 +132,9 @@ SEARCH_DELAYED_RESULTS = "search-delayed-results"
 #: The ``a11y-suggestions.json`` pages for the cards loaded after the first batch (issues #260, #521), also run with
 #: motion off.
 SUGGESTIONS_LOAD_MORE = "suggestions-load-more,suggestions-load-more-keyboard"
+
+#: The ``a11y-suggestions.json`` row centre-line pages (issue #654), also run at wide and at 225% text beside the title.
+SUGGESTIONS_ROW_CENTRE = "suggestions-row-centre,suggestions-row-centre-rival"
 
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
@@ -188,6 +193,33 @@ RUNS: tuple[Run, ...] = (
     Run("songs-scroll", "a11y-songs-scroll.json", tabs=0),
     Run("songs-scroll-text-225", "a11y-songs-scroll.json", sizes="compact", mode="text-225", tabs=0),
     Run("songs-scroll-no-animations", "a11y-songs-scroll.json", sizes="compact", mode="no-animations", tabs=0),
+    # Scroll paging (issue #642): keyboard PageDown on Statistics and Song Details moves the Quick Links current section
+    # off the first section while the scroll moves (throttled reports) and keeps it at rest; later Statistics sections
+    # still load once the loaded ones stop watching the viewport (tiles named, 40 epx, in order); Axe at the paged state.
+    Run("scroll-paging", "a11y-scroll-paging.json", tabs=0),
+    Run("scroll-paging-text-225", "a11y-scroll-paging.json", sizes="compact", mode="text-225", tabs=0),
+    # Songs metadata chips (issue #644): the row speaks score, accuracy (graded and the skewed gold "100%" full combo),
+    # Top %, stars, season, intensity and difficulty in visual order; every text pill is at least 24 epx and shares one
+    # height with the others, the 24-epx stars and meter line up with them, the current season paints its full height,
+    # Axe-scanned; at 225% text the text pills grow to one shared height, never clipped.
+    Run("songs-metadata-chips", "a11y-songs-metadata-chips.json", sizes="medium,wide"),
+    Run("songs-metadata-chips-text-225", "a11y-songs-metadata-chips.json", sizes="medium", mode="text-225"),
+    # Songs Last Played pill (issue #647): hidden under every sort but Last Played even with its Settings switch on; under
+    # Last Played it leads the row as "Last played <date> on <chart>" (the chart only when unfiltered), wraps below the
+    # pills at compact and sits on their line when wide, and the row speaks it first; at 225% text it still reads.
+    Run("songs-last-played", "a11y-songs-last-played.json", sizes="compact,medium,wide"),
+    Run("songs-last-played-text-225", "a11y-songs-last-played.json", sizes="compact,medium", mode="text-225"),
+    # Songs instrument chip rows (issue #645, instrument-chip-rows R1-R5): in a 360 epx window the nine chips read
+    # 5 + 4 in lines centred on the row (assertmidline), not 7 + 2 or left-aligned; lines never overlap, each chip
+    # icon keeps 21 epx and the row speaks every chart in visual order; widening re-flows them to one centred line.
+    # At 225% text the chips keep their size and the same balanced, centred lines.
+    Run("songs-chip-rows", "a11y-songs-chip-rows.json", sizes="compact"),
+    Run("songs-chip-rows-text-225", "a11y-songs-chip-rows.json", sizes="compact", mode="text-225"),
+    # Songs toolbar (issue #646): Search, Sort, Filter and Jump share one 40 epx height, each button is at least
+    # 40x40 epx, the search box fills the row so the tools end at the rows' right edge (one row at medium and wide;
+    # search above the buttons at compact), and search -> Sort -> Filter -> Jump -> rows reading order.
+    Run("songs-toolbar", "a11y-songs-toolbar.json", sizes="compact,medium,wide", tabs=0),
+    Run("songs-toolbar-text-225", "a11y-songs-toolbar.json", sizes="compact,medium", mode="text-225", tabs=0),
     # Song leaderboard footer and paging (issues #93, #443): pinned row and pager names, states and 40x40 targets,
     # header -> rows -> pinned row -> pager order, the fade layer kept out of the control view, the Tab/Shift+Tab order
     # at rest, mid-load and on page 2, and a keyboard page change that keeps the header, pinned row and pager in order
@@ -267,6 +299,11 @@ RUNS: tuple[Run, ...] = (
         only=SUGGESTIONS_LOAD_MORE),
     Run("suggestions-load-more-no-animations", "a11y-suggestions.json", sizes="medium", mode="no-animations", tabs=0,
         only=SUGGESTIONS_LOAD_MORE),
+    # Row centre line (issue #654): a one-line row's art and metadata (season pill, rival pill) sit on the row's vertical
+    # centre within 1 epx (assertmiddle), with or without the separator, at wide and at 225% text beside the title.
+    Run("suggestions-row-centre-wide", "a11y-suggestions.json", sizes="wide", tabs=0, only=SUGGESTIONS_ROW_CENTRE),
+    Run("suggestions-row-centre-text-225", "a11y-suggestions.json", sizes="medium,wide", mode="text-225", tabs=0,
+        only=SUGGESTIONS_ROW_CENTRE),
     Run("suggestions", "a11y-suggestions.json"),
     Run("suggestions-text-225", "a11y-suggestions.json", sizes="compact", mode="text-225"),
     # Back from View All or a rival to cached Leaderboards and Rivals (issues #82, #276, #435): the opener and its card
@@ -274,6 +311,11 @@ RUNS: tuple[Run, ...] = (
     # and Tab/Shift+Tab continue from it; by keys (Enter, Alt+Left) and pointer (the title-bar Back).
     Run("back-keeps-place", "a11y-back-keeps-place.json"),
     Run("back-keeps-place-text-225", "a11y-back-keeps-place.json", sizes="compact", mode="text-225"),
+    # On-demand split (issue #652, split-panes R7 Windows variant): a rival or a Song Detail board opens in the trailing
+    # half (Close named, 40 epx, read after the list), Back from the pane returns focus to the opener row, and 225% text
+    # pushes full width instead. Wide only: compact and medium never split.
+    Run("split-panes", "a11y-split-panes.json", sizes="wide", tabs=0),
+    Run("split-panes-text-225", "a11y-split-panes.json", sizes="wide", mode="text-225", tabs=0),
     # Quick Links landings on Settings and Leaderboards (issues #51, #416): entry name and current section, 40 epx
     # entry and items, keyboard order, the jump announcement, heading landing inset and focus. The wide pane page
     # (scale-100/150 modes) stays in the host matrix.
@@ -380,6 +422,12 @@ RUNS: tuple[Run, ...] = (
     Run("grouped-boards-text-225", "a11y-grouped-boards.json", sizes="compact", mode="text-225", tabs=0),
     Run("grouped-boards-reduced", "a11y-grouped-boards.json", sizes="medium", mode="app-reduced", tabs=0,
         only="grouped-song-board-one-card"),
+    # Feedback form (issues #64, #634): every state, plus the busy status (fields fade out; a centred named ring, phase
+    # title, upload bar or filing subtitle fade in; each title announced) with the app's Reduce Motion (no fades).
+    Run("feedback", "a11y-feedback.json", tabs=0),
+    Run("feedback-text-225", "a11y-feedback.json", sizes="compact", mode="text-225", tabs=0),
+    Run("feedback-reduced", "a11y-feedback.json", sizes="medium", mode="app-reduced", tabs=0,
+        only="feedback-sending,feedback-uploading-media,feedback-filing,feedback-error"),
     # Rivals lists as one card (issue #603, rival-rows R3, R6): Rivalry and All Rivals rows touch (0 epx), each stays one
     # named 40+ epx stop in visual order (iOS-design song rows read title, artist, instrument, ranks, who leads), Up/Down.
     Run("rivals-cards", "a11y-rivals-cards.json", tabs=0),
@@ -391,6 +439,10 @@ RUNS: tuple[Run, ...] = (
     # pinned combo rank) and Back restores focus; rows stay 40+ epx stops with Down between them.
     Run("combo-boards", "a11y-combo-boards.json", tabs=0),
     Run("combo-boards-text-225", "a11y-combo-boards.json", sizes="compact", mode="text-225", tabs=0),
+    # Stat tiles (issue #651, stat-tile-grid R6): a linked tile's value and label are centred on the whole card, not on
+    # the space left of its chevron, at every size and at 225% text; the tile stays a 40+ epx button in grid order.
+    Run("stat-tile-centre", "a11y-stat-tile-centre.json", tabs=0),
+    Run("stat-tile-centre-text-225", "a11y-stat-tile-centre.json", mode="text-225", tabs=0),
     # Long leaderboard names (issues #292, #455): on Full Rankings and the Leaderboards overview a name too wide for its
     # column scrolls on one line while one that fits stays still, the row reads the whole name once, stays a 40+ epx
     # stop in visual order with Up/Down between rows; at 150%, 200% and 225% text the name wraps and the row grows,
@@ -407,6 +459,11 @@ RUNS: tuple[Run, ...] = (
     # as in-card rows that touch (0 epx) in score order, ending on a 40+ epx View All Scores named for the chart.
     Run("score-history-card", "a11y-score-history-card.json", tabs=0),
     Run("score-history-card-text-225", "a11y-score-history-card.json", sizes="compact", mode="text-225", tabs=0),
+    # Preview cards (issue #643): each Leaderboards board (instrument, combo and Duos/Trios/Quads) and each Song Detail
+    # instrument and band preview is one card whose rows touch (0 epx) as in-card slices in rank order, ending on a
+    # 40+ epx View All inside the card; Tab returns to it from the rows.
+    Run("preview-cards", "a11y-preview-cards.json", tabs=0),
+    Run("preview-cards-text-225", "a11y-preview-cards.json", sizes="compact", mode="text-225", tabs=0),
     # Song Detail's Score History chart (issues #198, #512): Left/Right move focus between bar ToggleButtons and select
     # them, at 225% text the axis titles keep clear of the measured tick labels and date bands, under Desert the bars
     # paint the theme's Window/WindowText/Highlight (also after a live switch), and the syncing and failed states expose
@@ -429,6 +486,12 @@ RUNS: tuple[Run, ...] = (
     # -> row order, Narrator row names, 40 epx target); a cold frozen /songs shows "Scores are updating" + Retry Now.
     Run("band-freeze", "a11y-band-freeze.json", tabs=0),
     Run("band-freeze-text-225", "a11y-band-freeze.json", sizes="compact", mode="text-225", tabs=0),
+    # Loading placement (issues #431, #649, load-transition R1): each page's spinner is centred in its content region,
+    # named "Busy Loading …, ProgressRing", not focusable and read after the header tools; Leaderboards' Quick Links
+    # entry and pane stay out of UIA until the cards arrive, and stay available during an F5 reload. The text-225 run
+    # adds medium for the medium-only reload pages, so both Leaderboards pages run at both text sizes.
+    Run("loading-placement", "a11y-loading-placement.json", tabs=0),
+    Run("loading-placement-text-225", "a11y-loading-placement.json", mode="text-225", tabs=0),
     # Score History's instrument switch with motion off (issues #61, #423): the instant swap (new chart named within
     # 0.1 s, card and page held) by pointer and keys, under in-app Reduce Motion and Windows' Animation effects off,
     # the two paths that turn the fade off. Its other pages run as the generated a11y-history-swap-normal/-text-225.
@@ -436,7 +499,7 @@ RUNS: tuple[Run, ...] = (
     Run("a11y-history-swap-no-animations", "a11y-history-swap.json", mode="no-animations", only=HISTORY_SWAP_REDUCED),
     # Paths swap (issues #70, #430): mid-swap the old chart leaves UIA, "Busy Loading path, ProgressRing" sits between
     # the selectors and Close, the selectors stay enabled and show the new value, "Loading …" then "… loaded" are
-    # announced; Image <-> Text; keyboard switches (ComboBox, wide RadioButtons) keep focus on the selector; 40 epx zoom,
+    # announced; Image <-> Text; keyboard switches (compact and wide selector boxes, #650) keep focus on the selector; 40 epx zoom,
     # selectors and Close; mid-swap Axe scans; at 225% text, with in-app Reduce Motion and with Animation effects off.
     # paths-selectors-swap-* (#571) resize the window across the 900 epx selector swap with the dialog open: the dialog
     # follows the window, a focused circle's keyboard tooltip and a hovered circle's pointer tooltip close with the
@@ -450,6 +513,16 @@ RUNS: tuple[Run, ...] = (
     Run("paths-swap", "a11y-paths-swap.json", sizes="compact,medium,wide"),
     Run("paths-swap-text-225", "a11y-paths-swap.json", sizes="compact,wide", mode="text-225"),
     Run("paths-swap-no-animations", "a11y-paths-swap.json", sizes="compact", mode="no-animations"),
+    # Paths selector surfaces (issue #650, surface-materials R4): the wide Difficulty and Display boxes read as named
+    # combo boxes with their value, 40 epx, in instrument -> Difficulty -> Display -> zoom -> Close order, on the
+    # translucent card surface (default and 225% text); with Windows' Transparency effects off every box (wide, and the
+    # compact Instrument/Difficulty/Display row) is one opaque fill with a visible stroke; under Desert the boxes paint
+    # system colours. Each page picks its own mode and size.
+    Run("paths-selectors", "a11y-paths-selectors.json", sizes="wide", tabs=0),
+    Run("paths-selectors-text-225", "a11y-paths-selectors.json", sizes="wide", mode="text-225", tabs=0),
+    Run("paths-selectors-no-transparency", "a11y-paths-selectors.json", sizes="compact,wide", mode="no-transparency",
+        tabs=0),
+    Run("paths-selectors-contrast", "a11y-paths-selectors.json", sizes="wide", mode="hc-desert", tabs=0),
     # Paths chart (issues #87, #279, #438): "Path chart, pane" holds "<instrument> <difficulty> CHOpt path, image" in
     # zoom -> chart -> image -> Close order, centred in its scroller with no scroll bar at rest, zoomed (keyboard Enter on
     # Zoom in, then End/Home on the focused chart) and back at 100% with Zoom out unavailable and focus moved on to Zoom

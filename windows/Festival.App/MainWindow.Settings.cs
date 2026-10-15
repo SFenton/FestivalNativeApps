@@ -26,6 +26,12 @@ public sealed partial class MainWindow
     /// <summary>Notifications bell model.</summary>
     public NotificationsViewModel? Notifications { get; private set; }
 
+    /// <summary>
+    /// Window width below which the navigation pane collapses to the hamburger menu (<c>Nav</c>'s Minimal mode); the
+    /// Notifications modal becomes a bottom sheet there (issue #638).
+    /// </summary>
+    public double NavigationMinimalBelow => Nav.CompactModeThresholdWidth;
+
     /// <summary>Creates first-run and notification services and the bell (called once from the constructor).</summary>
     private void InitializeSettingsFeatures()
     {
@@ -122,7 +128,8 @@ public sealed partial class MainWindow
     {
         if (!frames.TryGetValue(current, out var frame) || frame.Content is PlaceholderPage || !windowVisible || minimized) return;
         TrackRoutes(frame);
-        var route = routeStacks[frame].Peek();
+        // An open split pane is the page the reader just opened, so its guide shows (Score History beside Song Detail).
+        var route = splits.GetValueOrDefault(current)?.PaneRoute ?? routeStacks[frame].Peek();
         firstRunEvaluated = true;
         if (FirstRunPages.For(current, route) is not { } page) return;
         if (FirstRun.TryBegin(page, session.Settings) is { } carousel) _ = ShowCarouselAsync(carousel);
@@ -172,6 +179,7 @@ public sealed partial class MainWindow
         if (e.PropertyName != nameof(FestivalSession.Settings)) return;
         ApplyContrast();
         ApplyTransparency();
+        foreach (var split in splits.Values) split.Refresh();
         QueueFirstRun();
     }
 

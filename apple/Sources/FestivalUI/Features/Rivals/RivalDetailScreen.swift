@@ -39,9 +39,9 @@ struct RivalDetailScreen: View {
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    /// Set where page tools float above the iPhone tab bar (issues #92, #632).
     @Environment(\.pageToolsRegistry) private var pageTools
-    /// Pushes on the current tab: the accessory is outside the navigation stack, so a
+    /// Pushes on the current tab: the floating tools are outside the navigation stack, so a
     /// `NavigationLink` there could not push.
     @Environment(\.pushRoute) private var pushRoute
     private var visible = VisibleInstrumentsReader()
@@ -134,10 +134,8 @@ struct RivalDetailScreen: View {
             }
             QuickLinksToolbarItem(quickLinks)
         }
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-        // iPhone tab-bar accessory (issue #92): View Profile before Quick Links.
+        .festivalTitleDisplayMode(.inline)
+        // iPhone floating page tools (issues #92, #632): View Profile before Quick Links.
         .festivalPageTool(token: displayName ?? "", order: PageToolOrder.primary) {
             Button {
                 pushRoute?(.player(accountId: rivalId, displayName: displayName))
@@ -146,6 +144,10 @@ struct RivalDetailScreen: View {
             }
             .accessibilityIdentifier("fst.rival-detail.view-profile")
         }
+        // Mac and iPad menu bar: Profile › View Rival's Profile (issue #633).
+        .macProfilePageCommands(MacProfilePageCommands(viewRivalProfile: {
+            pushRoute?(.player(accountId: rivalId, displayName: displayName))
+        }))
         .task(id: RivalDetailTaskKey(rivalId: rivalId, scope: scope)) { await load() }
         .task { await loadSongLookup() }
     }

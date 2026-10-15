@@ -97,7 +97,7 @@ A new score publication never pops a stack or shows a "returned to Songs" notice
 
 ## Loading indicators (operator rule)
 
-Every spinner is `Common/FestivalLoadingView` (white, **no visible title/subtitle**; spoken label only). Never `ProgressView("…")` with text. Determinate progress bars (e.g. Paths image download) are exempt.
+Every spinner is `Common/FestivalLoadingView`: the web `ArcSpinner` drawn by `FestivalArcProgressStyle` (white arc on a 10% white track; `.fill` LG 48 pt, inline `controlSize` small/regular/large → 24/36/48 pt), **no visible title/subtitle**, spoken label only ([empty-error-states](../../patterns/empty-error-states.md) R6, #635). A form status row passes `status:` to show its text beside the small arc. Never a raw indeterminate `ProgressView` (`pattern_guard` `empty-error-states/apple-one-spinner`). Determinate progress bars (e.g. Paths image download, feedback upload) are exempt.
 
 ## Performance
 

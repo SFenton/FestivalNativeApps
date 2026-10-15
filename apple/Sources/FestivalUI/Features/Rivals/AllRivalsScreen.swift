@@ -145,9 +145,7 @@ struct AllRivalsScreen: View {
             }
             #endif
         }
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
+        .festivalTitleDisplayMode(.inline)
         .task(id: scope) { await load() }
     }
 

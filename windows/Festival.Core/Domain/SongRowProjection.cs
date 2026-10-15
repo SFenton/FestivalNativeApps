@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace Festival.Core.Domain;
 
@@ -141,7 +142,7 @@ public sealed record SongMetadataField(MetadataField Kind, string Text, string A
 {
     /// <summary>Accuracy tint (non-FC accuracy only; the view applies 25% opacity).</summary>
     public (byte R, byte G, byte B)? Tint { get; init; }
-    /// <summary>Accuracy pill is a full combo (gold outline and visible FC).</summary>
+    /// <summary>Accuracy pill is a full combo (the skewed gold outline; <c>FC</c> as the text without an accuracy).</summary>
     public bool FullCombo { get; init; }
     /// <summary>Percentile tier.</summary>
     public SongPercentileTier Percentile { get; init; } = SongPercentileTier.Ordinary;
@@ -153,6 +154,11 @@ public sealed record SongMetadataField(MetadataField Kind, string Text, string A
     public double? IntensityRaw { get; init; }
     /// <summary>Game difficulty 0–3.</summary>
     public int GameDifficulty { get; init; } = -1;
+    /// <summary>
+    /// Chart of an unfiltered Last Played entry (the most recent play across Settings-visible charts), drawn as its icon
+    /// before the date; <see langword="null"/> for every other field.
+    /// </summary>
+    public Instrument? PlayedChart { get; init; }
 }
 
 /// <summary>Builds the icons-off / single-chart selected-player metadata row.</summary>
@@ -170,14 +176,21 @@ public static class SongMetadataPolicy
 
     private static readonly int[] PercentileBuckets = [1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 100];
 
-    /// <summary>Visible fields for a positive score, in the effective order (Last Played always last).</summary>
+    /// <summary>
+    /// Visible fields for a positive score, in the effective order. Last Played is not a Title-sort field: like web
+    /// <c>SongsPage.visibleMetadataOrder</c> it is injected only under the Last Played sort, and then leads the row as the
+    /// sort's primary value (web <c>SongRow.displayOrder</c>), whatever its Settings toggle says.
+    /// </summary>
     /// <param name="detail">Validated score for the chart.</param>
     /// <param name="chart">First visible or filtered chart.</param>
     /// <param name="song">Catalogue row (for Intensity).</param>
     /// <param name="currentSeason">Catalogue season.</param>
     /// <param name="settings">Visibility and order settings.</param>
+    /// <param name="lastPlayedSort">The list is sorted by Last Played with this chart filtered (the unfiltered sort's
+    /// across-chart entry comes from <see cref="LastPlayedField"/> instead).</param>
     /// <returns>Fields; empty for a zero score.</returns>
-    public static List<SongMetadataField> Fields(SongScoreDetail detail, Instrument chart, Song song, int? currentSeason, AppSettings settings)
+    public static List<SongMetadataField> Fields(SongScoreDetail detail, Instrument chart, Song song, int? currentSeason, AppSettings settings,
+        bool lastPlayedSort = false)
     {
         if (detail.Score <= 0) return [];
         var byKind = new Dictionary<MetadataField, SongMetadataField>();
@@ -191,7 +204,7 @@ public static class SongMetadataPolicy
             {
                 var text = ScoreFormatting.Accuracy(value);
                 byKind[MetadataField.Percentage] = fc
-                    ? new(MetadataField.Percentage, $"{text} FC", $"Full combo, accuracy {text}") { FullCombo = true }
+                    ? new(MetadataField.Percentage, text, $"Full combo, accuracy {text}") { FullCombo = true }
                     : new(MetadataField.Percentage, text, $"Accuracy {text}") { Tint = ScoreFormatting.AccuracyTint(value) };
             }
             else if (fc)
@@ -228,17 +241,79 @@ public static class SongMetadataPolicy
             byKind[MetadataField.Difficulty] = new(MetadataField.Difficulty, DifficultyLetters[index], $"{DifficultyNames[index]} difficulty")
             { GameDifficulty = index };
         }
-        if (settings.MetadataLastPlayed && detail.LastPlayedAt is { } rawDate)
-        {
-            var text = DateTimeOffset.TryParse(rawDate, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var date)
-                ? "Last played " + date.ToLocalTime().ToString("d MMM yyyy", CultureInfo.CurrentCulture)
-                : "Last played date unavailable";
-            byKind[MetadataField.LastPlayed] = new(MetadataField.LastPlayed, text, text);
-        }
+        if (lastPlayedSort && detail.LastPlayedAt is { Length: > 0 } rawDate)
+            byKind[MetadataField.LastPlayed] = LastPlayedField(rawDate);
 
-        var order = settings.EnableVisualOrder ? SettingsOrder.Normalize(settings.SongRowVisualOrder) : DefaultOrder;
-        return [.. order.Where(k => k != MetadataField.LastPlayed).Append(MetadataField.LastPlayed)
-            .Where(byKind.ContainsKey).Select(k => byKind[k])];
+        var order = (settings.EnableVisualOrder ? SettingsOrder.Normalize(settings.SongRowVisualOrder) : DefaultOrder)
+            .Where(k => k != MetadataField.LastPlayed);
+        if (lastPlayedSort) order = order.Prepend(MetadataField.LastPlayed);
+        return [.. order.Where(byKind.ContainsKey).Select(k => byKind[k])];
+    }
+
+    /// <summary>
+    /// The Last Played entry (web <c>SongRow</c> <c>lastplayed</c> cell): the date alone, spoken with its "Last played"
+    /// prefix. With <paramref name="chart"/> it is the unfiltered sort's most recent play across charts, drawn after that
+    /// chart's icon and spoken with its name.
+    /// </summary>
+    /// <param name="raw">ISO-8601 timestamp (valid variant preferred).</param>
+    /// <param name="chart">Played chart for the unfiltered entry, or <see langword="null"/> for a filtered chart.</param>
+    /// <param name="culture">Formatting culture (the current culture by default).</param>
+    /// <returns>Field.</returns>
+    public static SongMetadataField LastPlayedField(string raw, Instrument? chart = null, CultureInfo? culture = null)
+    {
+        var date = LastPlayedDate(raw, culture);
+        var spoken = chart is { } c ? $"Last played {date} on {c.Label()}" : $"Last played {date}";
+        return new(MetadataField.LastPlayed, date, spoken) { PlayedChart = chart };
+    }
+
+    /// <summary>
+    /// A last-played timestamp as the web shows it (<c>toLocaleDateString(undefined, { month: 'short', day: 'numeric',
+    /// year: 'numeric' })</c>: "Sep 28, 2026" in en-US, "28 Sept 2026" in en-GB), in local time. An unparseable value is
+    /// shown as sent, like the web.
+    /// </summary>
+    /// <param name="raw">ISO-8601 timestamp.</param>
+    /// <param name="culture">Formatting culture (the current culture by default).</param>
+    /// <returns>Date text.</returns>
+    public static string LastPlayedDate(string raw, CultureInfo? culture = null)
+    {
+        culture ??= CultureInfo.CurrentCulture;
+        return DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var date)
+            ? date.ToLocalTime().ToString(MediumDatePattern(culture), culture)
+            : raw;
+    }
+
+    /// <summary>
+    /// The culture's month-abbreviated date without weekday (the <c>Intl</c> "medium" date the web asks for), derived from
+    /// its long date pattern: weekday dropped, full month name abbreviated, two-digit day unpadded.
+    /// </summary>
+    /// <param name="culture">Culture.</param>
+    /// <returns>Custom format string, e.g. <c>MMM d, yyyy</c> for en-US.</returns>
+    public static string MediumDatePattern(CultureInfo culture)
+    {
+        var pattern = culture.DateTimeFormat.LongDatePattern;
+        pattern = Regex.Replace(pattern, "d{3,}[,\\s]*", "");
+        pattern = Regex.Replace(pattern, "M{4,}", "MMM");
+        pattern = Regex.Replace(pattern, "(?<!d)dd(?!d)", "d");
+        pattern = pattern.Trim(' ', ',');
+        return pattern.Length > 0 ? pattern : "MMM d, yyyy";
+    }
+
+    /// <summary>
+    /// The most recent play across <paramref name="charts"/> (web <c>SongRow</c> unfiltered Last Played; the same value
+    /// the unfiltered Last Played sort orders by): the greatest timestamp, the first chart in service order on a tie.
+    /// </summary>
+    /// <param name="charts">Settings-visible charts in service order.</param>
+    /// <param name="detail">The song's score for a chart, if any.</param>
+    /// <returns>Chart and timestamp, or <see langword="null"/> when no chart has a play.</returns>
+    public static (Instrument Chart, string At)? LatestPlay(IEnumerable<Instrument> charts, Func<Instrument, SongScoreDetail?> detail)
+    {
+        (Instrument Chart, string At)? best = null;
+        foreach (var chart in charts)
+        {
+            if (detail(chart)?.LastPlayedAt is not { Length: > 0 } at) continue;
+            if (best is null || string.CompareOrdinal(at, best.Value.At) > 0) best = (chart, at);
+        }
+        return best;
     }
 
     /// <summary>Songs percentile bucket from rank/total.</summary>

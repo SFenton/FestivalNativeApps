@@ -238,6 +238,11 @@ public struct FestivalRootView: View {
                         .accessibilityIdentifier("fst.nav.debug-layout")
                 }
                 #endif
+                #if DEBUG && os(iOS)
+                if DebugMenuBarMirror.isEnabled {
+                    DebugMenuBarMirror()
+                }
+                #endif
                 if drawerMounted && usesDrawer {
                     FestivalDrawer(
                         session: session, visibleSections: sections(for: presentation),
@@ -477,9 +482,9 @@ public struct FestivalRootView: View {
     /// the vertical bar; nothing here is Duo-specific.
     ///
     /// Global search is a separate trailing Search tab (issue #92; HIG Tab bars: "A
-    /// dedicated Search tab may be trailing"). On iOS 26.1+ the horizontal tab bar carries
-    /// the page-tools accessory (the front page's actions and Quick Links, then
-    /// Notifications and Profile; `festivalPageToolsAccessory`), hidden while Search is
+    /// dedicated Search tab may be trailing"). With a compact horizontal tab bar the front
+    /// page's actions and Quick Links float above it as individual Liquid Glass buttons
+    /// (`festivalFloatingPageTools`, issue #632), hidden while Search or a root sheet is
     /// open; elsewhere the page tools sit in each page's navigation bar.
     ///
     /// - Parameter visibleSections: Sections to show as tabs.
@@ -504,7 +509,7 @@ public struct FestivalRootView: View {
                 #endif
             }
             .modifier(RootTabBarBehavior())
-            .festivalPageToolsAccessory(isEnabled: !searchActive)
+            .festivalFloatingPageTools(covered: floatingPageToolsCovered)
         } else {
             TabView(selection: rootTabSelection) {
                 ForEach(visibleSections) { section in
@@ -519,7 +524,15 @@ public struct FestivalRootView: View {
                     .tag(RootTab.search)
                 #endif
             }
+            .festivalFloatingPageTools(covered: floatingPageToolsCovered)
         }
+    }
+
+    /// The iPhone floating page tools hide while Search is open or a root sheet covers
+    /// the page (issue #632; web hides its floating buttons while Notifications is open).
+    private var floatingPageToolsCovered: Bool {
+        searchActive || rootProfilePresented || globalSearchPresented || notificationsPresented
+            || whatsNewPresented
     }
 
     /// Global search for the Search tab or the iPad flyout's Search row.
@@ -1001,7 +1014,11 @@ private struct TabContentIdentifier: ViewModifier {
 
     func body(content: Content) -> some View {
         if isEnabled {
-            content.accessibilityIdentifier(id)
+            // A container first, so the identifier names the tab's content instead of
+            // replacing its first child container's (the floating `fst.page-tools` row).
+            content
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier(id)
         } else {
             content
         }

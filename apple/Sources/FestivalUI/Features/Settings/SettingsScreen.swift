@@ -1083,7 +1083,7 @@ private struct SettingsPageTitle: ViewModifier {
         if isRoute {
             content.festivalNavigationTitle(title)
         } else {
-            content.navigationTitle(title)
+            content.navigationTitle(title).festivalTitleDisplayMode(.automatic)
         }
     }
 }

@@ -138,6 +138,7 @@ struct ArtworkTile: View {
                 Image(systemName: "music.note")
             } else {
                 FestivalLoadingView(accessibilityLabel: "Loading album artwork")
+                    .controlSize(.small)
             }
         }
         .frame(width: size, height: size)

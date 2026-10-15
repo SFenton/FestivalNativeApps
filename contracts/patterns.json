@@ -151,6 +151,10 @@
             "symbol": "AutoScrollEdgeFade"
           },
           {
+            "path": "windows/Festival.App/Controls/TopEdgeFade.cs",
+            "symbol": "OverlayHeaderFade"
+          },
+          {
             "path": "windows/Festival.Core/Domain/FirstRunDemoContent.cs",
             "symbol": "FirstRunAutoScroll"
           }
@@ -319,7 +323,7 @@
       "title": "Section-jump landing",
       "status": "current",
       "doc": ".agents/patterns/section-jump-landing.md",
-      "summary": "Quick Links and Songs section-index jumps land ordinary targets' titles (not their headers' padding) 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear and never leave a large title resting part-way collapsed; a section index fits the height it is given, condensing its labels rather than growing the page, and its labels follow the text size within that fit; the index is one adjustable control assistive technologies can name and step.",
+      "summary": "Quick Links and Songs section-index jumps land ordinary targets' titles (not their headers' padding) 32 units below chrome, keep the target current through arrival, and land pinned Songs titles at their pin line with the first row clear and never leave a large title resting part-way collapsed; a section index fits the height it is given, condensing its labels rather than growing the page, opens in its final layout without the region around it resizing, and its labels follow the text size within that fit; the index is one adjustable control assistive technologies can name and step.",
       "keywords": [
         "quick links",
         "section jump",
@@ -459,7 +463,7 @@
       "title": "Section headers",
       "status": "current",
       "doc": ".agents/patterns/section-headers.md",
-      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque, take over at the pin line without a jump and push one-for-one without overlap, the list end lets the last push finish, and Songs titles its sections in every sort, A–Z included.",
+      "summary": "Section titles are white Title Case level-two headings above material cards; pinned Songs titles remain opaque, take over at the pin line without a jump and push one-for-one without overlap, the list end lets the last push finish, Songs titles its sections in every sort, A–Z included, and side-by-side card headers share their row's height so titles and cards start on one line.",
       "keywords": [
         "section header",
         "section title",
@@ -470,7 +474,9 @@
         "see all",
         "view all link",
         "fold",
-        "hinge"
+        "hinge",
+        "card row alignment",
+        "uneven cards"
       ],
       "web": [
         {
@@ -547,6 +553,10 @@
           {
             "path": "windows/Festival.App/Controls/CardHeader.cs",
             "symbol": "CardHeader"
+          },
+          {
+            "path": "windows/Festival.App/Controls/LeaderboardsCardGridLayout.cs",
+            "symbol": "LeaderboardsCardGridLayout"
           },
           {
             "path": "windows/Festival.App/Pages/SongsPage.xaml",
@@ -656,7 +666,8 @@
         557,
         560,
         600,
-        631
+        631,
+        657
       ]
     },
     {
@@ -679,7 +690,10 @@
         "uncarded section",
         "reset row",
         "reading pane card",
-        "privacy policy pane"
+        "privacy policy pane",
+        "flyout surface",
+        "menu background",
+        "dropdown background"
       ],
       "web": [
         {
@@ -760,6 +774,10 @@
           {
             "path": "windows/Festival.Core/Domain/GroupedRowSlice.cs",
             "symbol": "GroupedRowSlice"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTFlyoutSurfaceBrush"
           }
         ]
       },
@@ -782,10 +800,11 @@
             "apple/Sources/FestivalUI/Design/GlassSurface.swift",
             "apple/Sources/FestivalUI/Design/RowCardSurface.swift",
             "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
-            "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift"
+            "apple/Sources/FestivalUI/Features/Search/GlobalSearchView.swift",
+            "apple/Sources/FestivalUI/App/Shell/FloatingPageTools.swift"
           ],
           "debt": [],
-          "message": "Shipping Liquid Glass is only the drawer and the owner-approved iPhone Duo bottom search field (#358); other controls use festivalCardCapsule (surface-materials R1/R2)."
+          "message": "Shipping Liquid Glass is only the drawer, the owner-approved iPhone Duo bottom search field (#358) and iPhone floating page tools (#632); other controls use festivalCardCapsule (surface-materials R1/R2)."
         },
         {
           "id": "apple-raw-material-background",
@@ -858,7 +877,9 @@
         381,
         461,
         588,
-        596
+        596,
+        632,
+        643
       ]
     },
     {
@@ -866,13 +887,16 @@
       "title": "Page tools and navigation chrome",
       "status": "current",
       "doc": ".agents/patterns/page-tools-and-nav-chrome.md",
-      "summary": "Native shell navigation owns destinations; page tools use the approved Apple tab accessory, Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android, Windows and Apple Rival pages name the rival and the section in the bar (Windows: the page header; Apple: R18's in-list InstrumentPageTitle with a subtitle line, pinned title over subtitle once it scrolls away): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too. Apple system bar items (the iPhone Duo rail's board switchers, Choose Profile) keep their system metrics, and tests prove their 44 pt target by hit region, not by element frame (R27, agent decision #625).",
+      "summary": "Native shell navigation owns destinations; page tools use Apple's registry-drawn floating Liquid Glass buttons above every horizontal tab bar (iPhone, iPhone Duo inner portrait, compact iPad) with Notifications beside Profile in one header pill and leading titles (owner-approved, R28, #632; extended by agent decision #633: rail items on the Duo vertical bar, trailing bar items in the regular iPad sidebar shell, the Mac window toolbar with every toolbar item also a menu-bar command), Android floating toolbar at every window size (owner-approved, #576) or Windows title/page-header placement rather than a parallel command surface; every Apple page keeps its standard navigation title in every iPhone Duo pose, except song pages, which show their pinned song title only after the header scrolls away (owner-approved, #363); Android, Windows and Apple Rival pages name the rival and the section in the bar (Windows: the page header; Apple: R18's in-list InstrumentPageTitle with a subtitle line, pinned title over subtitle once it scrolls away): Rival Detail is the rival's name over \"Rivals\" or a single chart's \"{icon} {Instrument} Rivals\", Rivalry is the section over the rival's name (R23, #604); on the Android player page and Statistics only, Select/Switch/Deselect Profile is its own pill beside the floating toolbar in the same row (owner-approved, R24, #590); the drawer keeps its Deselect too. Apple system bar items (the iPhone Duo rail's board switchers, Choose Profile) keep their system metrics, and tests prove their 44 pt target by hit region, not by element frame (R27, agent decision #625). Windows page tools stay put while content scrolls: each page's header (title, Quick Links, Rank By, Select/Switch/Deselect Profile) sits above its ScrollViewer with content clipped under it, and Song Details' pinned bar carries Paths, Item Shop and Quick Links at one 40 epx height (R29, agent decision #639).",
       "keywords": [
         "navigation",
         "page tools",
         "toolbar",
         "tab accessory",
         "floating toolbar",
+        "floating buttons",
+        "account pill",
+        "leading title",
         "global search",
         "quick links",
         "profile",
@@ -887,7 +911,9 @@
         "rival detail",
         "rivalry",
         "rival name",
-        "select profile"
+        "select profile",
+        "pinned page header",
+        "stays visible on scroll"
       ],
       "web": [
         {
@@ -905,13 +931,25 @@
         {
           "path": "components/shell/desktop/Sidebar.tsx",
           "symbol": "Sidebar"
+        },
+        {
+          "path": "components/shell/fab/MobileFloatingActionButton.tsx",
+          "symbol": "MobileFloatingActionButton"
+        },
+        {
+          "path": "components/shell/mobile/MobileHeader.tsx",
+          "symbol": "MobileHeader"
         }
       ],
       "canonical": {
         "apple": [
           {
-            "path": "apple/Sources/FestivalUI/App/Shell/PageToolsAccessory.swift",
+            "path": "apple/Sources/FestivalUI/App/Shell/FloatingPageTools.swift",
             "symbol": "PageToolsRegistry"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Shell/FloatingPageTools.swift",
+            "symbol": "FloatingPageToolsBar"
           },
           {
             "path": "apple/Sources/FestivalUI/App/Shell/RootChrome.swift",
@@ -934,6 +972,10 @@
             "symbol": "festivalNavigationTitle"
           },
           {
+            "path": "apple/Sources/FestivalUI/Common/PageTitle.swift",
+            "symbol": "FestivalTitlePlacement"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongsBottomFilterField.swift",
             "symbol": "SongsFilterFieldPlacement"
           },
@@ -952,6 +994,22 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift",
             "symbol": "GlobalSearchFieldPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Mac/MacCommands.swift",
+            "symbol": "MacCommands"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift",
+            "symbol": "PageToolViewMenuItems"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift",
+            "symbol": "PageToolProfileMenuItems"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift",
+            "symbol": "PageToolMenuBarMirror"
           },
           {
             "path": "apple/Sources/FestivalUI/App/Shell/FestivalDrawer.swift",
@@ -1063,6 +1121,10 @@
           },
           {
             "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTToolbarSearchBoxStyle"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
             "symbol": "FSTMenuItemMinHeight"
           },
           {
@@ -1088,6 +1150,22 @@
           {
             "path": "windows/Festival.Core/ViewModels/RivalDetailViewModels.cs",
             "symbol": "RivalDetailText"
+          },
+          {
+            "path": "windows/Festival.App/Pages/RivalsPage.xaml",
+            "symbol": "Header"
+          },
+          {
+            "path": "windows/Festival.App/Pages/SongDetailPage.xaml",
+            "symbol": "PinnedTools"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTShopButtonStyle"
+          },
+          {
+            "path": "windows/Festival.App/Controls/QuickLinksHost.cs",
+            "symbol": "AddMenu"
           }
         ]
       },
@@ -1096,10 +1174,25 @@
           "id": "apple-tab-accessory",
           "glob": "apple/Sources/**/*.swift",
           "regex": "tabViewBottomAccessory",
+          "allow": [],
+          "message": "Page tools float as individual glass buttons drawn by FloatingPageToolsBar wherever there is a horizontal tab bar, never a tab-bar accessory (owner-approved, page-tools-and-nav-chrome R28, #632, #633)."
+        },
+        {
+          "id": "apple-menu-bar-page-tools",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "Button\\(\"(Sort|Filter|Find Rival)…\"\\)|Toggle\\(\"as (List|Grid)\"|Menu\\(\"(Rank By|Instrument|Band Size)\"\\)|\"View Rival's Profile\"",
+          "allow": ["apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift"],
+          "message": "The macOS and iPadOS menu bars lay out page tools only through the shared PageToolViewMenuItems / PageToolProfileMenuItems, so both menu bars and their tested mirror stay one implementation (page-tools-and-nav-chrome R28, #633)."
+        },
+        {
+          "id": "apple-title-display-mode",
+          "glob": "apple/Sources/FestivalUI/Features/**/*.swift",
+          "regex": "\\.navigationBarTitleDisplayMode\\(|\\.toolbarTitleDisplayMode\\(",
           "allow": [
-            "apple/Sources/FestivalUI/App/Shell/PageToolsAccessory.swift"
+            "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackFormSheet.swift",
+            "apple/Sources/FestivalUI/Features/Search/GlobalSearchTab.swift"
           ],
-          "message": "Only the shared page-tools shell may attach a tab-bar accessory (page-tools-and-nav-chrome R2)."
+          "message": "Pages set their title mode with festivalTitleDisplayMode(_:), so iPhone titles stay leading beside the drawer or Back (owner-approved, page-tools-and-nav-chrome R28, #632)."
         },
         {
           "id": "android-floating-toolbar",
@@ -1216,7 +1309,10 @@
         578,
         604,
         611,
-        625
+        625,
+        632,
+        639,
+        646
       ]
     },
     {
@@ -1224,7 +1320,7 @@
       "title": "Modal shell",
       "status": "current",
       "doc": ".agents/patterns/modal-shell.md",
-      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586), and no sheet or dialog draws a line under the shared header (owner, #607); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612).",
+      "summary": "All sheets, dialogs and alerts use the shared native shell for title, standard dismissal, Close behavior and presentation serialization; only the feedback form retains Cancel/Submit, and a filed form closes by itself before its single-Done result alert opens over Settings (#565); on Apple the feedback form takes dropped media and, on wide iPad/Duo, picks photos in a pane beside it; Paths on the unfolded or book-folded iPhone Duo, iPad and Mac opens over the whole window (full-screen cover; window-sized Mac sheet) through festivalModalPresentation, latched while open, with pull-down dismissal on iOS (owner-approved, #368); where the Apple Paths selector row is narrow (sheet window <= 768 pt, folded Duo) the Instrument and View menus show only their icon and Difficulty fills the row, like the web mobile PathsModal (owner-approved, #612); on Windows a body that can outgrow the window owns its ScrollViewer under a fixed title and command row, because ContentDialog's template scroller never scrolls vertically (agent decision, #420); on Android every sheet opens fully expanded with no half-height stop (agent decision, #586), and no sheet or dialog draws a line under the shared header (owner, #607); the Windows Paths compact selectors likewise show only the instrument and Image/Text icons when icon + name do not fit on one line (ComboBoxFaceTemplateSelector; owner-approved, #612), and its Difficulty and Display pickers are frosted selector boxes at every width, ComboBoxes with FSTSelectorComboBoxStyle in place of the wide plain RadioButtons (agent decision, #650); while the feedback form sends and files, its fields fade out to a centred white spinner with a title and subtitle (Uploading Media over a determinate bar, then Filing Issue/Request), the spinner staying across the cross-fade (owner-approved, #634; Apple, Android, Windows; without media it reads as filing from Submit); on Windows the Notifications bell opens the shared dialog docked to the window edge: a full-height trailing panel below the title bar like the web desktop drawer, or a full-width bottom sheet once navigation collapses to the hamburger menu (DialogChrome.WindowEdge, ModalEdgeLayout; owner-approved, #638, Windows Notifications only).",
       "keywords": [
         "modal",
         "sheet",
@@ -1240,7 +1336,11 @@
         "drag and drop",
         "photo picker",
         "half height",
-        "partially expanded"
+        "partially expanded",
+        "sending status",
+        "upload progress",
+        "side panel",
+        "drawer"
       ],
       "web": [
         {
@@ -1293,6 +1393,18 @@
           {
             "path": "apple/Sources/FestivalUI/Design/SheetStyle.swift",
             "symbol": "festivalFormIdentifier"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackSendingStatus.swift",
+            "symbol": "FeedbackSendingStatusView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackSendingStatus.swift",
+            "symbol": "FeedbackSendingChoreography"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackSendingStatus.swift",
+            "symbol": "FeedbackSendingStage"
           }
         ],
         "android": [
@@ -1327,6 +1439,14 @@
           {
             "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/FestivalModal.kt",
             "symbol": "FestivalModalBody"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/FeedbackDialog.kt",
+            "symbol": "FeedbackBusySwap"
+          },
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/settings/FeedbackDialog.kt",
+            "symbol": "FeedbackBusyView"
           }
         ],
         "windows": [
@@ -1337,6 +1457,22 @@
           {
             "path": "windows/Festival.App/Controls/DialogChrome.cs",
             "symbol": "CommandTargets"
+          },
+          {
+            "path": "windows/Festival.App/Controls/FeedbackDialog.cs",
+            "symbol": "SwapStage"
+          },
+          {
+            "path": "windows/Festival.App/Controls/FeedbackDialog.cs",
+            "symbol": "SwapStatus"
+          },
+          {
+            "path": "windows/Festival.App/Controls/DialogChrome.cs",
+            "symbol": "WindowEdge"
+          },
+          {
+            "path": "windows/Festival.Core/ViewModels/ModalEdgeLayout.cs",
+            "symbol": "ModalEdgeLayout"
           }
         ]
       },
@@ -1410,6 +1546,15 @@
           "regex": "\"ContentScrollViewer\"",
           "allow": [],
           "message": "ContentDialog's template scroller never scrolls vertically; give a tall body its own ScrollViewer instead of reaching into the template (modal-shell R5, #420)."
+        },
+        {
+          "id": "windows-edge-dialog",
+          "glob": "windows/Festival.App/**/*.cs",
+          "regex": "\\bDialogChrome\\.WindowEdge\\s*\\(",
+          "allow": [
+            "windows/Festival.App/Controls/NotificationsBell.xaml.cs"
+          ],
+          "message": "Only Notifications docks its dialog to the window edge (modal-shell R17, owner-approved #638); every other modal keeps the centred shell."
         }
       ],
       "related": {
@@ -1447,7 +1592,9 @@
         368,
         400,
         420,
-        607
+        607,
+        634,
+        638
       ]
     },
     {
@@ -1455,7 +1602,7 @@
       "title": "Leaderboard row",
       "status": "current",
       "doc": ".agents/patterns/leaderboard-row.md",
-      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, whose own row inside a board or preview speaks its rank as \"Your rank, <ordinal>\" (bands \"Your band, …\") so the highlight is never the only cue (#457), a pinned row that follows the rows instead when at accessibility text sizes it would cover more than a third of the board (#386), with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score, keyboard or screen-reader focus that scrolls a row clear of the floating pinned row and pager (WCAG 2.4.11, #409), and the owner-approved #543 variant that native song boards, Full Rankings, Band Rankings and Song Detail band previews draw a page's rows in one card with separators (the web keeps a card per row), and rank-history rows (Leaderboards, Profile, Band) that draw rank and value in fixed right-aligned tabular columns measured once over every chart day, so the bold newest row and the tapped bar's detail line up, the date moves above the columns at large text and, when even the columns don't fit side by side, each keeps its measured width right-aligned on its own line, in rows at least 48 units tall (#594).",
+      "summary": "Leaderboard sections share one fitted column plan, a 48-unit minimum row (percentile rows included) whose loading skeleton matches loaded rows at every text size, contained marquee names with motion-safe fallback, aligned pinned rows and one in-content pager per platform (never toolbar or rail items, on the Duo screen beside the vertical bar when unfolded, #345, #361), the selected row pinned above the pager on every page of full boards, one selected-row rule (jump off-page, open the profile on-page) for players and bands, whose own row inside a board or preview speaks its rank as \"Your rank, <ordinal>\" (bands \"Your band, …\") so the highlight is never the only cue (#457), a pinned row that follows the rows instead when at accessibility text sizes it would cover more than a third of the board (#386), with the owner-approved #370 variant that a Compete preview's separate rank row jumps to the full board at the player's position (Apple and Android Compete cards; Windows overview instrument cards, as they draw Compete), the owner-approved #364 variant that a song board in a split's trailing pane turns every row and its pinned row into a multi-row card (full name above rank and score, chevron centred) when any name would marquee, and one measured section-wide score-footer stack plan that never truncates the score, keyboard or screen-reader focus that scrolls a row clear of the floating pinned row and pager (WCAG 2.4.11, #409), and the owner-approved #543 variant that native song boards, Full Rankings, Band Rankings and Song Detail band previews draw a page's rows in one card with separators (the web keeps a card per row), extended on Windows by #643 to Song Detail's instrument and band previews, the Leaderboards overview boards and their First Run demos (in-card GroupedRows slices, View All inside the card), and rank-history rows (Leaderboards, Profile, Band) that draw rank and value in fixed right-aligned tabular columns measured once over every chart day, so the bold newest row and the tapped bar's detail line up, the date moves above the columns at large text and, when even the columns don't fit side by side, each keeps its measured width right-aligned on its own line, in rows at least 48 units tall (#594).",
       "keywords": [
         "leaderboard",
         "ranking",
@@ -1878,7 +2025,8 @@
         409,
         461,
         594,
-        578
+        578,
+        643
       ]
     },
     {
@@ -1886,7 +2034,7 @@
       "title": "Load transition",
       "status": "current",
       "doc": ".agents/patterns/load-transition.md",
-      "summary": "Initial loads use one gate, and page tools acting on the gated content appear with it; selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence, chart swaps keep the card's size and paging a chart slides it to the new window over the web 400 ms (#593 decision); the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant); a new publication refreshes open pages in place without pausing their rows (R9; Android one announced Songs spinner and in-place re-reads elsewhere, #616).",
+      "summary": "Initial loads use one gate, and page tools and notices acting on the gated content appear with it (the Paths Karaoke notice waits until every path form on screen has loaded, #649); selector and page reloads use a latest-wins content-to-spinner-to-content swap; stale content never shows under the spinner, and a pinned score row is stale only when its key (instrument, metric, leeway) changes, staying in place through page-only reloads like the web footer; a board pager appears only once a loaded page count above one is known (never a placeholder 1 / 1, #575) and keeps the last count while only the page reloads (Windows also hides it from an in-place board switch until the new count loads, #575 decision); graph card lists run the web out/height/in list sequence, chart swaps keep the card's size and paging a chart slides it to the new window over the web 400 ms (#593 decision); the spinner is one named busy indicator that reads after any retained header; a scroll during the first-load stagger fades the rest in together (web stagger rush) and never replays an entrance; selected-row reveals wait for the row's entrance; reduced motion removes fades; accordion-style reveals (owner-approved #561 variant) grow the height then fade the content in, and fade it out then collapse; a native card that groups several rows (the board group cards) fades in as one unit with all its rows, never staggering them inside it (owner-approved #614 variant); a new publication refreshes open pages in place without pausing their rows (R9; Android one announced Songs spinner and in-place re-reads elsewhere, #616).",
       "keywords": [
         "loading",
         "spinner",
@@ -2332,7 +2480,9 @@
         380,
         561,
         614,
-        616
+        616,
+        634,
+        649
       ]
     },
     {
@@ -2434,7 +2584,7 @@
       "title": "Empty and error states",
       "status": "current",
       "doc": ".agents/patterns/empty-error-states.md",
-      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile, whose prominent fill and label stay paired and legible under Increase Contrast, #477); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one native loading indicator, exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls; a score-update scrape freeze 503 for a URL the shared pinned-read client already verified in the same, still-current publication returns that kept body instead of the service status (R9, #554); cold reads, outages, non-score freezes and other publications still fail with Retry. Kept bodies are in-memory: Android uses a byte-bounded LRU; Apple's verified JSON entries are cleared on every publication change but currently have no byte budget (R9 Known debt). An inline service status is one container whose message, countdown and Retry stay separately reachable; Retry keeps its own identifier and an iOS 44×44 pt target, and a consumer tagging the wrapper contains its children first (R10, #463).",
+      "summary": "Loading, empty, paused/unavailable and failed outcomes stay distinct: every empty page or region uses the shared centred title/subtitle empty state with no card and no Reset Filters or Retry button (only a prerequisite action such as Choose Profile, whose prominent fill and label stay paired and legible under Increase Contrast, #477); syncing, publication-paused and unavailable states use the shared unavailable status with Retry; one loading indicator, a white arc on a 10% white track at the web Spinner sizes (web ArcSpinner; Apple FestivalArcProgressStyle, #635), exposed as a single named busy indicator; explicit unavailable messages without global-search Retry controls; a score-update scrape freeze 503 for a URL the shared pinned-read client already verified in the same, still-current publication returns that kept body instead of the service status (R9, #554); cold reads, outages, non-score freezes and other publications still fail with Retry. Kept bodies are in-memory: Android uses a byte-bounded LRU; Apple's verified JSON entries are cleared on every publication change but currently have no byte budget (R9 Known debt). An inline service status is one container whose message, countdown and Retry stay separately reachable; Retry keeps its own identifier and an iOS 44×44 pt target, and a consumer tagging the wrapper contains its children first (R10, #463).",
       "keywords": [
         "empty",
         "no results",
@@ -2442,6 +2592,7 @@
         "unavailable",
         "loading",
         "spinner",
+        "arc spinner",
         "retry",
         "search",
         "empty state",
@@ -2465,6 +2616,10 @@
         {
           "path": "components/search/SearchModal.tsx",
           "symbol": "SearchModal"
+        },
+        {
+          "path": "components/common/ArcSpinner.tsx",
+          "symbol": "ArcSpinner"
         }
       ],
       "canonical": {
@@ -2488,6 +2643,10 @@
           {
             "path": "apple/Sources/FestivalUI/Common/FestivalEmptyState.swift",
             "symbol": "FoldAvoidingPlacement"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/Common/FestivalEmptyState.swift",
+            "symbol": "FestivalCentredFill"
           },
           {
             "path": "apple/Sources/FestivalUI/Common/ServiceStatusViews.swift",
@@ -2562,6 +2721,15 @@
           "message": "Use the shared FestivalEmptyState (empty-error-states R5/R8); ContentUnavailableView failed Dynamic Type audits."
         },
         {
+          "id": "apple-one-spinner",
+          "glob": "apple/Sources/**/*.swift",
+          "regex": "\\bProgressView\\s*(?:\\(\\s*\\)|\\(\\s*\"|\\{)",
+          "allow": [
+            "apple/Sources/FestivalUI/Common/FestivalLoadingView.swift"
+          ],
+          "message": "Indeterminate spinners are FestivalLoadingView (the arc on a faint track, one named busy indicator; empty-error-states R5/R6, #635), never a raw ProgressView. Determinate ProgressView(value:) bars are exempt."
+        },
+        {
           "id": "no-empty-card",
           "glob": "apple/Sources/**/*.swift",
           "regex": "DualSourceMessage|fst\\.shop\\.filter-empty\\.reset",
@@ -2631,7 +2799,8 @@
         348,
         377,
         554,
-        463
+        463,
+        634
       ]
     },
     {
@@ -3342,7 +3511,7 @@
       "title": "Stat tile grid",
       "status": "current",
       "doc": ".agents/patterns/stat-tile-grid.md",
-      "summary": "Profile and Band stat tile grids: a tile whose value or label would wrap in one slot spans two (owner-approved variant #591, Android), tiles keep web order with the row's last tile widening instead of holes, every tile takes the grid's tallest height, and text that doesn't fit two slots wraps rather than truncating. One grid component per platform.",
+      "summary": "Profile and Band stat tile grids: a tile whose value or label would wrap in one slot spans two (owner-approved variant #591, Android), tiles keep web order with the row's last tile widening instead of holes, every tile takes the grid's tallest height, and text that doesn't fit two slots wraps rather than truncating. A centred tile with a trailing chevron pads both sides by the chevron's clearance so its text is centred on the card (#651). One grid component per platform.",
       "keywords": [
         "stat tile",
         "stat grid",
@@ -3354,7 +3523,9 @@
         "wrap",
         "large text",
         "band statistics",
-        "profile statistics"
+        "profile statistics",
+        "chevron",
+        "centred"
       ],
       "web": [
         {
@@ -3391,6 +3562,10 @@
           {
             "path": "windows/Festival.App/Controls/PlayerStatTileView.cs",
             "symbol": "PlayerStatTileView"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/StatTileInsets.cs",
+            "symbol": "StatTileInsets"
           }
         ]
       },
@@ -3599,7 +3774,7 @@
       "title": "Back keeps place",
       "status": "current",
       "doc": ".agents/patterns/back-keeps-place.md",
-      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it. A player or band profile is a full page that covers the split, and its Back returns to the kept split (#352). Android (#583) follows the same order: system Back pops the pane's stack, then closes the pane, then leaves the page.",
+      "summary": "Back to a cached or back-stack page keeps its loaded content (keyed reload gate; new publication or account reloads, failures retry), rebuilds and replays nothing, moves nothing (Windows pauses focus-follow scrolling and scroll anchoring while away) and, on Windows, returns focus to the opener in its original focus state. In an Apple on-demand split, Back on the leading page closes the open trailing pane first and keeps the page; a second Back leaves it. A player or band profile is a full page that covers the split, and its Back returns to the kept split (#352). Android (#583) and Windows (#652) follow the same order: Back pops the pane's stack, then closes the pane, then leaves the page.",
       "keywords": [
         "back",
         "back navigation",
@@ -3657,6 +3832,10 @@
           {
             "path": "windows/Festival.App/Services/CachedPageScroll.cs",
             "symbol": "CachedPageScroll"
+          },
+          {
+            "path": "windows/Festival.App/Controls/OnDemandSplitHost.cs",
+            "symbol": "TryGoBack"
           },
           {
             "path": "windows/Festival.Core/ViewModels/SuggestionsViewModel.cs",
@@ -4225,7 +4404,7 @@
       "title": "Split panes",
       "status": "current",
       "doc": ".agents/patterns/split-panes.md",
-      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under the system's or the app's Increase Contrast (the band is never an accessibility element), and the split's one backdrop and top gradient run unbroken across the band. Owner-approved variant R6 (#371; iPad, iPhone Duo inner landscape and Android tablets/foldables): Settings always splits, showing a vertically centred placeholder (Settings icon, \"Settings\", \"Select a setting to see more options here\") until a chevron row opens its options on the right; plain toggles act in the list. Owner-approved Android variant R7 (#583): Android tablets, foldables and wide windows use the iPhone Duo's on-demand split: Rivals/All Rivals/Compete open Rival Detail, Leaderboards opens Full/Band Rankings and Song Detail opens its boards and Score History in a trailing pane when the window is landscape, regular and leaves 360 dp a pane, or at the fold in book posture; everything else stays one page, and Back closes the pane first.",
+      "summary": "The boundary between a list/detail split's panes draws no divider line: the band (a fold only when partially folded, owner-approved #361; otherwise a 1 pt band at the free content area's midpoint plus each pane's full-page margins) separates them, a midpoint draws a 1 pt hairline only under the system's or the app's Increase Contrast (the band is never an accessibility element), and the split's one backdrop and top gradient run unbroken across the band. Owner-approved variant R6 (#371; iPad, iPhone Duo inner landscape and Android tablets/foldables): Settings always splits, showing a vertically centred placeholder (Settings icon, \"Settings\", \"Select a setting to see more options here\") until a chevron row opens its options on the right; plain toggles act in the list. Owner-approved Android variant R7 (#583): Android tablets, foldables and wide windows use the iPhone Duo's on-demand split: Rivals/All Rivals/Compete open Rival Detail, Leaderboards opens Full/Band Rankings and Song Detail opens its boards and Score History in a trailing pane when the window is landscape, regular and leaves 360 dp a pane, or at the fold in book posture; everything else stays one page, and Back closes the pane first. Owner-approved Windows variant (#652): the same pages split into equal star halves of the section content area, each at least 480 epx (x text scale from 130%), through one shell OnDemandSplitHost per section; Songs pushes Song Detail full width, no page hosts its own detail column, a narrowed split shows the pane alone (stacked), and Back pops the pane, then closes it, then the section.",
       "keywords": [
         "split view",
         "split",
@@ -4304,6 +4483,14 @@
         ],
         "windows": [
           {
+            "path": "windows/Festival.Core/Domain/OnDemandSplitPolicy.cs",
+            "symbol": "OnDemandSplitPolicy"
+          },
+          {
+            "path": "windows/Festival.App/Controls/OnDemandSplitHost.cs",
+            "symbol": "OnDemandSplitHost"
+          },
+          {
             "path": "windows/Festival.Core/Domain/SettingsDetails.cs",
             "symbol": "SettingsDetails"
           },
@@ -4341,6 +4528,16 @@
           "allow": [],
           "debt": [],
           "message": "Split panes are separated by space, not a drawn divider; a hairline only under high contrast at a midpoint (split-panes R1, R2)."
+        },
+        {
+          "id": "windows-page-local-split",
+          "glob": "windows/Festival.App/Pages/*.xaml",
+          "regex": "x:Name=\"DetailFrame\"",
+          "allow": [
+            "windows/Festival.App/Pages/SettingsPage.xaml"
+          ],
+          "debt": [],
+          "message": "Windows list/detail splits go through the shell's OnDemandSplitHost (split-panes R7 Windows variant, #652); a page never hosts its own detail Frame. Settings' R6 Licenses pane is the one exception."
         }
       ],
       "supersedes": [],
@@ -4688,6 +4885,83 @@
       "supersedes": [],
       "issues": [
         541
+      ]
+    },
+    {
+      "id": "instrument-chip-rows",
+      "title": "Instrument chip rows",
+      "status": "current",
+      "doc": ".agents/patterns/instrument-chip-rows.md",
+      "summary": "Songs row instrument status chips that don't fit one line wrap onto the fewest balanced lines (9 → 5 + 4, earlier lines take the extra chip), each centred across the card under the art and title, measured from the chip area's own width, in service order with one spoken row name. Chips never clip, overlap or shrink; natives drop the web's three-row cap, four-chip rule and hysteresis (agent decision #645).",
+      "keywords": [
+        "instrument chips",
+        "status chips",
+        "chip rows",
+        "wrap",
+        "multi-row",
+        "balanced rows",
+        "narrow",
+        "instrument icons"
+      ],
+      "web": [
+        {
+          "path": "pages/songs/layoutMode.ts",
+          "symbol": "resolveInstrumentChipRows"
+        },
+        {
+          "path": "pages/songs/layoutMode.ts",
+          "symbol": "splitInstrumentRows"
+        },
+        {
+          "path": "pages/songs/components/SongRow.tsx",
+          "symbol": "mobileInstrumentRows"
+        },
+        {
+          "path": "pages/songs/firstRun/demo/SongIconsDemo.tsx",
+          "symbol": "SongIconsDemo"
+        }
+      ],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/Features/Songs/SongInstrumentStatusChips.swift",
+            "symbol": "SongChipRows"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/songs/SongRow.kt",
+            "symbol": "ChipGrid"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.Core/Domain/InstrumentChipRows.cs",
+            "symbol": "InstrumentChipRows"
+          },
+          {
+            "path": "windows/Festival.App/Controls/FlowPanel.cs",
+            "symbol": "BalanceLines"
+          }
+        ]
+      },
+      "guards": [],
+      "related": {
+        "patterns": [
+          "metadata-pills"
+        ],
+        "controls": [
+          "songs-instrument-status-chips",
+          "first-run"
+        ],
+        "pages": [
+          "songs"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        645
       ]
     },
     {
@@ -5124,7 +5398,7 @@
       "title": "Metadata pills",
       "status": "current",
       "doc": ".agents/patterns/metadata-pills.md",
-      "summary": "The season chip (S15) and percentile chip (Top N%) are one shared component each per platform, one size everywhere (chip label style, 24 dp tall, 8 dp corners, season >= 48 dp, percentile >= 5.5 em), with the web colours: seasons textSecondary on surfaceSubtle with a borderSubtle outline and the catalogue's current season inverted; Top 1% skewed gold outline, Top 5% gold outline, else 10% white. Season pills read 'Season N' / 'Current season N' (#606).",
+      "summary": "The season chip (S15) and percentile chip (Top N%) are one shared component each per platform, one size everywhere (chip label style, 24 dp tall, 8 dp corners, season >= 48 dp, percentile >= 5.5 em), with the web colours: seasons textSecondary on surfaceSubtle with a borderSubtle outline and the catalogue's current season inverted; Top 1% skewed gold outline, Top 5% gold outline, else 10% white. Season pills read 'Season N' / 'Current season N' (#606). In a metadata row every chip beside them (accuracy/FC, difficulty, stars, intensity) reads at the same visible pill height, and a full-combo accuracy is the percent alone in the Top 1% skewed gold outline (web AccuracyDisplay fcBadge, #644).",
       "keywords": [
         "season pill",
         "season chip",
@@ -5134,7 +5408,9 @@
         "top 1%",
         "top 5%",
         "chip contrast",
-        "metadata pill"
+        "metadata pill",
+        "chip height",
+        "full combo pill"
       ],
       "web": [
         {
@@ -5224,7 +5500,8 @@
         }
       ],
       "issues": [
-        606
+        606,
+        644
       ],
       "supersedes": [],
       "supersededBy": null

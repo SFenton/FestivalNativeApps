@@ -2,9 +2,10 @@ name: windows-release-build
 # Build the unsigned Microsoft Store MSIX for one `windows/v<YYMM.DD.NN>` version tag (MSIX version
 # YYMM.<DD*100+NN>.<run number>.0) and keep it as an artifact. Only version-bump.yml dispatches it (an app change merged
 # to master). The build generates the in-app What's New (WhatsNew.json) and the Store release notes
-# (build.json `store_notes`, preferred by `fst_store.py submit`). Submitting it for
-# certification is done separately by the release orchestrator (`fst_store.py windows submit`), which
-# finds the newest successful run's `fst-windows-msix_<version>_<sha>` artifact. While
+# (build.json `store_notes`, preferred by `fst_store.py submit`). windows-flight.yml then submits it to the
+# "Testers" package flight (the Windows TestFlight); the release orchestrator submits the newest CI-passing build
+# for public certification on Thursday (`fst_store.py windows submit`), from its `fst-windows-msix_<version>_<sha>`
+# artifact. While
 # windows/store-identity.json still holds placeholders the artifact is suffixed `_placeholder` and is
 # never submitted (packaging check only).
 on:

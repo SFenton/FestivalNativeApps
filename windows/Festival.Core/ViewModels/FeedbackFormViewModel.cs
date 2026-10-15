@@ -33,7 +33,7 @@ public sealed class FeedbackFormViewModel : ObservableObject
     /// <summary>How long to wait for the service to file the issue before reporting it as received.</summary>
     public static readonly TimeSpan PollTimeout = TimeSpan.FromMinutes(5);
 
-    private readonly Func<FeedbackSubmission, CancellationToken, Task<FeedbackJob>> send;
+    private readonly Func<FeedbackSubmission, IProgress<double>, CancellationToken, Task<FeedbackJob>> send;
     private readonly Func<string, CancellationToken, Task<FeedbackJob>> status;
     private readonly Func<TimeSpan, CancellationToken, Task> delay;
     private readonly Func<DateTimeOffset> now;
@@ -46,10 +46,34 @@ public sealed class FeedbackFormViewModel : ObservableObject
     private bool confirmingDiscard;
     private FeedbackJob? job;
     private CancellationTokenSource? upload;
+    private double uploadFraction;
+
+    /// <summary>Opens a fresh form whose sender does not report upload progress (the bar fills when the 202 arrives).</summary>
+    /// <param name="kind">Bug or Feature.</param>
+    /// <param name="send">Sends one submission.</param>
+    /// <param name="status">Reads a job.</param>
+    /// <param name="appVersion">App version reported with the form.</param>
+    /// <param name="clientInfo">OS and device description reported with the form.</param>
+    /// <param name="delay">Waits between polls.</param>
+    /// <param name="now">Clock for the poll deadline.</param>
+    public FeedbackFormViewModel(
+        FeedbackKind kind,
+        Func<FeedbackSubmission, CancellationToken, Task<FeedbackJob>> send,
+        Func<string, CancellationToken, Task<FeedbackJob>> status,
+        string appVersion,
+        string clientInfo,
+        Func<TimeSpan, CancellationToken, Task>? delay = null,
+        Func<DateTimeOffset>? now = null)
+        : this(kind, (submission, _, token) => send(submission, token), status, appVersion, clientInfo, delay, now)
+    {
+    }
 
     /// <summary>Opens a fresh form.</summary>
     /// <param name="kind">Bug or Feature.</param>
-    /// <param name="send">Sends one submission (<see cref="Data.FestivalApiClient.SubmitFeedbackAsync"/> with file access).</param>
+    /// <param name="send">
+    /// Sends one submission (<see cref="Data.FestivalApiClient.SubmitFeedbackAsync"/> with file access), reporting the
+    /// written fraction of the body to the given progress; the form ignores reports after the upload phase ends.
+    /// </param>
     /// <param name="status">Reads a job (<see cref="Data.FestivalApiClient.GetFeedbackStatusAsync"/>).</param>
     /// <param name="appVersion">App version reported with the form.</param>
     /// <param name="clientInfo">OS and device description reported with the form.</param>
@@ -57,7 +81,7 @@ public sealed class FeedbackFormViewModel : ObservableObject
     /// <param name="now">Clock for the poll deadline; defaults to the system clock.</param>
     public FeedbackFormViewModel(
         FeedbackKind kind,
-        Func<FeedbackSubmission, CancellationToken, Task<FeedbackJob>> send,
+        Func<FeedbackSubmission, IProgress<double>, CancellationToken, Task<FeedbackJob>> send,
         Func<string, CancellationToken, Task<FeedbackJob>> status,
         string appVersion,
         string clientInfo,
@@ -89,8 +113,21 @@ public sealed class FeedbackFormViewModel : ObservableObject
     /// <summary>Helper under the description.</summary>
     public string DescriptionHelp => FeedbackCopy.DescriptionHelp(Kind);
 
-    /// <summary>Progress caption: uploading, then filing on GitHub.</summary>
-    public string SendingText => phase == FeedbackPhase.Filing ? $"Filing your {Kind.Noun()} on GitHub…" : $"Sending your {Kind.Noun()}…";
+    /// <summary>
+    /// Busy-status title (issue #634): "Uploading Media" while attached media uploads, then "Filing Issue/Request";
+    /// empty while editing or sent. A form with no media reads as filing from Submit: "Uploading Media" would be
+    /// inaccurate and would flash for a fraction of a second (agent decision, shared with Android).
+    /// </summary>
+    public string StatusTitle => !IsSubmitting ? "" : UploadsMedia ? FeedbackCopy.UploadingTitle : FeedbackCopy.FilingTitle(Kind);
+
+    /// <summary>Busy-status subtitle text: none while media uploads (the bar is the subtitle), the filing explanation otherwise.</summary>
+    public string StatusSubtitle => IsSubmitting && !UploadsMedia ? FeedbackCopy.FilingSubtitle(Kind) : "";
+
+    /// <summary>Whether the busy status is in its media upload step.</summary>
+    private bool UploadsMedia => phase == FeedbackPhase.Submitting && HasAttachments;
+
+    /// <summary>Accessible name of the busy ring, stable across both busy phases.</summary>
+    public string BusyName => FeedbackCopy.BusyName(Kind);
     #endregion
 
     #region Fields
@@ -143,7 +180,9 @@ public sealed class FeedbackFormViewModel : ObservableObject
             OnPropertyChanged(nameof(IsEditing));
             OnPropertyChanged(nameof(IsSubmitting));
             OnPropertyChanged(nameof(IsSent));
-            OnPropertyChanged(nameof(SendingText));
+            OnPropertyChanged(nameof(ShowsUploadBar));
+            OnPropertyChanged(nameof(StatusTitle));
+            OnPropertyChanged(nameof(StatusSubtitle));
             OnPropertyChanged(nameof(PrimaryText));
             OnPropertyChanged(nameof(CloseText));
             OnPropertyChanged(nameof(CanSubmit));
@@ -162,6 +201,18 @@ public sealed class FeedbackFormViewModel : ObservableObject
 
     /// <summary>Whether progress shows (uploading or waiting for the issue).</summary>
     public bool IsSubmitting => phase is FeedbackPhase.Submitting or FeedbackPhase.Filing;
+
+    /// <summary>Whether the determinate upload bar shows (media uploading; otherwise the subtitle text shows instead).</summary>
+    public bool ShowsUploadBar => UploadsMedia;
+
+    /// <summary>
+    /// Fraction of the body written so far, in [0, 1]; it only rises during one upload and resets on the next Submit.
+    /// </summary>
+    public double UploadFraction
+    {
+        get => uploadFraction;
+        private set => SetProperty(ref uploadFraction, value);
+    }
 
     /// <summary>Whether the service accepted the form.</summary>
     public bool IsSent => phase == FeedbackPhase.Sent;
@@ -289,11 +340,19 @@ public sealed class FeedbackFormViewModel : ObservableObject
         upload = cts;
         Error = null;
         ConfirmingDiscard = false;
+        UploadFraction = 0;
         Phase = FeedbackPhase.Submitting;
+        var progress = new UploadProgress(fraction =>
+        {
+            if (cts.IsCancellationRequested || phase != FeedbackPhase.Submitting || upload != cts) return;
+            var clamped = double.IsNaN(fraction) ? 0 : Math.Clamp(fraction, 0, 1);
+            if (clamped > uploadFraction) UploadFraction = clamped;
+        });
         try
         {
-            var accepted = await send(submission, cts.Token);
+            var accepted = await send(submission, progress, cts.Token);
             if (cts.IsCancellationRequested) return;
+            UploadFraction = 1;
             Job = accepted;
             ConfirmingDiscard = false;
             Phase = FeedbackPhase.Filing;
@@ -379,6 +438,19 @@ public sealed class FeedbackFormViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(CanSubmit));
         OnPropertyChanged(nameof(ValidationMessage));
+    }
+    #endregion
+
+    #region Upload progress
+    /// <summary>
+    /// Synchronous progress sink: the sender (or the dialog's UI-thread <see cref="Progress{T}"/> wrapper) decides the
+    /// thread, so tests observe each report immediately.
+    /// </summary>
+    /// <param name="report">Applies one reported fraction.</param>
+    private sealed class UploadProgress(Action<double> report) : IProgress<double>
+    {
+        /// <inheritdoc />
+        public void Report(double value) => report(value);
     }
     #endregion
 }

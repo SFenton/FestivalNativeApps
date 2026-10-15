@@ -89,7 +89,7 @@ final class SongsDeselectAccessibilityJourneyTests: XCTestCase {
         }
     }
 
-    /// Open Filter from the accessory, or from the folded Sort and Filter menu.
+    /// Open Filter from the floating tools, or from the folded Sort and Filter menu.
     @MainActor
     private func openFilter(_ app: XCUIApplication) {
         let folded = app.buttons["fst.songs.tools"]
@@ -104,7 +104,7 @@ final class SongsDeselectAccessibilityJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["fst.songs.filter.done"].waitForExistence(timeout: FestivalApp.budget(10)))
     }
 
-    /// Open Sort from the accessory, or from the folded Sort and Filter menu.
+    /// Open Sort from the floating tools, or from the folded Sort and Filter menu.
     @MainActor
     private func openSort(_ app: XCUIApplication) {
         let folded = app.buttons["fst.songs.tools"]

@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage.Streams;
@@ -16,7 +17,7 @@ namespace Festival.App.Controls;
 #region Paths view
 /// <summary>
 /// CHOpt Paths content hosted in a modal <see cref="ContentDialog"/> (focus is contained and restored by the dialog):
-/// the web Instrument Selector plus difficulty/display pickers, a zoomable image, and the web's activation table
+/// the web Instrument Selector plus difficulty/display selector boxes, a zoomable image, and the web's activation table
 /// (column header row + one card per activation in the saved column order: fret pills, beat, time, Overdrive bar, score).
 /// </summary>
 public sealed partial class SongPathsView : UserControl
@@ -108,8 +109,9 @@ public sealed partial class SongPathsView : UserControl
 
     #region Presentation
     /// <summary>
-    /// Opens Paths as a modal dialog. The first opening per app session while Karaoke is visible first shows the web's
-    /// "Some Instruments Unavailable" alert as its own native dialog (OK, or "Don't show again" to persist the choice).
+    /// Opens Paths as a modal dialog. The first opening per app session while Karaoke is visible shows the web's
+    /// "Some Instruments Unavailable" alert as an inline InfoBar above the chart once the first read settles (issue #649;
+    /// before, a separate dialog showed it ahead of the content).
     /// </summary>
     /// <param name="xamlRoot">Window root.</param>
     /// <param name="paths">Paths session.</param>
@@ -117,19 +119,6 @@ public sealed partial class SongPathsView : UserControl
     /// <returns>Completes when the dialog closes (reads are cancelled).</returns>
     public static async Task ShowAsync(XamlRoot xamlRoot, SongPathsViewModel paths, string title)
     {
-        if (paths.ShowWarning)
-        {
-            var notice = FestivalDialog.Create(
-                xamlRoot,
-                "Some Instruments Unavailable",
-                "Karaoke is not available for path visualization yet.",
-                "fst.paths.warning",
-                closeText: "",
-                primaryText: "OK",
-                secondaryText: "Don't Show Again",
-                defaultButton: ContentDialogButton.Primary);
-            paths.DismissWarning(await FestivalDialog.ShowAsync(notice) == ContentDialogResult.Secondary);
-        }
         // Near full-window at compact sizes (the chart fills the sheet); never wider than the window. The content gets
         // the width explicitly: a dialog sizes to its content, and the layout picks its selectors from that width. The
         // content box is the dialog less its padding and border; a view wider than it is clipped on the right (#269).
@@ -265,6 +254,25 @@ public sealed partial class SongPathsView : UserControl
     /// <summary>Shows the current instrument in the wide Instrument Selector (the compact ComboBox binds the index).</summary>
     private void SyncInstrument() => InstrumentPicker.Selected = ViewModel.Instrument;
 
+    /// <summary>Closes the Karaoke notice for this opening; focus moves to the chart region's first stop.</summary>
+    /// <param name="sender">OK button.</param>
+    /// <param name="e">Unused.</param>
+    private void OnNoticeOk(object sender, RoutedEventArgs e) => DismissNotice(permanently: false);
+
+    /// <summary>Closes the Karaoke notice and keeps it closed ("Don't show again").</summary>
+    /// <param name="sender">Don't Show Again button.</param>
+    /// <param name="e">Unused.</param>
+    private void OnNoticeNeverAgain(object sender, RoutedEventArgs e) => DismissNotice(permanently: true);
+
+    /// <summary>Dismisses the notice, handing keyboard focus on to the next stop rather than letting it fall out of the sheet.</summary>
+    /// <param name="permanently">Persist "Don't show again".</param>
+    private void DismissNotice(bool permanently)
+    {
+        var hadFocus = CollapsedToolTip.HasFocusWithin(PathNotice);
+        ViewModel.DismissWarning(permanently);
+        if (hadFocus && FocusManager.FindFirstFocusableElement(ChartArea) is Control next) next.Focus(FocusState.Programmatic);
+    }
+
     /// <summary>A wide Instrument Selector pick (required: it never clears).</summary>
     /// <param name="sender">Selector.</param>
     /// <param name="instrument">Picked chart.</param>
@@ -279,6 +287,7 @@ public sealed partial class SongPathsView : UserControl
     private void OnRootSizeChanged(object sender, SizeChangedEventArgs e)
     {
         var compact = e.NewSize.Width < CompactWidth;
+        if (!compact) SizeWideBoxes();
         // Focus on a picker follows the swap to its counterpart (programmatically, so it opens no keyboard tooltip)
         // instead of falling to the chart (#571).
         var replacement = compact ? WideToCompact() : CompactToWide();
@@ -302,8 +311,8 @@ public sealed partial class SongPathsView : UserControl
     private Func<bool>? CompactToWide()
     {
         if (CollapsedToolTip.HasFocusWithin(CompactInstrumentPicker)) return InstrumentPicker.FocusCurrent;
-        if (CollapsedToolTip.HasFocusWithin(CompactDifficultyPicker)) return () => Programmatic(SelectedOption(DifficultyPicker));
-        if (CollapsedToolTip.HasFocusWithin(CompactDisplayPicker)) return () => Programmatic(SelectedOption(DisplayPicker));
+        if (CollapsedToolTip.HasFocusWithin(CompactDifficultyPicker)) return () => Programmatic(DifficultyPicker);
+        if (CollapsedToolTip.HasFocusWithin(CompactDisplayPicker)) return () => Programmatic(DisplayPicker);
         return null;
     }
 
@@ -312,13 +321,15 @@ public sealed partial class SongPathsView : UserControl
     /// <returns>Whether it took focus.</returns>
     private static bool Programmatic(Control? target) => target?.Focus(FocusState.Programmatic) == true;
 
-    /// <summary>The checked option of a wide picker (its focus stop), once realized.</summary>
-    /// <param name="picker">Difficulty or display picker.</param>
-    /// <returns>Radio button, or <see langword="null"/> before layout.</returns>
-    private static Control? SelectedOption(RadioButtons picker) => picker.ContainerFromIndex(Math.Max(picker.SelectedIndex, 0)) as Control;
+    /// <summary>Gives the wide difficulty and display boxes one shared width for their longest options (issue #650).</summary>
+    private void SizeWideBoxes()
+    {
+        var widths = compactWidths ??= MeasureCompactWidths();
+        DifficultyPicker.Width = DisplayPicker.Width = PathSelectorLayout.WideBoxWidth(widths.Difficulty, widths.Display);
+    }
 
-    /// <summary>Compact box widths: labelled for their longest options (instrument, difficulty, display) and icon-only
-    /// (instrument, display); measured once per sheet.</summary>
+    /// <summary>Selector box widths: labelled for their longest options (instrument, difficulty, display) and icon-only
+    /// (instrument, display); measured once per sheet and shared by the wide and compact boxes.</summary>
     private (double Instrument, double Difficulty, double Display, double IconInstrument, double IconDisplay)? compactWidths;
 
     /// <summary>Current compact arrangement (labelled one line until the first measure).</summary>
@@ -395,7 +406,13 @@ public sealed partial class SongPathsView : UserControl
     /// <returns>Width in effective pixels.</returns>
     private double TextWidth(string label)
     {
-        var block = new TextBlock { Text = label, FontSize = CompactDifficultyPicker.FontSize, FontFamily = CompactDifficultyPicker.FontFamily };
+        var block = new TextBlock
+        {
+            Text = label,
+            FontSize = CompactDifficultyPicker.FontSize,
+            FontFamily = CompactDifficultyPicker.FontFamily,
+            FontWeight = CompactDifficultyPicker.FontWeight,
+        };
         block.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
         return block.DesiredSize.Width;
     }

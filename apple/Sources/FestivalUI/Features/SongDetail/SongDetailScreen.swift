@@ -48,7 +48,7 @@ struct SongDetailScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Section chrome: the iPhone Duo vertical bar needs a titled symbol Shop item.
     @Environment(\.deviceLayout) private var deviceLayout
-    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    /// Set where page tools float above the iPhone tab bar (issues #92, #632).
     @Environment(\.pageToolsRegistry) private var pageTools
 
     /// What the page's first-appearance reads depend on.
@@ -155,11 +155,7 @@ struct SongDetailScreen: View {
 
     var body: some View {
         let _ = MainThreadStallMonitor.count("songdetail.body")
-        #if os(iOS)
-        detailContent.navigationBarTitleDisplayMode(.inline)
-        #else
-        detailContent
-        #endif
+        detailContent.festivalTitleDisplayMode(.inline)
     }
 
     /// Branded detail beneath platform-owned compact back navigation: a spinner until
@@ -181,7 +177,7 @@ struct SongDetailScreen: View {
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: heroTitleHidden)
         .toolbar { detailToolbar }
         .songBarTitleKeepsBarVisible()
-        // iPhone tab-bar accessory (issue #92): Item Shop, then Paths, then Quick Links,
+        // iPhone floating page tools (issues #92, #632): Item Shop, then Paths, then Quick Links,
         // all once the page has loaded (#585).
         .festivalPageTool(
             token: [shopOffer?.shopUrl.absoluteString ?? "", shopTone.map { "\($0)" } ?? ""],
@@ -500,7 +496,7 @@ extension SongDetailScreen {
     ///
     /// - Parameters:
     ///   - offer: Validated Shop row for this song.
-    ///   - fillsSlot: In the tab-bar accessory: the breathing glyph's hit target fills
+    ///   - fillsSlot: As a floating page tool: the breathing glyph's hit target fills
     ///     its slot (at least 44×44 pt).
     /// - Returns: Toolbar link with a spoken status.
     @ViewBuilder
@@ -509,7 +505,7 @@ extension SongDetailScreen {
         case let .breathing(tone):
             Link(destination: offer.shopUrl) {
                 SongDetailShopGlyph(tone: tone)
-                    // In the tab-bar accessory the whole slot is the hit target (44 pt+).
+                    // As a floating page tool the whole circle is the hit target (44 pt+).
                     .frame(maxWidth: fillsSlot ? .infinity : nil, maxHeight: fillsSlot ? .infinity : nil)
                     .frame(minWidth: fillsSlot ? 44 : nil, minHeight: fillsSlot ? 44 : nil)
                     .contentShape(Rectangle())

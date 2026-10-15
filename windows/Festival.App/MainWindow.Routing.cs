@@ -6,9 +6,13 @@ namespace Festival.App;
 /// <summary>Anonymous redirects after deselection and the page-specific window title.</summary>
 public sealed partial class MainWindow
 {
-    /// <summary>Top route of the visible section's stack (<see langword="null"/> at its root).</summary>
+    /// <summary>
+    /// The open split pane's top route, else the top route of the visible section's stack (<see langword="null"/> at its
+    /// root).
+    /// </summary>
     private AppRoute? CurrentRoute =>
-        frames.TryGetValue(current, out var frame) && routeStacks.TryGetValue(frame, out var stack) ? stack.Peek() : null;
+        splits.GetValueOrDefault(current)?.PaneRoute
+        ?? (frames.TryGetValue(current, out var frame) && routeStacks.TryGetValue(frame, out var stack) ? stack.Peek() : null);
 
     /// <summary>Wires the policy (called once from the constructor).</summary>
     private void InitializeRoutePolicy() => session.PropertyChanged += OnRoutePolicySessionChanged;

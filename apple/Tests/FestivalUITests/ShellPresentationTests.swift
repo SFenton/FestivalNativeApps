@@ -391,6 +391,15 @@ func drawerCutoutSitsOnThePanel(layout: DeviceLayout) {
     #expect(Presentation.symbol(title: "Profile: Fixture").sharedBackground == .automatic)
 }
 
+/// In the iPhone account pill the monogram keeps the shared glass it shares with the bell
+/// (issue #632), so the pill draws one glass capsule around both.
+@Test func profileItemKeepsGlassInAccountPill() {
+    typealias Presentation = RootProfileButton.Presentation
+    #expect(Presentation.monogram("Fixture").sharedBackground(inAccountPill: true) == .automatic)
+    #expect(Presentation.monogram("Fixture").sharedBackground(inAccountPill: false) == .hidden)
+    #expect(Presentation.choose.sharedBackground(inAccountPill: true) == .automatic)
+}
+
 /// With Liquid Glass the avatar fills a bar item's 44 pt glass circle with no rim and
 /// overhangs the hidden-glass padding, so it sits where the glass circle was; classic
 /// bars and the Mac toolbar keep the 30 pt outlined avatar (issue #311).
@@ -402,8 +411,19 @@ func drawerCutoutSitsOnThePanel(layout: DeviceLayout) {
     #expect(Metrics.resolve(liquidGlassBar: false) == Metrics(diameter: 30, outlined: true))
     #expect(Metrics.resolve(liquidGlassBar: false).overhang == 0)
     #if os(macOS)
-    #expect(Metrics.current == Metrics(diameter: 30, outlined: true))
+    #expect(Metrics.current() == Metrics(diameter: 30, outlined: true))
+    #expect(Metrics.current(inAccountPill: true) == Metrics(diameter: 30, outlined: true))
     #endif
+}
+
+/// Inside the iPhone account pill the avatar is a bar glyph's size with no rim or
+/// overhang, so it sits in the glass it shares with the bell (issue #632).
+@Test func profileMonogramInAccountPill() {
+    typealias Metrics = RootProfileButton.MonogramMetrics
+    #expect(Metrics.resolve(liquidGlassBar: true, inAccountPill: true)
+        == Metrics(diameter: Metrics.pillDiameter, outlined: false))
+    #expect(Metrics.pillDiameter == 30)
+    #expect(Metrics.resolve(liquidGlassBar: false, inAccountPill: true) == Metrics(diameter: 30, outlined: true))
 }
 
 /// The rim and overhang are part of the cached image's identity, so the

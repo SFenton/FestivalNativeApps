@@ -61,7 +61,9 @@ class FeedbackJourneyTests(unittest.TestCase):
 
     def test_matrix_pages_cover_every_state_and_parse(self):
         pages = json.loads((f.REPO / "tools" / "windows" / "journeys" / "a11y-feedback.json").read_text(encoding="utf-8"))
-        self.assertEqual({p["name"].removeprefix("feedback-") for p in pages}, set(f.STATES))
+        # A page may cover a variant of a state under its own name (#634: "sending" with and without media).
+        self.assertEqual({p.get("state", p["name"].removeprefix("feedback-")) for p in pages}, set(f.STATES))
+        self.assertEqual(len({p["name"] for p in pages}), len(pages))
         for page in pages:
             self.assertEqual(page["fixture"][0], "feedback_fixture.py", page["name"])
             self.assertEqual(page["tabs"], 0, page["name"])

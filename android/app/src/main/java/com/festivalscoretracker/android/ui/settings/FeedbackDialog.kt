@@ -14,6 +14,13 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Ease
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -49,6 +56,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -57,6 +65,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -66,9 +75,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -84,6 +95,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -93,12 +105,15 @@ import com.festivalscoretracker.android.BuildConfig
 import com.festivalscoretracker.android.core.feedback.FeedbackAttachment
 import com.festivalscoretracker.android.core.feedback.FeedbackCopy
 import com.festivalscoretracker.android.core.feedback.FeedbackDraft
+import com.festivalscoretracker.android.core.feedback.FeedbackKind
 import com.festivalscoretracker.android.core.feedback.FeedbackLimits
 import com.festivalscoretracker.android.core.nav.AdaptiveLayoutPolicy
+import com.festivalscoretracker.android.core.shell.AccordionMotion
 import com.festivalscoretracker.android.data.FestivalApi
 import com.festivalscoretracker.android.data.feedback.feedbackEnabled
 import com.festivalscoretracker.android.data.feedback.feedbackStatus
 import com.festivalscoretracker.android.data.feedback.submitFeedback
+import com.festivalscoretracker.android.presentation.feedback.FeedbackBusyStatus
 import com.festivalscoretracker.android.presentation.feedback.FeedbackFormState
 import com.festivalscoretracker.android.presentation.feedback.FeedbackPhase
 import com.festivalscoretracker.android.presentation.feedback.FeedbackViewModel
@@ -110,6 +125,7 @@ import com.festivalscoretracker.android.ui.common.FestivalModalHeader
 import com.festivalscoretracker.android.ui.common.festivalSheetHingeSide
 import com.festivalscoretracker.android.ui.design.popupTestTags
 import com.festivalscoretracker.android.ui.theme.BrandTokens
+import com.festivalscoretracker.android.ui.theme.LocalFestivalAccessibility
 import java.io.FileNotFoundException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -129,8 +145,8 @@ fun rememberFeedbackViewModel(api: FestivalApi): FeedbackViewModel {
     val resolver = LocalContext.current.applicationContext.contentResolver
     return viewModel {
         FeedbackViewModel(
-            send = { submission ->
-                api.submitFeedback(submission) { attachment ->
+            send = { submission, onProgress ->
+                api.submitFeedback(submission, onProgress) { attachment ->
                     resolver.openInputStream(Uri.parse(attachment.id)) ?: throw FileNotFoundException(attachment.name)
                 }
             },
@@ -197,7 +213,7 @@ fun FeedbackDialogHost(viewModel: FeedbackViewModel) {
                         .testTag("fst.settings.feedback.dialog")
                         .semantics { paneTitle = form.draft.kind.formTitle },
                 ) {
-                    FeedbackForm(form, viewModel)
+                    FeedbackForm(form, viewModel, compact)
                 }
             }
             if (form.confirmingDiscard) {
@@ -224,8 +240,16 @@ fun FeedbackDialogHost(viewModel: FeedbackViewModel) {
 }
 
 @Composable
-private fun FeedbackForm(form: FeedbackFormState, viewModel: FeedbackViewModel) {
+private fun FeedbackForm(form: FeedbackFormState, viewModel: FeedbackViewModel, compact: Boolean) {
     val kind = form.draft.kind
+    val fieldsScroll = rememberScrollState()
+    val reduceMotion = LocalFestivalAccessibility.current.reduceMotion
+    // A failure returns to the fields with the error banner at their top: bring it into view.
+    LaunchedEffect(form.error) {
+        if (form.error != null) {
+            if (reduceMotion) fieldsScroll.scrollTo(0) else fieldsScroll.animateScrollTo(0)
+        }
+    }
     Column(Modifier.padding(top = 12.dp)) {
         FestivalModalHeader(
             title = kind.formTitle,
@@ -239,32 +263,185 @@ private fun FeedbackForm(form: FeedbackFormState, viewModel: FeedbackViewModel) 
                 modifier = Modifier.heightIn(min = 48.dp).testTag("fst.settings.feedback.submit"),
             ) { Text("Submit", fontWeight = FontWeight.Bold) }
         }
-        FestivalModalBody {
-            if (form.busy) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier
+        FestivalModalBody(Modifier.weight(1f, fill = false)) {
+            FeedbackBusySwap(
+                status = form.busyStatus,
+                kind = kind,
+                reduceMotion = reduceMotion,
+                modifier = if (compact) Modifier.fillMaxSize() else Modifier.fillMaxWidth(),
+            ) { hidden ->
+                Column(
+                    Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .padding(horizontal = 24.dp, vertical = 4.dp)
-                        .testTag("fst.settings.feedback.progress")
-                        .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+                        .then(if (hidden) Modifier.clearAndSetSemantics {} else Modifier)
+                        .verticalScroll(fieldsScroll)
+                        .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    // The app's one loading indicator (design/android.md), not the theme's blue primary.
-                    // The status text says what is in progress; one TalkBack stop, not a separate progress bar.
-                    Box(Modifier.clearAndSetSemantics {}) { FestivalLoading(label = null, size = 24.dp) }
-                    Text(form.progressText, color = BrandTokens.textPrimary, style = MaterialTheme.typography.bodyMedium)
+                    EditingContent(form, viewModel)
                 }
             }
+        }
+    }
+}
+
+/** Holds the last busy status so the busy view keeps its text while it fades out. */
+private class LastBusyStatus {
+    var value: FeedbackBusyStatus? = null
+}
+
+/**
+ * The form's send and filing state (owner, issue #634): the fields fade out, then a centred
+ * spinner, title and subtitle fade in over the space they leave; a failure fades back to the
+ * fields with everything kept. The fields stay composed underneath (alpha 0, out of TalkBack
+ * and touch) so their text, focus and scroll survive. Fades are the accordion's sequential
+ * 150 ms out-then-in ([AccordionMotion.FADE_MS], web `QUICK_FADE_MS`); Reduce Motion swaps at once.
+ *
+ * @param status Busy content, or null while editing.
+ * @param kind Form, for the spinner's TalkBack name.
+ * @param reduceMotion Swap without fades.
+ * @param modifier Size of the region: the whole body on a full-screen form, the fields' height on a card.
+ * @param fields The form's fields; `hidden` is true while busy.
+ */
+@Composable
+private fun FeedbackBusySwap(
+    status: FeedbackBusyStatus?,
+    kind: FeedbackKind,
+    reduceMotion: Boolean,
+    modifier: Modifier,
+    fields: @Composable (hidden: Boolean) -> Unit,
+) {
+    val last = remember { LastBusyStatus() }
+    if (status != null) last.value = status
+    val busy = status != null
+    val transition = updateTransition(busy, label = "feedback-busy")
+    val fieldsAlpha by transition.animateFloat(
+        transitionSpec = { busyFade(entering = !targetState, reduceMotion) },
+        label = "fields",
+    ) { if (it) 0f else 1f }
+    val busyAlpha by transition.animateFloat(
+        transitionSpec = { busyFade(entering = targetState, reduceMotion) },
+        label = "busy",
+    ) { if (it) 1f else 0f }
+    Box(modifier) {
+        Box(Modifier.alpha(fieldsAlpha)) { fields(busy) }
+        val shown = last.value
+        if (shown != null && (transition.currentState || transition.targetState)) {
+            FeedbackBusyView(
+                status = shown,
+                kind = kind,
+                reduceMotion = reduceMotion,
+                modifier = Modifier
+                    .matchParentSize()
+                    .alpha(busyAlpha)
+                    .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } },
+            )
+        }
+    }
+}
+
+/**
+ * One side of the busy swap: an entering fade waits for the leaving one (out, then in).
+ *
+ * @param entering Fading in.
+ * @param reduceMotion Snap instead.
+ * @return Animation spec.
+ */
+private fun busyFade(entering: Boolean, reduceMotion: Boolean): FiniteAnimationSpec<Float> = when {
+    reduceMotion -> snap()
+    entering -> tween(AccordionMotion.FADE_MS, delayMillis = AccordionMotion.FADE_MS, easing = Ease)
+    else -> tween(AccordionMotion.FADE_MS, easing = Ease)
+}
+
+/**
+ * The centred busy content: the app's white arc spinner, which stays on screen (and keeps
+ * spinning) from the upload to the filing step, over a title and either the upload bar or
+ * the filing sentence. A step change fades the title and subtitle out, then the new ones in.
+ *
+ * TalkBack meets one named busy indicator ("Sending your issue"), then the title (a heading
+ * and a polite live region, so each step's new title is announced), then the bar ("Upload
+ * progress" with its percentage) or the sentence. The content scrolls at large text sizes.
+ *
+ * @param status What to show.
+ * @param kind Form, for the spinner's name.
+ * @param reduceMotion Swap the text without fading.
+ * @param modifier Region to centre in.
+ */
+@Composable
+private fun FeedbackBusyView(status: FeedbackBusyStatus, kind: FeedbackKind, reduceMotion: Boolean, modifier: Modifier) {
+    // The step on screen: changes only after the old text has faded out, so the same title
+    // node changes its text (and TalkBack announces it) while the spinner stays untouched.
+    var shownStep by remember { mutableStateOf(status) }
+    val textAlpha = remember { Animatable(1f) }
+    LaunchedEffect(status.step, reduceMotion) {
+        if (shownStep.step == status.step) {
+            textAlpha.snapTo(1f)
+            return@LaunchedEffect
+        }
+        if (!reduceMotion) textAlpha.animateTo(0f, tween(AccordionMotion.FADE_MS, easing = Ease))
+        shownStep = status
+        if (reduceMotion) textAlpha.snapTo(1f) else textAlpha.animateTo(1f, tween(AccordionMotion.FADE_MS, easing = Ease))
+    }
+    val shown = if (reduceMotion || shownStep.step == status.step) status else shownStep
+    Box(modifier.testTag("fst.settings.feedback.progress"), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // The app's one loading indicator (design/android.md), never the theme's blue primary.
+            FestivalLoading(FeedbackCopy.busyLabel(kind), Modifier.testTag("fst.settings.feedback.progress.spinner"))
             Column(
-                Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-                    .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 24.dp),
+                Modifier.fillMaxWidth().alpha(textAlpha.value),
+                horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                EditingContent(form, viewModel)
+                // Typography of the shared centred title/subtitle block (FestivalEmptyState).
+                Text(
+                    shown.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = BrandTokens.textPrimary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("fst.settings.feedback.progress.title")
+                        .semantics {
+                            heading()
+                            liveRegion = LiveRegionMode.Polite
+                        },
+                )
+                if (shown.showsBar) {
+                    val barModifier = Modifier
+                        .widthIn(max = 280.dp)
+                        .fillMaxWidth()
+                        .testTag("fst.settings.feedback.progress.bar")
+                        .semantics { contentDescription = FeedbackCopy.UPLOAD_PROGRESS_LABEL }
+                    val track = BrandTokens.textPrimary.copy(alpha = 0.1f)
+                    val progress = shown.progress
+                    if (progress != null) {
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = barModifier,
+                            color = BrandTokens.textPrimary,
+                            trackColor = track,
+                        )
+                    } else {
+                        LinearProgressIndicator(modifier = barModifier, color = BrandTokens.textPrimary, trackColor = track)
+                    }
+                }
+                shown.subtitle?.let { subtitle ->
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = BrandTokens.textPrimary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().testTag("fst.settings.feedback.progress.subtitle"),
+                    )
+                }
             }
         }
     }

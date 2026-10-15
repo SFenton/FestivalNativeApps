@@ -27,6 +27,7 @@ public sealed partial class MainWindow : Window
     private readonly FestivalSession session;
     private readonly LaunchOptions options;
     private readonly Dictionary<AppSection, Frame> frames = [];
+    private readonly Dictionary<AppSection, OnDemandSplitHost> splits = [];
     private readonly UISettings uiSettings = new();
     private AppSection current = AppSection.Songs;
     private bool windowVisible = true;
@@ -105,12 +106,16 @@ public sealed partial class MainWindow : Window
         {
             if (e.GetCurrentPoint(RootGrid).Properties.IsXButton1Pressed && GoBack()) e.Handled = true;
         };
+        // A press or focus outside the page area (title bar, navigation pane) is never "from the split pane".
+        RootGrid.AddHandler(UIElement.PointerPressedEvent, new PointerEventHandler((_, e) => NoteOutsideSplit(e.OriginalSource)), true);
+        RootGrid.GotFocus += (_, e) => NoteOutsideSplit(e.OriginalSource);
 
         ApplyTransparency();
         UpdateBackdropPolicy();
         UpdateLiveUpdates();
         Show(options.Tab ?? AppSection.Songs);
-        if (options.Route is { } route) Navigate(route);
+        // A launch deep link shows its own page full width, never a pane beside its section root.
+        if (options.Route is { } route) Navigate(route, onDemand: false);
         _ = LoadBackdropCatalogAsync();
         Backdrop.Loaded += (_, _) => PerfLog.Mark("shell-loaded");
     }
@@ -122,9 +127,17 @@ public sealed partial class MainWindow : Window
     public static MainWindow? Instance { get; private set; }
 
     #region Navigation
-    /// <summary>Pushes a route onto the current section's stack.</summary>
+    /// <summary>
+    /// Pushes a route onto the current section's stack, or opens it beside the list page in the section's on-demand split
+    /// (split-panes R7 Windows variant, issue #652).
+    /// </summary>
     /// <param name="route">Destination.</param>
-    public void Navigate(AppRoute route)
+    public void Navigate(AppRoute route) => Navigate(route, onDemand: true);
+
+    /// <summary>Pushes a route, optionally through the section's on-demand split.</summary>
+    /// <param name="route">Destination.</param>
+    /// <param name="onDemand">Whether the split may open or extend a pane; false always pushes full width.</param>
+    private void Navigate(AppRoute route, bool onDemand)
     {
         // Player-only routes redirect to the Songs root without a profile, like the web's RequirePlayer guards.
         if (AppRouteParser.ForProfile(route, session.HasPlayer) is null)
@@ -148,7 +161,28 @@ public sealed partial class MainWindow : Window
             Show(AppSection.Statistics);
             return;
         }
-        frames[current].Navigate(PageFor(route), route);
+        var page = PageFor(route);
+        var split = splits[current];
+        switch (onDemand ? split.Decide(route) : SplitAction.PushFull)
+        {
+            case SplitAction.OpenPane:
+                split.OpenPane(page, route);
+                break;
+            case SplitAction.PushInPane:
+                split.PushInPane(page, route);
+                break;
+            default:
+                frames[current].Navigate(page, route);
+                break;
+        }
+    }
+
+    /// <summary>Marks the current split's last interaction as outside it when the source is outside the page area.</summary>
+    /// <param name="source">Pressed or focused element.</param>
+    private void NoteOutsideSplit(object source)
+    {
+        if (splits.GetValueOrDefault(current) is { } split && (source is not DependencyObject element || !OnDemandSplitHost.IsInside(element, split)))
+            split.NoteOutside();
     }
 
     /// <summary>Opens the title-bar profile picker (pages' "Select Player" actions, the context menu and Ctrl+Shift+P).</summary>
@@ -207,18 +241,23 @@ public sealed partial class MainWindow : Window
         if (!frames.TryGetValue(section, out var frame))
         {
             frame = new Frame { CacheSize = 4 };
+            // The split host follows the section's navigations before the shell does (Back and first run read its pane).
+            var host = new OnDemandSplitHost(frame);
+            host.Changed += (_, _) => OnFrameNavigated();
             frame.Navigated += (_, _) => OnFrameNavigated();
             CachedPageScroll.Attach(frame);
             frames[section] = frame;
+            splits[section] = host;
             frame.Navigate(RootPage(section), section);
         }
         else if (section == current)
         {
             while (frame.CanGoBack) frame.GoBack();
+            splits[section].CloseAll();
         }
         current = section;
         FrameHost.Children.Clear();
-        FrameHost.Children.Add(frame);
+        FrameHost.Children.Add(splits[section]);
         SelectNavItem(section);
         OnFrameNavigated();
     }
@@ -229,6 +268,7 @@ public sealed partial class MainWindow : Window
         Show(AppSection.Songs);
         var frame = frames[AppSection.Songs];
         while (frame.CanGoBack) frame.GoBack();
+        splits[AppSection.Songs].CloseAll();
     }
 
     /// <summary>Drops cached section stacks whose pages hold reset state, so they reload from defaults on next visit.</summary>
@@ -238,6 +278,7 @@ public sealed partial class MainWindow : Window
         foreach (var section in sections.Distinct())
         {
             if (section == current || !frames.Remove(section, out var frame)) continue;
+            splits.Remove(section);
             routeStacks.Remove(frame);
         }
     }
@@ -257,13 +298,15 @@ public sealed partial class MainWindow : Window
         _ => typeof(PlaceholderPage),
     };
 
-    /// <summary>Goes back in the current section.</summary>
-    /// <returns><see langword="true"/> when a page was popped.</returns>
+    /// <summary>Goes back in the current section: an open split pane's stack, then the pane, then the section's stack.</summary>
+    /// <returns><see langword="true"/> when a page was popped or a pane closed.</returns>
     private bool GoBack()
     {
         if (!frames.TryGetValue(current, out var frame)) return false;
         // A page-level overlay (the Songs jump index) closes before the stack pops (operator batch 6.1).
         if (frame.Content is IPageBack page && page.TryGoBack()) return true;
+        // Back closes the trailing pane first (back-keeps-place R6, issue #652).
+        if (splits.GetValueOrDefault(current)?.TryGoBack() == true) return true;
         if (!frame.CanGoBack) return false;
         frame.GoBack();
         return true;
@@ -273,15 +316,17 @@ public sealed partial class MainWindow : Window
     private void OnFrameNavigated()
     {
         var frame = frames.GetValueOrDefault(current);
+        var split = splits.GetValueOrDefault(current);
         // Back shows only when there is somewhere to go (like Windows 11 Settings), so the chrome never shows a gray
-        // disabled arrow (operator batch 6.6: Back, the pane toggle and the title are white).
-        var canGoBack = frame?.CanGoBack == true;
+        // disabled arrow (operator batch 6.6: Back, the pane toggle and the title are white). An open pane closes on Back.
+        var canGoBack = frame?.CanGoBack == true || split?.VisiblePane is not null;
         AppTitleBar.IsBackButtonEnabled = canGoBack;
         AppTitleBar.IsBackButtonVisible = canGoBack;
         if (frame is not null) TrackRoutes(frame);
         UpdateWindowTitle();
         QueueFirstRun();
-        if (frame?.Content is IBackdropPage { UsesSongCover: true } page) Backdrop.ShowSong(page.BackdropArt);
+        var pages = split?.Pages ?? Enumerable.Empty<object>();
+        if (pages.OfType<IBackdropPage>().FirstOrDefault(p => p.UsesSongCover) is { } page) Backdrop.ShowSong(page.BackdropArt);
         else Backdrop.ShowCarousel();
     }
 
@@ -578,9 +623,13 @@ public sealed partial class MainWindow : Window
         Motion.Update(hidden: !windowVisible || minimized || occlusion?.IsHidden == true);
     }
 
+    /// <summary>App acrylic surfaces that switch to their solid fallback with <see cref="ApplyTransparency"/>.</summary>
+    private static readonly string[] AcrylicSurfaceKeys = ["FSTOverlayPaneBrush", "FSTFlyoutSurfaceBrush"];
+
     /// <summary>
-    /// Makes cards opaque and the overlay pane's acrylic use its solid fallback when Windows transparency effects are off
-    /// or the in-app Less Transparency or Increase Contrast setting is on (<see cref="CardSurfaceOpacity"/>, surface-materials R4).
+    /// Makes cards opaque and the overlay pane's and flyout surface's acrylic use their solid fallbacks when Windows
+    /// transparency effects are off or the in-app Less Transparency or Increase Contrast setting is on
+    /// (<see cref="CardSurfaceOpacity"/>, surface-materials R4).
     /// </summary>
     private void ApplyTransparency()
     {
@@ -595,8 +644,11 @@ public sealed partial class MainWindow : Window
                 color.A = transparent ? CardSurfaceOpacity.TranslucentAlpha : CardSurfaceOpacity.OpaqueAlpha;
                 brush.Color = color;
             }
-            if (defaults.TryGetValue("FSTOverlayPaneBrush", out var pane) && pane is AcrylicBrush acrylic)
-                acrylic.AlwaysUseFallback = !transparent;
+            foreach (var key in AcrylicSurfaceKeys)
+            {
+                if (defaults.TryGetValue(key, out var surface) && surface is AcrylicBrush acrylic)
+                    acrylic.AlwaysUseFallback = !transparent;
+            }
         }
     }
     #endregion
@@ -619,17 +671,6 @@ public interface IPageBack
     /// <summary>Closes a page-level overlay instead of navigating back.</summary>
     /// <returns><see langword="true"/> when Back was consumed.</returns>
     bool TryGoBack();
-}
-
-/// <summary>
-/// A page that can show a row's destination itself (the detail column of a list + detail layout) instead of pushing it.
-/// </summary>
-public interface IRouteHost
-{
-    /// <summary>Shows the route in place.</summary>
-    /// <param name="route">Row destination.</param>
-    /// <returns><see langword="true"/> when handled; otherwise the caller navigates.</returns>
-    bool TryShow(AppRoute route);
 }
 
 /// <summary>Pages that replace the carousel with a static song cover (Song Detail, leaderboards).</summary>

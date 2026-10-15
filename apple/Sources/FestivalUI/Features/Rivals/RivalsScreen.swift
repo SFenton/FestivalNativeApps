@@ -38,7 +38,7 @@ struct RivalsScreen: View {
     @State private var dualSelection: AppRoute?
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var layout
-    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    /// Set where page tools float above the iPhone tab bar (issues #92, #632).
     @Environment(\.pageToolsRegistry) private var pageTools
     private var visible = VisibleInstrumentsReader()
 
@@ -107,7 +107,7 @@ struct RivalsScreen: View {
             }
         }
         .preference(key: FestivalRootTrailingProvidedKey.self, value: showsRootTrailingItems)
-        // iPhone tab-bar accessory (issue #92): Find Rival before Quick Links.
+        // iPhone floating page tools (issues #92, #632): Find Rival before Quick Links.
         .festivalPageTool(token: "findRival", order: PageToolOrder.primary) {
             findRivalButton
         }

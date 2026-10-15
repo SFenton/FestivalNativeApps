@@ -553,7 +553,11 @@ public class FeedbackTests
         Assert.True(form.HasBugFields);
         Assert.Equal(FeedbackCopy.TitleHelp(FeedbackKind.Bug), form.TitleHelp);
         Assert.Equal(FeedbackCopy.DescriptionHelp(FeedbackKind.Bug), form.DescriptionHelp);
-        Assert.Equal("Sending your report…", form.SendingText);
+        Assert.Equal("", form.StatusTitle);
+        Assert.Equal("", form.StatusSubtitle);
+        Assert.False(form.ShowsUploadBar);
+        Assert.Equal(0, form.UploadFraction);
+        Assert.Equal("Sending your issue", form.BusyName);
         Assert.Equal(("Submit", "Cancel"), (form.PrimaryText, form.CloseText));
         Assert.True(form.IsEditing);
         Assert.True(form.RequestClose());
@@ -656,14 +660,14 @@ public class FeedbackTests
         });
         form.PropertyChanged += (_, e) =>
         {
-            if (e.PropertyName == nameof(FeedbackFormViewModel.SendingText)) captions.Add(form.SendingText);
+            if (e.PropertyName == nameof(FeedbackFormViewModel.StatusTitle)) captions.Add(form.StatusTitle);
         };
         form.Title = "[Bug] Crash";
         form.Description = "Boom";
         form.AddAttachments([Media("a")]);
         await form.SubmitAsync();
         Assert.Empty(polls);
-        Assert.Equal(["Sending your report…", "Filing your report on GitHub…", "Sending your report…"], captions);
+        Assert.Equal(["Uploading Media", "Filing Issue", ""], captions);
         Assert.True(form.IsSent);
         Assert.False(form.IsSubmitting);
         Assert.Equal(new FeedbackJob(JobId, FeedbackJobState.Submitted, 42), form.Job);
@@ -681,6 +685,211 @@ public class FeedbackTests
         await form.SubmitAsync();
         Assert.Equal("[Bug] Crash", form.Title);
         Assert.Single(form.Attachments);
+    }
+
+    private sealed class Reports : IProgress<double>
+    {
+        public List<double> Values { get; } = [];
+
+        public void Report(double value) => Values.Add(value);
+    }
+
+    [Fact]
+    public void StatusCopy_MatchesOwnerWording()
+    {
+        Assert.Equal("Uploading Media", FeedbackCopy.UploadingTitle);
+        Assert.Equal("Filing Issue", FeedbackCopy.FilingTitle(FeedbackKind.Bug));
+        Assert.Equal("Filing Request", FeedbackCopy.FilingTitle(FeedbackKind.Feature));
+        Assert.Equal("We\u2019re filing your issue. Please wait while we upload it.", FeedbackCopy.FilingSubtitle(FeedbackKind.Bug));
+        Assert.Equal("We\u2019re filing your request. Please wait while we upload it.", FeedbackCopy.FilingSubtitle(FeedbackKind.Feature));
+        Assert.Equal("Sending your issue", FeedbackCopy.BusyName(FeedbackKind.Bug));
+        Assert.Equal("Sending your request", FeedbackCopy.BusyName(FeedbackKind.Feature));
+        Assert.Equal("Upload progress", FeedbackCopy.UploadProgressName);
+    }
+
+    [Fact]
+    public async Task Form_ShowsUploadProgressThenFilingStatus()
+    {
+        IProgress<double>? progress = null;
+        var upload = new TaskCompletionSource<FeedbackJob>();
+        var filing = new TaskCompletionSource<FeedbackJob>();
+        var form = new FeedbackFormViewModel(FeedbackKind.Feature,
+            (_, sink, _) =>
+            {
+                progress = sink;
+                return upload.Task;
+            },
+            (_, _) => filing.Task, "2610.02.01", "Windows 11", (_, _) => Task.CompletedTask);
+        form.Title = "[Feature] Dark mode";
+        form.Description = "Please";
+        form.AddAttachments([Media("a")]);
+        var raised = new List<string?>();
+        form.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
+
+        var submitting = form.SubmitAsync();
+        Assert.Equal(FeedbackPhase.Submitting, form.Phase);
+        Assert.Equal("Uploading Media", form.StatusTitle);
+        Assert.Equal("", form.StatusSubtitle);
+        Assert.True(form.ShowsUploadBar);
+        Assert.Equal(0, form.UploadFraction);
+        Assert.Contains(nameof(FeedbackFormViewModel.StatusTitle), raised);
+        Assert.Contains(nameof(FeedbackFormViewModel.ShowsUploadBar), raised);
+
+        progress!.Report(0.25);
+        Assert.Equal(0.25, form.UploadFraction);
+        progress.Report(0.1);
+        Assert.Equal(0.25, form.UploadFraction);
+        progress.Report(double.NaN);
+        Assert.Equal(0.25, form.UploadFraction);
+        progress.Report(7);
+        Assert.Equal(1, form.UploadFraction);
+
+        upload.SetResult(new FeedbackJob(JobId, FeedbackJobState.Queued));
+        Assert.Equal(FeedbackPhase.Filing, form.Phase);
+        Assert.Equal("Filing Request", form.StatusTitle);
+        Assert.Equal("We\u2019re filing your request. Please wait while we upload it.", form.StatusSubtitle);
+        Assert.False(form.ShowsUploadBar);
+        Assert.Equal("Sending your request", form.BusyName);
+
+        filing.SetResult(new FeedbackJob(JobId, FeedbackJobState.Submitted, 9));
+        await submitting;
+        Assert.True(form.IsSent);
+        Assert.Equal("", form.StatusTitle);
+        Assert.Equal("", form.StatusSubtitle);
+    }
+
+    [Fact]
+    public async Task Form_WithoutMediaReadsAsFilingFromSubmit()
+    {
+        // No media to upload: "Uploading Media" would be inaccurate, so the short text-only send already reads as
+        // filing, with no bar (agent decision, shared with Android). The title doesn't change at the hand-off.
+        var gate = new TaskCompletionSource<FeedbackJob>();
+        var filing = new TaskCompletionSource<FeedbackJob>();
+        var bug = Filled(Form(FeedbackKind.Bug, (_, _) => gate.Task, (_, _) => filing.Task));
+        var captions = new List<string>();
+        bug.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(FeedbackFormViewModel.StatusTitle)) captions.Add(bug.StatusTitle);
+        };
+        var sending = bug.SubmitAsync();
+        Assert.Equal(FeedbackPhase.Submitting, bug.Phase);
+        Assert.Equal("Filing Issue", bug.StatusTitle);
+        Assert.Equal("We\u2019re filing your issue. Please wait while we upload it.", bug.StatusSubtitle);
+        Assert.False(bug.ShowsUploadBar);
+        gate.SetResult(new FeedbackJob(JobId, FeedbackJobState.Queued));
+        Assert.Equal(FeedbackPhase.Filing, bug.Phase);
+        Assert.Equal("Filing Issue", bug.StatusTitle);
+        filing.SetResult(new FeedbackJob(JobId, FeedbackJobState.Submitted, 3));
+        await sending;
+        Assert.Equal(["Filing Issue", "Filing Issue", ""], captions);
+
+        var hold = new TaskCompletionSource<FeedbackJob>();
+        var feature = Filled(Form(FeedbackKind.Feature, (_, _) => hold.Task));
+        feature.Title = "[Feature] Idea";
+        var requesting = feature.SubmitAsync();
+        Assert.Equal("Filing Request", feature.StatusTitle);
+        Assert.Equal("We\u2019re filing your request. Please wait while we upload it.", feature.StatusSubtitle);
+        Assert.False(feature.ShowsUploadBar);
+        hold.SetResult(new FeedbackJob(JobId, FeedbackJobState.Submitted, 4));
+        await requesting;
+    }
+
+    [Fact]
+    public async Task Form_LateOrRetriedProgressNeverMovesTheBarBackwards()
+    {
+        var sinks = new List<IProgress<double>>();
+        var attempts = new Queue<Func<Task<FeedbackJob>>>([
+            () => throw FeedbackException.ForStatus(503, "feedback_busy"),
+            () => Task.FromResult(new FeedbackJob(JobId, FeedbackJobState.Submitted, 5)),
+        ]);
+        var form = new FeedbackFormViewModel(FeedbackKind.Bug,
+            (_, sink, _) =>
+            {
+                sinks.Add(sink);
+                sink.Report(0.5);
+                return attempts.Dequeue()();
+            },
+            (_, _) => Task.FromResult(new FeedbackJob(JobId, FeedbackJobState.Submitted, 5)), "v", "c", (_, _) => Task.CompletedTask);
+        Filled(form);
+        await form.SubmitAsync();
+        Assert.True(form.IsEditing);
+        Assert.Equal("Feedback is busy right now. Try again in a minute.", form.Error);
+        Assert.Equal("[Bug] Crash", form.Title);
+        Assert.Equal(0.5, form.UploadFraction);
+
+        // A stale report from the failed attempt changes nothing once the form is back to editing.
+        sinks[0].Report(0.9);
+        Assert.Equal(0.5, form.UploadFraction);
+
+        var fractions = new List<double>();
+        form.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(FeedbackFormViewModel.UploadFraction)) fractions.Add(form.UploadFraction);
+        };
+        await form.SubmitAsync();
+        Assert.True(form.IsSent);
+        Assert.Equal([0, 0.5, 1], fractions);
+        sinks[1].Report(0.2);
+        Assert.Equal(1, form.UploadFraction);
+    }
+
+    [Fact]
+    public async Task Submit_ReportsUploadProgressAndSendsTheSameBody()
+    {
+        FeedbackAttachment[] media = [new("a", "shot.png", "image/png", 9), new("b", "clip.mp4", "video/mp4", 9)];
+        var (plain, _, plainSeen) = Client(HttpStatusCode.Accepted, $$"""{"id":"{{JobId}}","status":"queued"}""");
+        await plain.SubmitFeedbackAsync(Submission(media), Open);
+        var (client, _, seen) = Client(HttpStatusCode.Accepted, $$"""{"id":"{{JobId}}","status":"queued"}""");
+        var reports = new Reports();
+        var job = await client.SubmitFeedbackAsync(Submission(media), Open, default, reports);
+
+        Assert.Equal(new FeedbackJob(JobId, FeedbackJobState.Queued), job);
+        var sent = Assert.Single(seen);
+        Assert.StartsWith("multipart/form-data; boundary=", sent.ContentType);
+        var boundary = System.Text.RegularExpressions.Regex.Match(sent.ContentType, "boundary=\"?([^\";]+)").Groups[1].Value;
+        var plainBoundary = System.Text.RegularExpressions.Regex.Match(plainSeen[0].ContentType, "boundary=\"?([^\";]+)").Groups[1].Value;
+        Assert.Equal(plainSeen[0].Body.Replace(plainBoundary, "B"), sent.Body.Replace(boundary, "B"));
+        Assert.Equal(0, reports.Values[0]);
+        Assert.Equal(1, reports.Values[^1]);
+        Assert.Equal(reports.Values.Order(), reports.Values);
+    }
+
+    [Fact]
+    public async Task UploadProgressContent_ThrottlesKnownLengthsAndCompletesUnknownOnes()
+    {
+        var reports = new Reports();
+        // 37-byte writes: 271 of them, reported at most once per 1 %.
+        var body = new StreamContent(new FileLikeStream(new byte[10_000]), 37) { Headers = { ContentType = new("video/mp4") } };
+        using (var known = new UploadProgressContent(body, reports))
+        {
+            Assert.Equal(10_000, known.Headers.ContentLength);
+            Assert.Equal("video/mp4", known.Headers.ContentType!.MediaType);
+            using var target = new MemoryStream();
+            await known.CopyToAsync(target);
+            Assert.Equal(10_000, target.Length);
+        }
+        Assert.Equal(0, reports.Values[0]);
+        Assert.Equal(1, reports.Values[^1]);
+        Assert.Single(reports.Values, 1.0);
+        Assert.Equal(reports.Values.Order(), reports.Values);
+        Assert.InRange(reports.Values.Count, 50, 102);
+        Assert.All(reports.Values.Zip(reports.Values.Skip(1)).SkipLast(1), pair => Assert.True(pair.Second - pair.First >= UploadProgressContent.Step - 1e-9));
+
+        var unknown = new Reports();
+        using var stream = new UploadProgressContent(new StreamContent(new UnseekableStream(new byte[4_000])), unknown);
+        Assert.Null(stream.Headers.ContentLength);
+        await stream.CopyToAsync(Stream.Null);
+        Assert.Equal([0, 1], unknown.Values);
+    }
+
+
+    /// <summary>A seekable stream that copies in buffer-sized chunks like a file (MemoryStream itself writes all at once).</summary>
+    private sealed class FileLikeStream(byte[] data) : MemoryStream(data);
+
+    /// <summary>A read-only stream with no length.</summary>
+    private sealed class UnseekableStream(byte[] data) : MemoryStream(data)
+    {
+        public override bool CanSeek => false;
     }
 
     [Fact]

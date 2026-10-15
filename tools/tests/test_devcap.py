@@ -58,7 +58,7 @@ class DevcapTestCase(unittest.TestCase):
         self.addCleanup(patcher.stop)
         self.addCleanup(self.tmp.cleanup)
         for key in [k for k in os.environ if k.startswith("DEVCAP_SLOTS_") or k == devcap.HELD_ENV
-                    or k == "DEVCAP_REAP_GRACE"]:
+                    or k in ("DEVCAP_REAP_GRACE", "DEVCAP_EVICT_AFTER")]:
             os.environ.pop(key)
         # Never read or touch the real Mac's simulators from tests.
         self.booted = []
@@ -91,8 +91,8 @@ class TicketTests(unittest.TestCase):
 class ConfigTests(DevcapTestCase):
     def test_defaults_scale_with_machine(self):
         self.assertEqual(devcap.default_slots("simulator", memory_gb=8), 1)
-        self.assertEqual(devcap.default_slots("simulator", memory_gb=64), 3)
-        self.assertEqual(devcap.default_slots("simulator", memory_gb=512), 4)
+        self.assertEqual(devcap.default_slots("simulator", memory_gb=64), 4)
+        self.assertEqual(devcap.default_slots("simulator", memory_gb=512), 6)
         self.assertEqual(devcap.default_slots("build", cpus=10), 2)
         self.assertEqual(devcap.default_slots("build", cpus=2), 1)
         self.assertEqual(devcap.default_slots("anything"), 1)
@@ -359,6 +359,17 @@ class CliTests(DevcapTestCase):
         self.assertEqual(result.returncode, devcap.HOLD_TIMEOUT_EXIT, result.stderr)
         self.assertFalse(log.exists(), "the nested run shut down its parent's simulator")
 
+    @unittest.skipIf(os.name == "nt", "simulators are macOS-only")
+    def test_shutdown_on_timeout_keeps_a_finished_run_warm(self):
+        log = self.fake_xcrun()
+        ok = self.cli("run", "--sim", UDID, "--shutdown-on-timeout", "--", sys.executable, "-c", "pass")
+        self.assertEqual(ok.returncode, 0, ok.stderr)
+        self.assertFalse(log.exists(), "a finished run keeps its simulator warm")
+        hung = self.cli("run", "--sim", UDID, "--shutdown-on-timeout", "--hold", "1", "--",
+                        sys.executable, "-c", "import time; time.sleep(30)")
+        self.assertEqual(hung.returncode, devcap.HOLD_TIMEOUT_EXIT, hung.stderr)
+        self.assertEqual(log.read_text(), f"simctl shutdown {UDID} held=slot-0.lock\n")
+
     def test_shutdown_sims_survives_missing_xcrun(self):
         with unittest.mock.patch.object(devcap.subprocess, "run", side_effect=FileNotFoundError):
             REAL_SHUTDOWN_SIMS([UDID])
@@ -445,6 +456,73 @@ class UnmanagedSimTests(DevcapTestCase):
         self.assertIn("'Leaked' booted outside any hold", messages[0])
         self.assertEqual(self.shutdowns, [], "nothing is reaped within the grace period")
         holder.release()
+
+    def boot_off_on_shutdown(self):
+        """Make the mocked shutdown also remove the simulator from the booted list."""
+        def shutdown(udids):
+            self.shutdowns.extend(udids)
+            self.booted = [b for b in self.booted if b["udid"] not in udids]
+        patcher = unittest.mock.patch.object(devcap, "shutdown_sims", shutdown)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def age(self, udid, seconds):
+        """Pretend ``udid`` has been unheld for ``seconds`` in the reaper's records."""
+        devcap.scan_unmanaged(self.root, reap=False)
+        state = json.loads((self.root / "reaper.json").read_text())
+        state["first_unheld"][udid] -= seconds
+        (self.root / "reaper.json").write_text(json.dumps(state))
+
+    def test_waiter_evicts_the_idlest_warm_simulator_when_full(self):
+        other = "22222222-3333-4444-8555-666666666666"
+        self.booted = [{"udid": LEAKED, "name": "Warm A"}, {"udid": other, "name": "Warm B"}]
+        self.age(LEAKED, 120)
+        self.age(other, 90)
+        self.boot_off_on_shutdown()
+        gate = self.waiter(slots=2)
+        gate.acquire("needs room", 1, 0.05, announce=lambda _: None)
+        self.assertEqual(self.shutdowns, [LEAKED])
+        self.assertIn("evict Warm A", (self.root / "devcap.log").read_text())
+        gate.release()
+
+    def test_warm_simulators_are_kept_for_their_lane_and_debugger(self):
+        self.booted = [{"udid": LEAKED, "name": "Warm"}]
+        self.age(LEAKED, 30)  # under the 60 s reservation
+        with self.assertRaises(WaitTimeout):
+            self.waiter(slots=1).acquire("x", 0.3, 0.05, announce=lambda _: None)
+        self.age(LEAKED, 60)
+        with unittest.mock.patch.object(devcap, "debugged_sims", lambda: {LEAKED}), \
+                self.assertRaises(WaitTimeout):
+            self.waiter(slots=1).acquire("x", 0.3, 0.05, announce=lambda _: None)
+        os.environ["DEVCAP_EVICT_AFTER"] = "off"
+        with self.assertRaises(WaitTimeout):
+            self.waiter(slots=1).acquire("x", 0.3, 0.05, announce=lambda _: None)
+        self.assertEqual(self.shutdowns, [])
+
+    def test_no_eviction_when_the_debugger_state_is_unknown(self):
+        self.booted = [{"udid": LEAKED, "name": "Warm"}]
+        self.age(LEAKED, 120)
+        with unittest.mock.patch.object(devcap, "debugged_sims", lambda: None), \
+                self.assertRaises(WaitTimeout):
+            self.waiter(slots=1).acquire("x", 0.3, 0.05, announce=lambda _: None)
+        self.assertEqual(self.shutdowns, [])
+        [entry] = json.loads((self.root / "reaper.json").read_text())["unmanaged"]
+        self.assertIsNone(entry["debugged"])
+
+    def test_failed_eviction_does_not_free_a_slot(self):
+        self.booted = [{"udid": LEAKED, "name": "Stuck"}]  # shutdown_sims is mocked: it stays booted
+        self.age(LEAKED, 120)
+        with self.assertRaises(WaitTimeout):
+            self.waiter(slots=1).acquire("x", 0.3, 0.05, announce=lambda _: None)
+        self.assertIn(LEAKED, self.shutdowns)
+
+    def test_room_left_means_no_eviction(self):
+        self.booted = [{"udid": LEAKED, "name": "Warm"}]
+        self.age(LEAKED, 120)
+        gate = self.waiter(slots=2)
+        gate.acquire("x", 1, 0.05)
+        self.assertEqual(self.shutdowns, [])
+        gate.release()
 
     def test_own_and_held_simulators_are_not_unmanaged(self):
         self.booted = [{"udid": UDID, "name": "Mine"}, {"udid": LEAKED, "name": "Held"}]
@@ -555,6 +633,60 @@ class UnmanagedSimTests(DevcapTestCase):
             f"12 1 /Users/x/Library/Developer/CoreSimulator/Devices/{UDID}/data/Containers/Bundle/B/App.app/App",
         ])
         self.assertEqual(devcap.debugged_from_ps(text), {LEAKED})
+
+
+class PickSimTests(DevcapTestCase):
+    """Lanes wanting the same device type share a pool of identical simulators."""
+
+    IPAD = {"udid": UDID, "name": "iPad", "booted": False, "type": "com.apple.iPad", "runtime": "iOS-27"}
+
+    def setUp(self):
+        super().setUp()
+        self.booted = [dict(self.IPAD)]
+        self.created = []
+
+        def fake_run(argv, **kwargs):
+            assert argv[:3] == ["xcrun", "simctl", "create"], argv
+            udid = f"00000000-0000-4000-8000-{len(self.created) + 1:012d}"
+            self.created.append((argv[3], argv[4], argv[5]))
+            self.booted.append({"udid": udid, "name": argv[3], "booted": False, "type": argv[4], "runtime": argv[5]})
+            return subprocess.CompletedProcess(argv, 0, stdout=udid + "\n", stderr="")
+        patcher = unittest.mock.patch.object(devcap.subprocess, "run", fake_run)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_creates_missing_pool_members_like_the_base(self):
+        self.assertEqual(devcap.pick_sim("iPad", 3, root=self.root), UDID)
+        self.assertEqual(self.created, [("iPad (pool 2)", "com.apple.iPad", "iOS-27"),
+                                        ("iPad (pool 3)", "com.apple.iPad", "iOS-27")])
+        self.assertEqual(devcap.pick_sim("iPad", 3, root=self.root), UDID)  # nothing new to create
+        self.assertEqual(len(self.created), 2)
+
+    def test_second_lane_gets_a_free_member_and_keeps_its_warm_one(self):
+        with devcap.hold(sims=[UDID], hold_seconds=None, root=self.root):
+            second = devcap.pick_sim("iPad", 3, root=self.root)
+            self.assertNotEqual(second, UDID)
+            self.assertEqual(devcap.pick_sim("iPad", 3, prefer=second, root=self.root), second)
+        self.assertEqual(devcap.pick_sim("iPad", 3, prefer=second, root=self.root), second)
+
+    def test_all_busy_queues_on_the_preferred_member(self):
+        members = [devcap.pick_sim("iPad", 2, root=self.root)]
+        members.append(next(s["udid"] for s in self.booted if s["name"] == "iPad (pool 2)"))
+        with devcap.hold(sims=members, hold_seconds=None, root=self.root):
+            self.assertEqual(devcap.pick_sim("iPad", 2, prefer=members[1], root=self.root), members[1])
+            self.assertEqual(devcap.pick_sim("iPad", 2, root=self.root), members[0])
+
+    def test_same_named_devices_all_join_the_pool(self):
+        twin = "33333333-4444-4555-8666-777777777777"
+        self.booted.append({**self.IPAD, "udid": twin})
+        with devcap.hold(sims=[UDID], hold_seconds=None, root=self.root):
+            self.assertEqual(devcap.pick_sim("iPad", 1, root=self.root), twin)
+
+    def test_unknown_base_and_pool_of_one(self):
+        self.assertIsNone(devcap.pick_sim("Nope", 3, root=self.root))
+        self.assertEqual(devcap.pick_sim("iPad", 1, root=self.root), UDID)
+        self.assertEqual(self.created, [])
+        self.assertEqual(devcap.pool_names("X", 3), ["X", "X (pool 2)", "X (pool 3)"])
 
 
 class UnmanagedCliTests(DevcapTestCase):

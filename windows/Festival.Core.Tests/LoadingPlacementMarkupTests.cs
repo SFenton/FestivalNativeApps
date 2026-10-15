@@ -34,21 +34,22 @@ public class LoadingPlacementMarkupTests
     }
 
     [Fact]
-    public void OverviewRing_FillsRemainingViewportBelowRetainedHeader()
+    public void OverviewRing_FillsRemainingViewportBelowPinnedHeader()
     {
         var doc = XDocument.Load(Path.Combine(AppRoot, "Pages", "LeaderboardsPage.xaml"));
         var scroller = doc.Descendants().Single(e => Attr(e, "Name") == "Scroller");
         Assert.Equal("Stretch", Attr(scroller, "VerticalContentAlignment"));
+        // The header is pinned above the scroller (#639), so the scroller's whole viewport is the region below it.
+        Assert.Equal("1", Attr(scroller, "Grid.Row"));
         var page = scroller.Elements().Single();
         Assert.Equal("Grid", page.Name.LocalName);
-        Assert.Equal(new[] { "Auto", "*" },
-            page.Element(page.Name.Namespace + "Grid.RowDefinitions")!.Elements().Select(e => Attr(e, "Height")));
+        Assert.Null(page.Element(page.Name.Namespace + "Grid.RowDefinitions"));
         var ring = doc.Descendants().Single(e => Attr(e, "Name") == "ReadyRing");
         Assert.Null(Attr(ring, "Margin"));
         Assert.Equal("Center", Attr(ring, "HorizontalAlignment"));
         Assert.Equal("Center", Attr(ring, "VerticalAlignment"));
         var region = Region(ring);
-        Assert.Equal("1", Attr(region, "Grid.Row"));
+        Assert.Same(page, region.Parent);
         Assert.Equal("Raw", Attr(region, "AutomationProperties.AccessibilityView"));
         Assert.Equal("Loading leaderboards", Attr(ring, "AutomationProperties.Name"));
         Assert.Equal("Spinner", Attr(ring, "LoadSwapVisual.Role"));
@@ -56,8 +57,9 @@ public class LoadingPlacementMarkupTests
         Assert.DoesNotContain(ring.Ancestors(), e => e.Name.LocalName == "StackPanel");
         var cards = doc.Descendants().Single(e => Attr(e, "Name") == "InstrumentRepeater");
         Assert.Equal("StackPanel", cards.Parent!.Name.LocalName);
-        Assert.Equal("1", Attr(cards.Parent, "Grid.Row"));
-        Assert.Contains(scroller.Descendants(), e => Attr(e, "Name") == "HeaderActions");
+        Assert.Same(page, cards.Parent.Parent);
+        var actions = doc.Descendants().Single(e => Attr(e, "Name") == "HeaderActions");
+        Assert.DoesNotContain(actions.Ancestors(), e => e.Name.LocalName == "ScrollViewer");
     }
 
     [Theory]

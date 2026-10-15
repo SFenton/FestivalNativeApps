@@ -433,11 +433,7 @@ private struct CompeteTitleDisplayMode: ViewModifier {
     let dualSource: Bool
 
     func body(content: Content) -> some View {
-        #if os(iOS)
-        content.toolbarTitleDisplayMode(dualSource ? .inline : .automatic)
-        #else
-        content
-        #endif
+        content.festivalTitleDisplayMode(dualSource ? .inline : .automatic)
     }
 }
 

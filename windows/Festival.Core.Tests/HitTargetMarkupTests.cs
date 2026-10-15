@@ -66,6 +66,8 @@ public class HitTargetMarkupTests
     [InlineData("Pages/LeaderboardsBandRankingsPage.xaml", "fst.band-rankings.band-type-menu", false)]
     [InlineData("Pages/LeaderboardsBandRankingsPage.xaml", "fst.band-rankings.rank-by-menu", false)]
     [InlineData("Pages/SongDetailPage.xaml", "fst.song-detail.pinned-paths", false)]
+    [InlineData("Pages/SongDetailPage.xaml", "fst.song-detail.shop", false)]
+    [InlineData("Pages/SongDetailPage.xaml", "fst.song-detail.pinned-shop", false)]
     public void ToolButtons_UseMinTarget(string file, string id, bool iconOnly)
     {
         var button = Assert.Single(ById(Load(file), id));
@@ -96,6 +98,38 @@ public class HitTargetMarkupTests
             .Where(e => e.Name.LocalName == "HyperlinkButton" && Attr(e, "Content") is "Select All" or "Clear All").ToList();
         Assert.Equal(4, links.Count);
         Assert.All(links, b => Assert.Equal(Resource, Attr(b, "MinHeight")));
+    }
+
+    [Fact]
+    public void SongsSearch_MatchesToolHeightAndFillsTheRow()
+    {
+        // Issue #646: the Songs search box was WinUI's 32 epx beside the 40 epx Sort/Filter/Jump, and its column stopped
+        // at 440 epx with a spacer after the tools, so the row neither shared one height nor spanned the content width.
+        var styles = Load(Path.Combine("Themes", "Styles.xaml")).Descendants().Where(e => e.Name.LocalName == "Style").ToList();
+        string? Setter(XElement style, string property) =>
+            Attr(style.Elements().Single(e => Attr(e, "Property") == property), "Value");
+        var text = styles.Single(e => Attr(e, "Key") == "FSTToolbarSearchTextBoxStyle");
+        Assert.Equal("{StaticResource AutoSuggestBoxTextBoxStyle}", Attr(text, "BasedOn"));
+        Assert.Equal(Resource, Setter(text, "MinHeight"));
+        var box = styles.Single(e => Attr(e, "Key") == "FSTToolbarSearchBoxStyle");
+        Assert.Equal("{StaticResource DefaultAutoSuggestBoxStyle}", Attr(box, "BasedOn"));
+        Assert.Equal("{StaticResource FSTToolbarSearchTextBoxStyle}", Setter(box, "TextBoxStyle"));
+        Assert.Equal("Center", Setter(box, "VerticalContentAlignment"));
+
+        var page = Load(Path.Combine("Pages", "SongsPage.xaml"));
+        var search = page.Descendants().Single(e => e.Name.LocalName == "AutoSuggestBox"
+                                                    && Attr(e, "AutomationProperties.AutomationId") == "fst.songs.search");
+        Assert.Equal("{StaticResource FSTToolbarSearchBoxStyle}", Attr(search, "Style"));
+        Assert.True(Attr(search, "VerticalAlignment") is null && Attr(search, "Height") is null && Attr(search, "MaxWidth") is null,
+            "the search box overrides its height or width");
+        // The search column takes every epx the tools leave; no cap, no spacer column after the tools.
+        var actions = page.Descendants().Single(e => Attr(e, "Name") == "Actions");
+        var columns = actions.Elements().Single(e => e.Name.LocalName == "Grid.ColumnDefinitions").Elements().ToList();
+        Assert.Equal(["*", "Auto"], columns.Select(c => Attr(c, "Width")));
+        Assert.All(columns, c => Assert.Null(Attr(c, "MaxWidth")));
+        // The tools fill the row, so larger text that grows one control keeps them one height.
+        foreach (var id in new[] { "fst.songs.sort", "fst.songs.filter", "fst.songs.section-index-button" })
+            Assert.Equal("Stretch", Attr(Assert.Single(ById(page, id)), "VerticalAlignment"));
     }
 
     [Fact]
@@ -343,7 +377,9 @@ public class HitTargetMarkupTests
         Assert.Equal("OnProfileButtonClick", Attr(profile, "Click"));
         var bell = Assert.Single(ById(Load(Path.Combine("Controls", "NotificationsBell.xaml")), "fst.shell.notifications"));
         Assert.Equal("{x:Bind Model.BellName, Mode=OneWay}", Attr(bell, "AutomationProperties.Name"));
-        Assert.Contains(bell.Elements(), e => e.Name.LocalName == "Button.Flyout");
+        // Issue #638: the bell opens the shared edge-docked dialog, not an anchored Flyout.
+        Assert.Equal("OnBellClick", Attr(bell, "Click"));
+        Assert.DoesNotContain(bell.Elements(), e => e.Name.LocalName == "Button.Flyout");
     }
 
     [Fact]

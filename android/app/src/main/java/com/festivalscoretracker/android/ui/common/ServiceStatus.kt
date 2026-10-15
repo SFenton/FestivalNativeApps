@@ -425,7 +425,8 @@ internal fun LoadingRegion(
 /**
  * The app's one loading indicator (cross-platform standard, 2026-09-28): a white indeterminate
  * arc on a 10% white track (web `ArcSpinner` track), 36 dp with a 3 dp stroke by default, never
- * the theme's blue primary and never with a subtitle.
+ * the theme's blue primary and never with a subtitle. The feedback form's busy view is the
+ * one owner-approved exception (modal-shell R16, #634).
  *
  * @param label Accessible description, or null when a parent already announces the state.
  * @param modifier Modifier.

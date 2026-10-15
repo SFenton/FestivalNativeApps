@@ -10,7 +10,7 @@ import FestivalDesign
 struct LeaderboardsScreen: View {
     let session: FestivalSession
     @Environment(\.deviceLayout) private var layout
-    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    /// Set where page tools float above the iPhone tab bar (issues #92, #632).
     @Environment(\.pageToolsRegistry) private var pageTools
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
@@ -182,7 +182,7 @@ struct LeaderboardsScreen: View {
             FestivalRootTrailingItems(session: session)
         }
         .festivalProvidesRootTrailingItems()
-        // iPhone tab-bar accessory (issue #92): Rank By before Quick Links.
+        // iPhone floating page tools (issues #92, #632): Rank By before Quick Links.
         .festivalPageTool(token: rankBy, order: PageToolOrder.primary, isEnabled: experimentalRanks) {
             RankByMenu(selection: rankByBinding)
         }

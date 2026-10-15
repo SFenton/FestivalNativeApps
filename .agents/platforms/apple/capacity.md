@@ -13,14 +13,14 @@ Worktrees keep whatever copy they branched with, so the Mac also has a **shared 
 | Gate | Slots | Taken by |
 |---|---|---|
 | `device-<UDID>` | 1 | `--sim UDID` or `--device UDID`: one lane per simulator or physical device |
-| `simulator` | RAM / 20 GB, 1–4 | `--sim UDID`: one per simulator in use |
+| `simulator` | RAM / 16 GB, 1–6 (4 on a 64 GB Mac) | `--sim UDID`: one per simulator in use |
 | `build` | cores / 4, 1–4 | `--pool build`: heavy `xcodebuild` / `swift build` compiles |
 
 State lives in `~/.devcap/<gate>/`: per-slot OS locks (released by the OS when a holder dies), a FIFO ticket queue (dead waiters pruned), holder records, and `~/.devcap/devcap.log`. Override counts with `DEVCAP_SLOTS_<POOL>` or `~/.devcap/config.json`.
 
 ## Simulators booted outside a hold
 
-A booted simulator whose device gate nobody holds is **unmanaged**: something booted it without devcap, or left it booted after its hold. Unmanaged simulators count against the `simulator` slots, so the limit holds whoever boots them. After 5 minutes unmanaged (`DEVCAP_REAP_GRACE` or `config.json` `reap_grace_seconds`; `off` disables), the next waiter or finished simulator hold shuts it down and closes Device Hub windows of devices nobody is using, including stale "Devices – No Selection" windows (owner decision, 2026-10-13). Simulators running an app under Xcode's debugger are never shut down. `python3 tools/devcap.py status` lists unmanaged simulators; `python3 tools/devcap.py reap [--dry-run]` sweeps on demand.
+A booted simulator whose device gate nobody holds is **unmanaged**: something booted it without devcap, or left it booted after its hold. Unmanaged simulators count against the `simulator` slots, so the limit holds whoever boots them. After 5 minutes unmanaged (`DEVCAP_REAP_GRACE` or `config.json` `reap_grace_seconds`; `off` disables), the next waiter or finished simulator hold shuts it down and closes Device Hub windows of devices nobody is using, including stale "Devices – No Selection" windows (owner decision, 2026-10-13). Simulators running an app under Xcode's debugger are never shut down. A lane may leave its simulator booted between consecutive runs so the next run skips the boot (warm). It still counts against the slots, and when every slot is in use the waiter at the head shuts down the one idle longest after 60 s idle (`DEVCAP_EVICT_AFTER` or `evict_after_seconds`; owner request, 2026-10-14). `python3 tools/devcap.py status` lists unmanaged simulators; `python3 tools/devcap.py reap [--dry-run]` sweeps on demand.
 
 Consequences: never boot or drive a simulator outside a hold (a direct `simctl boot` or `xcodebuild test` gets shut down after 5 minutes), and `ios_sim.py`'s product simulator no longer stays booted for long between holds. Device Hub handling compiles a small Swift helper into `~/.devcap/bin` on first use and needs the Accessibility permission the agents already have; `DEVCAP_HUB=off` turns it off.
 
@@ -39,4 +39,4 @@ python3 tools/devcap.py run --sim "$UDID" --shutdown -- <command>  # anything el
 python3 tools/devcap.py run --pool build -- <compile command>
 ```
 
-`run` waits up to `--wait` seconds (3600, then exit 75), holds up to `--hold` seconds (1800, max 7200, `0` = no limit; overrun kills the process group and exits 124) and forwards Ctrl-C to the command. `--shutdown` shuts the `--sim` simulators down before the slots are released, including after a hold timeout, so a killed run never leaves a simulator booted outside a hold.
+`python3 tools/devcap.py pick-sim --name "<simulator name>" [--prefer <UDID>]` prints a free member of that device type's pool ("<name>", "<name> (pool 2)", …, one per simulator slot, created on demand with the same type and runtime), so lanes that want the same device type run in parallel instead of queuing on one device gate. `run` waits up to `--wait` seconds (3600, then exit 75), holds up to `--hold` seconds (1800, max 7200, `0` = no limit; overrun kills the process group and exits 124) and forwards Ctrl-C to the command. `--shutdown` shuts the `--sim` simulators down before the slots are released, including after a hold timeout, so a killed run never leaves a simulator booted outside a hold. `--shutdown-on-timeout` keeps the simulator warm after a normal run and shuts it down only when the hold times out (a hung run).

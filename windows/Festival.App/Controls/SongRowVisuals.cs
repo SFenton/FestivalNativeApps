@@ -67,28 +67,47 @@ public static class SongRowVisuals
     /// <summary>A metadata pill for one field: one raw-view UIA element named with the field's spoken text.</summary>
     /// <param name="field">Field.</param>
     /// <param name="songId">Row song for the <c>fst.songs.metadata.*</c> test ID, or <see langword="null"/> (measuring).</param>
+    /// <param name="keyboard">Use the keys icon variant for an unfiltered Last Played entry's Lead/Pro Lead icon.</param>
     /// <returns>Pill element.</returns>
-    public static FrameworkElement Pill(SongMetadataField field, string? songId = null)
+    public static FrameworkElement Pill(SongMetadataField field, string? songId = null, bool keyboard = false)
     {
         var element = field.Kind switch
         {
             MetadataField.Score => Plain(Text(field.Text, 14, FontWeights.SemiBold, null)),
-            MetadataField.Percentage when field.FullCombo => Box(Text(field.Text, PillFont, FontWeights.Bold, Brush("FSTEmphasisBrush")),
-                background: null, border: Brush("FSTEmphasisBrush")),
-            MetadataField.Percentage when Services.ContrastTheme.IsOn => Neutral(field.Text),
-            MetadataField.Percentage => Box(Text(field.Text, PillFont, FontWeights.SemiBold, null),
-                background: field.Tint is { } t ? new SolidColorBrush(Color.FromArgb(0x40, t.R, t.G, t.B)) : Brush("FSTSurfaceMutedBrush"), border: null),
+            // A full combo is the web AccuracyDisplay fcBadge: "100%" in the shared skewed gold outline (issue #644).
+            MetadataField.Percentage when field.FullCombo => MetadataPills.FullCombo(field.Text),
+            MetadataField.Percentage when Services.ContrastTheme.IsOn => Accuracy(Neutral(field.Text)),
+            MetadataField.Percentage => Accuracy(Box(Text(field.Text, PillFont, FontWeights.SemiBold, null),
+                background: field.Tint is { } t ? new SolidColorBrush(Color.FromArgb(0x40, t.R, t.G, t.B)) : Brush("FSTSurfaceMutedBrush"), border: null)),
             // The shared percentile and season pills (pattern metadata-pills, issue #606).
             MetadataField.Percentile => MetadataPills.Percentile(field.Text, field.Percentile),
-            // Stars and intensity sit in the same pill-height slot as the text pills so every pill lines up (operator batch 7.18).
-            MetadataField.Stars => Slot(new StarRow { Stars = field.Stars.Gold ? StarRating.GoldValue : field.Stars.Count, StarSize = 14 }),
+            // Stars and intensity fill the pill height so they line up with the text pills (operator batch 7.18, issue
+            // #644): 24-epx star circles (web MiniStars) and the meter scaled from 20 to 24 epx (Apple Songs rows).
+            MetadataField.Stars => Slot(new StarRow { Stars = field.Stars.Gold ? StarRating.GoldValue : field.Stars.Count, StarSize = RowStarSize }),
             MetadataField.Season => MetadataPills.Season(field.Text, field.CurrentSeason),
-            MetadataField.Intensity => Slot(new DifficultyMeter { Raw = field.IntensityRaw ?? 0, VerticalAlignment = VerticalAlignment.Center }),
+            MetadataField.Intensity => Slot(new Viewbox
+            {
+                Height = PillHeight,
+                Stretch = Stretch.Uniform,
+                Child = new DifficultyMeter { Raw = field.IntensityRaw ?? 0 },
+            }),
             MetadataField.Difficulty when Services.ContrastTheme.IsOn => Neutral(field.Text),
             MetadataField.Difficulty => Box(
                 Text(field.Text, PillFont, FontWeights.Bold, new SolidColorBrush(field.GameDifficulty is 0 or 2 ? Colors.Black : Colors.White)),
                 Brush(field.GameDifficulty switch { 0 => "FSTDiffPillEasyBrush", 1 => "FSTDiffPillMediumBrush", 2 => "FSTDiffPillHardBrush", _ => "FSTDiffPillExpertBrush" }),
                 null),
+            // Web SongRow unfiltered Last Played: the most recently played chart's icon, then the date.
+            MetadataField.LastPlayed when field.PlayedChart is { } played => Plain(new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 6,
+                Children =
+                {
+                    new InstrumentIcon { File = played.IconFile(keyboard), Label = played.Label(), Width = 20, Height = 20, VerticalAlignment = VerticalAlignment.Center }
+                        .Raw(),
+                    Text(field.Text, 12, FontWeights.Normal, Brush("FSTSecondaryTextBrush")),
+                },
+            }),
             _ => Plain(Text(field.Text, 12, FontWeights.Normal, Brush("FSTSecondaryTextBrush"))),
         };
         element.VerticalAlignment = VerticalAlignment.Center;
@@ -123,6 +142,19 @@ public static class SongRowVisuals
     /// <summary>Boxed pill label size: the shared pill label, so accuracy and difficulty match the season and percentile.</summary>
     private const double PillFont = MetadataPillStyle.FontSize;
 
+    /// <summary>Star image edge: <see cref="StarRow"/> rings it in a 1.25× circle, so the circle is the pill height.</summary>
+    private const double RowStarSize = MetadataPillStyle.StarCircle / 1.25;
+
+    /// <summary>Gives a graded accuracy pill the web accuracy minimum width, so it lines up with the full-combo pill.</summary>
+    /// <param name="pill">Pill.</param>
+    /// <returns>The pill.</returns>
+    private static MetadataPill Accuracy(MetadataPill pill)
+    {
+        pill.MinWidth = MetadataPillStyle.AccuracyMinWidth;
+        if (pill.Children.Count == 1 && pill.Children[0] is TextBlock label) label.HorizontalAlignment = HorizontalAlignment.Center;
+        return pill;
+    }
+
     /// <summary>Centres unboxed content (stars, the intensity meter) in a pill-height slot.</summary>
     /// <param name="content">Content.</param>
     /// <returns>Slot.</returns>
@@ -139,21 +171,26 @@ public static class SongRowVisuals
 
     /// <summary>
     /// Wraps content in a rounded pill. The height is a minimum so the pill grows with text scaling instead of clipping
-    /// (spec: "grow rather than clip at large text").
+    /// (spec: "grow rather than clip at large text"). A pill without an outline pads by the outline width instead, so it
+    /// has the shared pills' insets (<see cref="MetadataPills"/>) and the same height when the text grows (issue #644).
     /// </summary>
     /// <param name="content">Content.</param>
     /// <param name="background">Fill, or none.</param>
     /// <param name="border">Outline, or none.</param>
     /// <returns>Pill.</returns>
-    private static MetadataPill Box(UIElement content, Brush? background, Brush? border) => Host(content, new MetadataPill
+    private static MetadataPill Box(UIElement content, Brush? background, Brush? border)
     {
-        Padding = new Thickness(6, 0, 6, 0),
-        MinHeight = PillHeight,
-        CornerRadius = new CornerRadius(MetadataPillStyle.CornerRadius),
-        Background = background ?? new SolidColorBrush(Colors.Transparent),
-        BorderBrush = border,
-        BorderThickness = new Thickness(border is null ? 0 : MetadataPillStyle.StrokeWidth),
-    });
+        const double stroke = MetadataPillStyle.StrokeWidth, inset = MetadataPillStyle.HorizontalPadding;
+        return Host(content, new MetadataPill
+        {
+            Padding = border is null ? new Thickness(inset + stroke, stroke, inset + stroke, stroke) : new Thickness(inset, 0, inset, 0),
+            MinHeight = PillHeight,
+            CornerRadius = new CornerRadius(MetadataPillStyle.CornerRadius),
+            Background = background ?? new SolidColorBrush(Colors.Transparent),
+            BorderBrush = border,
+            BorderThickness = new Thickness(border is null ? 0 : stroke),
+        });
+    }
 
     /// <summary>Puts content in a pill host.</summary>
     /// <param name="content">Content.</param>
@@ -163,6 +200,15 @@ public static class SongRowVisuals
     {
         pill.Children.Add(content);
         return pill;
+    }
+
+    /// <summary>Hides an element from the UIA control view (the pill and row already speak it).</summary>
+    /// <param name="element">Element.</param>
+    /// <returns>The element.</returns>
+    private static UIElement Raw(this UIElement element)
+    {
+        AutomationProperties.SetAccessibilityView(element, AccessibilityView.Raw);
+        return element;
     }
 
     /// <summary>Looks up an app brush.</summary>

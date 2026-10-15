@@ -48,18 +48,17 @@ private func navA11ySongsRegistry(_ controller: QuickLinksController) -> PageToo
     return registry
 }
 
-/// Host the real tab-bar accessory bar at an accessory's size.
+/// Host the real floating page-tools row at its reserved height (issue #632).
 ///
-/// iOS draws the accessory's buttons without a bezel; `.borderless` is the Mac host's
-/// equivalent, so each button's frame is its label's (the macOS push-button bezel would
-/// add padding the iPhone does not have).
+/// `.borderless` is the Mac host's equivalent of iOS's bezel-less glass buttons, so each
+/// button's frame is its label's 44 pt circle.
 @MainActor
 private func hostNavA11yBar(
-    _ registry: PageToolsRegistry, player: Bool, width: CGFloat, typeSize: DynamicTypeSize
+    _ registry: PageToolsRegistry, width: CGFloat, typeSize: DynamicTypeSize, player: Bool = true
 ) -> (NSHostingView<NativeHostedRoot<AnyView>>, NSWindow) {
-    let size = CGSize(width: width, height: NavButtonAccessibilityTests.accessoryHeight)
+    let size = CGSize(width: width, height: FloatingPageToolsFit.reservedHeight)
     let host = nativeHostedView(AnyView(
-        PageToolsAccessoryBar(registry: registry)
+        FloatingPageToolsBar(registry: registry)
             .environment(\.pageToolsRegistry, registry)
             .environment(\.festivalSession, navA11ySession(player: player))
             .environment(\.dynamicTypeSize, typeSize)
@@ -77,55 +76,49 @@ private func navA11yControls(_ nodes: [MacAXNode]) -> [MacAXNode] {
 // MARK: - Tests
 
 /// Accessibility of the navigation and page-tool buttons whose tap areas #15 widened
-/// (#395).
+/// (#395), as floating Liquid Glass buttons since #632.
 ///
 /// #15 made the page tools' icon label fill its whole slot (now
-/// ``PageToolsAccessoryLabelStyle``'s fixed 44 pt slots in the iPhone tab-bar
-/// accessory, ``PageToolsAccessoryBar``) and the selected player's monogram a standard
-/// bar button (``MonogramLabel`` in ``RootProfileButton``). Its near-miss taps are
-/// simulator journeys (`NavButtonHitRegionJourneyTests`), which `apple-ci` does not run.
-/// These hosted tests run there and pin the same region's accessibility on the real
-/// views: each control's name, role, value and hint; left-to-right reading order;
-/// 44 × 44 pt slots that never overlap (HIG Accessibility: "Strive for the platform's
-/// recommended minimum control size", iOS 44×44 pt; HIG Buttons: "the hit region is at
-/// least 44x44 pt"); and the same slots and names at the largest text size, where
-/// the fixed-height accessory stops text at ``PageToolsAccessoryBar/maxTypeSize`` and
-/// long-press shows the Large Content Viewer instead (pattern
-/// `page-tools-and-nav-chrome` R3, R8).
+/// ``FloatingPageToolLabelStyle``'s fixed 44 pt circles in the iPhone floating page tools,
+/// ``FloatingPageToolsBar``) and the selected player's monogram a standard bar button
+/// (``MonogramLabel`` in ``RootProfileButton``). Its near-miss taps are simulator journeys
+/// (`NavButtonHitRegionJourneyTests`), which `apple-ci` does not run. These hosted tests
+/// run there and pin the same region's accessibility on the real views: each control's
+/// name, role, value and hint; left-to-right reading order; 44 × 44 pt circles that never
+/// overlap (HIG Buttons: "Minimum hit region: 44x44 pt"); the same circles and names at the
+/// largest text size, where the fixed-size row stops text at
+/// ``FloatingPageToolsBar/maxTypeSize`` and long-press shows the Large Content Viewer
+/// instead; no Notifications bell (it is in the header's account pill, #632); and nothing
+/// for VoiceOver while a sheet covers the row (pattern `page-tools-and-nav-chrome` R3, R8).
 @MainActor
 @Suite struct NavButtonAccessibilityTests {
-    /// Height of the expanded tab-bar accessory's content on iPhone (iOS 26.5).
-    static let accessoryHeight: CGFloat = 48
-    /// Songs' tools, then the bell, in reading order.
-    static let songsIDs = ["fst.songs.sort", "fst.songs.filter", "fst.quick-links.open", "fst.shell.notifications"]
+    /// Songs' tools in reading order.
+    static let songsIDs = ["fst.songs.sort", "fst.songs.filter", "fst.quick-links.open"]
 
-    /// Songs' accessory reads Sort, Filter Songs, Quick Links, Notifications, left to right
-    /// as drawn: each a named button carrying its state (Sort's order, Quick Links' current
-    /// section), each a whole 44 pt slot that no neighbour overlaps, the bell on the
-    /// trailing edge and the divider hidden. Holds expanded (348 pt) and inline (222 pt)
-    /// on a 402 pt iPhone, and at the default and largest accessibility text sizes.
+    /// Songs' floating tools read Sort, Filter Songs, Quick Links, left to right as drawn:
+    /// each a named button carrying its state (Sort's order, Quick Links' current section),
+    /// each a whole 44 pt circle 10 pt from its neighbour, trailing-aligned 16 pt from the
+    /// edge. Holds on 402 pt and 320 pt windows, at the default and largest accessibility
+    /// text sizes.
     @Test(arguments: [
-        (CGFloat(348), DynamicTypeSize.large), (348, .accessibility5), (222, .large), (222, .accessibility5),
+        (CGFloat(402), DynamicTypeSize.large), (402, .accessibility5), (320, .large), (320, .accessibility5),
     ])
     func songsToolsReadInOrderAsNamedFullSlotButtons(_ width: CGFloat, _ typeSize: DynamicTypeSize) async throws {
         let controller = QuickLinksController()
         controller.configure(title: "Quick Links", explicit: navA11ySections)
-        let (host, window) = hostNavA11yBar(
-            navA11ySongsRegistry(controller), player: true, width: width, typeSize: typeSize
-        )
+        let (host, window) = hostNavA11yBar(navA11ySongsRegistry(controller), width: width, typeSize: typeSize)
         defer { window.orderOut(nil) }
         try await nativeHostedSettle(host, until: {
             Self.songsIDs.allSatisfy { nativeHostedAccessibilityElement($0, in: host) != nil }
         })
         let nodes = macAccessibilityTree(host)
-        macAccessibilityDump(nodes, name: "nav-buttons-accessory-\(Int(width))-\(typeSize)")
+        macAccessibilityDump(nodes, name: "nav-buttons-floating-\(Int(width))-\(typeSize)")
         let container = try #require(nodes.first { $0.identifier == "fst.page-tools" })
         #expect(container.spokenName == "Page Tools")
         let elements = navA11yControls(nodes)
         #expect(elements.map(\.identifier) == Self.songsIDs, "reads left to right, nothing else: \(elements)")
-        #expect(elements.map(\.spokenName) == ["Sort", "Filter Songs", "Quick Links", "Notifications"])
-        // In the accessory Quick Links is a button that opens its choices (iOS 26 does not
-        // open a `Menu` there), so its whole slot answers.
+        #expect(elements.map(\.spokenName) == ["Sort", "Filter Songs", "Quick Links"])
+        // A floating Quick Links is a button that opens its choices, so its whole circle answers.
         #expect(elements.allSatisfy { $0.role == "AXButton" }, "\(elements)")
         #expect(elements[0].value == "Title, ascending")
         #expect(elements[2].value == "2024")
@@ -134,25 +127,26 @@ private func navA11yControls(_ nodes: [MacAXNode]) -> [MacAXNode] {
 
         let frames = try Self.songsIDs.map { try #require(nativeHostedAccessibilityFrame($0, in: host)) }
         for (id, frame) in zip(Self.songsIDs, frames) {
-            #expect(frame.width >= PageToolsAccessoryFit.slot - 0.5, "\(id) \(frame)")
-            #expect(frame.height >= PageToolsAccessoryFit.slot - 0.5, "\(id) \(frame)")
-            // A fixed slot: it neither grows with the text nor shares out the width.
-            #expect(abs(frame.width - PageToolsAccessoryFit.slot) <= 0.5, "\(id) \(frame)")
+            // A fixed circle: it neither grows with the text nor shares out the width.
+            #expect(abs(frame.width - FloatingPageToolsFit.slot) <= 0.5, "\(id) \(frame)")
+            #expect(abs(frame.height - FloatingPageToolsFit.slot) <= 0.5, "\(id) \(frame)")
         }
-        #expect(zip(frames, frames.dropFirst()).allSatisfy { $0.maxX <= $1.minX + 0.5 },
-                "slots read in drawn order without overlapping: \(frames)")
-        #expect(abs(frames[3].maxX - (width - PageToolsAccessoryFit.padding / 2)) <= 0.5,
-                "Notifications keeps the trailing edge: \(frames[3])")
+        for (left, right) in zip(frames, frames.dropFirst()) {
+            #expect(abs(right.minX - left.maxX - FloatingPageToolsFit.spacing) <= 0.5,
+                    "separate circles \(FloatingPageToolsFit.spacing) pt apart: \(frames)")
+        }
+        #expect(abs(frames[2].maxX - (width - FloatingPageToolsFit.margin)) <= 0.5,
+                "Quick Links keeps the trailing edge: \(frames[2])")
     }
 
-    /// Activating Quick Links in the accessory (VoiceOver, Voice Control or a tap
-    /// anywhere in its slot) opens its choices as a sheet in page order with the current
-    /// section checked, and its spoken value follows a jump.
-    @Test func accessoryQuickLinksPressOpensItsChoices() async throws {
+    /// Activating the floating Quick Links (VoiceOver, Voice Control or a tap anywhere in
+    /// its circle) opens its choices as a sheet in page order with the current section
+    /// checked, the row hides while that sheet covers it, and its spoken value follows a jump.
+    @Test func floatingQuickLinksPressOpensItsChoices() async throws {
         let controller = QuickLinksController()
         controller.configure(title: "Quick Links", explicit: navA11ySections)
         let registry = navA11ySongsRegistry(controller)
-        let (host, window) = hostNavA11yBar(registry, player: true, width: 348, typeSize: .large)
+        let (host, window) = hostNavA11yBar(registry, width: 402, typeSize: .large)
         defer { window.orderOut(nil) }
         try await nativeHostedSettle(host, until: {
             nativeHostedAccessibilityElement("fst.quick-links.open", in: host) != nil
@@ -173,47 +167,59 @@ private func navA11yControls(_ nodes: [MacAXNode]) -> [MacAXNode] {
         })
     }
 
-    /// Without a profile the accessory shows only the page's tools: no bell and no
-    /// divider for VoiceOver to land on. With a profile and a page without tools it
-    /// reads only Notifications, still a full slot on the trailing edge.
-    @Test func accessoryReadsOnlyWhatItShows() async throws {
+    /// The floating row never holds the Notifications bell (it is in the header's account
+    /// pill, #632): with a profile, Songs reads only its three tools, and a page without
+    /// tools gives VoiceOver nothing to land on.
+    @Test func floatingRowReadsOnlyThePagesTools() async throws {
         let controller = QuickLinksController()
         controller.configure(title: "Quick Links", explicit: navA11ySections)
-        let (anonymous, anonymousWindow) = hostNavA11yBar(
-            navA11ySongsRegistry(controller), player: false, width: 348, typeSize: .large
-        )
-        defer { anonymousWindow.orderOut(nil) }
-        try await nativeHostedSettle(anonymous, until: {
-            nativeHostedAccessibilityElement("fst.quick-links.open", in: anonymous) != nil
+        let (songs, songsWindow) = hostNavA11yBar(navA11ySongsRegistry(controller), width: 402, typeSize: .large)
+        defer { songsWindow.orderOut(nil) }
+        try await nativeHostedSettle(songs, until: {
+            nativeHostedAccessibilityElement("fst.quick-links.open", in: songs) != nil
         })
-        #expect(navA11yControls(macAccessibilityTree(anonymous)).map(\.identifier) == Array(Self.songsIDs.prefix(3)))
+        let nodes = macAccessibilityTree(songs)
+        #expect(navA11yControls(nodes).map(\.identifier) == Self.songsIDs)
+        #expect(!nodes.contains { $0.identifier == "fst.shell.notifications" })
 
         let empty = PageToolsRegistry()
         empty.pageAppeared(UUID())
-        let (bellOnly, bellWindow) = hostNavA11yBar(empty, player: true, width: 348, typeSize: .accessibility5)
-        defer { bellWindow.orderOut(nil) }
-        try await nativeHostedSettle(bellOnly, until: {
-            nativeHostedAccessibilityElement("fst.shell.notifications", in: bellOnly) != nil
+        let (none, noneWindow) = hostNavA11yBar(empty, width: 402, typeSize: .accessibility5)
+        defer { noneWindow.orderOut(nil) }
+        try await nativeHostedSettle(none, until: { true })
+        #expect(navA11yControls(macAccessibilityTree(none)).isEmpty)
+    }
+
+    /// While Notifications or another sheet covers the page the row hides from VoiceOver
+    /// too, and it comes back with the same tools when the sheet closes (web hides its
+    /// floating buttons while Notifications is open).
+    @Test func coveredRowIsHiddenFromVoiceOver() async throws {
+        let controller = QuickLinksController()
+        controller.configure(title: "Quick Links", explicit: navA11ySections)
+        let registry = navA11ySongsRegistry(controller)
+        let (host, window) = hostNavA11yBar(registry, width: 402, typeSize: .large)
+        defer { window.orderOut(nil) }
+        try await nativeHostedSettle(host, until: {
+            nativeHostedAccessibilityElement("fst.songs.sort", in: host) != nil
         })
-        let elements = navA11yControls(macAccessibilityTree(bellOnly))
-        #expect(elements.map(\.spokenName) == ["Notifications"])
-        #expect(elements.first?.role == "AXButton")
-        let bell = try #require(nativeHostedAccessibilityFrame("fst.shell.notifications", in: bellOnly))
-        #expect(bell.width >= PageToolsAccessoryFit.slot - 0.5 && bell.height >= PageToolsAccessoryFit.slot - 0.5,
-                "\(bell)")
-        #expect(abs(bell.maxX - (348 - PageToolsAccessoryFit.padding / 2)) <= 0.5, "\(bell)")
+        registry.setCovered(true)
+        try await nativeHostedSettle(host, until: {
+            nativeHostedAccessibilityElement("fst.songs.sort", in: host) == nil
+        })
+        #expect(navA11yControls(macAccessibilityTree(host)).isEmpty)
+        registry.setCovered(false)
+        try await nativeHostedSettle(host, until: {
+            Self.songsIDs.allSatisfy { nativeHostedAccessibilityElement($0, in: host) != nil }
+        })
     }
 
     /// Issue #442 (for #89): on a page whose only tool is Quick Links (Leaderboards, Song
     /// Details' sections, the profile), it is one round icon-only button, never the
     /// full-width text capsule #89 reported. It reads as one "Quick Links" button with its
-    /// current section and hint, alone or before the bell, in a fixed 44 × 44 pt slot on
-    /// the leading edge however wide the accessory is, at the default and largest
-    /// accessibility text sizes (HIG Buttons: "the hit region is at least 44x44 pt").
-    @Test(arguments: [
-        (false, DynamicTypeSize.large), (true, .large), (false, .accessibility5), (true, .accessibility5),
-    ])
-    func quickLinksAloneIsOneIconSlot(_ player: Bool, _ typeSize: DynamicTypeSize) async throws {
+    /// current section and hint, in a fixed 44 × 44 pt circle on the trailing edge however
+    /// wide the window is, at the default and largest accessibility text sizes.
+    @Test(arguments: [DynamicTypeSize.large, .accessibility5])
+    func quickLinksAloneIsOneIconSlot(_ typeSize: DynamicTypeSize) async throws {
         let controller = QuickLinksController()
         controller.configure(title: "Quick Links", explicit: navA11ySections)
         let registry = PageToolsRegistry()
@@ -222,19 +228,18 @@ private func navA11yControls(_ nodes: [MacAXNode]) -> [MacAXNode] {
         registry.upsert(id: UUID(), scope: scope, order: PageToolOrder.quickLinks, content: AnyView(
             QuickLinksMenu(controller: controller)
         ))
-        let width: CGFloat = 348
-        let (host, window) = hostNavA11yBar(registry, player: player, width: width, typeSize: typeSize)
+        let width: CGFloat = 402
+        let (host, window) = hostNavA11yBar(registry, width: width, typeSize: typeSize)
         defer { window.orderOut(nil) }
-        let ids = ["fst.quick-links.open"] + (player ? ["fst.shell.notifications"] : [])
         try await nativeHostedSettle(host, until: {
-            ids.allSatisfy { nativeHostedAccessibilityElement($0, in: host) != nil }
+            nativeHostedAccessibilityElement("fst.quick-links.open", in: host) != nil
         })
         let nodes = macAccessibilityTree(host)
-        macAccessibilityDump(nodes, name: "nav-buttons-quick-links-alone-\(player)-\(typeSize)")
+        macAccessibilityDump(nodes, name: "nav-buttons-quick-links-alone-\(typeSize)")
         let elements = navA11yControls(nodes)
-        #expect(elements.map(\.identifier) == ids, "reads Quick Links, then only the bell: \(elements)")
-        #expect(elements.allSatisfy { $0.role == "AXButton" }, "\(elements)")
+        #expect(elements.map(\.identifier) == ["fst.quick-links.open"], "\(elements)")
         let quickLinks = try #require(elements.first)
+        #expect(quickLinks.role == "AXButton")
         #expect(quickLinks.spokenName == "Quick Links")
         #expect(quickLinks.value == "2024")
         #expect(quickLinks.help == "Jumps to a section of this page")
@@ -243,23 +248,18 @@ private func navA11yControls(_ nodes: [MacAXNode]) -> [MacAXNode] {
         #expect(macAccessibilityFindings(nodes).isEmpty, "\(macAccessibilityFindings(nodes))")
 
         let frame = try #require(nativeHostedAccessibilityFrame("fst.quick-links.open", in: host))
-        #expect(abs(frame.width - PageToolsAccessoryFit.slot) <= 0.5, "one icon slot, not the bar's width: \(frame)")
-        #expect(frame.height >= PageToolsAccessoryFit.slot - 0.5, "\(frame)")
-        #expect(abs(frame.minX - PageToolsAccessoryFit.padding / 2) <= 0.5, "on the leading edge: \(frame)")
-        if player {
-            let bell = try #require(nativeHostedAccessibilityFrame("fst.shell.notifications", in: host))
-            #expect(frame.maxX <= bell.minX, "Quick Links \(frame) overlaps the bell \(bell)")
-        }
+        // Within a point: the Mac host rounds a lone circle's frame to whole pixels.
+        #expect(frame.width >= FloatingPageToolsFit.slot - 0.5, "\(frame)")
+        #expect(abs(frame.width - FloatingPageToolsFit.slot) <= 1, "one icon circle, not the row's width: \(frame)")
+        #expect(abs(frame.height - FloatingPageToolsFit.slot) <= 1, "\(frame)")
+        #expect(abs(frame.maxX - (width - FloatingPageToolsFit.margin)) <= 1, "on the trailing edge: \(frame)")
     }
 
-    /// The fixed-height accessory never lays out accessibility text sizes (they would clip
-    /// in its fixed 44 pt slots); those sizes use the Large Content Viewer instead, and
-    /// Songs folds Sort and Filter there so the slots still fit.
-    @Test func accessoryCapsTextBelowAccessibilitySizes() {
-        #expect(!PageToolsAccessoryBar.maxTypeSize.isAccessibilitySize)
-        #expect(PageToolsAccessoryFit.folds(
-            windowWidth: 402, pageTools: 3, showsBell: true, dynamicTypeSize: .accessibility1
-        ))
+    /// The fixed-size circles never lay out accessibility text sizes (they would clip);
+    /// those sizes use the Large Content Viewer instead, and Songs keeps all three tools.
+    @Test func floatingRowCapsTextBelowAccessibilitySizes() {
+        #expect(!FloatingPageToolsBar.maxTypeSize.isAccessibilitySize)
+        #expect(!FloatingPageToolsFit.folds(windowWidth: 402, pageTools: 3))
     }
 
     /// The header's drawer and profile buttons are single named buttons at every text
@@ -294,6 +294,83 @@ private func navA11yControls(_ nodes: [MacAXNode]) -> [MacAXNode] {
                 "the monogram stays decorative: \(nodes)")
         #expect(macAccessibilityFindings(nodes).isEmpty, "\(macAccessibilityFindings(nodes))")
         #expect(RootProfileButton.MonogramMetrics.resolve(liquidGlassBar: true).diameter >= 44)
+        #expect(RootProfileButton.MonogramMetrics.resolve(liquidGlassBar: true, inAccountPill: true).diameter == 30)
+    }
+
+    // MARK: iPhone Duo inner portrait (#633)
+
+    /// iPhone Duo's inner display in portrait floats page tools above its tab bar (issue
+    /// #633). Songs' bottom Filter Songs field stacks 8 pt above the floating row instead
+    /// of covering it; VoiceOver reads the field, then Sort, Filter Songs and Quick Links;
+    /// and each tool stays a whole 44 × 44 pt circle (HIG Buttons: "Minimum hit region:
+    /// 44x44 pt"), at the default and largest accessibility text sizes.
+    @Test(arguments: [DynamicTypeSize.large, .accessibility5])
+    func duoInnerPortraitFieldStacksAboveFloatingTools(_ typeSize: DynamicTypeSize) async throws {
+        let layout = DeviceLayout.resolve(LayoutSignals(
+            size: CGSize(width: 669, height: 951), widthClass: .regular, hinge: .fullyOpen
+        ), dualSource: false)
+        #expect(FloatingPageToolsHost.floatsPageTools(in: layout))
+        let controller = QuickLinksController()
+        controller.configure(title: "Quick Links", explicit: navA11ySections)
+        let registry = navA11ySongsRegistry(controller)
+        let size = CGSize(width: 669, height: 951)
+        let host = nativeHostedView(AnyView(
+            NavigationStack {
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(0..<4, id: \.self) { index in
+                            Text("Song \(index + 1)")
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                .padding(.horizontal, 16)
+                        }
+                    }
+                }
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        BottomSearchField(
+                            text: .constant(""), prompt: "Filter Songs", accessibilityLabel: "Filter Songs",
+                            identifier: "fst.songs.filter-field", clearIdentifier: "fst.songs.filter-clear",
+                            hinge: nil, space: "page"
+                        )
+                    }
+                    .coordinateSpace(.named("page"))
+            }
+            .floatingPageTools(isSelected: true)
+            .environment(\.pageToolsRegistry, registry)
+            .environment(\.deviceLayout, layout)
+            .environment(\.festivalSession, navA11ySession(player: true))
+            .environment(\.dynamicTypeSize, typeSize)
+            .buttonStyle(.borderless)
+            .preferredColorScheme(.dark)
+        ), size: size)
+        let window = nativeHostedWindow(host, size: size)
+        defer { window.orderOut(nil) }
+        let ids = ["fst.songs.filter-field"] + Self.songsIDs
+        try await nativeHostedSettle(host, until: {
+            ids.allSatisfy { nativeHostedAccessibilityElement($0, in: host) != nil }
+                && registry.floatingRowTop != nil
+        })
+        // The clearance applies on the next layout pass.
+        try await nativeHostedSettle(host, until: {
+            guard let field = nativeHostedAccessibilityFrame("fst.songs.filter-field", in: host),
+                  let sort = nativeHostedAccessibilityFrame("fst.songs.sort", in: host) else { return false }
+            return field.maxY < sort.minY
+        })
+        let nodes = macAccessibilityTree(host)
+        macAccessibilityDump(nodes, name: "nav-buttons-duo-inner-portrait-\(typeSize)")
+        let order = navA11yControls(nodes).map(\.identifier).filter { ids.contains($0) }
+        #expect(order == ids, "field, then the tools left to right: \(order)")
+
+        let field = try #require(nativeHostedAccessibilityFrame("fst.songs.filter-field", in: host))
+        let rowTop = try #require(registry.floatingRowTop)
+        let tools = try Self.songsIDs.map { try #require(nativeHostedAccessibilityFrame($0, in: host)) }
+        for (id, frame) in zip(Self.songsIDs, tools) {
+            #expect(abs(frame.width - FloatingPageToolsFit.slot) <= 0.5, "\(id) \(frame)")
+            #expect(abs(frame.height - FloatingPageToolsFit.slot) <= 0.5, "\(id) \(frame)")
+            #expect(!frame.intersects(field), "\(id) \(frame) clear of the field \(field)")
+        }
+        // The field's row ends 8 pt above the floating row (its glass may draw past the
+        // text element by a point or two).
+        #expect(field.maxY <= rowTop - BottomSearchFieldPlacement.rowPadding + 2, "\(field) row top \(rowTop)")
     }
 }
 #endif

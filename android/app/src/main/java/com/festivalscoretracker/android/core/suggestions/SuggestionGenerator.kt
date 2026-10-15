@@ -1184,7 +1184,7 @@ class SuggestionGenerator(
         )
     }
 
-    /** Shared tail of the four cross-pollination families (closest-rival annotation). */
+    /** Shared tail of the mixed cross-pollination family (closest-rival annotation per row). */
     private fun crossPollinated(
         key: String,
         pool: MutableList<Candidate>,
@@ -1204,10 +1204,46 @@ class SuggestionGenerator(
         )
     }
 
+    /**
+     * Shared tail of the cross-pollination families whose title names one rival ("Climb Past
+     * {name}", "Gain Stars & Beat {name}", "FC These to Beat {name}!"). The rival is chosen
+     * before selection (closest rival on the first session-unseen song of the shuffled pool,
+     * else its first song) and the pool keeps only songs where that rival is the closest, so
+     * every row is about the rival the title names (issue #656; the web titles from the
+     * first picked row and keeps every other row's own rival).
+     *
+     * @param key Category key.
+     * @param pool Candidates that each have a closest rival.
+     * @param title Title for the chosen rival's display name.
+     * @param description Category description.
+     * @return The category, or empty when skipped or nothing remains.
+     */
+    private fun namedRivalCrossPollinated(
+        key: String,
+        pool: MutableList<Candidate>,
+        title: (String) -> String,
+        description: String,
+    ): List<SuggestionCategory> {
+        if (pool.isEmpty()) return emptyList()
+        shuffleInPlace(pool)
+        val lead = pool.firstOrNull { it.song.songId !in sessionShownSongs } ?: pool[0]
+        val rival = closestMatch(lead)?.rival ?: return emptyList()
+        val named = pool.filter { closestMatch(it)?.rival?.accountId == rival.accountId }
+        if (!shouldEmit(key, freshCount(named))) return emptyList()
+        val final = selectNewFirst(key, named, displayCount())
+        if (final.isEmpty()) return emptyList()
+        return listOf(
+            SuggestionCategory(
+                key, title(rival.displayName), description, SuggestionCategoryType.SongRivals, null,
+                final.map(::mapWithClosestRival),
+            ),
+        )
+    }
+
     private fun songRivalNearFc(): List<SuggestionCategory> {
         if (rivalData == null) return emptyList()
         val pool = nearFcRelaxedPool().filterTo(ArrayList()) { closestMatch(it) != null }
-        return crossPollinated(
+        return namedRivalCrossPollinated(
             "song_rival_near_fc", pool, { "FC These to Beat $it!" },
             "Almost FC songs where your rival also competes. Nail the combo to pull ahead.",
         )
@@ -1229,7 +1265,7 @@ class SuggestionGenerator(
     private fun songRivalStarGains(): List<SuggestionCategory> {
         if (rivalData == null) return emptyList()
         val pool = starGainsPool().filterTo(ArrayList()) { (closestMatch(it)?.rankDelta ?: 0) < 0 }
-        return crossPollinated(
+        return namedRivalCrossPollinated(
             "song_rival_star_gains", pool, { "Gain Stars & Beat $it" },
             "Improving your star count on these would also overtake a rival.",
         )
@@ -1239,7 +1275,7 @@ class SuggestionGenerator(
         if (rivalData == null) return emptyList()
         val eligible = candidates { s, _ -> (rawPercentile(s)?.let(::percentileBucket) ?: 0) > 1 }
         val pool = eligible.filterTo(ArrayList()) { (closestMatch(it)?.rankDelta ?: 0) < 0 }
-        return crossPollinated(
+        return namedRivalCrossPollinated(
             "song_rival_pct_push", pool, { "Climb Past $it" },
             "A percentile push on these would also move you past a rival.",
         )

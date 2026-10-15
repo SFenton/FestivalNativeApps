@@ -30,7 +30,7 @@ struct ShopScreen: View {
     let isVisible: Bool
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.deviceLayout) private var layout
-    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    /// Set where page tools float above the iPhone tab bar (issues #92, #632).
     @Environment(\.pageToolsRegistry) private var pageTools
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.playerStatNavigator) private var navigator
@@ -197,7 +197,7 @@ struct ShopScreen: View {
                 }
             }
         }
-        // iPhone tab-bar accessory (issue #92): Sort and Filter like Songs (issue #379),
+        // iPhone floating page tools (issues #92, #632): Sort and Filter like Songs (issue #379),
         // then List/Grid where offered.
         .festivalPageTool(
             token: [appliedSort.accessibilityValue(paused: sortPaused), String(appliedSort.isDefault)],
@@ -228,7 +228,11 @@ struct ShopScreen: View {
         // HIG Toolbars › macOS: "Every toolbar item must also be a menu-bar command"
         // (also the iPadOS menu bar).
         .macPageCommands(MacPageCommands(
-            sort: { sortPresented = true }, filter: { filterPresented = true }
+            sort: { sortPresented = true }, filter: { filterPresented = true },
+            layout: showsViewToggle ? MacLayoutChoice(isGrid: viewMode == .grid) { grid in
+                staggerSettled = false
+                preferredMode = grid ? .grid : .list
+            } : nil
         ))
         .task(id: requestKey) {
             guard isVisible else { return }

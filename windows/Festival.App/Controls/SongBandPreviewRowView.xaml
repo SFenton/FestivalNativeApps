@@ -13,10 +13,15 @@
         (prefixed "Your band, " for the selected player's band and ending with its destination, "Jump to your band's
         position" or "Open band") and its parts are Raw. The selected player's band gets the purple player-row surface. The
         surface is a Border behind a transparent Button, so hover/press tint on top of it (as LeaderboardEntryRow).
+        Inside the preview's one card (GroupedRows.InCard, issue #643) a row draws no surface or outline of its own, only the
+        Separator hairline above it; the selected band keeps its purple fill and outline with 4 epx corners.
     -->
     <Grid>
         <Border x:Name="Surface" CornerRadius="12" BorderThickness="1" IsHitTestVisible="False"
                 Background="{ThemeResource FSTCardSurfaceBrush}" BorderBrush="{ThemeResource FSTCardStrokeBrush}" />
+        <!-- In-card hairline between rows (FSTRowSeparatorBrush; GrayText under a contrast theme), as LeaderboardEntryRow. -->
+        <Border x:Name="Separator" Height="1" Margin="12,0" VerticalAlignment="Top" IsHitTestVisible="False" Visibility="Collapsed"
+                Background="{ThemeResource FSTRowSeparatorBrush}" AutomationProperties.AccessibilityView="Raw" />
         <Button x:Name="RowButton" Click="OnClick" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                 VerticalAlignment="Stretch" Padding="14,10" MinHeight="48" CornerRadius="12" BorderThickness="0" Background="Transparent"
                 AutomationProperties.Name="{x:Bind Row.Announcement, Mode=OneWay}"

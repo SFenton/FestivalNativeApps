@@ -111,7 +111,7 @@ struct SongBandLeaderboardContent: View {
     /// The list page beside this board in a split (Song Detail drops the song header, #342).
     @Environment(\.splitDetailBesideList) private var besideList
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    /// Set where page tools float above the iPhone tab bar (issues #92, #632).
     @Environment(\.pageToolsRegistry) private var pageTools
 
     /// Space between two band cards, between the last card and the footer or pager,
@@ -337,13 +337,13 @@ struct SongBandLeaderboardContent: View {
             }
         }
         .songBarTitleKeepsBarVisible(showsSongHeader)
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-        // iPhone tab-bar accessory (issue #92): Band Size.
+        .festivalTitleDisplayMode(.inline)
+        // iPhone floating page tools (issues #92, #632): Band Size.
         .festivalPageTool(token: bandType, order: PageToolOrder.primary) {
             bandTypeMenu
         }
+        // Mac and iPad menu bar: View › Band Size mirrors the toolbar menu (issue #633).
+        .macBandSizeCommands($bandType)
         .onChange(of: bandType) { _, _ in
             focusPending = false
             page = 1
@@ -634,14 +634,14 @@ struct SongBandLeaderboardContent: View {
                 }
             }
         } label: {
-            // A label (icon-only in bars) so the accessory can fill its 44 pt slot.
+            // A label (icon-only in bars) so a floating page tool can fill its 44 pt circle.
             Label("Band Size", systemImage: "person.3.fill")
         }
         .accessibilityIdentifier("fst.song-band-leaderboard.band-type-menu")
         .accessibilityLabel("Band size: \(bandType.label)")
     }
 
-    /// The band sizes for the inline-accessory sheet (``PageToolMenu``).
+    /// The band sizes for the floating tool's sheet (``PageToolMenu``).
     private func bandTypeChoices() -> [PageToolMenuChoice] {
         BandType.allCases.map { size in
             PageToolMenuChoice(

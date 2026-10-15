@@ -159,6 +159,49 @@ private func rankingRow(_ accountId: String, rank: Int) throws -> AccountRanking
     #expect(MacInstrumentCommands.options(for: []).isEmpty)
 }
 
+/// View › as List / as Grid re-publishes when the Item Shop's layout flips (the
+/// checkmark follows it), and pages without a List/Grid toggle publish none (issue #633).
+@Test @MainActor func macPageCommandsLayoutChoice() {
+    let grid = MacPageCommands(sort: {}, filter: {}, layout: MacLayoutChoice(isGrid: true) { _ in })
+    let list = MacPageCommands(sort: {}, filter: {}, layout: MacLayoutChoice(isGrid: false) { _ in })
+    #expect(grid != list)
+    #expect(grid == MacPageCommands(sort: {}, filter: {}, layout: MacLayoutChoice(isGrid: true) { _ in }))
+    #expect(grid != MacPageCommands(sort: {}, filter: {}))
+    var picked: Bool?
+    MacLayoutChoice(isGrid: false) { picked = $0 }.select(true)
+    #expect(picked == true)
+    // Suggestions publishes Filter alone.
+    let suggestions = MacPageCommands(filter: {})
+    #expect(suggestions.sort == nil && suggestions.filter != nil && suggestions.layout == nil)
+}
+
+/// View › Band Size checks the board's band size and re-publishes when it changes.
+@Test @MainActor func macBandSizeCommands() {
+    var applied: BandType?
+    let trios = MacBandSizeCommands(selected: .trios) { applied = $0 }
+    #expect(trios == MacBandSizeCommands(selected: .trios) { _ in })
+    #expect(trios != MacBandSizeCommands(selected: .quad) { _ in })
+    trios.select(.quad)
+    #expect(applied == .quad)
+}
+
+/// Profile › Select / Switch to This Profile mirrors the player page's header button
+/// (never "Select Profile…", which opens profile selection), and View Rival's Profile
+/// is offered only by rival pages (issue #633).
+@Test @MainActor func macProfilePageCommands() {
+    #expect(MacProfilePageCommands.identityMenuTitle(for: .switchTo) == "Switch to This Profile")
+    #expect(MacProfilePageCommands.identityMenuTitle(for: .select) == "Select This Profile")
+    #expect(MacProfilePageCommands.identityMenuTitle(for: nil) == "Select This Profile")
+    let planned = MacProfilePageCommands(identity: .select)
+    let proven = MacProfilePageCommands(identity: .select, performIdentity: {})
+    #expect(planned != proven)
+    #expect(planned.performIdentity == nil)
+    #expect(MacProfilePageCommands(identity: .switchTo, performIdentity: {}) != proven)
+    let rival = MacProfilePageCommands(viewRivalProfile: {})
+    #expect(rival.identity == nil && rival.viewRivalProfile != nil)
+    #expect(rival != MacProfilePageCommands())
+}
+
 /// Full Rankings' header, pinned title and window title share one "<Instrument> Rankings" string.
 @Test func fullRankingsTitleNamesInstrument() {
     #expect(FullRankingsScreen.title(for: .lead) == "Lead Rankings")

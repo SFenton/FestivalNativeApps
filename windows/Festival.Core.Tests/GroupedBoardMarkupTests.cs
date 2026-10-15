@@ -102,7 +102,11 @@ public class GroupedBoardMarkupTests
         Assert.Equal("True", Attr(rows, "GroupedRows.IsEnabled"));
         Assert.Equal("True", Attr(rows, "GroupedRows.InCard"));
         Assert.Equal("True", Attr(rows, "FadeIn.Stagger"));
-        Assert.Equal("0", Attr(Assert.Single(rows.Descendants(), e => e.Name.LocalName == "StackLayout"), "Spacing"));
+        // Issue #629: the top five realize in one pass (non-virtualizing, one column), so a swap never reads as the viewport.
+        Assert.DoesNotContain(rows.Descendants(), e => e.Name.LocalName == "StackLayout");
+        var layout = Assert.Single(rows.Descendants(), e => e.Name.LocalName == "MasonryLayout");
+        Assert.Equal("1", Attr(layout, "MaxColumns"));
+        Assert.Equal("0", Attr(layout, "RowSpacing"));
 
         // The swap holds only the graph section, so the list after it resizes to the new chart's rows (load-transition R7).
         var graph = card.Descendants().Single(e => Attr(e, "Name") == "HistoryGraph");
@@ -110,6 +114,53 @@ public class GroupedBoardMarkupTests
         Assert.DoesNotContain(graph.Descendants(), e => Attr(e, "Name") is "HistoryRows" or "HistoryViewAll");
         var code = File.ReadAllText(Path.Combine(AppRoot, "Pages", "SongDetailPage.xaml.cs"));
         Assert.Contains("HistoryGraph.MinHeight = Math.Max(HistoryGraph.MinHeight, HistoryGraph.ActualHeight)", code, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("LeaderboardsPage.xaml", "BoardCard", true)]
+    [InlineData("LeaderboardsPage.xaml", "BandBoardCard", false)]
+    [InlineData("SongDetailPage.xaml", "PreviewCard", false)]
+    [InlineData("SongDetailPage.xaml", "BandPreviewCard", false)]
+    public void PreviewCardHoldsItsRowsAndViewAll(string page, string cardName, bool spotlight)
+    {
+        // Issue #643: each preview is one card (leaderboard-row R10, surface-materials R6) with the rows as in-card
+        // slices and View All inside it, last (view-all-cta R1). The empty state stays card-less (#377).
+        var card = Page(page).Descendants().Single(e => Attr(e, "Name") == cardName);
+        Assert.Equal("{StaticResource FSTCardStyle}", Attr(card, "Style"));
+        Assert.Equal("8,8,8,12", Attr(card, "Padding"));
+
+        var rows = Assert.Single(card.Descendants(), e => e.Name.LocalName == "ItemsRepeater");
+        Assert.Equal("True", Attr(rows, "GroupedRows.IsEnabled"));
+        Assert.Equal("True", Attr(rows, "GroupedRows.InCard"));
+        var layout = Assert.Single(rows.Descendants(), e => e.Name.LocalName.EndsWith("Layout", StringComparison.Ordinal) && !e.Name.LocalName.Contains('.'));
+        Assert.Equal("0", Attr(layout, "Spacing"));
+
+        var viewAll = card.Descendants().Last(e => e.Name.LocalName == "Button");
+        Assert.Equal("{StaticResource FSTViewAllButtonStyle}", Attr(viewAll, "Style"));
+        Assert.True(card.Descendants().ToList().IndexOf(rows) < card.Descendants().ToList().IndexOf(viewAll));
+
+        var parent = card.Parent!;
+        Assert.Contains(parent.Elements(), e => e.Name.LocalName == "EmptyStateView");
+        Assert.DoesNotContain(card.Descendants(), e => e.Name.LocalName == "EmptyStateView");
+
+        if (spotlight)
+        {
+            var spot = Assert.Single(card.Descendants(), e => e.Name.LocalName == "LeaderboardsSpotlight");
+            Assert.Equal("True", Attr(spot, "InCard"));
+        }
+        foreach (var skeleton in card.Descendants().Where(e => e.Name.LocalName == "LeaderboardsSkeleton"))
+            Assert.Equal("True", Attr(skeleton, "InCard"));
+    }
+
+    [Fact]
+    public void FirstRunPreviewDemosDrawOneCard()
+    {
+        // Issue #643: the guide's Top Scores, Score History, rankings and Compete demos mirror the one-card previews.
+        var code = File.ReadAllText(Path.Combine(AppRoot, "Controls", "FirstRunDemo.Slides.cs"));
+        Assert.Contains("private static Border RowsCard(", code, StringComparison.Ordinal);
+        Assert.Contains("GroupedRows.SliceFor(i, rows.Length, rows[i], i > 0 ? rows[i - 1] : null, inCard: true)", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsFloating = row.IsSelected", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("foreach (var row in rows) Stage(new LeaderboardEntryRow", code, StringComparison.Ordinal);
     }
 
     [Fact]

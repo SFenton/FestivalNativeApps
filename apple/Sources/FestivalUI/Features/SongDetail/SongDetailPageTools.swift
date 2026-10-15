@@ -6,7 +6,7 @@ import Foundation
 ///
 /// Every tool acts on the page's loaded content, so none shows, or reaches VoiceOver,
 /// while the first-load spinner is up. They appear together with the revealed content,
-/// so the toolbar or tab-bar accessory does not grow in steps, and stay while shown
+/// so the toolbar or floating page tools do not grow in steps, and stay while shown
 /// content refreshes (`.agents/patterns/load-transition.md` R1, issue #585; web gates
 /// Quick Links on `LoadPhase.ContentIn`). The macOS and
 /// iPadOS Song menu keeps its items listed and disables them instead (HIG The menu bar:

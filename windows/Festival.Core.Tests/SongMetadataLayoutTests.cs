@@ -23,9 +23,11 @@ public class SongMetadataLayoutTests
     public void WidestSamples_OnePerEnabledField()
     {
         var all = SongMetadataLayout.WidestSamples(new AppSettings());
-        Assert.Equal(Enum.GetValues<MetadataField>().Length, all.Count);
+        // Last Played reserves room only under its own sort, whatever its toggle says (web visibleMetadataOrder).
+        Assert.Equal(Enum.GetValues<MetadataField>().Length - 1, all.Count);
+        Assert.DoesNotContain(all, s => s.Kind == MetadataField.LastPlayed);
         Assert.Equal(all.Count, all.Select(s => s.Kind).Distinct().Count());
-        Assert.Contains(all, s => s.Kind == MetadataField.Percentage && s.Text == "100% FC" && s.FullCombo);
+        Assert.Contains(all, s => s.Kind == MetadataField.Percentage && s.Text == "100%" && s.FullCombo);
         Assert.Contains(all, s => s.Kind == MetadataField.Stars && s.Stars == (5, true));
         Assert.Contains(all, s => s.Kind == MetadataField.Difficulty && s.Text == "M");
         Assert.Contains(all, s => s.Kind == MetadataField.Intensity && s.IntensityRaw == 6);
@@ -38,6 +40,7 @@ public class SongMetadataLayoutTests
         // A full combo still shows "FC" with Percentage hidden, so it always reserves room.
         var fcOnly = Assert.Single(SongMetadataLayout.WidestSamples(none));
         Assert.Equal("FC", fcOnly.Text);
+        Assert.Equal([MetadataField.Percentage, MetadataField.LastPlayed], SongMetadataLayout.WidestSamples(none, lastPlayed: true).Select(s => s.Kind));
     }
 
     [Fact]
@@ -47,8 +50,11 @@ public class SongMetadataLayoutTests
         try
         {
             CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-GB");
-            var sample = SongMetadataLayout.WidestSamples(new AppSettings()).Single(s => s.Kind == MetadataField.LastPlayed);
-            Assert.Equal("Last played 28 Sept 2026", sample.Text.Replace("Sep ", "Sept "));
+            var sample = SongMetadataLayout.WidestSamples(new AppSettings(), lastPlayed: true).Single(s => s.Kind == MetadataField.LastPlayed);
+            Assert.Equal("28 Sep 2026", sample.Text.Replace("Sept", "Sep"));
+            Assert.Null(sample.PlayedChart);
+            var across = SongMetadataLayout.WidestSamples(new AppSettings(), lastPlayed: true, lastPlayedChart: true).Single(s => s.Kind == MetadataField.LastPlayed);
+            Assert.NotNull(across.PlayedChart);
         }
         finally
         {

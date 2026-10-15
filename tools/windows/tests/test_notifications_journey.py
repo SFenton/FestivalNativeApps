@@ -143,6 +143,21 @@ class NotificationsJourneyPhaseTests(unittest.TestCase):
         self.assertIn("waitgone:id=fst.notifications.row.fixture-notif-fcrate", steps)
         self.assertIn("assertstate:id=fst.shell.notifications|name=Notifications, 4 unread@15", steps)
 
+    def test_rows_are_revealed_before_they_are_checked(self):
+        """#638: the panel and sheet hold fewer rows than the old flyout, so each row is scrolled into view first."""
+        steps = j.rows_present("New")
+        for row in j.RICH_ROWS:
+            waitfor = steps.index(f"waitfor:{j.ROW}fixture-notif-{row}")
+            self.assertEqual(steps[waitfor - 1], j.reveal(row))
+        self.assertEqual(steps[-1], j.reveal(j.RICH_ROWS[0]))
+        media = j.SCENARIOS["media-rows"][2]
+        for row in j.MEDIA_ROWS[1:]:
+            place = media.index(f"scrollinset:{j.ROW}fixture-notif-{row}|id=fst.notifications.list|8|end")
+            self.assertLess(place, media.index(next(s for s in media if s.startswith(f"assertpaint:{j.ROW}fixture-notif-{row}|"))))
+        for name, target in (("tap-no-destination", "total"), ("tap-navigate-rankings", "fcrate")):
+            steps = j.SCENARIOS[name][2]
+            self.assertEqual(steps[steps.index(f"invoke:{j.ROW}fixture-notif-{target}") - 1], j.reveal(target))
+
     def test_media_rows_check_paint_and_bold_for_every_row(self):
         steps = j.SCENARIOS["media-rows"][2]
         for row in j.MEDIA_ROWS:

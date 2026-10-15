@@ -1,0 +1,73 @@
+name: windows-flight
+run-name: windows-flight ${{ github.event_name }}
+# The Windows TestFlight: submit the newest Windows release build to the Microsoft Store package flight (default
+# "Testers", known user group FST_MSSTORE_FLIGHT_GROUP). It publishes to that group as soon as certification passes;
+# everyone else keeps the public package. Runs after each successful windows-release-build (every release-branch
+# push with Windows changes, like ios-release-build's TestFlight upload) and hourly, because only one flight
+# submission can be in certification: a build that arrives meanwhile is submitted once the flight is free.
+# Credentials live only in the store-release environment (master only). Off unless vars.FST_MSSTORE_FLIGHT_ENABLED
+# is 'true'. Documentation: .agents/workflow/release-machine.md ("Windows (Microsoft Store)").
+on:
+  workflow_run:
+    workflows: [windows-release-build]
+    types: [completed]
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      command:
+        description: submit (default) or status
+        type: choice
+        options: [submit, status]
+        default: submit
+      build:
+        description: MSIX or YYMM.DD.NN version (default - the newest release build)
+        type: string
+        default: ''
+      dry_run:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  actions: read   # find and download the windows-release-build artifact
+concurrency:
+  group: windows-flight
+  cancel-in-progress: false
+jobs:
+  windows-flight:
+    if: >-
+      github.ref == 'refs/heads/master' && vars.FST_MSSTORE_FLIGHT_ENABLED == 'true' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: store-release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Submit to the package flight
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FST_NATIVE_REPO: ${{ github.repository }}
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+          MSSTORE_SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
+          MSSTORE_APP_ID: ${{ secrets.MSSTORE_APP_ID }}
+          FLIGHT: ${{ vars.FST_MSSTORE_FLIGHT_NAME || 'Testers' }}
+          GROUP: ${{ vars.FST_MSSTORE_FLIGHT_GROUP }}
+          IN_COMMAND: ${{ inputs.command }}
+          IN_BUILD: ${{ inputs.build }}
+          IN_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set +e -uo pipefail  # Actions runs bash -e; exit 3 (refused) is handled below
+          if [ "${IN_COMMAND:-submit}" = "status" ]; then
+            args=(flight-status --flight "$FLIGHT" --group "$GROUP")
+          else
+            args=(flight-submit --flight "$FLIGHT" --group "$GROUP")
+            if [ -n "${IN_BUILD:-}" ]; then args+=(--build "$IN_BUILD"); fi
+            if [ "${IN_DRY_RUN:-false}" = "true" ]; then args+=(--dry-run); fi
+          fi
+          python3 tools/release/fst_store.py "${args[@]}" | tee "$RUNNER_TEMP/flight.json"
+          code=${PIPESTATUS[0]}
+          { echo "### windows-flight ($FLIGHT) → exit $code"; echo '```json'; cat "$RUNNER_TEMP/flight.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          # 3 = refused (flight busy in certification, already up to date, no build yet): normal, retried hourly.
+          if [ "$code" -ne 0 ] && [ "$code" -ne 3 ]; then exit "$code"; fi

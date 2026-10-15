@@ -3,10 +3,11 @@ using System.Xml.Linq;
 namespace Festival.Core.Tests;
 
 /// <summary>
-/// Guards issues #97 and #285: the player profile (and Statistics, which reuses the view) opens on the player's name as
-/// a plain H1 with no avatar or card around it, then the identity actions, the selection notices and Overview. The
-/// actions wrap so Quick Links never clips at large text sizes. The live checks are the
-/// <c>tools/windows/journeys/a11y-profile-title.json</c> pages.
+/// Guards issues #97, #285 and #639: the player profile (and Statistics, which reuses the view) opens on the player's
+/// name as a plain H1 with no avatar or card around it, then the identity actions, the selection notices and Overview.
+/// The actions wrap so Quick Links never clips at large text sizes, and the title row is pinned above the scroller so
+/// Select and Quick Links stay visible while the profile scrolls. The live checks are the
+/// <c>tools/windows/journeys/a11y-profile-title.json</c> and <c>a11y-pinned-page-tools.json</c> pages.
 /// </summary>
 public class PlayerTitleMarkupTests
 {
@@ -66,10 +67,20 @@ public class PlayerTitleMarkupTests
         Assert.Equal("Level1", Attr(name, "AutomationProperties.HeadingLevel"));
         Assert.Equal("{StaticResource FSTPageTitleStyle}", Attr(name, "Style"));
         Assert.Equal("Wrap", Attr(name, "TextWrapping"));
-        // Nothing precedes the title in the scroller's content, and Overview follows it directly.
-        var content = title.Parent!;
-        Assert.Same(title, content.Elements().First());
-        Assert.Same(ById(doc, "fst.player.overview"), title.ElementsAfterSelf().First());
+        // The title row is the pinned page header (#639): it precedes the scroller outside it, so Select, Deselect and
+        // Quick Links never scroll away, and Overview opens the scroller's content.
+        var root = title.Parent!;
+        Assert.Equal("Root", Attr(root, "Name"));
+        var scroller = Named(doc, "Scroller");
+        Assert.Same(root, scroller.Parent);
+        Assert.DoesNotContain(title.Ancestors(), e => e.Name.LocalName == "ScrollViewer");
+        Assert.Null(Attr(title, "Grid.Row"));
+        Assert.Equal("1", Attr(scroller, "Grid.Row"));
+        Assert.Equal(Attr(scroller, "Visibility"), Attr(title, "Visibility"));
+        Assert.Same(scroller, title.ElementsAfterSelf().First());
+        var content = scroller.Elements().Single();
+        Assert.Same(ById(doc, "fst.player.overview"), content.Elements().First());
+        Assert.Equal(Attr(content, "MaxWidth"), Attr(title, "MaxWidth"));
     }
 
     [Fact]

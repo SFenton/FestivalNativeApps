@@ -1,0 +1,114 @@
+[
+  {
+    "name": "split-rivals",
+    "route": "/rivals",
+    "profile": "fixture-player-1:Demo Player",
+    "scan": true,
+    "tabs": 0,
+    "sizes": [
+      "wide",
+      "maximized"
+    ],
+    "skip_modes": [
+      "text-225"
+    ],
+    "ready": [
+      "waitfor:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8",
+      "key:enter",
+      "waitfor:id=fst.split.pane@10",
+      "waitfor:id=fst.rival-detail.title@20",
+      "waitfor:id=fst.rivals.title@5",
+      "assertname:id=fst.split.close|Close",
+      "assertstate:id=fst.split.close|type=button",
+      "assertsize:id=fst.split.close|40x40",
+      "assertsize:id=fst.split.pane|480x0",
+      "assertapart:id=fst.rivals|id=fst.split.pane",
+      "assertorder:id=fst.rivals.title|id=fst.split.close",
+      "assertorder:id=fst.split.close|id=fst.rival-detail.title",
+      "wait:1"
+    ]
+  },
+  {
+    "name": "split-rivals-back-focus",
+    "route": "/rivals",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "sizes": [
+      "wide"
+    ],
+    "skip_modes": [
+      "text-225"
+    ],
+    "ready": [
+      "waitfor:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@20"
+    ],
+    "after_ready": [
+      "focus:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8",
+      "key:enter",
+      "waitfor:id=fst.rival-detail.title@20",
+      "focus:id=fst.split.close",
+      "key:alt+left",
+      "waitgone:id=fst.split.pane@5",
+      "assertfocus:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@3",
+      "key:enter",
+      "waitfor:id=fst.split.close@20",
+      "invoke:id=fst.split.close",
+      "waitgone:id=fst.split.pane@5",
+      "waitfor:id=fst.rivals.title@5"
+    ]
+  },
+  {
+    "name": "split-song-detail",
+    "route": "/songs/fixture-pulse",
+    "scan": true,
+    "tabs": 0,
+    "sizes": [
+      "wide",
+      "maximized"
+    ],
+    "skip_modes": [
+      "text-225"
+    ],
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.song-detail.view-all.Solo_Drums@15",
+      "focus:id=fst.song-detail.view-all.Solo_Drums",
+      "key:space",
+      "waitfor:id=fst.split.pane@10",
+      "waitfor:id=fst.song-leaderboard.title@20",
+      "waitfor:id=fst.song-detail.view-all.Solo_Drums@5",
+      "assertorder:id=fst.song-detail.view-all.Solo_Drums|id=fst.split.close",
+      "assertorder:id=fst.split.close|id=fst.split.pane",
+      "wait:1"
+    ]
+  },
+  {
+    "name": "split-large-text-pushes",
+    "route": "/rivals",
+    "profile": "fixture-player-1:Demo Player",
+    "scan": true,
+    "tabs": 0,
+    "sizes": [
+      "wide"
+    ],
+    "modes": [
+      "text-225"
+    ],
+    "ready": [
+      "waitfor:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@20"
+    ],
+    "after_ready": [
+      "invoke:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8",
+      "waitfor:id=fst.rival-detail.title@20",
+      "waitgone:id=fst.rivals.title@5",
+      "waitgone:id=fst.split.pane@3",
+      "waitfor:name=Back@5",
+      "wait:1"
+    ]
+  }
+]

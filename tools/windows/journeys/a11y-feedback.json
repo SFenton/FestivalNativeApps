@@ -144,10 +144,50 @@
       "scrollinto:id=fst.settings.feedback.bug@20", "invoke:id=fst.settings.feedback.bug",
       "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Bug] Songs list freezes",
       "setvalue:id=fst.settings.feedback.description|Scrolling stops after the A-Z jump.",
-      "invoke:id=PrimaryButton", "waitfor:id=fst.settings.feedback.progress@10",
-      "assertname:id=fst.settings.feedback.progress|Sending your report…", "assertstate:id=PrimaryButton|enabled=false@5",
-      "assertread:id=fst.settings.feedback.progress|Sending your report…, text",
-      "assertorder:id=fst.settings.feedback.progress|id=fst.settings.feedback.title"
+      "listen:announcements",
+      "invoke:id=PrimaryButton", "waitfor:id=fst.settings.feedback.progress@10", "waitgone:id=fst.settings.feedback.title@5",
+      "assertname:id=fst.settings.feedback.progress|Filing Issue", "assertstate:id=PrimaryButton|enabled=false@5",
+      "assertannounced:Filing Issue",
+      "assertread:id=fst.settings.feedback.busy|Busy Sending your issue, ProgressRing",
+      "assertread:id=fst.settings.feedback.progress|Filing Issue, text",
+      "assertread:id=fst.settings.feedback.progress.subtitle|We’re filing your issue. Please wait while we upload it., text",
+      "assertorder:id=fst.settings.feedback.busy|id=fst.settings.feedback.progress|id=fst.settings.feedback.progress.subtitle|id=fst.settings.feedback.cancel",
+      "assertcentred:id=fst.settings.feedback.status|id=fst.settings.feedback.busy|id=fst.settings.feedback.progress.subtitle",
+      "waitgone:id=fst.settings.feedback.progress.bar@2",
+      "assertsize:id=fst.settings.feedback.cancel|40x40",
+      "invoke:id=fst.settings.feedback.cancel", "waitfor:id=fst.settings.feedback.keep-editing@5", "wait:1",
+      "assertfocus:id=fst.settings.feedback.keep-editing",
+      "assertorder:name=Discard this report?|id=fst.settings.feedback.keep-editing|id=fst.settings.feedback.busy",
+      "key:enter", "waitgone:id=fst.settings.feedback.discard-confirm@5",
+      "assertfocus:id=fst.settings.feedback.cancel@3",
+      "assertname:id=fst.settings.feedback.progress|Filing Issue"
+    ]
+  },
+  {
+    "name": "feedback-uploading-media",
+    "state": "sending",
+    "note": "Issue #634: with media the sending state reads \"Uploading Media\" above the determinate upload bar.",
+    "tab": "settings",
+    "tabs": 0,
+    "fixture": ["feedback_fixture.py", "--post", "hold"],
+    "ready": ["waitfor:id=fst.settings.show-instrument-icons@20"],
+    "after_ready": [
+      "scrollinto:id=fst.settings.feedback.feature@20", "invoke:id=fst.settings.feedback.feature",
+      "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Feature] Compare two players",
+      "setvalue:id=fst.settings.feedback.description|Side by side scores.",
+      "scrollinto:id=fst.settings.feedback.attach@5", "invoke:id=fst.settings.feedback.attach",
+      "waitfor:id=1148&class=Edit@45",
+      "setvalue:id=1148&class=Edit|\"{repo}\\windows\\Festival.App\\Assets\\Store\\Square150x150Logo.scale-100.png\"",
+      "invoke:id=1&class=Button", "waitgone:id=1148&class=Edit@10", "waitfor:id=fst.settings.feedback.attachment@10",
+      "listen:announcements",
+      "invoke:id=PrimaryButton", "waitfor:id=fst.settings.feedback.progress@10", "waitgone:id=fst.settings.feedback.attachment@5",
+      "assertname:id=fst.settings.feedback.progress|Uploading Media",
+      "assertannounced:Uploading Media",
+      "assertread:id=fst.settings.feedback.busy|Busy Sending your request, ProgressRing",
+      "assertread:id=fst.settings.feedback.progress|Uploading Media, text",
+      "assertread:id=fst.settings.feedback.progress.bar|~^Upload progress, progress bar",
+      "assertorder:id=fst.settings.feedback.busy|id=fst.settings.feedback.progress|id=fst.settings.feedback.progress.bar",
+      "assertcentred:id=fst.settings.feedback.status|id=fst.settings.feedback.busy|id=fst.settings.feedback.progress.bar"
     ]
   },
   {
@@ -160,8 +200,18 @@
       "scrollinto:id=fst.settings.feedback.feature@20", "invoke:id=fst.settings.feedback.feature",
       "waitfor:id=fst.settings.feedback.title@10", "setvalue:id=fst.settings.feedback.title|[Feature] Compare two players",
       "setvalue:id=fst.settings.feedback.description|Side by side scores.",
-      "invoke:id=PrimaryButton", "assertname:id=fst.settings.feedback.progress@15|Filing your request on GitHub…",
-      "assertread:id=fst.settings.feedback.progress|Filing your request on GitHub…, text"
+      "listen:announcements",
+      "invoke:id=PrimaryButton", "assertname:id=fst.settings.feedback.progress@15|Filing Request",
+      "assertannounced:Filing Request", "assertannouncedcount:1|Filing Request",
+      "assertname:id=fst.settings.feedback.progress.subtitle@5|We’re filing your request. Please wait while we upload it.",
+      "waitgone:id=fst.settings.feedback.progress.bar@5", "waitgone:id=fst.settings.feedback.title@5",
+      "assertread:id=fst.settings.feedback.busy|Busy Sending your request, ProgressRing",
+      "assertread:id=fst.settings.feedback.progress|Filing Request, text",
+      "assertread:id=fst.settings.feedback.progress.subtitle|We’re filing your request. Please wait while we upload it., text",
+      "assertorder:id=fst.settings.feedback.busy|id=fst.settings.feedback.progress|id=fst.settings.feedback.progress.subtitle|id=fst.settings.feedback.cancel",
+      "assertcentred:id=fst.settings.feedback.status|id=fst.settings.feedback.busy|id=fst.settings.feedback.progress.subtitle",
+      "assertread:id=fst.settings.feedback.cancel|Cancel, button",
+      "assertsize:id=fst.settings.feedback.cancel|40x40"
     ]
   },
   {
@@ -195,6 +245,9 @@
       "invoke:id=PrimaryButton", "waitfor:id=fst.settings.feedback.error@15", "assertstate:id=PrimaryButton|enabled=true@5",
       "assertread:id=PrimaryButton|Submit, button",
       "waitfor:name=Not sent@5",
+      "waitgone:id=fst.settings.feedback.busy@5",
+      "assertstate:id=fst.settings.feedback.title|value=[Feature] fixture-unavailable compare@5",
+      "assertstate:id=fst.settings.feedback.description|value=Side by side scores.",
       "assertorder:name=Not sent|id=fst.settings.feedback.title"
     ]
   }

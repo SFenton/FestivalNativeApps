@@ -33,8 +33,8 @@ struct SongsJumpCase: CustomTestStringConvertible, Sendable {
     ]
 }
 
-/// The real Songs screen, loaded from a synthetic catalogue, above the iPhone tab-bar
-/// accessory that hosts its page tools (Quick Links; issue #92).
+/// The real Songs screen, loaded from a synthetic catalogue, above the iPhone floating
+/// page tools that host its tools (Quick Links; issue #92).
 @MainActor
 private struct SongsJumpHost {
     let host: NSHostingView<NativeHostedRoot<AnyView>>
@@ -71,8 +71,8 @@ private struct SongsJumpHost {
                     SongsScreen(session: session, initialState: .loaded(catalogue), isVisible: false)
                         .pageToolsScope(inSelectedTab: true)
                 }
-                PageToolsAccessoryBar(registry: registry)
-                    .frame(height: NavButtonAccessibilityTests.accessoryHeight)
+                FloatingPageToolsBar(registry: registry)
+                    .frame(height: FloatingPageToolsFit.reservedHeight)
                     .buttonStyle(.borderless)
             }
             .environment(\.pageToolsRegistry, registry)

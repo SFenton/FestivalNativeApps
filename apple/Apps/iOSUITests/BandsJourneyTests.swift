@@ -140,7 +140,7 @@ final class BandsJourneyTests: XCTestCase {
         let labels = ["Total Score", "Adjusted", "Weighted", "FC Rate"]
         let sheetChoice = app.buttons["fst.band-rankings.rank-by.totalscore"]
         if sheetChoice.waitForExistence(timeout: 5) {
-            // iPhone page-tools accessory: the compact sheet lists the choices.
+            // iPhone floating page tools: the compact sheet lists the choices.
             let ids = ["totalscore", "adjusted", "weighted", "fcrate"].map { "fst.band-rankings.rank-by.\($0)" }
             let frames = ids.map { app.buttons[$0].frame.minY }
             XCTAssertEqual(frames, frames.sorted(), "Rank By choices are not Total Score first")
@@ -334,7 +334,7 @@ final class BandsJourneyTests: XCTestCase {
             }
             let center = CGPoint(x: element.frame.midX, y: element.frame.midY)
             // Content scrolled under the bottom chrome's scroll-edge fade, and page-tools
-            // text capped at `PageToolsAccessoryBar.maxTypeSize`, as on Songs
+            // text capped at `FloatingPageToolsBar.maxTypeSize`, as on Songs
             // (`SongsChromeJourneyTests`, `page-tools-and-nav-chrome`).
             if issue.auditType == .contrast, element.frame.maxY > chromeTop { return true }
             if issue.auditType == .contrast, element.frame.minY < rampEnd,

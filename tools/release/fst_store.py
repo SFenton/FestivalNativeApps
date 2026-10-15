@@ -553,6 +553,141 @@ def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], bui
     return result
 
 
+# region Package flights (the Windows TestFlight)
+
+
+#: Flight submission statuses that mean the Store owns the submission (certification or publishing): wait for it.
+FLIGHT_BUSY_STATUSES = frozenset({"CommitStarted", "PreProcessing", "Certification", "Publishing", "Release"})
+FLIGHT_MODE = "Immediate"
+
+
+def list_flights(client: StoreClient) -> List[Dict[str, Any]]:
+    """The app's package flights (``flightId``, ``friendlyName``, ``groupIds``, submission references)."""
+    data = client.get("/applications/%s/listflights?top=100" % client.creds.app_id)
+    return list((data or {}).get("value") or [])
+
+
+def ensure_flight(client: StoreClient, name: str, group: str) -> Dict[str, Any]:
+    """Return the package flight called ``name``, creating it for known user group ``group`` when missing.
+
+    Raises:
+        Blocked: The flight doesn't exist and no group id was given (``flight_group_id_required``).
+    """
+    for flight in list_flights(client):
+        if str(flight.get("friendlyName") or "") == name:
+            return flight
+    if not group or not group.isdigit():
+        raise Blocked("flight_group_id_required")
+    created = client.request("POST", "/applications/%s/flights" % client.creds.app_id,
+                             {"friendlyName": name, "groupIds": [group]})
+    return created or {"flightId": "<new>", "friendlyName": name, "groupIds": [group]}
+
+
+def flight_submission(client: StoreClient, flight: Dict[str, Any], key: str) -> Optional[Dict[str, Any]]:
+    """Resolve a flight's ``pendingFlightSubmission`` / ``lastPublishedFlightSubmission`` reference."""
+    ref = flight.get(key) or {}
+    if not ref.get("id"):
+        return None
+    return client.get("/applications/%s/flights/%s/submissions/%s" % (
+        client.creds.app_id, flight["flightId"], ref["id"]))
+
+
+def flight_package_version(sub: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Version of a flight submission's active package (``None`` when unknown)."""
+    for package in (sub or {}).get("flightPackages") or []:
+        if package.get("fileStatus") != "PendingDelete" and package.get("version"):
+            return str(package["version"])
+    return None
+
+
+def _msix_key(version: Optional[str]) -> tuple:
+    try:
+        return tuple(int(p) for p in str(version or "").split("."))
+    except ValueError:
+        return ()
+
+
+def flight_status(client: StoreClient, name: str, group: str) -> Dict[str, Any]:
+    """``{flight_id, name, pending: {status, version}, published_version}`` for the flight (created if missing)."""
+    flight = ensure_flight(client, name, group)
+    pending = flight_submission(client, flight, "pendingFlightSubmission")
+    published = flight_submission(client, flight, "lastPublishedFlightSubmission")
+    return {"flight_id": flight.get("flightId"), "name": name,
+            "pending": {"id": pending.get("id"), "status": pending.get("status"),
+                        "version": flight_package_version(pending), "own": is_own_submission(pending),
+                        "has_upload_url": bool(pending.get("fileUploadUrl"))}
+            if pending else None,
+            "published_version": flight_package_version(published)}
+
+
+def flight_submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], name: str, group: str,
+                  build: Optional[str] = None) -> Dict[str, Any]:
+    """Submit the newest Windows release build (or ``build``) to package flight ``name``: the Windows TestFlight.
+
+    The flight publishes to its known user group as soon as certification passes (``Immediate``). Only one flight
+    submission can be pending: while one is in certification this refuses with ``flight_busy`` and the next run
+    (hourly, and after each build) submits whatever is newest then. A failed or self-created draft is deleted first.
+
+    Returns:
+        ``{submitted, flight_id, submission_id, version, sha}`` or ``{refused: flight_busy|up_to_date|no_build}``.
+    """
+    flight = ensure_flight(client, name, group)
+    artifact = find_artifact(run, repo, build) if build else latest_artifact(run, repo)
+    if not artifact or artifact["placeholder"] or artifact["expired"]:
+        return {"refused": "no_build", "flight_id": flight.get("flightId")}
+    version = artifact["version"]
+    pending = flight_submission(client, flight, "pendingFlightSubmission")
+    published = flight_submission(client, flight, "lastPublishedFlightSubmission")
+    draft: Optional[Dict[str, Any]] = None
+    if pending is not None:
+        status = str(pending.get("status") or "")
+        if status in FLIGHT_BUSY_STATUSES or status == "PendingPublication":
+            return {"refused": "flight_busy", "state": status, "pending_version": flight_package_version(pending),
+                    "version": version, "flight_id": flight.get("flightId")}
+        if status == "PendingCommit" and not flight_package_version(pending) and pending.get("fileUploadUrl"):
+            draft = pending  # a new flight's empty draft (Partner Center and the API create one): fill it in
+        elif status not in FAILED_STATUSES and not is_own_submission(pending) and not (
+                status == "PendingCommit" and not flight_package_version(pending)):
+            raise Blocked("foreign_pending_flight_submission: %s %s, packages %s" % (
+                pending.get("id"), status, flight_package_version(pending) or "none"))
+        else:
+            client.request("DELETE", "/applications/%s/flights/%s/submissions/%s" % (
+                client.creds.app_id, flight["flightId"], pending["id"]))
+    if _msix_key(flight_package_version(published)) >= _msix_key(version):
+        return {"refused": "up_to_date", "version": version, "flight_id": flight.get("flightId")}
+
+    path = "/applications/%s/flights/%s/submissions" % (client.creds.app_id, flight["flightId"])
+    with tempfile.TemporaryDirectory(prefix="fst-flight-") as tmp:
+        if client.dry_run:
+            file_name = "FestivalScoreTracker_%s_x64.msixupload" % version
+            data = b""
+        else:
+            package = download_package(run, repo, artifact, Path(tmp))
+            file_name, data = package.name, package_zip(package)
+        created = dict(draft) if draft is not None else (client.request("POST", path) or {})
+        submission_id = str(created.get("id") or "<new>")
+        upload_url = str(created.pop("fileUploadUrl", "") or "")
+        if not client.dry_run and not upload_url:
+            raise StoreError(0, "new flight submission has no fileUploadUrl")
+        packages = [dict(p, fileStatus="PendingDelete") for p in created.get("flightPackages") or []]
+        packages.append({"fileName": file_name, "fileStatus": "PendingUpload",
+                         "minimumDirectXVersion": "None", "minimumSystemRam": "None"})
+        created.update(flightPackages=packages, targetPublishMode=FLIGHT_MODE,
+                       notesForCertification="%s automated release-candidate build of commit %s for the %s flight. "
+                       "No sign-in required; the app reads public leaderboard data." % (
+                           OWN_MARKER, artifact["sha"][:12], name))
+        created.pop("targetPublishDate", None)
+        client.request("PUT", "%s/%s" % (path, submission_id), created)
+        client.upload(upload_url, data)
+        client.request("POST", "%s/%s/commit" % (path, submission_id))
+    return {"submitted": not client.dry_run, "flight_id": flight.get("flightId"), "submission_id": submission_id,
+            "version": version, "sha": artifact["sha"], "replaced_draft": pending is not None and draft is None,
+            "filled_draft": draft is not None}
+
+
+# endregion
+
+
 def release_state(client: StoreClient) -> Dict[str, Any]:
     """Report whether the newest submission reached customers (the release train's Monday check).
 
@@ -601,6 +736,13 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("release")
     p.add_argument("--version")
     p.add_argument("--dry-run", action="store_true")
+    for name in ("flight-status", "flight-submit"):
+        p = sub.add_parser(name)
+        p.add_argument("--flight", default="Testers", help="package flight name (created when missing)")
+        p.add_argument("--group", default="", help="known user group id, used to create the flight")
+        if name == "flight-submit":
+            p.add_argument("--build", help="MSIX or YYMM.DD.NN version (default: the newest release build)")
+            p.add_argument("--dry-run", action="store_true")
     p = sub.add_parser("record-build")
     p.add_argument("--build", required=True)
     p.add_argument("--version", required=True)
@@ -663,6 +805,15 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
             result = release_state(client)
             emit(result)
             return EXIT_BLOCKED if result.get("blocked") else EXIT_OK
+        if args.command == "flight-status":
+            emit(flight_status(client, args.flight, args.group))
+            return EXIT_OK
+        if args.command == "flight-submit":
+            result = flight_submit(client, runner, repo, env, args.flight, args.group, args.build)
+            if dry_run:
+                result["planned"] = client.planned
+            emit(result)
+            return EXIT_REFUSED if result.get("refused") else EXIT_OK
     except Blocked as err:
         emit(blocked_status(err.reason) if args.command == "status" else {"blocked": err.reason})
         return EXIT_BLOCKED

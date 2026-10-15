@@ -12,7 +12,7 @@ import FestivalDesign
 public struct QuickLinksToolbarItem: ToolbarContent {
     private let controller: QuickLinksController
     private let placement: ToolbarItemPlacement
-    /// Set where Quick Links sits in the iPhone tab-bar accessory instead (registered by
+    /// Set where Quick Links floats above the iPhone tab bar instead (registered by
     /// the `.quickLinks` container, issue #92).
     @Environment(\.pageToolsRegistry) private var pageTools
 
@@ -99,7 +99,7 @@ public struct QuickLinksMenu: View {
         }
     }
 
-    /// The sections for the inline-accessory sheet (``PageToolMenu``), in page order with
+    /// The sections for the floating tool's sheet (``PageToolMenu``), in page order with
     /// the active one selected.
     ///
     /// - Returns: One choice per section; picking one jumps to it.
@@ -128,7 +128,7 @@ public struct QuickLinksMenu: View {
 /// One quick link's icon and title, indented by depth.
 ///
 /// Instrument artwork is pre-sized to the visual weight of the adjacent SF Symbols
-/// (issues #303, #313): menus and the iPhone accessory sheet draw a plain image at its
+/// (issues #303, #313): menus and the iPhone floating tool sheet draw a plain image at its
 /// 144 pt intrinsic size.
 struct QuickLinkLabel: View {
     let section: QuickLinkSection
@@ -137,7 +137,7 @@ struct QuickLinkLabel: View {
 
     /// The chooser that shows the row.
     enum Presentation {
-        /// The iPhone tab-bar accessory sheet's `List` (``PageToolMenu``).
+        /// The iPhone floating tool sheet's `List` (``PageToolMenu``).
         case list
         /// The native `Menu` (iPad, iPhone Duo, Mac).
         case menu

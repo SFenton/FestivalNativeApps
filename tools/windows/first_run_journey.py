@@ -318,7 +318,7 @@ DEMO_CONTROLS = {
     "songinfo-bar-select": ["SongScoreHistoryChart", "LeaderboardEntryRow"],
     "songinfo-view-all": ["CardHeader", "LeaderboardEntryRow"],
     "songinfo-top-scores": ["CardHeader", "LeaderboardEntryRow"],
-    "songinfo-paths": ["InstrumentSelector", "RadioButtons"],
+    "songinfo-paths": ["InstrumentSelector", "ComboBox"],
     "songinfo-shop-button": ["SongHeaderText", "ShopPulseFill"],
     "songinfo-new-in-shop": ["SongHeaderText", "ShopPulseFill"],
     "songinfo-leaving-tomorrow": ["SongHeaderText", "ShopPulseFill"],

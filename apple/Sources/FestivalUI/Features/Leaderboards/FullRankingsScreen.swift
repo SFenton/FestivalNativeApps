@@ -70,7 +70,7 @@ struct FullRankingsScreen: View {
     @State private var columns = 1
     @Environment(\.deviceLayout) private var layout
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    /// Set where page tools float above the iPhone tab bar (issues #92, #632).
     @Environment(\.pageToolsRegistry) private var pageTools
 
     /// Coordinate space shared by the rows' fade mask and the pinned chrome.
@@ -395,7 +395,7 @@ struct FullRankingsScreen: View {
             // rail can place both (`/duo` J1; HIG Designing for iPhone Duo: "Give every
             // non-text-only item a title and symbol"), and every other bar shows them
             // side by side now that the pager no longer carries the instrument pill.
-            // The iPhone tab-bar accessory takes both instead (issue #92).
+            // The iPhone floating page tools take both instead (issues #92, #632).
             if layout.sectionChrome.isVerticalBar || pageTools == nil {
                 ToolbarItemGroup(placement: .festivalPageAction) {
                     if combo == nil {
@@ -408,10 +408,8 @@ struct FullRankingsScreen: View {
                 }
             }
         }
-        #if os(iOS)
-        .navigationBarTitleDisplayMode(.inline)
-        #endif
-        // iPhone tab-bar accessory (issue #92): Instrument, then Rank By.
+        .festivalTitleDisplayMode(.inline)
+        // iPhone floating page tools (issues #92, #632): Instrument, then Rank By.
         .festivalPageTool(
             token: InstrumentToolToken(selected: instrument, choices: visibleInstruments),
             order: PageToolOrder.primary, isEnabled: combo == nil
@@ -670,7 +668,7 @@ struct FullRankingsScreen: View {
 
     /// The instrument switcher: a system toolbar `Menu` (system hit target, overflow
     /// title and Duo rail placement) whose `Label` carries the artwork redrawn as a
-    /// menu-sized image; in the iPhone tab-bar accessory it lists the same charts in
+    /// menu-sized image; as an iPhone floating page tool it lists the same charts in
     /// a sheet (``PageToolMenu``, issue #92). Keeps `fst.full-rankings.instrument-menu`.
     private var instrumentPicker: some View {
         PageToolMenu("Instrument", choices: instrumentMenuChoices) {
@@ -700,7 +698,7 @@ struct FullRankingsScreen: View {
         }
     }
 
-    /// The visible charts for the inline-accessory sheet (``PageToolMenu``).
+    /// The visible charts for the floating tool's sheet (``PageToolMenu``).
     private func instrumentMenuChoices() -> [PageToolMenuChoice] {
         visibleInstruments.map { chart in
             PageToolMenuChoice(
@@ -766,7 +764,7 @@ private struct FullRankingsInstrumentCommands: ViewModifier {
     }
 }
 
-/// Everything the accessory's instrument tool displays: re-registers it when the
+/// Everything the floating instrument tool displays: re-registers it when the
 /// selection or the Settings-visible charts change (issue #92).
 private struct InstrumentToolToken: Hashable {
     let selected: Instrument

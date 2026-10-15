@@ -873,6 +873,15 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertcentred":
                 AssertCentred(window, step);
                 break;
+            case "assertdock":
+                AssertDock(window, step);
+                break;
+            case "assertmidline":
+                AssertMidline(window, step);
+                break;
+            case "assertmiddle":
+                AssertMiddle(window, step);
+                break;
             case "assertinset":
                 AssertInset(window, step);
                 break;
@@ -919,6 +928,10 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 break;
             case "assertapart":
                 AssertApart(window, step);
+                break;
+            case "assertheight":
+            case "assertright":
+                AssertMatch(window, step, verb == "assertheight");
                 break;
             case "assertat":
                 AssertAt(window, step);
@@ -1688,6 +1701,80 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 $"off centre: {top:0.#} epx above, {bottom:0.#} epx below, {dx:0.#} epx sideways ({(string)step["arg"]!})");
     }
 
+    /// <summary>
+    /// Fails unless each named edge of the element is the given number of effective pixels inside the same edge of the
+    /// region, and its width the given width, each within 1.5 epx (UIA rounds each edge to a device pixel): a modal
+    /// surface docked to the window's trailing edge or bottom (issue #638). Records the measured insets in <c>docks</c>.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c>, <c>other</c> (the region) and <c>edges</c>.</param>
+    /// <exception cref="InvalidOperationException">An edge or the width is off.</exception>
+    private void AssertDock(Window window, JsonObject step)
+    {
+        var element = Find(window, step).BoundingRectangle;
+        var region = Find(window, step, "other").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var measured = new Dictionary<string, double>
+        {
+            ["left"] = (element.Left - region.Left) / scale,
+            ["top"] = (element.Top - region.Top) / scale,
+            ["right"] = (region.Right - element.Right) / scale,
+            ["bottom"] = (region.Bottom - element.Bottom) / scale,
+            ["width"] = element.Width / scale,
+        };
+        var record = new JsonObject { ["arg"] = (string)step["arg"]!, ["scale"] = scale };
+        foreach (var (key, value) in measured) record[key] = Math.Round(value, 1);
+        response["docks"] ??= new JsonArray();
+        response["docks"]!.AsArray().Add(record);
+        var off = step["edges"]!.AsObject()
+            .Where(edge => Math.Abs(measured[edge.Key] - (double)edge.Value!) > 1.5)
+            .Select(edge => $"{edge.Key} {measured[edge.Key]:0.#} epx is not {(double)edge.Value!:0.#}")
+            .ToList();
+        if (off.Count > 0)
+            throw new InvalidOperationException($"{string.Join("; ", off)} ({(string)step["arg"]!})");
+    }
+
+    /// <summary>
+    /// Fails unless the midpoint from the first element's left edge to the last element's right edge is the region's
+    /// horizontal centre within <c>epx</c> effective pixels: a wrapped line of chips centred across its row rather than
+    /// left-aligned under the title (issue #645).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> (first), <c>other</c> (last), <c>region</c> and <c>epx</c>.</param>
+    /// <exception cref="InvalidOperationException">The line is off centre.</exception>
+    private void AssertMidline(Window window, JsonObject step)
+    {
+        var first = Find(window, step).BoundingRectangle;
+        var last = Find(window, step, "other").BoundingRectangle;
+        var region = Find(window, step, "region").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var dx = ((first.Left + last.Right) / 2.0 - (region.Left + region.Width / 2.0)) / scale;
+        response["midlines"] ??= new JsonArray();
+        response["midlines"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["dx"] = Math.Round(dx, 1) });
+        if (Math.Abs(dx) > (double)step["epx"]!)
+            throw new InvalidOperationException($"line off centre by {dx:0.#} epx ({(string)step["arg"]!})");
+    }
+
+    /// <summary>
+    /// Fails unless the element's vertical centre is the region's vertical centre within <c>epx</c> effective pixels: a
+    /// list row's art, chevron or metadata on the row's centre line rather than nudged up by an empty second line
+    /// (issue #654). Tighter than <c>assertlevel</c>'s 4 px, which a 3 epx offset passes at 100% scale.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> (the element), <c>other</c> (the region) and <c>epx</c>.</param>
+    /// <exception cref="InvalidOperationException">The element is off the region's centre line.</exception>
+    private void AssertMiddle(Window window, JsonObject step)
+    {
+        var element = Find(window, step).BoundingRectangle;
+        var region = Find(window, step, "other").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var dy = (element.Top + element.Height / 2.0 - (region.Top + region.Height / 2.0)) / scale;
+        response["middles"] ??= new JsonArray();
+        response["middles"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["dy"] = Math.Round(dy, 1) });
+        if (Math.Abs(dy) > (double)step["epx"]!)
+            throw new InvalidOperationException($"off the centre line by {dy:0.#} epx ({(string)step["arg"]!})");
+    }
+
     #region Hit targets
 
     /// <summary>
@@ -1734,6 +1821,32 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         response["apart"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["gap_epx"] = Math.Round(gap, 1) });
         if (horizontal < 0 && vertical < 0)
             throw new InvalidOperationException($"{(string)step["arg"]!}: bounds overlap ({a} and {b}, physical px)");
+    }
+
+    /// <summary>
+    /// Fails unless two on-screen elements share a height (<c>assertheight</c>: one row of controls drawn at one height)
+    /// or a right edge (<c>assertright</c>: a row that ends where the content below it ends), within 1 epx. Records both
+    /// values in epx.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> and <c>other</c>.</param>
+    /// <param name="height">Compare heights (else right edges).</param>
+    /// <exception cref="InvalidOperationException">The values differ by more than 1 epx.</exception>
+    private void AssertMatch(Window window, JsonObject step, bool height)
+    {
+        var a = Find(window, step).BoundingRectangle;
+        var b = Find(window, step, "other").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var first = (height ? a.Height : a.Right) / scale;
+        var second = (height ? b.Height : b.Right) / scale;
+        var what = height ? "heights" : "right edges";
+        response["matched"] ??= new JsonArray();
+        response["matched"]!.AsArray().Add(new JsonObject
+        {
+            ["arg"] = (string)step["arg"]!, ["what"] = what, ["epx"] = Math.Round(first, 1), ["other_epx"] = Math.Round(second, 1),
+        });
+        if (Math.Abs(first - second) > 1)
+            throw new InvalidOperationException($"{what} differ: {first:0.#} vs {second:0.#} epx ({(string)step["arg"]!})");
     }
 
     /// <summary>

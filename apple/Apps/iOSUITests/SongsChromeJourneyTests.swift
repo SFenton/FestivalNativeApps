@@ -379,22 +379,22 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertTrue(field.exists, "Filter Songs field disappeared")
     }
 
-    /// Issue #92: Sort and Filter sit in the tab-bar accessory, not the navigation bar,
-    /// and stay reachable while the Songs list scrolls; the pinned Filter Songs field
-    /// remains present for local filtering. Issue #300: the inline accessory shows the
-    /// same items as the expanded one (no fold mid-morph), and Profile stays the
-    /// navigation bar's trailing button.
+    /// Issue #92, #632: Sort and Filter float above the tab bar, not in the navigation
+    /// bar, and stay reachable while the Songs list scrolls; the pinned Filter Songs field
+    /// remains present for local filtering. Issue #300: the row shows the same items
+    /// while the tab bar minimizes (no fold mid-scroll), and Profile stays the navigation
+    /// bar's trailing button.
     ///
     /// Needs a catalogue that scrolls (`TEST_RUNNER_FST_SONGS_SCROLL_FIXTURE_URL`, as for
     /// ``testScrollingBackToTopNearTheTopStaysResponsive``); skips on the two-song fixture.
     @MainActor
-    func testToolsStayInTheTabBarAccessoryWhileScrolled() throws {
+    func testToolsStayFloatingWhileScrolled() throws {
         continueAfterFailure = false
         try assertToolsWhileScrolled(profile: false, tools: ["fst.songs.sort", "fst.songs.filter"])
         try assertToolsWhileScrolled(profile: true, tools: ["fst.songs.sort", "fst.songs.filter"])
     }
 
-    /// Launch the scrolling catalogue and check the Songs tools stay in the accessory.
+    /// Launch the scrolling catalogue and check the Songs tools stay in the floating row.
     ///
     /// - Parameters:
     ///   - profile: Launch with the fixture player selected.
@@ -415,40 +415,40 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: 15))
         let rail = app.descendants(matching: .any)
             .matching(identifier: "fst.songs.section-index").firstMatch
-        guard rail.waitForExistence(timeout: 3) else {
+        guard rail.waitForExistence(timeout: FestivalApp.budget(10)) else {
             throw XCTSkip("Catalogue too short to scroll; use mock_service.py --large-catalogue.")
         }
         let field = app.searchFields["Filter Songs"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         let who = profile ? "profile" : "anonymous"
         let accessory = app.descendants(matching: .any).matching(identifier: "fst.page-tools").firstMatch
-        XCTAssertTrue(accessory.waitForExistence(timeout: 5), "\(who): tab-bar accessory missing")
-        func assertInAccessory(_ ids: [String], _ state: String) {
+        XCTAssertTrue(accessory.waitForExistence(timeout: 5), "\(who): floating page tools missing")
+        func assertFloating(_ ids: [String], _ state: String) {
             let bar = app.navigationBars.firstMatch.frame
             XCTAssertTrue(
                 app.navigationBars.buttons["fst.shell.profile"].exists, "\(who): Profile left the header \(state)"
             )
-            XCTAssertFalse(accessory.buttons["fst.shell.profile"].exists, "\(who): Profile in the accessory \(state)")
+            XCTAssertFalse(accessory.buttons["fst.shell.profile"].exists, "\(who): Profile in the floating row \(state)")
             XCTAssertFalse(accessory.buttons["fst.songs.tools"].exists, "\(who): Sort and Filter folded \(state)")
             for id in ids {
                 let tool = accessory.buttons[id]
-                XCTAssertTrue(tool.exists, "\(who): \(id) missing from the accessory \(state)")
+                XCTAssertTrue(tool.exists, "\(who): \(id) missing from the floating row \(state)")
                 XCTAssertTrue(tool.isHittable, "\(who): \(id) not hittable \(state)")
                 XCTAssertFalse(app.navigationBars.buttons[id].exists, "\(who): \(id) in the header \(state)")
                 XCTAssertGreaterThan(tool.frame.minY, bar.maxY, "\(who): \(id) in the header \(state)")
                 XCTAssertGreaterThanOrEqual(tool.frame.width, 44, "\(who): \(id) slot under 44 pt")
             }
         }
-        assertInAccessory(tools, "at the top")
+        assertFloating(tools, "at the top")
         app.swipeUp()
-        // Inline beside the minimized tab bar the same items stay (issue #300).
+        // Above the minimized tab bar the same items stay put (issues #300, #632).
         for _ in 0..<100 {
             if tools.allSatisfy({ accessory.buttons[$0].isHittable }) { break }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
-        assertInAccessory(tools, "while scrolled")
+        assertFloating(tools, "while scrolled")
         XCTAssertTrue(field.exists, "\(who): Filter Songs hid while scrolled")
-        SongsUITestSupport.record(app, name: "songs-tools-accessory-\(who)")
+        SongsUITestSupport.record(app, name: "songs-tools-floating-\(who)")
     }
 
     /// Reversing the sort re-orders the list and shows it from the top: the new first
@@ -1122,9 +1122,9 @@ final class SongsChromeJourneyTests: XCTestCase {
             } else if issue.auditType == .dynamicType, let text = issue.element,
                       text.elementType == .staticText,
                       current.accessory.contains(CGPoint(x: text.frame.midX, y: text.frame.midY)) {
-                // The bell's unread badge (or another accessory label): the fixed-height
-                // system accessory caps its text and offers the Large Content Viewer.
-                accepted.append("accessory type cap: \(description)")
+                // A floating page tool's label: the fixed 44 pt circles cap their text
+                // and offer the Large Content Viewer (#632).
+                accepted.append("floating tools type cap: \(description)")
             } else if issue.auditType == .contrast, let text = issue.element,
                       text.elementType == .staticText, !text.frame.isEmpty {
                 let measured = try? self.renderedContrast(
@@ -1694,7 +1694,7 @@ final class SongsChromeJourneyTests: XCTestCase {
         XCTAssertTrue(SongsUITestSupport.songsSearchEntry(in: app).waitForExistence(timeout: 5))
         XCTAssertTrue(
             app.buttons["fst.songs.sort"].isHittable || app.buttons["fst.songs.tools"].isHittable,
-            "Sort did not return to the tab-bar accessory"
+            "Sort did not return to the floating page tools"
         )
     }
 
@@ -2293,8 +2293,8 @@ private struct ScrollAwayAuditPage {
     let rail: CGRect
     /// The top of the bottom chrome: the tab bar, or the page tools above it.
     let chromeTop: CGFloat
-    /// The page-tools tab-bar accessory's frame (`.null` when it is not shown). Its text
-    /// stops growing at `PageToolsAccessoryBar.maxTypeSize` (`page-tools-and-nav-chrome`).
+    /// The floating page-tools row's frame (`.null` when it is not shown). Its text
+    /// stops growing at `FloatingPageToolsBar.maxTypeSize` (`page-tools-and-nav-chrome`).
     let accessory: CGRect
     /// Where the top ramp under the section or navigation bar ends (`scroll-edge`
     /// R2/R3): 40 pt below its edge, or the edge itself with a hard edge (R7).

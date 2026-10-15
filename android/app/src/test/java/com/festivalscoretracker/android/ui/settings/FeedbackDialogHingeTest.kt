@@ -50,7 +50,7 @@ class FeedbackDialogHingeTest {
      */
     private fun feedbackOverHinge(separating: Boolean): Pair<Rect, Rect> {
         val viewModel = FeedbackViewModel(
-            send = { error("not sent") },
+            send = { _, _ -> error("not sent") },
             status = { error("not polled") },
             features = { true },
             appVersion = "test",

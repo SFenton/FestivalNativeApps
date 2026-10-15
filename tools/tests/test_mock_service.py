@@ -4,13 +4,14 @@ import hashlib
 import json
 import socket
 import threading
+import time
 import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from tools.mock_service import (
-    DEMO_SONGS, FixtureHandler, FixtureServer, ROOT,
+    DEMO_SONGS, FEEDBACK_SLOW_READS, FEEDBACK_SLOW_UPLOAD_S, FixtureHandler, FixtureServer, ROOT,
     fixture_artwork, fixture_path_image,
     _band_detail, _band_ranking_entry, _ranking_entry, _song_band_leaderboard_entry,
 )
@@ -654,6 +655,17 @@ class MockServiceTests(unittest.TestCase):
             urlopen(self.base + "/api/feedback/" + "a" * 32)
         self.assertEqual(error.exception.code, 404)
 
+        # #634: a slow job answers late and stays processing for two reads, then files.
+        started = time.monotonic()
+        with urlopen(post("[Bug] fixture-slow", {})) as response:
+            slow_id = json.load(response)["id"]
+        self.assertGreaterEqual(time.monotonic() - started, FEEDBACK_SLOW_UPLOAD_S - 0.1)
+        reads = []
+        for _ in range(FEEDBACK_SLOW_READS + 1):
+            with urlopen(self.base + "/api/feedback/" + slow_id) as response:
+                reads.append(json.load(response)["status"])
+        self.assertEqual(reads, ["processing", "processing", "submitted"])
+
         for title, headers, fields, code, error_code in [
             ("[Bug] fixture-unavailable", {}, ("kind", "platform", "description"), 503, "feedback_busy"),
             ("[Bug] ok", {}, ("kind", "platform"), 400, "description_required"),
@@ -905,6 +917,52 @@ class MockServiceTests(unittest.TestCase):
         with urlopen(route, timeout=10) as response:
             self.assertEqual(response.status, 200)
         for bad in ("?seconds=241", "?seconds=-1", "?seconds=x", "?seconds=1&seconds=2", "?other=1"):
+            with self.subTest(query=bad), self.assertRaises(HTTPError) as failure:
+                urlopen(control + bad)
+            self.assertEqual(failure.exception.code, 400)
+
+    def test_hold_paths_form_holds_only_that_forms_reads(self):
+        """`hold-paths?form=data` holds the table read while the image answers (issue #649)."""
+        control = self.base + "/__fixture__/hold-paths"
+        data = self.base + "/api/paths/fixture-pulse/Solo_Guitar/hard/data"
+        image = self.base + "/api/paths/fixture-pulse/Solo_Guitar/hard"
+        with urlopen(control + "?seconds=30&form=data") as response:
+            self.assertEqual(json.load(response), {"held": True, "waiting": 0})
+        answered = threading.Event()
+
+        def read() -> None:
+            with urlopen(data) as held:
+                held.read()
+            answered.set()
+
+        reader = threading.Thread(target=read, daemon=True)
+        reader.start()
+        for _ in range(100):
+            with urlopen(control) as response:
+                status = json.load(response)
+            if status["waiting"]:
+                break
+            threading.Event().wait(0.02)
+        self.assertEqual(status, {"held": True, "waiting": 1})
+        # The image is not held, and answering it parks nothing.
+        with urlopen(image, timeout=5) as response:
+            self.assertEqual(response.status, 200)
+            self.assertTrue(response.read().startswith(b"\x89PNG"))
+        self.assertFalse(answered.wait(0.3), "The held table read was answered")
+        with urlopen(control) as response:
+            self.assertEqual(json.load(response), {"held": True, "waiting": 1})
+        with urlopen(control + "?seconds=0") as response:
+            self.assertFalse(json.load(response)["held"])
+        self.assertTrue(answered.wait(5), "Releasing did not answer the held table read")
+        reader.join(timeout=2)
+        # An image-only hold leaves the table free.
+        with urlopen(control + "?seconds=30&form=image"):
+            pass
+        with urlopen(data, timeout=5) as response:
+            self.assertEqual(response.status, 200)
+        with urlopen(control + "?seconds=0"):
+            pass
+        for bad in ("?form=data", "?seconds=5&form=png", "?seconds=5&form=data&form=image"):
             with self.subTest(query=bad), self.assertRaises(HTTPError) as failure:
                 urlopen(control + bad)
             self.assertEqual(failure.exception.code, 400)

@@ -878,7 +878,7 @@ private func rivalsAccessibilityNodes(in host: NSView) -> [(role: String, label:
 ///
 /// - Parameters:
 ///   - page: The page.
-///   - registry: The tab-bar accessory's registry.
+///   - registry: The floating page tools' registry.
 ///   - storage: The fixture session's settings.
 ///   - height: Host height.
 /// - Returns: The host and its window (close it when done).
@@ -898,8 +898,8 @@ private func hostRivalsPageWithTools<Page: View>(
 
 /// Rivalry is one list of songs, so it offers no Quick Links (owner, #545; pattern
 /// `quick-links` R3). VoiceOver reads the songs in drawn order, each named with both
-/// ranks, with no "Quick Links" rotor; the iPhone tab-bar accessory reads View Profile,
-/// then Notifications, as named full 44 pt buttons (HIG Buttons: "the hit region is at
+/// ranks, with no "Quick Links" rotor; the iPhone floating page tools read only View Profile
+/// (Notifications is in the header's account pill, #632), as a named full 44 pt button (HIG Buttons: "the hit region is at
 /// least 44x44 pt"), with no Quick Links entry point.
 @MainActor
 @Test func rivalryOffersViewProfileButNoQuickLinks() async throws {
@@ -931,9 +931,9 @@ private func hostRivalsPageWithTools<Page: View>(
     #expect(nativeHostedAccessibilityElement("fst.quick-links.open", in: host) == nil)
     #expect(registry.frontItems.map(\.order) == [PageToolOrder.primary], "View Profile is the only page tool")
 
-    let barSize = CGSize(width: 348, height: 48)
+    let barSize = CGSize(width: 402, height: FloatingPageToolsFit.reservedHeight)
     let bar = nativeHostedView(AnyView(
-        PageToolsAccessoryBar(registry: registry)
+        FloatingPageToolsBar(registry: registry)
             .environment(\.pageToolsRegistry, registry)
             .environment(\.festivalSession, session)
             .buttonStyle(.borderless)
@@ -941,7 +941,7 @@ private func hostRivalsPageWithTools<Page: View>(
     ), size: barSize)
     let barWindow = nativeHostedWindow(bar, size: barSize)
     defer { barWindow.orderOut(nil) }
-    let expected = ["fst.rivalry.view-profile", "fst.shell.notifications"]
+    let expected = ["fst.rivalry.view-profile"]
     try await nativeHostedSettle(bar, until: {
         expected.allSatisfy { nativeHostedAccessibilityElement($0, in: bar) != nil }
     })
@@ -952,7 +952,7 @@ private func hostRivalsPageWithTools<Page: View>(
     #expect(controls.allSatisfy { $0.role == "AXButton" }, "\(controls)")
     #expect(macAccessibilityFindings(barNodes).isEmpty, "\(macAccessibilityFindings(barNodes))")
     let profile = try #require(nativeHostedAccessibilityFrame("fst.rivalry.view-profile", in: bar))
-    #expect(profile.width >= PageToolsAccessoryFit.slot - 0.5 && profile.height >= PageToolsAccessoryFit.slot - 0.5,
+    #expect(profile.width >= FloatingPageToolsFit.slot - 0.5 && profile.height >= FloatingPageToolsFit.slot - 0.5,
             "\(profile)")
 }
 

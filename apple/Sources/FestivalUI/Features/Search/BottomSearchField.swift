@@ -157,7 +157,8 @@ enum BottomSearchFieldPlacement {
     }
 
     /// The row's padding under the field: centred on the vertical bar's Search button
-    /// while the keyboard is hidden, else the standard ``rowPadding`` plus any
+    /// while the keyboard is hidden, else the standard ``rowPadding`` plus the larger of
+    /// ``floatingRowClearance(rowBottom:floatingRowTop:)`` and
     /// ``keyboardLift(rowBottom:keyboardTop:fieldBottomPadding:gap:)``.
     ///
     /// - Parameters:
@@ -166,10 +167,12 @@ enum BottomSearchFieldPlacement {
     ///   - windowBottom: The window's bottom edge in the same space.
     ///   - fieldHeight: The field's measured height.
     ///   - keyboardTop: The keyboard's top in the same space, or `nil` while hidden.
+    ///   - floatingRowTop: The floating page tools row's top in the same space, or
+    ///     `nil` where no row floats (``PageToolsRegistry/floatingRowTop``).
     /// - Returns: The bottom padding, in points.
     nonisolated static func bottomPadding(
         chrome: DeviceLayout.SectionChrome, rowBottom: CGFloat, windowBottom: CGFloat,
-        fieldHeight: CGFloat, keyboardTop: CGFloat?
+        fieldHeight: CGFloat, keyboardTop: CGFloat?, floatingRowTop: CGFloat? = nil
     ) -> CGFloat {
         if let aligned = searchButtonAlignedBottomPadding(
             chrome: chrome, rowBottom: rowBottom, windowBottom: windowBottom,
@@ -177,9 +180,29 @@ enum BottomSearchFieldPlacement {
         ) {
             return aligned
         }
-        return rowPadding + keyboardLift(
-            rowBottom: rowBottom, keyboardTop: keyboardTop, fieldBottomPadding: rowPadding
+        return rowPadding + max(
+            floatingRowClearance(rowBottom: rowBottom, floatingRowTop: floatingRowTop),
+            keyboardLift(rowBottom: rowBottom, keyboardTop: keyboardTop, fieldBottomPadding: rowPadding)
         )
+    }
+
+    /// Extra padding that lifts the row above the floating page tools (issue #633).
+    ///
+    /// Where page tools float (iPhone Duo inner display in portrait), the selected
+    /// tab's floating row sits in its navigation stack's bottom safe-area inset, but
+    /// the page's own bottom safe area still ends at the tab bar, so without this the
+    /// field would cover the row. The row's bottom is the inset's anchor, independent
+    /// of this padding, so the result never feeds back into its own input; with the
+    /// keyboard up, both rise and the field stays above the row.
+    ///
+    /// - Parameters:
+    ///   - rowBottom: The field row's bottom edge, in window (global) points.
+    ///   - floatingRowTop: The floating row's top in the same space, or `nil` where no
+    ///     row floats.
+    /// - Returns: The overlap to clear, in points (never negative).
+    nonisolated static func floatingRowClearance(rowBottom: CGFloat, floatingRowTop: CGFloat?) -> CGFloat {
+        guard let floatingRowTop, rowBottom > 0 else { return 0 }
+        return max(0, rowBottom - floatingRowTop).rounded(.up)
     }
 }
 
@@ -230,7 +253,9 @@ extension View {
 /// Used by Songs' Filter field (issue #333) and the Search tab on the inner display
 /// (issue #349). It is as tall as the system Search button in the same pose and, beside
 /// the vertical bar with the keyboard hidden, centred on it
-/// (``BottomSearchFieldPlacement/bottomPadding(chrome:rowBottom:windowBottom:fieldHeight:keyboardTop:)``).
+/// (``BottomSearchFieldPlacement/bottomPadding(chrome:rowBottom:windowBottom:fieldHeight:keyboardTop:floatingRowTop:)``).
+/// Where page tools float (inner portrait, issue #633) it stacks 8 pt above their row
+/// (``BottomSearchFieldPlacement/floatingRowClearance(rowBottom:floatingRowTop:)``).
 /// As a bottom safe-area inset it rises with the keyboard, plus any measured
 /// ``BottomSearchFieldPlacement/keyboardLift(rowBottom:keyboardTop:fieldBottomPadding:gap:)``
 /// the system leaves it short. It can report its top for a list's
@@ -264,12 +289,15 @@ struct BottomSearchField: View {
     /// (``WindowBottomProbe``).
     @State private var windowBottom: CGFloat = 0
     @Environment(\.deviceLayout) private var layout
+    /// The floating page tools, where they float (issue #633); the field stacks above them.
+    @Environment(\.pageToolsRegistry) private var pageTools
 
     var body: some View {
         let minHeight = BottomSearchFieldPlacement.fieldHeight(for: layout.sectionChrome)
         let bottom = BottomSearchFieldPlacement.bottomPadding(
             chrome: layout.sectionChrome, rowBottom: rowBottom, windowBottom: windowBottom,
-            fieldHeight: max(fieldHeight, minHeight), keyboardTop: keyboardTop
+            fieldHeight: max(fieldHeight, minHeight), keyboardTop: keyboardTop,
+            floatingRowTop: pageTools?.floatingRowTop
         )
         GlobalSearchField(
             text: $text, prompt: prompt, accessibilityLabel: accessibilityLabel,

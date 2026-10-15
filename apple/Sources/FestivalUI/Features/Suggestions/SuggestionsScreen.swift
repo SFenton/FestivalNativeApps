@@ -30,7 +30,7 @@ struct SuggestionsScreen: View {
     @State private var handledPublicationRevision: Int?
     @Environment(\.openProfile) private var openProfile
     @Environment(\.deviceLayout) private var layout
-    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    /// Set where page tools float above the iPhone tab bar (issues #92, #632).
     @Environment(\.pageToolsRegistry) private var pageTools
     @AppStorage(SuggestionFilterSettings.storageKey) private var filterData = Data()
 
@@ -53,6 +53,12 @@ struct SuggestionsScreen: View {
 
     private var visibleCategories: [SuggestionCategory] {
         viewModel.visibleCategories(appVisibleInstruments: visibleInstruments)
+    }
+
+    /// View › Filter… while the page offers its Filter tool.
+    private var macCommands: MacPageCommands {
+        guard showsFilter else { return MacPageCommands() }
+        return MacPageCommands(filter: { filterPresented = true })
     }
 
     /// Filter is offered with a selected, available player.
@@ -111,12 +117,15 @@ struct SuggestionsScreen: View {
             FestivalRootTrailingItems(session: session)
         }
         .festivalProvidesRootTrailingItems()
-        // iPhone tab-bar accessory (issue #92): Filter before the account group.
+        // iPhone floating page tools (issues #92, #632): Filter before the account group.
         .festivalPageTool(
             token: viewModel.filter.isActive(), order: PageToolOrder.primary, isEnabled: showsFilter
         ) {
             filterButton
         }
+        // HIG Toolbars › macOS: "Every toolbar item must also be a menu-bar command"
+        // (View › Filter…, also the iPadOS menu bar; issue #633).
+        .macPageCommands(macCommands)
         .sheet(isPresented: $filterPresented) {
             SuggestionsFilterSheet(
                 applied: viewModel.filter, visibleInstruments: orderedVisibleInstruments

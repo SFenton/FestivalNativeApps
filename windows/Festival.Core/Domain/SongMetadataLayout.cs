@@ -1,5 +1,3 @@
-using System.Globalization;
-
 namespace Festival.Core.Domain;
 
 #region Metadata layout
@@ -61,18 +59,21 @@ public static class SongMetadataLayout
 
     /// <summary>
     /// The widest value each enabled field can show, for measuring the inline threshold at the current text size:
-    /// a six-digit score, <c>100% FC</c> (or <c>FC</c> with Percentage hidden), <c>Top 100%</c>, five stars, a two-digit
-    /// current season, the intensity meter, the widest difficulty letter and a long Last Played date.
+    /// a six-digit score, the full-combo <c>100%</c> (or <c>FC</c> with Percentage hidden), <c>Top 100%</c>, five stars, a two-digit
+    /// current season, the intensity meter and the widest difficulty letter, plus a Last Played date (after a chart icon
+    /// when unfiltered) only under the Last Played sort, the one sort that shows it.
     /// </summary>
     /// <param name="settings">Visibility settings.</param>
-    /// <returns>Sample fields, one per enabled kind.</returns>
-    public static IReadOnlyList<SongMetadataField> WidestSamples(AppSettings settings)
+    /// <param name="lastPlayed">Rows show a Last Played entry (the Last Played sort).</param>
+    /// <param name="lastPlayedChart">That entry carries its chart icon (no chart filter).</param>
+    /// <returns>Sample fields, one per shown kind.</returns>
+    public static IReadOnlyList<SongMetadataField> WidestSamples(AppSettings settings, bool lastPlayed = false, bool lastPlayedChart = false)
     {
         var samples = new List<SongMetadataField>();
         if (settings.MetadataScore)
             samples.Add(new(MetadataField.Score, ScoreFormatting.Score(999_999), ""));
         // A full combo always shows, even with Percentage hidden (FC-only).
-        samples.Add(new(MetadataField.Percentage, settings.MetadataPercentage ? $"{ScoreFormatting.Accuracy(1_000_000)} FC" : "FC", "")
+        samples.Add(new(MetadataField.Percentage, settings.MetadataPercentage ? ScoreFormatting.Accuracy(1_000_000) : "FC", "")
             { FullCombo = true });
         if (settings.MetadataPercentile)
             samples.Add(new(MetadataField.Percentile, "Top 100%", "") { Percentile = SongPercentileTier.TopOne });
@@ -84,11 +85,8 @@ public static class SongMetadataLayout
             samples.Add(new(MetadataField.Intensity, "", "") { IntensityRaw = 6 });
         if (settings.MetadataDifficulty)
             samples.Add(new(MetadataField.Difficulty, SongMetadataPolicy.DifficultyLetters[1], "") { GameDifficulty = 1 });
-        if (settings.MetadataLastPlayed)
-        {
-            var date = new DateTime(2026, 9, 28).ToString("d MMM yyyy", CultureInfo.CurrentCulture);
-            samples.Add(new(MetadataField.LastPlayed, "Last played " + date, ""));
-        }
+        if (lastPlayed)
+            samples.Add(SongMetadataPolicy.LastPlayedField("2026-09-28T12:00:00Z", lastPlayedChart ? Instrument.ProDrums : null));
         return samples;
     }
 

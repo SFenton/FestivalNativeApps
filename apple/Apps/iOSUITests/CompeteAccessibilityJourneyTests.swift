@@ -16,7 +16,7 @@ import XCTest
 /// Leaderboard buttons (no Leaderboards Overview, removed by #36, backfilled by #408), and
 /// brings every one of
 /// those elements wholly into view between the navigation bar and the bottom chrome (tab-bar
-/// accessory and tab bar). At AX5 each one must read back whole from its own capture (no
+/// floating page tools and tab bar). At AX5 each one must read back whole from its own capture (no
 /// ellipsis, no clipped word), render glyphs more than 1.35× taller than at the default size
 /// (recognized line height), and every row and button must be hittable there, the buttons at
 /// least 44 × 44 pt. A scoped audit covers Dynamic Type, clipped text, hit regions and
@@ -488,7 +488,7 @@ final class CompeteAccessibilityJourneyTests: XCTestCase {
     }
 
     /// The scrolling page's visible region now: below the navigation bar, above the tab-bar
-    /// accessory and the tab bar (both move as the page scrolls, issue #92).
+    /// floating page tools and the tab bar (the tab bar minimizes as the page scrolls, issue #92).
     @MainActor
     private func contentRegion(_ app: XCUIApplication) -> CGRect {
         let window = app.windows.firstMatch.frame

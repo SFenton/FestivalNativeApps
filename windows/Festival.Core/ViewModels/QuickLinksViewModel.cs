@@ -16,10 +16,16 @@ public sealed partial class QuickLinksViewModel : ObservableObject
     /// <summary>Creates the model.</summary>
     /// <param name="title">Menu/pane title, e.g. "Quick Links".</param>
     /// <param name="activationOffset">Activation line below the viewport top.</param>
-    public QuickLinksViewModel(string title = "Quick Links", double activationOffset = QuickLinks.DefaultActivationOffset)
+    /// <param name="contentShown">
+    /// Whether the sections' content already shows. A page with a first-load gate passes <see langword="false"/> and opens
+    /// <see cref="IsContentShown"/> when its content reveals (load-transition R1, issue #649).
+    /// </param>
+    public QuickLinksViewModel(string title = "Quick Links", double activationOffset = QuickLinks.DefaultActivationOffset,
+        bool contentShown = true)
     {
         Title = title;
         ActivationOffset = activationOffset;
+        isContentShown = contentShown;
     }
 
     /// <summary>Raised when a jump needs the host to scroll to a section.</summary>
@@ -41,8 +47,17 @@ public sealed partial class QuickLinksViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ActiveTitle), nameof(ActiveItem), nameof(EntryName))]
     private string? activeId;
 
-    /// <summary>Whether the entry point shows (two or more sections).</summary>
-    public bool IsAvailable => QuickLinks.IsAvailable(Items.Count);
+    /// <summary>
+    /// Whether the content the sections jump to shows. While it is false (a first-load spinner is up) neither the menu nor
+    /// the pane shows or reaches Narrator; they appear with the revealed content and stay while it refreshes
+    /// (load-transition R1; web gates Quick Links on <c>LoadPhase.ContentIn</c>).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsAvailable))]
+    private bool isContentShown;
+
+    /// <summary>Whether the entry point shows: the content shows and has two or more sections.</summary>
+    public bool IsAvailable => IsContentShown && QuickLinks.IsAvailable(Items.Count);
 
     /// <summary>Active item, if any.</summary>
     public QuickLinkItemViewModel? ActiveItem => Items.FirstOrDefault(i => i.Section.Id == ActiveId);

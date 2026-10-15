@@ -74,6 +74,72 @@ final class FeedbackSentJourneyTests: XCTestCase {
         }
     }
 
+    /// Issue #634: Submit swaps the form for the sending status, centred in the sheet. A
+    /// report without media reads as filing from Submit (`modal-shell` R16, as on Android
+    /// and Windows): "Filing Issue" with the owner's sentence, no bar and no Stop Sending.
+    /// The `fixture-slow` job answers its upload after 2 s and files after two more status
+    /// reads, so the status stays through both phases: the fields leave the screen and the
+    /// tree, the text never changes, one named busy indicator stays put, and the filed form
+    /// still closes before "Report Sent" (#565). The Uploading Media stage (bar, Stop
+    /// Sending, the hand-off) is covered by the hosted `FeedbackSendingStatusAccessibilityTests`.
+    @MainActor
+    func testSubmitSwapsFormForCentredSendingStatus() throws {
+        try requireFixture()
+        let app = FeedbackJourney.fixtureApp(origin: Self.origin)
+        app.launch()
+        defer { app.terminate() }
+        FeedbackJourney.openForm(in: app)
+        fill(in: app, description: "Journey fixture-slow: the sending status replaces the form.")
+        app.buttons["fst.settings.feedback.submit"].tap()
+
+        let title = app.descendants(matching: .any)["fst.settings.feedback.status.title"]
+        let subtitle = app.descendants(matching: .any)["fst.settings.feedback.status.subtitle"]
+        let busy = app.activityIndicators["fst.settings.feedback.busy"]
+        let sentence = "We\u{2019}re filing your issue. Please wait while we upload it."
+        XCTAssertTrue(FeedbackJourney.waitUntil(timeout: FestivalApp.budget(2)) {
+            title.exists && title.label == "Filing Issue"
+        }, "No Filing Issue status while sending (title: \(title.exists ? title.label : "missing"))")
+        XCTAssertEqual(subtitle.label, sentence)
+        XCTAssertFalse(app.progressIndicators["fst.settings.feedback.progress"].exists,
+                       "An upload bar shows with no media")
+        XCTAssertFalse(app.buttons["fst.settings.feedback.stop"].exists, "Stop Sending shows with no media")
+        XCTAssertTrue(busy.exists, "No busy indicator while sending")
+        XCTAssertEqual(busy.label, "Sending your issue")
+        for id in ["field.title", "field.description", "attach"] {
+            XCTAssertFalse(app.descendants(matching: .any)["fst.settings.feedback.\(id)"].exists,
+                           "The form's \(id) is still reachable behind the status")
+        }
+        // Across the sheet (page-sized on iPad), whose bar spans its width; down the window.
+        let sheet = app.navigationBars
+            .containing(.button, identifier: "fst.settings.feedback.close").firstMatch.frame
+        let window = app.windows.firstMatch.frame
+        let sendingSpinner = busy.frame
+        XCTAssertEqual(sendingSpinner.midX, sheet.midX, accuracy: 2, "The spinner is not centred across")
+        XCTAssertEqual(title.frame.midX, sheet.midX, accuracy: 2, "The title is not centred across")
+        XCTAssertTrue((window.minY + window.height * 0.3...window.minY + window.height * 0.7)
+            .contains(sendingSpinner.midY),
+                      "The status is not centred down the sheet: \(sendingSpinner) in \(window)")
+
+        // The upload answers after 2 s; the job then files after two status reads.
+        let close = app.buttons["fst.settings.feedback.close"]
+        XCTAssertTrue(FeedbackJourney.waitUntil(timeout: FestivalApp.budget(6)) {
+            close.exists && close.label == "Close"
+        }, "The sheet never reached filing (Close)")
+        XCTAssertEqual(title.label, "Filing Issue", "The status text changed while filing")
+        XCTAssertEqual(subtitle.label, sentence)
+        XCTAssertEqual(app.activityIndicators.matching(identifier: "fst.settings.feedback.busy").count, 1)
+        XCTAssertEqual(busy.label, "Sending your issue", "The spinner was renamed between phases")
+        XCTAssertEqual(busy.frame.midX, sendingSpinner.midX, accuracy: 1, "The spinner moved between phases")
+        XCTAssertEqual(busy.frame.midY, sendingSpinner.midY, accuracy: 1, "The spinner moved between phases")
+
+        let alert = app.alerts["Report Sent"]
+        XCTAssertTrue(alert.waitForExistence(timeout: FestivalApp.budget(15)), "No Report Sent alert")
+        XCTAssertFalse(title.exists, "The status is still on screen under the alert")
+        alert.buttons.firstMatch.tap()
+        XCTAssertTrue(FeedbackJourney.waitUntil { FeedbackJourney.row("bug", in: app).isHittable },
+                      "Settings is not usable after Done")
+    }
+
     // MARK: - Steps
 
     /// Open a form, file it against the fixture and check the sent sequence.
@@ -112,7 +178,7 @@ final class FeedbackSentJourneyTests: XCTestCase {
         // Audit the alert only; Settings behind it has its own journeys. The
         // system alert caps its title and message size (it scrolls instead),
         // which the audit reports as partial Dynamic Type: system chrome, as
-        // the Songs accessory type cap.
+        // the Songs floating tools type cap.
         var alertIssues: [String] = []
         let alertFrame = alert.frame
         try app.performAccessibilityAudit(for: .all) { issue in

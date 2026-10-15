@@ -43,7 +43,7 @@ struct BandDetailScreen: View {
     /// History card width, so the chart opens on its final page size.
     @State private var historyCardWidth: CGFloat = 0
     @Environment(\.deviceLayout) private var layout
-    /// Set where page tools sit in the iPhone tab-bar accessory (issue #92).
+    /// Set where page tools float above the iPhone tab bar (issues #92, #632).
     @Environment(\.pageToolsRegistry) private var pageTools
     /// Pushes stat-tile targets (band rankings, Song Detail); nil in hosted tests.
     @Environment(\.playerStatNavigator) private var navigator
@@ -104,11 +104,10 @@ struct BandDetailScreen: View {
         }
         .festivalBackground(.carousel, session: session)
         .festivalNavigationTitle(title)
-        #if os(iOS)
         // The band name as the large title, collapsing on scroll, whichever page
-        // pushed it (HIG Toolbars; same as the Player profile, #555).
-        .navigationBarTitleDisplayMode(.large)
-        #endif
+        // pushed it (HIG Toolbars; same as the Player profile, #555); leading in the
+        // bar's row on iPhone (#632).
+        .festivalTitleDisplayMode(.large)
         // Mac: View › Rank By mirrors the toolbar menu (Total Score only while
         // Experimental Ranks is off; the menu bar keeps its submenu, pattern R1).
         .macRankByCommands($selectedRankBy, experimentalRanks: experimentalRanks)
@@ -120,7 +119,7 @@ struct BandDetailScreen: View {
             }
             QuickLinksToolbarItem(quickLinks)
         }
-        // iPhone tab-bar accessory (issue #92): Rank By before Quick Links.
+        // iPhone floating page tools (issues #92, #632): Rank By before Quick Links.
         .festivalPageTool(token: rankBy, order: PageToolOrder.primary, isEnabled: showsRankBy) {
             BandRankByMenu(selection: $selectedRankBy)
         }

@@ -30,16 +30,22 @@ public sealed partial class FestivalApiClient
     /// <param name="submission">Form contents from <see cref="FeedbackDraft.Submission"/>.</param>
     /// <param name="openAttachment">Opens a picked attachment for reading (caller-owned file access).</param>
     /// <param name="cancellationToken">Cancellation (the user discarded the form).</param>
+    /// <param name="progress">
+    /// Receives the fraction of the body written to the connection (issue #634's determinate upload bar), on the sending
+    /// thread; <see langword="null"/> sends the body unwrapped.
+    /// </param>
     /// <returns>The accepted job (normally <see cref="FeedbackJobState.Queued"/> with an ID to poll).</returns>
     /// <exception cref="FeedbackException">Readable failure: unreadable attachment, offline, timeout or HTTP status.</exception>
     /// <exception cref="OperationCanceledException">The caller cancelled.</exception>
     public async Task<FeedbackJob> SubmitFeedbackAsync(
         FeedbackSubmission submission,
         Func<FeedbackAttachment, Stream> openAttachment,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<double>? progress = null)
     {
-        using var form = BuildFeedbackForm(submission, openAttachment);
-        using var request = RequestGate.CreateFeedbackPost(ServiceEndpoints.Build(BaseUri, ["api", "feedback"]), form);
+        var form = BuildFeedbackForm(submission, openAttachment);
+        using HttpContent body = progress is null ? form : new UploadProgressContent(form, progress);
+        using var request = RequestGate.CreateFeedbackPost(ServiceEndpoints.Build(BaseUri, ["api", "feedback"]), body);
         GateResponse response;
         try
         {

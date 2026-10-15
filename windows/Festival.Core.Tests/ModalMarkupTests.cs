@@ -52,6 +52,7 @@ public class ModalMarkupTests
     [InlineData("Controls/FirstRunCarousel.xaml.cs")]
     [InlineData("Controls/PlayerProfileView.xaml.cs")]
     [InlineData("Controls/PrivacyPolicyDialog.cs")]
+    [InlineData("Controls/NotificationsBell.xaml.cs")]
     [InlineData("Controls/SongPathsView.xaml.cs")]
     [InlineData("MainWindow.WhatsNew.cs")]
     [InlineData("Pages/LicensesPage.xaml.cs")]
@@ -70,7 +71,8 @@ public class ModalMarkupTests
         // A new modal must be added to EveryModal_UsesTheSharedFactory (and tools/windows/journeys/a11y-modals.json).
         var callers = Matching(".cs", @"FestivalDialog\.Create\(").Where(path => path != "Controls/FestivalDialog.cs");
         Assert.Equal(
-            ["Controls/FeedbackDialog.cs", "Controls/FirstRunCarousel.xaml.cs", "Controls/PlayerProfileView.xaml.cs",
+            ["Controls/FeedbackDialog.cs", "Controls/FirstRunCarousel.xaml.cs", "Controls/NotificationsBell.xaml.cs",
+             "Controls/PlayerProfileView.xaml.cs",
              "Controls/PrivacyPolicyDialog.cs", "Controls/SongPathsView.xaml.cs", "MainWindow.WhatsNew.cs",
              "Pages/LicensesPage.xaml.cs", "Pages/SettingsPage.xaml.cs", "Pages/SongsPage.xaml.cs"],
             callers);
@@ -84,6 +86,7 @@ public class ModalMarkupTests
     [Theory]
     [InlineData("Controls/FeedbackDialog.cs")]
     [InlineData("Controls/FirstRunCarousel.xaml")]
+    [InlineData("Controls/NotificationsPanel.xaml")]
     [InlineData("Controls/PrivacyPolicyDialog.cs")]
     [InlineData("Controls/SongPathsView.xaml")]
     [InlineData("MainWindow.WhatsNew.cs")]
@@ -100,6 +103,22 @@ public class ModalMarkupTests
         Assert.Matches(@"<ScrollViewer\s+x:Name=""Body""[^>]*VerticalScrollBarVisibility=""Auto""", text);
         Assert.Matches(@"<ScrollViewer\s+x:Name=""Body""[^>]*HorizontalScrollBarVisibility=""Disabled""", text);
         Assert.Contains(@"AutomationProperties.AutomationId=""fst.first-run.body""", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NotificationsModal_DocksToAWindowEdge()
+    {
+        // Issue #638 (modal-shell R17, owner-approved for Windows Notifications only): the bell opens the shared dialog
+        // docked as a trailing panel or, with hamburger navigation, a bottom sheet; never an anchored Flyout.
+        var bell = Sources(".cs").Single(source => source.Path == "Controls/NotificationsBell.xaml.cs").Text;
+        Assert.Contains("FestivalDialog.Create(XamlRoot, NotificationsTitle", bell, StringComparison.Ordinal);
+        Assert.Contains("DialogChrome.WindowEdge(", bell, StringComparison.Ordinal);
+        Assert.Contains("\"fst.notifications.sheet\"", bell, StringComparison.Ordinal);
+        Assert.DoesNotContain("Flyout", Sources(".xaml").Single(source => source.Path == "Controls/NotificationsBell.xaml").Text,
+            StringComparison.Ordinal);
+        // Every other modal keeps the centred shell.
+        Assert.Equal(["Controls/DialogChrome.cs", "Controls/NotificationsBell.xaml.cs"],
+            Matching(".cs", @"\bWindowEdge\("));
     }
 
     [Fact]

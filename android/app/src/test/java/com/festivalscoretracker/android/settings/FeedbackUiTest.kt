@@ -16,6 +16,7 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -260,12 +261,24 @@ class FeedbackUiTest {
         type("description", "The shop never loads.")
         rule.onNodeWithTag("fst.settings.feedback.submit").performClick()
 
-        // Sending: progress with text, Submit and every input disabled.
+        // Sending (issue #634): the fields fade out (out of TalkBack and touch) and a centred busy
+        // view fades in. No media to upload, so it already reads as filing.
         waitFor("fst.settings.feedback.progress")
-        rule.onNodeWithText("Sending your report…").assertIsDisplayed()
+        settle()
+        rule.onNodeWithTag("fst.settings.feedback.progress.title").assertTextEquals("Filing Issue")
+        rule.onNodeWithTag("fst.settings.feedback.progress.subtitle")
+            .assertTextEquals("We\u2019re filing your issue. Please wait while we upload it.")
+        rule.onNodeWithTag("fst.settings.feedback.progress.spinner").assertContentDescriptionEquals("Sending your issue")
+        assertTrue(rule.onAllNodesWithTag("fst.settings.feedback.progress.bar").fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodesWithTag("fst.settings.feedback.field.title").fetchSemanticsNodes().isEmpty())
+        assertTrue(rule.onAllNodesWithTag("fst.settings.feedback.attach").fetchSemanticsNodes().isEmpty())
         rule.onNodeWithTag("fst.settings.feedback.submit").assertIsNotEnabled()
-        rule.onNodeWithTag("fst.settings.feedback.field.title").assertIsNotEnabled()
-        rule.onNodeWithTag("fst.settings.feedback.attach").assertIsNotEnabled()
+        // Centred horizontally and vertically in the body below the header.
+        val region = rule.onNodeWithTag("fst.settings.feedback.progress").fetchSemanticsNode().boundsInRoot
+        val spinner = rule.onNodeWithTag("fst.settings.feedback.progress.spinner").fetchSemanticsNode().boundsInRoot
+        val subtitle = rule.onNodeWithTag("fst.settings.feedback.progress.subtitle").fetchSemanticsNode().boundsInRoot
+        assertEquals(region.center.x, spinner.center.x, 1f)
+        assertEquals(spinner.top - region.top, region.bottom - subtitle.bottom, 2f)
 
         // Close while sending asks first and says sending would stop.
         rule.onNodeWithTag("fst.settings.feedback.close").performClick()
@@ -274,9 +287,10 @@ class FeedbackUiTest {
         rule.onNodeWithTag("fst.settings.feedback.discard.cancel").performClick()
         waitGone("fst.settings.feedback.discard.dialog")
 
-        // Filing: the accepted job is polled until GitHub has the issue.
+        // Filing: the accepted job is polled until GitHub has the issue; the same view stays.
         release.countDown()
-        rule.waitUntil(10_000) { settle(100); rule.onAllNodesWithText("Filing your report on GitHub…").fetchSemanticsNodes().isNotEmpty() }
+        rule.waitUntil(10_000) { settle(100); transport.sent("/api/feedback/$jobId").isNotEmpty() }
+        rule.onNodeWithTag("fst.settings.feedback.progress.title").assertTextEquals("Filing Issue")
         rule.onNodeWithTag("fst.settings.feedback.submit").assertIsNotEnabled()
         waitFor("fst.settings.feedback.sent")
         assertResultAlertOnly("Report Sent", "Thanks! Your report was filed as issue #7.")
@@ -331,7 +345,10 @@ class FeedbackUiTest {
         rule.onNodeWithTag("fst.settings.feedback.submit").performClick()
         waitFor("fst.settings.feedback.error")
         rule.onNodeWithText(FeedbackException.filingFailed(FeedbackKind.Bug).message!!).assertIsDisplayed()
+        // The busy view fades back to the fields with everything entered (issue #634).
+        waitGone("fst.settings.feedback.progress")
         rule.onNodeWithText("[Bug] fixture-failed").assertIsDisplayed()
+        rule.onNodeWithText("Filing fails.").assertIsDisplayed()
         rule.onNodeWithTag("fst.settings.feedback.submit").assertIsEnabled()
     }
 

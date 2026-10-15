@@ -428,7 +428,7 @@ public static class FirstRunDemoContent
         var score = new SongMetadataField(MetadataField.Score, scoreText, $"Score {scoreText}");
         var accuracyText = ScoreFormatting.Accuracy(metadata.Accuracy);
         var accuracy = metadata.FullCombo
-            ? new SongMetadataField(MetadataField.Percentage, $"{accuracyText} FC", $"Full combo, accuracy {accuracyText}") { FullCombo = true }
+            ? new SongMetadataField(MetadataField.Percentage, accuracyText, $"Full combo, accuracy {accuracyText}") { FullCombo = true }
             : new SongMetadataField(MetadataField.Percentage, accuracyText, $"Accuracy {accuracyText}") { Tint = ScoreFormatting.AccuracyTint(metadata.Accuracy) };
         var top = PercentileTop(metadata.Percentile);
         var percentile = new SongMetadataField(MetadataField.Percentile, metadata.Percentile, metadata.Percentile)

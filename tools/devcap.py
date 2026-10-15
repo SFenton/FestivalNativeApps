@@ -41,7 +41,11 @@ Simulators booted outside any hold
 A booted simulator whose device gate nobody holds is *unmanaged*: a thread
 booted it without devcap, or left it booted after its hold. Unmanaged
 simulators count against the ``simulator`` slots, so the limit holds no
-matter who boots a simulator. Once one has stayed unmanaged for 5 minutes
+matter who boots a simulator. A lane may leave its simulator booted between
+runs on purpose (warm, so the next run skips the boot); when every slot is in
+use, the waiter at the head shuts down the simulator idle longest once it has
+been idle for 60 seconds (``DEVCAP_EVICT_AFTER`` / ``evict_after_seconds``).
+Once one has stayed unmanaged for 5 minutes
 (``DEVCAP_REAP_GRACE`` / ``config.json`` ``reap_grace_seconds``; ``off``
 disables), the next waiter or finished simulator hold shuts it down and closes
 Device Hub windows of devices nobody is using. Simulators running an app under
@@ -103,7 +107,7 @@ from typing import Callable, Iterable, Iterator, Sequence
 # region Configuration
 
 #: Bump when the on-disk layout or the CLI changes; vendored copies must match.
-VERSION = "1.2.2"
+VERSION = "1.4.0"
 
 #: Exit code when a wait gives up (``EX_TEMPFAIL``).
 WAIT_TIMEOUT_EXIT = 75
@@ -158,12 +162,13 @@ def default_slots(pool: str, memory_gb: float | None = None, cpus: int | None = 
         cpus: Core count override (tests).
 
     Returns:
-        ``simulator``: one per 20 GB of RAM, 1–4. ``build``: one per 4 cores,
+        ``simulator``: one per 16 GB of RAM, 1–6 (4 on a 64 GB Mac; owner
+        request for more parallel lanes, 2026-10-15). ``build``: one per 4 cores,
         1–4. Anything else: 1.
     """
     if pool == "simulator":
         memory_gb = _memory_gb() if memory_gb is None else memory_gb
-        return max(1, min(4, int(memory_gb // 20)))
+        return max(1, min(6, int(memory_gb // 16)))
     if pool == "build":
         cpus = (os.cpu_count() or 4) if cpus is None else cpus
         return max(1, min(4, cpus // 4))
@@ -458,13 +463,31 @@ class Gate:
 
         Only the ``simulator`` pool counts unmanaged simulators; the scan (which
         also reaps idle ones) runs at most every ``SCAN_INTERVAL_SECONDS``.
+        Simulators a lane left warm between runs count too, but when every
+        slot is in use the waiter at the head evicts the one idle longest, once
+        it has been idle for ``evict_after`` (never one under the debugger).
         """
         if self.name != "simulator":
             return True
         if time.monotonic() >= self._next_scan:
             self._unmanaged = scan_unmanaged(self.root, exclude=own_sims) or []
             self._next_scan = time.monotonic() + SCAN_INTERVAL_SECONDS
-        return len(self.holders()) + len(self._unmanaged) < self.slots
+        if len(self.holders()) + len(self._unmanaged) < self.slots:
+            return True
+        limit = evict_after(self.root)
+        idle = [u for u in self._unmanaged
+                if u["debugged"] is False and limit is not None and u["unheld_for"] >= limit]
+        if idle:
+            coldest = max(idle, key=lambda u: u["unheld_for"])
+            if shut_down_unheld(self.root, coldest, "evict"):
+                # Count what is really booted now; a failed shutdown must not free a slot.
+                rescanned = scan_unmanaged(self.root, exclude=own_sims)
+                if rescanned is None:
+                    return False
+                self._unmanaged = rescanned
+                self._next_scan = time.monotonic() + SCAN_INTERVAL_SECONDS
+                return len(self.holders()) + len(self._unmanaged) < self.slots
+        return False
 
     # MARK: acquire / release
 
@@ -595,6 +618,7 @@ class Hold:
         on_overrun: Called first when the hold overruns, e.g. to stop the command.
         cleanup: Runs once before the gates are released (``finish`` or an
             overrun), e.g. to shut a simulator down while its slot is held.
+        cleanup_on_finish: False runs ``cleanup`` only after an overrun.
     """
 
     names: list[str]
@@ -604,6 +628,7 @@ class Hold:
     root: Path = field(default_factory=lock_root)
     on_overrun: Callable[[], None] | None = None
     cleanup: Callable[[], None] | None = None
+    cleanup_on_finish: bool = True
     gates: list[Gate] = field(default_factory=list, init=False)
     overran: bool = field(default=False, init=False)
     _release_lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
@@ -657,7 +682,7 @@ class Hold:
             if not self.overran:
                 had_simulator = any(g.name == "simulator" for g in self.gates)
                 try:
-                    if self.cleanup and self.gates:
+                    if self.cleanup and self.cleanup_on_finish and self.gates:
                         self.cleanup()
                 finally:
                     self.release()
@@ -734,6 +759,53 @@ DEFAULT_REAP_GRACE_SECONDS = 300.0
 SCAN_INTERVAL_SECONDS = 10.0
 
 
+#: Seconds a warm simulator stays reserved for its lane's next run before a
+#: waiting lane may evict it when every slot is in use.
+DEFAULT_EVICT_AFTER_SECONDS = 60.0
+
+
+def _seconds_setting(env: str, key: str, default: float, root: Path | None) -> float | None:
+    """A seconds setting from ``env``, then ``config.json`` ``key``, then ``default``; ``off`` is None."""
+    raw = os.environ.get(env)
+    if raw is None:
+        try:
+            raw = json.loads(((root or lock_root()) / "config.json").read_text(encoding="utf-8")).get(key)
+        except (OSError, ValueError, AttributeError):
+            raw = None
+    if raw is None:
+        return default
+    if str(raw).strip().lower() in ("off", "never", "none"):
+        return None
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        return default
+
+
+def evict_after(root: Path | None = None) -> float | None:
+    """How long a warm simulator is kept for its lane while others wait (``DEVCAP_EVICT_AFTER``)."""
+    return _seconds_setting("DEVCAP_EVICT_AFTER", "evict_after_seconds", DEFAULT_EVICT_AFTER_SECONDS, root)
+
+
+def shut_down_unheld(root: Path, entry: dict, reason: str) -> bool:
+    """Shut an unheld simulator down while holding its device gate, so no lane takes it meanwhile.
+
+    Returns:
+        False when someone took the device gate first (the simulator is left alone).
+    """
+    gate = Gate(device_gate(entry["udid"]), root, 1)
+    if not gate._try_slots():
+        return False
+    try:
+        shutdown_sims([entry["udid"]])
+        log_event(f"{reason} {entry['name']} ({entry['udid']}) booted outside any hold for "
+                  f"{describe_age(entry['unheld_for'])}", root)
+    finally:
+        gate._unlock(gate._handle)
+        gate._handle = gate._slot = None
+    return True
+
+
 def reap_grace(root: Path | None = None) -> float | None:
     """Grace before idle unmanaged simulators are shut down automatically.
 
@@ -759,7 +831,10 @@ def reap_grace(root: Path | None = None) -> float | None:
 
 
 def list_sims() -> list[dict] | None:
-    """Every simulator as ``{"udid", "name", "booted"}``; [] without Xcode, None when ``simctl`` fails."""
+    """Every simulator as ``{"udid", "name", "booted", "type", "runtime", "available"}``.
+
+    Returns [] without Xcode and None when ``simctl`` fails.
+    """
     try:
         out = subprocess.run(["xcrun", "simctl", "list", "devices", "-j"],
                              capture_output=True, text=True, timeout=60)
@@ -773,8 +848,69 @@ def list_sims() -> list[dict] | None:
         devices = json.loads(out.stdout).get("devices", {})
     except (TypeError, ValueError, AttributeError):
         return None
-    return [{"udid": d["udid"].upper(), "name": d.get("name", d["udid"]), "booted": d.get("state") == "Booted"}
-            for runtime in devices.values() for d in runtime if "udid" in d]
+    return [{"udid": d["udid"].upper(), "name": d.get("name", d["udid"]), "booted": d.get("state") == "Booted",
+             "type": d.get("deviceTypeIdentifier", ""), "runtime": runtime, "available": d.get("isAvailable", True)}
+            for runtime, items in devices.items() for d in items if "udid" in d]
+
+
+def pool_names(name: str, size: int) -> list[str]:
+    """Names of a simulator pool: the base device, then ``"<name> (pool 2)"`` and up."""
+    return [name] + [f"{name} (pool {index})" for index in range(2, max(1, size) + 1)]
+
+
+def pick_sim(name: str, size: int, prefer: str | None = None, root: Path | None = None) -> str | None:
+    """Pick a simulator for a run from the pool of identical devices named after ``name``.
+
+    Lanes that want the same device type would otherwise queue on one
+    device gate while simulator slots sit free. Missing pool members are
+    created with the base device's type and runtime (never booted here).
+    The choice is ``prefer`` (the lane's last device, still warm) if nobody
+    holds or waits for it, else the first free member, else ``prefer`` or
+    the base to queue on. A lane that races another for the same free member
+    simply waits on its device gate.
+
+    Args:
+        name: Base simulator name, e.g. ``"iPad Pro 11-inch (M5)"``.
+        size: Pool size (the base counts as one).
+        prefer: UDID this lane used last.
+        root: State directory.
+
+    Returns:
+        A UDID, or None when no available simulator has the base name.
+    """
+    root = root or lock_root()
+    sims = [s for s in (list_sims() or []) if s.get("available", True)]
+    base = next((s for s in sims if s["name"] == name), None)
+    if base is None:
+        return None
+    members = [s["udid"] for s in sims if s["name"] == name]  # every same-named device joins the pool
+    for member in pool_names(name, size)[1:]:
+        found = next((s for s in sims if s["name"] == member), None)
+        if found is None and base.get("type") and base.get("runtime"):
+            try:
+                created = subprocess.run(["xcrun", "simctl", "create", member, base["type"], base["runtime"]],
+                                         capture_output=True, text=True, timeout=120)
+            except (OSError, subprocess.SubprocessError):
+                continue
+            udid = created.stdout.strip().upper()
+            if created.returncode != 0 or not SIM_UDID.fullmatch(udid):
+                continue
+            log_event(f"create pool simulator {member} ({udid})", root)
+            found = {"udid": udid, "name": member}
+        if found is not None:
+            members.append(found["udid"])
+
+    def free(udid: str) -> bool:
+        gate = Gate(device_gate(udid), root, 1)
+        return not gate.holders() and not gate.waiting()
+
+    prefer = prefer.upper() if prefer else None
+    if prefer in members and free(prefer):
+        return prefer
+    for udid in members:
+        if free(udid):
+            return udid
+    return prefer if prefer in members else members[0]
 
 
 def debugged_from_ps(text: str) -> set[str]:
@@ -994,20 +1130,13 @@ def scan_unmanaged(root: Path | None = None, exclude: Sequence[str] = (), reap: 
                 continue
             since = first_seen.setdefault(udid, now)
             entry = {"udid": udid, "name": sim["name"], "unheld_for": now - since,
-                     "debugged": debugged is not None and udid in debugged}
-            if entry["debugged"]:
+                     # None when ps failed: unknown is treated like "under the debugger".
+                     "debugged": (udid in debugged) if debugged is not None else None}
+            if entry["debugged"] is not False:
                 in_use.add(sim["name"])
             idle = grace is not None and entry["unheld_for"] >= grace
-            if reap and idle and debugged is not None and not entry["debugged"]:
-                gate = Gate(device_gate(udid), root, 1)
-                if gate._try_slots():  # nobody can take it while it shuts down
-                    try:
-                        shutdown_sims([udid])
-                        log_event(f"reap {sim['name']} ({udid}) booted outside any hold for "
-                                  f"{describe_age(entry['unheld_for'])}", root)
-                    finally:
-                        gate._unlock(gate._handle)
-                        gate._handle = gate._slot = None
+            if reap and idle and entry["debugged"] is False:
+                if shut_down_unheld(root, entry, "reap"):
                     first_seen.pop(udid, None)
                     continue
             unmanaged.append(entry)
@@ -1116,8 +1245,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 2
     hold_seconds = None if args.hold <= 0 else min(args.hold, MAX_HOLD_SECONDS)
     held = Hold(names, args.purpose or " ".join(command)[:120], args.wait, hold_seconds)
-    if args.shutdown and args.sim:  # before acquire() starts the watchdog
+    if (args.shutdown or args.shutdown_on_timeout) and args.sim:  # before acquire() starts the watchdog
         held.cleanup = lambda: shutdown_sims(args.sim)
+        held.cleanup_on_finish = args.shutdown
     try:
         held.acquire()
     except WaitTimeout as error:
@@ -1169,7 +1299,9 @@ def cmd_status(args: argparse.Namespace) -> int:
     if unmanaged:
         print(f"booted outside any hold (count against 'simulator'): {len(unmanaged)}")
         for u in unmanaged:
-            note = "Xcode debugger, never reaped" if u["debugged"] else "reaped when idle past the grace period"
+            note = ("Xcode debugger, never reaped" if u["debugged"] else
+                    "debugger state unknown, not reaped" if u["debugged"] is None else
+                    "reaped when idle past the grace period")
             print(f"  {u['name']} ({u['udid']}) for {describe_age(u['unheld_for'])}  [{note}]")
     return 0
 
@@ -1187,6 +1319,15 @@ def cmd_reap(args: argparse.Namespace) -> int:
     for u in left:
         print(f"{u['name']} ({u['udid']}) booted outside any hold for {describe_age(u['unheld_for'])}"
               + (" (Xcode debugger)" if u["debugged"] else ""))
+    return 0
+
+
+def cmd_pick_sim(args: argparse.Namespace) -> int:
+    udid = pick_sim(args.name, args.pool if args.pool else configured_slots("simulator"), args.prefer)
+    if udid is None:
+        print(f"devcap pick-sim: no available simulator named {args.name!r}", file=sys.stderr)
+        return 1
+    print(udid)
     return 0
 
 
@@ -1209,6 +1350,9 @@ def build_parser() -> argparse.ArgumentParser:
                      help="physical device: its device gate only (repeatable)")
     run.add_argument("--shutdown", action="store_true",
                      help="shut the --sim simulators down before releasing, even after a hold timeout")
+    run.add_argument("--shutdown-on-timeout", action="store_true",
+                     help="keep the --sim simulators warm after the command, but shut them down if the hold "
+                          "times out (a hung run)")
     run.add_argument("--purpose", default="", help="what this hold is for (shown to waiters)")
     run.add_argument("--wait", type=float, default=DEFAULT_WAIT_SECONDS,
                      help=f"seconds to queue before exiting {WAIT_TIMEOUT_EXIT} (default %(default)s)")
@@ -1230,6 +1374,12 @@ def build_parser() -> argparse.ArgumentParser:
     install = sub.add_parser("install", help="make this copy the machine-wide one every newer copy defers to")
     install.add_argument("--force", action="store_true", help="replace even a newer installed copy")
     install.set_defaults(func=cmd_install)
+
+    pick = sub.add_parser("pick-sim", help="print a free simulator from the pool named after --name")
+    pick.add_argument("--name", required=True, help="base simulator name, e.g. 'iPad Pro 11-inch (M5)'")
+    pick.add_argument("--pool", type=int, default=0, help="pool size (default: the simulator slot count)")
+    pick.add_argument("--prefer", default=None, metavar="UDID", help="the lane's last simulator, kept if free")
+    pick.set_defaults(func=cmd_pick_sim)
 
     slots = sub.add_parser("slots", help="print configured slot counts")
     slots.add_argument("pool", nargs="*")

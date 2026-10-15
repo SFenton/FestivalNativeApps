@@ -9,8 +9,9 @@ namespace Festival.App.Pages;
 
 #region Settings page
 /// <summary>
-/// Every web Settings section plus the native Accessibility section, with Quick Links (menu or pane) in one column; from
-/// <see cref="SettingsDetails.SplitWidth"/> a list/detail page whose multi-option settings open in the trailing pane (issue #371).
+/// Every web Settings section plus the native Accessibility section, with Quick Links (menu or pane) in one column; where
+/// two equal panes fit (<see cref="SettingsDetails.UsesSplit"/>) a list/detail page whose multi-option settings open in the
+/// trailing pane (issue #371).
 /// </summary>
 public sealed partial class SettingsPage : Page
 {
@@ -58,6 +59,8 @@ public sealed partial class SettingsPage : Page
     {
         Motion.Changed -= OnMotionChanged;
         Motion.Changed += OnMotionChanged;
+        OnDemandSplitHost.TextScaleChanged -= OnTextScaleChanged;
+        OnDemandSplitHost.TextScaleChanged += OnTextScaleChanged;
         ApplyMotion();
         ViewModel.Activate();
     }
@@ -68,6 +71,7 @@ public sealed partial class SettingsPage : Page
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         Motion.Changed -= OnMotionChanged;
+        OnDemandSplitHost.TextScaleChanged -= OnTextScaleChanged;
         ViewModel.Deactivate();
     }
 
@@ -112,7 +116,7 @@ public sealed partial class SettingsPage : Page
         DependencyProperty.Register(nameof(IsSplit), typeof(bool), typeof(SettingsPage), new PropertyMetadata(false));
 
     /// <summary>
-    /// Whether the page is at least <see cref="SettingsDetails.SplitWidth"/> wide: the settings list beside the detail pane,
+    /// Whether the page fits two equal panes (<see cref="SettingsDetails.UsesSplit"/>): the settings list beside the detail pane,
     /// multi-option settings as chevron rows, and the Quick Links menu scrolling the list (a section's link lands on its row).
     /// </summary>
     public bool IsSplit
@@ -216,15 +220,26 @@ public sealed partial class SettingsPage : Page
     }
 
     /// <summary>
-    /// Page width changed: from <see cref="SettingsDetails.SplitWidth"/> the list/detail layout (fixed list column, Quick
-    /// Links menu over the list); below it one column with the Quick Links pane when wide enough, else the header menu.
+    /// Page width changed: where two equal panes fit (<see cref="SettingsDetails.UsesSplit"/>, #652) the list/detail layout
+    /// (the list and the detail in equal halves, Quick Links menu over the list); otherwise one column with the Quick Links
+    /// pane when wide enough, else the header menu.
     /// </summary>
     /// <param name="sender">Root grid.</param>
     /// <param name="e">New size.</param>
-    private void OnRootSizeChanged(object sender, SizeChangedEventArgs e)
+    private void OnRootSizeChanged(object sender, SizeChangedEventArgs e) => ApplyWidth(e.NewSize.Width);
+
+    /// <summary>The Windows text size changed: the split's pane minimum grows with large text (#371 rule).</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="args">Unused.</param>
+    private void OnTextScaleChanged(Windows.UI.ViewManagement.UISettings sender, object args) =>
+        DispatcherQueue.TryEnqueue(() => ApplyWidth(Root.ActualWidth));
+
+    /// <summary>Applies the one-column or list/detail layout for a page width.</summary>
+    /// <param name="width">Page width in epx.</param>
+    private void ApplyWidth(double width)
     {
-        var split = SettingsDetails.UsesSplit(e.NewSize.Width);
-        var pane = !split && QuickLinks.UsesPane(e.NewSize.Width);
+        var split = SettingsDetails.UsesSplit(width, OnDemandSplitHost.TextScale);
+        var pane = !split && QuickLinks.UsesPane(width);
         // Focus follows each swap to the replacement, programmatically (no keyboard tooltip, and it doesn't fall to the
         // next control; #571).
         var menuFocused = CollapsedToolTip.HasFocusWithin(MenuHost);
@@ -239,7 +254,7 @@ public sealed partial class SettingsPage : Page
         // The inline sections and chevron rows swap by binding; close their tooltips, template strings included.
         CollapsedToolTip.CloseWithin(Scroller);
         IsSplit = split;
-        ListColumn.Width = split ? new GridLength(SettingsDetails.ListWidth) : new GridLength(1, GridUnitType.Star);
+        ListColumn.Width = new GridLength(1, GridUnitType.Star);
         DetailColumn.Width = split ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
         DetailHost.Visibility = split ? Visibility.Visible : Visibility.Collapsed;
         ApplyQuickLinkAnchors(split);
