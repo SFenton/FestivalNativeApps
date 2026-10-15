@@ -34,7 +34,7 @@
 
 | Width | Toolbar | Row trailing content |
 |---|---|---|
-| Compact (< 640 epx page) | Search full width; Sort/Filter/Jump (icon) below | Chips: their own line across the card under the art and title, in balanced, centred rows ([chips](../../controls/songs-instrument-status-chips/windows.md), #645). Pills wrap right-aligned under the title (`FlowPanel`) |
+| Compact (< 640 epx page) | Search full width; Sort/Filter/Jump (icon) below | Chips: their own line across the card under the art and title, in balanced, centred lines ([instrument-chip-rows](../../patterns/instrument-chip-rows.md)). Pills wrap right-aligned under the title (`FlowPanel`) |
 | Medium | One row: search (fills the width the tools leave, #646) + Sort/Filter/Jump, all 40 epx tall, ending at the rows' right edge | Chips inline from 760 epx list width; first pill top-right, rest wrap right-aligned |
 | Wide (≥ 1100 epx page) | List + detail columns; list toolbar as compact | As compact: chips on their own centred line, pills under the title |
 

@@ -9,7 +9,8 @@ namespace Festival.App.Controls;
 /// <summary>
 /// Wraps children onto as many lines as needed instead of clipping (status chips and metadata pills in narrow
 /// rows). Each line aligns left, right or centre per <see cref="LineAlignment"/>; with <see cref="BalanceLines"/> the
-/// lines are evened out like the web's instrument chip rows (<see cref="InstrumentChipRows"/>, issue #645).
+/// lines are evened out like the web's instrument chip rows (<see cref="InstrumentChipRows"/>, pattern
+/// <c>instrument-chip-rows</c>).
 /// </summary>
 public sealed partial class FlowPanel : Panel
 {

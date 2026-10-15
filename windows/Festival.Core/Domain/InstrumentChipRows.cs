@@ -5,8 +5,8 @@ namespace Festival.Core.Domain;
 /// Balanced rows for a Songs row's instrument status chips on a narrow list (web <c>resolveInstrumentChipRows</c> and
 /// <c>splitInstrumentRows</c> in <c>pages/songs/layoutMode.ts</c>): the fewest rows that fit every chip, evened out so
 /// nine chips that need two rows read 5 + 4 rather than 7 + 2, earlier rows taking the extra chip. Each row is centred
-/// by the panel. Unlike the web (at most three rows), rows keep growing at any width so no chip is ever clipped (issue
-/// #645).
+/// by the panel. Pattern <c>instrument-chip-rows</c> R1–R4; unlike the web (at most three rows), rows keep growing at any
+/// width so no chip is ever clipped (R6, agent decision #645).
 /// </summary>
 public static class InstrumentChipRows
 {
