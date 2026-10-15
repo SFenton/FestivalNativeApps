@@ -167,6 +167,19 @@
             <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
             <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
             <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="Transparent" />
+            <!--
+                One surface for every menu, flyout and ComboBox drop-down (issue #641): Fluent's default flyout acrylic
+                (AcrylicBackgroundFillColorDefault, dark values). WinUI 2.x menus paint a transparent presenter and rely on
+                a system backdrop that exists only in a windowed popup; app popups open in-window (#534), so without
+                this the page shows through. Less Transparency / Increase Contrast / transparency off switch it to its
+                solid fallback (MainWindow.ApplyTransparency); contrast themes keep the system Window colour.
+            -->
+            <AcrylicBrush x:Key="FSTFlyoutSurfaceBrush" TintColor="#FF2C2C2C" TintOpacity="0.15" TintLuminosityOpacity="0.96"
+                          FallbackColor="#FF2C2C2C" />
+            <StaticResource x:Key="MenuFlyoutPresenterBackground" ResourceKey="FSTFlyoutSurfaceBrush" />
+            <StaticResource x:Key="CommandBarFlyoutBackground" ResourceKey="FSTFlyoutSurfaceBrush" />
+            <StaticResource x:Key="FlyoutPresenterBackground" ResourceKey="FSTFlyoutSurfaceBrush" />
+            <StaticResource x:Key="ComboBoxDropDownBackground" ResourceKey="FSTFlyoutSurfaceBrush" />
             <!-- Title-bar chrome over the dimmed artwork is white, active or not (operator batch 6.6): the WinUI TitleBar
                  otherwise grays its title and glyphs while the window is inactive. -->
             <SolidColorBrush x:Key="TitleBarForegroundBrush" Color="#FFFFFFFF" />
