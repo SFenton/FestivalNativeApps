@@ -310,6 +310,11 @@ RUNS: tuple[Run, ...] = (
     # and Tab/Shift+Tab continue from it; by keys (Enter, Alt+Left) and pointer (the title-bar Back).
     Run("back-keeps-place", "a11y-back-keeps-place.json"),
     Run("back-keeps-place-text-225", "a11y-back-keeps-place.json", sizes="compact", mode="text-225"),
+    # On-demand split (issue #652, split-panes R7 Windows variant): a rival or a Song Detail board opens in the trailing
+    # half (Close named, 40 epx, read after the list), Back from the pane returns focus to the opener row, and 225% text
+    # pushes full width instead. Wide only: compact and medium never split.
+    Run("split-panes", "a11y-split-panes.json", sizes="wide", tabs=0),
+    Run("split-panes-text-225", "a11y-split-panes.json", sizes="wide", mode="text-225", tabs=0),
     # Quick Links landings on Settings and Leaderboards (issues #51, #416): entry name and current section, 40 epx
     # entry and items, keyboard order, the jump announcement, heading landing inset and focus. The wide pane page
     # (scale-100/150 modes) stays in the host matrix.

@@ -109,9 +109,9 @@ BOARDS_READY = "waitfor:id=fst.leaderboards.card.Solo_Guitar@20"
 FIXTURE_PLAYER = _profile("fixture-player-1:Demo Player")
 #: Any element named like a Compete-style "Leaderboards Overview" button (issues #66, #266: the web has none).
 NO_OVERVIEW = r'(?i)"[^"\n]*leaderboards? overview[^"\n]*" id='
-#: A page under Band Rankings' 1100 epx split width (``LeaderboardsBandRankingsPage.SplitWidth``), so the ``band`` state
-#: is the pushed band page on every display: the ``wide`` preset splits on a 100% 1920x1080 desktop (issue #533) but not
-#: where the display clamps the window.
+#: A window whose content area is under the on-demand split's two 480 epx panes (``OnDemandSplitPolicy.AllowsSplit``,
+#: issue #652), so every state is a pushed full-width page on every display: wider presets open Leaderboards' Full and
+#: Band Rankings beside the hub (split-panes.json).
 BELOW_SPLIT = "medium"
 
 JOURNEYS = [
@@ -177,11 +177,11 @@ JOURNEYS = [
         name="band",
         launch=["--tab", "leaderboards", *ANONYMOUS],
         phases=[
-            # Below the split width the row pushes the band page; the side-by-side variant is split-panes.json's.
+            # Below the split width the cards and rows push full pages; the side-by-side variant is split-panes.json's.
             Phase(steps=[BOARDS_READY, "scrollinto:id=fst.leaderboards.band-card.Band_Duets.view-all@10",
                          "invoke:id=fst.leaderboards.band-card.Band_Duets.view-all",
                          "waitfor:id=fst.band-rankings.row.fixture-team-1@20",
-                         "waitgone:id=fst.band-rankings.detail-pane@5",
+                         "waitgone:id=fst.split.pane@5",
                          "invoke:id=fst.band-rankings.row.fixture-team-1", "waitfor:id=fst.band.title@20",
                          "waitfor:name=Back@5"],
                   expect=[selected("fst.nav.leaderboards"), present("fst.band.title")],
