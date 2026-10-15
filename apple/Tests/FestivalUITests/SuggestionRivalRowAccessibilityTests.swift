@@ -9,7 +9,8 @@ import FestivalDesign
 
 // MARK: - Suggestions rival row accessibility (issue #29, backfilled by #404)
 
-/// Single-rival Suggestions cards ("Rival Spotlight: {name}", "Close the Gap vs {name}", …)
+/// Single-rival Suggestions cards ("Rival Spotlight: {name}", "Close the Gap vs {name}",
+/// "Climb Past {name}" since #656, …)
 /// drop the per-row rival name badge beside the rank difference, because the card title
 /// already names the rival (issue #29, `SuggestionRowLayout.showsRivalName`). These hosted
 /// checks pin what those rows expose to VoiceOver, Voice Control and Dynamic Type on every
@@ -185,6 +186,35 @@ struct SuggestionRivalRowAccessibilityTests {
         #expect(Self.count(Self.rival, in: rows[1].spokenName) == 1, "\(rows[1])")
         #expect(rows[1].spokenName.contains("1 rank behind") && !rows[1].spokenName.contains("behind \(Self.rival)"),
                 "\(rows[1])")
+        #expect(macAccessibilityFindings(nodes) == [])
+    }
+
+    /// "Climb Past {name}" (and its sibling named cross-pollination cards) lists only the
+    /// rival it names since #656, so it reads like a single-rival card: heading first, then
+    /// one ≥ 44 pt button per row whose rank change names the rival once, with no badge.
+    @Test func climbPastRowsNameTheRivalOnceAfterTheHeading() async throws {
+        let climb = try Self.category(
+            key: "song_rival_pct_push", title: "Climb Past \(Self.rival)", names: [Self.rival, Self.rival]
+        )
+        #expect(!SuggestionRowLayout.showsRivalName(categoryKey: climb.key))
+        let hosted = try await Self.host(climb)
+        defer { hosted.close() }
+        let nodes = macAccessibilityTree(hosted.host)
+        macAccessibilityDump(nodes, name: "suggestions-rival-climb-past-large")
+        let order = nodes.filter(\.isElement)
+        let heading = try #require(order.firstIndex { $0.spokenName == "Climb Past \(Self.rival)" }, "heading")
+        #expect(order[heading].role == "AXHeading", "card title is a heading: \(order[heading])")
+        let rows = try (0..<2).map { index in
+            try #require(order.firstIndex { $0.identifier == hosted.rowID(index) }, "row \(index)")
+        }
+        #expect(heading < rows[0] && rows[0] < rows[1], "heading, row 0, row 1: \(heading) \(rows)")
+        for (index, change) in ["3 ranks ahead of \(Self.rival)", "1 rank behind \(Self.rival)"].enumerated() {
+            let row = order[rows[index]]
+            #expect(row.role == "AXButton" && row.spokenName.contains(change), "\(row)")
+            #expect(Self.count(Self.rival, in: row.spokenName) == 1, "rival spoken once, not badge + delta: \(row)")
+            let frame = try #require(nativeHostedAccessibilityFrame(hosted.rowID(index), in: hosted.host))
+            #expect(frame.height >= 44 - 0.5, "row is a 44 pt target: \(frame)")
+        }
         #expect(macAccessibilityFindings(nodes) == [])
     }
 
