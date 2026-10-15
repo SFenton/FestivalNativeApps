@@ -511,4 +511,81 @@ public sealed class SuggestionsViewModelTests
         await Async.Until(() => model.ShowList);
         Assert.NotEmpty(model.Cards);
     }
+
+    /// <summary>The lines hold every card once, in order, row-major in <paramref name="columns"/>.</summary>
+    private static void AssertLines(SuggestionsViewModel model, int columns)
+    {
+        Assert.Equal(columns, model.Columns);
+        Assert.Equal((model.Cards.Count + columns - 1) / columns, model.Lines.Count);
+        var flattened = model.Lines.SelectMany(l => l.End is { } end ? new[] { l.Start, end } : [l.Start]).ToList();
+        Assert.Equal(model.Cards, flattened);
+        Assert.All(model.Lines, l => Assert.Equal(columns == 2, l.Paired));
+        Assert.All(model.Lines.Select((l, i) => (l, i)), x => Assert.Equal(x.i * columns, x.l.StartIndex));
+    }
+
+    [Fact]
+    public async Task WideColumns_ChunkCardsRowMajorAndReflowWithoutReloading()
+    {
+        var harness = new Harness();
+        var model = harness.Model();
+        await model.AppearCommand.ExecuteAsync(null);
+        AssertLines(model, 1);
+        Assert.All(model.Lines, l => Assert.Equal(l.Start.Title, l.Name));
+
+        var starts = new List<int>();
+        model.CardsAdded += (_, start) => starts.Add(start);
+        var reads = harness.ProfileReads;
+        var cards = model.Cards.ToList();
+
+        // Wide window (R1): the same cards re-chunk into pairs, nothing generates, reloads or re-announces (R4).
+        Assert.True(model.SetColumns(2));
+        Assert.False(model.SetColumns(2));
+        AssertLines(model, 2);
+        Assert.Equal(cards, model.Cards);
+        Assert.Equal(reads, harness.ProfileReads);
+        Assert.Empty(starts);
+        var first = model.Lines[0];
+        Assert.Equal($"{first.Start.Title}, {first.End!.Title}", first.Name);
+        Assert.Equal(first.End.AutomationId, first.EndAutomationId);
+        Assert.Equal(1, first.LastIndex);
+        Assert.Equal(2, model.LineOf(4));
+        Assert.Equal(2, model.LineOf(5));
+
+        // An appended batch fills an open line's end, then starts new lines; it fades from its first whole line.
+        model.LoadMoreCommand.Execute(null);
+        AssertLines(model, 2);
+        Assert.Equal([SuggestionsViewModel.InitialBatch], starts);
+        Assert.Equal(SuggestionsViewModel.InitialBatch / 2, model.FirstWholeLineFrom(SuggestionsViewModel.InitialBatch));
+        Assert.Equal(3, model.FirstWholeLineFrom(5));
+        Assert.True(model.ShouldLoadMoreLine(model.Lines.Count - 1));
+        Assert.False(model.ShouldLoadMoreLine(0));
+        Assert.False(model.ShouldLoadMoreLine(model.Lines.Count));
+
+        // An odd card count leaves a short last line whose end fills in place when the next card arrives.
+        var open = new SuggestionCardLine(model.Cards[0], 0, paired: true);
+        var changed = new List<string?>();
+        open.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        Assert.False(open.HasEnd);
+        Assert.Equal("", open.EndAutomationId);
+        Assert.Equal(0, open.LastIndex);
+        open.End = model.Cards[1];
+        Assert.True(open.HasEnd);
+        Assert.Contains(nameof(SuggestionCardLine.Name), changed);
+        Assert.Contains(nameof(SuggestionCardLine.HasEnd), changed);
+
+        // A refilter (Settings) rebuilds the lines in the current column count.
+        harness.Session.UpdateSettings(s => s.WithInstrumentVisible(Instrument.Lead, false));
+        AssertLines(model, 2);
+
+        // Narrow again: one card per line, the same cards.
+        cards = model.Cards.ToList();
+        Assert.True(model.SetColumns(1));
+        AssertLines(model, 1);
+        Assert.Equal(cards, model.Cards);
+        Assert.False(model.SetColumns(0)); // clamps to the one column it already has
+        Assert.Equal(1, model.Columns);
+
+        harness.Session.DeselectPlayer();
+        Assert.Empty(model.Lines);
+    }
 }

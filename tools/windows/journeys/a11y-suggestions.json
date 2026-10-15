@@ -1,7 +1,8 @@
 [
   {
     "name": "suggestions-cards",
-    "note": "Issue #205 (#513): each card is one Narrator list item named by its title, which is a Level 2 heading (H/Shift+H stop), in page order after Filter; every row is one 40+ epx focusable Button named with its song, artist, year and reason.",
+    "sizes": ["compact", "medium"],
+    "note": "Issue #205 (#513): in one column each card is one Narrator list item named by its title, which is a Level 2 heading (H/Shift+H stop), in page order after Filter; every row is one 40+ epx focusable Button named with its song, artist, year and reason. Two columns (a wide window, #653) pair cards into one list item per line: wide-columns-suggestions-two in a11y-wide-columns.json.",
     "route": "/suggestions",
     "profile": "fixture-suggest:Fixture Player",
     "fixture": ["suggestions_fixture_server.py"],
@@ -30,7 +31,8 @@
   },
   {
     "name": "suggestions-keyboard",
-    "note": "Issue #205 (#513): a card's rows are one Tab stop; Down/Up move row by row inside a card and across card boundaries (they used to scroll the list); Tab/Shift+Tab move between cards and back to Filter; Enter opens the filter on Instruments and Esc returns focus to Filter.",
+    "sizes": ["compact", "medium"],
+    "note": "Issue #205 (#513): a card's rows are one Tab stop; Down/Up move row by row inside a card and across card boundaries (they used to scroll the list) in one column (two columns: wide-columns-suggestions-two in a11y-wide-columns.json, #653); Tab/Shift+Tab move between cards and back to Filter; Enter opens the filter on Instruments and Esc returns focus to Filter.",
     "route": "/suggestions",
     "profile": "fixture-suggest:Fixture Player",
     "fixture": ["suggestions_fixture_server.py"],
@@ -215,7 +217,8 @@
   },
   {
     "name": "suggestions-load-more",
-    "note": "Issue #260 (#521): the cards Suggestions loads as the list nears its end (a batch of six after the first ten) fade in on arrival with motion on and appear in place under Reduce Motion or with Animation effects off; either way they arrive whole for Narrator: each new card is a list item named by its Level 2 title heading, read after the last card of the first batch, and its rows are 40+ epx Buttons named with song, artist, year and reason.",
+    "sizes": ["compact", "medium"],
+    "note": "Issue #260 (#521): in one column (two columns: wide-columns-suggestions-load-more in a11y-wide-columns.json, #653) the cards Suggestions loads as the list nears its end (a batch of six after the first ten) fade in on arrival with motion on and appear in place under Reduce Motion or with Animation effects off; either way they arrive whole for Narrator: each new card is a list item named by its Level 2 title heading, read after the last card of the first batch, and its rows are 40+ epx Buttons named with song, artist, year and reason.",
     "route": "/suggestions",
     "profile": "fixture-suggest:Fixture Player",
     "fixture": ["suggestions_fixture_server.py"],
@@ -241,7 +244,8 @@
   },
   {
     "name": "suggestions-load-more-keyboard",
-    "note": "Issue #260 (#521): the keyboard crosses from the first batch of cards into the ones loaded after it, with motion on or off: Down from the last row of card 10 lands on the first row of card 11 and Up returns; Tab walks one stop per card through the loaded batch into the next one it loads, and Shift+Tab walks back.",
+    "sizes": ["compact", "medium"],
+    "note": "Issue #260 (#521): in one column (two columns: wide-columns-suggestions-load-more, #653) the keyboard crosses from the first batch of cards into the ones loaded after it, with motion on or off: Down from the last row of card 10 lands on the first row of card 11 and Up returns; Tab walks one stop per card through the loaded batch into the next one it loads, and Shift+Tab walks back.",
     "route": "/suggestions",
     "profile": "fixture-suggest:Fixture Player",
     "fixture": ["suggestions_fixture_server.py"],

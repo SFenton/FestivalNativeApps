@@ -131,6 +131,31 @@ class UiCiTests(unittest.TestCase):
         for run in (run for run in ci.RUNS if run.only == ci.SUGGESTIONS_ROW_CENTRE):
             self.assertLess(names.index(run.name), names.index("suggestions"))
 
+    def test_wide_columns_run_wide_at_default_and_large_text(self):
+        # Issue #653 review: the two-column pages run wide at default text, and the one-column pages also run wide at
+        # 150% (the large-text threshold) and 225% text, where text size alone must keep one column.
+        pages = {page["name"]: page
+                 for page in json.loads((ci.JOURNEYS / "a11y-wide-columns.json").read_text(encoding="utf-8"))}
+
+        def covered(name):
+            return {(mode, size) for run in ci.RUNS if run.pages == "a11y-wide-columns.json"
+                    and (not run.only or name in run.only.split(","))
+                    and pages[name] in m.mode_pages([pages[name]], run.mode)
+                    for mode in [run.mode] for size in m.page_sizes(pages[name], run.sizes.split(","), mode)}
+
+        for name in ci.WIDE_COLUMNS_ONE.split(","):
+            with self.subTest(page=name):
+                self.assertLessEqual({("normal", "compact"), ("normal", "medium"), ("text-150", "wide"),
+                                      ("text-225", "compact"), ("text-225", "wide")}, covered(name))
+                self.assertNotIn(("normal", "wide"), covered(name))
+                self.assertTrue(any(step.startswith("assertbelow:") for step in pages[name]["after_ready"]))
+        for name in ("wide-columns-statistics-two", "wide-columns-suggestions-two", "wide-columns-suggestions-load-more",
+                     "wide-columns-shop-grid-fill"):
+            with self.subTest(page=name):
+                self.assertIn(("normal", "wide"), covered(name))
+        self.assertTrue(all(run.scan for run in ci.RUNS if run.pages == "a11y-wide-columns.json"))
+        self.assertFalse([run for run in ci.RUNS if run.name.startswith("a11y-wide-columns")])
+
     def test_songs_chip_rows_run_at_default_and_largest_text(self):
         # Issue #645 review: the narrow chip-row journey gates the release-branch suite at default and 225% text,
         # scanned, at compact: balanced 5 + 4 lines (Pro Lead level with Lead, Pro Bass below it), each line centred on

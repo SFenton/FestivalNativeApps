@@ -220,8 +220,8 @@ public sealed partial class ShopPage : Page
     }
 
     /// <summary>
-    /// Square tiles in the web's 2-5 columns for the scroller's content width (not the repeater's own width, which the
-    /// layout itself sets).
+    /// Square tiles in the web's 2-4 columns, then as many 200+ epx columns as fill the scroller's content width (issue
+    /// #653; not the repeater's own width, which the layout itself sets).
     /// </summary>
     /// <param name="sender">Grid scroller.</param>
     /// <param name="e">Size change.</param>

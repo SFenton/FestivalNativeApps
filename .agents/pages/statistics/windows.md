@@ -15,7 +15,7 @@ Checked 2026-10 with the winui-design and winui-code-review skills, `a11y_matrix
 | Configuration | Finding |
 |---|---|
 | Compact (500 epx), snap-left, snap-right | Stat cards in 2 columns at compact and 3 when snapped left; the chart pages 3 bars at compact. Correct. |
-| Medium, wide, maximized | 4 card columns, and the chart fills the card. Correct. |
+| Medium, wide, maximized | 4 card columns, and the chart fills the card. Correct. Since #653, windows at least 1008 epx wide (below 150% text) place the instrument sections in two row-major columns ([player-profile/windows.md](../player-profile/windows.md)). |
 | Keyboard only | Header → Deselect → Quick Links → overview stat links → rank-history plot (arrows page; then `.older`/`.newer`) → instrument stat links → percentile rows → Bands View All link (`fst.player.bands-link`) → band cards → View All Bands. Each stop shows the system focus visual. |
 | High Contrast (Desert, Night sky) | **Fixed:** the Rank History bars were translucent brand fills with no outline, and the gridlines (20% white) disappeared on Desert's cream background. In contrast themes, `RankHistoryGraph` now draws opaque bars outlined in `FSTChartAxisBrush` (WindowText), gridlines in the same brush, and an outlined legend swatch. It redraws on `UISettings.ColorValuesChanged`. The placement hues and the `#4C7DFF` rank line stay as data colours (about 3.5:1 on Desert, 5.7:1 on Night sky); the legend and each bar's UIA name carry the values. |
 | Light and dark system theme | Both render the same, a deliberate deviation: the app is dark only ([design/windows.md](../../design/windows.md#content-branded-fluent-tokens)). |
