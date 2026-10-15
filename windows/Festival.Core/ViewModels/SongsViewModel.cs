@@ -366,7 +366,7 @@ public sealed partial class SongsViewModel : ObservableObject
             Details = scores.Available ? scores.Detail : null,
         });
 
-        var projector = new SongRowProjector(settings, catalog.CurrentSeason, offers, scores);
+        var projector = new SongRowProjector(settings, catalog.CurrentSeason, offers, scores, result.EffectiveSort);
         IReadOnlyList<SongRowSection> next = [.. result.Sections.Select(s => new SongRowSection(s.Label, [.. s.Songs.Select(projector.Project)],
             SongListPipeline.SectionAutomationId(result.EffectiveSort, s.Label)))];
         // An unchanged list keeps its objects: Back to Songs re-runs this, and a rebind would replay the entrance fade
@@ -399,12 +399,20 @@ public sealed partial class SongsViewModel : ObservableObject
 /// <param name="currentSeason">Catalogue season.</param>
 /// <param name="offers">Same-publication offers, or <see langword="null"/>.</param>
 /// <param name="scores">Selected-player score source.</param>
-public sealed class SongRowProjector(AppSettings settings, int? currentSeason, IReadOnlyDictionary<string, ShopSong>? offers, SongScoreSource scores)
+/// <param name="sort">Sort actually applied (<see cref="SongListResult.EffectiveSort"/>); Last Played rows show their date.</param>
+public sealed class SongRowProjector(AppSettings settings, int? currentSeason, IReadOnlyDictionary<string, ShopSong>? offers, SongScoreSource scores,
+    SongSortMode sort = SongSortMode.Title)
 {
     private readonly bool chips = SongInstrumentStatusPolicy.ShowsChips(
         scores.HasPlayer, scores.Available, settings.ShowInstrumentIcons, settings.SongFilter.Instrument);
 
     private readonly Instrument? metadataChart = settings.SongFilter.Instrument ?? settings.VisibleInstruments.FirstOrDefault();
+
+    /// <summary>Last Played sort with no chart filter: rows lead with the latest play across charts (web <c>SongRow</c>).</summary>
+    private readonly bool latestAcrossCharts = sort == SongSortMode.LastPlayed &&
+        settings.SongFilter.ScopedTo(settings.VisibleInstruments).Instrument is null;
+
+    private readonly Instrument[] playedCharts = [.. InstrumentInfo.All.Where(settings.VisibleInstruments.Contains)];
 
     /// <summary>Projects one song.</summary>
     /// <param name="song">Catalogue row.</param>
@@ -424,6 +432,7 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
             {
                 Highlight = highlight, InShop = inShop,
                 Chips = SongInstrumentStatusPolicy.Badges(song, settings.VisibleInstruments, chart => scores.Facts!(song.SongId, chart)),
+                Metadata = LatestPlayed(song) is { } played ? [played] : [],
                 Warning = Warning(song, filterChart),
             };
         }
@@ -436,17 +445,31 @@ public sealed class SongRowProjector(AppSettings settings, int? currentSeason, I
             };
         }
         var detail = scores.Detail!(song.SongId, chart);
-        var fields = detail is null ? [] : SongMetadataPolicy.Fields(detail, chart, song, currentSeason, settings);
+        var fields = detail is null ? [] : SongMetadataPolicy.Fields(detail, chart, song, currentSeason, settings,
+            lastPlayedSort: sort == SongSortMode.LastPlayed && !latestAcrossCharts);
+        List<SongMetadataField> metadata = LatestPlayed(song) is { } latest ? [latest, .. fields] : fields;
         return new SongRowItem(song)
         {
             Highlight = highlight, InShop = inShop,
             Chart = chart,
-            ChartRaw = fields.Count == 0 ? song.Difficulty?.ChartedValue(chart) : null,
-            Metadata = fields,
-            ScoreState = fields.Count > 0 ? null : song.Supports(chart) ? "No score" : $"No {chart.Label()} chart",
+            ChartRaw = metadata.Count == 0 ? song.Difficulty?.ChartedValue(chart) : null,
+            Metadata = metadata,
+            ScoreState = metadata.Count > 0 ? null : song.Supports(chart) ? "No score" : $"No {chart.Label()} chart",
             Warning = Warning(song, filterChart),
         };
     }
+
+    /// <summary>
+    /// The unfiltered Last Played sort's entry: the song's most recent play across Settings-visible charts, with that
+    /// chart's icon (web <c>SongRow</c>); <see langword="null"/> under any other sort or a chart filter, or without a play.
+    /// </summary>
+    /// <param name="song">Catalogue row.</param>
+    /// <returns>Entry, or <see langword="null"/>.</returns>
+    private SongMetadataField? LatestPlayed(Song song) =>
+        latestAcrossCharts && scores.Detail is { } detail &&
+        SongMetadataPolicy.LatestPlay(playedCharts, chart => detail(song.SongId, chart)) is { } play
+            ? SongMetadataPolicy.LastPlayedField(play.At, play.Chart)
+            : null;
 
     /// <summary>
     /// The row's invalid-score indicator (web <c>SongRow</c> + <c>InvalidScoreIcon</c>): every visible chart whose shown

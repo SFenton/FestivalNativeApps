@@ -1,0 +1,53 @@
+[
+  {"name": "last-played-title-sort", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
+   "note": "Issue #647: web SongsPage.visibleMetadataOrder hides Last Played under every sort but Last Played, whatever its Settings toggle says.",
+   "settings": {"showInstrumentIcons": false, "metadataLastPlayed": true}, "ready": [
+    "waitfor:raw=fst.songs.metadata.score.fixture-song-1@40",
+    "waitgone:raw=fst.songs.metadata.lastplayed.fixture-song-1",
+    "assertname:id=fst.songs.row.fixture-song-1|1 Beat, Synthetic Artist 2 · 2001, Score 412,345, Accuracy 99.5%, Top 1%, 5 stars, Current season 9, Song intensity 2 of 7, Expert difficulty",
+    "wait:1"
+  ]},
+  {"name": "last-played-sort", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
+   "note": "Dates assume an en-US host in a UTC-12..+5 zone (18:00Z on 28 Sep). Unfiltered: the latest play across charts leads the row, named with its chart.",
+   "settings": {"showInstrumentIcons": false, "metadataLastPlayed": false, "songSort": "LastPlayed", "songSortAscending": true}, "ready": [
+    "waitfor:raw=fst.songs.metadata.lastplayed.fixture-song-1@40",
+    "assertname:raw=fst.songs.metadata.lastplayed.fixture-song-1|Last played Sep 28, 2026 on Lead",
+    "assertname:id=fst.songs.row.fixture-song-1|1 Beat, Synthetic Artist 2 · 2001, Last played Sep 28, 2026 on Lead, Score 412,345, Accuracy 99.5%, Top 1%, 5 stars, Current season 9, Song intensity 2 of 7, Expert difficulty",
+    "waitgone:raw=fst.songs.metadata.chart.fixture-song-1",
+    "waitgone:raw=fst.songs.metadata.lastplayed.fixture-song-2",
+    "wait:1"
+  ]},
+  {"name": "last-played-sort-wrapped", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
+   "sizes": ["compact"], "settings": {"showInstrumentIcons": false, "songSort": "LastPlayed", "songSortAscending": true}, "ready": [
+    "waitfor:raw=fst.songs.metadata.lastplayed.fixture-song-1@40",
+    "assertbelow:raw=fst.songs.metadata.score.fixture-song-1|raw=fst.songs.metadata.lastplayed.fixture-song-1",
+    "wait:1"
+  ]},
+  {"name": "last-played-sort-inline", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
+   "sizes": ["wide"], "modes": ["normal"], "settings": {"showInstrumentIcons": false, "songSort": "LastPlayed", "songSortAscending": true}, "ready": [
+    "waitfor:raw=fst.songs.metadata.lastplayed.fixture-song-1@40",
+    "resize:1340x900",
+    "wait:1.5",
+    "assertlevel:raw=fst.songs.metadata.score.fixture-song-1|raw=fst.songs.metadata.lastplayed.fixture-song-1",
+    "wait:1"
+  ]},
+  {"name": "last-played-sort-chips", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
+   "note": "Icons on, unfiltered: the status chips, then the latest play's chart icon and date (web SongRow).",
+   "settings": {"showInstrumentIcons": true, "songSort": "LastPlayed", "songSortAscending": true}, "ready": [
+    "waitfor:raw=fst.songs.metadata.lastplayed.fixture-song-1@40",
+    "waitfor:raw=fst.songs.instrument-status.fixture-song-1.Solo_Guitar@10",
+    "assertname:raw=fst.songs.metadata.lastplayed.fixture-song-1|Last played Sep 28, 2026 on Lead",
+    "waitgone:raw=fst.songs.metadata.score.fixture-song-1",
+    "waitgone:raw=fst.songs.metadata.lastplayed.fixture-song-2",
+    "wait:1"
+  ]},
+  {"name": "last-played-sort-filtered", "fixture": ["song_metadata_fixture.py"], "tab": "songs", "profile": "fixture-meta:Metadata Player",
+   "note": "One chart filtered: that chart's own date leads its pills, without a chart name in the date.",
+   "settings": {"showInstrumentIcons": true, "songFilter": {"Instrument": "Lead"}, "songSort": "LastPlayed", "songSortAscending": true}, "ready": [
+    "waitfor:raw=fst.songs.metadata.lastplayed.fixture-song-1@40",
+    "assertname:raw=fst.songs.metadata.lastplayed.fixture-song-1|Last played Sep 28, 2026",
+    "assertname:raw=fst.songs.metadata.score.fixture-song-1|Score 412,345",
+    "waitgone:raw=fst.songs.metadata.lastplayed.fixture-song-2",
+    "wait:1"
+  ]}
+]
