@@ -788,7 +788,7 @@ class UiCiTests(unittest.TestCase):
 
     def test_paths_swap_runs_every_page(self):
         # Issue #430 (#70): every Paths swap page (normal, 225% text, Reduce Motion, Animation effects off and the wide
-        # RadioButtons keyboard page) runs in windows-ui, Axe-scanned, at a size the page supports.
+        # selector-box keyboard page) runs in windows-ui, Axe-scanned, at a size the page supports.
         runs = [run for run in ci.RUNS if run.pages == "a11y-paths-swap.json"]
         self.assertEqual({"normal", "text-225", "no-animations"}, {run.mode for run in runs})
         self.assertTrue(all(run.scan and not run.only for run in runs))
@@ -806,16 +806,51 @@ class UiCiTests(unittest.TestCase):
                       "assertannounced:Lead Hard path image loaded@5", "assertsize:id=fst.paths.zoom-in|40x40",
                       "assertsize:id=fst.paths.zoom-out|40x40"):
             self.assertIn(check, swap)
-        # Design review: the wide instrument circles and every Difficulty/Display radio are 40 epx targets, mid-swap
-        # and settled (page-tools-and-nav-chrome R10).
+        # Design review: the wide instrument circles and the Difficulty/Display selector boxes (issue #650) are 40 epx
+        # targets, mid-swap and settled (page-tools-and-nav-chrome R10); both boxes read as named combo boxes with their
+        # value and keep keyboard focus across a swap.
         wide = next(page for page in pages if page["name"] == "paths-swap-keyboard-wide")["after_ready"]
         loading = wide.index("waitfor:id=fst.paths.loading@3")
         settled = wide.index("waitfor:name=Lead Hard CHOpt path@15")
-        for choice in ("Hard", "Expert"):
-            self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[loading:settled])
-        for choice in ("Easy", "Medium", "Hard", "Expert", "Image", "Text"):
-            self.assertIn(f"assertsize:name={choice}&class=RadioButton|40x40", wide[settled:])
+        for box in ("difficulty", "display"):
+            self.assertIn(f"assertsize:id=fst.paths.{box}|40x40", wide[loading:settled])
+        self.assertIn("assertread:id=fst.paths.difficulty|Difficulty, combo box, collapsed", wide[:loading])
+        self.assertIn("assertread:id=fst.paths.display|Display, combo box, collapsed", wide[:loading])
+        self.assertIn("assertstate:id=fst.paths.difficulty|value=Hard", wide[loading:settled])
+        self.assertIn("assertfocus:id=fst.paths.difficulty@3", wide[settled:])
+        self.assertIn("assertstate:id=fst.paths.display|value=Text", wide[settled:])
         self.assertIn("assertsize:id=fst.paths.instrument.Solo_Guitar|40x40", wide[settled:])
+        self.assertFalse([step for step in wide if "RadioButton" in step])
+
+    def test_paths_selector_surfaces_run_in_every_material_mode(self):
+        # Issue #650 (surface-materials R4): the selector boxes' translucent surface (default and 225% text), opaque
+        # Transparency-off fill (wide and compact) and Desert system colours each run in an explicit windows-ui Run,
+        # Axe-scanned, at the size the page supports; generated runs alone would skip 225% text.
+        explicit = {"paths-selectors", "paths-selectors-text-225", "paths-selectors-no-transparency",
+                    "paths-selectors-contrast"}
+        runs = [run for run in ci.RUNS if run.pages == "a11y-paths-selectors.json"]
+        self.assertEqual(explicit, {run.name for run in runs})
+        self.assertTrue(all(run.scan and not run.only for run in runs))
+        pages = json.loads((ci.JOURNEYS / "a11y-paths-selectors.json").read_text(encoding="utf-8"))
+        covered = {(page["name"], run.mode, size) for run in runs for page in m.mode_pages(pages, run.mode)
+                   for size in m.page_sizes(page, run.sizes.split(","), run.mode)}
+        self.assertEqual({("paths-selector-surface-wide", "normal", "wide"),
+                          ("paths-selector-surface-wide", "text-225", "wide"),
+                          ("paths-selector-surface-opaque-wide", "no-transparency", "wide"),
+                          ("paths-selector-surface-opaque-compact", "no-transparency", "compact"),
+                          ("paths-selector-surface-contrast-wide", "hc-desert", "wide")}, covered)
+        self.assertEqual({page["name"] for page in pages}, {name for name, _, _ in covered})
+        by_name = {page["name"]: page["after_ready"] for page in pages}
+        for box in ("difficulty", "display"):
+            self.assertIn(f"assertpaint:id=fst.paths.{box}|C0,T8!=#121826~1", by_name["paths-selector-surface-wide"])
+            self.assertIn(f"assertpaint:id=fst.paths.{box}|fill:C0,T8=#121826~1|C0,B8=@fill~0|L1,M0!=@fill~6",
+                          by_name["paths-selector-surface-opaque-wide"])
+            self.assertIn(f"assertpaint:id=fst.paths.{box}|fill:C0,T8|C0,B8=@fill~6",
+                          by_name["paths-selector-surface-contrast-wide"])
+        for box in ("instrument", "difficulty", "display"):
+            self.assertTrue([step for step in by_name["paths-selector-surface-opaque-compact"]
+                             if step.startswith(f"assertpaint:id=fst.paths.{box}.compact|fill:C0,T8=#121826~1")])
+        self.assertTrue([run for run in ci.tier_runs(runs, "pr") if run.name == "paths-selectors"])
 
     def test_paths_instrument_picker_runs_in_ci(self):
         # Issue #439 (#88): the compact Instrument ComboBox opens, reads each option by name in order without Karaoke,

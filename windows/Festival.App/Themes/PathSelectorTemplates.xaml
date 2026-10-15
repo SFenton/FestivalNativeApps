@@ -1,0 +1,23 @@
+<!--
+    Paths selector templates shared by the Paths dialog (SongPathsView) and its first-run demo (FirstRunDemo BuildPaths,
+    issue #380: the demo shows the real control). A code-behind dictionary so the templates can use x:Bind.
+-->
+<ResourceDictionary
+    x:Class="Festival.App.Themes.PathSelectorTemplates"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Festival.Core.ViewModels">
+
+    <!-- Display option (issue #650): icon + Image/Text, in every drop-down option and on the labelled box face. -->
+    <DataTemplate x:Key="FSTPathDisplayOptionTemplate" x:DataType="vm:PathDisplayOption">
+        <Grid ColumnSpacing="8" AutomationProperties.Name="{x:Bind Label}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <FontIcon Glyph="{x:Bind Glyph}" FontSize="20" Width="20" VerticalAlignment="Center"
+                      AutomationProperties.AccessibilityView="Raw" />
+            <TextBlock Grid.Column="1" Text="{x:Bind Label}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+        </Grid>
+    </DataTemplate>
+</ResourceDictionary>

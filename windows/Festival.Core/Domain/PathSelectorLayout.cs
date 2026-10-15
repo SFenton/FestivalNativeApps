@@ -60,8 +60,22 @@ public static class PathSelectorLayout
     /// <summary>Minimum width of the display (Image/Text) box (issue #88).</summary>
     public const double DisplayMinWidth = 96;
 
+    /// <summary>Minimum width of each wide selector box (difficulty, display; issue #650).</summary>
+    public const double WideBoxMinWidth = 200;
+
     /// <summary>Rounding slack for layout sizes, so a row that fits exactly stays on one line.</summary>
     private const double Slack = 0.5;
+
+    /// <summary>
+    /// The shared width of the wide difficulty and display selector boxes: the wider labelled box, at least
+    /// <see cref="WideBoxMinWidth"/>, so the pair reads as one centred row of equal boxes like the web's desktop selector
+    /// row (issue #650) and neither clips its longest option at any text scale.
+    /// </summary>
+    /// <param name="difficulty">Difficulty box width for its longest option (<see cref="BoxWidth"/>).</param>
+    /// <param name="display">Labelled display box width for its longest option.</param>
+    /// <returns>The width both boxes use.</returns>
+    public static double WideBoxWidth(double difficulty, double display) =>
+        Math.Max(WideBoxMinWidth, Math.Max(difficulty, display));
 
     /// <summary>A box's width for its longest option: the widest measured content plus the template's chrome.</summary>
     /// <param name="widestContent">Widest option content (epx, already text-scaled; instrument options include the icon).</param>
