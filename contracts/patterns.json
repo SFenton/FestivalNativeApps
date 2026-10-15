@@ -678,7 +678,10 @@
         "uncarded section",
         "reset row",
         "reading pane card",
-        "privacy policy pane"
+        "privacy policy pane",
+        "flyout surface",
+        "menu background",
+        "dropdown background"
       ],
       "web": [
         {
@@ -759,6 +762,10 @@
           {
             "path": "windows/Festival.Core/Domain/GroupedRowSlice.cs",
             "symbol": "GroupedRowSlice"
+          },
+          {
+            "path": "windows/Festival.App/Themes/Styles.xaml",
+            "symbol": "FSTFlyoutSurfaceBrush"
           }
         ]
       },
