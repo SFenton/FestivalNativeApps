@@ -6,6 +6,16 @@ namespace Festival.Core.Tests;
 public sealed class PathSelectorLayoutTests
 {
     [Fact]
+    public void WideBoxWidth_SharesTheWiderBoxAndKeepsTheMinimum()
+    {
+        // Default text: "Medium" and "Image" are short, so both wide boxes take the 200 epx minimum.
+        Assert.Equal(PathSelectorLayout.WideBoxMinWidth, PathSelectorLayout.WideBoxWidth(110, 106));
+        // 225% text: the longer box sets the shared width, so neither clips its longest option.
+        Assert.Equal(236, PathSelectorLayout.WideBoxWidth(236, 214));
+        Assert.Equal(251, PathSelectorLayout.WideBoxWidth(198, 251));
+    }
+
+    [Fact]
     public void BoxWidth_AddsPaddingAndGlyphColumnToTheLongestOption()
     {
         // "Pro Drums + Cymbals": 32 epx icon space + ~130 epx name, plus 12 padding and the 38 epx glyph column.

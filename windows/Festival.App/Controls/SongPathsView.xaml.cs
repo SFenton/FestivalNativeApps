@@ -16,7 +16,7 @@ namespace Festival.App.Controls;
 #region Paths view
 /// <summary>
 /// CHOpt Paths content hosted in a modal <see cref="ContentDialog"/> (focus is contained and restored by the dialog):
-/// the web Instrument Selector plus difficulty/display pickers, a zoomable image, and the web's activation table
+/// the web Instrument Selector plus difficulty/display selector boxes, a zoomable image, and the web's activation table
 /// (column header row + one card per activation in the saved column order: fret pills, beat, time, Overdrive bar, score).
 /// </summary>
 public sealed partial class SongPathsView : UserControl
@@ -279,6 +279,7 @@ public sealed partial class SongPathsView : UserControl
     private void OnRootSizeChanged(object sender, SizeChangedEventArgs e)
     {
         var compact = e.NewSize.Width < CompactWidth;
+        if (!compact) SizeWideBoxes();
         // Focus on a picker follows the swap to its counterpart (programmatically, so it opens no keyboard tooltip)
         // instead of falling to the chart (#571).
         var replacement = compact ? WideToCompact() : CompactToWide();
@@ -302,8 +303,8 @@ public sealed partial class SongPathsView : UserControl
     private Func<bool>? CompactToWide()
     {
         if (CollapsedToolTip.HasFocusWithin(CompactInstrumentPicker)) return InstrumentPicker.FocusCurrent;
-        if (CollapsedToolTip.HasFocusWithin(CompactDifficultyPicker)) return () => Programmatic(SelectedOption(DifficultyPicker));
-        if (CollapsedToolTip.HasFocusWithin(CompactDisplayPicker)) return () => Programmatic(SelectedOption(DisplayPicker));
+        if (CollapsedToolTip.HasFocusWithin(CompactDifficultyPicker)) return () => Programmatic(DifficultyPicker);
+        if (CollapsedToolTip.HasFocusWithin(CompactDisplayPicker)) return () => Programmatic(DisplayPicker);
         return null;
     }
 
@@ -312,13 +313,15 @@ public sealed partial class SongPathsView : UserControl
     /// <returns>Whether it took focus.</returns>
     private static bool Programmatic(Control? target) => target?.Focus(FocusState.Programmatic) == true;
 
-    /// <summary>The checked option of a wide picker (its focus stop), once realized.</summary>
-    /// <param name="picker">Difficulty or display picker.</param>
-    /// <returns>Radio button, or <see langword="null"/> before layout.</returns>
-    private static Control? SelectedOption(RadioButtons picker) => picker.ContainerFromIndex(Math.Max(picker.SelectedIndex, 0)) as Control;
+    /// <summary>Gives the wide difficulty and display boxes one shared width for their longest options (issue #650).</summary>
+    private void SizeWideBoxes()
+    {
+        var widths = compactWidths ??= MeasureCompactWidths();
+        DifficultyPicker.Width = DisplayPicker.Width = PathSelectorLayout.WideBoxWidth(widths.Difficulty, widths.Display);
+    }
 
-    /// <summary>Compact box widths: labelled for their longest options (instrument, difficulty, display) and icon-only
-    /// (instrument, display); measured once per sheet.</summary>
+    /// <summary>Selector box widths: labelled for their longest options (instrument, difficulty, display) and icon-only
+    /// (instrument, display); measured once per sheet and shared by the wide and compact boxes.</summary>
     private (double Instrument, double Difficulty, double Display, double IconInstrument, double IconDisplay)? compactWidths;
 
     /// <summary>Current compact arrangement (labelled one line until the first measure).</summary>
@@ -395,7 +398,13 @@ public sealed partial class SongPathsView : UserControl
     /// <returns>Width in effective pixels.</returns>
     private double TextWidth(string label)
     {
-        var block = new TextBlock { Text = label, FontSize = CompactDifficultyPicker.FontSize, FontFamily = CompactDifficultyPicker.FontFamily };
+        var block = new TextBlock
+        {
+            Text = label,
+            FontSize = CompactDifficultyPicker.FontSize,
+            FontFamily = CompactDifficultyPicker.FontFamily,
+            FontWeight = CompactDifficultyPicker.FontWeight,
+        };
         block.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
         return block.DesiredSize.Width;
     }
