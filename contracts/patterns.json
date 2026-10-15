@@ -3479,7 +3479,7 @@
       "title": "Stat tile grid",
       "status": "current",
       "doc": ".agents/patterns/stat-tile-grid.md",
-      "summary": "Profile and Band stat tile grids: a tile whose value or label would wrap in one slot spans two (owner-approved variant #591, Android), tiles keep web order with the row's last tile widening instead of holes, every tile takes the grid's tallest height, and text that doesn't fit two slots wraps rather than truncating. One grid component per platform.",
+      "summary": "Profile and Band stat tile grids: a tile whose value or label would wrap in one slot spans two (owner-approved variant #591, Android), tiles keep web order with the row's last tile widening instead of holes, every tile takes the grid's tallest height, and text that doesn't fit two slots wraps rather than truncating. A centred tile with a trailing chevron pads both sides by the chevron's clearance so its text is centred on the card (#651). One grid component per platform.",
       "keywords": [
         "stat tile",
         "stat grid",
@@ -3491,7 +3491,9 @@
         "wrap",
         "large text",
         "band statistics",
-        "profile statistics"
+        "profile statistics",
+        "chevron",
+        "centred"
       ],
       "web": [
         {
@@ -3528,6 +3530,10 @@
           {
             "path": "windows/Festival.App/Controls/PlayerStatTileView.cs",
             "symbol": "PlayerStatTileView"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/StatTileInsets.cs",
+            "symbol": "StatTileInsets"
           }
         ]
       },
