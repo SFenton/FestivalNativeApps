@@ -719,7 +719,9 @@ public sealed partial class SongsPage : Page, IPageBack
         {
             var target = inlineChips ? trailing : secondary;
             foreach (var chip in row.Chips) target.Children.Add(SongRowVisuals.Chip(chip, row.Song.SongId, row.Keyboard));
-            secondary.LineAlignment = HorizontalAlignment.Left;
+            // Web mobile SongRow: balanced, centred chip rows across the card under the art and title (issue #645).
+            secondary.BalanceLines = true;
+            secondary.LineAlignment = HorizontalAlignment.Center;
         }
         else if (row.Metadata.Count > 0)
         {
@@ -734,6 +736,7 @@ public sealed partial class SongsPage : Page, IPageBack
             }
             for (var i = 0; i < row.Metadata.Count; i++)
                 (i == 0 || metadataInline ? trailing : secondary).Children.Add(SongRowVisuals.Pill(row.Metadata[i], songId));
+            secondary.BalanceLines = false;
             secondary.LineAlignment = HorizontalAlignment.Right;
         }
         else
@@ -758,7 +761,7 @@ public sealed partial class SongsPage : Page, IPageBack
             trailing.Children.Add(indicator);
         }
         var wrapped = secondary.Children.Count > 0;
-        card.SetWrapped(wrapped);
+        card.SetWrapped(wrapped, fullWidth: wrapped && row.Chips.Count > 0);
     }
 
     /// <summary>
