@@ -46,7 +46,8 @@ class ProfileTitleJourneyTests(unittest.TestCase):
                 self.assertEqual(ids[0], "id=fst.player.name")
                 self.assertEqual(ids[1], "id=" + action)
                 self.assertIn("id=fst.player.overview", ids[2:])
-                self.assertIn("assertinset:id=fst.player.name|id=fst.player.available|12", _steps(_BY_NAME[name]))
+                # The title row is pinned above the scroller (#639), so the overview leads the scrolled content.
+                self.assertIn("assertinset:id=fst.player.overview|id=fst.player.available|8", _steps(_BY_NAME[name]))
 
     def test_each_state_checks_the_title_is_a_plain_heading_without_avatar(self):
         # Issue #446 (#97): the name is a plain, non-focusable Level 1 heading with no PersonPicture card.
