@@ -106,6 +106,7 @@
   {
     "name": "index-backward-after-scroll",
     "tab": "songs",
+    "jump_trace": 2,
     "fixture": ["--large-catalogue"],
     "ready": [
       "waitfor:id=fst.songs.row.fixture-song-1@40",
@@ -180,6 +181,7 @@
     "tab": "songs",
     "fixture": ["--large-catalogue"],
     "fade_trace": {"JumpButton": ["show", "hide", "show"]},
+    "jump_trace": 3,
     "ready": [
       "waitfor:id=fst.songs.row.fixture-song-1@40",
       "assertname:id=fst.songs.section-header|#"
@@ -231,6 +233,7 @@
     "tab": "songs",
     "fixture": ["--large-catalogue"],
     "fade_trace": {"JumpButton": ["show"]},
+    "jump_trace": 2,
     "profile": "fixture-player-1:Fixture Player 1",
     "ready": [
       "waitfor:id=fst.songs.row.fixture-song-1@40"
