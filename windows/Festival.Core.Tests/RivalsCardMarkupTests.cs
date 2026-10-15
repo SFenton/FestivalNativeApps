@@ -66,12 +66,17 @@ public class RivalsCardMarkupTests
     }
 
     [Fact]
-    public void AllRivalsKeepsItsSplitSelection()
+    public void AllRivalsOpensRivalsThroughTheShellSplit()
     {
-        // View All and the wide split's selection behaviour are unchanged by the card.
+        // Issue #652: the page no longer hosts its own detail column; a rival opens through the shell, which shows it
+        // beside the list only on demand (split-panes R7 Windows variant), and no row stays selected.
         var code = File.ReadAllText(Path.Combine(AppRoot, "Pages", "AllRivalsPage.xaml.cs"));
-        Assert.Contains("ListViewSelectionMode.Single", code, StringComparison.Ordinal);
-        Assert.Contains("OnRivalSelectionChanged", code, StringComparison.Ordinal);
+        Assert.Contains("MainWindow.Instance?.Navigate(row.Route)", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("DetailFrame", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelectionChanged", code, StringComparison.Ordinal);
+        var list = Load("Pages", "AllRivalsPage.xaml").Descendants().Single(e => Attr(e, "AutomationProperties.AutomationId") == "fst.all-rivals.list");
+        Assert.Equal("None", Attr(list, "SelectionMode"));
+        Assert.Null(Attr(list, "SelectionChanged"));
     }
 
     #endregion

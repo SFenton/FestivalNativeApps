@@ -45,19 +45,14 @@ public enum SettingsDetail
 public sealed record SettingsDetailItem(SettingsDetail Detail, string Title, string? Description, string AutomationId);
 
 /// <summary>
-/// Settings list/detail rules (issue #371, owner-approved): from <see cref="SplitWidth"/> the page shows the settings list
-/// beside a trailing pane. Plain toggles stay in the list; multi-option settings, drag lists, the leeway slider and the
-/// owner-named sections are chevron rows whose options open in the pane. With nothing selected the pane shows a centred
-/// placeholder. Narrower pages keep the one-column page unchanged.
+/// Settings list/detail rules (issue #371, owner-approved): where the page fits two equal panes
+/// (<see cref="UsesSplit"/>, the shared on-demand split rule, #652) it shows the settings list beside a trailing pane.
+/// Plain toggles stay in the list; multi-option settings, drag lists, the leeway slider and the owner-named sections are
+/// chevron rows whose options open in the pane. With nothing selected the pane shows a centred placeholder. Narrower
+/// pages keep the one-column page unchanged.
 /// </summary>
 public static class SettingsDetails
 {
-    /// <summary>Page width from which Settings splits (the shared Windows list/detail width: Songs, All Rivals, Rankings).</summary>
-    public const double SplitWidth = 1100;
-
-    /// <summary>List column width in the split layout (All Rivals' list width).</summary>
-    public const double ListWidth = 520;
-
     /// <summary>Placeholder heading.</summary>
     public const string PlaceholderTitle = "Settings";
 
@@ -94,10 +89,14 @@ public static class SettingsDetails
             "fst.settings.detail-row.privacy-policy"),
     ];
 
-    /// <summary>Whether the page is wide enough for the list/detail layout.</summary>
+    /// <summary>
+    /// Whether the page is wide enough for the list/detail layout: two equal panes of at least
+    /// <see cref="OnDemandSplitPolicy.PaneMinimum"/> each, like every other Windows split (#652).
+    /// </summary>
     /// <param name="pageWidth">Settings page width in epx.</param>
-    /// <returns><see langword="true"/> at <see cref="SplitWidth"/> and wider.</returns>
-    public static bool UsesSplit(double pageWidth) => pageWidth >= SplitWidth;
+    /// <param name="textScale">Windows text scale factor (1 = 100%).</param>
+    /// <returns><see langword="true"/> when <see cref="OnDemandSplitPolicy.AllowsSplit"/> allows it.</returns>
+    public static bool UsesSplit(double pageWidth, double textScale = 1) => OnDemandSplitPolicy.AllowsSplit(pageWidth, textScale);
 
     /// <summary>An entry's row and header.</summary>
     /// <param name="detail">Entry other than <see cref="SettingsDetail.None"/>.</param>
