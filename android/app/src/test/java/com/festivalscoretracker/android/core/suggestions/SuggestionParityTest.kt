@@ -120,22 +120,57 @@ class SuggestionParityTest {
         assertSame(expected.getValue("rivalIndex"), actual, "rivalIndex")
     }
 
+    /**
+     * Every page of every scenario matches the Apple reference. While the shared reference
+     * still predates the #656 named-rival fix (it holds a named-rival card listing several
+     * rivals; only the Mac toolchain can regenerate it from the fixed Apple sources), each
+     * scenario must match strictly up to its first difference, and that difference must be a
+     * named-rival card: the fixed selection is the only intended change, and every later
+     * category follows from it through the shared seeded RNG and session state. Once the
+     * reference is regenerated the comparison is strict again with no code change.
+     */
     @Test
     fun everyScenarioMatchesApple() {
         val expectedScenarios = expected.getValue("scenarios").jsonArray.associateBy { it.jsonObject.getValue("name").jsonPrimitive.content }
         assertEquals(fixture.scenarios.size, expectedScenarios.size)
+        val pre656 = referencePredatesNamedRivalFix(expectedScenarios.values)
         var pages = 0
+        var strictScenarios = 0
         for (scenario in fixture.scenarios) {
             val (pageList, resetList) = run(scenario)
             val actualPages = buildJsonArray { pageList.forEach { add(page(it)) } }
             val actualResets = buildJsonArray { resetList.forEach { add(page(it)) } }
             val want = expectedScenarios.getValue(scenario.name).jsonObject
-            assertSame(want.getValue("pages"), actualPages, "${scenario.name}.pages")
-            assertSame(want.getValue("resetPages"), actualResets, "${scenario.name}.resetPages")
             pages += actualPages.size + actualResets.size
+            if (pre656) {
+                val sequence = listOf("pages" to actualPages, "resetPages" to actualResets).flatMap { (label, list) ->
+                    list.mapIndexed { i, page -> Triple("${scenario.name}.$label[$i]", want.getValue(label).jsonArray[i].jsonArray, page.jsonArray) }
+                }
+                val diverged = sequence.firstOrNull { (_, e, a) -> !sameJson(e, a) }
+                if (diverged == null) {
+                    strictScenarios++
+                    continue
+                }
+                val (path, e, a) = diverged
+                val index = (0 until maxOf(e.size, a.size)).first { it >= e.size || it >= a.size || !sameJson(e[it], a[it]) }
+                val keys = listOfNotNull(e.getOrNull(index), a.getOrNull(index)).map { it.jsonObject.getValue("key").jsonPrimitive.content }
+                assertTrue("$path[$index]: first difference from the pre-#656 reference is $keys, not a named-rival card", keys.any { it in namedRivalKeys })
+            } else {
+                assertSame(want.getValue("pages"), actualPages, "${scenario.name}.pages")
+                assertSame(want.getValue("resetPages"), actualResets, "${scenario.name}.resetPages")
+            }
         }
         assertEquals("228 scenario pages + 27 endless-remix pages", 255, pages)
+        if (pre656) assertTrue("rival-free scenarios still match the pre-#656 reference exactly", strictScenarios > 0)
     }
+
+    /** True when a reference named-rival card lists more than one rival (Apple output from before #656). */
+    private fun referencePredatesNamedRivalFix(scenarios: Collection<JsonElement>): Boolean =
+        scenarios.flatMap { s -> listOf("pages", "resetPages").flatMap { s.jsonObject.getValue(it).jsonArray } }
+            .flatMap { it.jsonArray }
+            .map { it.jsonObject }
+            .filter { it.getValue("key").jsonPrimitive.content in namedRivalKeys }
+            .any { card -> card.getValue("songs").jsonArray.mapNotNull { it.jsonObject["rivalAccountId"]?.jsonPrimitive?.content }.toSet().size > 1 }
 
     /**
      * Issue #656: a card whose title names one rival ("Climb Past {name}", "Gain Stars & Beat
@@ -166,7 +201,7 @@ class SuggestionParityTest {
                 seen[category.key] = (seen[category.key] ?: 0) + 1
             }
         }
-        assertEquals("every named family emits in the shared scenarios", titles.keys, seen.keys)
+        assertEquals("every named family emits in the shared scenarios", namedRivalKeys, seen.keys)
     }
 
     /** Run one fixture scenario: its pages, then its endless-remix pages. */
@@ -252,7 +287,21 @@ class SuggestionParityTest {
         }
     }
 
+    /** Deep equality with the same rules as [assertSame], without failing. */
+    private fun sameJson(expected: JsonElement, actual: JsonElement): Boolean = when (expected) {
+        is JsonObject -> actual is JsonObject && expected.keys == actual.keys && expected.all { (k, v) -> sameJson(v, actual.getValue(k)) }
+        is JsonArray -> actual is JsonArray && expected.size == actual.size && expected.indices.all { sameJson(expected[it], actual[it]) }
+        JsonNull -> actual == JsonNull
+        is JsonPrimitive -> actual is JsonPrimitive && when {
+            expected.isString -> actual.isString && expected.content == actual.content
+            expected.doubleOrNull != null -> expected.doubleOrNull == actual.doubleOrNull
+            else -> expected.content == actual.content
+        }
+    }
+
     private companion object {
+        /** Cross-pollination families whose title names one rival (issue #656). */
+        val namedRivalKeys = setOf("song_rival_pct_push", "song_rival_star_gains", "song_rival_near_fc")
         /** Find the shared Windows fixture by walking up from the Gradle module directory. */
         fun fixtureFile(name: String): File {
             var dir: File? = File("").absoluteFile
