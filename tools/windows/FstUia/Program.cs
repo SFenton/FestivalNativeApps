@@ -876,6 +876,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertmidline":
                 AssertMidline(window, step);
                 break;
+            case "assertmiddle":
+                AssertMiddle(window, step);
+                break;
             case "assertinset":
                 AssertInset(window, step);
                 break;
@@ -1714,6 +1717,26 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         response["midlines"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["dx"] = Math.Round(dx, 1) });
         if (Math.Abs(dx) > (double)step["epx"]!)
             throw new InvalidOperationException($"line off centre by {dx:0.#} epx ({(string)step["arg"]!})");
+    }
+
+    /// <summary>
+    /// Fails unless the element's vertical centre is the region's vertical centre within <c>epx</c> effective pixels: a
+    /// list row's art, chevron or metadata on the row's centre line rather than nudged up by an empty second line
+    /// (issue #654). Tighter than <c>assertlevel</c>'s 4 px, which a 3 epx offset passes at 100% scale.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> (the element), <c>other</c> (the region) and <c>epx</c>.</param>
+    /// <exception cref="InvalidOperationException">The element is off the region's centre line.</exception>
+    private void AssertMiddle(Window window, JsonObject step)
+    {
+        var element = Find(window, step).BoundingRectangle;
+        var region = Find(window, step, "other").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var dy = (element.Top + element.Height / 2.0 - (region.Top + region.Height / 2.0)) / scale;
+        response["middles"] ??= new JsonArray();
+        response["middles"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["dy"] = Math.Round(dy, 1) });
+        if (Math.Abs(dy) > (double)step["epx"]!)
+            throw new InvalidOperationException($"off the centre line by {dy:0.#} epx ({(string)step["arg"]!})");
     }
 
     #region Hit targets

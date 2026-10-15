@@ -131,6 +131,9 @@ SEARCH_DELAYED_RESULTS = "search-delayed-results"
 #: motion off.
 SUGGESTIONS_LOAD_MORE = "suggestions-load-more,suggestions-load-more-keyboard"
 
+#: The ``a11y-suggestions.json`` row centre-line pages (issue #654), also run at wide and at 225% text beside the title.
+SUGGESTIONS_ROW_CENTRE = "suggestions-row-centre,suggestions-row-centre-rival"
+
 #: Journeys the ``windows-ui`` job runs, in order. ``wide`` (1440 epx) is left to the host matrix: the runner's
 #: desktop is 1920x1080 at 100% scale, so compact (500x800) and medium (900x700) fit with room for the taskbar.
 RUNS: tuple[Run, ...] = (
@@ -289,6 +292,11 @@ RUNS: tuple[Run, ...] = (
         only=SUGGESTIONS_LOAD_MORE),
     Run("suggestions-load-more-no-animations", "a11y-suggestions.json", sizes="medium", mode="no-animations", tabs=0,
         only=SUGGESTIONS_LOAD_MORE),
+    # Row centre line (issue #654): a one-line row's art and metadata (season pill, rival pill) sit on the row's vertical
+    # centre within 1 epx (assertmiddle), with or without the separator, at wide and at 225% text beside the title.
+    Run("suggestions-row-centre-wide", "a11y-suggestions.json", sizes="wide", tabs=0, only=SUGGESTIONS_ROW_CENTRE),
+    Run("suggestions-row-centre-text-225", "a11y-suggestions.json", sizes="medium,wide", mode="text-225", tabs=0,
+        only=SUGGESTIONS_ROW_CENTRE),
     Run("suggestions", "a11y-suggestions.json"),
     Run("suggestions-text-225", "a11y-suggestions.json", sizes="compact", mode="text-225"),
     # Back from View All or a rival to cached Leaderboards and Rivals (issues #82, #276, #435): the opener and its card
