@@ -1,0 +1,33 @@
+[
+  {"name": "songs-toolbar-row", "tab": "songs", "profile": "fixture-player-1:Demo Player", "tabs": 0, "sizes": ["medium", "wide"],
+   "ready": ["waitfor:id=fst.songs.row.fixture-pulse@30", "waitfor:id=fst.songs.section-index-button@10"],
+   "after_ready": [
+     "assertsize:id=fst.songs.search|0x40",
+     "assertsize:id=fst.songs.sort|40x40",
+     "assertsize:id=fst.songs.filter|40x40",
+     "assertsize:id=fst.songs.section-index-button|40x40",
+     "assertheight:id=fst.songs.search|id=fst.songs.sort",
+     "assertheight:id=fst.songs.sort|id=fst.songs.filter",
+     "assertheight:id=fst.songs.filter|id=fst.songs.section-index-button",
+     "assertlevel:id=fst.songs.search|id=fst.songs.section-index-button",
+     "assertapart:id=fst.songs.search|id=fst.songs.sort",
+     "assertright:id=fst.songs.section-index-button|id=fst.songs.row.fixture-pulse",
+     "assertorder:id=fst.songs.search|id=fst.songs.sort|id=fst.songs.filter|id=fst.songs.section-index-button|id=fst.songs.row.fixture-pulse",
+     "shot:{stem}.png"
+   ]},
+  {"name": "songs-toolbar-stacked", "tab": "songs", "profile": "fixture-player-1:Demo Player", "tabs": 0, "sizes": ["compact"],
+   "ready": ["waitfor:id=fst.songs.row.fixture-pulse@30", "waitfor:id=fst.songs.section-index-button@10"],
+   "after_ready": [
+     "assertsize:id=fst.songs.search|0x40",
+     "assertsize:id=fst.songs.sort|40x40",
+     "assertsize:id=fst.songs.filter|40x40",
+     "assertsize:id=fst.songs.section-index-button|40x40",
+     "assertheight:id=fst.songs.search|id=fst.songs.sort",
+     "assertheight:id=fst.songs.sort|id=fst.songs.filter",
+     "assertheight:id=fst.songs.filter|id=fst.songs.section-index-button",
+     "assertbelow:id=fst.songs.sort|id=fst.songs.search",
+     "assertright:id=fst.songs.search|id=fst.songs.row.fixture-pulse",
+     "assertorder:id=fst.songs.search|id=fst.songs.sort|id=fst.songs.filter|id=fst.songs.section-index-button|id=fst.songs.row.fixture-pulse",
+     "shot:{stem}.png"
+   ]}
+]

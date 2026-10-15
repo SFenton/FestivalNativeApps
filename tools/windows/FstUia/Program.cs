@@ -917,11 +917,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "assertsize":
                 AssertSize(window, step);
                 break;
-            case "assertsameheight":
-                AssertSameHeight(window, step);
-                break;
             case "assertapart":
                 AssertApart(window, step);
+                break;
+            case "assertheight":
+            case "assertright":
+                AssertMatch(window, step, verb == "assertheight");
                 break;
             case "assertat":
                 AssertAt(window, step);
@@ -1719,27 +1720,6 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     }
 
     /// <summary>
-    /// Fails unless two elements' UIA heights are within 1 epx (window DPI): pills that must share one height at any text
-    /// size, where <c>assertsize</c> only proves a minimum (issue #644). Records both heights in epx.
-    /// </summary>
-    /// <param name="window">App window.</param>
-    /// <param name="step">Step with <c>selector</c> and <c>other</c>.</param>
-    /// <exception cref="InvalidOperationException">The heights differ.</exception>
-    private void AssertSameHeight(Window window, JsonObject step)
-    {
-        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
-        var a = Find(window, step).BoundingRectangle.Height / scale;
-        var b = Find(window, step, "other").BoundingRectangle.Height / scale;
-        response["heights"] ??= new JsonArray();
-        response["heights"]!.AsArray().Add(new JsonObject
-        {
-            ["arg"] = (string)step["arg"]!, ["height"] = Math.Round(a, 1), ["other"] = Math.Round(b, 1),
-        });
-        if (Math.Abs(a - b) > 1)
-            throw new InvalidOperationException($"heights {a:0.#} vs {b:0.#} epx differ ({(string)step["arg"]!})");
-    }
-
-    /// <summary>
     /// Fails if two on-screen elements' UIA bounds overlap (neighbouring hit targets must not share pixels). Records the
     /// gap between them in epx (0 when they touch).
     /// </summary>
@@ -1758,6 +1738,32 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         response["apart"]!.AsArray().Add(new JsonObject { ["arg"] = (string)step["arg"]!, ["gap_epx"] = Math.Round(gap, 1) });
         if (horizontal < 0 && vertical < 0)
             throw new InvalidOperationException($"{(string)step["arg"]!}: bounds overlap ({a} and {b}, physical px)");
+    }
+
+    /// <summary>
+    /// Fails unless two on-screen elements share a height (<c>assertheight</c>: one row of controls drawn at one height)
+    /// or a right edge (<c>assertright</c>: a row that ends where the content below it ends), within 1 epx. Records both
+    /// values in epx.
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with <c>selector</c> and <c>other</c>.</param>
+    /// <param name="height">Compare heights (else right edges).</param>
+    /// <exception cref="InvalidOperationException">The values differ by more than 1 epx.</exception>
+    private void AssertMatch(Window window, JsonObject step, bool height)
+    {
+        var a = Find(window, step).BoundingRectangle;
+        var b = Find(window, step, "other").BoundingRectangle;
+        var scale = Native.GetDpiForWindow(window.Properties.NativeWindowHandle.Value) / 96.0;
+        var first = (height ? a.Height : a.Right) / scale;
+        var second = (height ? b.Height : b.Right) / scale;
+        var what = height ? "heights" : "right edges";
+        response["matched"] ??= new JsonArray();
+        response["matched"]!.AsArray().Add(new JsonObject
+        {
+            ["arg"] = (string)step["arg"]!, ["what"] = what, ["epx"] = Math.Round(first, 1), ["other_epx"] = Math.Round(second, 1),
+        });
+        if (Math.Abs(first - second) > 1)
+            throw new InvalidOperationException($"{what} differ: {first:0.#} vs {second:0.#} epx ({(string)step["arg"]!})");
     }
 
     /// <summary>

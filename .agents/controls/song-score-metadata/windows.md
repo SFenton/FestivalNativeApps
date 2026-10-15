@@ -40,6 +40,6 @@ The owner reported that the Windows full combo read "100% FC", the current-seaso
 - Star circles are 24 epx.
 - The full combo is `MetadataPills.FullCombo`.
 
-`tools/windows/journeys/a11y-songs-metadata-chips.json` (`windows-ui` runs `songs-metadata-chips` at medium and wide and `songs-metadata-chips-text-225`, scanned) asserts each field's 24-epx size, that accuracy, Top %, season and difficulty share one height (`assertsameheight`, also at 225% text, where an unoutlined pill pads by the 2-epx outline width so all four grow alike), levels, the season ring paint and the rows' spoken order. `metadata-states` passes in normal, `text-200` and `hc-desert`, and `metadata-wrapped` passes at compact, medium and snap-left.
+`tools/windows/journeys/a11y-songs-metadata-chips.json` (`windows-ui` runs `songs-metadata-chips` at medium and wide and `songs-metadata-chips-text-225`, scanned) asserts each field's 24-epx size, that accuracy, Top %, season and difficulty share one height (`assertheight`, also at 225% text, where an unoutlined pill pads by the 2-epx outline width so all four grow alike), levels, the season ring paint and the rows' spoken order. `metadata-states` passes in normal, `text-200` and `hc-desert`, and `metadata-wrapped` passes at compact, medium and snap-left.
 
 Because the 24-epx stars and meter are wider, a seven-field compact row now wraps onto two right-aligned lines under the score, like the web phone's 3+3. The wrapped placement pages therefore assert the first wrapped pair, not the last pill. `a11y-difficulty-meter` probes are scaled ×1.2.

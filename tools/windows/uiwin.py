@@ -110,7 +110,8 @@ STEP_VERBS = {
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
     "markspan": "span", "assertspan": "span", "film": "path", "filmstop": "path", "pin": "selector",
     "assertpinned": "selector", "foreground": "onoff", "listen": "listen", "assertannounced": "announced",
-    "assertsize": "size", "assertsameheight": "pair", "assertapart": "pair", "assertat": "offset", "tapat": "offset", "clickat": "offset",
+    "assertsize": "size", "assertapart": "pair", "assertheight": "pair", "assertright": "pair",
+    "assertat": "offset", "tapat": "offset", "clickat": "offset",
     "drag": "drag",
     "narrate": "selector", "assertread": "read", "assertorder": "order",
     "assertpaint": "paint", "assertbold": "bold", "assertannouncedcount": "announcedcount",
@@ -275,8 +276,6 @@ def parse_step(step: str) -> dict:
     ``assertscrollbar:<sel>`` is its inverse (a scroller that honours Windows' "Always show scrollbars", issue #525);
     ``assertbelow:<sel>|<sel>`` fails unless the first element's vertical centre is at least 8 px below the second's,
     and ``assertlevel:<sel>|<sel>`` unless both vertical centres are within 4 px (a line);
-    ``assertsameheight:<sel>|<sel>`` fails unless both elements' heights are within 1 epx, e.g. metadata pills that
-    share one height at any text size (``assertsize`` only sets a minimum);
     ``assertgap:<sel>|<sel>|<epx>`` fails unless the gap from the first element's bottom edge to the second's top
     edge is ``<epx>`` effective pixels (window DPI) within 1 epx, e.g. a list's last row above a pinned footer;
     ``assertcentred:<region>|<first>|<last>`` fails unless the block from the first element's top edge to the last
@@ -336,6 +335,10 @@ def parse_step(step: str) -> dict:
     ``assertsize:<sel>|<w>x<h>`` fails unless the element's UIA bounds are at least ``<w>`` x ``<h>`` effective pixels
     (one device pixel rounding allowance; results in ``sizes``), e.g. Fluent's 40x40 epx touch target (issue #271);
     ``assertapart:<sel>|<sel>`` fails if the two elements' bounds overlap (results in ``apart``, the gap in epx);
+    ``assertheight:<sel>|<sel>`` fails unless both elements are the same height and ``assertright:<sel>|<sel>`` unless
+    their right edges line up, each within 1 epx (results in ``matched``), e.g. a search box as tall as the page tools
+    beside it and a toolbar row that ends where the list rows end (issue #646), or metadata pills that share one
+    height at any text size, where ``assertsize`` only sets a minimum (issue #644);
     ``assertat:<sel>|<dx>,<dy>`` hit-tests the point ``<dx>``,``<dy>`` epx from the element's centre without input
     (outside the title bar's non-client caption region, where a press drags the window, and UIA ``ElementFromPoint``
     must return the element or one of its parts, or the point must be inside its bounds when another process covers

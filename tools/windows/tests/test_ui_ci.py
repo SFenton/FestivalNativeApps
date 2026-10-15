@@ -80,7 +80,7 @@ class UiCiTests(unittest.TestCase):
 
     def test_songs_metadata_chips_run_at_default_and_largest_text(self):
         # Issue #644 review: the chip-height journey gates the release-branch suite at default and 225% text, scanned,
-        # with each text pill's height compared to the others (assertsameheight) and the row's spoken order.
+        # with each text pill's height compared to the others (assertheight) and the row's spoken order.
         runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-songs-metadata-chips.json"}
         self.assertEqual({"normal", "text-225"}, set(runs))
         self.assertTrue(all(run.scan and not run.only for run in runs.values()))
@@ -94,9 +94,9 @@ class UiCiTests(unittest.TestCase):
             steps = page["ready"]
             self.assertTrue(page["scan"])
             for song in ("fixture-song-1", "fixture-song-2"):
-                self.assertIn(f"assertsameheight:raw=fst.songs.metadata.difficulty.{song}|raw=fst.songs.metadata.season.{song}",
+                self.assertIn(f"assertheight:raw=fst.songs.metadata.difficulty.{song}|raw=fst.songs.metadata.season.{song}",
                               steps)
-                self.assertIn(f"assertsameheight:raw=fst.songs.metadata.percentage.{song}|raw=fst.songs.metadata.percentile.{song}",
+                self.assertIn(f"assertheight:raw=fst.songs.metadata.percentage.{song}|raw=fst.songs.metadata.percentile.{song}",
                               steps)
                 self.assertTrue(any(s.startswith(f"assertread:id=fst.songs.row.{song}|") for s in steps))
             self.assertIn("assertsize:raw=fst.songs.metadata.stars.fixture-song-1|126x24", steps)
