@@ -504,16 +504,27 @@ class JourneyHarness(private val rule: JourneyRule) {
      * its first call (#568). Polls are spaced so the tree walk does not starve the UI thread, and a
      * timeout fails with what the tree and Compose showed.
      *
+     * A node in the tree can still be hidden from TalkBack for a moment (`isVisibleToUser` false),
+     * and [readingOrder] skips it: on a slow CI emulator a freshly opened first-run tour's header
+     * (title and Close) was in the tree but missing from the reading order (#660). Pass such tags
+     * as [visible] when the next [readingOrder] must meet them.
+     *
      * @param present Test tag (exposed as the node's resource id) that must be in the tree.
      * @param absent Test tag that must have left the tree, or `null`.
      * @param timeoutMs Timeout.
+     * @param visible Test tags that must also be visible to the user, through visible ancestors,
+     *   as [readingOrder] walks the tree.
      */
-    fun awaitAccessibilityTree(present: String, absent: String? = null, timeoutMs: Long = 15_000) {
+    fun awaitAccessibilityTree(present: String, absent: String? = null, timeoutMs: Long = 15_000, visible: List<String> = emptyList()) {
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
-        fun ids(node: AccessibilityNodeInfo?, into: MutableSet<String> = mutableSetOf()): Set<String> {
+        fun ids(node: AccessibilityNodeInfo?, into: MutableSet<String> = mutableSetOf(), shown: MutableSet<String>? = null, parentShown: Boolean = true): Set<String> {
             node ?: return into
-            node.viewIdResourceName?.let(into::add)
-            for (i in 0 until node.childCount) ids(node.getChild(i), into)
+            val isShown = parentShown && node.isVisibleToUser
+            node.viewIdResourceName?.let {
+                into += it
+                if (isShown) shown?.add(it)
+            }
+            for (i in 0 until node.childCount) ids(node.getChild(i), into, shown, isShown)
             return into
         }
         val deadline = SystemClock.uptimeMillis() + timeoutMs
@@ -521,14 +532,17 @@ class JourneyHarness(private val rule: JourneyRule) {
             rule.waitForIdle()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) automation.clearCache()
             val root = automation.rootInActiveWindow
-            val seen = ids(root)
-            if (present in seen && (absent == null || absent !in seen)) return
+            val shown = mutableSetOf<String>()
+            val seen = ids(root, shown = shown)
+            val hidden = visible.filter { it !in shown }
+            if (present in seen && (absent == null || absent !in seen) && hidden.isEmpty()) return
             if (SystemClock.uptimeMillis() > deadline) {
                 throw AssertionError(
                     "Accessibility tree of ${root?.packageName ?: "no active window"} never showed $present" +
-                        "${absent?.let { " without $it" }.orEmpty()} in $timeoutMs ms " +
+                        "${absent?.let { " without $it" }.orEmpty()}" +
+                        "${hidden.takeIf { it.isNotEmpty() }?.let { " with $it visible to the user" }.orEmpty()} in $timeoutMs ms " +
                         "(composed: ${exists(present)}${absent?.let { ", $it composed: ${exists(it)}" }.orEmpty()}; " +
-                        "${seen.size} ids): ${readingOrder("await-tree-timeout", fresh = true)}",
+                        "${seen.size} ids, hidden: ${hidden.filter { it in seen }}): ${readingOrder("await-tree-timeout", fresh = true)}",
                 )
             }
             SystemClock.sleep(TREE_POLL_MILLIS)
