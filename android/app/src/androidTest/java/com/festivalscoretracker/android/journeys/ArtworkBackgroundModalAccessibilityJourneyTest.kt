@@ -201,7 +201,8 @@ class ArtworkBackgroundModalAccessibilityJourneyTest {
         assertEquals("$screen: Close label", listOf(MODAL_CLOSE_LABEL), button.config.getOrNull(SemanticsProperties.ContentDescription))
         assertEquals("$screen: Close role", Role.Button, button.config.getOrNull(SemanticsProperties.Role))
         assertMinTarget("$screen Close", button.touchBoundsInRoot.width, button.touchBoundsInRoot.height)
-        h.awaitAccessibilityTree(present = close)
+        // The header must be on screen to TalkBack, not just in the tree, before its order is read (#660).
+        h.awaitAccessibilityTree(present = close, visible = listOf(heading, close))
         assertBackdropSilent(screen)
         val title = rule.onAllNodesWithTag(heading, useUnmergedTree = true)[0].fetchSemanticsNode()
         assertTrue("$screen: the title is a heading", SemanticsProperties.Heading in title.config)
