@@ -410,7 +410,11 @@ JOURNEYS = [
         steps=[
             ["waitfor:id=fst.player.overview@15", "invoke:id=fst.quick-links.open",
              "waitfor:id=fst.quick-links.item.global@5", "waitfor:id=fst.quick-links.item.instrument:Solo_Guitar@5",
-             "waitfor:id=fst.quick-links.item.bands@5", "toggle:id=fst.quick-links.item.bands", "wait:1.5",
+             "waitfor:id=fst.quick-links.item.bands@5", "toggle:id=fst.quick-links.item.bands",
+             # The menu jumps from a Low-priority dispatch once its flyout closes (#548): wait for the jump to start
+             # rather than a fixed settle, which a slow host outruns (issue #663).
+             "waitgone:id=fst.quick-links.item.bands@10",
+             "assertstate:id=fst.quick-links.open|name=Quick Links, current section Bands@10",
              # Lands the inline section (issue #312) on the shared 32 epx line (section-jump-landing R2).
              "assertinset:id=fst.player.bands-section|id=fst.player.available|32", "waitfor:id=fst.player.bands@3"],
         ],
