@@ -69,6 +69,9 @@ class FakeGh:
         if args[0] == "api" and args[1].endswith("/runs/77/artifacts"):
             arts = [{"name": self.artifact, "expired": self.expired}] if self.artifact else []
             return json.dumps({"artifacts": arts})
+        if args[0] == "api" and "/actions/artifacts?per_page=100&page=" in args[1]:
+            arts = [{"name": self.artifact, "expired": self.expired, "workflow_run": {"id": 77}}] if self.artifact else []
+            return json.dumps({"artifacts": arts + [{"name": n, "workflow_run": {"id": 70}} for n in self.history]})
         if args[0] == "api" and "/actions/artifacts" in args[1]:
             return json.dumps({"artifacts": [{"name": n} for n in self.history]})
         if args[0] == "run" and args[1] == "download":
@@ -337,6 +340,33 @@ class SubmitTests(Base):
         manual["targetPublishMode"] = "Manual"
         code, doc = self.run_cli(["release"], FakeStore(store_routes(pending=manual)), FakeGh())
         self.assertEqual((code, doc["blocked"]), (4, "manual_publish_required"))
+
+    def test_an_older_build_is_found_deep_in_the_artifact_list(self):
+        gh = FakeGh(artifact="fst-windows-msix_2610.1500.300.0_%s" % SHA_NEW,
+                    history=["fst-windows-msix_2610.15%02d.%d.0_%s" % (n, 200 + n, SHA_NEW) for n in range(1, 99)]
+                    + ["fst-windows-msix_2610.1403.176.0_%s" % SHA_OLD])
+        found = fs.find_artifact(gh, "r", "2610.14.03")
+        self.assertEqual((found["version"], found["sha"], found["run_id"]), ("2610.1403.176.0", SHA_OLD, 70))
+
+    def test_a_failed_write_deletes_the_draft_it_created(self):
+        routes = self.submit_routes()
+        routes[("PUT", API + "/submissions/300")] = (500, {"code": "InternalServerError", "message": "oops"})
+        routes[("DELETE", API + "/submissions/300")] = (204, None)
+        store = FakeStore(routes)
+        code, _ = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin"], store, FakeGh())
+        self.assertEqual(code, 1)
+        self.assertEqual(store.writes()[-1], ("DELETE", API + "/submissions/300"))
+
+    def test_an_abandoned_unchanged_clone_is_replaced(self):
+        clone = submission("200", "PendingCommit", "0.1.900.0")
+        store = FakeStore(self.submit_routes(pending=clone))
+        code, _ = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin"], store, FakeGh())
+        self.assertEqual(code, 0)
+        self.assertEqual(store.writes()[0], ("DELETE", API + "/submissions/200"))
+        edited = submission("200", "PendingCommit", "0.1.905.0")  # someone's real draft: a different package
+        store = FakeStore(self.submit_routes(pending=edited))
+        code, doc = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin"], store, FakeGh())
+        self.assertEqual((code, doc), (4, {"blocked": "foreign_pending_submission"}))
 
     def test_dry_run_plans_without_writes_or_download(self):
         store = FakeStore(self.submit_routes())

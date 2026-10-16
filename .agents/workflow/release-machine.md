@@ -157,7 +157,7 @@ Builds run for every `windows/v<YYMM.DD.NN>` tag that `version-bump` creates (ho
 - Refuses (exit 3) while a submission is in review, unless `--replace`: then it deletes that submission (`refused:"already_submitted"` when it carries `V`). The API has no "cancel certification", so the Store may refuse; that blocks with `cannot_cancel_<status>`.
 - Deletes a failed submission or one it created itself (`notesForCertification` starts with `[fst-release]`; no local state).
 - Blocks on a draft someone else is editing (`foreign_pending_submission`).
-- Finds `V`'s artifact among the 20 newest successful builds (`build_artifact_not_found` otherwise), and downloads it with `gh run download`.
+- Finds `V`'s artifact in the repository's artifact list (newest first, up to 1,000; `build_artifact_not_found` otherwise), and downloads it with `gh run download`. A write that fails after the draft is created (e.g. Store HTTP 500) deletes that draft; an unchanged clone of the published submission left by such a failure is replaced like its own drafts.
 - Clones the last published submission, marks the old packages `PendingDelete`, adds the new one, and sets every listing's release notes (≤1500 characters), the certification notes and `targetPublishMode: Manual`, or `SpecificDate` with `targetPublishDate` `T` (`--publish-at`).
 - Uploads the zip to the SAS URL, which is never printed, then commits.
 
