@@ -236,6 +236,9 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
             ("switch", { SongsUITestSupport.switchBareTrack(of: toggle) }, original),
         ]
         for step in steps {
+            // As `setSwitch`: tap only once the row has stopped moving, so the scroll view
+            // never takes the tap to stop a scroll (#662).
+            SongsUITestSupport.waitUntilFrameSettles(toggle)
             step.target().tap()
             let flipped = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "value == %@", step.expected), object: toggle

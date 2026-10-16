@@ -209,7 +209,7 @@ final class QuickLinksIconAccessibilityJourneyTests: XCTestCase {
     ///   - label: The row's full VoiceOver label.
     /// - Returns: The matching predicate.
     private static func rowPredicate(id: String, label: String) -> NSPredicate {
-        NSPredicate(format: "identifier == %@ OR (identifier == '' AND label == %@)", id, label)
+        FestivalApp.quickLinkRowPredicate(id: id, label: label)
     }
 
     /// The buttons matching ``rowPredicate(id:label:)``; the journey requires exactly one.

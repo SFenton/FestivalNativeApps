@@ -41,7 +41,7 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
         var openRow: String?
         /// The Quick Links section that jumps near the button, and the element that shows
         /// the jump landed, where the page offers Quick Links.
-        var quickLink: (section: String, landing: String)? = nil
+        var quickLink: (section: String, label: String, landing: String)? = nil
         /// An element that exists once the page has loaded.
         let ready: String
         /// The button's identifier, or a prefix when `idSuffix` is set.
@@ -83,7 +83,7 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
     ]
     private static let songRow = "fst.songs.row.fixture-pulse"
     private static let songPreview = Card(
-        name: "song-preview", env: songDetail, openRow: songRow, quickLink: ("instrument-Solo_Guitar", "fst.song-detail.card-header.Solo_Guitar"),
+        name: "song-preview", env: songDetail, openRow: songRow, quickLink: ("instrument-Solo_Guitar", "Lead", "fst.song-detail.card-header.Solo_Guitar"),
         ready: "fst.song-detail.intensity",
         id: "fst.song-detail.leaderboard.Solo_Guitar",
         nameFormat: #"^View Full Leaderboard, Lead$"#, words: ["view", "full", "leaderboard"],
@@ -282,7 +282,7 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
         let open = app.buttons["fst.quick-links.open"]
         guard open.waitForExistence(timeout: FestivalApp.budget(2)), open.isHittable else { return false }
         open.tap()
-        let item = app.buttons["fst.quick-links.item.\(link.section)"]
+        let item = FestivalApp.quickLinkRow(link.section, label: link.label, in: app)
         guard item.waitForExistence(timeout: FestivalApp.budget(10)) else {
             XCTFail("\(card.name): Quick Links has no \(link.section)")
             return false
