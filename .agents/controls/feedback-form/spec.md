@@ -30,7 +30,7 @@ The service transcodes oversized media, labels the issue with the plain platform
   - unknown outcome (no ID, poll error, expired job or timeout): *Thanks! Your report was received and will be filed on GitHub shortly.*, so people don't send duplicates;
   - failed filing: back to the form with input kept and a retry message;
   - HTTP errors: mapped from the service `code` (or the status), with `Retry-After` shown as "Try again in N minutes".
-- **Never** send `X-API-Key` or selected-profile headers. Automation posts only to fixtures. `tools/mock_service.py` reports `feedback: true`, answers 202 with a job that is `submitted` as issue #1, `503 feedback_busy` when the title contains `fixture-unavailable` and a job that `failed` when it contains `fixture-failed`. A request containing `fixture-slow` (#634) answers its upload after 2 s and reports `processing` for its first two status reads before issue #1, so journeys can inspect both busy stages.
+- **Never** send `X-API-Key` or selected-profile headers. Automation posts only to fixtures. `tools/mock_service.py` reports `feedback: true`, answers 202 with a job that is `submitted` as issue #1, `503 feedback_busy` when the title contains `fixture-unavailable` and a job that `failed` when it contains `fixture-failed`. A request containing `fixture-slow` (#634) answers its upload after 2 s and reports `processing` for its first four status reads (`FEEDBACK_SLOW_READS`; #662 raised it from two so a slow CI runner still sees filing) before issue #1, so journeys can inspect both busy stages.
 
 ## States
 

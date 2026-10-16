@@ -171,7 +171,7 @@ final class SongDetailBandColumnsJourneyTests: XCTestCase {
     @MainActor
     private func openDuos(in app: XCUIApplication) throws {
         app.buttons["fst.quick-links.open"].tap()
-        let item = app.buttons["fst.quick-links.item.band-Band_Duets"]
+        let item = FestivalApp.quickLinkRow("band-Band_Duets", label: "Duos", in: app)
         XCTAssertTrue(item.waitForExistence(timeout: FestivalApp.budget(10)), "Quick Links has no Duos section")
         item.tap()
         let heading = any("band-header.Band_Duets", in: app)

@@ -655,7 +655,7 @@ class MockServiceTests(unittest.TestCase):
             urlopen(self.base + "/api/feedback/" + "a" * 32)
         self.assertEqual(error.exception.code, 404)
 
-        # #634: a slow job answers late and stays processing for two reads, then files.
+        # #634: a slow job answers late and stays processing for a few reads, then files.
         started = time.monotonic()
         with urlopen(post("[Bug] fixture-slow", {})) as response:
             slow_id = json.load(response)["id"]
@@ -664,7 +664,7 @@ class MockServiceTests(unittest.TestCase):
         for _ in range(FEEDBACK_SLOW_READS + 1):
             with urlopen(self.base + "/api/feedback/" + slow_id) as response:
                 reads.append(json.load(response)["status"])
-        self.assertEqual(reads, ["processing", "processing", "submitted"])
+        self.assertEqual(reads, ["processing"] * FEEDBACK_SLOW_READS + ["submitted"])
 
         for title, headers, fields, code, error_code in [
             ("[Bug] fixture-unavailable", {}, ("kind", "platform", "description"), 503, "feedback_busy"),

@@ -119,4 +119,31 @@ enum FestivalApp {
         walk(try root.snapshot())
         return found
     }
+
+    // MARK: - Quick Links
+
+    /// Matches a Quick Links row by its identifier or, in a native menu that drops its rows'
+    /// identifiers (iOS 27 on iPad and the Duo, #626, #662), an unidentified element whose
+    /// VoiceOver label is exactly `label` (pattern `quick-links` R6).
+    ///
+    /// - Parameters:
+    ///   - id: The row's full `fst.quick-links.item.*` identifier.
+    ///   - label: The row's full VoiceOver label (the section's spoken title).
+    /// - Returns: The predicate.
+    static func quickLinkRowPredicate(id: String, label: String) -> NSPredicate {
+        NSPredicate(format: "identifier == %@ OR (identifier == '' AND label == %@)", id, label)
+    }
+
+    /// The open Quick Links chooser's row for `section`, whether a sheet (identified rows) or
+    /// a native menu (iOS 27 drops the identifiers, so the exact spoken label finds it).
+    ///
+    /// - Parameters:
+    ///   - section: The section ID after `fst.quick-links.item.`, e.g. `band-Band_Duets`.
+    ///   - label: The row's VoiceOver label, e.g. `Duos`.
+    ///   - app: The app with the chooser open.
+    /// - Returns: The row's button.
+    @MainActor
+    static func quickLinkRow(_ section: String, label: String, in app: XCUIApplication) -> XCUIElement {
+        app.buttons.matching(quickLinkRowPredicate(id: "fst.quick-links.item.\(section)", label: label)).firstMatch
+    }
 }
