@@ -278,21 +278,26 @@ def release_version_of(msix: str) -> Optional[str]:
     return "%s.%02d.%02d" % (match.group(1), day, nn) if 1 <= day <= 31 and nn >= 1 else None
 
 
-def find_artifact(run: Runner, repo: str, build: str, runs: int = 20) -> Optional[Dict[str, Any]]:
-    """The newest successful build's artifact for ``build``: an MSIX version, or a ``YYMM.DD.NN`` release
-    version (the release train submits the newest version that passed full CI, not always the latest build).
+def find_artifact(run: Runner, repo: str, build: str, pages: int = 10) -> Optional[Dict[str, Any]]:
+    """The newest artifact for ``build``: an MSIX version, or a ``YYMM.DD.NN`` release version (the release train
+    submits the newest version that passed full CI, which can be days and dozens of builds old).
+
+    Scans the repository's artifact list newest first (100 per page, ``pages`` pages): the 20 newest build runs were
+    not enough on 2026-10-15, when a day of cherry-picked Windows fixes produced 20 builds before Thursday's lookup.
 
     Returns:
         ``{version, sha, placeholder, name, run_id, expired}`` or ``None``.
     """
-    listing = json.loads(run(["api", "repos/%s/actions/workflows/%s/runs?status=success"
-                                     "&per_page=%d" % (repo, WORKFLOW, runs)]) or "{}")
-    for item in listing.get("workflow_runs") or []:
-        arts = json.loads(run(["api", "repos/%s/actions/runs/%s/artifacts" % (repo, item["id"])]) or "{}")
-        for art in arts.get("artifacts") or []:
+    for page in range(1, pages + 1):
+        listing = json.loads(run(["api", "repos/%s/actions/artifacts?per_page=100&page=%d" % (repo, page)]) or "{}")
+        arts = listing.get("artifacts") or []
+        for art in arts:
             parsed = parse_artifact(art.get("name", ""))
             if parsed and build in (parsed["version"], release_version_of(parsed["version"])):
-                return dict(parsed, name=art["name"], run_id=item["id"], expired=bool(art.get("expired")))
+                run_id = (art.get("workflow_run") or {}).get("id")
+                return dict(parsed, name=art["name"], run_id=run_id, expired=bool(art.get("expired")))
+        if len(arts) < 100:
+            break
     return None
 
 
@@ -444,10 +449,22 @@ def _clear_pending(client: StoreClient, app: Dict[str, Any], replace: bool = Fal
         except StoreError as err:
             raise Blocked("cannot_cancel_%s" % status) from err
         return "replaced:%s:%s" % (status, version)
-    if status not in FAILED_STATUSES and not is_own_submission(pending):
+    if status not in FAILED_STATUSES and not is_own_submission(pending) and not _abandoned_clone(client, app, pending):
         raise Blocked("foreign_pending_submission")
     client.request("DELETE", "/applications/%s/submissions/%s" % (client.creds.app_id, pending["id"]))
     return None
+
+
+def _abandoned_clone(client: StoreClient, app: Dict[str, Any], pending: Dict[str, Any]) -> bool:
+    """Whether a pending draft is an unchanged clone of the published submission (a ``submit`` that failed between
+    creating the clone and writing it, e.g. Store HTTP 500 on the PUT, 2026-10-15). Deleting it loses nothing."""
+    if str(pending.get("status") or "") != "PendingCommit":
+        return False
+    published = submission(client, app.get("lastPublishedApplicationSubmission"))
+    if published is None:
+        return False
+    return (package_version(pending) == package_version(published)
+            and pending.get("notesForCertification") == published.get("notesForCertification"))
 
 
 def prepare_submission(body: Dict[str, Any], file_name: str, notes: str, sha: str,
@@ -533,13 +550,21 @@ def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], bui
             return {"submitted": False, "refused": "no_user_facing_changes", "build": build}
         created = client.request("POST", "/applications/%s/submissions" % client.creds.app_id)
         submission_id = str(created.get("id") or "<new>")
-        upload_url = str(created.pop("fileUploadUrl", "") or "")
-        if not client.dry_run and not upload_url:
-            raise StoreError(0, "new submission has no fileUploadUrl")
-        body = prepare_submission(created, file_name, notes, artifact["sha"], publish_at)
         path = "/applications/%s/submissions/%s" % (client.creds.app_id, submission_id)
-        client.request("PUT", path, body)
-        client.upload(upload_url, data)
+        try:
+            upload_url = str(created.pop("fileUploadUrl", "") or "")
+            if not client.dry_run and not upload_url:
+                raise StoreError(0, "new submission has no fileUploadUrl")
+            body = prepare_submission(created, file_name, notes, artifact["sha"], publish_at)
+            client.request("PUT", path, body)
+            client.upload(upload_url, data)
+        except (StoreError, OSError, RuntimeError):
+            # Don't leave an unmarked draft behind: it would block every later submission as someone else's.
+            try:
+                client.request("DELETE", path)
+            except StoreError:
+                pass
+            raise
         client.request("POST", path + "/commit")
 
     if not client.dry_run:
