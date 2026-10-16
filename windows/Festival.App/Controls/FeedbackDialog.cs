@@ -418,8 +418,7 @@ public sealed class FeedbackDialog
     private void OnFormChanged(object? sender, PropertyChangedEventArgs e)
     {
         Render();
-        if (e.PropertyName == nameof(FeedbackFormViewModel.Error) && form.HasError)
-            dialog.DispatcherQueue.TryEnqueue(() => errorBar.StartBringIntoView());
+        if (e.PropertyName == nameof(FeedbackFormViewModel.Error) && form.HasError) RevealAfterLayout(errorBar);
         // The error and discard InfoBars raise their own notification when they open.
         switch (e.PropertyName)
         {
@@ -529,7 +528,7 @@ public sealed class FeedbackDialog
             ring.IsActive = false;
             stage.ClearValue(FrameworkElement.MinHeightProperty);
             scroller.Visibility = Visibility.Visible;
-            if (form.HasError) dialog.DispatcherQueue.TryEnqueue(() => errorBar.StartBringIntoView());
+            if (form.HasError) RevealAfterLayout(errorBar);
             Fade(scroller, 1, null);
         });
     }
@@ -778,9 +777,21 @@ public sealed class FeedbackDialog
         Control target = attach.IsEnabled ? attach
             : tiles.Children.OfType<Grid>().LastOrDefault()?.Children.OfType<Button>().FirstOrDefault() ?? (Control)title;
         target.Focus(FocusState.Programmatic);
-        // The new tiles push Attach Media down after this layout pass; keep the tiles, notice and button on screen.
-        dialog.DispatcherQueue.TryEnqueue(() => target.StartBringIntoView());
+        // The new tiles push Attach Media down; keep the tiles, notice and button on screen.
+        RevealAfterLayout(target);
     }
+
+    /// <summary>
+    /// Brings an element of the form into view once the layout its change needs (new tiles, an opened InfoBar, the form
+    /// shown again) has run: revealing it from a stale layout leaves it pushed out of the scroller on a busy host (#664).
+    /// </summary>
+    /// <param name="element">Element to keep on screen.</param>
+    private void RevealAfterLayout(UIElement element) =>
+        dialog.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            scroller.UpdateLayout();
+            element.StartBringIntoView();
+        });
 
     /// <summary>Attachment for a picked path (size from the file system when readable).</summary>
     /// <param name="path">File path.</param>

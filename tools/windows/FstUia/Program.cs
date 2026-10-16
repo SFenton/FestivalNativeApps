@@ -832,6 +832,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             case "reveal":
                 Reveal(window, step);
                 break;
+            case "pagedown":
+                PageScrollerDown(window, step);
+                break;
             case "wait":
                 Thread.Sleep(TimeSpan.FromSeconds(double.Parse(arg, System.Globalization.CultureInfo.InvariantCulture)));
                 break;
@@ -1403,6 +1406,29 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
             .OrderByDescending(e => e.BoundingRectangle.Width * e.BoundingRectangle.Height)
             .FirstOrDefault();
         target?.Patterns.Scroll.Pattern.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, FlaUI.Core.Definitions.ScrollAmount.LargeIncrement);
+    }
+
+    /// <summary>
+    /// Pages a scroller down one viewport through the UIA Scroll pattern (no input, works on a locked console) once it has
+    /// content below its viewport: at its end it waits (the step's timeout, default 5 s) for content appended there, such
+    /// as an incremental list's next batch, so the page lands on that content's first rows (issue #664).
+    /// </summary>
+    /// <param name="window">App window.</param>
+    /// <param name="step">Step with the scroller's selector and an optional timeout.</param>
+    /// <exception cref="InvalidOperationException">No Scroll pattern, or nothing below the viewport by the timeout.</exception>
+    private void PageScrollerDown(Window window, JsonObject step)
+    {
+        var scroller = Find(window, step);
+        if (!scroller.Patterns.Scroll.IsSupported) throw new InvalidOperationException("pagedown target has no Scroll pattern");
+        var scroll = scroller.Patterns.Scroll.Pattern;
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
+        // Below 99%: a list at its end can read a fraction under 100 while it measures its last rows.
+        while (!(scroll.VerticallyScrollable.ValueOrDefault && scroll.VerticalScrollPercent.ValueOrDefault < 99))
+        {
+            if (DateTime.UtcNow > until) throw new InvalidOperationException($"pagedown: {Condition(step).Label} has nothing below its viewport");
+            Thread.Sleep(100);
+        }
+        scroll.Scroll(FlaUI.Core.Definitions.ScrollAmount.NoAmount, FlaUI.Core.Definitions.ScrollAmount.LargeIncrement);
     }
 
     /// <summary>

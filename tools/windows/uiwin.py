@@ -104,7 +104,7 @@ STEP_VERBS = {
     "type": "text", "key": "keys", "keys": "keyseq", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
-    "scrollto": "scrollto",
+    "scrollto": "scrollto", "pagedown": "selector",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
     "assertcentred": "centred", "assertdock": "dock", "assertmidline": "midline", "assertmiddle": "gap",
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
@@ -266,7 +266,9 @@ def parse_step(step: str) -> dict:
     ``scrollto:<selector>,<percent>`` sets a scroller's vertical position through the UIA
     Scroll pattern (a no-op when the content fits and the scroller can't scroll) and ``reveal:<selector>``
     scrolls the target into view (UIA ScrollItem, else stepping its scroller from the top), with no input,
-    so both work while the console is locked;
+    so both work while the console is locked; ``pagedown:<selector>[@seconds]`` pages a scroller down one viewport the
+    same way once it has content below its viewport, waiting at its end for content appended there (an incremental
+    list's next batch, issue #664);
     ``assertname:<sel>|<text>`` waits (default 5 s) until the element's UIA Name is exactly the text (each ``*`` matches
     any run of characters, so ``|*<text>`` waits until it ends with the text, for names that start with a local-time date);
     ``assertaligned:<sel>|<sel>`` fails unless both elements' horizontal centres are within 2 px (a column);
