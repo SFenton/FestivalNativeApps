@@ -18,7 +18,7 @@ Scenario          What the trace must show
 ``band-board``    Song band leaderboard: the same, with the selected band's pinned row.
 ``full-rankings`` Full Rankings: the same, with the pinned footer.
 ``profile``       Statistics (Player Profile): a Quick Links jump during the overview entrance rushes its title,
-                  heading and grid.
+                  heading and grid. The phase reads the trace only once the jump has started (issue #663).
 ================  ======================================================================================================
 
 A failure means a fade that should have joined the rush (the review's #358 regressions: a pinned row outside its
@@ -57,6 +57,12 @@ RANKED = "fixture-rank-40:Fixture Rank 40"
 """Ranked 40th in the ``--large-rankings`` account rankings (page 2), so Full Rankings pins the footer on page 1."""
 SONG_DETAIL_PARTS = ("FullHeader", "IntensitySection", "HistorySection", "LeaderboardsSection")
 PLAYER_ROW = "id=fst.song-detail.preview-row.Solo_Guitar.fixture-player-17"
+QUICK_LINK_JUMPED = ["waitgone:id=fst.quick-links.item.bands@10",
+                     "assertstate:id=fst.quick-links.open|name=Quick Links, current section Bands@10"]
+"""Waits for a Quick Links menu pick to start its jump before the trace is read (issue #663). The menu jumps only once it
+has closed, from a Low-priority dispatch (#548): on a slow host still building Statistics, that ran after a fixed settle
+wait, so the trace had no scroll at all. The button's name reports the jump's section as the jump starts, and the
+scroll then lands within the settle wait."""
 
 
 def board_rush(open_steps: list[str], list_id: str, owner: str, pinned: str,
@@ -127,7 +133,7 @@ SCENARIOS = {
         fade_trace.Phase("quick-links", ["waitfor:id=fst.nav.statistics@30", "select:id=fst.nav.statistics",
                                          "waitfor:id=fst.player.overview@30", "invoke:id=fst.quick-links.open",
                                          "waitfor:id=fst.quick-links.item.bands@5",
-                                         "toggle:id=fst.quick-links.item.bands"],
+                                         "toggle:id=fst.quick-links.item.bands", *QUICK_LINK_JUMPED],
                          lambda events: fade_trace.check_entrance_rush(
                              events, "Scroller", ["TitleRow", "OverviewHeading", "OverviewGrid"], FADE_WINDOW_MS)),
     ]),
