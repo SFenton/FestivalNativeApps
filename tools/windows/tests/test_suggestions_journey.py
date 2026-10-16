@@ -34,6 +34,22 @@ class LockBoundTests(unittest.TestCase):
         self.assertLessEqual(j.LOCK_BOUND, set(j.SCENARIOS))
 
 
+class LoadMoreCardTests(unittest.TestCase):
+    """Issue #661: load-more and end-of-mix target the cards seed 1 shows after Suggestions R1 (#656)."""
+
+    def test_cards_after_named_rival_mix(self):
+        self.assertEqual("id=fst.suggestions.category.song_rival_protect_rival-below-2", j.RIVAL_CARD)
+        self.assertEqual("id=fst.suggestions.category.song_rival_dominate_rival-above-2", j.TWELFTH_CARD)
+
+    def test_scenarios_scroll_to_them_after_the_tenth_card(self):
+        load_more = j.SCENARIOS["load-more"][2]
+        self.assertLess(load_more.index(f"scrollinto:{j.TENTH_CARD}"), load_more.index(f"scrollinto:{j.RIVAL_CARD}@15"))
+        self.assertIn(f"waitfor:{j.RIVAL_CARD}@10", load_more)
+        end = j.SCENARIOS["end-of-mix"]
+        self.assertEqual("12", end[1]["FST_DEBUG_SUGGESTIONS_LIMIT"])
+        self.assertLess(end[2].index(f"scrollinto:{j.TENTH_CARD}"), end[2].index(f"scrollinto:{j.TWELFTH_CARD}@15"))
+
+
 class RivalCardTests(unittest.TestCase):
     """Issue #259: spotlight rows draw no name pill but name the rival; mixed-rival rows keep the pill."""
 
