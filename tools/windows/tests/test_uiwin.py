@@ -77,6 +77,13 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_pagedown_pages_a_scroller_selector(self):
+        # Issue #664: an input-free page down onto content appended below a list's end.
+        step = u.parse_step("pagedown:id=fst.suggestions.list@10")
+        self.assertEqual((step["verb"], step["selector"]["value"], step["timeout"]), ("pagedown", "fst.suggestions.list", 10.0))
+        with self.assertRaises(ValueError):
+            u.parse_step("pagedown:5,6")
+
     def test_assertnoscrollbar_takes_an_element_selector(self):
         for verb in ("assertnoscrollbar", "assertscrollbar"):
             step = u.parse_step(f"{verb}:id=fst.paths.image-scroller")

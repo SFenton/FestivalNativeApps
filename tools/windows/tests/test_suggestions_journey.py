@@ -50,6 +50,18 @@ class LoadMoreCardTests(unittest.TestCase):
         self.assertLess(end[2].index(f"scrollinto:{j.TENTH_CARD}"), end[2].index(f"scrollinto:{j.TWELFTH_CARD}@15"))
 
 
+class FadeLoadMoreTests(unittest.TestCase):
+    """Issue #664: the fade scenario pages the appended batch's first cards on screen inside its window."""
+
+    def test_one_jump_then_a_page_onto_the_batch(self):
+        phase = next(p for p in j.FADE_PHASES if p.label == "load-more")
+        jumps = [i for i, step in enumerate(phase.steps) if step == "scrollto:id=fst.suggestions.list,100"]
+        # A second jump merges into the same reveal (#532) and lands past its staggered cards.
+        self.assertEqual(1, len(jumps))
+        self.assertEqual(jumps[0] + 1, phase.steps.index("pagedown:id=fst.suggestions.list@10"))
+        self.assertEqual("pagedown:id=fst.suggestions.list@10", phase.steps[-1])
+
+
 class RivalCardTests(unittest.TestCase):
     """Issue #259: spotlight rows draw no name pill but name the rival; mixed-rival rows keep the pill."""
 
