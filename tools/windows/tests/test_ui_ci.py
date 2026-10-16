@@ -155,6 +155,18 @@ class UiCiTests(unittest.TestCase):
                 self.assertIn(("normal", "wide"), covered(name))
         self.assertTrue(all(run.scan for run in ci.RUNS if run.pages == "a11y-wide-columns.json"))
         self.assertFalse([run for run in ci.RUNS if run.name.startswith("a11y-wide-columns")])
+        # Issue #661: the seed 1 cards after Suggestions R1 (#656): cards 9 | 10 end the first batch, 11 | 12 open the next.
+        load_more = pages["wide-columns-suggestions-load-more"]["after_ready"]
+        self.assertIn("scrollinto:id=fst.suggestions.category.song_rival_dominate_rival-above-2@15", load_more)
+        self.assertIn("assertlevel:name=Protect Your Lead vs Rival B2&class=TextBlock|name=Dominate Rival A2&class=TextBlock",
+                      load_more)
+        self.assertIn("assertorder:name=Top 50% Push, New on Pro Lead|name=Protect Your Lead vs Rival B2, Dominate Rival A2",
+                      load_more)
+        tab = load_more.index("key:tab")
+        self.assertEqual("assertfocus:id=fst.suggestions.row.s006|Solo_Guitar@3", load_more[tab + 1])
+        down = load_more.index("key:down")
+        self.assertEqual(["assertfocus:id=fst.suggestions.row.s019|Solo_Guitar@3", "key:up",
+                          "assertfocus:id=fst.suggestions.row.s055@3"], load_more[down + 1:down + 4])
 
     def test_songs_chip_rows_run_at_default_and_largest_text(self):
         # Issue #645 review: the narrow chip-row journey gates the release-branch suite at default and 225% text,

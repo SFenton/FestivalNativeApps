@@ -335,11 +335,20 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         }
     }
 
+    /// <summary>
+    /// The process's largest visible top-level window. Only elements backed by a native window qualify: every command
+    /// reads the target's <c>NativeWindowHandle</c>, and a top-level element without one (a WinUI windowed popup's
+    /// content root) made a later read throw "property not supported" (#661). While only such elements are visible
+    /// this returns <see langword="null"/>, so <see cref="WaitForWindow"/> keeps polling for the real window.
+    /// </summary>
+    /// <param name="pid">App process ID.</param>
+    /// <returns>The window, or <see langword="null"/> when none qualifies.</returns>
     private Window? TopWindow(int pid)
     {
         var desktop = automation.GetDesktop();
         return desktop.FindAllChildren(cf => cf.ByProcessId(pid))
-            .Where(e => !e.Properties.IsOffscreen.ValueOrDefault && e.Properties.BoundingRectangle.ValueOrDefault.Width > 0)
+            .Where(e => !e.Properties.IsOffscreen.ValueOrDefault && e.Properties.BoundingRectangle.ValueOrDefault.Width > 0
+                && HasNativeWindow(e))
             .OrderByDescending(e => e.BoundingRectangle.Width * e.BoundingRectangle.Height)
             .Select(e => e.AsWindow())
             .FirstOrDefault();
@@ -369,6 +378,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         .Where(e => e.Properties.NativeWindowHandle.ValueOrDefault is var hwnd && hwnd != IntPtr.Zero && Native.IsIconic(hwnd))
         .Select(e => e.AsWindow())
         .FirstOrDefault();
+
+    /// <summary>Whether a top-level element reports a native window handle (UIA leaves it unsupported otherwise).</summary>
+    /// <param name="element">Top-level element.</param>
+    /// <returns><see langword="true"/> when its <c>NativeWindowHandle</c> is a non-zero HWND.</returns>
+    private static bool HasNativeWindow(AutomationElement element) =>
+        element.Properties.NativeWindowHandle.ValueOrDefault != IntPtr.Zero;
 
     private static JsonNode Describe(Window window)
     {
