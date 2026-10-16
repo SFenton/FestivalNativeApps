@@ -700,9 +700,11 @@ FEEDBACK_FAILED_JOB = "f" * 32
 #: A title containing ``fixture-slow`` (issue #634) answers its upload after
 #: ``FEEDBACK_SLOW_UPLOAD_S`` and reports ``processing`` for its first
 #: ``FEEDBACK_SLOW_READS`` status reads, so journeys can see both busy stages.
+#: Four reads (about 8 s of filing at the apps' 2 s poll) outlast a slow CI
+#: runner's checks of the sending stage (#662: two closed the sheet under them).
 FEEDBACK_SLOW_JOB = "0" * 31 + "2"
 FEEDBACK_SLOW_UPLOAD_S = 2.0
-FEEDBACK_SLOW_READS = 2
+FEEDBACK_SLOW_READS = 4
 _feedback_slow_reads = 0
 _feedback_slow_lock = threading.Lock()
 

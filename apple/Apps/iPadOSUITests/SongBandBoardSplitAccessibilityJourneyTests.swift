@@ -97,7 +97,7 @@ final class SongBandBoardSplitAccessibilityJourneyTests: XCTestCase {
         let quickLinks = app.buttons["fst.quick-links.open"]
         if quickLinks.waitForExistence(timeout: FestivalApp.budget(15)) {
             quickLinks.tap()
-            let duos = app.buttons["fst.quick-links.item.band-Band_Duets"]
+            let duos = FestivalApp.quickLinkRow("band-Band_Duets", label: "Duos", in: app)
             if duos.waitForExistence(timeout: FestivalApp.budget(10)) { duos.tap() }
         }
         guard window.width > window.height,
