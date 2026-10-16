@@ -208,7 +208,9 @@ class AppleCIJourneysTests(unittest.TestCase):
     def test_songs_filter_legs_retry_a_failed_batch_once(self) -> None:
         legs = self.workflow.split("songs-filter-journeys:", 1)[1].split("\n  apple-ci:", 1)[0]
         self.assertIn("--retries 1", legs)
-        self.assertNotIn("--retries", self.workflow.split("songs-filter-journeys:", 1)[0])
+        # Every release-suite job retries a failed batch once (2610.12: one flaky journey a day blocked iOS).
+        self.assertNotIn("--fail-on-skip --timeout", self.workflow.replace("--fail-on-skip --retries 1", ""),
+                         "every --fail-on-skip journey call also passes --retries 1")
 
     def test_songs_filter_legs_skip_failure_diagnostics(self) -> None:
         # A failure's diagnostics take up to 600 s; the folded Duo leg's runner was lost during its journeys (#620).
@@ -334,7 +336,7 @@ class AppleCIJourneysTests(unittest.TestCase):
         )
         self.assertIn(
             'only=(); for journey in $MENU_BAR_IPAD_JOURNEYS; do only+=(--only "$journey"); done\n'
-            '          python3 tools/ios_sim.py uitest --app ipad --device "$ipad" --fail-on-skip --timeout 1500 '
+            '          python3 tools/ios_sim.py uitest --app ipad --device "$ipad" --fail-on-skip --retries 1 --timeout 1500 '
             '--batch-size 1 \\\n            --no-test-diagnostics "${only[@]}"',
             self.workflow,
         )
@@ -401,7 +403,7 @@ class AppleCIJourneysTests(unittest.TestCase):
     def test_board_footer_fade_keyboard_journey_runs_in_ci(self) -> None:
         # #473: the iPad hardware-keyboard form needs its own invocation, because --a11y applies to a whole run.
         self.assertIn(
-            "--a11y full-keyboard-access --fail-on-skip \\\n"
+            "--a11y full-keyboard-access --fail-on-skip --retries 1 \\\n"
             "            --timeout 900 --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter",
             self.workflow,
         )
@@ -409,7 +411,7 @@ class AppleCIJourneysTests(unittest.TestCase):
     def test_ipad_whats_new_batches_outlast_a_cold_simulator(self) -> None:
         # The first iPad batch runs on a just-created simulator: >900 s on slow runners (runs 37924278904, 37942308616).
         step = self.workflow.split("name: iPad simulator journeys", 1)[1].split("\n      - name:", 1)[0]
-        timeout = re.search(r"--batch-size 1 --fail-on-skip --timeout (\d+)", step)
+        timeout = re.search(r"--batch-size 1 --fail-on-skip --retries 1 --timeout (\d+)", step)
         self.assertIsNotNone(timeout, "iPad step runs one selector per batch with a timeout")
         self.assertGreaterEqual(int(timeout.group(1)), 1500)
 
@@ -456,7 +458,7 @@ class AppleCIJourneysTests(unittest.TestCase):
     def test_page_tools_keyboard_journey_runs_in_ci(self) -> None:
         # #442 (for #89): hardware-keyboard focus on Songs' page tools, its own --a11y invocation.
         self.assertIn(
-            "--a11y full-keyboard-access --fail-on-skip \\\n"
+            "--a11y full-keyboard-access --fail-on-skip --retries 1 \\\n"
             "            --timeout 900 --only PageToolsSearchFieldJourneyTests/testPageToolsAreInTheKeyboardFocusGroupAndOperable",
             self.workflow,
         )
