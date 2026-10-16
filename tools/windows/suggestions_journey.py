@@ -45,8 +45,10 @@ LAST_ROW = "id=fst.suggestions.row.s001|Solo_PeripheralGuitar"
 CARD = "id=fst.suggestions.category.stale_Solo_PeripheralGuitar_2"
 NEXT_CARD_ROW = "id=fst.suggestions.row.s091"
 TENTH_CARD = "id=fst.suggestions.category.unplayed_Solo_PeripheralGuitar"
-RIVAL_CARD = "id=fst.suggestions.category.song_rival_gap_rival-below-0"
-TWELFTH_CARD = RIVAL_CARD
+# Seed 1 after Suggestions R1 (#656, #661): card 11 opens the batch loaded after the first ten; card 12 ends it when
+# FST_DEBUG_SUGGESTIONS_LIMIT caps the mix at 12.
+RIVAL_CARD = "id=fst.suggestions.category.song_rival_protect_rival-below-2"
+TWELFTH_CARD = "id=fst.suggestions.category.song_rival_dominate_rival-above-2"
 # Seed 1 rival cards (issues #259, #656): a single-rival spotlight (no name pill; Narrator names the rival in the delta),
 # the mixed-rival Stale card whose rows keep the pill because each can be about a different rival, and the named-rival
 # cross-pollination cards (Suggestions R1), which list only the rival in their title and so drop the pill too.
