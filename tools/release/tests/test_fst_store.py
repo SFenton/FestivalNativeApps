@@ -348,6 +348,29 @@ class SubmitTests(Base):
         found = fs.find_artifact(gh, "r", "2610.14.03")
         self.assertEqual((found["version"], found["sha"], found["run_id"]), ("2610.1403.176.0", SHA_OLD, 70))
 
+    def test_a_rejected_scheduled_publish_falls_back_to_manual(self):
+        routes = self.submit_routes()
+        puts = []
+
+        def put(body):
+            puts.append(dict(body))
+            if body.get("targetPublishMode") == "SpecificDate":
+                return (500, {"code": "InternalServerError", "message": "An internal server error occurred"})
+            return body
+        routes[("PUT", API + "/submissions/300")] = put
+        store = FakeStore(routes)
+        code, doc = self.run_cli(["submit", "--build", "0.1.912.0", "--notes-stdin", "--publish-at",
+                                  "2026-10-19T11:00:00Z"], store, FakeGh())
+        self.assertEqual((code, doc["publish_mode"]), (0, "Manual"))
+        self.assertIn("SpecificDate rejected (HTTP 500)", doc["publish_fallback"])
+        self.assertNotIn("publish_at", doc)
+        self.assertEqual([p["targetPublishMode"] for p in puts], ["SpecificDate", "Manual"])
+        self.assertNotIn("targetPublishDate", puts[1])
+        self.assertEqual([(p["fileName"], p["fileStatus"]) for p in puts[1]["applicationPackages"]],
+                         [("old.msixupload", "PendingDelete"),
+                          ("FestivalScoreTracker_0.1.912.0_x64.msixupload", "PendingUpload")])
+        self.assertEqual(store.writes()[-1], ("POST", API + "/submissions/300/commit"))
+
     def test_a_failed_write_deletes_the_draft_it_created(self):
         routes = self.submit_routes()
         routes[("PUT", API + "/submissions/300")] = (500, {"code": "InternalServerError", "message": "oops"})

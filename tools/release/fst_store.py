@@ -548,6 +548,7 @@ def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], bui
             notes = notes if generated is None else generated
         if not notes:
             return {"submitted": False, "refused": "no_user_facing_changes", "build": build}
+        fallback = None
         created = client.request("POST", "/applications/%s/submissions" % client.creds.app_id)
         submission_id = str(created.get("id") or "<new>")
         path = "/applications/%s/submissions/%s" % (client.creds.app_id, submission_id)
@@ -556,7 +557,18 @@ def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], bui
             if not client.dry_run and not upload_url:
                 raise StoreError(0, "new submission has no fileUploadUrl")
             body = prepare_submission(created, file_name, notes, artifact["sha"], publish_at)
-            client.request("PUT", path, body)
+            try:
+                client.request("PUT", path, body)
+            except StoreError as err:
+                if not publish_at or err.status < 500:
+                    raise
+                # The Store answered HTTP 500 to every SpecificDate PUT (2026-10-15/16) while Manual ones worked:
+                # hold for a manual publish instead (Monday's check then reports manual_publish_required).
+                body["targetPublishMode"] = PUBLISH_MODE
+                body.pop("targetPublishDate", None)
+                client.request("PUT", path, body)
+                fallback = "SpecificDate rejected (HTTP %s); held for manual publish" % err.status
+                publish_at = None
             client.upload(upload_url, data)
         except (StoreError, OSError, RuntimeError):
             # Don't leave an unmarked draft behind: it would block every later submission as someone else's.
@@ -573,6 +585,8 @@ def submit(client: StoreClient, run: Runner, repo: str, env: Dict[str, str], bui
               "sha": artifact["sha"], "publish_mode": SCHEDULED_MODE if publish_at else PUBLISH_MODE}
     if publish_at:
         result["publish_at"] = publish_at
+    if fallback:
+        result["publish_fallback"] = fallback
     if replaced:
         result["replaced"] = replaced
     return result
