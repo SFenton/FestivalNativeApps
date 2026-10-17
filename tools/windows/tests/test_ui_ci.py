@@ -131,6 +131,21 @@ class UiCiTests(unittest.TestCase):
         for run in (run for run in ci.RUNS if run.only == ci.SUGGESTIONS_ROW_CENTRE):
             self.assertLess(names.index(run.name), names.index("suggestions"))
 
+    def test_reflow_runs_with_and_without_motion(self):
+        # Issue #669: every reflow page runs wide with motion and with each motion-off mode (its reflow_trace then
+        # requires instant reflows), and the file also runs at 225% text.
+        pages = json.loads((ci.JOURNEYS / "a11y-reflow.json").read_text(encoding="utf-8"))
+        runs = {run.mode: run for run in ci.RUNS if run.pages == "a11y-reflow.json"}
+        self.assertEqual({"normal", "app-reduced", "no-animations", "text-225"}, set(runs))
+        for page in (page for page in pages if page.get("reflow_trace")):
+            with self.subTest(page=page["name"]):
+                for mode in ("normal", "app-reduced", "no-animations"):
+                    self.assertIn(page, m.mode_pages([page], mode))
+                    self.assertEqual(["wide"], m.page_sizes(page, runs[mode].sizes.split(","), mode))
+        self.assertTrue(any(page in m.mode_pages([page], "text-225") for page in pages))
+        self.assertFalse(m.mode_motion("normal") is False)
+        self.assertIs(False, m.mode_motion("no-animations"))
+
     def test_wide_columns_run_wide_at_default_and_large_text(self):
         # Issue #653 review: the two-column pages run wide at default text, and the one-column pages also run wide at
         # 150% (the large-text threshold) and 225% text, where text size alone must keep one column.

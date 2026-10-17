@@ -42,6 +42,10 @@ instant.
 A page with ``"jump_trace": N`` (the times its drive opens the Songs jump index) also launches with ``--perf-log`` and
 fails unless every opening rendered its letters once in their final place (:func:`jump_trace_problems`, issue #648).
 
+A page with ``"reflow_trace": {"split": 2, "suggestions": 2}`` (split opens plus closes, or a card host's column
+changes) also launches with ``--perf-log`` and fails unless its drive made at least that many reflows, all instant in
+``app-reduced`` and ``no-animations`` (:func:`reflow_trace_problems`, pattern ``reflow-motion`` R4, issue #669).
+
 Outputs in ``--out``: ``<page>-<size>[-<mode>].png``, ``results.json`` and ``summary.md`` (page × size:
 Axe errors, tab stops, stops outside the app, repeated stops). Exit code 1 when any page failed to load
 or (with ``--scan``, or on a ``"scan": true`` page) any scan reported errors.
@@ -69,6 +73,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fade_trace  # noqa: E402  (sibling module: FadeIn perf-log lines for pages with "fade_trace")
 import jump_trace  # noqa: E402  (sibling module: Songs jump index perf-log lines for pages with "jump_trace")
+import reflow_trace  # noqa: E402  (sibling module: split and card reflow perf-log lines for pages with "reflow_trace")
 import journey_exe  # noqa: E402  (sibling module: --exe debug|release|aot)
 import ui_journey  # noqa: E402  (sibling tool; shares the fixture-list contract)
 import uiwin  # noqa: E402  (sibling tool; provides the lock, driver and step parser)
@@ -185,9 +190,31 @@ def jump_trace_problems(page: dict, lines: list[str]) -> list[str]:
     return jump_trace.check_opens(jump_trace.parse(lines), int(page["jump_trace"]))
 
 
+def reflow_trace_problems(page: dict, mode: str, lines: list[str]) -> list[str]:
+    """Judge a page's ``reflow_trace``: its split opens/closes and card reflows, instant with motion off (issue #669).
+
+    A page lists ``"reflow_trace": {"split": N, "<host>": M}``: the drive must open or close a split at least N times
+    and reflow each card host at least M times, every one instant under Reduce Motion or Animation effects off
+    (:func:`reflow_trace.check_counts`, pattern ``reflow-motion`` R4). UIA cannot see a composition move.
+
+    Args:
+        page: Page definition.
+        mode: ``--mode`` value.
+        lines: The launch's perf-log lines.
+
+    Returns:
+        Failures (empty when the page has no ``reflow_trace`` or every reflow passed).
+    """
+    expected = page.get("reflow_trace")
+    if not expected:
+        return []
+    return reflow_trace.check_counts(reflow_trace.parse(lines), {k: int(v) for k, v in expected.items()},
+                                     mode_motion(mode))
+
+
 def traced(page: dict) -> bool:
-    """Whether a page launches with ``--perf-log`` (it judges a ``fade_trace`` or a ``jump_trace``)."""
-    return bool(page.get("fade_trace") or page.get("jump_trace"))
+    """Whether a page launches with ``--perf-log`` (it judges a ``fade_trace``, ``jump_trace`` or ``reflow_trace``)."""
+    return bool(page.get("fade_trace") or page.get("jump_trace") or page.get("reflow_trace"))
 
 
 def restore_values(previous: dict, applied: dict | list[str]) -> dict:
@@ -276,7 +303,7 @@ def launch_args(port: int | None, page: dict, settings: Path, perf_log: Path | N
         port: Loopback fixture port, or ``None`` for the app's default keyless public origin (``--live``).
         page: Page definition (``first_run``; optional ``args``, extra app flags such as ``--auto-scroll-span``).
         settings: Isolated settings file.
-        perf_log: The launch's ``--perf-log`` file (a page with ``fade_trace`` or ``jump_trace``), or ``None``.
+        perf_log: The launch's ``--perf-log`` file (a page with ``fade_trace``, ``jump_trace`` or ``reflow_trace``), or ``None``.
 
     Returns:
         Command-line arguments.
@@ -597,6 +624,12 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
                 problems = jump_trace_problems(page, lines)
                 if problems:
                     raise RuntimeError("jump trace: " + "; ".join(problems))
+            if page.get("reflow_trace"):
+                lines = fade_trace.read_lines(state / "perf.log")
+                record["reflow_trace"] = [line for line in lines if line.startswith(("split-", "reflow-move "))]
+                problems = reflow_trace_problems(page, mode, lines)
+                if problems:
+                    raise RuntimeError("reflow trace: " + "; ".join(problems))
         except RuntimeError as error:
             record["ok"] = False
             record["error"] = str(error)

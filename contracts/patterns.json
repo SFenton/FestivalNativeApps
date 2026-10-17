@@ -2580,6 +2580,88 @@
       ]
     },
     {
+      "id": "reflow-motion",
+      "title": "Reflow motion",
+      "status": "current",
+      "doc": ".agents/patterns/reflow-motion.md",
+      "summary": "When a layout reflows (a split pane opens or closes, a window crosses a column threshold, cards rewrap), content that stays glides to its new place and content that arrives or leaves fades (a split pane also slides from or toward its trailing edge), over 300 ms on a decelerate curve. A reflow never reloads, replays a load stagger or loses place, costs no per-frame UI-thread work (Windows draws it on the compositor from one final layout) and is instant under Reduce Motion or Windows Animation effects off.",
+      "keywords": [
+        "reflow",
+        "resize",
+        "relayout",
+        "column change",
+        "rewrap",
+        "split pane",
+        "open pane",
+        "close pane",
+        "glide",
+        "move animation",
+        "fade in",
+        "fade out",
+        "implicit animation",
+        "flip",
+        "reduce motion",
+        "animation effects"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplit.swift",
+            "symbol": "OnDemandSplitLayout"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/App/Layout/DualSourceLayout.swift",
+            "symbol": "DualSourceLayout"
+          }
+        ],
+        "android": [
+          {
+            "path": "android/app/src/main/java/com/festivalscoretracker/android/ui/common/OnDemandSplit.kt",
+            "symbol": "OnDemandSplit"
+          }
+        ],
+        "windows": [
+          {
+            "path": "windows/Festival.App/Controls/ReflowMotion.cs",
+            "symbol": "ReflowMotion"
+          },
+          {
+            "path": "windows/Festival.App/Controls/OnDemandSplitHost.cs",
+            "symbol": "StartMove"
+          },
+          {
+            "path": "windows/Festival.Core/Domain/MotionPolicy.cs",
+            "symbol": "ReflowTiming"
+          }
+        ]
+      },
+      "related": {
+        "patterns": [
+          "split-panes",
+          "wide-columns",
+          "load-transition",
+          "accordion",
+          "back-keeps-place"
+        ],
+        "controls": [],
+        "pages": [
+          "rivals",
+          "leaderboards",
+          "song-detail",
+          "suggestions",
+          "statistics",
+          "shop"
+        ]
+      },
+      "guards": [],
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": [
+        669
+      ]
+    },
+    {
       "id": "empty-error-states",
       "title": "Empty and error states",
       "status": "current",

@@ -114,7 +114,9 @@ public sealed partial class SuggestionsPage : Page
 
     /// <summary>
     /// Pattern wide-columns (#653): two row-major columns of cards in a wide window at standard text sizes, else one.
-    /// A change re-chunks the same cards (nothing reloads or fades again) and keeps the first visible card in view.
+    /// A change re-chunks the same cards (nothing reloads or fades again) and keeps the first visible card in view; each
+    /// card shown before glides from where it was and a card the change brought into view fades in, and keyboard focus
+    /// stays on the row it was on (pattern reflow-motion, #669).
     /// </summary>
     private void UpdateColumns()
     {
@@ -124,8 +126,34 @@ public sealed partial class SuggestionsPage : Page
         if (columns == ViewModel.Columns) return;
         var first = CardList.ItemsPanelRoot is ItemsStackPanel panel ? panel.FirstVisibleIndex : -1;
         var card = first >= 0 && first < ViewModel.Lines.Count ? ViewModel.Lines[first].StartIndex : -1;
-        if (!ViewModel.SetColumns(columns) || card <= 0) return;
-        CardList.ScrollIntoView(ViewModel.Lines[ViewModel.LineOf(card)], ScrollIntoViewAlignment.Leading);
+        var motion = IsLoaded && Motion.Allowed;
+        var before = motion ? ReflowMotion.Capture(CardList, RealizedCards()) : null;
+        ReflowMotion.KeepFocus(CardList);
+        if (!ViewModel.SetColumns(columns)) return;
+        if (card > 0) CardList.ScrollIntoView(ViewModel.Lines[ViewModel.LineOf(card)], ScrollIntoViewAlignment.Leading);
+        if (before is null)
+        {
+            ReflowMotion.Trace("suggestions", 0, 0, false);
+            return;
+        }
+        ReflowMotion.PlayAfterLayout(CardList, before, RealizedCards, "suggestions");
+    }
+
+    /// <summary>The realized cards and the items they show: a one-column line's card, or each card of a pair.</summary>
+    /// <returns>Cards (only reflow events walk them).</returns>
+    private IEnumerable<(object Key, FrameworkElement Element)> RealizedCards()
+    {
+        if (CardList.ItemsPanelRoot is not Panel panel) yield break;
+        foreach (var child in panel.Children)
+        {
+            if (child is not ListViewItem { ContentTemplateRoot: Panel line }) continue;
+            foreach (var part in line.Children)
+            {
+                if (part is ContentPresenter { Content: SuggestionCardItem single } presenter) yield return (single, presenter);
+                else if (part is ContentControl { Content: SuggestionCardItem paired, Visibility: Visibility.Visible } group)
+                    yield return (paired, group);
+            }
+        }
     }
     #endregion
 

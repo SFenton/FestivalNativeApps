@@ -328,6 +328,14 @@ RUNS: tuple[Run, ...] = (
     Run("wide-columns-one-text-150", "a11y-wide-columns.json", sizes="wide", mode="text-150", only=WIDE_COLUMNS_ONE),
     Run("wide-columns", "a11y-wide-columns.json", sizes="compact,medium,wide"),
     Run("wide-columns-text-225", "a11y-wide-columns.json", sizes="compact,wide", mode="text-225"),
+    # Reflow motion (issue #669, pattern reflow-motion): the Rivals split opens and closes and Suggestions and the Item
+    # Shop grid change columns on a wide ↔ medium resize with names, targets, reading order and focus intact while the
+    # compositor moves them, and every reflow is instant with in-app Reduce Motion and with Animation effects off
+    # (reflow_trace). At 225% text Suggestions stays one column through the resize. Wide only: compact never splits.
+    Run("reflow", "a11y-reflow.json", sizes="wide", tabs=0),
+    Run("reflow-reduced", "a11y-reflow.json", sizes="wide", mode="app-reduced", tabs=0),
+    Run("reflow-no-animations", "a11y-reflow.json", sizes="wide", mode="no-animations", tabs=0),
+    Run("reflow-text-225", "a11y-reflow.json", sizes="wide", mode="text-225", tabs=0),
     # Quick Links landings on Settings and Leaderboards (issues #51, #416): entry name and current section, 40 epx
     # entry and items, keyboard order, the jump announcement, heading landing inset and focus. The wide pane page
     # (scale-100/150 modes) stays in the host matrix.

@@ -221,7 +221,8 @@ public sealed partial class ShopPage : Page
 
     /// <summary>
     /// Square tiles in the web's 2-4 columns, then as many 200+ epx columns as fill the scroller's content width (issue
-    /// #653; not the repeater's own width, which the layout itself sets).
+    /// #653; not the repeater's own width, which the layout itself sets). A change in the column count glides each tile
+    /// shown before to its new place and fades in tiles it brought into view (pattern reflow-motion, #669).
     /// </summary>
     /// <param name="sender">Grid scroller.</param>
     /// <param name="e">Size change.</param>
@@ -229,14 +230,39 @@ public sealed partial class ShopPage : Page
     {
         var width = e.NewSize.Width - GridScroller.Padding.Left - GridScroller.Padding.Right;
         var tile = ShopGridMetrics.TileSize(width);
-        TileLayout.MaximumRowsOrColumns = ShopGridMetrics.Columns(width);
-        OfferGrid.MaxWidth = ShopGridMetrics.ContentWidth(width);
-        if (tile == tileSize) return;
-        tileSize = tile;
-        TileLayout.MinItemWidth = tile;
-        TileLayout.MinItemHeight = tile;
+        var columns = ShopGridMetrics.Columns(width);
+        var reflows = columns != TileLayout.MaximumRowsOrColumns && e.PreviousSize.Width > 0 && IsLoaded && Motion.Allowed;
+        // The repeater keeps its explicit width until here, so the tiles still sit where the last frame drew them.
+        var before = reflows ? ReflowMotion.Capture(GridScroller, RealizedTiles()) : null;
+        var changed = columns != TileLayout.MaximumRowsOrColumns;
+        TileLayout.MaximumRowsOrColumns = columns;
+        OfferGrid.Width = ShopGridMetrics.ContentWidth(width);
+        if (tile != tileSize)
+        {
+            tileSize = tile;
+            TileLayout.MinItemWidth = tile;
+            TileLayout.MinItemHeight = tile;
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(OfferGrid); i++)
+                if (VisualTreeHelper.GetChild(OfferGrid, i) is FrameworkElement child) SizeTile(child);
+        }
+        if (before is null)
+        {
+            if (changed && e.PreviousSize.Width > 0) ReflowMotion.Trace("shop-grid", 0, 0, false);
+            return;
+        }
+        ReflowMotion.PlayAfterLayout(GridScroller, before, RealizedTiles, "shop-grid");
+    }
+
+    /// <summary>The realized tiles and the offers they show.</summary>
+    /// <returns>Tiles (only reflow events walk them).</returns>
+    private IEnumerable<(object Key, FrameworkElement Element)> RealizedTiles()
+    {
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(OfferGrid); i++)
-            if (VisualTreeHelper.GetChild(OfferGrid, i) is FrameworkElement child) SizeTile(child);
+        {
+            if (VisualTreeHelper.GetChild(OfferGrid, i) is not FrameworkElement { Visibility: Visibility.Visible } tile) continue;
+            var index = OfferGrid.GetElementIndex(tile);
+            if (index >= 0 && OfferGrid.ItemsSourceView?.GetAt(index) is { } offer) yield return (offer, tile);
+        }
     }
 
     /// <summary>Gives a tile the current square size (explicit: the layout's Fill stretch rounds columns away).</summary>

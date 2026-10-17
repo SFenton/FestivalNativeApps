@@ -615,6 +615,131 @@ public readonly record struct AccordionMotion(AccordionPhase Height, AccordionPh
 }
 #endregion
 
+#region Reflow motion
+/// <summary>
+/// Layout reflow motion (pattern <c>reflow-motion</c>, issue #669): when a split pane opens or closes, or a window resize
+/// changes a grid's column count, the pane slides and fades and cards glide to their new places over 300 ms on Fluent's
+/// "Fast Out, Slow In" curve instead of jumping (Apple <c>OnDemandSplit</c> and <c>DualSourceLayout</c> animate the same
+/// changes over 0.3 s). Layout itself changes once; only composition offsets, opacity and clips move, so a reflow never
+/// re-lays out a page per frame. An interrupted reflow carries on from where the last one had got to. With motion off
+/// every reflow is instant.
+/// </summary>
+public static class ReflowTiming
+{
+    /// <summary>A whole reflow: Fluent's 300 ms "Direction Expand" step, Apple's 0.3 s split and Android's 300 ms.</summary>
+    public static readonly TimeSpan Duration = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>Fluent "Fast Out, Slow In" (<c>cubic-bezier(0, 0, 0, 1)</c>) for elements moving from point to point.</summary>
+    public static readonly (float X1, float Y1, float X2, float Y2) Spline = (0f, 0f, 0f, 1f);
+
+    /// <summary>Shifts smaller than this (epx) are not worth a move.</summary>
+    public const double MinimumShift = 0.5;
+
+    /// <summary>Whether a card that shifted by this much should glide rather than stay put.</summary>
+    /// <param name="dx">Horizontal shift (old minus new) in epx.</param>
+    /// <param name="dy">Vertical shift in epx.</param>
+    /// <returns><see langword="true"/> when either shift is at least <see cref="MinimumShift"/>.</returns>
+    public static bool Moves(double dx, double dy) =>
+        double.IsFinite(dx) && double.IsFinite(dy) && (Math.Abs(dx) >= MinimumShift || Math.Abs(dy) >= MinimumShift);
+
+    /// <summary>The <see cref="Spline"/> value at a fraction of the reflow.</summary>
+    /// <param name="t">Elapsed fraction (clamped to [0, 1]).</param>
+    /// <returns>Eased progress in [0, 1].</returns>
+    public static double Ease(double t)
+    {
+        t = Clamp(t);
+        if (t is 0 or 1) return t;
+        var (x1, y1, x2, y2) = Spline;
+        // Solve x(u) = t by bisection (x is monotonic for control points in [0, 1]), then read y(u).
+        double lo = 0, hi = 1, u = t;
+        for (var i = 0; i < 40; i++)
+        {
+            u = (lo + hi) / 2;
+            if (Bezier(u, x1, x2) < t) lo = u; else hi = u;
+        }
+        return Bezier(u, y1, y2);
+    }
+
+    /// <summary>How much of a move's starting shift is left after <paramref name="elapsed"/>.</summary>
+    /// <param name="elapsed">Time since the move began.</param>
+    /// <returns>Fraction in [0, 1] (1 at the start, 0 once settled).</returns>
+    public static double Remaining(TimeSpan elapsed) => 1 - Ease(elapsed / Duration);
+
+    /// <summary>The run time of a reflow that only has part of the way to go (an interrupted split).</summary>
+    /// <param name="from">Current progress (0 closed, 1 open).</param>
+    /// <param name="to">Target progress.</param>
+    /// <param name="motionAllowed">Whether motion may run (<see cref="MotionSwitch.Allowed"/>).</param>
+    /// <returns>Duration; zero with motion off or nothing to cover.</returns>
+    public static TimeSpan Plan(double from, double to, bool motionAllowed) =>
+        motionAllowed ? TimeSpan.FromTicks((long)Math.Round(Duration.Ticks * Math.Abs(Clamp(to) - Clamp(from)))) : TimeSpan.Zero;
+
+    /// <summary>Progress of a reflow from <paramref name="from"/> to <paramref name="to"/> after <paramref name="elapsed"/>.</summary>
+    /// <param name="from">Starting progress.</param>
+    /// <param name="to">Target progress.</param>
+    /// <param name="elapsed">Time since the reflow began.</param>
+    /// <param name="duration">Its run time (<see cref="Plan"/>).</param>
+    /// <returns>Progress; the target once <paramref name="elapsed"/> reaches <paramref name="duration"/>.</returns>
+    public static double Progress(double from, double to, TimeSpan elapsed, TimeSpan duration) =>
+        duration <= TimeSpan.Zero || elapsed >= duration ? to : from + (to - from) * Ease(elapsed / duration);
+
+    /// <summary>
+    /// How far toward its trailing edge a split pane of <paramref name="paneWidth"/> is drawn while it is
+    /// <paramref name="progress"/> open: all the way out when closed, in place when open. A closing pane uncovers the
+    /// widened list behind its leading edge, so the list stays hidden <c>paneWidth - offset</c> from its trailing edge.
+    /// </summary>
+    /// <param name="paneWidth">The pane's width (half the host).</param>
+    /// <param name="progress">Pane progress (0 closed, 1 open).</param>
+    /// <returns>Offset in epx, in [0, <paramref name="paneWidth"/>].</returns>
+    public static double PaneOffset(double paneWidth, double progress) => Math.Max(0, paneWidth) * (1 - Clamp(progress));
+
+    /// <summary>
+    /// Whether a split layout change animates: only between the list alone and the list beside an open pane, on a loaded
+    /// host, with motion on. Changes into or out of the stacked (pane alone) layout and window resizes stay instant.
+    /// </summary>
+    /// <param name="motionAllowed">Whether motion may run.</param>
+    /// <param name="loaded">Whether the host is shown.</param>
+    /// <param name="stackedBefore">Whether the pane was shown alone before.</param>
+    /// <param name="stackedAfter">Whether the pane is shown alone after.</param>
+    /// <returns><see langword="true"/> to animate.</returns>
+    public static bool AnimatesSplit(bool motionAllowed, bool loaded, bool stackedBefore, bool stackedAfter) =>
+        motionAllowed && loaded && !stackedBefore && !stackedAfter;
+
+    /// <summary>Whether a vertical span shows in a viewport of <paramref name="viewport"/> height starting at 0.</summary>
+    /// <param name="top">Span top relative to the viewport.</param>
+    /// <param name="height">Span height.</param>
+    /// <param name="viewport">Viewport height.</param>
+    /// <returns><see langword="true"/> when any part is inside.</returns>
+    public static bool InView(double top, double height, double viewport) => top < viewport && top + height > 0;
+
+    /// <summary>
+    /// Whether a span lies within a viewport's height of a viewport starting at 0: close enough to have been drawn or to
+    /// pass through view during a reflow. Lists park recycled containers thousands of epx away; those never count.
+    /// </summary>
+    /// <param name="top">Span top relative to the viewport.</param>
+    /// <param name="height">Span height.</param>
+    /// <param name="viewport">Viewport height.</param>
+    /// <returns><see langword="true"/> when any part is within one viewport height above or below.</returns>
+    public static bool Near(double top, double height, double viewport) =>
+        double.IsFinite(top) && top < 2 * viewport && top + height > -viewport;
+
+    /// <summary>One coordinate of a cubic Bezier from 0 to 1.</summary>
+    /// <param name="u">Curve parameter.</param>
+    /// <param name="p1">First control point coordinate.</param>
+    /// <param name="p2">Second control point coordinate.</param>
+    /// <returns>Coordinate.</returns>
+    private static double Bezier(double u, double p1, double p2)
+    {
+        var v = 1 - u;
+        return 3 * v * v * u * p1 + 3 * v * u * u * p2 + u * u * u;
+    }
+
+    /// <summary>Clamps to [0, 1], treating NaN as 0.</summary>
+    /// <param name="value">Value.</param>
+    /// <returns>Clamped value.</returns>
+    private static double Clamp(double value) => double.IsNaN(value) ? 0 : Math.Clamp(value, 0, 1);
+}
+#endregion
+
 #region Shop pulse
 /// <summary>
 /// The Song Detail Item Shop button's status "breathe" (web <c>animations.module.css</c> <c>shopBreathe*</c>): the
