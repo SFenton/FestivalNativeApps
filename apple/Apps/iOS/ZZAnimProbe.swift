@@ -16,6 +16,7 @@ enum ZZAnimProbe {
         method_exchangeImplementations(original, replacement)
         write("install pid=\(ProcessInfo.processInfo.processIdentifier)")
         swizzleAnimationState()
+        swizzleTabs()
         Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
             MainActor.assumeIsolated { flush() }
         }
@@ -45,7 +46,7 @@ enum ZZAnimProbe {
                 total += 1
                 let all = Thread.callStackSymbols
                 let deep = all.contains { $0.contains("FloatingTabBar") }
-                let stack = all.dropFirst(1).prefix(deep ? 250 : 20).map { String($0.dropFirst(4).prefix(170)) }
+                let stack = all.dropFirst(1).prefix(deep ? 40 : 12).map { String($0.dropFirst(4).prefix(170)) }
                     .filter { !deep || !($0.contains("block_destroy_helper") || $0.contains("closure_destructor") || $0.contains("swift_memcpy") || $0.contains("libdispatch") || $0.contains("AnimationKit")) }
                     .joined(separator: "\n      ")
                 if inFlight[id] == nil {
@@ -70,6 +71,44 @@ enum ZZAnimProbe {
             }
             method_setImplementation(m, imp_implementationWithBlock(block))
         }
+    }
+
+    static func ts() -> String { String(format: "%.3f", Date().timeIntervalSince1970) }
+
+    static func swizzleTabs() {
+        typealias SetFn = @convention(c) (AnyObject, Selector, AnyObject?) -> Void
+        typealias VoidFn = @convention(c) (AnyObject, Selector) -> Void
+        if let m = class_getInstanceMethod(UITab.self, NSSelectorFromString("setAccessibilityAttributedLabel:")) {
+            let original = unsafeBitCast(method_getImplementation(m), to: SetFn.self)
+            let block: @convention(block) (AnyObject, AnyObject?) -> Void = { tab, value in
+                let t = tab as! UITab
+                let old = t.accessibilityAttributedLabel?.string ?? "nil"
+                let new = (value as? NSAttributedString)?.string ?? "nil"
+                let attrs = (value as? NSAttributedString).map { a -> String in
+                    var keys: [String] = []
+                    a.enumerateAttributes(in: NSRange(location: 0, length: a.length)) { d, _, _ in keys.append(contentsOf: d.keys.map(\.rawValue)) }
+                    return keys.joined(separator: ",")
+                } ?? ""
+                write(ts() + " TAB-AXLABEL id=\(t.identifier) title=\(t.title) old=\(old) new=\(new) same=\(old == new) attrs=\(attrs) eq=\((t.accessibilityAttributedLabel as AnyObject?)?.isEqual(value) ?? false)")
+                original(tab, NSSelectorFromString("setAccessibilityAttributedLabel:"), value)
+            }
+            method_setImplementation(m, imp_implementationWithBlock(block))
+        }
+        if let cls = NSClassFromString("_UIFloatingTabBar"), let m = class_getInstanceMethod(cls, NSSelectorFromString("_updatePaginationIfNeeded")) {
+            let original = unsafeBitCast(method_getImplementation(m), to: VoidFn.self)
+            let block: @convention(block) (AnyObject) -> Void = { bar in
+                let v = bar as! UIView
+                let before = v.subviews.map { "\(type(of: $0))" }.joined(separator: ",")
+                original(bar, NSSelectorFromString("_updatePaginationIfNeeded"))
+                let pages = count(v, matching: "PageButton")
+                write(ts() + " PAGINATE bounds=\(v.bounds) window=\(v.window != nil) super=\(v.superview.map { "\(type(of: $0))" } ?? "nil") anim=\(UIView.inheritedAnimationDuration) pageButtons=\(pages) items=\(count(v)) size=\(v.traitCollection.preferredContentSizeCategory.rawValue) hsc=\(v.traitCollection.horizontalSizeClass.rawValue) subviewsBefore=[\(before.prefix(200))]")
+            }
+            method_setImplementation(m, imp_implementationWithBlock(block))
+        } else { write("no _UIFloatingTabBar pagination") }
+    }
+
+    static func count(_ view: UIView, matching name: String) -> Int {
+        view.subviews.reduce(0) { $0 + ("\(type(of: $1))".contains(name) ? 1 : 0) + count($1, matching: name) }
     }
 
     static func owner(_ layer: CALayer) -> String {
