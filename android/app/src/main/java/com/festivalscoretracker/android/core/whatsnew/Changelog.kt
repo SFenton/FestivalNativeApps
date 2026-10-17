@@ -113,10 +113,12 @@ object Changelog {
     internal const val MAX_CATEGORY_LENGTH = 32
 
     /**
-     * Most bullets kept in the tester list. It holds every note since the latest release, which can exceed a
-     * single version's [MAX_ITEMS]; TestFlight's own 4000-character text fits far fewer.
+     * Most bullets kept in the tester list. It holds every note since the latest store release (before the
+     * first release, every note so far), which can far exceed a single version's [MAX_ITEMS]. The bound must
+     * keep a whole pre-release list, through its last category and "Other" (issue #670: Android 2610.15.02
+     * has 187 notes in 18 groups, which 120 cut after Profile); it only guards against a runaway document.
      */
-    internal const val MAX_TESTER_ITEMS = 120
+    internal const val MAX_TESTER_ITEMS = 400
 
     /** Entries bundled with the app (empty when the resource is missing or invalid). */
     val entries: List<ChangelogEntry> by lazy { load() }
