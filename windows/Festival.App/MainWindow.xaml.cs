@@ -82,6 +82,7 @@ public sealed partial class MainWindow : Window
         AppWindow.Changed += OnAppWindowChanged;
         occlusion = new OcclusionTracker(WinRT.Interop.WindowNative.GetWindowHandle(this), DispatcherQueue);
         occlusion.Changed += (_, _) => UpdateBackdropPolicy();
+        occlusion.AnimationsSettingChanged += (_, _) => DispatcherQueue.TryEnqueue(UpdateBackdropPolicy);
         Activated += (_, e) =>
         {
             occlusion?.Invalidate();
@@ -102,6 +103,11 @@ public sealed partial class MainWindow : Window
 
         RootGrid.KeyboardAccelerators.Add(Accelerator(VirtualKey.Left, VirtualKeyModifiers.Menu, () => GoBack()));
         RootGrid.KeyboardAccelerators.Add(Accelerator(VirtualKey.GoBack, VirtualKeyModifiers.None, () => GoBack()));
+        // Debug/automation hook (FST_DEBUG_MOTION_KEY=1): Ctrl+Alt+Shift+M flips the app's Reduce Motion setting through
+        // the same path as Settings, so UI Automation can turn motion off while a reflow runs (pattern reflow-motion R4).
+        if (App.LaunchEnvironment("FST_DEBUG_MOTION_KEY") == "1")
+            RootGrid.KeyboardAccelerators.Add(Accelerator(VirtualKey.M, VirtualKeyModifiers.Control | VirtualKeyModifiers.Menu | VirtualKeyModifiers.Shift,
+                () => App.Session.UpdateSettings(s => s with { ReduceMotion = !s.ReduceMotion })));
         RootGrid.PointerPressed += (_, e) =>
         {
             if (e.GetCurrentPoint(RootGrid).Properties.IsXButton1Pressed && GoBack()) e.Handled = true;

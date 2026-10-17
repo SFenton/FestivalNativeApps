@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Festival.App.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -17,6 +18,9 @@ namespace Festival.App.Controls;
 /// sub-pages, which then shows beside it in an equal half, so both halves grow and shrink with the window. The pane has
 /// its own stack for the open item's sub-pages; Back pops it, then closes it, then leaves the list page (back-keeps-place
 /// R6). A window too narrow for two panes shows an open pane alone (Fluent list/details stacked mode) until it widens.
+/// Opening or closing a pane beside the list animates (pattern reflow-motion, #669): the list re-lays out once while the
+/// pane slides in from its trailing edge and fades in, or slides out and fades as it uncovers the widened list; motion
+/// off makes it instant.
 /// </summary>
 public sealed class OnDemandSplitHost : Grid
 {
@@ -33,6 +37,11 @@ public sealed class OnDemandSplitHost : Grid
     private object? listParameter;
     private bool interactionInPane;
     private bool stacked;
+    /// <summary>How far open the pane is drawn when no move runs (0 list alone, 1 split); pattern reflow-motion.</summary>
+    private double progress;
+    private SplitMove? move;
+    /// <summary>A closed pane still sliding out over the widened list.</summary>
+    private Pane? leaving;
     #endregion
 
     /// <summary>Creates the host around a section frame (before the shell subscribes to its navigations).</summary>
@@ -93,12 +102,15 @@ public sealed class OnDemandSplitHost : Grid
         {
             ContrastTheme.Changed += OnColorsChanged;
             TextScaleChanged += OnTextScaleChanged;
+            Motion.Changed += OnMotionChanged;
             ApplyLayout();
         };
         Unloaded += (_, _) =>
         {
             ContrastTheme.Changed -= OnColorsChanged;
             TextScaleChanged -= OnTextScaleChanged;
+            Motion.Changed -= OnMotionChanged;
+            EndMove();
         };
         AddHandler(PointerPressedEvent, new PointerEventHandler((_, e) => Note(e.OriginalSource)), handledEventsToo: true);
         GotFocus += (_, e) => Note(e.OriginalSource);
@@ -175,11 +187,10 @@ public sealed class OnDemandSplitHost : Grid
             Changed?.Invoke(this, EventArgs.Empty);
         };
         var reflows = !panes.ContainsKey(depth) && !stacked;
+        DropLeaving();
         panes[depth] = pane;
-        ApplyLayout();
+        ApplyLayout(animate: reflows, opener);
         frame.Navigate(page, route);
-        // The list narrows to half width and reflows; its opener stays in view (back-keeps-place R6).
-        if (reflows && AllowsSplit) KeepInView(opener);
     }
 
     /// <summary>Pushes a page onto the visible pane's stack.</summary>
@@ -204,10 +215,10 @@ public sealed class OnDemandSplitHost : Grid
         if (!panes.Remove(Section.BackStackDepth, out var pane)) return;
         var hadFocus = XamlRoot is not null && IsInside(FocusManager.GetFocusedElement(XamlRoot) as DependencyObject, paneRoot);
         interactionInPane = false;
-        ApplyLayout();
-        pane.Frame.Content = null;
-        // The list reflows from half to full width; the row that opened the pane stays in view (back-keeps-place R6), and
-        // focus that was in the pane returns to it; focus elsewhere stays.
+        DropLeaving();
+        leaving = pane;
+        ApplyLayout(animate: true, pane.Opener);
+        // Focus that was in the pane returns to its opener at once (the leaving pane takes no input); focus elsewhere stays.
         RestoreFocus(pane, hadFocus);
         Changed?.Invoke(this, EventArgs.Empty);
     }
@@ -246,24 +257,54 @@ public sealed class OnDemandSplitHost : Grid
     #region Layout
     /// <summary>
     /// Two equal halves while the window allows a split and a pane is open; the pane alone (stacked) when it is too narrow;
-    /// the list alone otherwise.
+    /// the list alone otherwise. Instant: window resizes, text size, contrast and section navigation.
     /// </summary>
-    private void ApplyLayout()
+    private void ApplyLayout() => ApplyLayout(animate: false, null);
+
+    /// <summary>
+    /// Lays out the split. A pane opened or closed beside the list (<paramref name="animate"/>) moves there: the columns
+    /// change at once and the pane slides in from its trailing edge as it fades in, or slides out and fades as it uncovers
+    /// the widened list, over <see cref="ReflowTiming.Duration"/> on the compositor (pattern reflow-motion, #669; Apple
+    /// <c>OnDemandSplit</c>). Motion off, the stacked layout and an unloaded host change at once.
+    /// </summary>
+    /// <param name="animate">Whether an open or close asked for the move.</param>
+    /// <param name="opener">The row that opened the pane, kept in view once the list has its new width (back-keeps-place R6).</param>
+    private void ApplyLayout(bool animate, Opener? opener)
     {
         var pane = VisiblePane;
         var split = pane is not null && AllowsSplit;
         var wasStacked = stacked;
         stacked = pane is not null && !split;
-        listColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
-        paneColumn.Width = pane is null ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        var target = split ? 1.0 : 0.0;
+        var motion = Motion.Allowed;
+        var from = move?.ProgressNow() ?? progress;
+        var moves = animate && ReflowTiming.AnimatesSplit(motion, IsLoaded && ActualWidth > 0, wasStacked, stacked)
+            && from != target;
+        if (!moves)
+        {
+            // A Reduce Motion change can re-apply the layout before Motion.Changed arrives: that settle is the R4 stop.
+            EndMove(stopped: !motion);
+            DropLeaving();
+        }
+        progress = target;
         Section.Visibility = stacked ? Visibility.Collapsed : Visibility.Visible;
-        paneRoot.Visibility = pane is null ? Visibility.Collapsed : Visibility.Visible;
+        var shown = pane ?? leaving?.Frame;
+        paneRoot.Visibility = shown is null ? Visibility.Collapsed : Visibility.Visible;
+        paneRoot.IsHitTestVisible = pane is not null;
         // Stacked, the title bar's Back closes the pane as it pops a pushed page, so the pane drops its Close bar.
-        closeBar.Visibility = split ? Visibility.Visible : Visibility.Collapsed;
-        if (!ReferenceEquals(paneHost.Child, pane)) paneHost.Child = pane;
+        closeBar.Visibility = split || leaving is not null ? Visibility.Visible : Visibility.Collapsed;
+        if (!ReferenceEquals(paneHost.Child, shown)) paneHost.Child = shown;
         var hairlineOn = split && (App.Session.Settings.MoreContrast || ContrastTheme.IsOn);
         hairline.Visibility = hairlineOn ? Visibility.Visible : Visibility.Collapsed;
         if (hairlineOn) hairline.Background = ContrastTheme.Brush("FSTRowSeparatorBrush");
+        if (moves) StartMove(from, target);
+        else
+        {
+            ApplyGeometry();
+            if (animate) TraceSettle(target == 1, animated: false, motion);
+        }
+        // The list has its new width now; the opener stays in view (back-keeps-place R6).
+        if (animate && !stacked) KeepInView(opener);
         if (wasStacked != stacked) Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -274,6 +315,107 @@ public sealed class OnDemandSplitHost : Grid
 
     /// <summary>Re-applies the layout after a settings change (Increase Contrast).</summary>
     public void Refresh() => ApplyLayout();
+    #endregion
+
+    #region Reflow motion
+    /// <summary>
+    /// Settled columns: star halves (or one column). A closed pane that is still leaving is drawn over the widened list's
+    /// trailing half at its old width, where <see cref="ReflowMotion.SlidePane"/> slides it out.
+    /// </summary>
+    private void ApplyGeometry()
+    {
+        listColumn.Width = stacked ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        paneColumn.Width = VisiblePane is null ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        if (VisiblePane is null && leaving is not null && move is { } leavingMove)
+        {
+            SetColumn(paneRoot, 0);
+            SetColumnSpan(paneRoot, 2);
+            paneRoot.Width = leavingMove.PaneWidth;
+            paneRoot.HorizontalAlignment = HorizontalAlignment.Right;
+            return;
+        }
+        SetColumn(paneRoot, 1);
+        SetColumnSpan(paneRoot, 1);
+        paneRoot.ClearValue(WidthProperty);
+        paneRoot.HorizontalAlignment = HorizontalAlignment.Stretch;
+    }
+
+    /// <summary>Starts (or turns around) the move to <paramref name="target"/> from where the pane is drawn now.</summary>
+    /// <param name="from">Progress the pane is drawn at now.</param>
+    /// <param name="target">1 to open, 0 to close.</param>
+    private void StartMove(double from, double target)
+    {
+        var paneWidth = move?.PaneWidth ?? ActualWidth / 2;
+        var started = new SplitMove(from, target, Stopwatch.GetTimestamp(), ReflowTiming.Plan(from, target, true, ReflowMotion.Duration), paneWidth);
+        move = started;
+        ApplyGeometry();
+        TraceMove(started);
+        var batch = ReflowMotion.SlidePane(paneRoot, Section, paneWidth, from, target, started.Duration);
+        // Completion also arrives early when a newer move replaces this one's animations; only the current move ends.
+        batch.Completed += (_, _) =>
+        {
+            if (ReferenceEquals(move, started)) EndMove();
+        };
+    }
+
+    /// <summary>Finishes a running move where it was heading: a closed pane leaves and the pane is drawn in place again.</summary>
+    /// <param name="stopped">Whether motion turned off mid-move (R4) rather than the move completing or being replaced.</param>
+    private void EndMove(bool stopped = false)
+    {
+        if (move is not { } ended) return;
+        move = null;
+        if (ended.To == 0) DropLeaving();
+        ReflowMotion.SettlePane(paneRoot, Section);
+        ApplyGeometry();
+        TraceSettle(ended.To == 1, animated: true, Motion.Allowed, Stopwatch.GetElapsedTime(ended.Start), stopped);
+    }
+
+    /// <summary>
+    /// Animation effects or the app's Reduce Motion turned off while a pane slides (pattern reflow-motion R4): the move
+    /// ends at once through the same settle as a completed one (an opening pane shows in place, a closing one leaves).
+    /// </summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnMotionChanged(object? sender, EventArgs e)
+    {
+        if (move is not null && !Motion.Allowed) EndMove(stopped: true);
+    }
+
+    /// <summary>Lets a leaving pane go: its page is dropped and the pane area hides when nothing else is open.</summary>
+    private void DropLeaving()
+    {
+        if (leaving is not { } gone) return;
+        leaving = null;
+        if (ReferenceEquals(paneHost.Child, gone.Frame)) paneHost.Child = VisiblePane;
+        gone.Frame.Content = null;
+        if (VisiblePane is null)
+        {
+            paneRoot.Visibility = Visibility.Collapsed;
+            closeBar.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>Writes a move's start (<c>--perf-log</c> only).</summary>
+    /// <param name="started">The move.</param>
+    private static void TraceMove(SplitMove started)
+    {
+        if (!PerfLog.Enabled) return;
+        PerfLog.Write(FormattableString.Invariant(
+            $"split-move open={(started.To == 1 ? 1 : 0)} from={started.From:F3} to={started.To:F3} pane={started.PaneWidth:F1} duration={started.Duration.TotalMilliseconds:F0}"));
+    }
+
+    /// <summary>Writes where the split settled and whether a move led there (<c>--perf-log</c> only).</summary>
+    /// <param name="open">Whether the pane is open.</param>
+    /// <param name="animated">Whether a move led here.</param>
+    /// <param name="motion">Whether motion was allowed.</param>
+    /// <param name="elapsed">The move's run time.</param>
+    /// <param name="stopped">Whether motion turned off mid-move.</param>
+    private void TraceSettle(bool open, bool animated, bool motion, TimeSpan elapsed = default, bool stopped = false)
+    {
+        if (!PerfLog.Enabled) return;
+        PerfLog.Write(FormattableString.Invariant(
+            $"split-settle open={(open ? 1 : 0)} animated={(animated ? 1 : 0)} motion={(motion ? 1 : 0)} stopped={(stopped ? 1 : 0)} t={elapsed.TotalMilliseconds:F0} list={Section.ActualWidth:F1}"));
+    }
     #endregion
 
     #region Focus
@@ -297,7 +439,7 @@ public sealed class OnDemandSplitHost : Grid
     /// <param name="focus">Whether focus was inside the pane.</param>
     private void RestoreFocus(Pane pane, bool focus)
     {
-        // Low priority: after the list's reflow to full width has been laid out.
+        // Low priority: after the close's first layout, which widens the list at once while the pane slides out over it.
         DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
         {
             var opener = Live(pane.Opener);
@@ -360,6 +502,19 @@ public sealed class OnDemandSplitHost : Grid
     /// <param name="Control">Control.</param>
     /// <param name="State">Focus state to restore.</param>
     private sealed record Opener(WeakReference<Control> Control, FocusState State);
+
+    /// <summary>A running split move (pattern reflow-motion).</summary>
+    /// <param name="From">Pane progress it started from.</param>
+    /// <param name="To">Pane progress it heads to.</param>
+    /// <param name="Start">Start timestamp (<see cref="Stopwatch.GetTimestamp"/>).</param>
+    /// <param name="Duration">Run time (<see cref="ReflowTiming.Plan"/>).</param>
+    /// <param name="PaneWidth">The pane's width (half the host when the move began).</param>
+    private sealed record SplitMove(double From, double To, long Start, TimeSpan Duration, double PaneWidth)
+    {
+        /// <summary>How far open the pane is drawn now, on the same curve as the compositor.</summary>
+        /// <returns>Progress in [0, 1].</returns>
+        public double ProgressNow() => ReflowTiming.Progress(From, To, Stopwatch.GetElapsedTime(Start), Duration);
+    }
     #endregion
 }
 #endregion

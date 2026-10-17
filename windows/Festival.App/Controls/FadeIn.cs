@@ -248,6 +248,15 @@ public static class FadeIn
     /// <summary>Monotonic time for the stagger window.</summary>
     internal static TimeSpan Now => Stopwatch.GetElapsedTime(0);
 
+    /// <summary>
+    /// Whether the element's own fade-in is still running or waiting to start; reflow motion
+    /// (<see cref="ReflowMotion"/>) leaves it alone until it finishes so a load stagger is never cut short.
+    /// </summary>
+    /// <param name="element">Element.</param>
+    /// <returns><see langword="true"/> while its fade runs.</returns>
+    public static bool IsPlaying(UIElement element) =>
+        element.GetValue(AnimatedProperty) is true && element.GetValue(FadeEndProperty) is TimeSpan end && end > Now;
+
     /// <summary>A stagger list's fade window (a selected-row reveal reads its generation and scroll state).</summary>
     /// <param name="list">Repeater or list view.</param>
     /// <returns>Arm.</returns>

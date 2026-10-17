@@ -271,4 +271,138 @@ public sealed class SongDetailLayoutTests
         Assert.Equal(0, new Festival.Core.ViewModels.LeaderboardRow(new LeaderboardEntry()).AccuracyValue);
         Assert.Equal(990_000, new Festival.Core.ViewModels.LeaderboardRow(new LeaderboardEntry { Accuracy = 990_000 }).AccuracyValue);
     }
+
+    #region Reflow motion
+    [Fact]
+    public void Reflow_UsesFluentPointToPointTiming()
+    {
+        Assert.Equal(300, ReflowTiming.Duration.TotalMilliseconds);
+        Assert.Equal((0f, 0f, 0f, 1f), ReflowTiming.Spline);
+    }
+
+    [Fact]
+    public void ReflowEase_StartsFastAndSettlesSlowly()
+    {
+        Assert.Equal(0, ReflowTiming.Ease(0));
+        Assert.Equal(1, ReflowTiming.Ease(1));
+        Assert.Equal(0, ReflowTiming.Ease(-1));
+        Assert.Equal(1, ReflowTiming.Ease(2));
+        Assert.Equal(0, ReflowTiming.Ease(double.NaN));
+        // x(u) = u³, y(u) = 3u² − 2u³: halfway through, about 89% of the way.
+        Assert.Equal(3 * Math.Pow(0.5, 2.0 / 3) - 1, ReflowTiming.Ease(0.5), 6);
+        var last = 0.0;
+        for (var t = 0.05; t <= 1; t += 0.05)
+        {
+            var eased = ReflowTiming.Ease(t);
+            Assert.True(eased >= last);
+            Assert.True(eased >= t, "decelerating: always ahead of linear");
+            last = eased;
+        }
+    }
+
+    [Fact]
+    public void ReflowRemaining_RunsDownToZero()
+    {
+        Assert.Equal(1, ReflowTiming.Remaining(TimeSpan.Zero));
+        Assert.Equal(0, ReflowTiming.Remaining(ReflowTiming.Duration));
+        Assert.Equal(0, ReflowTiming.Remaining(TimeSpan.FromSeconds(5)));
+        Assert.InRange(ReflowTiming.Remaining(TimeSpan.FromMilliseconds(150)), 0.1, 0.12);
+    }
+
+    [Theory]
+    [InlineData(0, 1, true, 300)]
+    [InlineData(1, 0, true, 300)]
+    [InlineData(0.25, 1, true, 225)]
+    [InlineData(0.6, 0, true, 180)]
+    [InlineData(1, 1, true, 0)]
+    [InlineData(0, 1, false, 0)]
+    [InlineData(double.NaN, 1, true, 300)]
+    public void ReflowPlan_CoversOnlyWhatIsLeft(double from, double to, bool motion, double expectedMs) =>
+        Assert.Equal(expectedMs, ReflowTiming.Plan(from, to, motion).TotalMilliseconds, 3);
+
+    [Fact]
+    public void ReflowStretched_ScalesPlanAndRemaining()
+    {
+        // FST_DEBUG_REFLOW_MS (R4 journeys): a longer move covers the same share of its run and eases on the same curve.
+        var stretched = TimeSpan.FromSeconds(3);
+        Assert.Equal(1500, ReflowTiming.Plan(0.5, 1, true, stretched).TotalMilliseconds, 3);
+        Assert.Equal(0, ReflowTiming.Plan(0, 1, false, stretched).TotalMilliseconds);
+        Assert.Equal(ReflowTiming.Remaining(TimeSpan.FromMilliseconds(150)),
+            ReflowTiming.Remaining(TimeSpan.FromMilliseconds(1500), stretched), 9);
+        Assert.Equal(0, ReflowTiming.Remaining(stretched, stretched));
+    }
+
+    [Theory]
+    [InlineData("3000", 3000.0)]
+    [InlineData("300", 300.0)]
+    [InlineData("10000", 10000.0)]
+    [InlineData("299", null)]
+    [InlineData("10001", null)]
+    [InlineData("-500", null)]
+    [InlineData("1.5", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void ReflowParseDuration_AcceptsOnlyLongerBoundedMoves(string? value, double? expectedMs) =>
+        Assert.Equal(expectedMs, ReflowTiming.ParseDuration(value)?.TotalMilliseconds);
+
+    [Fact]
+    public void ReflowProgress_EasesToTheTarget()
+    {
+        var duration = ReflowTiming.Duration;
+        Assert.Equal(0.2, ReflowTiming.Progress(0.2, 1, TimeSpan.Zero, duration));
+        Assert.Equal(1, ReflowTiming.Progress(0.2, 1, duration, duration));
+        Assert.Equal(0, ReflowTiming.Progress(1, 0, TimeSpan.FromSeconds(1), duration));
+        Assert.Equal(0, ReflowTiming.Progress(1, 0, TimeSpan.Zero, TimeSpan.Zero));
+        var mid = ReflowTiming.Progress(1, 0, TimeSpan.FromMilliseconds(150), duration);
+        Assert.InRange(mid, 0.1, 0.12);
+    }
+
+    [Theory]
+    [InlineData(600, 0, 600)]
+    [InlineData(600, 1, 0)]
+    [InlineData(600, 0.5, 300)]
+    [InlineData(600, 2, 0)]
+    [InlineData(600, double.NaN, 600)]
+    [InlineData(-10, 0, 0)]
+    public void ReflowPaneOffset_SlidesTheClosedPaneOut(double pane, double progress, double expected) =>
+        Assert.Equal(expected, ReflowTiming.PaneOffset(pane, progress));
+
+    [Theory]
+    [InlineData(true, true, false, false, true)]
+    [InlineData(false, true, false, false, false)]
+    [InlineData(true, false, false, false, false)]
+    [InlineData(true, true, true, false, false)]
+    [InlineData(true, true, false, true, false)]
+    public void ReflowAnimatesSplit_OnlyBetweenListAndSplit(bool motion, bool loaded, bool stackedBefore, bool stackedAfter, bool expected) =>
+        Assert.Equal(expected, ReflowTiming.AnimatesSplit(motion, loaded, stackedBefore, stackedAfter));
+
+    [Theory]
+    [InlineData(0, 0, false)]
+    [InlineData(0.4, -0.4, false)]
+    [InlineData(0.5, 0, true)]
+    [InlineData(0, -12, true)]
+    [InlineData(double.NaN, 40, false)]
+    [InlineData(double.PositiveInfinity, 0, false)]
+    public void ReflowMoves_SkipsTinyShifts(double dx, double dy, bool expected) =>
+        Assert.Equal(expected, ReflowTiming.Moves(dx, dy));
+
+    [Theory]
+    [InlineData(-50, 40, 800, false)]
+    [InlineData(-50, 60, 800, true)]
+    [InlineData(799, 10, 800, true)]
+    [InlineData(800, 10, 800, false)]
+    public void ReflowInView_OverlapsTheViewport(double top, double height, double viewport, bool expected) =>
+        Assert.Equal(expected, ReflowTiming.InView(top, height, viewport));
+
+    [Theory]
+    [InlineData(0, 100, 500, true)]
+    [InlineData(900, 100, 500, true)]
+    [InlineData(1000, 100, 500, false)]
+    [InlineData(-550, 100, 500, true)]
+    [InlineData(-600, 100, 500, false)]
+    [InlineData(-15000, 400, 500, false)]
+    [InlineData(double.NaN, 100, 500, false)]
+    public void ReflowNear_IgnoresParkedContainers(double top, double height, double viewport, bool expected) =>
+        Assert.Equal(expected, ReflowTiming.Near(top, height, viewport));
+    #endregion
 }
