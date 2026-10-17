@@ -9,19 +9,29 @@ namespace Festival.App.Services;
 #region Scroll probe
 /// <summary>
 /// Measurement only (<c>--scroll-probe</c>, needs <c>--perf-log</c>): after the page settles, scrolls the routed page's
-/// main scroller like mouse-wheel notches (animated <see cref="ScrollViewer.ChangeView(double?, double?, float?, bool)"/>
-/// steps down then up) and logs per-pass frame, offset and handler-cost statistics (#642). A smooth scroll moves the
-/// offset one way every frame (<c>reversals</c> counts frames moving against it), keeps frame intervals near the
-/// display's refresh (<c>over33</c> counts stalls of two 60 Hz frames or more) and leaves the frames to rendering
-/// (<see cref="ScrollCost"/>: the UI-thread time of per-scroll handlers). Each notch restarts the scroll animation's ease,
-/// so the speed varies from frame to frame by design. Subscribing to rendering keeps XAML drawing every frame, so never
-/// enable it outside perf runs.
+/// main scroller (or, with <c>--scroll-probe-target dialog</c>, the open dialog's) and logs per-pass frame, offset and
+/// handler-cost statistics (#642, #668). Three wheel cycles step it like mouse-wheel notches (animated
+/// <see cref="ScrollViewer.ChangeView(double?, double?, float?, bool)"/> steps down then up, the path a wheel notch or
+/// touchpad pan takes); two drag cycles then move it every frame without animation from the top to the bottom and back,
+/// like dragging the scrollbar thumb, so layout, realization and per-scroll handlers run inside every frame on the UI
+/// thread. A smooth scroll moves the offset one way every frame (<c>reversals</c> counts frames moving against it), keeps
+/// frame intervals near the display's refresh (<c>over33</c> counts stalls of two 60 Hz frames or more) and leaves the
+/// frames to rendering (<see cref="ScrollCost"/>: the UI-thread time of per-scroll handlers). Each notch restarts the
+/// scroll animation's ease, so the wheel speed varies from frame to frame by design. A pass names a <c>hidden=</c> reason when the
+/// window was covered, cloaked, locked or on a display that turned off during it: DWM then throttles frames to its
+/// timer, so such a pass measures the desktop, not the app. The probe keeps the display on while it runs. Subscribing to
+/// rendering keeps XAML drawing every frame, so never enable it outside perf runs.
 /// </summary>
 internal static class ScrollProbe
 {
     private const int Notches = 14;
     private const double NotchEpx = 120;
+    private const int WheelCycles = 3;
+    private const int DragCycles = 2;
+    private const double DragMaxSpanEpx = 12000;
     private static readonly TimeSpan NotchInterval = TimeSpan.FromMilliseconds(90);
+    private static readonly TimeSpan DragDuration = TimeSpan.FromSeconds(1.5);
+    private static readonly TimeSpan FindTimeout = TimeSpan.FromSeconds(60);
     private static readonly List<double> Intervals = new(1024);
     private static readonly List<double> Deltas = new(1024);
     private static readonly List<string> Trace = [];
@@ -37,10 +47,20 @@ internal static class ScrollProbe
     private static double lastExtent;
     private static int extentChanges;
     private static int direction;
+    private static string? hidden;
+    private static Drag? drag;
+
+    /// <summary>One drag pass: the offset moves linearly from <see cref="From"/> to <see cref="To"/> over <see cref="DragDuration"/>.</summary>
+    /// <param name="From">Start offset.</param>
+    /// <param name="To">End offset.</param>
+    /// <param name="Started">Stopwatch timestamp of the first frame.</param>
+    /// <param name="Done">Completed when the offset reaches <see cref="To"/>.</param>
+    private sealed record Drag(double From, double To, long Started, TaskCompletionSource Done);
 
     /// <summary>Starts the probe after the page has loaded.</summary>
     /// <param name="root">Window content.</param>
-    public static void Start(FrameworkElement root)
+    /// <param name="target"><c>page</c> (the window's largest scroller) or <c>dialog</c> (an open dialog's, once automation opens one).</param>
+    public static void Start(FrameworkElement root, string target)
     {
         // Held in a field: an unreferenced one-shot timer can be collected before it fires.
         start = root.DispatcherQueue.CreateTimer();
@@ -50,7 +70,7 @@ internal static class ScrollProbe
         {
             try
             {
-                await RunAsync(root);
+                await RunAsync(root, target == "dialog");
             }
             catch (Exception error)
             {
@@ -60,44 +80,86 @@ internal static class ScrollProbe
         start.Start();
     }
 
-    /// <summary>Runs three down/up cycles and logs each pass.</summary>
+    /// <summary>Runs the wheel and drag cycles and logs each pass.</summary>
     /// <param name="root">Window content.</param>
+    /// <param name="dialog">Probe an open dialog's scroller instead of the page's.</param>
     /// <returns>Probe task.</returns>
-    private static async Task RunAsync(FrameworkElement root)
+    private static async Task RunAsync(FrameworkElement root, bool dialog)
     {
-        viewer = FindMain(root);
+        var waited = Stopwatch.StartNew();
+        while ((viewer = dialog ? FindInDialogs(root) : FindMain(root, 200)) is null && waited.Elapsed < FindTimeout)
+            await Task.Delay(500);
         if (viewer is null)
         {
-            PerfLog.Write("scroll-probe none");
+            PerfLog.Write($"scroll-probe none scrollers={Inventory(root, dialog)}");
             return;
         }
+        // Content that is still arriving (an incremental list, a dialog's fade-in) settles first.
+        await Task.Delay(dialog ? 1500 : 0);
         PerfLog.Write($"scroll-probe target={Describe(viewer)} scrollable={viewer.ScrollableHeight:F1} anchor={viewer.VerticalAnchorRatio}");
+        var occlusion = OcclusionTracker.Current;
+        void OnOcclusion(object? sender, EventArgs e) => hidden ??= OcclusionTracker.Current?.IsHidden == true ? OcclusionTracker.Current.Reason : "changed";
+        if (occlusion is not null) occlusion.Changed += OnOcclusion;
+        Win32.SetThreadExecutionState(Win32.ExecutionContinuous | Win32.ExecutionDisplayRequired | Win32.ExecutionSystemRequired);
         ScrollCost.Enabled = true;
-        viewer.LayoutUpdated += (_, _) => layouts++;
+        viewer.LayoutUpdated += OnLayoutUpdated;
         CompositionTarget.Rendering += OnRendering;
-        // A still pass first: what the probe's own frame tick and idle page work cost without scrolling.
-        Begin(1);
-        await Task.Delay(2000);
-        Flush("rest");
-        for (var cycle = 0; cycle < 3; cycle++)
+        try
         {
-            foreach (var down in new[] { true, false })
+            // A still pass first: what the probe's own frame tick and idle page work cost without scrolling.
+            Begin(1);
+            await Task.Delay(2000);
+            Flush("rest");
+            for (var cycle = 0; cycle < WheelCycles; cycle++)
             {
-                Begin(down ? 1 : -1);
-                for (var i = 0; i < Notches; i++)
+                foreach (var down in new[] { true, false })
                 {
-                    var target = Math.Clamp(viewer.VerticalOffset + (down ? NotchEpx : -NotchEpx), 0, viewer.ScrollableHeight);
-                    viewer.ChangeView(null, target, null, false);
-                    await Task.Delay(NotchInterval);
+                    Begin(down ? 1 : -1);
+                    for (var i = 0; i < Notches; i++)
+                    {
+                        var target = Math.Clamp(viewer.VerticalOffset + (down ? NotchEpx : -NotchEpx), 0, viewer.ScrollableHeight);
+                        viewer.ChangeView(null, target, null, false);
+                        await Task.Delay(NotchInterval);
+                    }
+                    await Task.Delay(600);
+                    Flush(down ? "down" : "up");
                 }
-                await Task.Delay(600);
-                Flush(down ? "down" : "up");
+            }
+            viewer.ChangeView(null, 0, null, true);
+            await Task.Delay(500);
+            for (var cycle = 0; cycle < DragCycles; cycle++)
+            {
+                foreach (var down in new[] { true, false })
+                {
+                    // From where the scroller rests: a list that re-estimated its extent at the end stays put, so the
+                    // probe never jumps the offset itself.
+                    var from = viewer.VerticalOffset;
+                    var to = down ? Math.Min(viewer.ScrollableHeight, from + DragMaxSpanEpx) : Math.Max(0, from - DragMaxSpanEpx);
+                    Begin(down ? 1 : -1);
+                    var pass = new Drag(from, to, 0, new TaskCompletionSource());
+                    drag = pass;
+                    await pass.Done.Task;
+                    await Task.Delay(400);
+                    Flush(down ? "drag-down" : "drag-up");
+                }
             }
         }
-        CompositionTarget.Rendering -= OnRendering;
-        ScrollCost.Enabled = false;
+        finally
+        {
+            drag = null;
+            CompositionTarget.Rendering -= OnRendering;
+            viewer.LayoutUpdated -= OnLayoutUpdated;
+            ScrollCost.Enabled = false;
+            Win32.SetThreadExecutionState(Win32.ExecutionContinuous);
+            if (occlusion is not null) occlusion.Changed -= OnOcclusion;
+        }
         PerfLog.Write("scroll-probe done");
     }
+
+    /// <summary>Counts the scroller's layout passes.</summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private static void OnLayoutUpdated(object? sender, object e) => layouts++;
 
     /// <summary>Resets the per-pass samples.</summary>
     /// <param name="dir">Scroll direction (+1 down, -1 up).</param>
@@ -117,9 +179,10 @@ internal static class ScrollProbe
         lastExtent = viewer.ExtentHeight;
         extentChanges = 0;
         direction = dir;
+        hidden = OcclusionTracker.Current is { IsHidden: true } tracker ? tracker.Reason : null;
     }
 
-    /// <summary>Samples one frame: interval, offset delta and extent change.</summary>
+    /// <summary>Samples one frame (interval, offset delta and extent change) and moves an active drag.</summary>
     /// <param name="sender">Unused.</param>
     /// <param name="e">Unused.</param>
     private static void OnRendering(object? sender, object e)
@@ -135,6 +198,17 @@ internal static class ScrollProbe
         lastOffset = offset;
         if (Math.Abs(viewer.ExtentHeight - lastExtent) > 0.01) extentChanges++;
         lastExtent = viewer.ExtentHeight;
+        if (drag is { } pass)
+        {
+            if (pass.Started == 0) drag = pass = pass with { Started = now };
+            var progress = Math.Min(1, Stopwatch.GetElapsedTime(pass.Started, now) / DragDuration);
+            viewer.ChangeView(null, pass.From + (pass.To - pass.From) * progress, null, true);
+            if (progress >= 1)
+            {
+                drag = null;
+                pass.Done.TrySetResult();
+            }
+        }
     }
 
     /// <summary>Writes one pass's statistics.</summary>
@@ -146,11 +220,13 @@ internal static class ScrollProbe
         var moving = Deltas.Where(d => d > 0).Order().ToList();
         var median = moving.Count > 0 ? moving[moving.Count / 2] : 0;
         var reversals = Deltas.Count(d => d < -0.01);
+        var foreground = MainWindow.Instance is { } window && Win32.GetForegroundWindow() == WinRT.Interop.WindowNative.GetWindowHandle(window);
+        if (OcclusionTracker.Current is { IsHidden: true } tracker) hidden ??= tracker.Reason;
         double P(double q) => sorted[Math.Min(sorted.Count - 1, (int)(q * sorted.Count))];
         PerfLog.Write(
             $"scroll-probe {label} frames={sorted.Count} p50={P(0.5):F1} p95={P(0.95):F1} max={sorted[^1]:F1} over33={sorted.Count(i => i > 33.4)} " +
             $"moves={Deltas.Count} median={median:F2} reversals={reversals} worstBack={(reversals > 0 ? -Deltas.Min() : 0):F2} " +
-            $"extentChanges={extentChanges} layouts={layouts} offset={viewer!.VerticalOffset:F2}");
+            $"extentChanges={extentChanges} layouts={layouts} offset={viewer!.VerticalOffset:F2} hidden={hidden ?? "0"} fg={(foreground ? 1 : 0)}");
         // Blocking collections pause the UI thread: each gen2 one is a long frame. C#/WinRT adds GC memory pressure per
         // wrapper it creates, so short-lived WinRT objects (event args, transforms) induce gen2 collections on a small
         // heap; fin= counts the dead finalizable objects (mostly such wrappers) the last collection found.
@@ -163,13 +239,31 @@ internal static class ScrollProbe
         if (Trace.Count > 0) PerfLog.Write($"scroll-probe back {string.Join(' ', Trace)}");
     }
 
+    /// <summary>Finds the scroller of an open dialog (a <see cref="ContentDialog"/> or other modal popup).</summary>
+    /// <param name="root">Window content (for its XAML root).</param>
+    /// <returns>Scroller or <see langword="null"/> while no open popup has scrollable content.</returns>
+    private static ScrollViewer? FindInDialogs(FrameworkElement root)
+    {
+        if (root.XamlRoot is null) return null;
+        ScrollViewer? best = null;
+        foreach (var popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(root.XamlRoot))
+        {
+            if (popup.Child is not { } child) continue;
+            var found = FindMain(child, 100);
+            if (found is not null && (best is null || found.ViewportHeight * found.ViewportWidth > best.ViewportHeight * best.ViewportWidth))
+                best = found;
+        }
+        return best;
+    }
+
     /// <summary>
     /// Finds the visible scroller with the largest viewport, the innermost of equal ones (a SemanticZoom wraps its list's
     /// scroller in a zoom scroller of the same size that pins its content at the middle).
     /// </summary>
-    /// <param name="root">Window content.</param>
+    /// <param name="root">Subtree to search.</param>
+    /// <param name="minViewport">Smallest viewport height in epx that counts (skips chips and small inner lists).</param>
     /// <returns>Scroller or <see langword="null"/>.</returns>
-    private static ScrollViewer? FindMain(DependencyObject root)
+    private static ScrollViewer? FindMain(DependencyObject root, double minViewport)
     {
         ScrollViewer? best = null;
         var bestArea = 0.0;
@@ -179,7 +273,7 @@ internal static class ScrollProbe
         {
             var node = stack.Pop();
             if (node is UIElement { Visibility: Visibility.Collapsed }) continue;
-            if (node is ScrollViewer sv && sv.ScrollableHeight > 0 && sv.ViewportHeight > 200
+            if (node is ScrollViewer sv && sv.ScrollableHeight > 0 && sv.ViewportHeight > minViewport
                 && sv.ViewportHeight * sv.ViewportWidth >= bestArea - 1)
             {
                 best = sv;
@@ -188,6 +282,33 @@ internal static class ScrollProbe
             for (var i = VisualTreeHelper.GetChildrenCount(node) - 1; i >= 0; i--) stack.Push(VisualTreeHelper.GetChild(node, i));
         }
         return best;
+    }
+
+    /// <summary>
+    /// Lists the visible scrollers (name, viewport and scrollable height) when none qualifies, so a "none" result says
+    /// whether the page fit its window, had not loaded or put its rows in an unexpected scroller.
+    /// </summary>
+    /// <param name="root">Window content.</param>
+    /// <param name="dialog">Search open popups instead of the page.</param>
+    /// <returns>Up to eight scrollers, or "-".</returns>
+    private static string Inventory(FrameworkElement root, bool dialog)
+    {
+        var roots = new List<DependencyObject>();
+        if (!dialog) roots.Add(root);
+        else if (root.XamlRoot is not null)
+            foreach (var popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(root.XamlRoot))
+                if (popup.Child is { } child) roots.Add(child);
+        var found = new List<string>();
+        var stack = new Stack<DependencyObject>(roots);
+        while (stack.Count > 0 && found.Count < 8)
+        {
+            var node = stack.Pop();
+            if (node is UIElement { Visibility: Visibility.Collapsed }) continue;
+            if (node is ScrollViewer sv)
+                found.Add($"{Describe(sv).Split(' ')[0]}/{sv.ViewportHeight:F0}+{sv.ScrollableHeight:F0}");
+            for (var i = VisualTreeHelper.GetChildrenCount(node) - 1; i >= 0; i--) stack.Push(VisualTreeHelper.GetChild(node, i));
+        }
+        return found.Count == 0 ? "-" : string.Join(',', found);
     }
 
     /// <summary>Names a scroller by its nearest named ancestor.</summary>
@@ -199,7 +320,7 @@ internal static class ScrollProbe
         DependencyObject? node = element;
         while (node is FrameworkElement fe && names.Count < 4)
         {
-            if (!string.IsNullOrEmpty(fe.Name) || fe is Page) names.Add($"{fe.GetType().Name}:{fe.Name}");
+            if (!string.IsNullOrEmpty(fe.Name) || fe is Page or ContentDialog) names.Add($"{fe.GetType().Name}:{fe.Name}");
             node = VisualTreeHelper.GetParent(fe);
         }
         return string.Join('<', names) + $" start={((ScrollViewer)element).VerticalOffset:F1}";

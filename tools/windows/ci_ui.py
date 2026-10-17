@@ -23,6 +23,9 @@ WINDOWS_TOOLS = REPO_ROOT / "tools" / "windows"
 JOURNEYS = WINDOWS_TOOLS / "journeys"
 MATRIX_GROUP_SIZE = 6
 SKIP_FILE = WINDOWS_TOOLS / "ci_skip.json"
+SCROLL_SUITE = WINDOWS_TOOLS / "scroll_stress.json"
+# Scroll stress entries per CI task: each launches the app once and scrolls for about 40 s (issue #668).
+SCROLL_GROUP_SIZE = 5
 
 
 @dataclass(frozen=True)
@@ -99,7 +102,21 @@ def candidate_tasks() -> list[Task]:
         else:
             tasks.append(Task(f"{kind}:{source.stem}", kind, source, entries=names))
     tasks.extend(Task(f"runner:{name}", "runner", command=command) for name, command in DEDICATED_RUNNERS)
+    tasks.extend(scroll_stress_tasks())
     return tasks
+
+
+def scroll_stress_tasks() -> list[Task]:
+    """The scroll stress suite (``scroll_probe.py``, issue #668) in groups of :data:`SCROLL_GROUP_SIZE` entries.
+
+    The hosted runner's software rendering makes frame intervals advisory (``--ci``); reversals, handler time and gen2
+    collections still fail a page.
+    """
+    names = [str(page["name"]) for page in json.loads(SCROLL_SUITE.read_text(encoding="utf-8"))["pages"]]
+    return [Task(f"runner:scroll-stress:{index // SCROLL_GROUP_SIZE + 1}", "runner", entries=tuple(group),
+                 command=("scroll_probe.py", "--exe", "debug", "--ci", "--pages", ",".join(group)))
+            for index in range(0, len(names), SCROLL_GROUP_SIZE)
+            for group in [names[index:index + SCROLL_GROUP_SIZE]]]
 
 
 def skipped_tasks() -> dict[str, dict]:
@@ -116,7 +133,8 @@ def all_tasks() -> list[Task]:
 def task_weight(task: Task) -> int:
     """Estimate a task's desktop time for balanced deterministic CI sharding."""
     if task.kind == "runner":
-        return 12
+        # A scroll stress entry takes about a minute; a dedicated runner several.
+        return 2 * len(task.entries) if task.entries else 12
     assert task.source is not None
     entries = [entry for entry in fixture_entries(task.source) if entry["name"] in task.entries]
     return sum(len(entry.get("sizes", ("compact", "medium", "wide"))) for entry in entries) if task.kind == "matrix" else len(entries)

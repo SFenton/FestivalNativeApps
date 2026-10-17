@@ -473,5 +473,44 @@ class RivalDetailStateTests(unittest.TestCase):
         self.assertEqual(statuses, [(f"/api/player/fixture-player-detail-frozen{detail}", 503)])
 
 
+class StressListsTests(unittest.TestCase):
+    """``--stress-lists`` (issue #668): list pages that would fit a window get enough rows to scroll."""
+
+    def test_history_is_padded_newest_first(self):
+        body = f.stress_lists("/api/player/fixture-player-1/history?songId=fixture-pulse&instrument=Solo_Guitar",
+                              {"accountId": "fixture-player-1", "count": 2, "history": [{"songId": "fixture-pulse"}]})
+        rows = body["history"]
+        self.assertEqual((body["count"], len(rows)), (f.STRESS_ROWS, f.STRESS_ROWS))
+        self.assertTrue(all(a["newScore"] > b["newScore"] and a["oldScore"] == b["newScore"]
+                            for a, b in zip(rows, rows[1:])))
+        self.assertTrue(all(a["changedAt"] > b["changedAt"] for a, b in zip(rows, rows[1:])))
+        self.assertIsNone(rows[-1]["oldScore"])
+
+    def test_empty_history_stays_empty(self):
+        body = {"accountId": "fixture-syncing", "count": 0, "history": [], "status": "syncing"}
+        self.assertIs(f.stress_lists("/api/player/fixture-syncing/history", body), body)
+
+    def test_rivals_lists_keep_their_own_rows_first(self):
+        above = [{"accountId": "a" * 32}]
+        body = f.stress_lists("/api/player/fixture-player-1/rivals/01", {"combo": "01", "above": above, "below": []})
+        self.assertEqual((len(body["above"]), len(body["below"])), (f.STRESS_ROWS, f.STRESS_ROWS))
+        self.assertEqual(body["above"][0], above[0])
+        ids = [row["accountId"] for row in body["above"] + body["below"]]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertTrue(all(len(i) == 32 for i in ids))
+
+    def test_shop_adds_catalogue_songs(self):
+        shop = {"count": 1, "songs": [{"songId": "fixture-pulse"}], "newSongs": []}
+        body = f.stress_lists("/api/shop", shop)
+        self.assertEqual(body["count"], 1 + f.STRESS_SHOP_SONGS)
+        catalogue = {song["songId"] for song in f.mock_service.LARGE_CATALOGUE_SONGS}
+        self.assertTrue({song["songId"] for song in body["songs"][1:]} <= catalogue)
+
+    def test_other_reads_and_304s_pass_through(self):
+        body = {"songs": [{"songId": "fixture-pulse"}]}
+        self.assertIs(f.stress_lists("/api/songs", body), body)
+        self.assertIsNone(f.stress_lists("/api/shop", None))
+
+
 if __name__ == "__main__":
     unittest.main()
