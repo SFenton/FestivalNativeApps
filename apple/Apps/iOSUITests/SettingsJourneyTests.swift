@@ -273,10 +273,10 @@ final class SettingsJourneyTests: XCTestCase {
             "show-metadata", "version", "service-info", "first-run", "licenses", "privacy-policy",
             "reset",
         ]
-        let rows = pageOrder.map { app.buttons["fst.quick-links.item.\($0)"] }
+        let rows = pageOrder.map { Self.quickLinkRow($0, in: app) }
         XCTAssertTrue(rows[0].waitForExistence(timeout: 10))
         XCTAssertFalse(
-            app.buttons["fst.quick-links.item.diagnostics"].exists,
+            Self.quickLinkRow("diagnostics", in: app).exists,
             "The removed Diagnostics section is offered as a Quick Link (#374)"
         )
         let tops = rows.map(\.frame.minY)
@@ -285,7 +285,7 @@ final class SettingsJourneyTests: XCTestCase {
         XCTAssertTrue(rows[0].isSelected, "The active (first) section is not checked")
         SongsUITestSupport.record(app, name: "settings-quick-links-menu-order")
 
-        let itemShop = app.buttons["fst.quick-links.item.item-shop"]
+        let itemShop = Self.quickLinkRow("item-shop", in: app)
         itemShop.tap()
         let jumped = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value == %@", "Item Shop"), object: quickLinks
@@ -311,7 +311,7 @@ final class SettingsJourneyTests: XCTestCase {
         ]
         for (id, title) in targets {
             quickLinks.tap()
-            let row = app.buttons["fst.quick-links.item.\(id)"]
+            let row = FestivalApp.quickLinkRow(id, label: title, in: app)
             XCTAssertTrue(row.waitForExistence(timeout: 10))
             row.tap()
             let landed = XCTNSPredicateExpectation(
@@ -414,6 +414,19 @@ final class SettingsJourneyTests: XCTestCase {
         case clampedTop
     }
 
+    /// The open Quick Links chooser's row for a Settings section, by identifier or by its
+    /// spoken title when an iOS 27 menu drops the identifier (quick-links R6, #665).
+    ///
+    /// - Parameters:
+    ///   - id: The section's Quick Links id, one of `SettingsAccessibilityJourneyTests.quickLinkSections`.
+    ///   - app: The app with the chooser open.
+    /// - Returns: The row's button.
+    @MainActor
+    private static func quickLinkRow(_ id: String, in app: XCUIApplication) -> XCUIElement {
+        let label = SettingsAccessibilityJourneyTests.quickLinkSections.first { $0.id == id }?.label ?? id
+        return FestivalApp.quickLinkRow(id, label: label, in: app)
+    }
+
     /// Open Quick Links, pick a section and check what an assistive-technology user
     /// gets (#393): a named sheet row at least 44 pt tall, then the section title whole,
     /// hittable and clear of the navigation bar, and a Quick Links VoiceOver value that
@@ -432,9 +445,9 @@ final class SettingsJourneyTests: XCTestCase {
         let quickLinks = app.buttons["fst.quick-links.open"]
         quickLinks.tap()
         // At AX5 the Quick Links sheet scrolls; rows past its fold are absent until revealed.
-        let menuRows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "fst.quick-links.item."))
+        let menuRows = FestivalApp.quickLinkRows(SettingsAccessibilityJourneyTests.quickLinkSections, in: app)
         XCTAssertTrue(menuRows.firstMatch.waitForExistence(timeout: 10), file: file, line: line)
-        let row = app.buttons["fst.quick-links.item.\(id)"]
+        let row = FestivalApp.quickLinkRow(id, label: title, in: app)
         let window = app.windows.firstMatch
         for _ in 0..<8 where !(row.exists && row.isHittable && row.frame.maxY <= window.frame.maxY) {
             window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).press(

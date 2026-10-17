@@ -1989,8 +1989,8 @@ final class SongsJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "songs-shop-quick-links-closed")
         quickLinks.tap()
 
-        let leaving = app.buttons["fst.quick-links.item.shop:leaving-tomorrow"]
-        let inShop = app.buttons["fst.quick-links.item.shop:in-shop"]
+        let leaving = FestivalApp.quickLinkRow("shop:leaving-tomorrow", label: "Leaving Tomorrow", in: app)
+        let inShop = FestivalApp.quickLinkRow("shop:in-shop", label: "In Shop", in: app)
         XCTAssertTrue(leaving.waitForExistence(timeout: 10))
         XCTAssertTrue(inShop.exists)
         SongsUITestSupport.record(app, name: "songs-shop-quick-links-open")

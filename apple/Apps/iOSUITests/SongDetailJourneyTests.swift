@@ -794,7 +794,7 @@ final class SongDetailJourneyTests: XCTestCase {
         let quickLinks = app.buttons["fst.quick-links.open"]
         XCTAssertTrue(quickLinks.waitForExistence(timeout: 15))
         quickLinks.tap()
-        let duos = app.buttons["fst.quick-links.item.band-Band_Duets"]
+        let duos = FestivalApp.quickLinkRow("band-Band_Duets", label: "Duos", in: app)
         XCTAssertTrue(duos.waitForExistence(timeout: 10), "Quick Links has no Duos section")
         duos.tap()
 

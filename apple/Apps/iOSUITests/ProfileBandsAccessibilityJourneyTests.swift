@@ -192,13 +192,13 @@ final class ProfileBandsAccessibilityJourneyTests: XCTestCase {
         let quickLinks = app.buttons["fst.quick-links.open"]
         XCTAssertTrue(quickLinks.waitForExistence(timeout: FestivalApp.budget(15)), "Quick Links shows")
         quickLinks.tap()
-        let first = app.buttons["fst.quick-links.item.global"]
+        let first = FestivalApp.quickLinkRow("global", label: "Global Statistics", in: app)
         XCTAssertTrue(first.waitForExistence(timeout: FestivalApp.budget(10)), "Quick Links opens")
         // Bands is the last section; at AX5 the list scrolls (QuickLinksOrderJourneyTests).
-        let item = app.buttons["fst.quick-links.item.bands"]
+        let item = FestivalApp.quickLinkRow("bands", label: "Bands", in: app)
         // Any row: the list is lazy, so the first one leaves the hierarchy as it scrolls.
         let list = app.collectionViews.containing(
-            NSPredicate(format: "identifier BEGINSWITH 'fst.quick-links.item.'")
+            FestivalApp.quickLinkRowsPredicate([("global", "Global Statistics"), ("bands", "Bands")])
         ).firstMatch
         for _ in 0..<8 where !(item.exists && item.isHittable) {
             list.swipeUp(velocity: .slow)
