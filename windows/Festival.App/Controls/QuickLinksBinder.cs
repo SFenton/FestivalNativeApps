@@ -34,7 +34,8 @@ public static class QuickLinkAnchor
 /// <summary>
 /// Connects a page <see cref="ScrollViewer"/> to a <see cref="QuickLinksViewModel"/>: measures anchors only when the
 /// view changes (no per-frame work while idle, and at most one report per
-/// <see cref="QuickLinks.IntermediateReportInterval"/> while a scroll moves, #642), reports frames, and scrolls on jump
+/// <see cref="QuickLinks.IntermediateReportInterval"/> while a scroll moves, #642, including a scrollbar-thumb drag's
+/// stream of final view changes, #668), reports frames, and scrolls on jump
 /// requests (instant under reduced motion). Anchors are found once per load by <see cref="QuickLinkAnchor"/>.
 /// </summary>
 public sealed class QuickLinksBinder
@@ -69,6 +70,12 @@ public sealed class QuickLinksBinder
 
     /// <summary><see cref="Stopwatch"/> timestamp of the last report, or 0 before the first.</summary>
     private long lastReport;
+
+    /// <summary><see cref="Stopwatch"/> timestamp of the last final view change, or 0 before the first (#668).</summary>
+    private long lastFinalChange;
+
+    /// <summary>Full report after a stream of final view changes stops (<see cref="SettleStream"/>).</summary>
+    private DispatcherQueueTimer? settleTimer;
 
     /// <summary>Scrolled content whose size changes trigger a re-measure (see <see cref="WatchContent"/>).</summary>
     private FrameworkElement? watchedContent;
@@ -300,6 +307,18 @@ public sealed class QuickLinksBinder
             ReportMoving();
             return;
         }
+        if (landing is null)
+        {
+            var now = Stopwatch.GetTimestamp();
+            var streaming = QuickLinks.ContinuesFinalStream(lastFinalChange == 0 ? double.NaN : Stopwatch.GetElapsedTime(lastFinalChange, now).TotalMilliseconds);
+            lastFinalChange = now;
+            if (streaming)
+            {
+                ReportMoving();
+                SettleStream();
+                return;
+            }
+        }
         if (landing is null || !isFinal)
         {
             Report(isFinal);
@@ -307,6 +326,26 @@ public sealed class QuickLinksBinder
         }
         Report(false);
         scroller.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, CheckLanding);
+    }
+
+    /// <summary>
+    /// (Re)starts the full report that settles a stream of final view changes once it stops for
+    /// <see cref="QuickLinks.IntermediateReportInterval"/> (#668, <see cref="QuickLinks.ContinuesFinalStream"/>).
+    /// </summary>
+    private void SettleStream()
+    {
+        if (settleTimer is null)
+        {
+            settleTimer = scroller.DispatcherQueue.CreateTimer();
+            settleTimer.IsRepeating = false;
+            settleTimer.Interval = TimeSpan.FromMilliseconds(QuickLinks.IntermediateReportInterval);
+            settleTimer.Tick += (_, _) =>
+            {
+                if (scroller.IsLoaded && landing is null) Report(true);
+            };
+        }
+        settleTimer.Stop();
+        settleTimer.Start();
     }
 
     /// <summary>
