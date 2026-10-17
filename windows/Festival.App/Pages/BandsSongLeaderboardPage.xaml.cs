@@ -14,7 +14,7 @@ namespace Festival.App.Pages;
 /// <c>/songs/:songId/bands/:bandType</c>: a song's band scores with an in-place band-size switcher and paging, and the
 /// selected player's band highlighted in place and pinned above the pager (issue #306).
 /// </summary>
-public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
+public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage, ISplitPaneTitlePage
 {
     private SongBandRow? pendingReveal;
     private bool spotlightShown;
@@ -36,6 +36,9 @@ public sealed partial class BandsSongLeaderboardPage : Page, IBackdropPage
 
     /// <inheritdoc />
     public string? BackdropArt => ViewModel?.Song?.AlbumArt;
+
+    /// <inheritdoc />
+    public bool BesideList { get => Header.BesideList; set => Header.BesideList = value; }
 
     /// <inheritdoc />
     protected override async void OnNavigatedTo(NavigationEventArgs e)

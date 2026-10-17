@@ -3143,7 +3143,7 @@
       "title": "Song leaderboard header",
       "status": "current",
       "doc": ".agents/patterns/song-leaderboard-header.md",
-      "summary": "A song-scoped leaderboard (instrument or band size) names the song first in an in-page header with the board on the line under the artist, keeps that header on screen through board, page and player reloads (only the rows reload), keeps the bar title empty until the header scrolls away, and sits on the song's static dimmed album art. Owner-approved variant (#342): a board opened beside Song Detail in a split's trailing pane drops the song header and is titled by its instrument icon and name (or band size). Android adopts the variant with its on-demand split (#583).",
+      "summary": "A song-scoped leaderboard (instrument or band size) names the song first in an in-page header with the board on the line under the artist, keeps that header on screen through board, page and player reloads (only the rows reload), keeps the bar title empty until the header scrolls away, and sits on the song's static dimmed album art. Owner-approved variant (#342): a board opened beside Song Detail in a split's trailing pane drops the song header and is titled by its instrument icon and name (or band size). Android adopts the variant with its on-demand split (#583); Windows with its on-demand split (#667).",
       "keywords": [
         "song header",
         "band leaderboard",
@@ -3175,7 +3175,8 @@
         342,
         542,
         580,
-        583
+        583,
+        667
       ],
       "web": [
         {

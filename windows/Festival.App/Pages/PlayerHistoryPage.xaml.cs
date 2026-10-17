@@ -12,7 +12,7 @@ namespace Festival.App.Pages;
 /// Selected player's every score for one song and chart (<c>/songs/:songId/:instrument/history</c>, web
 /// <c>PlayerHistoryPage</c>) over the song's static cover; Song Detail's "View All Scores" opens it (issue #324).
 /// </summary>
-public sealed partial class PlayerHistoryPage : Page, IBackdropPage
+public sealed partial class PlayerHistoryPage : Page, IBackdropPage, ISplitPaneTitlePage
 {
     /// <summary>Creates the page.</summary>
     public PlayerHistoryPage() => InitializeComponent();
@@ -25,6 +25,9 @@ public sealed partial class PlayerHistoryPage : Page, IBackdropPage
 
     /// <inheritdoc />
     public string? BackdropArt => ViewModel?.Song?.AlbumArt;
+
+    /// <inheritdoc />
+    public bool BesideList { get => Header.BesideList; set => Header.BesideList = value; }
 
     /// <inheritdoc />
     protected override async void OnNavigatedTo(NavigationEventArgs e)

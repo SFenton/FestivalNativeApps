@@ -23,7 +23,7 @@
                                         BoardLabel="{x:Bind ViewModel.BoardLabel, Mode=OneWay}" TotalText="{x:Bind ViewModel.TotalText, Mode=OneWay}"
                                         TitleAutomationId="fst.song-band-leaderboard.title" ArtistAutomationId="fst.song-band-leaderboard.artist"
                                         BoardAutomationId="fst.song-band-leaderboard.subtitle"
-                                        TotalAutomationId="fst.song-band-leaderboard.total" SongAutomationId="fst.song-band-leaderboard.song"
+                                        TotalAutomationId="fst.song-band-leaderboard.total" SongAutomationId="fst.song-band-leaderboard.song" BoardTitleAutomationId="fst.song-band-leaderboard.board-title"
                                         TitleInvoked="OnSongTitle" />
 
         <SelectorBar x:Name="SizeBar" Grid.Row="1" SelectionChanged="OnSizeChanged"

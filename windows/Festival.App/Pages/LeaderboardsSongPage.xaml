@@ -33,7 +33,7 @@
                                                     TotalText="{x:Bind ViewModel.TotalText, Mode=OneWay}"
                                                     TitleAutomationId="fst.song-leaderboard.title" ArtistAutomationId="fst.song-leaderboard.artist"
                                                     BoardAutomationId="fst.song-leaderboard.instrument" TotalAutomationId="fst.song-leaderboard.total"
-                                                    SongAutomationId="fst.song-leaderboard.song" TitleInvoked="OnSongTitle" />
+                                                    SongAutomationId="fst.song-leaderboard.song" BoardTitleAutomationId="fst.song-leaderboard.board-title" TitleInvoked="OnSongTitle" />
                     <!-- The page's entries as one grouped card (GroupedRows: touching row slices with hairlines; issue #543,
                          owner-approved native variant of the web's separate entryRow cards). -->
                     <ItemsRepeater XYFocusKeyboardNavigation="Enabled" x:Name="RowsRepeater" controls:FadeIn.Together="True" controls:FadeIn.RowHeight="48"
