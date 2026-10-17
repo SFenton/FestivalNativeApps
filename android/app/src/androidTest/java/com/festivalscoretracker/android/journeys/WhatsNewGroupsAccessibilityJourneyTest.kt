@@ -124,8 +124,9 @@ class WhatsNewGroupsAccessibilityJourneyTest {
      * Material's "Close sheet" scrim an 8 dp strip that the app never shows.
      *
      * @param channel Install channel.
+     * @param document `versioning.py whats-new` document to present.
      */
-    private fun present(channel: InstallChannel) {
+    private fun present(channel: InstallChannel, document: String = CHANGELOG) {
         rule.runOnUiThread {
             rule.activity.enableEdgeToEdge(
                 statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
@@ -133,7 +134,7 @@ class WhatsNewGroupsAccessibilityJourneyTest {
             )
         }
         h.enableAccessibilityChecks()
-        val entries = Changelog.decode(CHANGELOG)
+        val entries = Changelog.decode(document)
         rule.setContent {
             FestivalTheme {
                 val controller = remember {
@@ -421,6 +422,32 @@ class WhatsNewGroupsAccessibilityJourneyTest {
         assertChannel("whats-new-landscape-tester-2x", InstallChannel.Tester, testerSequence, listOf(STORE_TITLE), 2f)
     }
 
+    /**
+     * Tester install before the first store release (issue #670): the "Changes So Far" list holds every
+     * note so far, shaped like the generated Android 2610.15.02 document (187 notes in 17 page categories
+     * plus Other). Every category heading is reached in page order and announced as a heading, "Other"
+     * and its last note come last, the first-release section is not shown, and Close, Dismiss and ATF hold.
+     */
+    @Test
+    @DeviceCi
+    fun preReleaseTesterListReadsEveryCategoryThroughOther() {
+        val screen = "whats-new-tester-pre-release"
+        val sequence = listOf(Stop("Changes So Far", heading = true)) +
+            PRE_RELEASE_COUNTS.map { (category, _) -> Stop(category ?: "Other", heading = true) } +
+            Stop("Other note 5.")
+        present(InstallChannel.Tester, PRE_RELEASE_CHANGELOG)
+        assertTarget(screen, "fst.whats-new.close")
+        assertTarget(screen, "fst.whats-new.dismiss")
+        assertReadingOrder(screen, sequence)
+        sequence.filter { it.heading }.forEach { assertHeading(screen, it) }
+        assertTrue("$screen: the first-release section is not shown", rule.onAllNodes(hasText(OLDER_NOTE), useUnmergedTree = true).fetchSemanticsNodes().isEmpty())
+        assertTarget("$screen-end", "fst.whats-new.dismiss")
+        h.readingOrder("$screen-end", fresh = true)
+        h.tap("fst.whats-new.dismiss")
+        h.waitGone("fst.whats-new.sheet")
+        h.assertAccessible()
+    }
+
     // endregion
 
     /**
@@ -455,5 +482,24 @@ class WhatsNewGroupsAccessibilityJourneyTest {
               {"version":"2610.01.03","released":true,"items":["$OLDER_NOTE"]}
             ]}
         """.trimIndent()
+
+        /** Note counts per category (null = Other) of the generated Android 2610.15.02 tester list. */
+        val PRE_RELEASE_COUNTS = listOf(
+            "Songs" to 23, "Song Details" to 13, "Suggestions" to 6, "Statistics" to 1, "Compete" to 12,
+            "Leaderboards" to 27, "Rivals" to 11, "Bands" to 10, "Item Shop" to 7, "Profile" to 10,
+            "Notifications" to 2, "Settings" to 13, "First Run" to 8, "Navigation" to 18, "Accessibility" to 10,
+            "Performance" to 1, "General" to 10, null to 5,
+        )
+
+        /** No store release yet: the built version's section is the first-release line, testers get every note so far. */
+        val PRE_RELEASE_CHANGELOG = run {
+            val groups = PRE_RELEASE_COUNTS.joinToString(",") { (category, n) ->
+                val name = category?.let { "\"$it\"" } ?: "null"
+                """{"category":$name,"items":[${(1..n).joinToString(",") { "\"${category ?: "Other"} note $it.\"" }}]}"""
+            }
+            """{"schema":1,"platform":"android","version":"$VERSION","baseline":null,"entries":[
+              {"version":"$VERSION","released":false,"items":["$OLDER_NOTE"],
+               "testflight":{"release":null,"groups":[$groups]}}]}"""
+        }
     }
 }
