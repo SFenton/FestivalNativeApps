@@ -502,6 +502,52 @@ class GitFlowTests(unittest.TestCase):
         self.repo.tag("windows/released/junk")
         self.assertEqual(self.repo.git.released_from_tags("windows"), ["2610.01.01"])
 
+    def test_windows_build_baseline_is_the_store_release(self):
+        # #670: windows-release-build passes the Store's published version (`--released`) with the released tags.
+        # Without either, the build's section and tester list covered everything since the first version.
+        r = self.repo
+        r.tag("windows/v2610.01.01")
+        r.commit("a\n\nRelease-Note: Songs: Rows fade in.", "windows/Festival.App/A.cs")
+        r.tag("windows/v2610.02.01")
+        r.commit("b\n\nRelease-Note-Windows: Settings: Reset asks first.", "windows/Festival.App/B.cs")
+        r.commit("c\n\nRelease-Note: Spinners are smoother.", "windows/Festival.Core/C.cs")
+        r.tag("windows/v2610.03.01")
+        r.commit("d\n\nRelease-Note: Rivals: Rows refresh.", "windows/Festival.App/D.cs")
+        r.tag("windows/v2610.04.01")
+        root = r.root
+
+        def generate(*released):
+            out = root / "wn.json"
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(v.main(["--repo", str(root), "whats-new", "--tag", "windows/v2610.04.01",
+                                         "--released", ",".join(released), "--released-from-tags",
+                                         "--out", str(out), "--store-notes-out", str(root / "store.txt")]), 0)
+            return json.loads(out.read_text(encoding="utf-8"))
+
+        unknown = generate()
+        self.assertIsNone(unknown["baseline"])
+        self.assertEqual(unknown["entries"][0]["items"], [v.PLATFORMS["windows"]["initial_note"]])
+        self.assertIsNone(unknown["entries"][0]["testflight"]["release"])
+
+        store = generate("2610.02.01")
+        self.assertEqual(store["baseline"], "2610.02.01")
+        self.assertEqual([(e["version"], e["released"]) for e in store["entries"]],
+                         [("2610.04.01", False), ("2610.02.01", True)])
+        built = store["entries"][0]
+        self.assertEqual(built["groups"], [{"category": "Rivals", "items": ["Rows refresh."]},
+                                           {"category": "Settings", "items": ["Reset asks first."]},
+                                           {"category": None, "items": ["Spinners are smoother."]}])
+        self.assertEqual(built["testflight"]["release"], "2610.02.01")
+        self.assertEqual(built["testflight"]["groups"], built["groups"])
+        self.assertNotIn("Songs: Rows fade in.", (root / "store.txt").read_text(encoding="utf-8"))
+
+        # A released tag newer than the Store's answer (or the other way round) still picks the newest release.
+        r.tag("windows/released/2610.03.01")
+        both = generate("2610.02.01")
+        self.assertEqual(both["baseline"], "2610.03.01")
+        self.assertEqual(both["entries"][0]["items"], ["Rivals: Rows refresh."])
+        self.assertEqual([e["version"] for e in both["entries"]], ["2610.04.01", "2610.03.01", "2610.02.01"])
+
     def test_cli_round_trip(self):
         self._history()
         root = self.repo.root
