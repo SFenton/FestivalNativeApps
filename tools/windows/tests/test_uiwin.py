@@ -195,6 +195,17 @@ class StepTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             u.cli_steps(["wait:1", "contrast:desert"])
 
+    def test_animations(self):
+        # Issue #669 review (reflow-motion R4): turn Animation effects off mid-reflow; only a11y_matrix (which restores
+        # them) may.
+        self.assertEqual(u.parse_step("animations:Off"), {"verb": "animations", "arg": "off"})
+        self.assertEqual(u.parse_step("animations:on")["arg"], "on")
+        for bad in ("animations:", "animations:reduced"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+        with self.assertRaises(ValueError):
+            u.cli_steps(["wait:1", "animations:off"])
+
     def test_listen_and_assertannounced(self):
         # Issue #269: record the app's UIA notifications (what Narrator speaks), then wait for one.
         self.assertEqual(u.parse_step("listen:Announcements"), {"verb": "listen", "arg": "announcements"})

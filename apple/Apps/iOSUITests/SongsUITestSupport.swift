@@ -1208,6 +1208,25 @@ enum SongsUITestSupport {
         )
     }
 
+    /// How long one switch tap holds its touch down: about a person's tap.
+    ///
+    /// XCTest's own `tap()` lifts after about 45 ms. The system switch flips from a long-press
+    /// recognizer with a 10 ms minimum, so that recognizer's timer must fire while the finger
+    /// is still down. On a fresh CI simulator the main thread was busy for 42 ms right after
+    /// touch-down, the timer only ran after the lift, and the recognizer failed: the switch
+    /// never flipped (#665). A 0.2 s hold outlasts that work; it is still far below the
+    /// 0.5 s a context menu needs.
+    static let switchTapHold: TimeInterval = 0.2
+
+    /// Tap a SwiftUI `Toggle` row's system switch once, on the part of its track the thumb
+    /// leaves bare (`switchBareTrack(of:)`), holding for `switchTapHold`.
+    ///
+    /// - Parameter element: The toggle's switch element (row or bare switch).
+    @MainActor
+    static func tapSwitch(_ element: XCUIElement) {
+        switchBareTrack(of: element).press(forDuration: switchTapHold)
+    }
+
     /// Wait until a control's frame stops moving (a reveal's fling has come to rest), so a
     /// coordinate tap is not taken by the scroll view to stop the scroll.
     ///
@@ -1234,7 +1253,7 @@ enum SongsUITestSupport {
     static func setSwitch(_ element: XCUIElement, to value: String) {
         if element.value as? String != value {
             waitUntilFrameSettles(element)
-            switchBareTrack(of: element).tap()
+            tapSwitch(element)
             let changed = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "value == %@", value), object: element
             )
