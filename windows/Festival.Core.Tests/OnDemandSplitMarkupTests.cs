@@ -71,4 +71,24 @@ public class OnDemandSplitMarkupTests
         Assert.Contains("Width = 40", host, StringComparison.Ordinal);
         Assert.Contains("AccessibilityView.Raw", host, StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData("LeaderboardsSongPage", "fst.song-leaderboard.board-title")]
+    [InlineData("BandsSongLeaderboardPage", "fst.song-band-leaderboard.board-title")]
+    [InlineData("PlayerHistoryPage", "fst.history.board-title")]
+    public void SongBoardsBesideSongDetailAreTitledByTheirBoard(string page, string titleId)
+    {
+        // song-leaderboard-header Variants (owner-approved #342; Windows #667): the host tells the pane's root page when it
+        // shows beside Song Detail, and the shared header then draws the board title instead of the song.
+        Assert.Contains("ISplitPaneTitlePage", Read("Pages", page + ".xaml.cs"), StringComparison.Ordinal);
+        Assert.Contains("set => Header.BesideList = value", Read("Pages", page + ".xaml.cs"), StringComparison.Ordinal);
+        Assert.Contains($"BoardTitleAutomationId=\"{titleId}\"", Read("Pages", page + ".xaml"), StringComparison.Ordinal);
+        var host = Read("Controls", "OnDemandSplitHost.cs");
+        Assert.Contains("OnDemandSplitPolicy.TitlesBoardBesideList(", host, StringComparison.Ordinal);
+        var header = Read("Controls", "SongLeaderboardHeader.xaml");
+        var paneTitle = header[header.IndexOf("x:Name=\"PaneTitle\"", StringComparison.Ordinal)..header.IndexOf("x:Name=\"SongButton\"", StringComparison.Ordinal)];
+        Assert.Contains("AutomationProperties.HeadingLevel=\"Level1\"", paneTitle, StringComparison.Ordinal);
+        Assert.DoesNotContain("SongHeaderText", paneTitle, StringComparison.Ordinal);
+        Assert.DoesNotContain("<Image", paneTitle, StringComparison.Ordinal);
+    }
 }

@@ -682,4 +682,16 @@ public interface IBackdropPage
     /// <summary>Song art reference, once known.</summary>
     string? BackdropArt { get; }
 }
+
+/// <summary>
+/// Song boards that drop their song header at the root of the trailing pane beside Song Detail and are titled by their
+/// board instead (song-leaderboard-header Variants, owner-approved #342; Windows #667). <see cref="Controls.OnDemandSplitHost"/>
+/// sets it from <see cref="Festival.Core.Domain.OnDemandSplitPolicy.TitlesBoardBesideList"/> on every pane navigation and
+/// layout change, so a stacked pane or a deeper push shows the song header again.
+/// </summary>
+public interface ISplitPaneTitlePage
+{
+    /// <summary>Whether the page shows side by side with Song Detail at its pane's root.</summary>
+    bool BesideList { get; set; }
+}
 #endregion

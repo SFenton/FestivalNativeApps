@@ -10,7 +10,7 @@ namespace Festival.App.Pages;
 
 #region Song leaderboard page
 /// <summary>Solo song leaderboard (<c>/songs/:songId/:instrument</c>) over the song's static cover.</summary>
-public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
+public sealed partial class LeaderboardsSongPage : Page, IBackdropPage, ISplitPaneTitlePage
 {
     private readonly FailedReloadFocus reloadFocus;
     private int shownPage;
@@ -36,6 +36,9 @@ public sealed partial class LeaderboardsSongPage : Page, IBackdropPage
 
     /// <inheritdoc />
     public string? BackdropArt => ViewModel?.Song?.AlbumArt;
+
+    /// <inheritdoc />
+    public bool BesideList { get => Header.BesideList; set => Header.BesideList = value; }
 
     /// <inheritdoc />
     protected override async void OnNavigatedTo(NavigationEventArgs e)

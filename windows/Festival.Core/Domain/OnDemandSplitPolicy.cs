@@ -88,6 +88,21 @@ public static class OnDemandSplitPolicy
         or AppRoute.SongLeaderboard or AppRoute.SongBandLeaderboard or AppRoute.PlayerHistory
         or AppRoute.RivalDetail or AppRoute.Rivalry;
 
+    /// <summary>
+    /// Whether a page draws the split-pane board title instead of the song header (song-leaderboard-header Variants,
+    /// owner-approved #342; Windows #667): a song board or Score History at the root of the trailing pane, shown side by
+    /// side with Song Detail. A stacked pane (window too narrow), a page pushed deeper in the pane and every full-width
+    /// push keep the song header (R1).
+    /// </summary>
+    /// <param name="list">List page the pane belongs to.</param>
+    /// <param name="sideBySide">Whether the list and the pane show side by side now (not stacked).</param>
+    /// <param name="paneDepth">The page's depth in the pane's own stack (0 = the pane's root).</param>
+    /// <param name="route">The page's route.</param>
+    /// <returns><see langword="true"/> when the page is titled by its board beside Song Detail.</returns>
+    public static bool TitlesBoardBesideList(SplitListPage? list, bool sideBySide, int paneDepth, AppRoute? route) =>
+        sideBySide && paneDepth == 0 && list == SplitListPage.SongDetail
+        && route is AppRoute.SongLeaderboard or AppRoute.SongBandLeaderboard or AppRoute.PlayerHistory;
+
     /// <summary>Where a navigation lands.</summary>
     /// <param name="page">List page on top of the section's stack, or <see langword="null"/>.</param>
     /// <param name="allowsSplit">Whether the window allows two panes now.</param>

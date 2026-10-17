@@ -103,4 +103,21 @@ public class OnDemandSplitPolicyTests
         Assert.Equal(SplitAction.PushInPane, OnDemandSplitPolicy.Decide(SplitListPage.Rivals, false, true, true, Rivalry));
         Assert.Equal(SplitAction.PushFull, OnDemandSplitPolicy.Decide(SplitListPage.Rivals, false, true, false, Rival));
     }
+
+    [Fact]
+    public void TitlesBoardBesideList_OnlyAtThePaneRootBesideSongDetail()
+    {
+        // The instrument board, band board and Score History beside Song Detail drop the song header (#342 variant, #667).
+        Assert.All(new[] { Board, BandBoard, History },
+            r => Assert.True(OnDemandSplitPolicy.TitlesBoardBesideList(SplitListPage.SongDetail, true, 0, r)));
+        // A stacked pane (window too narrow) shows no Song Detail beside it, so the song header returns (R1).
+        Assert.False(OnDemandSplitPolicy.TitlesBoardBesideList(SplitListPage.SongDetail, false, 0, Board));
+        // A board pushed deeper inside the pane keeps the song header.
+        Assert.False(OnDemandSplitPolicy.TitlesBoardBesideList(SplitListPage.SongDetail, true, 1, BandBoard));
+        // Full-width pushes have no list page; other list pages' panes hold no song boards.
+        Assert.False(OnDemandSplitPolicy.TitlesBoardBesideList(null, true, 0, Board));
+        Assert.False(OnDemandSplitPolicy.TitlesBoardBesideList(SplitListPage.Leaderboards, true, 0, Rankings));
+        Assert.False(OnDemandSplitPolicy.TitlesBoardBesideList(SplitListPage.Rivals, true, 0, Rival));
+        Assert.False(OnDemandSplitPolicy.TitlesBoardBesideList(SplitListPage.SongDetail, true, 0, null));
+    }
 }

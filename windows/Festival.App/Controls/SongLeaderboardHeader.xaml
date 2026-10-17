@@ -11,6 +11,26 @@
          (onTitleClick; song-header R1). Narrator reads the named button as one item, so code-behind names it by every
          visible line (SongLeaderboardHeaderText, issue #465). -->
     <Grid x:Name="Host">
+        <!-- Beside Song Detail in the split's trailing pane (song-leaderboard-header Variants, owner-approved #342; Windows
+             #667): no art, song title or artist, since Song Detail beside it already names the song. The board titles the
+             pane like Full Rankings' title: the 32 epx instrument icon (none for a band size) beside the board name as the
+             level-1 heading, then the caption ("Score History") and the R2 total. Not a button: Song Detail is already open. -->
+        <Grid x:Name="PaneTitle" ColumnSpacing="12" Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <controls:InstrumentIcon x:Name="PaneIcon" File="{x:Bind BoardIconFile, Mode=OneWay}" Width="32" Height="32"
+                                     VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw" />
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock x:Name="PaneTitleBlock" Text="{x:Bind BoardLabel, Mode=OneWay}" Style="{StaticResource FSTPageTitleStyle}"
+                           TextWrapping="Wrap" AutomationProperties.HeadingLevel="Level1"
+                           AutomationProperties.AutomationId="{x:Bind BoardTitleAutomationId, Mode=OneWay}" />
+                <TextBlock x:Name="PaneCaptionBlock" Text="{x:Bind Caption, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap" />
+                <TextBlock x:Name="PaneTotalBlock" Text="{x:Bind TotalText, Mode=OneWay}" Style="{StaticResource FSTSecondaryTextStyle}" TextWrapping="Wrap"
+                           AutomationProperties.AutomationId="{x:Bind TotalAutomationId, Mode=OneWay}" />
+            </StackPanel>
+        </Grid>
         <Button x:Name="SongButton" Click="OnSongClick" Padding="0" BorderThickness="0" CornerRadius="8" Background="Transparent"
                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Center"
                 AutomationProperties.HelpText="Opens Song Details"

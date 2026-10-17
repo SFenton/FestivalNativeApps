@@ -27,7 +27,7 @@
                                             BoardIconFile="{x:Bind ViewModel.IconFile, Mode=OneWay}" BoardLabel="{x:Bind ViewModel.InstrumentLabel}"
                                             TitleAutomationId="fst.history.title" ArtistAutomationId="fst.history.artist"
                                             BoardAutomationId="fst.history.instrument" TotalAutomationId="fst.history.total"
-                                            SongAutomationId="fst.history.song" TitleInvoked="OnSongTitle" />
+                                            SongAutomationId="fst.history.song" BoardTitleAutomationId="fst.history.board-title" Caption="Score History" TitleInvoked="OnSongTitle" />
             <DropDownButton Grid.Column="1" VerticalAlignment="Center" Visibility="{x:Bind ViewModel.ShowRows, Mode=OneWay}"
                             MinHeight="{StaticResource FSTMinTargetSize}"
                             AutomationProperties.Name="{x:Bind ViewModel.SortAnnouncement, Mode=OneWay}"

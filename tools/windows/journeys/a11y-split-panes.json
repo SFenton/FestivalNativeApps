@@ -80,10 +80,112 @@
       "focus:id=fst.song-detail.view-all.Solo_Drums",
       "key:space",
       "waitfor:id=fst.split.pane@10",
-      "waitfor:id=fst.song-leaderboard.title@20",
+      "waitfor:id=fst.song-leaderboard.board-title@20",
       "waitfor:id=fst.song-detail.view-all.Solo_Drums@5",
       "assertorder:id=fst.song-detail.view-all.Solo_Drums|id=fst.split.close",
       "assertorder:id=fst.split.close|id=fst.split.pane",
+      "wait:1"
+    ]
+  },
+  {
+    "name": "split-song-board-title",
+    "note": "Issue #667 (song-leaderboard-header Variants, owner-approved #342): an instrument board beside Song Detail draws no song header (no art, title, artist or Song Detail button); its level-1 heading is the instrument name with the decorative icon, read first in the pane after Close, and it stays through an F5 reload and a page change. Narrowing stacks the pane alone and brings the song header back (R1); widening restores the board title.",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "scan": true,
+    "tabs": 0,
+    "sizes": ["wide"],
+    "skip_modes": [
+      "text-225"
+    ],
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.song-detail.view-all.Solo_Guitar@15",
+      "focus:id=fst.song-detail.view-all.Solo_Guitar",
+      "key:space",
+      "waitfor:id=fst.split.pane@10",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-1@20",
+      "waitfor:id=fst.song-leaderboard.board-title@5",
+      "assertread:id=fst.song-leaderboard.board-title|Lead, text",
+      "assertstate:id=fst.song-leaderboard.board-title|heading=1",
+      "waitgone:id=fst.song-leaderboard.song@2",
+      "waitgone:id=fst.song-leaderboard.title@2",
+      "waitgone:id=fst.song-leaderboard.artist@2",
+      "assertorder:id=fst.split.close|id=fst.song-leaderboard.board-title|id=fst.song-leaderboard.row.fixture-player-1",
+      "focus:id=fst.song-leaderboard.row.fixture-player-1",
+      "key:f5",
+      "waitfor:id=fst.song-leaderboard.row.fixture-player-1@20",
+      "assertread:id=fst.song-leaderboard.board-title|Lead, text",
+      "waitgone:id=fst.song-leaderboard.song@1",
+      "wait:1",
+      "resize:medium",
+      "waitgone:id=fst.split.close@5",
+      "waitfor:id=fst.song-leaderboard.song@5",
+      "assertstate:id=fst.song-leaderboard.title|heading=1",
+      "waitgone:id=fst.song-leaderboard.board-title@2",
+      "resize:wide",
+      "waitfor:id=fst.split.close@5",
+      "waitfor:id=fst.song-leaderboard.board-title@5",
+      "waitgone:id=fst.song-leaderboard.song@2"
+    ]
+  },
+  {
+    "name": "split-song-band-board-title",
+    "note": "Issue #667: a band board beside Song Detail is titled by its band size alone (no icon, no song header); a size switch renames the heading at once and keeps it through the reload.",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "scan": true,
+    "tabs": 0,
+    "sizes": ["wide"],
+    "skip_modes": [
+      "text-225"
+    ],
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.song-detail.band-view-all.Band_Duets@30",
+      "focus:id=fst.song-detail.band-view-all.Band_Duets",
+      "key:space",
+      "waitfor:id=fst.split.pane@10",
+      "waitfor:id=fst.song-band-leaderboard.board-title@20",
+      "assertread:id=fst.song-band-leaderboard.board-title|Duos, text",
+      "assertstate:id=fst.song-band-leaderboard.board-title|heading=1",
+      "waitgone:id=fst.song-band-leaderboard.song@2",
+      "waitgone:id=fst.song-band-leaderboard.title@2",
+      "assertorder:id=fst.split.close|id=fst.song-band-leaderboard.board-title|id=fst.song-band-leaderboard.band-type-menu",
+      "select:id=fst.song-band-leaderboard.band-type.Band_Trios",
+      "assertread:id=fst.song-band-leaderboard.board-title|Trios, text@3",
+      "waitgone:id=fst.song-band-leaderboard.song@1",
+      "wait:1"
+    ]
+  },
+  {
+    "name": "split-history-board-title",
+    "note": "Issue #667: Score History beside Song Detail is titled by its chart (instrument heading, then Score History), with no song header.",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-history-multi:History Multi",
+    "scan": true,
+    "tabs": 0,
+    "sizes": ["wide"],
+    "skip_modes": [
+      "text-225"
+    ],
+    "ready": [
+      "scrollinto:id=fst.history.view-all@40"
+    ],
+    "after_ready": [
+      "focus:id=fst.history.view-all",
+      "key:space",
+      "waitfor:id=fst.split.pane@10",
+      "waitfor:id=fst.history.board-title@20",
+      "assertread:id=fst.history.board-title|Lead, text",
+      "assertstate:id=fst.history.board-title|heading=1",
+      "assertread:id=PaneCaptionBlock|Score History, text",
+      "waitgone:id=fst.history.song@2",
+      "assertorder:id=fst.split.close|id=fst.history.board-title|id=PaneCaptionBlock|id=fst.history.sort.open",
       "wait:1"
     ]
   },

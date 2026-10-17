@@ -172,6 +172,7 @@ public sealed class OnDemandSplitHost : Grid
         frame.Navigated += (_, e) =>
         {
             pane.Route = e.Parameter as AppRoute;
+            ApplyPaneTitle();
             Changed?.Invoke(this, EventArgs.Empty);
         };
         var reflows = !panes.ContainsKey(depth) && !stacked;
@@ -264,7 +265,20 @@ public sealed class OnDemandSplitHost : Grid
         var hairlineOn = split && (App.Session.Settings.MoreContrast || ContrastTheme.IsOn);
         hairline.Visibility = hairlineOn ? Visibility.Visible : Visibility.Collapsed;
         if (hairlineOn) hairline.Background = ContrastTheme.Brush("FSTRowSeparatorBrush");
+        ApplyPaneTitle();
         if (wasStacked != stacked) Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Tells the visible pane's page whether it shows beside Song Detail at the pane's root, where a song board drops its
+    /// song header for its board title (song-leaderboard-header Variants, #342; Windows #667). Stacking, widening, a push
+    /// inside the pane and Back inside it all re-run this, so the song header returns whenever Song Detail is not beside it.
+    /// </summary>
+    private void ApplyPaneTitle()
+    {
+        if (panes.GetValueOrDefault(Section.BackStackDepth) is not { Frame.Content: ISplitPaneTitlePage page } pane) return;
+        page.BesideList = OnDemandSplitPolicy.TitlesBoardBesideList(OnDemandSplitPolicy.PageOf(listParameter), !stacked,
+            pane.Frame.BackStackDepth, pane.Route);
     }
 
     /// <summary>Re-applies the layout on the UI thread after a system colour change.</summary>
