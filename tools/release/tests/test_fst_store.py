@@ -54,16 +54,22 @@ class FakeGh:
 
     def __init__(self, artifact="fst-windows-msix_0.1.912.0_%s" % SHA_NEW, expired=False,
                  history=("fst-windows-msix_0.1.900.0_%s" % SHA_OLD,), package_ext=".msixupload",
-                 build_json="{}"):
+                 build_json="{}", version_tags=None):
         self.artifact = artifact
         self.build_json = build_json
         self.expired = expired
         self.history = history
         self.package_ext = package_ext
+        self.version_tags = dict(version_tags or {})
         self.calls = []
 
     def __call__(self, args):
         self.calls.append(args)
+        if args[0] == "api" and "/commits/" in args[1]:
+            tag = args[1].split("/commits/", 1)[1]
+            if tag not in self.version_tags:
+                raise RuntimeError("gh api failed: HTTP 422 No commit found for SHA: %s" % tag)
+            return self.version_tags[tag] + "\n"
         if args[0] == "api" and "/workflows/" in args[1]:
             return json.dumps({"workflow_runs": [{"id": 77}]})
         if args[0] == "api" and args[1].endswith("/runs/77/artifacts"):
@@ -193,6 +199,43 @@ class StatusTests(Base):
         code, doc = self.run_cli(["status", "--json"], store, FakeGh())
         self.assertEqual((code, doc["blocked"]), (5, "store_error"))
         self.assertIn("nope", doc["error"])
+
+    def test_released_sha_falls_back_to_the_version_tag(self):
+        # #670: the published package's artifact had expired, so status reported released_sha null.
+        published = submission("100", "Published", "2610.1403.176.0")
+        gh = FakeGh(history=(), version_tags={"windows/v2610.14.03": "d" * 40})
+        _, doc = self.run_cli(["status", "--json"], FakeStore(store_routes(published=published)), gh)
+        self.assertEqual(doc["released_sha"], "d" * 40)
+        self.assertIn(["api", "repos/SFenton/FestivalNativeApps/commits/windows/v2610.14.03", "--jq", ".sha"],
+                      gh.calls)
+        _, doc = self.run_cli(["status", "--json"], FakeStore(store_routes(published=published)), FakeGh(history=()))
+        self.assertIsNone(doc["released_sha"])
+
+
+class ReleasedVersionsTests(Base):
+    """``released-versions``: the Windows What's New baseline (#670)."""
+
+    def test_published_msix_maps_to_its_release_version(self):
+        published = submission("100", "Published", "2610.1403.176.0")
+        pending = submission("200", "Publishing", "2610.1703.200.0")
+        store = FakeStore(store_routes(pending=pending, published=published))
+        code, doc = self.run_cli(["released-versions", "--json"], store, FakeGh())
+        self.assertEqual((code, doc), (0, {"released": ["2610.14.03"], "published": "2610.1403.176.0"}))
+        self.assertEqual(store.writes(), [])
+
+    def test_no_release_yet_or_another_scheme_is_empty(self):
+        _, doc = self.run_cli(["released-versions", "--json"], FakeStore(store_routes(published=None)), FakeGh())
+        self.assertEqual(doc, {"released": [], "published": None})
+        _, doc = self.run_cli(["released-versions", "--json"], FakeStore(store_routes()), FakeGh())
+        self.assertEqual(doc, {"released": [], "published": "0.1.900.0"})
+
+    def test_missing_credentials_block_and_errors_fail(self):
+        code, doc = self.run_cli(["released-versions", "--json"], FakeStore(), FakeGh(), env={"HOME": self.env["HOME"]})
+        self.assertEqual((code, doc), (4, {"blocked": "missing_store_credentials"}))
+        store = FakeStore({("GET", API): (500, {"message": "down"})})
+        code, doc = self.run_cli(["released-versions", "--json"], store, FakeGh())
+        self.assertEqual(code, 1)
+        self.assertIn("down", doc["error"])
 
 
 class SubmitTests(Base):

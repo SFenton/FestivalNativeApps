@@ -94,6 +94,10 @@ Until #434 the `windows-ui` CI job ran only `a11y-modals.json`, whose `modal-wha
 
 `assertstate` gained the `heading` key for this (FstUia reads UIA HeadingLevel). No accessibility defect was found.
 
+## Rule (issue #670, 2026-10-17): the baseline is the Store release
+
+The app was right; the generated document was not. `windows-release-build` passed only `--released-from-tags`, and no `windows/released/<v>` tag existed, so every build carried "The first release …" as its Store section and "Changes So Far" (every note since the first tag) as its tester block. The build now also passes the Microsoft Store's published version (`fst_store.py released-versions`, the iOS `released-versions` precedent) as `--released`. Store installs then see "Version <built>" with only the notes since that release, grouped with "Other" last. Sideloaded and unpackaged installs see "Changes Since Release <Store version>". Store package-flight testers get a Store-signed package that no public API distinguishes, so they see the same notes in the Version section. `WhatsNewTests.DisplayBlocks_StoreBaselineDocumentShowsOnlyChangesSinceTheStoreRelease` covers this shape, and `test_versioning` `test_windows_build_baseline_is_the_store_release` covers generation. The UIA journeys above already cover both blocks.
+
 ## Open
 
 - Live screenshots: `showcase\win-pwa\live\`, `showcase\win-shell2\live\`.

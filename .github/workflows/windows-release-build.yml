@@ -2,7 +2,8 @@ name: windows-release-build
 # Build the unsigned Microsoft Store MSIX for one `windows/v<YYMM.DD.NN>` version tag (MSIX version
 # YYMM.<DD*100+NN>.<run number>.0) and keep it as an artifact. Only version-bump.yml dispatches it (an app change merged
 # to master). The build generates the in-app What's New (WhatsNew.json) and the Store release notes
-# (build.json `store_notes`, preferred by `fst_store.py submit`). Submitting it for
+# (build.json `store_notes`, preferred by `fst_store.py submit`) against the version the public Store listing serves
+# (store-baseline job), so they list only what changed since the last Store release. Submitting it for
 # certification is done separately by the release orchestrator (`fst_store.py windows submit`), which
 # finds the newest successful run's `fst-windows-msix_<version>_<sha>` artifact. While
 # windows/store-identity.json still holds placeholders the artifact is suffixed `_placeholder` and is
@@ -16,14 +17,58 @@ on:
         default: ''
 permissions:
   contents: read
-concurrency:
-  group: windows-release-build
-  cancel-in-progress: false
 jobs:
+  store-baseline:
+    # The What's New baseline: the release version the public Store listing serves (Partner Center's last published
+    # submission; GETs only), like iOS reading App Store Connect. Store credentials stay in this Linux job; the build
+    # job only receives the version. No credentials (environment not configured) falls back to released tags; a Store
+    # error fails the run rather than shipping a What's New that lists everything since the first version (#670).
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: store-release
+    outputs:
+      released: ${{ steps.store.outputs.released }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tools/release
+      - name: Published Store version
+        id: store
+        env:
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+          MSSTORE_SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
+          MSSTORE_APP_ID: ${{ secrets.MSSTORE_APP_ID }}
+        run: |
+          set +e -uo pipefail
+          for attempt in 1 2 3; do
+            python3 tools/release/fst_store.py released-versions --json > "$RUNNER_TEMP/released.json"
+            code=$?
+            if [ "$code" -eq 0 ] || [ "$code" -eq 4 ]; then break; fi
+            sleep $((attempt * 20))
+          done
+          cat "$RUNNER_TEMP/released.json"
+          if [ "$code" -eq 4 ]; then
+            echo "::warning::No Store credentials: What's New uses only windows/released tags as its baseline"
+            echo "released=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "$code" -ne 0 ]; then
+            echo "::error::cannot read the published version from Partner Center (exit $code)"; exit 1
+          fi
+          released=$(python3 -c 'import json,sys; print(",".join(json.load(open(sys.argv[1]))["released"]))' "$RUNNER_TEMP/released.json")
+          echo "released=$released" >> "$GITHUB_OUTPUT"
+          echo "### What's New baseline: Store release ${released:-none}" >> "$GITHUB_STEP_SUMMARY"
   windows-release-build:
+    needs: store-baseline
     if: github.ref == 'refs/heads/master'
     runs-on: windows-latest
     timeout-minutes: 60
+    # Only the build is serialized: a wedged environment deployment in store-baseline must not hold later builds.
+    concurrency:
+      group: windows-release-build
+      cancel-in-progress: false
     env:
       # Windows Python defaults to cp1252 for text files; notes and WhatsNew.json must stay UTF-8.
       PYTHONUTF8: '1'
@@ -43,6 +88,7 @@ jobs:
         shell: bash
         env:
           VERSION_TAG: ${{ inputs.version_tag }}
+          STORE_RELEASED: ${{ needs.store-baseline.outputs.released }}
         run: |
           set -euo pipefail
           tag="${VERSION_TAG:-}"
@@ -55,8 +101,9 @@ jobs:
           git -c advice.detachedHead=false checkout -q "refs/tags/$tag"
           msix=$(python tools/release/versioning.py describe --tag "$tag" --build "$GITHUB_RUN_NUMBER" | python -c 'import json,sys; print(json.load(sys.stdin)["msix_version"])')
           mkdir -p "$RUNNER_TEMP/notes"
-          # Released versions come from windows/released/<version> tags (written when a release is observed).
-          python tools/release/versioning.py whats-new --tag "$tag" --released-from-tags \
+          # Released versions: the Store's published version (store-baseline) plus windows/released/<version> tags
+          # (written by the tracker when it observes a release). The newest one older than $tag is the baseline.
+          python tools/release/versioning.py whats-new --tag "$tag" --released "${STORE_RELEASED:-}" --released-from-tags \
             --out windows/Festival.Core/WhatsNew.json --store-notes-out "$RUNNER_TEMP/notes/store-notes.txt"
           { echo "FST_VERSION_TAG=$tag"; echo "FST_VERSION=${tag#windows/v}"; echo "FST_MSIX_VERSION=$msix"; } >> "$GITHUB_ENV"
           echo "Building $tag as MSIX $msix at $(git rev-parse HEAD)"

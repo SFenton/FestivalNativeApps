@@ -6,6 +6,7 @@ Speaks the same contract as ``fst_release.py`` so the release orchestrator
 (``fst_release.py windows ...`` dispatches here)::
 
     fst_store.py status --json
+    fst_store.py released-versions --json   # What's New baseline (windows-release-build)
     fst_store.py submit --build 0.1.912.0 --notes-stdin [--dry-run]
     fst_store.py record-build --build 0.1.912.0 --version 0.1.912.0 --sha <git sha>
 
@@ -306,6 +307,23 @@ def artifact_sha(run: Runner, repo: str, version: str) -> Optional[str]:
     return None
 
 
+def version_tag_sha(run: Runner, repo: str, version: str) -> Optional[str]:
+    """The commit of the ``windows/v<release version>`` tag of MSIX ``version`` (artifact fallback).
+
+    Build artifacts expire after 30 days and the artifact list holds only the newest 100, so the published
+    package's own version tag is the durable record of its commit. ``None`` for other version schemes, a
+    missing tag or a failed lookup.
+    """
+    release = release_version_of(version)
+    if release is None:
+        return None
+    try:
+        sha = run(["api", "repos/%s/commits/windows/v%s" % (repo, release), "--jq", ".sha"]).strip()
+    except (RuntimeError, OSError):
+        return None
+    return sha if re.match(r"^[0-9a-f]{40}$", sha) else None
+
+
 def download_package(run: Runner, repo: str, artifact: Dict[str, Any], dest: Path) -> Path:
     """Download the artifact and return its ``.msixupload``/``.msix``."""
     run(["run", "download", str(artifact["run_id"]), "-n", artifact["name"], "-R", repo, "-D", str(dest)])
@@ -405,7 +423,8 @@ def collect_status(client: StoreClient, run: Runner, repo: str,
     released_version = package_version(published) if published else None
     if released_version:
         released_sha = (fst_release.ledger_sha(ledger, LEDGER_PLATFORM, released_version)
-                        or artifact_sha(run, repo, released_version))
+                        or artifact_sha(run, repo, released_version)
+                        or version_tag_sha(run, repo, released_version))
 
     return {"in_review": bool(pending) and state in IN_REVIEW_STATUSES, "state": state,
             "version": package_version(current) if current else None,
@@ -576,6 +595,24 @@ def release_state(client: StoreClient) -> Dict[str, Any]:
     return doc
 
 
+def released_versions(client: StoreClient) -> Dict[str, Any]:
+    """The What's New baseline: the release version customers have from the public Store listing.
+
+    Reads only the last *published* application submission (a pending one, even ``Publishing``, has not reached
+    customers; package flights are separate resources and never count). The Store API keeps no version history, so
+    the list holds at most this one version; ``versioning.py whats-new`` adds older ones from
+    ``windows/released/<v>`` tags. GETs only.
+
+    Returns:
+        ``{released: ["YYMM.DD.NN"] or [], published: <MSIX version or None>}``.
+    """
+    app = application(client)
+    published = submission(client, app.get("lastPublishedApplicationSubmission"))
+    msix = package_version(published) if published else None
+    release = release_version_of(msix) if msix else None
+    return {"released": [release] if release else [], "published": msix}
+
+
 # endregion
 
 # region CLI
@@ -586,6 +623,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="fst_store.py", description=__doc__.split("\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("status")
+    p.add_argument("--json", action="store_true")
+    p = sub.add_parser("released-versions", help="the Store's published release version (What's New baseline)")
     p.add_argument("--json", action="store_true")
     p = sub.add_parser("submit")
     p.add_argument("--build", required=True)
@@ -645,6 +684,9 @@ def main(argv: Optional[List[str]] = None, env: Optional[Dict[str, str]] = None,
     try:
         if args.command == "status":
             emit(collect_status(client, runner, repo, fst_release.read_ledger(fst_release.ledger_path(env))))
+            return EXIT_OK
+        if args.command == "released-versions":
+            emit(released_versions(client))
             return EXIT_OK
         if args.command == "submit":
             notes = (stdin or sys.stdin).read() if args.notes_stdin else Path(args.notes_file).read_text(encoding="utf-8")
