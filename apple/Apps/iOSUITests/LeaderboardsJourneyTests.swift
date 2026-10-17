@@ -89,9 +89,9 @@ final class LeaderboardsJourneyTests: XCTestCase {
         XCTAssertEqual(quickLinks.value as? String, "Lead", "Starts on the first section")
         quickLinks.tap()
         XCTAssertTrue(
-            app.buttons["fst.quick-links.item.instrument:Solo_Drums"].waitForExistence(timeout: 10)
+            FestivalApp.quickLinkRow("instrument:Solo_Drums", label: "Drums", in: app).waitForExistence(timeout: 10)
         )
-        XCTAssertTrue(app.buttons["fst.quick-links.item.band:Band_Quad"].exists)
+        XCTAssertTrue(FestivalApp.quickLinkRow("band:Band_Quad", label: "Quads", in: app).exists)
     }
 
     /// **Fixed bug:** jumping used to land on an *earlier* section than requested
@@ -115,7 +115,7 @@ final class LeaderboardsJourneyTests: XCTestCase {
         let quickLinks = app.buttons["fst.quick-links.open"]
         XCTAssertTrue(quickLinks.waitForExistence(timeout: 15))
         quickLinks.tap()
-        let drumsItem = app.buttons["fst.quick-links.item.instrument:Solo_Drums"]
+        let drumsItem = FestivalApp.quickLinkRow("instrument:Solo_Drums", label: "Drums", in: app)
         XCTAssertTrue(drumsItem.waitForExistence(timeout: 10))
         drumsItem.tap()
         XCTAssertTrue(quickLinks.waitForExistence(timeout: 10))
@@ -141,7 +141,7 @@ final class LeaderboardsJourneyTests: XCTestCase {
         let quickLinks = app.buttons["fst.quick-links.open"]
         XCTAssertTrue(quickLinks.waitForExistence(timeout: 15))
         quickLinks.tap()
-        let bandItem = app.buttons["fst.quick-links.item.band:Band_Quad"]
+        let bandItem = FestivalApp.quickLinkRow("band:Band_Quad", label: "Quads", in: app)
         XCTAssertTrue(bandItem.waitForExistence(timeout: 10))
         bandItem.tap()
         XCTAssertTrue(quickLinks.waitForExistence(timeout: 10))

@@ -603,7 +603,7 @@ final class FestivalMobileUITests: XCTestCase {
         XCTAssertTrue(["0", "1"].contains(original))
         // A coordinate tap never scrolls: bring the lazily placed row on screen first.
         SongsUITestSupport.reveal(motion, in: app, scrollingUp: true)
-        SongsUITestSupport.switchBareTrack(of: motion).tap()
+        SongsUITestSupport.tapSwitch(motion)
         let changed = original == "0" ? "1" : "0"
         let changedValue = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value == %@", changed), object: motion

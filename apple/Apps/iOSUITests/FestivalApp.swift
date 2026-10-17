@@ -146,4 +146,46 @@ enum FestivalApp {
     static func quickLinkRow(_ section: String, label: String, in app: XCUIApplication) -> XCUIElement {
         app.buttons.matching(quickLinkRowPredicate(id: "fst.quick-links.item.\(section)", label: label)).firstMatch
     }
+
+    /// One Quick Links section a journey expects: its ID after `fst.quick-links.item.` and
+    /// its spoken title, which finds the row when an iOS 27 menu drops the identifier.
+    typealias QuickLinkSection = (id: String, label: String)
+
+    /// Every row of the open Quick Links chooser: identified rows, or unidentified ones
+    /// (iOS 27 native menus, R6) whose label is exactly one of `sections`' spoken titles.
+    ///
+    /// - Parameters:
+    ///   - sections: The sections the journey may meet, including ones it must not see.
+    ///   - app: The app with the chooser open.
+    /// - Returns: The rows' buttons, in hierarchy order (sort by frame for page order).
+    @MainActor
+    static func quickLinkRows(_ sections: [QuickLinkSection], in app: XCUIApplication) -> XCUIElementQuery {
+        app.buttons.matching(quickLinkRowsPredicate(sections))
+    }
+
+    /// Matches any row of ``quickLinkRows(_:in:)``, e.g. to find the chooser's list with
+    /// `containing(_:)`.
+    ///
+    /// - Parameter sections: The sections the journey may meet.
+    /// - Returns: The predicate.
+    static func quickLinkRowsPredicate(_ sections: [QuickLinkSection]) -> NSPredicate {
+        NSPredicate(
+            format: "identifier BEGINSWITH 'fst.quick-links.item.' OR (identifier == '' AND label IN %@)",
+            sections.map(\.label)
+        )
+    }
+
+    /// The section ID of a row from ``quickLinkRows(_:in:)``: its identifier after
+    /// `fst.quick-links.item.` or, when a menu dropped it, the section its label names.
+    ///
+    /// - Parameters:
+    ///   - identifier: The row's accessibility identifier, possibly empty.
+    ///   - label: The row's VoiceOver label.
+    ///   - sections: The sections the rows were found by.
+    /// - Returns: The section ID, or the label itself when no section has that title.
+    static func quickLinkSectionID(identifier: String, label: String, in sections: [QuickLinkSection]) -> String {
+        let prefix = "fst.quick-links.item."
+        if identifier.hasPrefix(prefix) { return String(identifier.dropFirst(prefix.count)) }
+        return sections.first { $0.label == label }?.id ?? label
+    }
 }

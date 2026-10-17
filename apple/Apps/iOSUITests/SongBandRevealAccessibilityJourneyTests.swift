@@ -175,7 +175,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         let quickLinks = app.buttons["fst.quick-links.open"]
         XCTAssertTrue(quickLinks.waitForExistence(timeout: FestivalApp.budget(15)))
         quickLinks.tap()
-        let duos = app.buttons["fst.quick-links.item.band-Band_Duets"]
+        let duos = FestivalApp.quickLinkRow("band-Band_Duets", label: "Duos", in: app)
         XCTAssertTrue(duos.waitForExistence(timeout: FestivalApp.budget(10)), "Quick Links has no Duos section")
         duos.tap()
         let selected = app.buttons["fst.song-detail.band-selected.Band_Duets"]

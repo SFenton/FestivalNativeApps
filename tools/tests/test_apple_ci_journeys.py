@@ -378,10 +378,11 @@ class AppleCIJourneysTests(unittest.TestCase):
         self.assertNotIn(journey, self.journeys)
 
     def test_board_footer_fade_keyboard_journey_runs_in_ci(self) -> None:
-        # #473: the iPad hardware-keyboard form needs its own invocation, because --a11y applies to a whole run.
+        # #473: the iPad hardware-keyboard form needs its own invocation, because --a11y applies to a whole run;
+        # #665: its budget is per key press (~120 s each under full keyboard access on the runner).
         self.assertIn(
             "--a11y full-keyboard-access --fail-on-skip --retries 1 \\\n"
-            "            --timeout 900 --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter",
+            "            --timeout 2400 --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter",
             self.workflow,
         )
 
