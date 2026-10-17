@@ -11,6 +11,7 @@ env:
   DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
 jobs:
   iphone:
+    if: ${{ false }}
     runs-on: xcode-27
     timeout-minutes: 120
     strategy:
@@ -38,7 +39,6 @@ jobs:
             --only SettingsAccessibilityJourneyTests/testAccessibilityThenItemShopReadableAtAX5 \
             --only SettingsVisualOrderAccessibilityJourneyTests/testSongRowVisualOrderIsReadableAtAX5
   ipad:
-    if: ${{ false }}
     runs-on: xcode-27
     timeout-minutes: 120
     steps:
@@ -59,10 +59,10 @@ jobs:
           for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock.log" && break; sleep 1; done
           mkdir -p /tmp/fst-665 && chmod 777 /tmp/fst-665
           export FST_UITEST_KEEP_RESULTS=1
-          python3 tools/ios_sim.py uitest --device "$device" --app phone --a11y full-keyboard-access --timeout 2400 \
-            --no-test-diagnostics --only ZZFKAProbeTests || true
-          python3 tools/ios_sim.py uitest --device "$device" --app phone --a11y full-keyboard-access --timeout 1500 \
-            --no-test-diagnostics --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter || true
+          TEST_RUNNER_FST_PROBE_MODE=fka python3 tools/ios_sim.py uitest --device "$device" --app phone --a11y full-keyboard-access \
+            --timeout 1500 --no-test-diagnostics --only ZZFKAProbeTests/testE_BoardIdle || true
+          TEST_RUNNER_FST_PROBE_MODE=plain python3 tools/ios_sim.py uitest --device "$device" --app phone \
+            --timeout 1500 --no-test-diagnostics --only ZZFKAProbeTests/testE_BoardIdle || true
       - name: Collect
         if: always()
         run: |
