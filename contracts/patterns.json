@@ -2584,7 +2584,7 @@
       "title": "Reflow motion",
       "status": "current",
       "doc": ".agents/patterns/reflow-motion.md",
-      "summary": "When a layout reflows (a split pane opens or closes, a window crosses a column threshold, cards rewrap), content that stays glides to its new place and content that arrives or leaves fades (a split pane also slides from or toward its trailing edge), over 300 ms on a decelerate curve. A reflow never reloads, replays a load stagger or loses place, costs no per-frame UI-thread work (Windows draws it on the compositor from one final layout) and is instant under Reduce Motion or Windows Animation effects off.",
+      "summary": "When a layout reflows (a split pane opens or closes, a window crosses a column threshold, cards rewrap), content that stays glides to its new place and content that arrives or leaves fades (a split pane also slides from or toward its trailing edge), over 300 ms on a decelerate curve. A reflow never reloads, replays a load stagger or loses place, costs no per-frame UI-thread work (Windows draws it on the compositor from one final layout) and is instant under Reduce Motion or Windows Animation effects off; a reflow already running stops in its settled place when either turns off.",
       "keywords": [
         "reflow",
         "resize",

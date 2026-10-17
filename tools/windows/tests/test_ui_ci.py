@@ -145,6 +145,26 @@ class UiCiTests(unittest.TestCase):
         self.assertTrue(any(page in m.mode_pages([page], "text-225") for page in pages))
         self.assertFalse(m.mode_motion("normal") is False)
         self.assertIs(False, m.mode_motion("no-animations"))
+        # Issue #669 review: Profile/Statistics card-grid reflows run with motion, app Reduce Motion and Animation
+        # effects off (reflow_trace then requires moved=0 entered=0), and stay one column at 225% text.
+        by_name = {page["name"]: page for page in pages}
+        self.assertEqual({"card-grid": 2}, by_name["reflow-statistics-resize"]["reflow_trace"])
+        self.assertEqual([by_name["reflow-statistics-large-text-resize"]],
+                         m.mode_pages([by_name["reflow-statistics-large-text-resize"]], "text-225"))
+        # R4: motion turned off mid-reflow (a split and a card reflow, each with both settings) runs once, normal mode.
+        stops = [page for page in pages if page.get("reflow_stops")]
+        self.assertEqual({"split", "cards"}, {key for page in stops for key in page["reflow_stops"]})
+        for page in stops:
+            with self.subTest(page=page["name"]):
+                self.assertEqual([page], m.mode_pages([page], "normal"))
+                for mode in ("app-reduced", "no-animations", "text-225"):
+                    self.assertEqual([], m.mode_pages([page], mode))
+                steps = page["after_ready"]
+                self.assertIn("animations:off", steps)
+                self.assertEqual("animations:on", [s for s in steps if s.startswith("animations:")][-1])
+                self.assertIn("key:ctrl+alt+shift+m", steps)
+                self.assertEqual("1", page["env"]["FST_DEBUG_MOTION_KEY"])
+                self.assertGreater(int(page["env"]["FST_DEBUG_REFLOW_MS"]), 300)
 
     def test_wide_columns_run_wide_at_default_and_large_text(self):
         # Issue #653 review: the two-column pages run wide at default text, and the one-column pages also run wide at

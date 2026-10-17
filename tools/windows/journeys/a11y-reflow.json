@@ -154,5 +154,177 @@
       "reveal:id=fst.suggestions.category.unplayed_Solo_Vocals",
       "assertbelow:name=New on Tap Vocals&class=TextBlock|id=fst.suggestions.category.stale_Solo_PeripheralGuitar_2"
     ]
+  },
+  {
+    "name": "reflow-statistics-resize",
+    "route": "/statistics",
+    "profile": "fixture-player-1:Demo Player",
+    "scan": true,
+    "tabs": 0,
+    "sizes": [
+      "wide"
+    ],
+    "skip_modes": [
+      "text-150",
+      "text-200",
+      "text-225"
+    ],
+    "reflow_trace": {
+      "card-grid": 2
+    },
+    "note": "Issue #669 review (pattern reflow-motion R1/R4, wide-columns R4): narrowing Profile/Statistics to medium and widening back glides the instrument sections (LeaderboardsCardGridLayout) between two columns and one. Keyboard focus stays on the Lead Songs Played tile, the sections keep their Level 2 headings and read Lead then Bass in both layouts. reflow_trace requires both card-grid column changes, and in app-reduced and no-animations requires them instant (motion=0, moved=0, entered=0). Focus is asserted right after each resize: a UIA scroll that takes the focused tile out of view moves focus without any reflow, so the page focuses the tile again before widening.",
+    "ready": [
+      "waitfor:id=fst.player.stat.overview.songs-played@30",
+      "scrollinto:id=fst.player.instrument.Solo_Guitar@20",
+      "scrollinset:id=fst.player.instrument.Solo_Guitar|id=fst.player.available|120",
+      "wait:1"
+    ],
+    "after_ready": [
+      "assertlevel:id=fst.player.instrument.Solo_Guitar|id=fst.player.instrument.Solo_Bass",
+      "scrollinto:id=fst.player.stat.Solo_Guitar.songs-played@10",
+      "focus:id=fst.player.stat.Solo_Guitar.songs-played",
+      "assertfocus:id=fst.player.stat.Solo_Guitar.songs-played@3",
+      "resize:medium",
+      "wait:1.5",
+      "assertfocus:id=fst.player.stat.Solo_Guitar.songs-played@3",
+      "scrollinto:id=fst.player.instrument.Solo_Bass@20",
+      "scrollinset:id=fst.player.instrument.Solo_Bass|id=fst.player.available|200",
+      "assertbelow:id=fst.player.instrument.Solo_Bass|id=fst.player.section.Solo_Guitar",
+      "assertorder:id=fst.player.section.Solo_Guitar|id=fst.player.section.Solo_Bass",
+      "assertstate:id=fst.player.instrument.Solo_Bass|heading=2",
+      "scrollinto:id=fst.player.stat.Solo_Guitar.songs-played@10",
+      "focus:id=fst.player.stat.Solo_Guitar.songs-played",
+      "assertfocus:id=fst.player.stat.Solo_Guitar.songs-played@3",
+      "resize:wide",
+      "wait:1.5",
+      "assertfocus:id=fst.player.stat.Solo_Guitar.songs-played@3",
+      "scrollinto:id=fst.player.instrument.Solo_Guitar@20",
+      "scrollinset:id=fst.player.instrument.Solo_Guitar|id=fst.player.available|120",
+      "assertlevel:id=fst.player.instrument.Solo_Guitar|id=fst.player.instrument.Solo_Bass",
+      "assertorder:id=fst.player.instrument.Solo_Guitar|id=fst.player.instrument.Solo_Bass"
+    ]
+  },
+  {
+    "name": "reflow-statistics-large-text-resize",
+    "route": "/statistics",
+    "profile": "fixture-player-1:Demo Player",
+    "scan": true,
+    "tabs": 0,
+    "sizes": [
+      "wide"
+    ],
+    "modes": [
+      "text-225"
+    ],
+    "note": "Issue #669 review (pattern reflow-motion R3, wide-columns R1): at Windows' largest text size Profile/Statistics keeps one column, so resizing reflows nothing; Bass stays under Lead, read after it, and keyboard focus stays on the Lead Songs Played tile.",
+    "ready": [
+      "waitfor:id=fst.player.stat.overview.songs-played@30",
+      "scrollinto:id=fst.player.stat.Solo_Guitar.songs-played@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "focus:id=fst.player.stat.Solo_Guitar.songs-played",
+      "assertfocus:id=fst.player.stat.Solo_Guitar.songs-played@3",
+      "resize:medium",
+      "wait:1.5",
+      "assertfocus:id=fst.player.stat.Solo_Guitar.songs-played@3",
+      "resize:wide",
+      "wait:1.5",
+      "assertfocus:id=fst.player.stat.Solo_Guitar.songs-played@3",
+      "scrollinto:id=fst.player.instrument.Solo_Bass@20",
+      "scrollinset:id=fst.player.instrument.Solo_Bass|id=fst.player.available|200",
+      "assertbelow:id=fst.player.instrument.Solo_Bass|id=fst.player.section.Solo_Guitar",
+      "assertorder:id=fst.player.section.Solo_Guitar|id=fst.player.section.Solo_Bass",
+      "assertstate:id=fst.player.instrument.Solo_Bass|heading=2"
+    ]
+  },
+  {
+    "name": "reflow-stop-split-rivals",
+    "route": "/rivals",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "sizes": [
+      "wide"
+    ],
+    "modes": [
+      "normal"
+    ],
+    "env": {
+      "FST_DEBUG_REFLOW_MS": "3000",
+      "FST_DEBUG_MOTION_KEY": "1"
+    },
+    "reflow_stops": {
+      "split": 2
+    },
+    "note": "Issue #669 review (pattern reflow-motion R4): motion turned off while a split pane slides stops the move at once where it was heading. Moves are stretched to 3 s (FST_DEBUG_REFLOW_MS) so the switch lands mid-move: Windows Animation effects turn off while the pane opens (animations:off, restored by the matrix), and the app's Reduce Motion turns on while it closes (FST_DEBUG_MOTION_KEY's Ctrl+Alt+Shift+M flips the setting as Settings does). reflow_stops requires both settles stopped=1 well before the 3 s move ends; the opened pane keeps its named Close button and the close still returns focus to the row.",
+    "ready": [
+      "waitfor:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "focus:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8",
+      "key:enter",
+      "wait:0.8",
+      "animations:off",
+      "wait:1",
+      "waitfor:id=fst.split.close@10",
+      "assertname:id=fst.split.close|Close",
+      "waitfor:id=fst.rival-detail.title@20",
+      "animations:on",
+      "wait:1",
+      "invoke:id=fst.split.close",
+      "assertfocus:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@3",
+      "wait:0.5",
+      "key:ctrl+alt+shift+m",
+      "waitgone:id=fst.split.pane@5",
+      "assertfocus:id=fst.rivals.row.f1c749eb07c32578cfa3e59ec38c03a8@3",
+      "wait:1"
+    ]
+  },
+  {
+    "name": "reflow-stop-statistics",
+    "route": "/statistics",
+    "profile": "fixture-player-1:Demo Player",
+    "tabs": 0,
+    "sizes": [
+      "wide"
+    ],
+    "modes": [
+      "normal"
+    ],
+    "env": {
+      "FST_DEBUG_REFLOW_MS": "3000",
+      "FST_DEBUG_MOTION_KEY": "1"
+    },
+    "reflow_stops": {
+      "cards": 2
+    },
+    "note": "Issue #669 review (pattern reflow-motion R4): motion turned off while the Profile/Statistics instrument sections glide between columns stops every glide and fade at once in its settled place. Moves are stretched to 3 s (FST_DEBUG_REFLOW_MS): Windows Animation effects turn off during the narrowing (animations:off, restored by the matrix) and the app's Reduce Motion turns on during the widening (FST_DEBUG_MOTION_KEY). reflow_stops requires a reflow-stop after each moving card-grid reflow; focus stays on the Lead Songs Played tile and the sections keep their order.",
+    "ready": [
+      "waitfor:id=fst.player.stat.overview.songs-played@30",
+      "scrollinto:id=fst.player.instrument.Solo_Guitar@20",
+      "scrollinset:id=fst.player.instrument.Solo_Guitar|id=fst.player.available|120",
+      "wait:1"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.player.stat.Solo_Guitar.songs-played@10",
+      "focus:id=fst.player.stat.Solo_Guitar.songs-played",
+      "assertfocus:id=fst.player.stat.Solo_Guitar.songs-played@3",
+      "resize:medium",
+      "wait:0.6",
+      "animations:off",
+      "wait:1",
+      "animations:on",
+      "wait:1",
+      "resize:wide",
+      "wait:0.6",
+      "key:ctrl+alt+shift+m",
+      "wait:1",
+      "assertfocus:id=fst.player.stat.Solo_Guitar.songs-played@3",
+      "scrollinto:id=fst.player.instrument.Solo_Guitar@20",
+      "scrollinset:id=fst.player.instrument.Solo_Guitar|id=fst.player.available|120",
+      "assertlevel:id=fst.player.instrument.Solo_Guitar|id=fst.player.instrument.Solo_Bass",
+      "assertorder:id=fst.player.instrument.Solo_Guitar|id=fst.player.instrument.Solo_Bass"
+    ]
   }
 ]

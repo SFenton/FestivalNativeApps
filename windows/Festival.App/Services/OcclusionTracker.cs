@@ -54,6 +54,13 @@ internal sealed unsafe partial class OcclusionTracker : IDisposable
     /// <summary>Raised on the UI thread when <see cref="IsHidden"/> changes.</summary>
     public event EventHandler? Changed;
 
+    /// <summary>
+    /// Raised on the UI thread when Windows broadcasts an Animation effects change (<c>WM_SETTINGCHANGE</c> for
+    /// <c>SPI_SETCLIENTAREAANIMATION</c>). <c>UISettings.AnimationsEnabledChanged</c> can arrive late or not at all in a
+    /// desktop app, and a reflow already running must stop at once (pattern reflow-motion R4, #669).
+    /// </summary>
+    public event EventHandler? AnimationsSettingChanged;
+
     /// <summary>Whether the window is shown but nobody can see it.</summary>
     public bool IsHidden => covered || cloaked || locked || displayOff;
 
@@ -141,13 +148,15 @@ internal sealed unsafe partial class OcclusionTracker : IDisposable
         instance?.Invalidate();
     }
 
-    /// <summary>Window subclass: session lock/unlock and console display on/off.</summary>
+    /// <summary>Window subclass: session lock/unlock, console display on/off and Animation effects changes.</summary>
     [UnmanagedCallersOnly]
     private static nint SubclassProc(nint window, uint message, nint wParam, nint lParam, nuint id, nuint data)
     {
         if (instance is { } tracker)
         {
-            if (message == WmWtsSessionChange && wParam is WtsSessionLock or WtsSessionUnlock)
+            if (message == WmSettingChange && wParam == SpiSetClientAreaAnimation)
+                tracker.AnimationsSettingChanged?.Invoke(tracker, EventArgs.Empty);
+            else if (message == WmWtsSessionChange && wParam is WtsSessionLock or WtsSessionUnlock)
                 tracker.SetFlag(ref tracker.locked, wParam == WtsSessionLock);
             else if (message == WmPowerBroadcast && wParam == PbtPowerSettingChange && lParam != 0)
             {
@@ -190,6 +199,8 @@ internal sealed unsafe partial class OcclusionTracker : IDisposable
     private const uint DwmwaCloaked = 14;
     private const uint WmWtsSessionChange = 0x02B1;
     private const uint WmPowerBroadcast = 0x0218;
+    private const uint WmSettingChange = 0x001A;
+    private const nint SpiSetClientAreaAnimation = 0x1043;
     private const nint PbtPowerSettingChange = 0x8013;
     private const nint WtsSessionLock = 7;
     private const nint WtsSessionUnlock = 8;

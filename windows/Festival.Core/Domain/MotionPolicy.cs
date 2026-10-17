@@ -660,18 +660,36 @@ public static class ReflowTiming
         return Bezier(u, y1, y2);
     }
 
+    /// <summary>Longest stretched reflow a Debug/automation hook may ask for (<see cref="ParseDuration"/>).</summary>
+    public static readonly TimeSpan MaxStretchedDuration = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Parses the Debug/automation <c>FST_DEBUG_REFLOW_MS</c> hook: a longer reflow so UI Automation can change a motion
+    /// setting while a move is still running (R4). Whole milliseconds from <see cref="Duration"/> to
+    /// <see cref="MaxStretchedDuration"/>; anything else keeps the standard duration.
+    /// </summary>
+    /// <param name="milliseconds">Hook value, or <see langword="null"/>.</param>
+    /// <returns>The stretched duration, or <see langword="null"/>.</returns>
+    public static TimeSpan? ParseDuration(string? milliseconds) =>
+        int.TryParse(milliseconds, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var ms)
+        && ms >= Duration.TotalMilliseconds && ms <= MaxStretchedDuration.TotalMilliseconds
+            ? TimeSpan.FromMilliseconds(ms)
+            : null;
+
     /// <summary>How much of a move's starting shift is left after <paramref name="elapsed"/>.</summary>
     /// <param name="elapsed">Time since the move began.</param>
+    /// <param name="duration">The move's run time (default <see cref="Duration"/>).</param>
     /// <returns>Fraction in [0, 1] (1 at the start, 0 once settled).</returns>
-    public static double Remaining(TimeSpan elapsed) => 1 - Ease(elapsed / Duration);
+    public static double Remaining(TimeSpan elapsed, TimeSpan? duration = null) => 1 - Ease(elapsed / (duration ?? Duration));
 
     /// <summary>The run time of a reflow that only has part of the way to go (an interrupted split).</summary>
     /// <param name="from">Current progress (0 closed, 1 open).</param>
     /// <param name="to">Target progress.</param>
     /// <param name="motionAllowed">Whether motion may run (<see cref="MotionSwitch.Allowed"/>).</param>
+    /// <param name="duration">A whole reflow's run time (default <see cref="Duration"/>).</param>
     /// <returns>Duration; zero with motion off or nothing to cover.</returns>
-    public static TimeSpan Plan(double from, double to, bool motionAllowed) =>
-        motionAllowed ? TimeSpan.FromTicks((long)Math.Round(Duration.Ticks * Math.Abs(Clamp(to) - Clamp(from)))) : TimeSpan.Zero;
+    public static TimeSpan Plan(double from, double to, bool motionAllowed, TimeSpan? duration = null) =>
+        motionAllowed ? TimeSpan.FromTicks((long)Math.Round((duration ?? Duration).Ticks * Math.Abs(Clamp(to) - Clamp(from)))) : TimeSpan.Zero;
 
     /// <summary>Progress of a reflow from <paramref name="from"/> to <paramref name="to"/> after <paramref name="elapsed"/>.</summary>
     /// <param name="from">Starting progress.</param>

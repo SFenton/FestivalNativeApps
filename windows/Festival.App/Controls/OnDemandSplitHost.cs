@@ -102,12 +102,14 @@ public sealed class OnDemandSplitHost : Grid
         {
             ContrastTheme.Changed += OnColorsChanged;
             TextScaleChanged += OnTextScaleChanged;
+            Motion.Changed += OnMotionChanged;
             ApplyLayout();
         };
         Unloaded += (_, _) =>
         {
             ContrastTheme.Changed -= OnColorsChanged;
             TextScaleChanged -= OnTextScaleChanged;
+            Motion.Changed -= OnMotionChanged;
             EndMove();
         };
         AddHandler(PointerPressedEvent, new PointerEventHandler((_, e) => Note(e.OriginalSource)), handledEventsToo: true);
@@ -280,7 +282,8 @@ public sealed class OnDemandSplitHost : Grid
             && from != target;
         if (!moves)
         {
-            EndMove();
+            // A Reduce Motion change can re-apply the layout before Motion.Changed arrives: that settle is the R4 stop.
+            EndMove(stopped: !motion);
             DropLeaving();
         }
         progress = target;
@@ -343,7 +346,7 @@ public sealed class OnDemandSplitHost : Grid
     private void StartMove(double from, double target)
     {
         var paneWidth = move?.PaneWidth ?? ActualWidth / 2;
-        var started = new SplitMove(from, target, Stopwatch.GetTimestamp(), ReflowTiming.Plan(from, target, true), paneWidth);
+        var started = new SplitMove(from, target, Stopwatch.GetTimestamp(), ReflowTiming.Plan(from, target, true, ReflowMotion.Duration), paneWidth);
         move = started;
         ApplyGeometry();
         TraceMove(started);
@@ -356,14 +359,26 @@ public sealed class OnDemandSplitHost : Grid
     }
 
     /// <summary>Finishes a running move where it was heading: a closed pane leaves and the pane is drawn in place again.</summary>
-    private void EndMove()
+    /// <param name="stopped">Whether motion turned off mid-move (R4) rather than the move completing or being replaced.</param>
+    private void EndMove(bool stopped = false)
     {
         if (move is not { } ended) return;
         move = null;
         if (ended.To == 0) DropLeaving();
         ReflowMotion.SettlePane(paneRoot, Section);
         ApplyGeometry();
-        TraceSettle(ended.To == 1, animated: true, Motion.Allowed, Stopwatch.GetElapsedTime(ended.Start));
+        TraceSettle(ended.To == 1, animated: true, Motion.Allowed, Stopwatch.GetElapsedTime(ended.Start), stopped);
+    }
+
+    /// <summary>
+    /// Animation effects or the app's Reduce Motion turned off while a pane slides (pattern reflow-motion R4): the move
+    /// ends at once through the same settle as a completed one (an opening pane shows in place, a closing one leaves).
+    /// </summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private void OnMotionChanged(object? sender, EventArgs e)
+    {
+        if (move is not null && !Motion.Allowed) EndMove(stopped: true);
     }
 
     /// <summary>Lets a leaving pane go: its page is dropped and the pane area hides when nothing else is open.</summary>
@@ -394,11 +409,12 @@ public sealed class OnDemandSplitHost : Grid
     /// <param name="animated">Whether a move led here.</param>
     /// <param name="motion">Whether motion was allowed.</param>
     /// <param name="elapsed">The move's run time.</param>
-    private void TraceSettle(bool open, bool animated, bool motion, TimeSpan elapsed = default)
+    /// <param name="stopped">Whether motion turned off mid-move.</param>
+    private void TraceSettle(bool open, bool animated, bool motion, TimeSpan elapsed = default, bool stopped = false)
     {
         if (!PerfLog.Enabled) return;
         PerfLog.Write(FormattableString.Invariant(
-            $"split-settle open={(open ? 1 : 0)} animated={(animated ? 1 : 0)} motion={(motion ? 1 : 0)} t={elapsed.TotalMilliseconds:F0} list={Section.ActualWidth:F1}"));
+            $"split-settle open={(open ? 1 : 0)} animated={(animated ? 1 : 0)} motion={(motion ? 1 : 0)} stopped={(stopped ? 1 : 0)} t={elapsed.TotalMilliseconds:F0} list={Section.ActualWidth:F1}"));
     }
     #endregion
 

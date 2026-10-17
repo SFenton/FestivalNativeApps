@@ -20,7 +20,9 @@ namespace Festival.App.Controls;
 /// <c>Translation</c> from the old-minus-new offset to zero, so layout itself is never animated), and a card that the
 /// change brought into view fades in. Timing is <see cref="ReflowTiming"/>. A card whose load stagger
 /// (<see cref="FadeIn"/>) is still running is left to finish it; a move interrupted by another reflow starts from where the
-/// card is drawn now. With motion off (<see cref="Motion.Allowed"/>) nothing animates and any running move stops in place.
+/// card is drawn now. With motion off (<see cref="Motion.Allowed"/>) nothing animates, and turning motion off (Windows
+/// Animation effects or the app's Reduce Motion) while glides or fades run stops every one of them in its settled state
+/// (R4): only while any runs is <see cref="Motion.Changed"/> observed.
 /// Run it only on reflow events (column changes, split open/close), never per scroll frame (Windows gotcha #642).
 /// </summary>
 public static class ReflowMotion
@@ -28,8 +30,20 @@ public static class ReflowMotion
     private const string Translation = "Translation";
     private const string Opacity = "Opacity";
 
+    /// <summary>
+    /// A whole reflow's run time: <see cref="ReflowTiming.Duration"/>, or the Debug/automation
+    /// <c>FST_DEBUG_REFLOW_MS</c> stretch so UI Automation can change a motion setting mid-move.
+    /// </summary>
+    public static readonly TimeSpan Duration = ReflowTiming.ParseDuration(App.LaunchEnvironment("FST_DEBUG_REFLOW_MS")) ?? ReflowTiming.Duration;
+
     /// <summary>Running moves: the starting shift and when it began, so an interrupted move can carry on.</summary>
     private static readonly ConditionalWeakTable<UIElement, MoveState> Moves = new();
+
+    /// <summary>Glides and fades that may still be running, with when each ends (<see cref="FadeIn.Now"/> time).</summary>
+    private static readonly List<(WeakReference<UIElement> Element, TimeSpan Ends)> Running = [];
+
+    /// <summary>Whether <see cref="OnMotionChanged"/> is subscribed (only while <see cref="Running"/> has entries).</summary>
+    private static bool observing;
 
     #region Single elements
     /// <summary>Glides an element that layout just moved by <paramref name="shift"/> (old minus new position) back into place.</summary>
@@ -58,9 +72,10 @@ public static class ReflowMotion
         var move = visual.Compositor.CreateVector3KeyFrameAnimation();
         move.InsertKeyFrame(0f, new Vector3(from, 0));
         move.InsertKeyFrame(1f, Vector3.Zero, Ease(visual.Compositor));
-        move.Duration = ReflowTiming.Duration;
+        move.Duration = Duration;
         visual.StartAnimation(Translation, move);
         Moves.AddOrUpdate(element, new MoveState(from, now));
+        Track(element, now);
         return true;
     }
 
@@ -74,8 +89,9 @@ public static class ReflowMotion
         var fade = visual.Compositor.CreateScalarKeyFrameAnimation();
         fade.InsertKeyFrame(0f, 0f);
         fade.InsertKeyFrame(1f, 1f, Ease(visual.Compositor));
-        fade.Duration = ReflowTiming.Duration;
+        fade.Duration = Duration;
         visual.StartAnimation(Opacity, fade);
+        Track(element, FadeIn.Now);
         return true;
     }
 
@@ -88,6 +104,59 @@ public static class ReflowMotion
         var visual = ElementCompositionPreview.GetElementVisual(element);
         visual.StopAnimation(Translation);
         visual.Properties.InsertVector3(Translation, Vector3.Zero);
+    }
+
+    /// <summary>Records a glide or fade that runs until <see cref="Duration"/> after <paramref name="now"/> (R4).</summary>
+    /// <param name="element">Animated element.</param>
+    /// <param name="now">When it started.</param>
+    private static void Track(UIElement element, TimeSpan now)
+    {
+        Running.RemoveAll(r => r.Ends <= now || !r.Element.TryGetTarget(out var other) || ReferenceEquals(other, element));
+        Running.Add((new WeakReference<UIElement>(element), now + Duration));
+        if (observing) return;
+        observing = true;
+        Motion.Changed += OnMotionChanged;
+    }
+
+    /// <summary>
+    /// Motion turned off mid-reflow (R4): every glide and fade still running stops where it was heading, so cards are
+    /// drawn in their laid-out places at full opacity at once. Stops observing once nothing runs.
+    /// </summary>
+    /// <param name="sender">Unused.</param>
+    /// <param name="e">Unused.</param>
+    private static void OnMotionChanged(object? sender, EventArgs e)
+    {
+        var now = FadeIn.Now;
+        if (Motion.Allowed)
+        {
+            Running.RemoveAll(r => r.Ends <= now || !r.Element.TryGetTarget(out _));
+            if (Running.Count == 0) StopObserving();
+            return;
+        }
+        var stopped = 0;
+        foreach (var (reference, ends) in Running)
+        {
+            if (ends <= now || !reference.TryGetTarget(out var element)) continue;
+            Moves.Remove(element);
+            var visual = ElementCompositionPreview.GetElementVisual(element);
+            visual.StopAnimation(Translation);
+            visual.StopAnimation(Opacity);
+            visual.Properties.InsertVector3(Translation, Vector3.Zero);
+            visual.Opacity = 1;
+            stopped++;
+        }
+        Running.Clear();
+        StopObserving();
+        if (stopped > 0 && PerfLog.Enabled)
+            PerfLog.Write(FormattableString.Invariant($"reflow-stop stopped={stopped} motion=0 t={now.TotalMilliseconds:F0}"));
+    }
+
+    /// <summary>Unsubscribes from <see cref="Motion.Changed"/>.</summary>
+    private static void StopObserving()
+    {
+        if (!observing) return;
+        observing = false;
+        Motion.Changed -= OnMotionChanged;
     }
 
     /// <summary>The reflow curve on a compositor.</summary>
@@ -107,7 +176,7 @@ public static class ReflowMotion
         /// <summary>Where the move draws the element at <paramref name="now"/>, relative to its laid-out place.</summary>
         /// <param name="now">Monotonic time.</param>
         /// <returns>Offset.</returns>
-        public Vector2 Offset(TimeSpan now) => From * (float)ReflowTiming.Remaining(now - Start);
+        public Vector2 Offset(TimeSpan now) => From * (float)ReflowTiming.Remaining(now - Start, Duration);
     }
     #endregion
 

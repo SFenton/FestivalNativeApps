@@ -191,11 +191,14 @@ def jump_trace_problems(page: dict, lines: list[str]) -> list[str]:
 
 
 def reflow_trace_problems(page: dict, mode: str, lines: list[str]) -> list[str]:
-    """Judge a page's ``reflow_trace``: its split opens/closes and card reflows, instant with motion off (issue #669).
+    """Judge a page's ``reflow_trace`` and ``reflow_stops`` (issue #669).
 
     A page lists ``"reflow_trace": {"split": N, "<host>": M}``: the drive must open or close a split at least N times
     and reflow each card host at least M times, every one instant under Reduce Motion or Animation effects off
     (:func:`reflow_trace.check_counts`, pattern ``reflow-motion`` R4). UIA cannot see a composition move.
+    ``"reflow_stops": {"split": N, "cards": M}`` asks that motion turned off mid-reflow (an ``animations:off`` step or
+    the ``FST_DEBUG_MOTION_KEY`` Reduce Motion key) stopped at least N split moves and M card reflows at once
+    (:func:`reflow_trace.check_stops`).
 
     Args:
         page: Page definition.
@@ -203,18 +206,28 @@ def reflow_trace_problems(page: dict, mode: str, lines: list[str]) -> list[str]:
         lines: The launch's perf-log lines.
 
     Returns:
-        Failures (empty when the page has no ``reflow_trace`` or every reflow passed).
+        Failures (empty when the page has neither key or every reflow passed).
     """
     expected = page.get("reflow_trace")
-    if not expected:
-        return []
-    return reflow_trace.check_counts(reflow_trace.parse(lines), {k: int(v) for k, v in expected.items()},
-                                     mode_motion(mode))
+    problems = []
+    if expected:
+        problems += reflow_trace.check_counts(reflow_trace.parse(lines), {k: int(v) for k, v in expected.items()},
+                                              mode_motion(mode))
+    stops = page.get("reflow_stops")
+    if stops:
+        problems += reflow_trace.check_stops(reflow_trace.parse(lines), {k: int(v) for k, v in stops.items()})
+    return problems
+
+
+def traced_reflow(page: dict) -> bool:
+    """Whether a page judges its perf log for reflows (``reflow_trace``) or mid-reflow stops (``reflow_stops``)."""
+    return bool(page.get("reflow_trace") or page.get("reflow_stops"))
 
 
 def traced(page: dict) -> bool:
-    """Whether a page launches with ``--perf-log`` (it judges a ``fade_trace``, ``jump_trace`` or ``reflow_trace``)."""
-    return bool(page.get("fade_trace") or page.get("jump_trace") or page.get("reflow_trace"))
+    """Whether a page launches with ``--perf-log`` (it judges a fade, jump or reflow trace, or reflow stops)."""
+    return bool(page.get("fade_trace") or page.get("jump_trace") or page.get("reflow_trace")
+                or page.get("reflow_stops"))
 
 
 def restore_values(previous: dict, applied: dict | list[str]) -> dict:
@@ -231,10 +244,10 @@ def restore_values(previous: dict, applied: dict | list[str]) -> dict:
 
 
 def system_keys(applied: dict, steps: list[str]) -> list[str]:
-    """System settings one drive changes: the mode's, plus ``high_contrast`` when a step switches it live.
+    """System settings one drive changes: the mode's, plus any a step switches live.
 
-    A ``contrast:`` step (``uiwin``) switches the contrast theme with the app open, so the runner must snapshot and
-    restore the theme even in a mode that doesn't set one.
+    A ``contrast:`` step (``uiwin``) switches the contrast theme, and an ``animations:`` step Windows Animation
+    effects, with the app open, so the runner must snapshot and restore that setting even in a mode that doesn't set it.
 
     Args:
         applied: The mode's ``system`` settings.
@@ -244,8 +257,10 @@ def system_keys(applied: dict, steps: list[str]) -> list[str]:
         Keys to snapshot before the drive and restore after it.
     """
     keys = list(applied)
-    if "high_contrast" not in keys and any(s.partition(":")[0].strip().lower() == "contrast" for s in steps):
-        keys.append("high_contrast")
+    verbs = {s.partition(":")[0].strip().lower() for s in steps}
+    for verb, key in (("contrast", "high_contrast"), ("animations", "animations")):
+        if key not in keys and verb in verbs:
+            keys.append(key)
     return keys
 
 
@@ -624,9 +639,9 @@ def run_size(page: dict, mode: str, size: str, exe: Path, port: int | None, out:
                 problems = jump_trace_problems(page, lines)
                 if problems:
                     raise RuntimeError("jump trace: " + "; ".join(problems))
-            if page.get("reflow_trace"):
+            if traced_reflow(page):
                 lines = fade_trace.read_lines(state / "perf.log")
-                record["reflow_trace"] = [line for line in lines if line.startswith(("split-", "reflow-move "))]
+                record["reflow_trace"] = [line for line in lines if line.startswith(("split-", "reflow-move ", "reflow-stop "))]
                 problems = reflow_trace_problems(page, mode, lines)
                 if problems:
                     raise RuntimeError("reflow trace: " + "; ".join(problems))

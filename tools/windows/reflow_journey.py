@@ -4,23 +4,27 @@ Each scenario launches the Debug app against a loopback fixture with ``--perf-lo
 and judges the ``split-*`` and ``reflow-move`` lines each phase appended (``reflow_trace.py``). Opening a split pane
 must narrow the list frame by frame while the pane fades in, and closing must widen it while the pane fades out
 (``OnDemandSplitHost``); resizing across a column threshold must glide the loaded cards to their new places
-(``ReflowMotion``) without replaying a load stagger. The ``*-reduced`` scenarios launch with ``--reduce-motion`` and
-require the same changes to happen instantly.
+(``ReflowMotion``) without replaying a load stagger. The ``*-reduced`` scenarios launch with ``--reduce-motion`` (or,
+``statistics-setting-reduced``, with the app's own Reduce Motion setting) and require the same changes to happen
+instantly: no split move, and card-grid reflows with ``moved=0 entered=0``.
 
-=========================  ==========================================================================================
-Scenario                   Reflow
-=========================  ==========================================================================================
-``rivals-split``           Rivals: open a rival in the split pane, then close it (Close button)
-``suggestions-columns``    Suggestions: wide (two columns) → medium (one) → wide
-``statistics-columns``     Profile instrument sections (``LeaderboardsCardGridLayout``): wide → medium → wide
-``shop-grid``              Item Shop grid: wide → medium → wide
-``rivals-split-reduced``   Rivals split under Reduce Motion
-``suggestions-reduced``    Suggestions columns under Reduce Motion
-``shop-grid-reduced``      Item Shop grid under Reduce Motion
-=========================  ==========================================================================================
+==============================  =====================================================================================
+Scenario                        Reflow
+==============================  =====================================================================================
+``rivals-split``                Rivals: open a rival in the split pane, then close it (Close button)
+``suggestions-columns``         Suggestions: wide (two columns) → medium (one) → wide
+``statistics-columns``          Profile instrument sections (``LeaderboardsCardGridLayout``): wide → medium → wide
+``shop-grid``                   Item Shop grid: wide → medium → wide
+``rivals-split-reduced``        Rivals split under Reduce Motion
+``suggestions-reduced``         Suggestions columns under Reduce Motion
+``statistics-reduced``          Profile instrument sections under ``--reduce-motion``
+``statistics-setting-reduced``  Profile instrument sections under the app's Reduce Motion setting
+``shop-grid-reduced``           Item Shop grid under Reduce Motion
+==============================  =====================================================================================
 
-Focus, reading order and target sizes for the same surfaces live in ``tools/windows/journeys/a11y-reflow.json``
-(``a11y_matrix.py``).
+Focus, reading order, large text and target sizes for the same surfaces, the same resizes with Windows Animation
+effects off, and motion turned off while a reflow runs (R4) live in ``tools/windows/journeys/a11y-reflow.json``
+(``a11y_matrix.py``, which alone may switch the desktop's Animation effects and restores them).
 
 Usage: ``python tools/windows/reflow_journey.py [--only NAME]`` (build first with ``tools/windows/build.ps1``).
 """
@@ -28,6 +32,7 @@ Usage: ``python tools/windows/reflow_journey.py [--only NAME]`` (build first wit
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 import subprocess
 import sys
@@ -75,6 +80,8 @@ class Scenario:
     preset: str = "wide"
     args: tuple[str, ...] = ()
     env: dict[str, str] = field(default_factory=dict)
+    settings: dict = field(default_factory=dict)
+    """In-app settings seeded into ``settings.json`` before launch (e.g. the app's own Reduce Motion)."""
 
 
 def both(*checks: Check) -> Check:
@@ -137,15 +144,28 @@ def shop(reduced: bool) -> Scenario:
         "waitfor:id=fst.shop.song.fixture-pulse@10"]), route="/shop", args=("--reduce-motion",) if reduced else ())
 
 
+def statistics(reduced: str | None) -> Scenario:
+    """Profile instrument sections (``LeaderboardsCardGridLayout``) between two columns and one.
+
+    ``reduced`` ``"launch"`` starts with ``--reduce-motion``; ``"setting"`` seeds the app's own Reduce Motion setting
+    (Settings › Reduce Motion, ``reduceMotion`` in settings.json). Windows Animation effects off is the
+    ``reflow-statistics-resize`` page of ``a11y-reflow.json`` in the matrix's ``no-animations`` mode.
+    """
+    return Scenario(("rivals_fixture.py",), resized("card-grid", STATISTICS_READY, reduced is not None, [
+        "waitfor:id=fst.player.instrument.Solo_Guitar@10"]), route="/statistics",
+        profile="fixture-player-1:Demo Player", args=("--reduce-motion",) if reduced == "launch" else (),
+        settings={"reduceMotion": True} if reduced == "setting" else {})
+
+
 SCENARIOS = {
     "rivals-split": rivals(reduced=False),
     "suggestions-columns": suggestions(reduced=False),
-    "statistics-columns": Scenario(("rivals_fixture.py",), resized("card-grid", STATISTICS_READY, False, [
-        "waitfor:id=fst.player.instrument.Solo_Guitar@10"]), route="/statistics",
-        profile="fixture-player-1:Demo Player"),
+    "statistics-columns": statistics(reduced=None),
     "shop-grid": shop(reduced=False),
     "rivals-split-reduced": rivals(reduced=True),
     "suggestions-reduced": suggestions(reduced=True),
+    "statistics-reduced": statistics(reduced="launch"),
+    "statistics-setting-reduced": statistics(reduced="setting"),
     "shop-grid-reduced": shop(reduced=True),
 }
 """Scenarios by name."""
@@ -201,6 +221,8 @@ def launch_args(name: str, port: int, exe: Path) -> list[str]:
     data = WORK / name
     shutil.rmtree(data, ignore_errors=True)
     data.mkdir(parents=True)
+    if scenario.settings:
+        (data / "settings.json").write_text(json.dumps(scenario.settings), encoding="utf-8")
     args = ["launch", str(exe), "--timeout", "60", "--wait", "1", "--preset", scenario.preset,
             f"--arg=--base-url=http://127.0.0.1:{port}/", "--arg=--first-run=off",
             f"--arg=--settings-path={data / 'settings.json'}", "--extra", f"FST_DEBUG_DATA_DIR={data}",

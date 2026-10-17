@@ -328,10 +328,12 @@ RUNS: tuple[Run, ...] = (
     Run("wide-columns-one-text-150", "a11y-wide-columns.json", sizes="wide", mode="text-150", only=WIDE_COLUMNS_ONE),
     Run("wide-columns", "a11y-wide-columns.json", sizes="compact,medium,wide"),
     Run("wide-columns-text-225", "a11y-wide-columns.json", sizes="compact,wide", mode="text-225"),
-    # Reflow motion (issue #669, pattern reflow-motion): the Rivals split opens and closes and Suggestions and the Item
-    # Shop grid change columns on a wide ↔ medium resize with names, targets, reading order and focus intact while the
-    # compositor moves them, and every reflow is instant with in-app Reduce Motion and with Animation effects off
-    # (reflow_trace). At 225% text Suggestions stays one column through the resize. Wide only: compact never splits.
+    # Reflow motion (issue #669, pattern reflow-motion): the Rivals split opens and closes and Suggestions, the Item
+    # Shop grid and the Profile/Statistics sections narrow and widen with focus, reading order and target sizes kept
+    # while the compositor moves them, and every reflow is instant with in-app Reduce Motion and with Animation effects
+    # off (reflow_trace). The reflow-stop pages turn each motion setting off mid-move (normal mode only; the matrix
+    # restores Animation effects). At 225% text Suggestions and Statistics stay one column. Wide only: compact never
+    # splits.
     Run("reflow", "a11y-reflow.json", sizes="wide", tabs=0),
     Run("reflow-reduced", "a11y-reflow.json", sizes="wide", mode="app-reduced", tabs=0),
     Run("reflow-no-animations", "a11y-reflow.json", sizes="wide", mode="no-animations", tabs=0),

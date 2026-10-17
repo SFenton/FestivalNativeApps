@@ -321,6 +321,31 @@ public sealed class SongDetailLayoutTests
         Assert.Equal(expectedMs, ReflowTiming.Plan(from, to, motion).TotalMilliseconds, 3);
 
     [Fact]
+    public void ReflowStretched_ScalesPlanAndRemaining()
+    {
+        // FST_DEBUG_REFLOW_MS (R4 journeys): a longer move covers the same share of its run and eases on the same curve.
+        var stretched = TimeSpan.FromSeconds(3);
+        Assert.Equal(1500, ReflowTiming.Plan(0.5, 1, true, stretched).TotalMilliseconds, 3);
+        Assert.Equal(0, ReflowTiming.Plan(0, 1, false, stretched).TotalMilliseconds);
+        Assert.Equal(ReflowTiming.Remaining(TimeSpan.FromMilliseconds(150)),
+            ReflowTiming.Remaining(TimeSpan.FromMilliseconds(1500), stretched), 9);
+        Assert.Equal(0, ReflowTiming.Remaining(stretched, stretched));
+    }
+
+    [Theory]
+    [InlineData("3000", 3000.0)]
+    [InlineData("300", 300.0)]
+    [InlineData("10000", 10000.0)]
+    [InlineData("299", null)]
+    [InlineData("10001", null)]
+    [InlineData("-500", null)]
+    [InlineData("1.5", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void ReflowParseDuration_AcceptsOnlyLongerBoundedMoves(string? value, double? expectedMs) =>
+        Assert.Equal(expectedMs, ReflowTiming.ParseDuration(value)?.TotalMilliseconds);
+
+    [Fact]
     public void ReflowProgress_EasesToTheTarget()
     {
         var duration = ReflowTiming.Duration;
