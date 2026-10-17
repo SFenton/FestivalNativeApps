@@ -116,8 +116,11 @@ STEP_VERBS = {
     "narrate": "selector", "assertread": "read", "assertorder": "order",
     "assertpaint": "paint", "assertbold": "bold", "assertannouncedcount": "announcedcount",
     "assertmarquee": "marquee", "assertmarqueesync": "pair", "assertmotion": "motion",
-    "contrast": "contrast",
+    "contrast": "contrast", "animations": "onoff",
 }
+
+#: Steps that change the operator's real desktop: only ``a11y_matrix.py`` pages, which snapshot and restore it, run them.
+DESKTOP_VERBS = ("contrast", "animations")
 
 #: ``contrast:`` values: Windows 11 contrast themes (``FstUia`` maps them to the legacy scheme names) or ``off``.
 CONTRAST_THEMES = ("off", "aquatic", "desert", "dusk", "night-sky")
@@ -379,6 +382,8 @@ def parse_step(step: str) -> dict:
     switch, unlike an ``a11y_matrix`` mode applied before launch), so later steps check that code-built brushes followed
     it. It changes the operator's real desktop: only ``a11y_matrix.py`` pages may use it, because that runner snapshots
     the theme first and always restores it before releasing the desktop lock.
+    ``animations:<on|off>`` likewise turns Windows Animation effects on or off with the app open (pattern
+    reflow-motion R4: a reflow already running stops when motion turns off); ``a11y_matrix.py`` restores it too.
 
     Args:
         step: A step string.
@@ -654,7 +659,8 @@ def parse_step(step: str) -> dict:
 
 
 def cli_steps(texts: list[str]) -> list[dict]:
-    """Parse command-line steps, refusing ``contrast:`` (only ``a11y_matrix.py`` restores the operator's theme).
+    """Parse command-line steps, refusing desktop switches (``contrast:``, ``animations:``): only ``a11y_matrix.py``
+    restores the operator's settings.
 
     Args:
         texts: Step strings.
@@ -663,12 +669,13 @@ def cli_steps(texts: list[str]) -> list[dict]:
         Parsed steps.
 
     Raises:
-        ValueError: A step is malformed or is a ``contrast:`` switch.
+        ValueError: A step is malformed or switches a desktop setting.
     """
     steps = [parse_step(s) for s in texts]
-    if any(step["verb"] == "contrast" for step in steps):
-        raise ValueError("contrast: steps change the operator's desktop; run them as an a11y_matrix.py page, "
-                         "which snapshots and restores the theme")
+    for step in steps:
+        if step["verb"] in DESKTOP_VERBS:
+            raise ValueError(f"{step['verb']}: steps change the operator's desktop; run them as an a11y_matrix.py page, "
+                             "which snapshots and restores the setting")
     return steps
 
 

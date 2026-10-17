@@ -983,6 +983,11 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 // A live contrast-theme switch with the app open; a11y_matrix restores the previous theme.
                 SetHighContrast(arg);
                 break;
+            case "animations":
+                // A live Animation effects switch with the app open (reflow-motion R4); a11y_matrix restores it.
+                if (arg is not ("on" or "off")) throw new ArgumentException($"animations:{arg} must be on or off");
+                SetAnimations(arg == "on");
+                break;
             default:
                 throw new ArgumentException($"unknown step {verb}");
         }

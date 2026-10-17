@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Festival.App.Services;
 using Festival.Core.Domain;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -21,7 +22,8 @@ namespace Festival.App.Controls;
 /// <see cref="UsesWideColumns"/> its instrument sections flow into pattern <c>wide-columns</c>' two row-major columns in
 /// wide windows (#653). Side by side, every card's <see cref="CardHeader"/> is padded so its title and its card surface
 /// start on the row's shared lines when one header is taller, such as a combo board's icon row or a subtitle
-/// (section-headers R14, #657).
+/// (section-headers R14, #657). A change in the column count glides each card from its old place to its new one (pattern
+/// <c>reflow-motion</c>, #669).
 /// </summary>
 public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
 {
@@ -79,6 +81,10 @@ public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
         var children = context.Children;
         var columns = UsesWideColumns ? measuredColumns : Columns(children, finalSize.Width);
         var columnWidth = ColumnWidth(finalSize.Width, columns);
+        // Pattern reflow-motion (#669): a column change glides each card from where it was drawn to its new place.
+        var tracks = UsesWideColumns || MaxColumns > 1;
+        var reflows = tracks && arrangedColumns > 0 && columns != arrangedColumns && Motion.Allowed;
+        var moved = 0;
         double y = 0;
         for (var start = 0; start < children.Count; start += columns)
         {
@@ -86,11 +92,31 @@ public sealed partial class LeaderboardsCardGridLayout : NonVirtualizingLayout
             double rowHeight = 0;
             for (var i = start; i < end; i++) rowHeight = Math.Max(rowHeight, children[i].DesiredSize.Height);
             for (var i = start; i < end; i++)
-                children[i].Arrange(new Rect((i - start) * (columnWidth + Spacing), y, columnWidth, rowHeight));
+            {
+                var slot = new Point((i - start) * (columnWidth + Spacing), y);
+                children[i].Arrange(new Rect(slot.X, slot.Y, columnWidth, rowHeight));
+                if (!tracks) continue;
+                // A cached page re-entering the tree (not loaded yet) shows its cards in place: nothing replays on Back.
+                if (reflows && children[i] is FrameworkElement { IsLoaded: true } && Placed.TryGetValue(children[i], out var was)
+                    && ReflowMotion.Move(children[i], new Point(was.At.X - slot.X, was.At.Y - slot.Y))) moved++;
+                Placed.AddOrUpdate(children[i], new Placement(slot));
+            }
             y += rowHeight + Spacing;
         }
+        if (tracks && columns != arrangedColumns && arrangedColumns > 0) ReflowMotion.Trace("card-grid", moved, 0, reflows);
+        if (tracks) arrangedColumns = columns;
         return finalSize;
     }
+
+    /// <summary>Columns of the last arrange (0 before the first), so a column change can be told from a resize.</summary>
+    private int arrangedColumns;
+
+    /// <summary>Where each card was last arranged (pattern reflow-motion).</summary>
+    private static readonly ConditionalWeakTable<UIElement, Placement> Placed = new();
+
+    /// <summary>A card's last arranged top-left.</summary>
+    /// <param name="At">Top-left in the repeater.</param>
+    private sealed record Placement(Point At);
 
     /// <summary>Columns that fit the width.</summary>
     /// <param name="children">Realized cards (any one locates the window for <see cref="UsesWideColumns"/>).</param>

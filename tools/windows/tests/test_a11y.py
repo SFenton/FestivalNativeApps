@@ -179,6 +179,15 @@ class MatrixTests(unittest.TestCase):
         previous = {"high_contrast": "off", "text_scale": 100}
         self.assertEqual(m.restore_values(previous, m.system_keys({}, steps)), {"high_contrast": "off"})
 
+    def test_live_animations_switch_is_restored(self):
+        # Issue #669 review: a page that turns Animation effects off mid-reflow snapshots and restores them in any mode.
+        steps = ["resize:medium", "wait:0.6", "animations:off", "wait:1", "animations:on"]
+        self.assertEqual(m.system_keys({}, steps), ["animations"])
+        self.assertEqual(m.system_keys({"animations": False}, steps), ["animations"])
+        self.assertEqual(m.system_keys({}, [*steps, "contrast:desert"]), ["high_contrast", "animations"])
+        self.assertEqual(m.restore_values({"animations": True, "text_scale": 100}, m.system_keys({}, steps)),
+                         {"animations": True})
+
     def test_launch_args_and_live_pages(self):
         page = {"name": "shop", "first_run": "on"}
         fixture = m.launch_args(8765, page, Path("/s.json"))
