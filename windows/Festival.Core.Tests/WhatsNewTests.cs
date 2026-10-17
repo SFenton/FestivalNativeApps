@@ -231,6 +231,45 @@ public class WhatsNewTests
         Assert.Empty(Changelog.DisplayBlocks(InstallChannel.Store, manual));
     }
 
+    /// <summary>
+    /// The shape `windows-release-build` generates once the Microsoft Store's published version (2610.14.03) is the
+    /// baseline (#670): the unreleased intermediate builds are folded into the built entry, the Store release stays a
+    /// plain released entry, and there is no "first release" placeholder.
+    /// </summary>
+    private const string StoreBaselineDocument = """
+        {"schema": 1, "platform": "windows", "version": "2610.17.03", "baseline": "2610.14.03",
+         "entries": [
+          {"version": "2610.17.03", "released": false,
+           "items": ["Settings: What's New lists changes since the Store release.", "Songs: Rows load faster.", "A loose note."],
+           "groups": [{"category": "Songs", "items": ["Rows load faster."]},
+                      {"category": "Settings", "items": ["What's New lists changes since the Store release."]},
+                      {"category": null, "items": ["A loose note."]}],
+           "testflight": {"since": "2610.17.02", "new": ["Songs: Rows load faster."], "release": "2610.14.03",
+                          "vs_release": ["Songs: Rows load faster.", "Settings: What's New lists changes since the Store release.", "A loose note."],
+                          "groups": [{"category": "Songs", "items": ["Rows load faster."]},
+                                     {"category": "Settings", "items": ["What's New lists changes since the Store release."]},
+                                     {"category": null, "items": ["A loose note."]}]}},
+          {"version": "2610.14.03", "released": true, "items": ["Rivals: Lists refresh."],
+           "groups": [{"category": "Rivals", "items": ["Lists refresh."]}]}
+         ]}
+        """;
+
+    [Fact]
+    public void DisplayBlocks_StoreBaselineDocumentShowsOnlyChangesSinceTheStoreRelease()
+    {
+        var entries = Changelog.Decode(StoreBaselineDocument);
+        var store = Changelog.DisplayBlocks(InstallChannel.Store, entries);
+        Assert.Equal(["Version 2610.17.03", "Version 2610.14.03"], store.Select(b => b.Title));
+        Assert.Equal(["Songs", "Settings", "Other"], store[0].Groups.Select(g => g.DisplayTitle));
+        Assert.DoesNotContain(store, b => b.Groups.SelectMany(g => g.Items).Any(i => i.Contains("first release", StringComparison.OrdinalIgnoreCase)));
+        var tester = Changelog.DisplayBlocks(InstallChannel.Tester, entries);
+        Assert.Equal(["Changes Since Release 2610.14.03", "Version 2610.14.03"], tester.Select(b => b.Title));
+        // Store package-flight testers cannot be told apart at run time and see the Store block: with the Store
+        // baseline it lists the same notes as the tester block.
+        Assert.Equal(tester[0].Groups.SelectMany(g => g.Items), store[0].Groups.SelectMany(g => g.Items));
+        Assert.Equal("Other", tester[0].Groups[^1].DisplayTitle);
+    }
+
     [Fact]
     public void ResolveEntries_ReadsTheDebugDocumentOnlyWithHooks()
     {
