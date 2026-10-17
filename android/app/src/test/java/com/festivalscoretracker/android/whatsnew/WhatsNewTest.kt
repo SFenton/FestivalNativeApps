@@ -176,13 +176,46 @@ class WhatsNewTest {
         assertEquals(TesterNotes(null, listOf(ChangelogGroup(null, listOf("Songs: x")))), fallback)
         assertEquals("Changes So Far", fallback!!.title)
         assertNull(Changelog.decode("""{"entries":[{"version":"1","items":["a"],"testflight":{"vs_release":[]}}]}""").single().tester)
-        val many = (0 until 30).joinToString(",") { """{"category":"${"C".repeat(50)}$it","items":[${(0 until 10).joinToString(",") { "\"n\"" }}]}""" }
+        val many = (0 until 30).joinToString(",") { """{"category":"${"C".repeat(50)}$it","items":[${(0 until 20).joinToString(",") { "\"n\"" }}]}""" }
         val tester = Changelog.decode("""{"entries":[{"version":"1","items":["a"],"testflight":{"groups":[$many]}}]}""").single().tester!!
         assertEquals(Changelog.MAX_TESTER_ITEMS, tester.groups.sumOf { it.items.size })
         assertTrue(tester.groups.size <= Changelog.MAX_GROUPS)
         assertEquals(Changelog.MAX_CATEGORY_LENGTH, tester.groups[0].category!!.length)
         val groups = Changelog.decodeGroups(Json.parseToJsonElement("""[{"category":"","items":["x"]},{"items":["y"]}]"""), 1)
         assertEquals(listOf(ChangelogGroup(null, listOf("x"))), groups)
+    }
+
+    /**
+     * Issue #670: before Android's first store release the generator has no baseline, so the built version's
+     * release section is the first-release line and the tester list holds every note so far. This mirrors the
+     * generated 2610.15.02 document: 187 notes in the generator's 17 page categories plus uncategorized.
+     */
+    @Test
+    fun preReleaseTesterListKeepsEveryCategoryThroughOther() {
+        val counts = listOf(
+            "Songs" to 23, "Song Details" to 13, "Suggestions" to 6, "Statistics" to 1, "Compete" to 12,
+            "Leaderboards" to 27, "Rivals" to 11, "Bands" to 10, "Item Shop" to 7, "Profile" to 10,
+            "Notifications" to 2, "Settings" to 13, "First Run" to 8, "Navigation" to 18, "Accessibility" to 10,
+            "Performance" to 1, "General" to 10, null to 5,
+        )
+        val groups = counts.joinToString(",") { (category, n) ->
+            val name = category?.let { "\"$it\"" } ?: "null"
+            """{"category":$name,"items":[${(1..n).joinToString(",") { "\"${category ?: "Other"} note $it.\"" }}]}"""
+        }
+        val first = "The first release of Festival Score Tracker for Android."
+        val document = """{"schema":1,"platform":"android","version":"2610.15.02","baseline":null,"entries":[
+            {"version":"2610.15.02","released":false,"items":["$first"],"groups":[{"category":null,"items":["$first"]}],
+             "testflight":{"since":"2610.15.01","release":null,"groups":[$groups]}}]}"""
+        val entries = Changelog.decode(document)
+        val tester = Changelog.displayBlocks(entries, InstallChannel.Tester).single()
+        assertEquals("Changes So Far", tester.title)
+        assertEquals(187, tester.groups.sumOf { it.items.size })
+        assertEquals(counts.map { it.first ?: ChangelogGroup.OTHER }, tester.groups.map { it.displayTitle })
+        assertEquals("Other note 5.", tester.groups.last().items.last())
+        assertTrue(tester.headed)
+        // Store installs of the same build see only its release section, never the tester list.
+        val store = Changelog.displayBlocks(entries, InstallChannel.Store).single()
+        assertEquals(WhatsNewBlock("Version 2610.15.02", listOf(ChangelogGroup(null, listOf(first)))), store)
     }
 
     @Test
