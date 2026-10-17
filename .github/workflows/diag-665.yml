@@ -11,7 +11,6 @@ env:
   DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
 jobs:
   iphone:
-    if: ${{ false }}
     runs-on: xcode-27
     timeout-minutes: 150
     steps:
@@ -28,6 +27,7 @@ jobs:
         continue-on-error: true
         run: |
           mkdir -p /tmp/fst-665 && chmod 777 /tmp/fst-665
+          echo "FST_UITEST_KEEP_RESULTS=1" >> "$GITHUB_ENV"
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock.log" 2>&1 &
           python3 tools/mock_service.py --port 18934 > "$RUNNER_TEMP/mock_bands.log" 2>&1 &
           device=$(python3 tools/ios_sim.py ci-device)
@@ -37,16 +37,18 @@ jobs:
             --only SettingsAccessibilityJourneyTests/testAccessibilityThenItemShopReadInOrder \
             --only SettingsAccessibilityJourneyTests/testAccessibilityThenItemShopReadableAtAX5 \
             --only SettingsVisualOrderAccessibilityJourneyTests/testSongRowVisualOrderIsReadableAtAX5
-      - name: Preceding batches then Settings
+      - name: Settings batch again (2)
         continue-on-error: true
         run: |
-          echo "=== second pass ===" >> /tmp/fst-665/touch.log || true
-          device=$(cat "$RUNNER_TEMP/device")
-          python3 tools/ios_sim.py uitest --device "$device" --timeout 1800 --no-test-diagnostics \
-            --only NotificationsAccessibilityJourneyTests/testRowsUnderThePinnedTitleKeepTheirAccessibility \
-            --only NotificationsAccessibilityJourneyTests/testRowsUnderThePinnedTitleKeepTheirAccessibilityAtAX5 \
-            --only SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderIsAccessibleAtStandardSize \
-            --only SongBandLeaderboardAccessibilityJourneyTests/testBandBoardHeaderGrowsAtAX5 \
+          echo "=== pass 2 ===" >> /tmp/fst-665/touch.log || true
+          python3 tools/ios_sim.py uitest --device "$(cat "$RUNNER_TEMP/device")" --timeout 1800 --no-test-diagnostics \
+            --only SettingsAccessibilityJourneyTests/testAccessibilityThenItemShopReadInOrder \
+            --only SettingsAccessibilityJourneyTests/testAccessibilityThenItemShopReadableAtAX5
+      - name: Settings batch again (3)
+        continue-on-error: true
+        run: |
+          echo "=== pass 3 ===" >> /tmp/fst-665/touch.log || true
+          python3 tools/ios_sim.py uitest --device "$(cat "$RUNNER_TEMP/device")" --timeout 1800 --no-test-diagnostics \
             --only SettingsAccessibilityJourneyTests/testAccessibilityThenItemShopReadInOrder \
             --only SettingsAccessibilityJourneyTests/testAccessibilityThenItemShopReadableAtAX5
       - name: Collect
@@ -64,6 +66,7 @@ jobs:
           name: diag-665-iphone
           path: ${{ runner.temp }}/out
   ipad:
+    if: ${{ false }}
     runs-on: xcode-27
     timeout-minutes: 120
     steps:

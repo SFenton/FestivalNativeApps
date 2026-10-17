@@ -11,6 +11,7 @@ final class ZZTouchProbeRecognizer: UIGestureRecognizer, UIGestureRecognizerDele
         else { FileManager.default.createFile(atPath: path, contents: line.data(using: .utf8)) }
     }
     static func install() {
+        ZZAnimDump.start()
         ZZStallSwizzle.install()
         guard path != nil else { return }
         log("install pid=\(ProcessInfo.processInfo.processIdentifier)")
@@ -38,6 +39,9 @@ final class ZZTouchProbeRecognizer: UIGestureRecognizer, UIGestureRecognizerDele
             seen = t.gestureRecognizers ?? []
             let hit = view?.hitTest(p, with: event)
             Self.log("BEGAN \(p) view=\(chain(t.view)) hit=\(chain(hit)) grs=\(states())")
+            if let sw = sequence(first: t.view, next: { $0?.superview }).compactMap({ $0 as? UISwitch }).first {
+                ZZSwitchProbe.began(sw)
+            }
             if let sv = sequence(first: t.view, next: { $0?.superview }).compactMap({ $0 as? UIScrollView }).first {
                 Self.log("  scroll dragging=\(sv.isDragging) decel=\(sv.isDecelerating) tracking=\(sv.isTracking) off=\(sv.contentOffset)")
             }
@@ -103,6 +107,110 @@ extension UIWindow {
             }
         }
         zz_sendEvent(event)
+    }
+}
+// PROBE665 (temporary): a UISwitch press: its recognizers, their state changes, its
+// layers' animations and main run-loop gaps over the next 600 ms.
+@MainActor
+final class ZZSwitchProbe: NSObject {
+    static let shared = ZZSwitchProbe()
+    static var stallMs: Double { Double(ProcessInfo.processInfo.environment["FST_DEBUG_STALL_AFTER_BEGAN_MS"] ?? "") ?? 0 }
+    private var observer: CFRunLoopObserver?
+    private var last: CFAbsoluteTime = 0
+    private var lastActivity: CFRunLoopActivity = .entry
+    private var until: CFAbsoluteTime = 0
+    private var hooked = Set<ObjectIdentifier>()
+    static func began(_ sw: UISwitch) { shared.start(sw) }
+    private func start(_ sw: UISwitch) {
+        var lines: [String] = ["SWITCH on=\(sw.isOn) enabled=\(sw.isEnabled) ui=\(sw.isUserInteractionEnabled) tracking=\(sw.isTracking) style=\(sw.style.rawValue)"]
+        var views: [UIView] = [sw]
+        var i = 0
+        while i < views.count { views.append(contentsOf: views[i].subviews); i += 1 }
+        for v in views {
+            for g in v.gestureRecognizers ?? [] {
+                var d = "  GR \(type(of: g)) on \(type(of: v)) state=\(g.state.rawValue) en=\(g.isEnabled) del=\(g.delegate.map { "\(type(of: $0))" } ?? "-") cancels=\(g.cancelsTouchesInView) delaysB=\(g.delaysTouchesBegan)"
+                if let lp = g as? UILongPressGestureRecognizer { d += " minDur=\(lp.minimumPressDuration) move=\(lp.allowableMovement)" }
+                lines.append(d)
+                if !hooked.contains(ObjectIdentifier(g)) {
+                    hooked.insert(ObjectIdentifier(g))
+                    g.addTarget(self, action: #selector(fired(_:)))
+                }
+            }
+            if let keys = v.layer.animationKeys(), !keys.isEmpty {
+                lines.append("  ANIM \(type(of: v)) \(keys.map { k in "\(k):\(v.layer.animation(forKey: k).map { "\($0.duration)/\($0.beginTime)" } ?? "")" })")
+            }
+            for sub in v.layer.sublayers ?? [] where !(sub.animationKeys() ?? []).isEmpty {
+                lines.append("  SUBANIM \(type(of: sub)) of \(type(of: v)) \(sub.animationKeys() ?? [])")
+            }
+        }
+        lines.append("  now=\(CACurrentMediaTime()) layerTime=\(sw.layer.convertTime(CACurrentMediaTime(), from: nil)) speed=\(sw.layer.speed) winSpeed=\(sw.window?.layer.speed ?? -1)")
+        ZZTouchProbeRecognizer.log(lines.joined(separator: "\n"))
+        last = CFAbsoluteTimeGetCurrent()
+        until = last + 0.6
+        if observer == nil {
+            let obs = CFRunLoopObserverCreateWithHandler(nil, CFRunLoopActivity.allActivities.rawValue, true, 0) { [weak self] _, activity in
+                MainActor.assumeIsolated { self?.tick(activity) }
+            }
+            CFRunLoopAddObserver(CFRunLoopGetMain(), obs, .commonModes)
+            observer = obs
+        }
+        if Self.stallMs > 0 {
+            let ms = Self.stallMs
+            DispatchQueue.main.async {
+                ZZTouchProbeRecognizer.log("STALL after began \(ms)ms")
+                Thread.sleep(forTimeInterval: ms / 1000)
+            }
+        }
+    }
+    private func tick(_ activity: CFRunLoopActivity) {
+        let now = CFAbsoluteTimeGetCurrent()
+        guard now <= until else { return }
+        let gap = (now - last) * 1000
+        if gap > 6 && lastActivity != .beforeWaiting {
+            ZZTouchProbeRecognizer.log("  RLBUSY \(Int(gap))ms between activity=\(lastActivity.rawValue) and \(activity.rawValue)")
+        }
+        last = now
+        lastActivity = activity
+    }
+    @objc private func fired(_ g: UIGestureRecognizer) {
+        ZZTouchProbeRecognizer.log("  FIRED \(type(of: g)) state=\(g.state.rawValue)")
+    }
+}
+
+// PROBE665 (temporary): logs every layer with running animations, every 4 s.
+@MainActor
+enum ZZAnimDump {
+    static func start() {
+        guard let path = ProcessInfo.processInfo.environment["FST_DEBUG_ANIM_LOG"] else { return }
+        Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { _ in
+            MainActor.assumeIsolated { dump(path) }
+        }
+    }
+    static func dump(_ path: String) {
+        var lines: [String] = [String(format: "--- %.3f", Date().timeIntervalSince1970)]
+        for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+            for w in scene.windows {
+                lines.append("window \(type(of: w)) key=\(w.isKeyWindow) hidden=\(w.isHidden) focus=\(String(describing: w.windowScene?.focusSystem?.focusedItem.map { type(of: $0) }))")
+                walk(w.layer, depth: 0, into: &lines)
+            }
+        }
+        let text = lines.joined(separator: "\n") + "\n"
+        if let h = FileHandle(forWritingAtPath: path) { h.seekToEndOfFile(); h.write(Data(text.utf8)); h.closeFile() }
+        else { FileManager.default.createFile(atPath: path, contents: Data(text.utf8)) }
+    }
+    static func walk(_ layer: CALayer, depth: Int, into lines: inout [String]) {
+        if let keys = layer.animationKeys(), !keys.isEmpty {
+            let owner = layer.delegate.map { "\(type(of: $0))" } ?? "-"
+            let desc = keys.prefix(6).map { k -> String in
+                guard let a = layer.animation(forKey: k) else { return k }
+                return "\(k)[\(type(of: a)) d=\(a.duration) rep=\(a.repeatCount) kp=\((a as? CAPropertyAnimation)?.keyPath ?? "")]"
+            }.joined(separator: " ")
+            var chain: [String] = []
+            var v = layer.delegate as? UIView; var n = 0
+            while let x = v?.superview, n < 4 { chain.append("\(type(of: x))"); v = x; n += 1 }
+            lines.append("  d\(depth) \(type(of: layer)) owner=\(owner) up=\(chain.joined(separator: "<")) frame=\(layer.frame) \(desc)")
+        }
+        for sub in layer.sublayers ?? [] { walk(sub, depth: depth + 1, into: &lines) }
     }
 }
 #endif

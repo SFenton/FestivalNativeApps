@@ -9,6 +9,7 @@ final class ZZFKAProbeTests: XCTestCase {
             "FST_UI_TEST_CLEAR_PROFILE": "1",
         ]
         environment.merge(env) { $1 }
+        environment["FST_DEBUG_ANIM_LOG"] = "/tmp/fst-665/anim-\(name).log"
         let app = FestivalApp.makeApp(environment)
         if ax5 {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue]
