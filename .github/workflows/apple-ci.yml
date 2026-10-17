@@ -470,14 +470,14 @@ jobs:
             --no-test-diagnostics "${only[@]}"
           # Under full keyboard access on the runner every XCTest key press or tap waits ~120 s for an app-idle state
           # that never comes (UIKit's hidden floating tab bar leaves animations open: #665,
-          # testing/apple/xcuitest.md#ci-journeys), so these budgets are per key press, not per test: the board
-          # journey's 12 keys took 1473 s on the runner, Songs' page tools ~2 key presses.
+          # testing/apple/xcuitest.md#ci-journeys), so a budget is per key press, not per test: the board journey's
+          # 12 keys took 1473-1782 s on the runner; Songs' page tools (2 keys) took 111 s.
           # Hardware-keyboard focus on the board (the journey fails when no focus stop exists).
           python3 tools/ios_sim.py uitest --device "$device" --app phone --a11y full-keyboard-access --fail-on-skip --retries 1 \
             --timeout 2400 --only BoardFooterFadeJourneyTests/testBoardKeyboardFocusClearsFooter
           # Hardware-keyboard focus on Songs' page tools and ⌥⌘↓/↑ on Quick Links (#442, for #89).
           python3 tools/ios_sim.py uitest --device "$device" --app phone --a11y full-keyboard-access --fail-on-skip --retries 1 \
-            --timeout 1200 --only PageToolsSearchFieldJourneyTests/testPageToolsAreInTheKeyboardFocusGroupAndOperable
+            --timeout 900 --only PageToolsSearchFieldJourneyTests/testPageToolsAreInTheKeyboardFocusGroupAndOperable
       - name: Rival Detail accessibility journeys (iPad, iPhone, iPhone Duo simulators)
         # It also runs after an earlier journey step fails, so a failure there never hides this step's result (its
         # own mock and devices; the job's setup steps must pass).

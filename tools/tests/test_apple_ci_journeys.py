@@ -460,7 +460,7 @@ class AppleCIJourneysTests(unittest.TestCase):
         # #442 (for #89): hardware-keyboard focus on Songs' page tools, its own --a11y invocation.
         self.assertIn(
             "--a11y full-keyboard-access --fail-on-skip --retries 1 \\\n"
-            "            --timeout 1200 --only PageToolsSearchFieldJourneyTests/testPageToolsAreInTheKeyboardFocusGroupAndOperable",
+            "            --timeout 900 --only PageToolsSearchFieldJourneyTests/testPageToolsAreInTheKeyboardFocusGroupAndOperable",
             self.workflow,
         )
 
