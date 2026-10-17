@@ -10,10 +10,12 @@ log: UI-thread frame intervals, offset smoothness, the UI-thread time of per-scr
 
 Each moving pass must meet the entry's thresholds (``defaults.thresholds``, overridden per entry):
 ``max_reversals`` frames whose offset moved against the scroll, ``max_stalls`` frames of 33 ms or more,
-``max_p95_ms`` the 95th-percentile frame interval, ``max_handler_ms`` per-scroll handler time in a pass (about two
-seconds) and ``max_gc2`` blocking gen2 collections over the moving passes after the first (load settles). Per-frame
-WinRT objects (event args, ``TransformToVisual``) add GC memory pressure that induces gen2 collections of 10-40 ms
-(#642), and a full Quick Links anchor walk per drag frame cost 3-4 ms (#668).
+``max_p95_ms`` the 95th-percentile frame interval, ``max_work_stalls`` frames whose UI-thread work (from
+``CompositionTarget.Rendering`` to the thread's next idle moment: layout, realization, render walk and handlers) took
+33 ms or more, ``max_work_p95_ms`` that work's 95th percentile, ``max_handler_ms`` per-scroll handler time in a pass
+(about two seconds) and ``max_gc2`` blocking gen2 collections over the moving passes after the first (load settles).
+Per-frame WinRT objects (event args, ``TransformToVisual``) add GC memory pressure that induces gen2 collections of
+10-40 ms (#642), and a full Quick Links anchor walk per drag frame cost 3-4 ms (#668).
 
 A pass during which the window was covered, cloaked, locked or on a display that turned off (``hidden=<reason>``)
 measures DWM's throttled timer (about 31 ms frames), not the app, so the entry reruns once and then fails as an
@@ -23,8 +25,10 @@ if the relaunch fails too (``--no-confirm`` skips this): a fresh launch repeats 
 realization, first layout), so only a hitch from another process on a shared host goes away.
 
 ``--ci`` (the windows-ui job, a hosted runner with software rendering and the Debug build) enforces reversals, gen2
-collections and handler time (times ``--ci-handler-scale``) but reports frame intervals, and passes the desktop
-throttled, without failing on them: WARP frame pacing on a hosted VM says nothing about the app.
+collections, handler time (times ``--ci-handler-scale``) and frame work (``max_work_p95_ms`` times
+:data:`CI_WORK_SCALE`, hitches over 100 ms), so a page whose frames regress fails CI. Frame intervals and throttled
+passes are only reported there: WARP frame pacing on a hosted VM measures the runner's present path, not the app, while
+frame work is the UI thread's own time per frame.
 
 Usage: python tools/windows/scroll_probe.py [--exe release|debug|aot|PATH] [--pages songs,song-detail,...]
        [--suite FILE] [--out DIR] [--ci] [--no-confirm] [--arg=--no-art] [--env KEY=VALUE]
@@ -54,6 +58,10 @@ PASS = re.compile(r"scroll-probe (rest|down|up|drag-down|drag-up) frames=(\d+) p
                   r"over33=(\d+) .*?reversals=(\d+) .*?offset=([\d.]+)(?: hidden=(\S+))?")
 COST = re.compile(r"scroll-probe cost (\S+) handlers=([\d.]+)ms")
 GC = re.compile(r"scroll-probe gc (\S+) .*?\bgc2=(\d+)")
+WORK = re.compile(r"\bwork95=([\d.]+) workMax=([\d.]+) work33=(\d+) work100=(\d+)")
+#: How much slower a frame's UI-thread work may be on the hosted runner (Debug build, shared vCPUs): ``--ci`` scales
+#: ``max_work_p95_ms`` by it and counts work hitches over 100 ms (33 ms times this) instead of 33 ms.
+CI_WORK_SCALE = 3.0
 
 # region Suite
 
@@ -97,6 +105,10 @@ class Pass:
     hidden: str = "0"
     handler_ms: float = 0.0
     gc2: int = 0
+    work95: float | None = None
+    work_max: float = 0.0
+    work33: int = 0
+    work100: int = 0
     line: str = ""
 
 
@@ -124,6 +136,9 @@ def parse_passes(lines: list[str]) -> list[Pass]:
             label, frames, p50, p95, peak, stalls, reversals, offset, hidden = match.groups()
             passes.append(Pass(label, int(frames), float(p50), float(p95), float(peak), int(stalls), int(reversals),
                                float(offset), hidden or "0", line=line[line.index("scroll-probe"):]))
+            if work := WORK.search(line):
+                passes[-1].work95, passes[-1].work_max = float(work.group(1)), float(work.group(2))
+                passes[-1].work33, passes[-1].work100 = int(work.group(3)), int(work.group(4))
         elif (match := COST.search(line)) and passes and passes[-1].label == match.group(1):
             passes[-1].handler_ms = float(match.group(2))
         elif (match := GC.search(line)) and passes and passes[-1].label == match.group(1):
@@ -132,16 +147,20 @@ def parse_passes(lines: list[str]) -> list[Pass]:
 
 
 def evaluate(name: str, passes: list[Pass], thresholds: dict, frames_enforced: bool = True,
-             handler_scale: float = 1.0) -> Verdict:
+             handler_scale: float = 1.0, ci: bool = False) -> Verdict:
     """Judges an entry's passes against its thresholds.
 
     Args:
         name: Entry name (prefixes each message).
         passes: Parsed passes.
-        thresholds: ``max_reversals``, ``max_stalls``, ``max_p95_ms``, ``max_handler_ms`` and ``max_gc2``, plus an
-            optional ``drag`` dict whose limits replace these for the scrollbar-drag passes.
+        thresholds: ``max_reversals``, ``max_stalls``, ``max_p95_ms``, ``max_work_stalls``, ``max_work_p95_ms``,
+            ``max_handler_ms`` and ``max_gc2``, plus an optional ``drag`` dict whose limits replace these for the
+            scrollbar-drag passes.
         frames_enforced: Whether frame intervals (``max_stalls``, ``max_p95_ms``) fail the entry or are only noted.
         handler_scale: Multiplier for ``max_handler_ms`` (a Debug build's slower handlers).
+        ci: Hosted-runner limits for frame work: ``max_work_p95_ms`` times :data:`CI_WORK_SCALE`, and work hitches
+            counted over 100 ms instead of 33 ms. Frame work is always enforced: it is the UI thread's own time per frame,
+            which software rendering and DWM's pacing do not change.
 
     Returns:
         The verdict; ``hidden`` lists passes the desktop throttled, which invalidate rather than fail the entry.
@@ -154,6 +173,7 @@ def evaluate(name: str, passes: list[Pass], thresholds: dict, frames_enforced: b
     for p in passes:
         if p.hidden != "0":
             verdict.hidden.append(f"{name}: {p.label} hidden={p.hidden}")
+    work_scale, hitch_ms = (CI_WORK_SCALE, 100) if ci else (1.0, 33)
     for p in moving:
         limits = {**thresholds, **thresholds.get("drag", {})} if p.label.startswith("drag") else thresholds
         problems = []
@@ -161,6 +181,14 @@ def evaluate(name: str, passes: list[Pass], thresholds: dict, frames_enforced: b
             problems.append(f"reversals {p.reversals} > {limits['max_reversals']}")
         if p.handler_ms > limits["max_handler_ms"] * handler_scale:
             problems.append(f"handlers {p.handler_ms:.1f} ms > {limits['max_handler_ms'] * handler_scale:.0f}")
+        if p.work95 is None:
+            problems.append("no frame work recorded (an app build without the work probe)")
+        else:
+            hitches = p.work100 if ci else p.work33
+            if hitches > limits["max_work_stalls"]:
+                problems.append(f"work hitches {hitches} (>{hitch_ms} ms) > {limits['max_work_stalls']}")
+            if p.work95 > limits["max_work_p95_ms"] * work_scale:
+                problems.append(f"work p95 {p.work95:.1f} ms > {limits['max_work_p95_ms'] * work_scale:.0f}")
         frames = []
         if p.stalls > limits["max_stalls"]:
             frames.append(f"stalls {p.stalls} > {limits['max_stalls']}")
@@ -296,7 +324,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, help="write results.json and each entry's probe lines here")
     parser.add_argument("--shots", type=Path, help=argparse.SUPPRESS)  # ci_ui passes --shots to runners
     parser.add_argument("--ci", action="store_true",
-                        help="hosted runner: frame intervals are advisory; handler time is scaled by --ci-handler-scale")
+                        help="hosted runner: frame intervals are advisory; handler time and frame work are scaled")
     parser.add_argument("--ci-handler-scale", type=float, default=3.0)
     parser.add_argument("--env", action="append", default=[], help="extra KEY=VALUE launch environment")
     parser.add_argument("--arg", action="append", default=[], help="extra app argument, e.g. --arg=--no-art")
@@ -330,7 +358,7 @@ def main(argv: list[str] | None = None) -> int:
                     lines = run_page(options.exe, page, fixtures[key][1], folder, options.env, options.arg)
                     verdict = evaluate(page["name"], parse_passes(lines), page["thresholds"],
                                        frames_enforced=not options.ci,
-                                       handler_scale=options.ci_handler_scale if options.ci else 1.0)
+                                       handler_scale=options.ci_handler_scale if options.ci else 1.0, ci=options.ci)
                     if verdict.hidden and not options.ci and throttled == 0:
                         throttled += 1
                         print(f"note: {page['name']}: desktop throttled ({'; '.join(verdict.hidden)}); retrying")

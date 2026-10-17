@@ -109,8 +109,8 @@ def candidate_tasks() -> list[Task]:
 def scroll_stress_tasks() -> list[Task]:
     """The scroll stress suite (``scroll_probe.py``, issue #668) in groups of :data:`SCROLL_GROUP_SIZE` entries.
 
-    The hosted runner's software rendering makes frame intervals advisory (``--ci``); reversals, handler time and gen2
-    collections still fail a page.
+    The hosted runner's software rendering makes frame intervals advisory (``--ci``); reversals, handler time, gen2
+    collections and each frame's UI-thread work (scaled for the runner) still fail a page.
     """
     names = [str(page["name"]) for page in json.loads(SCROLL_SUITE.read_text(encoding="utf-8"))["pages"]]
     return [Task(f"runner:scroll-stress:{index // SCROLL_GROUP_SIZE + 1}", "runner", entries=tuple(group),

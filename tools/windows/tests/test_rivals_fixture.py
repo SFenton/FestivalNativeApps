@@ -506,6 +506,32 @@ class StressListsTests(unittest.TestCase):
         catalogue = {song["songId"] for song in f.mock_service.LARGE_CATALOGUE_SONGS}
         self.assertTrue({song["songId"] for song in body["songs"][1:]} <= catalogue)
 
+    def test_band_detail_is_padded_for_fixture_team_1(self):
+        members = [{"accountId": "fixture-band-1-a", "instruments": ["Solo_Guitar"]}, {"accountId": "fixture-band-1-b"}]
+        detail = {"selectedBandEntry": {"teamKey": "fixture-team-1", "members": members}}
+        body = f.stress_lists("/api/rankings/bands/Band_Duets?teamKey=fixture-team-1", detail)
+        self.assertEqual([m["instruments"] for m in body["selectedBandEntry"]["members"]],
+                         [list(f.STRESS_MEMBER_INSTRUMENTS)] * 2)
+        self.assertEqual(body["selectedBandEntry"]["members"][0]["accountId"], "fixture-band-1-a")
+        history = f.stress_lists("/api/rankings/bands/Band_Duets/fixture-team-1/history",
+                                 {"history": [{"snapshotDate": "2024-01-01", "totalRankedTeams": 9}]})["history"]
+        self.assertEqual(len(history), 30)
+        self.assertEqual(len({row["snapshotDate"] for row in history}), 30)
+        self.assertTrue(all(row["totalRankedTeams"] == 9 for row in history))
+        songs = f.stress_lists("/api/rankings/bands/Band_Duets/fixture-team-1/songs?limit=20",
+                               {"limit": 20, "best": [{"songId": "x", "rank": 1}], "worst": [{"songId": "y", "rank": 8}]})
+        self.assertEqual((len(songs["best"]), len(songs["worst"])), (20, 20))
+        ids = [row["songId"] for row in songs["best"] + songs["worst"]]
+        self.assertEqual(len(ids), len(set(ids)))
+
+    def test_other_bands_and_band_lists_pass_through(self):
+        other = {"selectedBandEntry": {"teamKey": "fixture-team-2", "members": []}}
+        self.assertIs(f.stress_lists("/api/rankings/bands/Band_Duets?teamKey=fixture-team-2", other), other)
+        board = {"entries": [{"teamKey": "fixture-team-1"}]}
+        self.assertIs(f.stress_lists("/api/rankings/bands/Band_Duets", board), board)
+        history = {"history": [{"snapshotDate": "2024-01-01"}]}
+        self.assertIs(f.stress_lists("/api/rankings/bands/Band_Duets/fixture-team-2/history", history), history)
+
     def test_other_reads_and_304s_pass_through(self):
         body = {"songs": [{"songId": "fixture-pulse"}]}
         self.assertIs(f.stress_lists("/api/songs", body), body)

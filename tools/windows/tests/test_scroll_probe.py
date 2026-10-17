@@ -14,13 +14,15 @@ import scroll_probe as probe  # noqa: E402
 import ui_journey  # noqa: E402
 import uiwin  # noqa: E402
 
-THRESHOLDS = {"max_reversals": 0, "max_stalls": 3, "max_p95_ms": 25, "max_handler_ms": 60, "max_gc2": 3}
+THRESHOLDS = {"max_reversals": 0, "max_stalls": 3, "max_p95_ms": 25, "max_work_stalls": 3, "max_work_p95_ms": 12,
+              "max_handler_ms": 60, "max_gc2": 3}
 
 
-def line(label: str, p95: float = 8.6, stalls: int = 0, reversals: int = 0, hidden: str = "0") -> str:
+def line(label: str, p95: float = 8.6, stalls: int = 0, reversals: int = 0, hidden: str = "0", work95: float = 3.1,
+         work33: int = 0, work100: int = 0) -> str:
     return (f"12:00:00.000 scroll-probe {label} frames=227 p50=8.3 p95={p95} max=23.4 over33={stalls} moves=179 "
             f"median=9.77 reversals={reversals} worstBack=0.00 extentChanges=0 layouts=213 offset=1761.00 "
-            f"hidden={hidden} fg=0")
+            f"hidden={hidden} fg=0 work50=2.6 work95={work95} workMax=27.3 work33={work33} work100={work100}")
 
 
 def cost(label: str, ms: float) -> str:
@@ -56,7 +58,7 @@ class SuiteTests(unittest.TestCase):
         self.assertEqual(len(names), len(set(names)), "duplicate entry names")
         for required in ("songs", "song-detail", "song-board", "leaderboards", "rivals", "suggestions", "profile",
                          "statistics", "settings", "item-shop", "paths-modal", "notifications-sheet", "feedback-sheet",
-                         "search"):
+                         "search", "band-detail", "player-bands"):
             self.assertIn(required, names)
         for page in pages:
             with self.subTest(page=page["name"]):
@@ -90,6 +92,7 @@ class ParseTests(unittest.TestCase):
         self.assertEqual((down.hidden, down.handler_ms, down.gc2), ("display-off", 18.2, 1))
         self.assertEqual(passes[2].handler_ms, 8.4)
         self.assertTrue(passes[0].line.startswith("scroll-probe rest"))
+        self.assertEqual((down.work95, down.work_max, down.work33, down.work100), (3.1, 27.3, 0, 0))
 
     def test_cost_for_another_pass_is_ignored(self) -> None:
         passes = probe.parse_passes([line("up"), cost("down", 99)])
@@ -98,6 +101,10 @@ class ParseTests(unittest.TestCase):
     def test_older_line_without_hidden_reads_visible(self) -> None:
         passes = probe.parse_passes([line("up").replace(" hidden=0 fg=0", "")])
         self.assertEqual(passes[0].hidden, "0")
+
+    def test_line_without_work_has_no_work95(self) -> None:
+        passes = probe.parse_passes([line("up").split(" work50=")[0]])
+        self.assertIsNone(passes[0].work95)
 
 
 class EvaluateTests(unittest.TestCase):
@@ -128,6 +135,25 @@ class EvaluateTests(unittest.TestCase):
         self.assertEqual(verdict.notes, ["page drag-down: stalls 9 > 3, p95 40.0 ms > 25 (advisory)"])
         verdict = self.evaluate([line("drag-down"), cost("drag-down", 181)], frames_enforced=False, handler_scale=3)
         self.assertIn("handlers 181.0 ms > 180", verdict.failures[0])
+
+    def test_frame_work_is_enforced_locally(self) -> None:
+        verdict = self.evaluate([line("down", work95=12.5, work33=4)])
+        self.assertEqual(len(verdict.failures), 1)
+        self.assertIn("work hitches 4 (>33 ms) > 3", verdict.failures[0])
+        self.assertIn("work p95 12.5 ms > 12", verdict.failures[0])
+
+    def test_frame_work_is_enforced_in_ci_with_hosted_limits(self) -> None:
+        ci = {"frames_enforced": False, "handler_scale": 3, "ci": True}
+        verdict = self.evaluate([line("drag-down", p95=40, work95=35.9, work33=9, work100=3)], **ci)
+        self.assertEqual(verdict.failures, [])
+        verdict = self.evaluate([line("drag-down", work95=36.1, work100=4)], **ci)
+        self.assertEqual(len(verdict.failures), 1)
+        self.assertIn("work hitches 4 (>100 ms) > 3", verdict.failures[0])
+        self.assertIn("work p95 36.1 ms > 36", verdict.failures[0])
+
+    def test_missing_frame_work_fails(self) -> None:
+        verdict = self.evaluate([line("down").split(" work50=")[0]], frames_enforced=False, ci=True)
+        self.assertIn("no frame work recorded", verdict.failures[0])
 
     def test_drag_limits_apply_only_to_drag_passes(self) -> None:
         thresholds = {**THRESHOLDS, "drag": {"max_p95_ms": 40, "max_stalls": 8}}

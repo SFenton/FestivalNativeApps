@@ -41,8 +41,9 @@ scrape-freeze 503 while ``rivals/all`` carries the demo detail as samples, so th
 song board scrolls under its floating pager.
 
 ``--stress-lists`` (issue #668, the scroll stress suite) pads every list page that would otherwise fit a window: a
-selected player's Score History (60 rows), each side of a rivals list (60 rivals) and the Shop (48 more songs from
-``--large-catalogue``).
+selected player's Score History (60 rows), each side of a rivals list (60 rivals), the Shop (48 more songs from
+``--large-catalogue``) and ``fixture-team-1``'s Band Detail (five instruments per member, 30 rank-history snapshots
+and a full set of best and worst songs).
 
 Usage: ``python tools/windows/rivals_fixture.py --port 8765`` (same flags as mock_service.py), then launch the
 app with ``--base-url http://127.0.0.1:8765/`` and ``FST_DEBUG_PROFILE=fixture-player-1:Demo Player``.
@@ -739,7 +740,7 @@ def stress_rivals(rows: list[dict], direction: str) -> list[dict]:
 
 
 def stress_lists(path: str, body: dict | None) -> dict | None:
-    """Pads Score History, rivals lists and the Shop so their pages scroll in the stress suite.
+    """Pads Score History, rivals lists, the Shop and a band's detail so their pages scroll in the stress suite.
 
     Args:
         path: Request path with query.
@@ -766,6 +767,43 @@ def stress_lists(path: str, body: dict | None) -> dict | None:
             for n, song in enumerate(mock_service.LARGE_CATALOGUE_SONGS[:STRESS_SHOP_SONGS])
         ]
         return {**body, "count": len(body["songs"]) + len(extra), "songs": body["songs"] + extra}
+    return stress_band(route, body)
+
+
+#: Instruments each ``fixture-team-1`` member lists under ``--stress-lists`` (Band Detail's per-member icon rows).
+STRESS_MEMBER_INSTRUMENTS = ("Solo_Guitar", "Solo_Bass", "Solo_Drums", "Solo_Vocals", "Solo_PeripheralGuitar")
+
+
+def stress_band(route: str, body: dict) -> dict:
+    """Fills Band Detail for ``fixture-team-1`` (issue #668): members with several instruments each, a long rank
+    history (the page shows the newest ten rows under its chart) and a full set of best and worst songs.
+
+    Args:
+        route: Request path without query.
+        body: Response body the mock service built.
+
+    Returns:
+        The padded body for that band's detail, history and songs reads, else ``body`` unchanged.
+    """
+    if mock_service.BAND_RANKINGS.fullmatch(route) and (selected := body.get("selectedBandEntry")) \
+            and selected.get("teamKey") == "fixture-team-1":
+        members = [{**member, "instruments": list(STRESS_MEMBER_INSTRUMENTS)} for member in selected["members"]]
+        return {**body, "selectedBandEntry": {**selected, "members": members}}
+    if (match := mock_service.BAND_HISTORY.fullmatch(route)) and match.group(2) == "fixture-team-1" and body.get("history"):
+        template = body["history"][0]
+        history = [
+            {**template, "snapshotDate": f"2024-01-{day:02d}", "snapshotTakenAt": f"2024-01-{day:02d}T00:00:00Z",
+             "adjustedSkillRank": 1 + (day * 7) % 5, "weightedRank": 1 + (day * 3) % 4, "fcRateRank": 1 + day % 3,
+             "totalScoreRank": 1 + (day * 5) % 6}
+            for day in range(1, 31)
+        ]
+        return {**body, "history": history}
+    if (match := mock_service.BAND_SONGS.fullmatch(route)) and match.group(2) == "fixture-team-1" and body.get("best"):
+        limit, songs = body["limit"], mock_service.LARGE_CATALOGUE_SONGS
+        best = [{**body["best"][0], "songId": song["songId"], "rank": 1 + n} for n, song in enumerate(songs[:limit])]
+        worst = [{**body["worst"][0], "songId": song["songId"], "rank": 8 - n % 3}
+                 for n, song in enumerate(songs[limit:2 * limit])]
+        return {**body, "best": best, "worst": worst}
     return body
 
 
