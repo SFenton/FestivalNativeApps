@@ -78,10 +78,10 @@ enum ZZAnimProbe {
     static func swizzleTabs() {
         typealias SetFn = @convention(c) (AnyObject, Selector, AnyObject?) -> Void
         typealias VoidFn = @convention(c) (AnyObject, Selector) -> Void
-        if let m = class_getInstanceMethod(UITab.self, NSSelectorFromString("setAccessibilityAttributedLabel:")) {
+        if #available(iOS 18.0, *), let m = class_getInstanceMethod(UITab.self, NSSelectorFromString("setAccessibilityAttributedLabel:")) {
             let original = unsafeBitCast(method_getImplementation(m), to: SetFn.self)
             let block: @convention(block) (AnyObject, AnyObject?) -> Void = { tab, value in
-                let t = tab as! UITab
+                guard #available(iOS 18.0, *), let t = tab as? UITab else { return }
                 let old = t.accessibilityAttributedLabel?.string ?? "nil"
                 let new = (value as? NSAttributedString)?.string ?? "nil"
                 let attrs = (value as? NSAttributedString).map { a -> String in
