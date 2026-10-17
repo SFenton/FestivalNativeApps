@@ -231,15 +231,16 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
         let original = toggle.value as? String ?? ""
         // The switch's own tap lands on the track the thumb leaves bare, never on the thumb
         // (#626, #659), so its point is read after the title tap has moved the thumb.
-        let steps: [(place: String, target: () -> XCUICoordinate, expected: String)] = [
-            ("title", { toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)) }, original == "1" ? "0" : "1"),
-            ("switch", { SongsUITestSupport.switchBareTrack(of: toggle) }, original),
+        // The switch is tapped as `setSwitch` taps it, held like a person's tap (#665).
+        let steps: [(place: String, tap: () -> Void, expected: String)] = [
+            ("title", { toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap() }, original == "1" ? "0" : "1"),
+            ("switch", { SongsUITestSupport.tapSwitch(toggle) }, original),
         ]
         for step in steps {
             // As `setSwitch`: tap only once the row has stopped moving, so the scroll view
             // never takes the tap to stop a scroll (#662).
             SongsUITestSupport.waitUntilFrameSettles(toggle)
-            step.target().tap()
+            step.tap()
             let flipped = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "value == %@", step.expected), object: toggle
             )
