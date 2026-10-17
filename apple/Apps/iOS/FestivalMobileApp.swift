@@ -13,6 +13,7 @@ struct FestivalMobileApp: App {
     init() {
         #if DEBUG
         MainThreadStallMonitor.startIfRequested()
+        ZZTouchProbeRecognizer.install()
         if ProcessInfo.processInfo.environment["FST_UI_TEST_RESET_VISUALS"] == "1" {
             for key in [
                 "fst.accessibility.reduceMotion",

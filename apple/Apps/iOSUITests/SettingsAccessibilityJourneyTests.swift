@@ -125,6 +125,19 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testZZProbeRepeat() throws {
+        continueAfterFailure = true
+        for round in 0..<10 {
+            let large = round % 3 == 2
+            print("PROBE665 round \(round) large=\(large) t=\(Date().timeIntervalSince1970)")
+            let app = launchSettings(largeText: large)
+            try assertQuickLinksJoin(app, size: large ? "AX5" : "default")
+            assertTitleTapToggles(app, id: "fst.settings.reduce-motion", size: "r\(round)")
+            app.terminate()
+        }
+    }
+
     // MARK: - Launch and Quick Links
 
     /// Launch Settings against the fixture with no selected profile.
@@ -137,6 +150,7 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
             "FST_UI_TEST_CLEAR_PROFILE": "1",
             "FST_API_BASE_URL": SongsUITestSupport.fixtureURL,
             "FST_DEBUG_TAB": "settings",
+            "FST_DEBUG_TOUCH_LOG": "/tmp/fst-665/touch.log",
         ])
         if largeText {
             app.launchArguments += [
@@ -239,13 +253,28 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
             // As `setSwitch`: tap only once the row has stopped moving, so the scroll view
             // never takes the tap to stop a scroll (#662).
             SongsUITestSupport.waitUntilFrameSettles(toggle)
+            Self.zzMark("TAP \(step.place) \(size) frame=\(toggle.frame) inner=\(toggle.switches.firstMatch.frame)")
             step.target().tap()
+            Self.zzMark("TAPPED \(step.place)")
             let flipped = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "value == %@", step.expected), object: toggle
             )
             let result = XCTWaiter.wait(for: [flipped], timeout: FestivalApp.budget(3))
             if result != .completed {
                 SongsUITestSupport.record(app, name: "settings-missed-\(step.place)-tap-\(size)")
+                // PROBE665 (temporary)
+                var log: [String] = ["v=\(toggle.value as? String ?? "?") inner=\(toggle.switches.firstMatch.exists ? "\(toggle.switches.firstMatch.frame)" : "none")"]
+                Thread.sleep(forTimeInterval: 3)
+                step.target().tap()
+                Thread.sleep(forTimeInterval: 2)
+                log.append("retrySame v=\(toggle.value as? String ?? "?")")
+                toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+                Thread.sleep(forTimeInterval: 2)
+                log.append("title v=\(toggle.value as? String ?? "?")")
+                SongsUITestSupport.switchBareTrack(of: toggle).tap()
+                Thread.sleep(forTimeInterval: 2)
+                log.append("trackAfterTitle v=\(toggle.value as? String ?? "?")")
+                XCTFail("PROBE665 " + log.joined(separator: " | "))
             }
             XCTAssertEqual(
                 result, .completed,
@@ -259,6 +288,13 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
                 "A tap on \(id)'s \(step.place) flipped it more than once at \(size)", file: file, line: line
             )
         }
+    }
+
+    static func zzMark(_ s: String) {
+        let line = String(format: "%.3f ", Date().timeIntervalSince1970) + "TEST " + s + "\n"
+        let path = "/tmp/fst-665/touch.log"
+        if let h = FileHandle(forWritingAtPath: path) { h.seekToEndOfFile(); h.write(line.data(using: .utf8)!); h.closeFile() }
+        else { FileManager.default.createFile(atPath: path, contents: line.data(using: .utf8)) }
     }
 
     // MARK: - Reading order
