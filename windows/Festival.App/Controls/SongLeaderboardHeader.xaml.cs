@@ -14,7 +14,8 @@ namespace Festival.App.Controls;
 /// are the shared <see cref="SongHeaderText"/> column (pattern <c>song-header</c> R1–R3). The whole header is one flat button that
 /// raises <see cref="TitleInvoked"/> (web <c>onTitleClick</c>; pages open Song Detail, <c>song-header</c> R1). Pages keep
 /// the song's static cover as the shell backdrop (<c>IBackdropPage</c>); this control only draws the header's own art
-/// tile, through the shared artwork caches.
+/// tile, through the shared artwork caches. Beside Song Detail at the root of the split's trailing pane
+/// (<see cref="BesideList"/>, owner-approved #342 variant; Windows #667) it draws only the board title instead.
 /// </summary>
 public sealed partial class SongLeaderboardHeader : UserControl
 {
@@ -56,6 +57,19 @@ public sealed partial class SongLeaderboardHeader : UserControl
 
     /// <summary>Automation ID of the header button that opens the song (e.g. <c>fst.song-leaderboard.song</c>).</summary>
     public static readonly DependencyProperty SongAutomationIdProperty = Register(nameof(SongAutomationId), null);
+
+    /// <summary>Caption under the board name in the pane title (e.g. "Score History"); empty hides it.</summary>
+    public static readonly DependencyProperty CaptionProperty = Register(nameof(Caption), (h, _) => h.UpdateVisibility());
+
+    /// <summary>Automation ID of the pane title's heading (e.g. <c>fst.song-leaderboard.board-title</c>).</summary>
+    public static readonly DependencyProperty BoardTitleAutomationIdProperty = Register(nameof(BoardTitleAutomationId), null);
+
+    /// <summary>
+    /// Whether the page shows beside Song Detail at the root of the split's trailing pane: the header then draws only the
+    /// board title (song-leaderboard-header Variants, owner-approved #342; Windows #667).
+    /// </summary>
+    public static readonly DependencyProperty BesideListProperty = DependencyProperty.Register(nameof(BesideList), typeof(bool),
+        typeof(SongLeaderboardHeader), new PropertyMetadata(false, (d, _) => ((SongLeaderboardHeader)d).UpdateVisibility()));
     #endregion
 
     /// <summary>Raised when the reader invokes the header (click, tap, Enter/Space or UIA Invoke) while it names a song.</summary>
@@ -103,6 +117,15 @@ public sealed partial class SongLeaderboardHeader : UserControl
 
     /// <inheritdoc cref="SongAutomationIdProperty" />
     public string SongAutomationId { get => (string?)GetValue(SongAutomationIdProperty) ?? ""; set => SetValue(SongAutomationIdProperty, value ?? ""); }
+
+    /// <inheritdoc cref="CaptionProperty" />
+    public string Caption { get => (string?)GetValue(CaptionProperty) ?? ""; set => SetValue(CaptionProperty, value ?? ""); }
+
+    /// <inheritdoc cref="BoardTitleAutomationIdProperty" />
+    public string BoardTitleAutomationId { get => (string?)GetValue(BoardTitleAutomationIdProperty) ?? ""; set => SetValue(BoardTitleAutomationIdProperty, value ?? ""); }
+
+    /// <inheritdoc cref="BesideListProperty" />
+    public bool BesideList { get => (bool)GetValue(BesideListProperty); set => SetValue(BesideListProperty, value); }
     #endregion
 
     /// <summary>Registers a string property defaulting to empty (a null automation ID would throw).</summary>
@@ -118,10 +141,17 @@ public sealed partial class SongLeaderboardHeader : UserControl
     /// art tile, leaving only the board line above the failure state, and stops the header acting as a button (there is no
     /// song to open: no hit testing, tab stop or UIA button, while its lines stay readable). Narrator reads the named
     /// button as one item and skips its inner lines, so the button is named by every visible line (title, artist, board,
-    /// total; web <c>role="link"</c> named by its content, issue #465), renamed as the board or its total changes.
+    /// total; web <c>role="link"</c> named by its content, issue #465), renamed as the board or its total changes. Beside
+    /// Song Detail the song lines give way to the pane title (board heading, caption, total; #667), which needs no song.
     /// </summary>
     private void UpdateVisibility()
     {
+        var beside = BesideList;
+        PaneTitle.Visibility = beside ? Visibility.Visible : Visibility.Collapsed;
+        SongButton.Visibility = beside ? Visibility.Collapsed : Visibility.Visible;
+        PaneIcon.Visibility = BoardIconFile.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        PaneCaptionBlock.Visibility = Caption.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        PaneTotalBlock.Visibility = TotalText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         var hasSong = Title.Length > 0;
         ArtHost.Visibility = hasSong ? Visibility.Visible : Visibility.Collapsed;
         SongButton.IsHitTestVisible = hasSong;
