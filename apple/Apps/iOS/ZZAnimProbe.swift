@@ -43,7 +43,11 @@ enum ZZAnimProbe {
                 let id = ObjectIdentifier(state)
                 balance[id, default: 0] += 1
                 total += 1
-                let stack = Thread.callStackSymbols.dropFirst(1).prefix(30).map { String($0.dropFirst(4).prefix(150)) }.joined(separator: "\n      ")
+                let all = Thread.callStackSymbols
+                let deep = all.contains { $0.contains("FloatingTabBar") }
+                let stack = all.dropFirst(1).prefix(deep ? 250 : 20).map { String($0.dropFirst(4).prefix(170)) }
+                    .filter { !deep || !($0.contains("block_destroy_helper") || $0.contains("closure_destructor") || $0.contains("swift_memcpy") || $0.contains("libdispatch") || $0.contains("AnimationKit")) }
+                    .joined(separator: "\n      ")
                 if inFlight[id] == nil {
                     inFlight[id] = describe(animation)
                     write(String(format: "%.3f", Date().timeIntervalSince1970) + " STATE-START \(id) \(describe(animation)) open=\(inFlight.count) total=\(total)\n      \(stack)")
@@ -91,18 +95,34 @@ enum ZZAnimProbe {
 
     @MainActor static func flush() {
         var lines = [String(format: "--- %.3f adds in 2s: %d", Date().timeIntervalSince1970, counts.values.reduce(0, +))]
-        for (id, n) in counts.sorted(by: { $0.value > $1.value }).prefix(25) {
-            lines.append("  ADD x\(n) \(id) \(samples[id] ?? "")")
-        }
         counts = [:]
         for (id, d) in inFlight { lines.append("  OPEN \(id) bal=\(balance[id] ?? 0) \(d)") }
         for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
             for window in scene.windows {
                 lines.append("  window \(type(of: window)) key=\(window.isKeyWindow) focus=\(String(describing: scene.focusSystem?.focusedItem.map { type(of: $0) }))")
-                walk(window.layer, into: &lines)
+                if let f = scene.focusSystem?.focusedItem as? UIView {
+                    var c: [String] = []; var v: UIView? = f
+                    while let x = v, c.count < 8 { c.append("\(type(of: x))#\(x.accessibilityIdentifier ?? "")"); v = x.superview }
+                    lines.append("    FOCUS " + c.joined(separator: "<"))
+                }
+                bars(window, into: &lines)
             }
         }
         write(lines.joined(separator: "\n"))
+    }
+
+    static func bars(_ view: UIView, into lines: inout [String]) {
+        let name = "\(type(of: view))"
+        if name.contains("FloatingTabBar") && !name.contains("ItemView") || name == "UITabBar" {
+            var hiddenChain: [String] = []; var v: UIView? = view
+            while let x = v { if x.isHidden || x.alpha < 0.01 { hiddenChain.append("\(type(of: x))(h=\(x.isHidden) a=\(x.alpha))") }; v = x.superview }
+            lines.append("    BAR \(name) frame=\(view.frame) hidden=\(view.isHidden) alpha=\(view.alpha) subviews=\(view.subviews.count) items=\(count(view)) hiddenAncestors=\(hiddenChain)")
+        }
+        for sub in view.subviews { bars(sub, into: &lines) }
+    }
+
+    static func count(_ view: UIView) -> Int {
+        view.subviews.reduce(0) { $0 + ("\(type(of: $1))".contains("FloatingTabBarItemView") ? 1 : 0) + count($1) }
     }
 
     static func walk(_ layer: CALayer, into lines: inout [String]) {

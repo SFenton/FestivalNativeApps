@@ -1,6 +1,6 @@
 name: diag-665
 # TEMPORARY diagnostic for #665 (reverted before the fix lands): the Settings switch-tap journey with a touch
-# fix on fresh simulators, and the iPad full-keyboard-access idle probe, on the hosted xcode-27 runner. (v6: UIViewAnimationState start/stop)
+# fix on fresh simulators, and the iPad full-keyboard-access idle probe, on the hosted xcode-27 runner. (v7: deep tab-bar stacks)
 on:
   push:
     branches: [report/665]
