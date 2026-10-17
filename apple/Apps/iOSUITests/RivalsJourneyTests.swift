@@ -179,9 +179,9 @@ final class RivalsJourneyTests: XCTestCase {
         let quickLinks = app.buttons["fst.quick-links.open"]
         XCTAssertTrue(quickLinks.waitForExistence(timeout: 15))
         quickLinks.tap()
-        XCTAssertTrue(app.buttons["fst.quick-links.item.leaderboards"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.buttons["fst.quick-links.item.rivals"].exists)
-        app.buttons["fst.quick-links.item.rivals"].tap()
+        XCTAssertTrue(FestivalApp.quickLinkRow("leaderboards", label: "Leaderboards", in: app).waitForExistence(timeout: 10))
+        XCTAssertTrue(FestivalApp.quickLinkRow("rivals", label: "Rivals", in: app).exists)
+        FestivalApp.quickLinkRow("rivals", label: "Rivals", in: app).tap()
         var value = quickLinks.value as? String
         for _ in 0..<40 where value != "Rivals" {
             Thread.sleep(forTimeInterval: 0.1)

@@ -61,7 +61,15 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
     /// Words the removed section used; nothing on the page or in Quick Links may read them.
     private static let removedWords = ["diagnostic", "tap telemetry", "tap-telemetry"]
 
-    private static let itemPrefix = "fst.quick-links.item."
+    /// Settings' Quick Links sections, plus the removed ones that must not come back, so an
+    /// iOS 27 menu row without an identifier is still found by its spoken title (R6, #665).
+    static let quickLinkSections: [FestivalApp.QuickLinkSection] = [
+        ("app-settings", "App Settings"), ("accessibility", "Accessibility"), ("item-shop", "Item Shop"),
+        ("show-instruments", "Show Instruments"), ("show-metadata", "Show Instrument Metadata"),
+        ("version", "Festival Score Tracker Version"), ("service-info", "Service Info"),
+        ("first-run", "First Run Guides"), ("licenses", "Licenses"), ("privacy-policy", "Privacy Policy"),
+        ("reset", "Reset Settings"), ("diagnostics", "Diagnostics"), ("tap-telemetry", "Tap Telemetry"),
+    ]
 
     /// One region element as read from a snapshot.
     private struct Node {
@@ -165,11 +173,13 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(open.frame.width, 44, "Quick Links width at \(size)", file: file, line: line)
         XCTAssertGreaterThanOrEqual(open.frame.height, 44, "Quick Links height at \(size)", file: file, line: line)
         open.tap()
-        let rows = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", Self.itemPrefix))
+        let rows = FestivalApp.quickLinkRows(Self.quickLinkSections, in: app)
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(10)), "Quick Links did not open",
                       file: file, line: line)
-        let all = rows.allElementsBoundByIndex.map { (id: String($0.identifier.dropFirst(Self.itemPrefix.count)),
-                                                      label: $0.label, frame: $0.frame) }
+        let all = rows.allElementsBoundByIndex.map { row in
+            (id: FestivalApp.quickLinkSectionID(identifier: row.identifier, label: row.label, in: Self.quickLinkSections),
+             label: row.label, frame: row.frame)
+        }
         XCTAssertFalse(
             all.contains { row in Self.removedWords.contains { row.id.lowercased().contains($0) || row.label.lowercased().contains($0) } },
             "Quick Links offers the removed Diagnostics section at \(size): \(all.map(\.id))", file: file, line: line
@@ -186,7 +196,7 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
         XCTAssertEqual(visible.dropFirst().first?.label, "Accessibility", file: file, line: line)
         XCTAssertEqual(visible.dropFirst(2).first?.label, "Item Shop", file: file, line: line)
 
-        app.buttons[Self.itemPrefix + "accessibility"].tap()
+        FestivalApp.quickLinkRow("accessibility", label: "Accessibility", in: app).tap()
         let landed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", "Accessibility"), object: open)
         XCTAssertEqual(XCTWaiter.wait(for: [landed], timeout: FestivalApp.budget(10)), .completed,
                        "Quick Links did not land on Accessibility at \(size)", file: file, line: line)
@@ -231,15 +241,16 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
         let original = toggle.value as? String ?? ""
         // The switch's own tap lands on the track the thumb leaves bare, never on the thumb
         // (#626, #659), so its point is read after the title tap has moved the thumb.
-        let steps: [(place: String, target: () -> XCUICoordinate, expected: String)] = [
-            ("title", { toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)) }, original == "1" ? "0" : "1"),
-            ("switch", { SongsUITestSupport.switchBareTrack(of: toggle) }, original),
+        // The switch is tapped as `setSwitch` taps it, held like a person's tap (#665).
+        let steps: [(place: String, tap: () -> Void, expected: String)] = [
+            ("title", { toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap() }, original == "1" ? "0" : "1"),
+            ("switch", { SongsUITestSupport.tapSwitch(toggle) }, original),
         ]
         for step in steps {
             // As `setSwitch`: tap only once the row has stopped moving, so the scroll view
             // never takes the tap to stop a scroll (#662).
             SongsUITestSupport.waitUntilFrameSettles(toggle)
-            step.target().tap()
+            step.tap()
             let flipped = XCTNSPredicateExpectation(
                 predicate: NSPredicate(format: "value == %@", step.expected), object: toggle
             )
