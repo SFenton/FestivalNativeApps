@@ -104,7 +104,7 @@ STEP_VERBS = {
     "type": "text", "key": "keys", "keys": "keyseq", "scroll": "scroll", "wait": "seconds",
     "shot": "path", "tree": "path", "resize": "preset",
     "tabwalk": "tabwalk", "assertfocus": "selector", "scan": "path", "setvalue": "setvalue",
-    "scrollto": "scrollto", "pagedown": "selector",
+    "scrollto": "scrollto", "scrollsweep": "scrollsweep", "pagedown": "selector",
     "assertname": "setvalue", "assertaligned": "pair", "assertbelow": "pair", "assertlevel": "pair", "assertgap": "gap",
     "assertcentred": "centred", "assertdock": "dock", "assertmidline": "midline", "assertmiddle": "gap",
     "assertinset": "gap", "scrollinset": "gap", "assertstatus": "status", "assertstate": "state",
@@ -267,7 +267,9 @@ def parse_step(step: str) -> dict:
     ``setvalue:<sel>|<text>`` writes text through the UIA Value pattern (no keyboard input,
     so it also works while the console session is locked; an empty text clears the field);
     ``scrollto:<selector>,<percent>`` sets a scroller's vertical position through the UIA
-    Scroll pattern (a no-op when the content fits and the scroller can't scroll) and ``reveal:<selector>``
+    Scroll pattern (a no-op when the content fits and the scroller can't scroll), ``scrollsweep:<selector>,<from>,<to>``
+    moves it there in 30 steps about 16 ms apart, a stream of final view changes like a scrollbar thumb drag or held
+    arrow key (issue #668), and ``reveal:<selector>``
     scrolls the target into view (UIA ScrollItem, else stepping its scroller from the top), with no input,
     so both work while the console is locked; ``pagedown:<selector>[@seconds]`` pages a scroller down one viewport the
     same way once it has content below its viewport, waiting at its end for content appended there (an incremental
@@ -603,6 +605,14 @@ def parse_step(step: str) -> dict:
         if result["selector"]["kind"] == "xy":
             raise ValueError("scrollto needs an element selector, not coordinates")
         result["percent"] = float(percent)
+    elif shape == "scrollsweep":
+        target, *ends = arg.rsplit(",", 2)
+        if not target or len(ends) != 2 or not all(re.fullmatch(r"\d+(\.\d+)?", e.strip()) and float(e) <= 100 for e in ends):
+            raise ValueError(f"bad scrollsweep {arg!r}; use <selector>,<from 0-100>,<to 0-100>")
+        result["selector"] = parse_selector(target)
+        if result["selector"]["kind"] == "xy":
+            raise ValueError("scrollsweep needs an element selector, not coordinates")
+        result["from"], result["to"] = (float(e) for e in ends)
     elif shape == "seconds":
         result["arg"] = str(float(arg))
     elif shape == "onoff":

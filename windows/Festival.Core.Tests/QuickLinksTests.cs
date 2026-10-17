@@ -67,6 +67,19 @@ public class QuickLinksTests
     }
 
     [Fact]
+    public void FinalViewChangesInQuickSuccessionFormAStream()
+    {
+        // #668: a scrollbar drag raises a final view change every frame; those report at the moving pace.
+        Assert.False(QuickLinks.ContinuesFinalStream(double.NaN));
+        Assert.False(QuickLinks.ContinuesFinalStream(-1));
+        Assert.True(QuickLinks.ContinuesFinalStream(0));
+        Assert.True(QuickLinks.ContinuesFinalStream(8.3));
+        Assert.True(QuickLinks.ContinuesFinalStream(QuickLinks.IntermediateReportInterval - 0.1));
+        Assert.False(QuickLinks.ContinuesFinalStream(QuickLinks.IntermediateReportInterval));
+        Assert.False(QuickLinks.ContinuesFinalStream(1000));
+    }
+
+    [Fact]
     public void SectionDefaults()
     {
         Assert.Equal(0, new QuickLinkSection("a", "A", Depth: -3).Depth);

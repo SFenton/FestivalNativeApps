@@ -163,7 +163,7 @@
                                         </Grid>
                                         <ItemsRepeater ItemsSource="{x:Bind Percentiles, Mode=OneWay}" TabFocusNavigation="Local" XYFocusKeyboardNavigation="Enabled">
                                             <ItemsRepeater.Layout>
-                                                <StackLayout />
+                                                <controls:LeaderboardsCardGridLayout MaxColumns="1" MinColumnWidth="0" Spacing="0" />
                                             </ItemsRepeater.Layout>
                                             <ItemsRepeater.ItemTemplate>
                                                 <DataTemplate x:DataType="vm:PlayerPercentileRow">

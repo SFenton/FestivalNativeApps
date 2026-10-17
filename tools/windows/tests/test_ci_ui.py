@@ -81,5 +81,19 @@ class CiUiTests(unittest.TestCase):
         self.assertEqual(command[-2:], ["--retries", "2"])
         self.assertNotIn("--shots", command)
 
+    def test_scroll_stress_suite_runs_every_entry_once_in_ci_mode(self):
+        # Issue #668: every page and modal of scroll_stress.json runs, grouped so no shard carries the whole suite.
+        tasks = [task for task in ci_ui.all_tasks() if task.name.startswith("runner:scroll-stress:")]
+        suite = [page["name"] for page in ci_ui.json.loads(ci_ui.SCROLL_SUITE.read_text(encoding="utf-8"))["pages"]]
+        self.assertEqual([name for task in tasks for name in task.entries], suite)
+        for task in tasks:
+            self.assertLessEqual(len(task.entries), ci_ui.SCROLL_GROUP_SIZE)
+            self.assertEqual(ci_ui.task_weight(task), 2 * len(task.entries))
+            command = ci_ui.task_command(task, ci_ui.Path("out"), 2)
+            self.assertIn("--ci", command)
+            self.assertEqual(command[command.index("--exe") + 1], "debug")
+            self.assertEqual(command[command.index("--pages") + 1], ",".join(task.entries))
+            self.assertIn("--shots", command)
+
 if __name__ == "__main__":
     unittest.main()

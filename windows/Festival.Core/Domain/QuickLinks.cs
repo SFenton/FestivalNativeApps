@@ -107,9 +107,22 @@ public static class QuickLinks
     /// <summary>
     /// Shortest gap (ms) between two current-section reports while a scroll is still moving (#642). A scroller raises
     /// a view change every rendered frame (120 per second on a 120 Hz display); measuring every anchor each time took
-    /// 1–8 ms of the 8.3 ms frame and dropped frames. A rest (final) view change always reports at once.
+    /// 1–8 ms of the 8.3 ms frame and dropped frames. A rest (final) view change reports at once unless it continues a
+    /// stream of them (<see cref="ContinuesFinalStream"/>, #668).
     /// </summary>
     public const double IntermediateReportInterval = 100;
+
+    /// <summary>
+    /// Whether a final (non-intermediate) view change follows the previous one so closely that the scroll is still
+    /// moving (#668): dragging the scrollbar thumb, holding an arrow or Page Down key, or UI Automation scrolling each
+    /// raise a final view change every frame. Such a change reports at the moving pace, and one full report follows once
+    /// the stream stops for <see cref="IntermediateReportInterval"/>; re-walking every anchor per frame cost 3–5 ms of
+    /// each 8.3 ms frame on Song Detail.
+    /// </summary>
+    /// <param name="sinceLastFinalMs">Time since the previous final view change, in ms (NaN for none).</param>
+    /// <returns><see langword="true"/> while the final view changes form a stream.</returns>
+    public static bool ContinuesFinalStream(double sinceLastFinalMs) =>
+        sinceLastFinalMs >= 0 && sinceLastFinalMs < IntermediateReportInterval;
 
     /// <summary>How long a moving scroll's current-section report waits (#642).</summary>
     /// <param name="sinceLastReportMs">Time since the previous report, in ms.</param>

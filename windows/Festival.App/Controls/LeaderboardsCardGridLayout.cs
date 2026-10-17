@@ -18,7 +18,7 @@ namespace Festival.App.Controls;
 /// <see cref="MaxColumns"/> 1 and <see cref="MinColumnWidth"/> 0 it is a plain non-virtualizing stack, used for the
 /// top-ten rows inside cached pages' cards: a virtualizing <see cref="StackLayout"/> drops off-screen rows while the
 /// page is away and re-estimates their heights on Back, which moved the page (#276). Player Profile stacks its instrument
-/// sections and band groups the same way: re-estimating them near the page end pulled the scroll back (#533). With
+/// sections and band groups the same way: re-estimating them near the page end pulled the scroll back (#533). Short lists nested in scrolled cards and rows (band members, profile percentiles, Rival Detail previews) stack with it too, so their repeaters don't re-measure on every scroll frame as a virtualizing layout does (#668; the horizontal twin is <see cref="NonVirtualizingRowLayout"/>). With
 /// <see cref="UsesWideColumns"/> its instrument sections flow into pattern <c>wide-columns</c>' two row-major columns in
 /// wide windows (#653). Side by side, every card's <see cref="CardHeader"/> is padded so its title and its card surface
 /// start on the row's shared lines when one header is taller, such as a combo board's icon row or a subtitle

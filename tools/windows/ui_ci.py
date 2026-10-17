@@ -343,6 +343,10 @@ RUNS: tuple[Run, ...] = (
     # (scale-100/150 modes) stays in the host matrix.
     Run("quick-links-landing", "a11y-quick-links-landing.json", tabs=0),
     Run("quick-links-landing-text-225", "a11y-quick-links-landing.json", sizes="compact", mode="text-225", tabs=0),
+    # A stream of final view changes (scrollbar thumb drag, held arrow key; issue #668) on Song Detail, Band Detail
+    # and Profile: Quick Links settles on the end section and stays, nested cards keep reading order and 40 epx targets.
+    Run("quick-links-scroll", "a11y-quick-links-scroll.json", tabs=0),
+    Run("quick-links-scroll-text-225", "a11y-quick-links-scroll.json", sizes="compact", mode="text-225", tabs=0),
     # Header flyouts open in the app window (issue #534): Leaderboards and Full Rankings Rank By, Quick Links, the
     # profile flyout and Notifications scan with no windowed PopupHost finding (windows-accessibility.md open item 8).
     Run("popups", "a11y.json", only=POPUP_PAGES),

@@ -1,0 +1,183 @@
+[
+  {
+    "name": "qls-song-detail-menu",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": [
+      "compact"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Intensity@10"
+    ],
+    "after_ready": [
+      "resize:500x640",
+      "scrollsweep:id=fst.song-detail,0,100",
+      "waitfor:id=fst.song-detail.pinned-quick-links@5",
+      "assertstate:id=fst.song-detail.pinned-quick-links|name=Quick Links, current section Duos@5",
+      "wait:1",
+      "assertstate:id=fst.song-detail.pinned-quick-links|name=Quick Links, current section Duos",
+      "assertsize:id=fst.song-detail.pinned-quick-links|40x40",
+      "assertorder:id=fst.song-detail.band-selected.Band_Duets|id=fst.song-detail.band-view-all.Band_Duets|id=fst.song-detail.band-header.Band_Trios|id=fst.song-detail.band-header.Band_Quad|id=fst.song-detail.pinned-quick-links",
+      "assertstate:id=fst.song-detail.band-header.Band_Quad|heading=3",
+      "assertsize:id=fst.song-detail.band-selected.Band_Duets|0x40",
+      "assertsize:id=fst.song-detail.band-view-all.Band_Duets|0x40",
+      "expand:id=fst.song-detail.pinned-quick-links",
+      "waitfor:id=fst.quick-links.item.band-Band_Duets@5",
+      "assertstate:id=fst.quick-links.item.band-Band_Duets|toggle=on",
+      "assertstate:id=fst.quick-links.item.band-Band_Duets|name=Duos, current section",
+      "assertstate:id=fst.quick-links.item.band-Band_Quad|toggle=off",
+      "assertstate:id=fst.quick-links.item.intensity|toggle=off",
+      "assertsize:id=fst.quick-links.item.band-Band_Duets|0x40",
+      "collapse:id=fst.song-detail.pinned-quick-links",
+      "waitgone:id=fst.quick-links.item.band-Band_Duets@5",
+      "focus:id=fst.song-detail.band-view-all.Band_Duets",
+      "assertfocus:id=fst.song-detail.band-view-all.Band_Duets@3",
+      "scrollsweep:id=fst.song-detail,100,0",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Intensity@5",
+      "wait:1",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Intensity",
+      "assertorder:id=fst.song-detail.title|id=fst.song-detail.paths|id=fst.song-detail.shop|id=fst.quick-links.open",
+      "assertsize:id=fst.quick-links.open|40x40",
+      "focus:id=fst.quick-links.open",
+      "assertfocus:id=fst.quick-links.open@3"
+    ],
+    "skip_modes": [
+      "text-225"
+    ]
+  },
+  {
+    "name": "qls-song-detail-menu-text-225",
+    "route": "/songs/fixture-pulse",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": [
+      "compact"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Intensity@10"
+    ],
+    "after_ready": [
+      "resize:500x640",
+      "scrollsweep:id=fst.song-detail,0,100",
+      "waitfor:id=fst.song-detail.pinned-quick-links@5",
+      "assertstate:id=fst.song-detail.pinned-quick-links|name=Quick Links, current section Trios@5",
+      "wait:1",
+      "assertstate:id=fst.song-detail.pinned-quick-links|name=Quick Links, current section Trios",
+      "assertsize:id=fst.song-detail.pinned-quick-links|40x40",
+      "assertorder:id=fst.song-detail.band-header.Band_Trios|id=fst.song-detail.band-empty.Band_Trios|id=fst.song-detail.band-header.Band_Quad|id=fst.song-detail.band-empty.Band_Quad|id=fst.song-detail.pinned-quick-links",
+      "assertstate:id=fst.song-detail.band-header.Band_Quad|heading=3",
+      "expand:id=fst.song-detail.pinned-quick-links",
+      "waitfor:id=fst.quick-links.item.band-Band_Trios@5",
+      "assertstate:id=fst.quick-links.item.band-Band_Trios|toggle=on",
+      "assertstate:id=fst.quick-links.item.band-Band_Trios|name=Trios, current section",
+      "assertstate:id=fst.quick-links.item.band-Band_Duets|toggle=off",
+      "assertstate:id=fst.quick-links.item.intensity|toggle=off",
+      "assertsize:id=fst.quick-links.item.band-Band_Trios|0x40",
+      "collapse:id=fst.song-detail.pinned-quick-links",
+      "waitgone:id=fst.quick-links.item.band-Band_Trios@5",
+      "focus:id=fst.song-detail.pinned-quick-links",
+      "assertfocus:id=fst.song-detail.pinned-quick-links@3",
+      "scrollsweep:id=fst.song-detail,100,0",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Intensity@5",
+      "wait:1",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Intensity",
+      "assertorder:id=fst.song-detail.title|id=fst.song-detail.paths|id=fst.song-detail.shop|id=fst.quick-links.open",
+      "assertsize:id=fst.quick-links.open|40x40",
+      "focus:id=fst.quick-links.open",
+      "assertfocus:id=fst.quick-links.open@3"
+    ],
+    "modes": [
+      "text-225"
+    ]
+  },
+  {
+    "name": "qls-band-detail-menu",
+    "route": "/bands/fixture-band-1?bandType=Band_Duets&teamKey=fixture-team-1",
+    "fixture": [
+      "rivals_fixture.py",
+      "--large-catalogue",
+      "--stress-lists"
+    ],
+    "sizes": [
+      "compact"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.band.title@20",
+      "waitfor:id=fst.band.member.fixture-band-1-a@20",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Members@10"
+    ],
+    "after_ready": [
+      "resize:500x640",
+      "scrollsweep:id=fst.band.screen,0,100",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Songs@5",
+      "wait:1",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Songs",
+      "assertorder:id=fst.quick-links.open|id=fst.band.song-row.fixture-song-8|id=fst.band.song-row.fixture-song-9|id=fst.band.song-row.fixture-song-10",
+      "assertsize:id=fst.band.song-row.fixture-song-10|0x40",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.songs@5",
+      "assertstate:id=fst.quick-links.item.songs|toggle=on",
+      "assertstate:id=fst.quick-links.item.songs|name=Songs, current section",
+      "assertstate:id=fst.quick-links.item.members|toggle=off",
+      "assertorder:id=fst.quick-links.item.members|id=fst.quick-links.item.summary|id=fst.quick-links.item.statistics|id=fst.quick-links.item.rank-history|id=fst.quick-links.item.songs",
+      "assertsize:id=fst.quick-links.item.songs|0x40",
+      "collapse:id=fst.quick-links.open",
+      "waitgone:id=fst.quick-links.item.songs@5",
+      "focus:id=fst.band.song-row.fixture-song-10",
+      "assertfocus:id=fst.band.song-row.fixture-song-10@3",
+      "scrollsweep:id=fst.band.screen,100,0",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Members@5",
+      "wait:1",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Members",
+      "assertorder:id=fst.band.subtitle|id=fst.quick-links.open|id=fst.band.member.fixture-band-1-a|id=fst.band.member.fixture-band-1-b",
+      "assertstate:id=fst.band.member.fixture-band-1-a|name=Band 1 Member A, Lead, Bass, Drums, Tap Vocals, Pro Lead",
+      "assertsize:id=fst.band.member.fixture-band-1-a|0x40",
+      "assertsize:id=fst.band.member.fixture-band-1-b|0x40",
+      "focus:id=fst.band.member.fixture-band-1-b",
+      "assertfocus:id=fst.band.member.fixture-band-1-b@3"
+    ]
+  },
+  {
+    "name": "qls-profile-menu",
+    "route": "/player/fixture-player-1",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": [
+      "compact"
+    ],
+    "tabs": 0,
+    "ready": [
+      "waitfor:id=fst.quick-links.open@20",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Global Statistics@10"
+    ],
+    "after_ready": [
+      "resize:500x640",
+      "scrollsweep:id=fst.player.available,0,100",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Bands@5",
+      "wait:1",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Bands",
+      "assertorder:id=fst.quick-links.open|id=fst.player-bands.row.fixture-pband-quad-3|id=fst.player-bands.row.fixture-pband-quad-4",
+      "assertsize:id=fst.player-bands.row.fixture-pband-quad-4|0x40",
+      "expand:id=fst.quick-links.open",
+      "waitfor:id=fst.quick-links.item.global@5",
+      "scrollinto:id=fst.quick-links.item.bands",
+      "waitfor:id=fst.quick-links.item.bands@5",
+      "assertstate:id=fst.quick-links.item.bands|toggle=on",
+      "assertstate:id=fst.quick-links.item.bands|name=Bands, current section",
+      "assertstate:id=fst.quick-links.item.global|toggle=off",
+      "collapse:id=fst.quick-links.open",
+      "waitgone:id=fst.quick-links.item.bands@5",
+      "focus:id=fst.player-bands.row.fixture-pband-quad-4",
+      "assertfocus:id=fst.player-bands.row.fixture-pband-quad-4@3",
+      "scrollsweep:id=fst.player.available,100,0",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Global Statistics@5",
+      "wait:1",
+      "assertstate:id=fst.quick-links.open|name=Quick Links, current section Global Statistics",
+      "assertorder:id=fst.player.name|id=fst.quick-links.open|id=fst.player.overview",
+      "assertsize:id=fst.quick-links.open|40x40"
+    ]
+  }
+]

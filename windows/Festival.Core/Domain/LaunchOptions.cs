@@ -10,8 +10,9 @@ namespace Festival.Core.Domain;
 /// <c>--perf-log path</c>, <c>--width 1280 --height 800</c>, <c>--reduce-motion</c>, <c>--no-art</c>,
 /// <c>--auto-scroll</c> (perf scenario: scroll the Songs list continuously), <c>--auto-scroll-speed N</c> (epx/s, implies
 /// auto-scroll), <c>--auto-scroll-span N</c> (turn back at N epx), <c>--drift-fps N</c> (background drift steps/s),
-/// <c>--frame-stats</c> (UI-thread frame intervals in the perf log), <c>--scroll-probe</c> (wheel-like scroll of the page's main
-/// scroller with offset-smoothness stats in the perf log), <c>--profile accountId:Name</c> (select a player in memory
+/// <c>--frame-stats</c> (UI-thread frame intervals in the perf log), <c>--scroll-probe</c> (wheel-like and scrollbar-drag-like scroll of the
+/// page's main scroller with frame and offset-smoothness stats in the perf log), <c>--scroll-probe-target page|dialog</c> (probe the
+/// open dialog's scroller instead, waiting for automation to open one; implies the probe), <c>--profile accountId:Name</c> (select a player in memory
 /// only, never persisted), <c>--anonymous</c> (no player, in memory only), <c>--settings-path file</c> (isolated settings file).
 /// <c>--control-lab instrument-selector|service-status|difficulty-meter</c> (<c>FST_DEBUG_CONTROL_LAB</c>; opens a control's state lab instead of the shell, honoured only
 /// in Debug and automation launches). <c>--automation</c> is resolved separately by <see cref="AutomationLaunch"/> and only accepted here as a flag.
@@ -56,6 +57,12 @@ public sealed record LaunchOptions
 
     /// <summary>Scrolls the routed page's main scroller in wheel-like steps and logs frame and offset smoothness (measurement only).</summary>
     public bool ScrollProbe { get; init; }
+
+    /// <summary>What the scroll probe scrolls (one of <see cref="ScrollProbeTargets"/>): the page's main scroller or an open dialog's.</summary>
+    public string ScrollProbeTarget { get; init; } = "page";
+
+    /// <summary>Scroll probe targets: <c>page</c> (the window's largest scroller) or <c>dialog</c> (an open modal's scroller).</summary>
+    public static IReadOnlyList<string> ScrollProbeTargets { get; } = ["page", "dialog"];
 
     /// <summary>Background drift update rate override (steps per second, 0 = every compositor frame).</summary>
     public int? DriftFps { get; init; }
@@ -162,6 +169,12 @@ public sealed record LaunchOptions
             if (controlLab is null) warnings.Add($"Unknown control lab '{labText}'.");
         }
         var speed = Bounded(values.GetValueOrDefault("auto-scroll-speed"), 1, 2000);
+        string? probeTarget = null;
+        if (values.GetValueOrDefault("scroll-probe-target") is { Length: > 0 } targetText)
+        {
+            probeTarget = ScrollProbeTargets.FirstOrDefault(t => string.Equals(t, targetText.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (probeTarget is null) warnings.Add($"Unknown scroll probe target '{targetText}'.");
+        }
         return new LaunchOptions
         {
             ControlLab = controlLab,
@@ -180,7 +193,8 @@ public sealed record LaunchOptions
             AutoScrollSpeed = speed,
             AutoScrollSpan = Bounded(values.GetValueOrDefault("auto-scroll-span"), 1, 1_000_000),
             FrameStats = flags.Contains("frame-stats"),
-            ScrollProbe = flags.Contains("scroll-probe"),
+            ScrollProbe = flags.Contains("scroll-probe") || probeTarget is not null,
+            ScrollProbeTarget = probeTarget ?? "page",
             DriftFps = int.TryParse(values.GetValueOrDefault("drift-fps"), NumberStyles.None, CultureInfo.InvariantCulture, out var fps) && fps <= 240 ? fps : null,
             Warnings = warnings,
         };

@@ -473,5 +473,70 @@ class RivalDetailStateTests(unittest.TestCase):
         self.assertEqual(statuses, [(f"/api/player/fixture-player-detail-frozen{detail}", 503)])
 
 
+class StressListsTests(unittest.TestCase):
+    """``--stress-lists`` (issue #668): list pages that would fit a window get enough rows to scroll."""
+
+    def test_history_is_padded_newest_first(self):
+        body = f.stress_lists("/api/player/fixture-player-1/history?songId=fixture-pulse&instrument=Solo_Guitar",
+                              {"accountId": "fixture-player-1", "count": 2, "history": [{"songId": "fixture-pulse"}]})
+        rows = body["history"]
+        self.assertEqual((body["count"], len(rows)), (f.STRESS_ROWS, f.STRESS_ROWS))
+        self.assertTrue(all(a["newScore"] > b["newScore"] and a["oldScore"] == b["newScore"]
+                            for a, b in zip(rows, rows[1:])))
+        self.assertTrue(all(a["changedAt"] > b["changedAt"] for a, b in zip(rows, rows[1:])))
+        self.assertIsNone(rows[-1]["oldScore"])
+
+    def test_empty_history_stays_empty(self):
+        body = {"accountId": "fixture-syncing", "count": 0, "history": [], "status": "syncing"}
+        self.assertIs(f.stress_lists("/api/player/fixture-syncing/history", body), body)
+
+    def test_rivals_lists_keep_their_own_rows_first(self):
+        above = [{"accountId": "a" * 32}]
+        body = f.stress_lists("/api/player/fixture-player-1/rivals/01", {"combo": "01", "above": above, "below": []})
+        self.assertEqual((len(body["above"]), len(body["below"])), (f.STRESS_ROWS, f.STRESS_ROWS))
+        self.assertEqual(body["above"][0], above[0])
+        ids = [row["accountId"] for row in body["above"] + body["below"]]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertTrue(all(len(i) == 32 for i in ids))
+
+    def test_shop_adds_catalogue_songs(self):
+        shop = {"count": 1, "songs": [{"songId": "fixture-pulse"}], "newSongs": []}
+        body = f.stress_lists("/api/shop", shop)
+        self.assertEqual(body["count"], 1 + f.STRESS_SHOP_SONGS)
+        catalogue = {song["songId"] for song in f.mock_service.LARGE_CATALOGUE_SONGS}
+        self.assertTrue({song["songId"] for song in body["songs"][1:]} <= catalogue)
+
+    def test_band_detail_is_padded_for_fixture_team_1(self):
+        members = [{"accountId": "fixture-band-1-a", "instruments": ["Solo_Guitar"]}, {"accountId": "fixture-band-1-b"}]
+        detail = {"selectedBandEntry": {"teamKey": "fixture-team-1", "members": members}}
+        body = f.stress_lists("/api/rankings/bands/Band_Duets?teamKey=fixture-team-1", detail)
+        self.assertEqual([m["instruments"] for m in body["selectedBandEntry"]["members"]],
+                         [list(f.STRESS_MEMBER_INSTRUMENTS)] * 2)
+        self.assertEqual(body["selectedBandEntry"]["members"][0]["accountId"], "fixture-band-1-a")
+        history = f.stress_lists("/api/rankings/bands/Band_Duets/fixture-team-1/history",
+                                 {"history": [{"snapshotDate": "2024-01-01", "totalRankedTeams": 9}]})["history"]
+        self.assertEqual(len(history), 30)
+        self.assertEqual(len({row["snapshotDate"] for row in history}), 30)
+        self.assertTrue(all(row["totalRankedTeams"] == 9 for row in history))
+        songs = f.stress_lists("/api/rankings/bands/Band_Duets/fixture-team-1/songs?limit=20",
+                               {"limit": 20, "best": [{"songId": "x", "rank": 1}], "worst": [{"songId": "y", "rank": 8}]})
+        self.assertEqual((len(songs["best"]), len(songs["worst"])), (20, 20))
+        ids = [row["songId"] for row in songs["best"] + songs["worst"]]
+        self.assertEqual(len(ids), len(set(ids)))
+
+    def test_other_bands_and_band_lists_pass_through(self):
+        other = {"selectedBandEntry": {"teamKey": "fixture-team-2", "members": []}}
+        self.assertIs(f.stress_lists("/api/rankings/bands/Band_Duets?teamKey=fixture-team-2", other), other)
+        board = {"entries": [{"teamKey": "fixture-team-1"}]}
+        self.assertIs(f.stress_lists("/api/rankings/bands/Band_Duets", board), board)
+        history = {"history": [{"snapshotDate": "2024-01-01"}]}
+        self.assertIs(f.stress_lists("/api/rankings/bands/Band_Duets/fixture-team-2/history", history), history)
+
+    def test_other_reads_and_304s_pass_through(self):
+        body = {"songs": [{"songId": "fixture-pulse"}]}
+        self.assertIs(f.stress_lists("/api/songs", body), body)
+        self.assertIsNone(f.stress_lists("/api/shop", None))
+
+
 if __name__ == "__main__":
     unittest.main()
