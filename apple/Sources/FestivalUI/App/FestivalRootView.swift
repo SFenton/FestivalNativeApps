@@ -499,8 +499,6 @@ public struct FestivalRootView: View {
                             // identifier replaced every child's (the split's panes, rows).
                             .modifier(TabContentIdentifier(id: "fst.nav.\(section.rawValue)", isEnabled: !hidesTabBar))
                     }
-                    // Named up front (#665): see `searchTabLabel`.
-                    .accessibilityLabel(section.title)
                 }
                 #if os(iOS)
                 Tab(value: RootTab.search, role: .search) {
@@ -508,7 +506,6 @@ public struct FestivalRootView: View {
                     // account items show, as in the old sidebar's search page.
                     searchView(asTab: !hidesTabBar)
                 }
-                .accessibilityLabel(Self.searchTabLabel)
                 #endif
             }
             .modifier(RootTabBarBehavior())
@@ -530,16 +527,6 @@ public struct FestivalRootView: View {
             .festivalFloatingPageTools(covered: floatingPageToolsCovered)
         }
     }
-
-    /// The Search tab's spoken name, the title UIKit gives a `.search` tab.
-    ///
-    /// Every root tab names itself up front, with the same words it already spoke (#665).
-    /// Otherwise SwiftUI fills in each `UITab`'s label only when assistive technology first
-    /// asks, one tab at a time; each change makes UIKit rebuild the tab bar's items inside
-    /// a new animation. With Full Keyboard Access those queries arrive while the launch
-    /// animation is still running on iOS 27, and the rebuilt items' animations never
-    /// report an end, so the app never reads as idle to UI automation.
-    static let searchTabLabel = "Search"
 
     /// The iPhone floating page tools hide while Search is open or a root sheet covers
     /// the page (issue #632; web hides its floating buttons while Notifications is open).
