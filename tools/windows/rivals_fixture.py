@@ -40,6 +40,11 @@ scrape-freeze 503 while ``rivals/all`` carries the demo detail as samples, so th
 ``--song-band-rows N`` (issue #305) serves every fixture song's band leaderboards with ``N`` entries, so the band
 song board scrolls under its floating pager.
 
+``--stress-lists`` (issue #668, the scroll stress suite) pads every list page that would otherwise fit a window: a
+selected player's Score History (60 rows), each side of a rivals list (60 rivals), the Shop (48 more songs from
+``--large-catalogue``) and ``fixture-team-1``'s Band Detail (five instruments per member, 30 rank-history snapshots
+and a full set of best and worst songs).
+
 Usage: ``python tools/windows/rivals_fixture.py --port 8765`` (same flags as mock_service.py), then launch the
 app with ``--base-url http://127.0.0.1:8765/`` and ``FST_DEBUG_PROFILE=fixture-player-1:Demo Player``.
 """
@@ -682,6 +687,142 @@ def install_slow_rivals() -> None:
 
 # endregion
 
+# region Stress lists (issue #668)
+
+#: Rows of each padded list: enough that every list page scrolls well past a medium window.
+STRESS_ROWS = 60
+#: Shop songs served by ``--stress-lists`` (taken from ``--large-catalogue``'s synthetic songs).
+STRESS_SHOP_SONGS = 48
+
+
+def stress_history(account: str) -> list[dict]:
+    """A long Lead score history on ``fixture-pulse``: newest first, each row improving on the next.
+
+    Args:
+        account: Viewing account (only its history is padded).
+
+    Returns:
+        :data:`STRESS_ROWS` history rows.
+    """
+    rows = []
+    for n in range(STRESS_ROWS):
+        new = 900_000 - n * 6_000
+        rows.append({
+            "songId": "fixture-pulse", "instrument": "Solo_Guitar",
+            "oldScore": new - 6_000 if n < STRESS_ROWS - 1 else None, "newScore": new,
+            "oldRank": 5 + n + 1 if n < STRESS_ROWS - 1 else None, "newRank": 5 + n,
+            "accuracy": 990_000 - n * 500, "isFullCombo": n % 4 == 0, "stars": 6 if n % 4 == 0 else 5,
+            "season": 40 - n // 8, "scoreAchievedAt": f"2024-{12 - n // 6 % 12:02d}-{28 - n % 6 * 4:02d}T00:00:00Z",
+            "changedAt": f"2024-{12 - n // 6 % 12:02d}-{28 - n % 6 * 4:02d}T00:00:00Z",
+        })
+    return rows
+
+
+def stress_rivals(rows: list[dict], direction: str) -> list[dict]:
+    """Pads one side of a rivals list with synthetic rivals after the fixture's own.
+
+    Args:
+        rows: The fixture's rivals on that side.
+        direction: ``above`` or ``below`` (sets the score trend).
+
+    Returns:
+        :data:`STRESS_ROWS` rivals.
+    """
+    sign = 1 if direction == "above" else -1
+    padded = list(rows)
+    for n in range(len(rows), STRESS_ROWS):
+        padded.append({
+            "accountId": f"f1c7{'a' if sign > 0 else 'b'}{n:027x}", "displayName": f"Stress Rival {n + 1}",
+            "rivalScore": 700.0 + sign * (200 - n), "sharedSongCount": 300 + n, "aheadCount": 150 + sign * n,
+            "behindCount": 150 - sign * n, "avgSignedDelta": -sign * (1.0 + n / 10),
+        })
+    return padded
+
+
+def stress_lists(path: str, body: dict | None) -> dict | None:
+    """Pads Score History, rivals lists, the Shop and a band's detail so their pages scroll in the stress suite.
+
+    Args:
+        path: Request path with query.
+        body: Response body the mock service built (``None`` for a 304).
+
+    Returns:
+        The padded body for those reads, else ``body`` unchanged.
+    """
+    if not body:
+        return body
+    route = urlsplit(path).path
+    if (match := mock_service.PLAYER_HISTORY.fullmatch(route)) and body.get("history"):
+        rows = stress_history(match.group(1))
+        return {**body, "count": len(rows), "history": rows}
+    if mock_service.RIVALS_LIST.fullmatch(route) and "above" in body:
+        return {**body, "above": stress_rivals(body["above"], "above"), "below": stress_rivals(body["below"], "below")}
+    if route == "/api/shop" and body.get("songs"):
+        extra = [
+            {
+                "songId": song["songId"], "title": song["title"], "artist": song["artist"], "year": song["year"],
+                "albumArt": song["albumArt"], "shopUrl": f"https://www.fortnite.com/item-shop/jam-tracks/{song['songId']}",
+                "leavingTomorrow": n % 5 == 0, "isNew": n % 7 == 0,
+            }
+            for n, song in enumerate(mock_service.LARGE_CATALOGUE_SONGS[:STRESS_SHOP_SONGS])
+        ]
+        return {**body, "count": len(body["songs"]) + len(extra), "songs": body["songs"] + extra}
+    return stress_band(route, body)
+
+
+#: Instruments each ``fixture-team-1`` member lists under ``--stress-lists`` (Band Detail's per-member icon rows).
+STRESS_MEMBER_INSTRUMENTS = ("Solo_Guitar", "Solo_Bass", "Solo_Drums", "Solo_Vocals", "Solo_PeripheralGuitar")
+
+
+def stress_band(route: str, body: dict) -> dict:
+    """Fills Band Detail for ``fixture-team-1`` (issue #668): members with several instruments each, a long rank
+    history (the page shows the newest ten rows under its chart) and a full set of best and worst songs.
+
+    Args:
+        route: Request path without query.
+        body: Response body the mock service built.
+
+    Returns:
+        The padded body for that band's detail, history and songs reads, else ``body`` unchanged.
+    """
+    if mock_service.BAND_RANKINGS.fullmatch(route) and (selected := body.get("selectedBandEntry")) \
+            and selected.get("teamKey") == "fixture-team-1":
+        members = [{**member, "instruments": list(STRESS_MEMBER_INSTRUMENTS)} for member in selected["members"]]
+        return {**body, "selectedBandEntry": {**selected, "members": members}}
+    if (match := mock_service.BAND_HISTORY.fullmatch(route)) and match.group(2) == "fixture-team-1" and body.get("history"):
+        template = body["history"][0]
+        history = [
+            {**template, "snapshotDate": f"2024-01-{day:02d}", "snapshotTakenAt": f"2024-01-{day:02d}T00:00:00Z",
+             "adjustedSkillRank": 1 + (day * 7) % 5, "weightedRank": 1 + (day * 3) % 4, "fcRateRank": 1 + day % 3,
+             "totalScoreRank": 1 + (day * 5) % 6}
+            for day in range(1, 31)
+        ]
+        return {**body, "history": history}
+    if (match := mock_service.BAND_SONGS.fullmatch(route)) and match.group(2) == "fixture-team-1" and body.get("best"):
+        limit, songs = body["limit"], mock_service.LARGE_CATALOGUE_SONGS
+        best = [{**body["best"][0], "songId": song["songId"], "rank": 1 + n} for n, song in enumerate(songs[:limit])]
+        worst = [{**body["worst"][0], "songId": song["songId"], "rank": 8 - n % 3}
+                 for n, song in enumerate(songs[limit:2 * limit])]
+        return {**body, "best": best, "worst": worst}
+    return body
+
+
+def install_stress_lists() -> None:
+    """Serve :func:`stress_lists` bodies on top of the mock service's reads."""
+    original = mock_service.FixtureHandler.do_GET
+
+    def do_get(self) -> None:  # noqa: ANN001 (stdlib handler signature)
+        send = self._json
+        self._json = lambda status, body, *rest, **kw: send(status, stress_lists(self.path, body), *rest, **kw)
+        try:
+            original(self)
+        finally:
+            del self._json
+
+    mock_service.FixtureHandler.do_GET = do_get
+
+# endregion
+
 # region Rival detail states (issue #284)
 
 #: Viewing-account markers for Rival Detail's own states (song-rival detail reads only; lists stay the demo).
@@ -820,7 +961,8 @@ def main() -> None:
     board_pages, rest = take_board_pages(rest)
     songs_unavailable = "--songs-unavailable" in rest
     song_band_totals_on = "--song-band-totals" in rest
-    rest = [arg for arg in rest if arg not in ("--songs-unavailable", "--song-band-totals")]
+    stress_lists_on = "--stress-lists" in rest
+    rest = [arg for arg in rest if arg not in ("--songs-unavailable", "--song-band-totals", "--stress-lists")]
     sys.argv[1:] = rest
     if scenario:
         install_band_rankings(scenario)
@@ -840,6 +982,8 @@ def main() -> None:
         install_song_band_slow(song_band_slow)
     if board_pages:
         install_board_pages(board_pages)
+    if stress_lists_on:
+        install_stress_lists()
     install_slow_rivals()
     install_rival_detail_states()
     names: dict[str, str] = {}

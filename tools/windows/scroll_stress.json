@@ -1,0 +1,67 @@
+{
+  "about": "Scroll stress suite for scroll_probe.py (issues #642, #668): every Windows page and modal with a scroller, probed with three wheel cycles and two scrollbar-drag cycles against loopback fixtures. 'open' steps run through FstUia after launch (a modal's 'target' is 'dialog'); 'env' adds launch environment ({repo} is the repository root); frame intervals and each frame's UI-thread work (Rendering to the thread's next idle moment) are judged against 'thresholds', which override the defaults per page ('drag' holds limits for the scrollbar-drag passes only), and an entry whose limits exceed the defaults names its tracked jank in 'known'. Lists that would fit the window use rivals_fixture.py --stress-lists or --large-rankings.",
+  "defaults": {
+    "size": "medium",
+    "profile": "fixture-player-1:Fixture Player 1",
+    "fixture": ["rivals_fixture.py", "--large-catalogue"],
+    "thresholds": {
+      "max_reversals": 0,
+      "max_stalls": 3,
+      "max_p95_ms": 25,
+      "max_work_stalls": 3,
+      "max_work_p95_ms": 12,
+      "max_handler_ms": 60,
+      "max_gc2": 3
+    }
+  },
+  "pages": [
+    {"name": "songs", "route": "/songs", "known": "#668: a fast scrollbar drag through the large catalogue realizes about four rows a frame (first drag p95 36-44 ms, 9-10 frames over 33 ms; later drags p95 19 ms) with 1-2 induced gen2 collections per drag; UI-thread frame work p95 31-34 ms, 2-7 frames of work over 33 ms", "thresholds": {"max_gc2": 10, "drag": {"max_p95_ms": 50, "max_stalls": 12, "max_reversals": 1, "max_work_p95_ms": 40, "max_work_stalls": 10}}},
+    {"name": "song-detail", "route": "/songs/fixture-pulse"},
+    {"name": "song-board", "route": "/songs/fixture-pulse/Solo_Guitar"},
+    {"name": "song-band-board", "route": "/songs/fixture-pulse/bands/Band_Duets", "fixture": ["rivals_fixture.py", "--large-catalogue", "--song-band-rows", "60"]},
+    {"name": "score-history", "route": "/songs/fixture-pulse/Solo_Guitar/history", "fixture": ["rivals_fixture.py", "--large-catalogue", "--stress-lists"]},
+    {"name": "leaderboards", "route": "/leaderboards"},
+    {"name": "full-rankings", "route": "/leaderboards/all?instrument=Solo_Guitar", "fixture": ["rivals_fixture.py", "--large-catalogue", "--large-rankings"]},
+    {"name": "band-rankings", "route": "/leaderboards/bands/Band_Duets", "fixture": ["rivals_fixture.py", "--large-catalogue", "--large-rankings"]},
+    {"name": "rivals", "route": "/rivals", "profile": "fixture-player-1:Demo Player"},
+    {"name": "all-rivals", "route": "/rivals/all", "profile": "fixture-player-1:Demo Player", "fixture": ["rivals_fixture.py", "--large-catalogue", "--stress-lists"], "known": "#668: the first scrollbar drag realizes all 120 rows for the first time (p95 27-29 ms, 6 frames over 33 ms); later drags p95 8.4 ms", "thresholds": {"drag": {"max_p95_ms": 35, "max_stalls": 8}}},
+    {"name": "rival-detail", "route": "/rivals/f1c749eb07c32578cfa3e59ec38c03a8", "profile": "fixture-player-1:Demo Player"},
+    {"name": "suggestions", "route": "/suggestions", "known": "#668: dragging the scrollbar up through loaded batches re-estimates the variable-height card list (reversals up to 9, jumps of 2,400-6,400 px, p95 54-87 ms, 10-18 frames over 33 ms) and rebuilds each recycled card's rows (5-7 gen2 collections per drag-up; frame work p95 up to 21 ms, 6 frames of work over 33 ms); wheel scrolling is p95 8.8 ms", "thresholds": {"max_gc2": 28, "drag": {"max_p95_ms": 100, "max_stalls": 22, "max_reversals": 10, "max_work_p95_ms": 30, "max_work_stalls": 12}}},
+    {"name": "profile", "route": "/player/fixture-player-1"},
+    {"name": "player-bands", "route": "/bands/player/fixture-player-1"},
+    {"name": "band-detail", "route": "/bands/fixture-band-1?bandType=Band_Duets&teamKey=fixture-team-1", "fixture": ["rivals_fixture.py", "--large-catalogue", "--stress-lists"]},
+    {"name": "statistics", "route": "/statistics"},
+    {"name": "item-shop", "route": "/shop", "fixture": ["rivals_fixture.py", "--large-catalogue", "--stress-lists"]},
+    {"name": "search", "route": "/search?q=fixture"},
+    {"name": "settings", "tab": "settings"},
+    {"name": "licenses", "route": "/settings/licenses"},
+    {
+      "name": "paths-modal", "route": "/songs/fixture-pulse", "target": "dialog", "size": "compact",
+      "fixture": ["paths_fixture.py", "--large-catalogue"], "settings": {"pathUnavailableWarningDismissed": true},
+      "open": ["waitfor:id=fst.song-detail.paths@30", "invoke:id=fst.song-detail.paths", "waitfor:id=fst.paths@10"]
+    },
+    {
+      "name": "notifications-sheet", "tab": "songs", "target": "dialog", "size": "compact",
+      "fixture": ["notifications_fixture.py", "--large-catalogue"], "profile": "fixture-feed-media:Fixture Media Feed",
+      "open": ["waitfor:id=fst.shell.notifications@30", "invoke:id=fst.shell.notifications", "waitfor:id=fst.notifications.sheet@15"]
+    },
+    {
+      "name": "feedback-sheet", "tab": "settings", "target": "dialog", "size": "compact",
+      "fixture": ["feedback_fixture.py", "--large-catalogue"],
+      "open": ["waitfor:id=fst.settings.show-instrument-icons@30", "scrollinto:id=fst.settings.feedback.bug@20", "invoke:id=fst.settings.feedback.bug", "waitfor:id=fst.settings.feedback.bug.dialog@10"]
+    },
+    {
+      "name": "privacy-policy", "tab": "settings", "target": "dialog",
+      "open": ["waitfor:id=fst.settings.show-instrument-icons@30", "scrollinto:id=fst.settings.privacy-policy@20", "invoke:id=fst.settings.privacy-policy", "waitfor:id=fst.privacy-policy.dialog@10"]
+    },
+    {
+      "name": "whats-new", "tab": "settings", "target": "dialog", "size": "compact",
+      "env": {"FST_DEBUG_WHATS_NEW_FILE": "{repo}\\tools\\windows\\fixtures\\whats-new-grouped.json"},
+      "open": ["waitfor:id=fst.settings.show-instrument-icons@30", "scrollinto:id=fst.settings.whats-new@20", "invoke:id=fst.settings.whats-new", "waitfor:id=fst.whats-new.dialog@10"]
+    },
+    {
+      "name": "license-detail", "route": "/settings/licenses", "target": "dialog",
+      "open": ["waitfor:id=fst.licenses.row.communitytoolkit.mvvm@30", "invoke:id=fst.licenses.row.communitytoolkit.mvvm", "waitfor:id=fst.licenses.detail@10"]
+    }
+  ]
+}

@@ -88,7 +88,7 @@ public partial class App : Application
         window.Activate();
         PerfLog.Mark("window-activated");
         if (Options.FrameStats && Options.PerfLogPath is not null) FrameStats.Start();
-        if (Options.ScrollProbe && Options.PerfLogPath is not null && window.Content is FrameworkElement content) ScrollProbe.Start(content);
+        if (Options.ScrollProbe && Options.PerfLogPath is not null && window.Content is FrameworkElement content) ScrollProbe.Start(content, Options.ScrollProbeTarget);
     }
 }
 #endregion

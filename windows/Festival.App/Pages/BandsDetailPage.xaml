@@ -155,7 +155,7 @@
                                                            TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                                                 <ItemsRepeater ItemsSource="{x:Bind Icons}">
                                                     <ItemsRepeater.Layout>
-                                                        <StackLayout Orientation="Horizontal" Spacing="6" />
+                                                        <controls:NonVirtualizingRowLayout Spacing="6" />
                                                     </ItemsRepeater.Layout>
                                                     <ItemsRepeater.ItemTemplate>
                                                         <DataTemplate x:DataType="vm:BandInstrumentIcon">

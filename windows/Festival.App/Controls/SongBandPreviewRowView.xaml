@@ -56,7 +56,7 @@
                                ElementPrepared="OnMemberPrepared" AutomationProperties.AccessibilityView="Raw"
                                AutomationProperties.AutomationId="{x:Bind Row.MembersAutomationId, Mode=OneWay}">
                     <ItemsRepeater.Layout>
-                        <StackLayout Spacing="4" />
+                        <controls:LeaderboardsCardGridLayout MaxColumns="1" MinColumnWidth="0" Spacing="4" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:BandMemberRow">
@@ -67,7 +67,7 @@
                                 </Grid.ColumnDefinitions>
                                 <ItemsRepeater ItemsSource="{x:Bind Icons}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                     <ItemsRepeater.Layout>
-                                        <StackLayout Orientation="Horizontal" Spacing="2" />
+                                        <controls:NonVirtualizingRowLayout Spacing="2" />
                                     </ItemsRepeater.Layout>
                                     <ItemsRepeater.ItemTemplate>
                                         <DataTemplate x:DataType="vm:BandInstrumentIcon">

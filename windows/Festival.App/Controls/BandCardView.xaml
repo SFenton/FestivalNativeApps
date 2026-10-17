@@ -29,7 +29,7 @@
             <StackPanel Spacing="8">
                 <ItemsRepeater ItemsSource="{x:Bind Card.Members, Mode=OneWay}" AutomationProperties.AccessibilityView="Raw">
                     <ItemsRepeater.Layout>
-                        <StackLayout Spacing="6" />
+                        <controls:LeaderboardsCardGridLayout MaxColumns="1" MinColumnWidth="0" Spacing="6" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:BandMemberRow">
@@ -42,7 +42,7 @@
                                            TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" AutomationProperties.AccessibilityView="Raw" />
                                 <ItemsRepeater Grid.Column="1" ItemsSource="{x:Bind Icons}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                     <ItemsRepeater.Layout>
-                                        <StackLayout Orientation="Horizontal" Spacing="4" />
+                                        <controls:NonVirtualizingRowLayout Spacing="4" />
                                     </ItemsRepeater.Layout>
                                     <ItemsRepeater.ItemTemplate>
                                         <DataTemplate x:DataType="vm:BandInstrumentIcon">

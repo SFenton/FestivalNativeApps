@@ -731,6 +731,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>Keyboard steps that <see cref="postKeys"/> posts to the window instead (no foreground needed).</summary>
     private static readonly HashSet<string> KeyVerbs = ["type", "key", "tabwalk"];
 
+    /// <summary>Position changes in one <c>scrollsweep</c> step (about half a second at 16 ms apart).</summary>
+    private const int SweepSteps = 30;
+
     private JsonNode Drive(Window window, JsonArray steps)
     {
         if (postKeys) Log("keyboard steps are posted to the window (session locked or post_keys)");
@@ -828,6 +831,18 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                     break;
                 }
                 scroller.Patterns.Scroll.Pattern.SetScrollPercent(-1, (double)step["percent"]!);
+                break;
+            case "scrollsweep":
+                // A stream of final view changes (scrollbar thumb drag, held arrow key; issue #668), not one jump.
+                var swept = Find(window, step);
+                if (!swept.Patterns.Scroll.IsSupported || !swept.Patterns.Scroll.Pattern.VerticallyScrollable.ValueOrDefault)
+                    throw new InvalidOperationException($"scrollsweep: {arg} is not vertically scrollable");
+                double from = (double)step["from"]!, to = (double)step["to"]!;
+                for (var i = 0; i <= SweepSteps; i++)
+                {
+                    swept.Patterns.Scroll.Pattern.SetScrollPercent(-1, from + (to - from) * i / SweepSteps);
+                    Thread.Sleep(16);
+                }
                 break;
             case "reveal":
                 Reveal(window, step);

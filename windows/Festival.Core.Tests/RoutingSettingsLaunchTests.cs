@@ -304,6 +304,25 @@ public class LaunchAndBackgroundTests
     }
 
     [Fact]
+    public void Launch_ScrollProbeTargetImpliesProbeAndIsKnown()
+    {
+        // #668: the scroll stress suite probes a page's scroller or an open dialog's.
+        Assert.Equal("page", LaunchOptions.Parse(["--scroll-probe"], Env()).ScrollProbeTarget);
+        var dialog = LaunchOptions.Parse(["--scroll-probe-target=Dialog"], Env());
+        Assert.True(dialog.ScrollProbe);
+        Assert.Equal("dialog", dialog.ScrollProbeTarget);
+        Assert.Empty(dialog.Warnings);
+        var page = LaunchOptions.Parse(["--scroll-probe-target", "page"], Env());
+        Assert.True(page.ScrollProbe);
+        Assert.Equal("page", page.ScrollProbeTarget);
+        var unknown = LaunchOptions.Parse(["--scroll-probe-target=sheet"], Env());
+        Assert.False(unknown.ScrollProbe);
+        Assert.Equal("page", unknown.ScrollProbeTarget);
+        Assert.Contains(unknown.Warnings, w => w.Contains("sheet"));
+        Assert.False(LaunchOptions.Parse([], Env()).ScrollProbe);
+    }
+
+    [Fact]
     public void Launch_ControlLab_AcceptsKnownLabsOnly()
     {
         Assert.Equal("instrument-selector", LaunchOptions.Parse(["--control-lab", "Instrument-Selector"], Env()).ControlLab);

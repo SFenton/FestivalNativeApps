@@ -51,6 +51,9 @@ internal sealed unsafe partial class OcclusionTracker : IDisposable
         Recompute();
     }
 
+    /// <summary>The main window's tracker, or <see langword="null"/> before it starts (measurement runs check it).</summary>
+    public static OcclusionTracker? Current => instance;
+
     /// <summary>Raised on the UI thread when <see cref="IsHidden"/> changes.</summary>
     public event EventHandler? Changed;
 

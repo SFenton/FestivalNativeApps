@@ -100,7 +100,7 @@
                                          FestivalGlassSection rows (RowSeparators; issue #603). -->
                                     <ItemsRepeater XYFocusKeyboardNavigation="Enabled" ItemsSource="{x:Bind Preview}" controls:RowSeparators.Enabled="True">
                                         <ItemsRepeater.Layout>
-                                            <StackLayout Spacing="2" />
+                                            <controls:LeaderboardsCardGridLayout MaxColumns="1" MinColumnWidth="0" Spacing="2" />
                                         </ItemsRepeater.Layout>
                                         <ItemsRepeater.ItemTemplate>
                                             <DataTemplate x:DataType="vm:RivalSongItem">

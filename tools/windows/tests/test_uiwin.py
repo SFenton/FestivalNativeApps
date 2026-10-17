@@ -77,6 +77,16 @@ class StepTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 u.parse_step(bad)
 
+    def test_scrollsweep_streams_between_two_percents(self):
+        # Issue #668: a stream of final view changes, like a scrollbar thumb drag.
+        step = u.parse_step("scrollsweep:id=fst.song-detail,0,100")
+        self.assertEqual((step["selector"]["value"], step["from"], step["to"]), ("fst.song-detail", 0.0, 100.0))
+        self.assertEqual(u.parse_step("scrollsweep:name=a,b,100,12.5")["selector"]["value"], "a,b")
+        for bad in ("scrollsweep:id=x,50", "scrollsweep:id=x,0,101", "scrollsweep:id=x,up,0", "scrollsweep:5,6,0,100",
+                    "scrollsweep:,0,100"):
+            with self.assertRaises(ValueError):
+                u.parse_step(bad)
+
     def test_pagedown_pages_a_scroller_selector(self):
         # Issue #664: an input-free page down onto content appended below a list's end.
         step = u.parse_step("pagedown:id=fst.suggestions.list@10")
