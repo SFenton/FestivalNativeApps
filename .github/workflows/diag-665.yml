@@ -1,6 +1,6 @@
 name: diag-665
 # TEMPORARY diagnostic for #665 (reverted before the fix lands): the Settings switch-tap journey with a touch
-# logger, and the iPad full-keyboard-access idle probe, on the hosted xcode-27 runner.
+# fix on fresh simulators, and the iPad full-keyboard-access idle probe, on the hosted xcode-27 runner.
 on:
   push:
     branches: [report/665]
@@ -12,7 +12,11 @@ env:
 jobs:
   iphone:
     runs-on: xcode-27
-    timeout-minutes: 150
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        pass: [1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
@@ -23,48 +27,16 @@ jobs:
       - name: Generate
         working-directory: apple
         run: xcodegen generate -q
-      - name: Settings batch alone
-        continue-on-error: true
+      - name: Settings batch on a fresh simulator (fix)
         run: |
-          mkdir -p /tmp/fst-665 && chmod 777 /tmp/fst-665
-          echo "FST_UITEST_KEEP_RESULTS=1" >> "$GITHUB_ENV"
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock.log" 2>&1 &
           python3 tools/mock_service.py --port 18934 > "$RUNNER_TEMP/mock_bands.log" 2>&1 &
           device=$(python3 tools/ios_sim.py ci-device)
-          echo "$device" > "$RUNNER_TEMP/device"
           for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock.log" && break; sleep 1; done
-          python3 tools/ios_sim.py uitest --device "$device" --timeout 1800 --no-test-diagnostics \
+          python3 tools/ios_sim.py uitest --device "$device" --timeout 1800 --no-test-diagnostics --fail-on-skip \
             --only SettingsAccessibilityJourneyTests/testAccessibilityThenItemShopReadInOrder \
             --only SettingsAccessibilityJourneyTests/testAccessibilityThenItemShopReadableAtAX5 \
             --only SettingsVisualOrderAccessibilityJourneyTests/testSongRowVisualOrderIsReadableAtAX5
-      - name: Settings batch again (2)
-        continue-on-error: true
-        run: |
-          echo "=== pass 2 ===" >> /tmp/fst-665/touch.log || true
-          python3 tools/ios_sim.py uitest --device "$(cat "$RUNNER_TEMP/device")" --timeout 1800 --no-test-diagnostics \
-            --only SettingsAccessibilityJourneyTests/testAccessibilityThenItemShopReadInOrder \
-            --only SettingsAccessibilityJourneyTests/testAccessibilityThenItemShopReadableAtAX5
-      - name: Settings batch again (3)
-        continue-on-error: true
-        run: |
-          echo "=== pass 3 ===" >> /tmp/fst-665/touch.log || true
-          python3 tools/ios_sim.py uitest --device "$(cat "$RUNNER_TEMP/device")" --timeout 1800 --no-test-diagnostics \
-            --only SettingsAccessibilityJourneyTests/testAccessibilityThenItemShopReadInOrder \
-            --only SettingsAccessibilityJourneyTests/testAccessibilityThenItemShopReadableAtAX5
-      - name: Collect
-        if: always()
-        run: |
-          mkdir -p "$RUNNER_TEMP/out"
-          cp -R /tmp/fst-665 "$RUNNER_TEMP/out/" || true
-          for r in apple/DerivedData/lane-driver/Results/*.xcresult; do
-            [ -d "$r" ] && xcrun xcresulttool export attachments --path "$r" --output-path "$RUNNER_TEMP/out/$(basename "$r")-att" || true
-            [ -d "$r" ] && xcrun xcresulttool get test-results tests --path "$r" > "$RUNNER_TEMP/out/$(basename "$r").tests.json" || true
-          done
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: diag-665-iphone
-          path: ${{ runner.temp }}/out
   ipad:
     if: ${{ false }}
     runs-on: xcode-27
