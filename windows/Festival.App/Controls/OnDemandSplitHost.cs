@@ -478,16 +478,50 @@ public sealed class OnDemandSplitHost : Grid
         opener is not null && opener.Control.TryGetTarget(out var control) && control.IsLoaded
             && control.Visibility == Visibility.Visible ? control : null;
 
-    /// <summary>Scrolls the list page, without animation, so the control is fully shown.</summary>
+    /// <summary>
+    /// Scrolls the list page, without animation, so the control is fully shown (centred when it was not). The control is
+    /// measured where layout put it (<see cref="LaidOutTop"/>): a reflow's card glide (pattern reflow-motion) still draws it
+    /// at its old place, where it read as on screen while its new place was below the fold (#673).
+    /// </summary>
     /// <param name="control">Control, if any.</param>
     private void BringIntoView(Control? control)
     {
         if (control is null) return;
         Section.UpdateLayout();
-        var top = control.TransformToVisual(Section).TransformPoint(default).Y;
-        if (top >= 0 && top + control.ActualHeight <= Section.ActualHeight) return;
-        // Centred, so a page's pinned header never covers it.
-        control.StartBringIntoView(new BringIntoViewOptions { AnimationDesired = false, VerticalAlignmentRatio = 0.5 });
+        if (LaidOutTop(control) is not var (scroller, top)) return; // Nothing scrolls: the list shows it whole.
+        var offset = ReflowTiming.RevealOffset(top, control.ActualHeight, scroller.ViewportHeight, scroller.VerticalOffset);
+        TraceKeep(top - scroller.VerticalOffset, control.ActualHeight, scroller.ViewportHeight, offset);
+        if (offset is { } to) scroller.ChangeView(null, to, null, disableAnimation: true);
+    }
+
+    /// <summary>
+    /// The control's laid-out top in its nearest vertically scrollable ancestor's content: the sum of each element's
+    /// arranged offset (<see cref="UIElement.ActualOffset"/>), which leaves out composition translations such as a reflow
+    /// glide that <see cref="UIElement.TransformToVisual"/> and <see cref="UIElement.StartBringIntoView()"/> include.
+    /// </summary>
+    /// <param name="control">Control.</param>
+    /// <returns>The scroller and the control's top in its content, or <see langword="null"/> without one.</returns>
+    private static (ScrollViewer Scroller, double Top)? LaidOutTop(UIElement control)
+    {
+        double top = 0;
+        for (DependencyObject? node = control; node is not null; node = VisualTreeHelper.GetParent(node))
+        {
+            if (node is ScrollViewer { ScrollableHeight: > 0 } scroller) return (scroller, top);
+            if (node is UIElement element) top += element.ActualOffset.Y;
+        }
+        return null;
+    }
+
+    /// <summary>Writes where the opener was laid out and whether the list scrolled to it (<c>--perf-log</c> only).</summary>
+    /// <param name="shown">Laid-out top relative to the viewport.</param>
+    /// <param name="height">Opener height.</param>
+    /// <param name="viewport">Viewport height.</param>
+    /// <param name="offset">Offset scrolled to, or <see langword="null"/>.</param>
+    private static void TraceKeep(double shown, double height, double viewport, double? offset)
+    {
+        if (!PerfLog.Enabled) return;
+        PerfLog.Write(FormattableString.Invariant(
+            $"split-keep top={shown:F1} height={height:F1} viewport={viewport:F1} scrolled={(offset is null ? 0 : 1)} to={offset ?? -1:F1}"));
     }
 
     /// <summary>Whether an element sits inside a container.</summary>

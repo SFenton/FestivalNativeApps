@@ -404,5 +404,38 @@ public sealed class SongDetailLayoutTests
     [InlineData(double.NaN, 100, 500, false)]
     public void ReflowNear_IgnoresParkedContainers(double top, double height, double viewport, bool expected) =>
         Assert.Equal(expected, ReflowTiming.Near(top, height, viewport));
+
+    [Theory]
+    [InlineData(560, 40, 600, 0)]
+    [InlineData(0, 40, 600, 0)]
+    [InlineData(200, 40, 600, 400)]
+    [InlineData(560, 40, 600, 1000)]
+    public void ReflowRevealOffset_StaysWhileFullyShown(double shown, double height, double viewport, double offset) =>
+        Assert.Null(ReflowTiming.RevealOffset(shown + offset, height, viewport, offset));
+
+    [Fact]
+    public void ReflowRevealOffset_CentresAnOpenerTheReflowPushedBelowTheFold()
+    {
+        // #673: Song Detail's Drums View All laid out at 1321 epx after the split's reflow, 736 epx into a 622.7 epx
+        // viewport scrolled to 585, while its glide still drew it on screen at its old place.
+        var to = ReflowTiming.RevealOffset(1321, 40, 622.7, 585);
+        Assert.NotNull(to);
+        Assert.Equal(1029.65, to!.Value, 3);
+    }
+
+    [Theory]
+    [InlineData(100, 40, 600, 300, 0)]
+    [InlineData(570, 40, 600, 0, 290)]
+    [InlineData(-10, 40, 600, 0, 0)]
+    public void ReflowRevealOffset_CentresAPartlyOrFullyHiddenControl(double top, double height, double viewport, double offset, double expected) =>
+        Assert.Equal(expected, ReflowTiming.RevealOffset(top, height, viewport, offset));
+
+    [Theory]
+    [InlineData(double.NaN, 40, 600, 0)]
+    [InlineData(100, double.PositiveInfinity, 600, 0)]
+    [InlineData(100, 40, 0, 0)]
+    [InlineData(100, 40, double.NaN, 0)]
+    public void ReflowRevealOffset_IgnoresUnmeasuredLayouts(double top, double height, double viewport, double offset) =>
+        Assert.Null(ReflowTiming.RevealOffset(top, height, viewport, offset));
     #endregion
 }

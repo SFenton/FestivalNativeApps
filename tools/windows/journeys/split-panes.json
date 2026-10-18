@@ -101,6 +101,7 @@
       "waitfor:id=fst.song-detail.view-all.Solo_Drums@5",
       "assertapart:id=fst.song-detail|id=fst.split.pane",
       "wait:1",
+      "assertmiddle:id=fst.song-detail.view-all.Solo_Drums|id=fst.song-detail|4",
       "shot:{shots}/song-detail-split-wide.png",
       "key:alt+left",
       "waitgone:id=fst.split.pane@5",
