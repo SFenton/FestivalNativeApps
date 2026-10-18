@@ -38,6 +38,9 @@ public sealed partial class LeaderboardsPager : UserControl
     {
         InitializeComponent();
         foreach (var button in Buttons) button.IsEnabledChanged += (sender, _) => Dim((Button)sender);
+        // « and » drop at the compact width: their tooltips must not float where they were (#571).
+        CollapsedToolTip.CloseWhenCollapsed(FirstHost);
+        CollapsedToolTip.CloseWhenCollapsed(LastHost);
         // A contrast theme switched on or off while a board is open re-applies the dim rule (issue #242: code-set state does
         // not follow {ThemeResource}).
         Loaded += (_, _) =>
@@ -75,15 +78,42 @@ public sealed partial class LeaderboardsPager : UserControl
     /// <summary>The four buttons.</summary>
     private Button[] Buttons => [First, Previous, Next, Last];
 
-    /// <summary>Hides First/Last when the available width is below the full row (compact windows).</summary>
+    /// <summary>
+    /// Collapses First/Last when the available width is below the full row (compact windows) and restores them above it.
+    /// Once the pager is on screen the change waits for the layout pass (<see cref="ApplyCompact"/>): collapsing a focused
+    /// « inside measure made XAML move focus mid-layout, which intermittently failed fast natively while a split stacked
+    /// (#671).
+    /// </summary>
     /// <param name="availableSize">Width offered by the page.</param>
     /// <returns>Desired size.</returns>
     protected override Windows.Foundation.Size MeasureOverride(Windows.Foundation.Size availableSize)
     {
-        compact = availableSize.Width < FullWidth;
-        var visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        if (FirstHost.Visibility != visibility) FirstHost.Visibility = LastHost.Visibility = visibility;
+        var narrow = availableSize.Width < FullWidth;
+        if (!IsLoaded)
+        {
+            compact = narrow;
+            ApplyCompact();
+        }
+        else if (narrow != compact)
+        {
+            compact = narrow;
+            DispatcherQueue.TryEnqueue(ApplyCompact);
+        }
         return base.MeasureOverride(availableSize);
+    }
+
+    /// <summary>
+    /// Shows First/Last for the full row and collapses them for a compact one. A focused « or » first hands focus to a
+    /// remaining enabled arrow (the responsive-swap contract, <see cref="CollapsedToolTip.HandFocus"/>), so a keyboard
+    /// user stays in the pager.
+    /// </summary>
+    private void ApplyCompact()
+    {
+        var visibility = compact ? Visibility.Collapsed : Visibility.Visible;
+        if (FirstHost.Visibility == visibility) return;
+        if (compact && (CollapsedToolTip.HasFocusWithin(FirstHost) || CollapsedToolTip.HasFocusWithin(LastHost)))
+            CollapsedToolTip.HandFocus(this, () => Previous.IsEnabled ? Previous : Next.IsEnabled ? Next : null);
+        FirstHost.Visibility = LastHost.Visibility = visibility;
     }
 
     /// <summary>Wires commands, IDs and the page text to a new model.</summary>
