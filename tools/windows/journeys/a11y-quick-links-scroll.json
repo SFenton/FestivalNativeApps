@@ -41,7 +41,10 @@
       "assertorder:id=fst.song-detail.title|id=fst.song-detail.paths|id=fst.song-detail.shop|id=fst.quick-links.open",
       "assertsize:id=fst.quick-links.open|40x40",
       "focus:id=fst.quick-links.open",
-      "assertfocus:id=fst.quick-links.open@3"
+      "assertfocus:id=fst.quick-links.open@3",
+      "focus:id=fst.song-detail.paths",
+      "assertfocus:id=fst.song-detail.paths@3",
+      "waitgone:class=ToolTip@5"
     ],
     "skip_modes": [
       "text-225"
@@ -87,7 +90,10 @@
       "assertorder:id=fst.song-detail.title|id=fst.song-detail.paths|id=fst.song-detail.shop|id=fst.quick-links.open",
       "assertsize:id=fst.quick-links.open|40x40",
       "focus:id=fst.quick-links.open",
-      "assertfocus:id=fst.quick-links.open@3"
+      "assertfocus:id=fst.quick-links.open@3",
+      "focus:id=fst.song-detail.paths",
+      "assertfocus:id=fst.song-detail.paths@3",
+      "waitgone:class=ToolTip@5"
     ],
     "modes": [
       "text-225"
