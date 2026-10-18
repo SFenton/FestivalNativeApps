@@ -137,7 +137,8 @@ public sealed partial class MainWindow
         if (shortcut.ToolTip is not null) Show(shortcut.Section);
     }
 
-    /// <summary>Applies tooltips, accelerator names and access keys to the current pane items (after each rebuild).</summary>
+    /// <summary>Applies tooltips, accelerator names and access keys to the visible pane items (after each sync); collapsed
+    /// items drop theirs so pane positions stay contiguous.</summary>
     private void ApplySectionShortcuts()
     {
         var items = Nav.MenuItems.OfType<NavigationViewItem>().ToList();
@@ -147,10 +148,16 @@ public sealed partial class MainWindow
         {
             if (item.Tag is not AppSection section) continue;
             var shortcut = shortcuts.FirstOrDefault(s => s.Section == section);
-            if (shortcut.ToolTip is null) continue;
+            if (shortcut.ToolTip is null)
+            {
+                item.ClearValue(ToolTipService.ToolTipProperty);
+                item.ClearValue(AutomationProperties.AcceleratorKeyProperty);
+                item.AccessKey = string.Empty;
+                continue;
+            }
             ToolTipService.SetToolTip(item, shortcut.ToolTip);
             AutomationProperties.SetAcceleratorKey(item, shortcut.Digit is { } d ? $"Control+{d}" : "Control+Comma");
-            if (item.AccessKey.Length == 0)
+            if (accessKeyItems.Add(item))
             {
                 item.AccessKeyInvoked += (_, e) =>
                 {
@@ -161,5 +168,8 @@ public sealed partial class MainWindow
             item.AccessKey = shortcut.AccessKey;
         }
     }
+
+    /// <summary>Pane items whose access-key handler is attached (items persist across syncs).</summary>
+    private readonly HashSet<NavigationViewItem> accessKeyItems = [];
 }
 #endregion

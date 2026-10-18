@@ -28,5 +28,31 @@
     "ready": ["waitfor:id=fst.songs.row.fixture-pulse@20"],
     "after_ready": ["key:esc", "wait:0.5", "invoke:id=PART_PaneToggleButton", "waitfor:id=fst.nav.statistics@5"],
     "teardown": ["key:esc", "wait:0.5"]
+  },
+  {
+    "name": "nav-player-deselected",
+    "note": "Issue #672: deselecting the player collapses Suggestions, Statistics and Rivals in the pane (the items are never removed: a removed NavigationViewItem crashed XAML natively on the next narrow to the icon rail). Narrowing right after keeps the app alive; the rail reads Songs, Leaderboards, Item Shop in order, and Ctrl+2 now opens Leaderboards.",
+    "tab": "statistics",
+    "profile": "fixture-player-1:Demo Player",
+    "sizes": ["medium"],
+    "ready": ["waitfor:id=fst.player.name@20"],
+    "after_ready": [
+      "resize:wide",
+      "wait:1.0",
+      "key:ctrl+shift+p",
+      "waitfor:id=fst.profile.deselect@5",
+      "invoke:id=fst.profile.deselect",
+      "waitfor:id=PrimaryButton@10",
+      "invoke:id=PrimaryButton",
+      "waitgone:id=PrimaryButton@5",
+      "waitgone:id=fst.nav.statistics@5",
+      "waitgone:id=fst.nav.suggestions@5",
+      "waitgone:id=fst.nav.rivals@5",
+      "resize:medium",
+      "wait:1.0",
+      "assertorder:id=fst.nav.songs|id=fst.nav.leaderboards|id=fst.nav.shop|id=fst.nav.settings",
+      "key:ctrl+2",
+      "assertstate:id=fst.nav.leaderboards|selected=true@5"
+    ]
   }
 ]

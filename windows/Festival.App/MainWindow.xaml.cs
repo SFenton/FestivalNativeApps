@@ -66,8 +66,8 @@ public sealed partial class MainWindow : Window
             ApplySectionShortcuts();
             SelectNavItem(current);
         };
-        RebuildMenu();
-        Shell.Sections.CollectionChanged += (_, _) => RebuildMenu();
+        SyncMenu();
+        Shell.Sections.CollectionChanged += (_, _) => SyncMenu();
         session.PropertyChanged += OnSessionChanged;
         session.FeatureStateReset += (_, files) => DropCachedSections(files.Select(f => f.Owner).OfType<AppSection>());
 
@@ -372,13 +372,25 @@ public sealed partial class MainWindow : Window
         if (args.DisplayMode == NavigationViewDisplayMode.Expanded) sender.IsPaneOpen = !expandedPaneCollapsed;
     }
 
-    /// <summary>Rebuilds pane items from the visible sections (Settings is the footer item).</summary>
-    private void RebuildMenu()
+    /// <summary>
+    /// Shows the pane items of the visible sections (Settings is the footer item). The items for every pane section
+    /// are created once and only collapsed, never removed: a removed <see cref="NavigationViewItem"/> keeps its SplitView
+    /// DisplayMode callback, and the next adaptive display-mode change (narrowing to Compact) can drive a visual state
+    /// on it after reference tracking disconnects it, which fails natively and ends the process
+    /// (microsoft/microsoft-ui-xaml#10757; issue #672).
+    /// </summary>
+    private void SyncMenu()
     {
-        Nav.MenuItems.Clear();
-        foreach (var section in Shell.Sections.Where(s => s != AppSection.Settings))
+        if (Nav.MenuItems.Count == 0)
         {
-            Nav.MenuItems.Add(Configure(new NavigationViewItem { Content = section.Label(), Icon = new FontIcon { Glyph = Glyph(section) } }, section));
+            foreach (var section in AppSections.Visible(hasPlayer: true).Where(s => s != AppSection.Settings))
+            {
+                Nav.MenuItems.Add(Configure(new NavigationViewItem { Content = section.Label(), Icon = new FontIcon { Glyph = Glyph(section) } }, section));
+            }
+        }
+        foreach (var item in Nav.MenuItems.OfType<NavigationViewItem>())
+        {
+            item.Visibility = item.Tag is AppSection s && Shell.Sections.Contains(s) ? Visibility.Visible : Visibility.Collapsed;
         }
         ApplySectionShortcuts();
         if (!Shell.Sections.Contains(current)) Show(AppSection.Songs);
