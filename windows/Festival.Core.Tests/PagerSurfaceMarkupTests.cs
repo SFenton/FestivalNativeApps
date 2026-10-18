@@ -68,6 +68,25 @@ public class PagerSurfaceMarkupTests
     }
 
     [Fact]
+    public void CompactPager_NeverCollapsesAFocusedEdgeButtonInsideMeasure()
+    {
+        // #671: collapsing a focused « inside MeasureOverride made XAML move focus mid-layout, which intermittently failed
+        // fast natively (0xc000027b) as a split stacked after a player reload. That collapse waits for the layout pass and
+        // hands focus to a remaining button first.
+        var code = File.ReadAllText(Path.Combine(AppRoot, "Controls", "LeaderboardsPager.xaml.cs"));
+        var measure = code[code.IndexOf("MeasureOverride(Windows.Foundation.Size availableSize)", StringComparison.Ordinal)..];
+        measure = measure[..measure.IndexOf("return base.MeasureOverride", StringComparison.Ordinal)];
+        Assert.Contains("if (!IsLoaded)", measure);
+        Assert.Contains("DispatcherQueue.TryEnqueue(ApplyCompact);", measure);
+        Assert.DoesNotContain("Visibility =", measure);
+        // The responsive-swap contract (#571): « and » close their tooltips when collapsed and hand focus on.
+        Assert.Contains("CollapsedToolTip.CloseWhenCollapsed(FirstHost);", code);
+        Assert.Contains("CollapsedToolTip.CloseWhenCollapsed(LastHost);", code);
+        Assert.Contains("CollapsedToolTip.HasFocusWithin(FirstHost) || CollapsedToolTip.HasFocusWithin(LastHost)", code);
+        Assert.Contains("CollapsedToolTip.HandFocus(this,", code);
+    }
+
+    [Fact]
     public void PagerButtons_DrawOnTheRowCardSurface()
     {
         var doc = Load(Path.Combine("Controls", "LeaderboardsPager.xaml"));
