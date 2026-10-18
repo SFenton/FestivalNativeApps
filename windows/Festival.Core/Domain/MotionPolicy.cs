@@ -740,6 +740,25 @@ public static class ReflowTiming
     public static bool Near(double top, double height, double viewport) =>
         double.IsFinite(top) && top < 2 * viewport && top + height > -viewport;
 
+    /// <summary>
+    /// Where a scroller must scroll so a control a reflow moved shows again (back-keeps-place R6, #673): nowhere while
+    /// it is fully inside the viewport, else centred (so a page's pinned header never covers it). Positions are the
+    /// control's laid-out place, never where a running glide draws it: a card gliding from its old place reads as still
+    /// on screen while its laid-out place is below the fold.
+    /// </summary>
+    /// <param name="top">The control's laid-out top in the scroller's content.</param>
+    /// <param name="height">The control's height.</param>
+    /// <param name="viewport">The scroller's viewport height.</param>
+    /// <param name="offset">The scroller's vertical offset now.</param>
+    /// <returns>The vertical offset to scroll to (at least 0), or <see langword="null"/> to stay.</returns>
+    public static double? RevealOffset(double top, double height, double viewport, double offset)
+    {
+        if (!double.IsFinite(top) || !double.IsFinite(height) || !double.IsFinite(viewport) || viewport <= 0) return null;
+        var shown = top - offset;
+        if (shown >= 0 && shown + height <= viewport) return null;
+        return Math.Max(0, top - (viewport - height) / 2);
+    }
+
     /// <summary>One coordinate of a cubic Bezier from 0 to 1.</summary>
     /// <param name="u">Curve parameter.</param>
     /// <param name="p1">First control point coordinate.</param>

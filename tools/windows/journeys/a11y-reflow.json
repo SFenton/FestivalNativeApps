@@ -47,6 +47,46 @@
     ]
   },
   {
+    "name": "reflow-split-song-detail",
+    "route": "/songs/fixture-pulse",
+    "scan": true,
+    "tabs": 0,
+    "sizes": [
+      "wide"
+    ],
+    "skip_modes": [
+      "text-150",
+      "text-200",
+      "text-225"
+    ],
+    "reflow_trace": {
+      "split": 2
+    },
+    "note": "Issue #673 (back-keeps-place R6, pattern reflow-motion): opening the Drums board beside Song Detail reflows its cards from two columns to one, which lays the Drums View All button out below the fold while its card still glides from its old, on-screen place. The split keeps the opener by its laid-out place, so once the glide ends it is one on-screen element centred in the list, read before Close and the pane; Back returns focus to it and it stays on screen. Instant in app-reduced and no-animations (reflow_trace).",
+    "ready": [
+      "waitfor:id=fst.song-detail.title@20",
+      "wait:1"
+    ],
+    "after_ready": [
+      "scrollinto:id=fst.song-detail.view-all.Solo_Drums@15",
+      "focus:id=fst.song-detail.view-all.Solo_Drums",
+      "key:space",
+      "waitfor:id=fst.split.pane@10",
+      "waitfor:id=fst.song-leaderboard.board-title@20",
+      "waitfor:id=fst.song-detail.view-all.Solo_Drums@5",
+      "wait:1",
+      "assertmiddle:id=fst.song-detail.view-all.Solo_Drums|id=fst.song-detail|4",
+      "assertname:id=fst.song-detail.view-all.Solo_Drums|View Full Leaderboard, *",
+      "assertorder:id=fst.song-detail.view-all.Solo_Drums|id=fst.split.close",
+      "assertorder:id=fst.split.close|id=fst.split.pane",
+      "key:alt+left",
+      "assertfocus:id=fst.song-detail.view-all.Solo_Drums@3",
+      "waitgone:id=fst.split.pane@5",
+      "waitfor:id=fst.song-detail.view-all.Solo_Drums@5",
+      "wait:1"
+    ]
+  },
+  {
     "name": "reflow-suggestions-resize",
     "route": "/suggestions",
     "profile": "fixture-suggest:Fixture Player",
