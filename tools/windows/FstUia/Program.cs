@@ -1540,9 +1540,9 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 var found = InView(raw, () => window.FindFirstDescendant(condition));
                 if (found is not null && (!onScreen || !found.Properties.IsOffscreen.ValueOrDefault)) return found;
             }
-            // A busy app (e.g. restoring a page after Back on a slow runner) can time out one UIA call or drop an
-            // element mid-search; search again within the step's timeout, at least once (#552), and still fail if
-            // it persists.
+            // A busy app (e.g. restoring a page after Back on a slow runner) can time out one UIA call, drop an
+            // element mid-search or answer E_UNEXPECTED while its provider rebuilds after a navigation (#674); search
+            // again within the step's timeout, at least once (#552), and still fail if it persists.
             catch (Exception error) when (IsTransientUia(error) && (!retried || DateTime.UtcNow <= until))
             {
                 retried = true;
@@ -1557,16 +1557,24 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// <summary>HRESULT of a UIA call that timed out (<c>UIA_E_TIMEOUT</c>, the same value as <c>COR_E_TIMEOUT</c>).</summary>
     internal const int UiaTimeoutHResult = unchecked((int)0x80131505);
 
+    /// <summary>
+    /// HRESULT of a UIA search that met the WinUI provider mid-rebuild (<c>E_UNEXPECTED</c>, "Catastrophic failure"):
+    /// WinUI's window provider returns it while it is not initialized (<c>CUIAWindow::GetRuntimeId</c>), and
+    /// <c>FindFirst</c> right after a page navigation got it once (#674).
+    /// </summary>
+    internal const int UiaUnexpectedHResult = unchecked((int)0x8000FFFF);
+
     /// <summary>Whether a UI Automation error is a passing provider state worth searching again for.</summary>
     /// <param name="error">The error a UIA call threw.</param>
     /// <returns>
     /// True for a UIA call timeout (<c>UIA_E_TIMEOUT</c>, 0x80131505), whether .NET mapped it to a
     /// <see cref="TimeoutException"/> or FlaUI's <c>FindAll</c> let it through as a raw <see cref="COMException"/>
-    /// (#622), or for an element that went away. Any other <see cref="COMException"/> is not transient.
+    /// (#622), for a provider caught mid-rebuild (<c>E_UNEXPECTED</c>, 0x8000FFFF, #674), or for an element that went
+    /// away. Any other <see cref="COMException"/> is not transient.
     /// </returns>
     internal static bool IsTransientUia(Exception error) =>
         error is TimeoutException or FlaUI.Core.Exceptions.ElementNotAvailableException
-            or COMException { HResult: UiaTimeoutHResult };
+            or COMException { HResult: UiaTimeoutHResult or UiaUnexpectedHResult };
 
     /// <summary>
     /// Offline check of <see cref="IsTransientUia"/> for a synthetic error (the <c>transient</c> command), so tests can
