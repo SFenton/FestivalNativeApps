@@ -42,6 +42,7 @@ final class GroupedCardAccessibilityJourneyTests: XCTestCase {
         continueAfterFailure = false
         let standard = try launchLeaderboards(size: nil)
         let standardRows = try revealRows(in: standard)
+        diagnose(standard, rows: standardRows, tag: "default", tap: false)
         let standardHeights = standardRows.map(\.frame.height)
         standard.terminate()
 
@@ -49,6 +50,7 @@ final class GroupedCardAccessibilityJourneyTests: XCTestCase {
         let rows = try revealRows(in: app)
         let window = app.windows.firstMatch.frame
         record(app, name: "grouped-leaderboards-card-ax5")
+        diagnose(app, rows: rows, tag: "ax5", tap: true)
 
         // Names, roles and state: one button per row, the selected one said in words.
         for row in rows {
@@ -160,6 +162,49 @@ final class GroupedCardAccessibilityJourneyTests: XCTestCase {
         // Let the card's fade-in finish.
         sleep(UInt32(FestivalApp.budget(1)))
         return rows
+    }
+
+    // TEMP diag #675: hittability timeline, elements under the row's centre, tree, tap probe.
+    @MainActor
+    private func diagnose(_ app: XCUIApplication, rows: [XCUIElement], tag: String, tap: Bool) {
+        func note(_ text: String) {
+            let attachment = XCTAttachment(string: text)
+            attachment.name = "diag-\(tag)-\(text.prefix(24))"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            print("DIAG675 [\(tag)] \(text.prefix(4000))")
+        }
+        var timeline: [String] = []
+        let started = Date()
+        for _ in 0..<10 {
+            let t0 = Date()
+            let hittable = rows.map(\.isHittable)
+            let cost = Date().timeIntervalSince(t0)
+            timeline.append(String(format: "t=%.1f hittable=%@ cost=%.2fs frame0=%@", Date().timeIntervalSince(started),
+                                   "\(hittable)", cost, "\(rows[0].frame)"))
+            if hittable.allSatisfy({ $0 }) { break }
+            Thread.sleep(forTimeInterval: 4)
+        }
+        note("timeline\n" + timeline.joined(separator: "\n"))
+        let point = CGPoint(x: rows[0].frame.midX, y: rows[0].frame.midY)
+        if let snapshot = try? app.snapshot() {
+            var lines: [String] = []
+            func walk(_ node: XCUIElementSnapshot, depth: Int) {
+                if node.frame.contains(point) {
+                    lines.append("\(String(repeating: "  ", count: depth))type=\(node.elementType.rawValue) id='\(node.identifier)' label='\(node.label.prefix(60))' frame=\(node.frame) enabled=\(node.isEnabled)")
+                }
+                for child in node.children { walk(child, depth: depth + 1) }
+            }
+            walk(snapshot, depth: 0)
+            note("under \(point)\n" + lines.joined(separator: "\n"))
+        }
+        note("tree\n" + app.debugDescription)
+        guard tap, !rows[0].isHittable else { return }
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y)).tap()
+        Thread.sleep(forTimeInterval: 8)
+        let bars = app.navigationBars.allElementsBoundByIndex.map(\.identifier)
+        note("after tap: leaderboards bar \(app.navigationBars["Leaderboards"].exists), bars \(bars), row exists \(rows[0].exists)")
+        record(app, name: "diag-after-tap")
     }
 
     /// Keep a screenshot with the test result.

@@ -1,0 +1,52 @@
+name: diag-675
+# TEMPORARY diagnostic for #675 (reverted before the fix lands): why the Leaderboards Lead card's first row is not
+# hittable on the hosted xcode-27 iPad (GroupedCardAccessibilityJourneyTests at AX5).
+on:
+  push:
+    branches: [report/675]
+    paths: ['.github/workflows/diag-675.yml']
+permissions:
+  contents: read
+env:
+  DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+jobs:
+  ipad:
+    runs-on: xcode-27
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        pass: [1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain
+        run: |
+          sudo ln -sfn /Applications/Xcode_27.1.app /Applications/Xcode.app
+          sudo xcode-select -s /Applications/Xcode.app
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+      - name: Generate
+        working-directory: apple
+        run: xcodegen generate -q
+      - name: GroupedCard on the CI iPad (apple-ci command, with test diagnostics)
+        run: |
+          python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock.log" 2>&1 &
+          device=$(python3 tools/ios_sim.py ci-device --type "iPad Pro 11-inch (M5)")
+          for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock.log" && break; sleep 1; done
+          export FST_UITEST_KEEP_RESULTS=1
+          python3 tools/ios_sim.py uitest --device "$device" --app phone --batch-size 1 --fail-on-skip --retries 1 \
+            --timeout 1500 --only GroupedCardAccessibilityJourneyTests/testLeaderboardsGroupedCardIsReadableAtAX5
+      - name: Collect
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/out"
+          cp /var/folders/*/*/T/fst-uitest-log-*.txt "$RUNNER_TEMP/out/" 2>/dev/null || true
+          for r in apple/DerivedData/lane-driver/Results/*.xcresult; do
+            [ -d "$r" ] && xcrun xcresulttool export attachments --path "$r" --output-path "$RUNNER_TEMP/out/$(basename "$r")-att" || true
+            [ -d "$r" ] && xcrun xcresulttool get test-results tests --path "$r" > "$RUNNER_TEMP/out/$(basename "$r").tests.json" || true
+            [ -d "$r" ] && xcrun xcresulttool export diagnostics --path "$r" --output-path "$RUNNER_TEMP/out/$(basename "$r")-diag" || true
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diag-675-ipad-${{ matrix.pass }}
+          path: ${{ runner.temp }}/out
