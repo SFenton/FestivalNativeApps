@@ -48,8 +48,19 @@ struct AccountRankingRow: View {
     /// Wrap the row in its profile link. Off for a board's pinned footer, whose caller
     /// wraps the row in the selected-row action instead (``SelectedRowAction``, #318).
     var opensProfile: Bool = true
+    /// The section's columns and text size, for the link's hidden-songs value (#38, #675).
+    @Environment(\.leaderboardRowColumns) private var columns
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var displayName: String { Self.displayName(entry) }
+
+    /// Songs played/total as the row draws them.
+    private var songs: String { entry.songsLabel(for: metric) }
+
+    /// Songs played/total as VoiceOver reads them.
+    private var spokenSongs: String {
+        RankingsCountText.spokenSongs(songs, fullCombos: metric == .fcrate)
+    }
 
     /// The name a row shows for `entry` ("Unknown User" without one).
     ///
@@ -94,6 +105,10 @@ struct AccountRankingRow: View {
                     rowContent
                 }
                 .buttonStyle(.plain)
+                .modifier(HiddenSongsAccessibility(
+                    spokenSongs: RankingRowLayout.hidesSongs(columns: columns, dynamicTypeSize: dynamicTypeSize)
+                        ? spokenSongs : nil
+                ))
                 #if os(macOS)
                 .contextMenu {
                     MacPlayerRowMenu(accountId: entry.accountId, displayName: entry.displayName)
@@ -115,16 +130,17 @@ struct AccountRankingRow: View {
 
     /// The rank, name, songs and rating columns shared by linked and anonymous rows.
     private var rowContent: some View {
-        let songs = entry.songsLabel(for: metric)
-        return RankingRowLayout(
+        RankingRowLayout(
             rank: entry.rank(for: metric),
             name: displayName,
             songs: songs,
-            spokenSongs: RankingsCountText.spokenSongs(songs, fullCombos: metric == .fcrate),
+            spokenSongs: spokenSongs,
             rating: RankingFormatting.rating(entry.ratingValue(for: metric), metric: metric),
             bayesian: entry.bayesianValue(for: metric).map(RankingFormatting.bayesian),
             emphasized: isSelected,
-            showsChevron: entry.hasAccount
+            showsChevron: entry.hasAccount,
+            // The profile link's button already makes the row one element (#675).
+            combinesAccessibility: !(opensProfile && entry.hasAccount)
         )
         .modifier(RankingRowSurface(isSelected: isSelected, card: cardSurface))
     }
@@ -160,6 +176,12 @@ struct RankingRowLayout: View {
     var emphasized: Bool = false
     /// A trailing in-card chevron on rows that open something (operator batch 7.12).
     var showsChevron: Bool = false
+    /// Combine the columns into one VoiceOver element. Off when a link's button wraps the
+    /// row: the button already reads its label as one element, and a second combined
+    /// element nested inside it surfaces under the iPad's Open in New Window context
+    /// menu, where XCUITest's hit test lands on it and reports the row unhittable
+    /// (#675).
+    var combinesAccessibility: Bool = true
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// The section's shared rank/rating widths (web `computeRankWidth`, issue #37).
     @Environment(\.leaderboardRowColumns) private var columns
@@ -224,12 +246,25 @@ struct RankingRowLayout: View {
         // The web's 48 pt `entryRow`, like every other leaderboard row (issue #90).
         .frame(minHeight: LeaderboardRowMetrics.minHeight)
         .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
-        .modifier(HiddenSongsAccessibility(spokenSongs: hidesSongs ? spokenSongs : nil))
+        .modifier(CombinedRowAccessibility(isOn: combinesAccessibility))
+        // Without the combined element, the wrapping button carries the value instead.
+        .modifier(HiddenSongsAccessibility(
+            spokenSongs: combinesAccessibility && hidesSongs ? spokenSongs : nil
+        ))
     }
 
     /// The section hid the songs column (#38); stacked accessibility-size rows keep it.
     private var hidesSongs: Bool {
+        Self.hidesSongs(columns: columns, dynamicTypeSize: dynamicTypeSize)
+    }
+
+    /// Whether a row in this section hides its songs column (#38).
+    ///
+    /// - Parameters:
+    ///   - columns: The section's shared columns, if any.
+    ///   - dynamicTypeSize: The row's text size; stacked accessibility-size rows keep songs.
+    /// - Returns: True when the songs column is hidden and VoiceOver reads it as the value.
+    static func hidesSongs(columns: LeaderboardRowColumns?, dynamicTypeSize: DynamicTypeSize) -> Bool {
         columns?.showsSongs == false && !dynamicTypeSize.isAccessibilitySize
     }
 
@@ -398,8 +433,24 @@ struct LeaderboardNameText: View {
 
 // MARK: - Songs column fitting (#38)
 
-/// Keeps a hidden songs played/total value in the row's combined VoiceOver element.
-private struct HiddenSongsAccessibility: ViewModifier {
+/// Combines a row's columns into one VoiceOver element unless a wrapping button already
+/// does (``RankingRowLayout/combinesAccessibility``).
+private struct CombinedRowAccessibility: ViewModifier {
+    /// Whether to combine.
+    let isOn: Bool
+
+    func body(content: Content) -> some View {
+        if isOn {
+            content.accessibilityElement(children: .combine)
+        } else {
+            content
+        }
+    }
+}
+
+/// Keeps a hidden songs played/total value in the row's VoiceOver element: the combined
+/// row, or the profile link's button that wraps an uncombined row.
+struct HiddenSongsAccessibility: ViewModifier {
     /// The spoken songs value when the column is hidden, else nil.
     let spokenSongs: String?
 
