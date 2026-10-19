@@ -1,6 +1,6 @@
 name: diag-675
 # TEMPORARY diagnostic for #675 (reverted before the fix lands): why the Leaderboards Lead card's first row is not
-# hittable on the hosted xcode-27 iPad (GroupedCardAccessibilityJourneyTests at AX5). v2: the apple-ci iPad sequence first.
+# hittable on the hosted xcode-27 iPad (GroupedCardAccessibilityJourneyTests at AX5). v3: GroupedCard after each plain-fixture journey (bisect); reboot between the steps.
 on:
   push:
     branches: [report/675]
@@ -16,7 +16,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [full, journeys]
+        variant: [probe, reboot]
+    env:
+      PLAIN: >-
+        ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5
+        ScoreHistoryAccessibilityJourneyTests/testScoreHistorySplitPaneAtAX5
+        SongBoardSplitAccessibilityJourneyTests/testSongBoardSplitTitleAtAX5
+        SongBandBoardSplitAccessibilityJourneyTests/testSongBandBoardSplitLinkAtAX5
+        SongDetailCardRowAccessibilityJourneyTests/testInstrumentCardRowAtAX5
+        IPadShellAccessibilityTests/testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5
+        IPadMenuBarJourneyTests/testMenuBarPageToolsAreListedAndDisabledWithoutPageTools
+        IPadMenuBarJourneyTests/testItemShopLayoutItemsSwitchThePage
+        IPadMenuBarJourneyTests/testBandSizeItemsSwitchTheBoard
+        IPadMenuBarJourneyTests/testSelectThisProfileSelectsTheShownPlayer
+        IPadMenuBarJourneyTests/testViewRivalsProfileOpensTheRival
+        IPadMenuBarJourneyTests/testSuggestionsFilterOpensThePageFilter
     steps:
       - uses: actions/checkout@v4
       - name: Toolchain
@@ -27,80 +41,35 @@ jobs:
       - name: Generate
         working-directory: apple
         run: xcodegen generate -q
-      - name: Plain-fixture journeys, iPad (apple-ci step)
-        if: matrix.variant == 'full'
-        env:
-          HISTORY_IPAD_JOURNEYS: >-
-            ScoreHistoryAccessibilityJourneyTests/testScoreHistoryPageAtAX5
-            ScoreHistoryAccessibilityJourneyTests/testScoreHistorySplitPaneAtAX5
-            SongBoardSplitAccessibilityJourneyTests/testSongBoardSplitTitleAtAX5
-            SongBandBoardSplitAccessibilityJourneyTests/testSongBandBoardSplitLinkAtAX5
-            SongDetailCardRowAccessibilityJourneyTests/testInstrumentCardRowAtAX5
-            IPadShellAccessibilityTests/testSplitBandStaysOutOfTheTreeUnderIncreaseContrastAtAX5
-          MENU_BAR_IPAD_JOURNEYS: >-
-            IPadMenuBarJourneyTests/testMenuBarPageToolsAreListedAndDisabledWithoutPageTools
-            IPadMenuBarJourneyTests/testItemShopLayoutItemsSwitchThePage
-            IPadMenuBarJourneyTests/testBandSizeItemsSwitchTheBoard
-            IPadMenuBarJourneyTests/testSelectThisProfileSelectsTheShownPlayer
-            IPadMenuBarJourneyTests/testViewRivalsProfileOpensTheRival
-            IPadMenuBarJourneyTests/testSuggestionsFilterOpensThePageFilter
+      - name: Plain-fixture journeys, iPad
         run: |
           log="$RUNNER_TEMP/mock_service_history.log"
           python3 tools/mock_service.py --port 0 > "$log" 2>&1 &
-          mock=$!
-          trap 'kill "$mock" 2>/dev/null || true' EXIT
           for _ in $(seq 60); do grep -q "fixture service on" "$log" && break; sleep 1; done
           port=$(sed -n 's/.*fixture service on 127\.0\.0\.1:\([0-9]*\).*/\1/p' "$log" | head -n 1)
           export TEST_RUNNER_FST_FIXTURE_URL="http://127.0.0.1:$port"
           ipad=$(python3 tools/ios_sim.py ci-device --type "iPad Pro 11-inch (M5)")
-          only=(); for journey in $HISTORY_IPAD_JOURNEYS; do only+=(--only "$journey"); done
-          python3 tools/ios_sim.py uitest --app ipad --device "$ipad" --fail-on-skip --retries 1 --timeout 1500 \
-            --no-test-diagnostics "${only[@]}" || true
-          only=(); for journey in $MENU_BAR_IPAD_JOURNEYS; do only+=(--only "$journey"); done
-          python3 tools/ios_sim.py uitest --app ipad --device "$ipad" --fail-on-skip --retries 1 --timeout 1500 --batch-size 1 \
-            --no-test-diagnostics "${only[@]}" || true
-      - name: iPad simulator journeys (apple-ci list), then GroupedCard with diagnostics
-        env:
-          JOURNEYS: >-
-            DuoSplitBandAccessibilityJourneyTests/testFlatMidpointBandIsAccessibleAtAX5WithMoreContrastDuoUnfolded
-            DuoSplitBandAccessibilityJourneyTests/testBookHingeBandIsAccessibleAtAX5WithMoreContrastDuoBook
-            WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Portrait
-            WhatsNewAccessibilityJourneyTests/testWhatsNewIsReadableAtAX5Landscape
-            BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestText
-            BoardFooterFadeJourneyTests/testBoardFooterFadeAtLargestTextLandscape
-            SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestText
-            SongLeaderboardEndJourneyTests/testLastRowRestsAboveFooterAtLargestTextLandscape
-            WideBoardColumnsJourneyTests/testFullRankingsTwoColumnsAreAccessibleAtLargestText
-            WideBoardColumnsJourneyTests/testBandRankingsTwoColumnsAreAccessibleAtLargestText
-            SongDetailBandColumnsJourneyTests/testBandPreviewColumnsAreAccessibleAtLargestText
-            InCardViewAllAccessibilityJourneyTests/testLeaderboardsViewAllRankingsIsReadableAtAX5
-            InCardViewAllAccessibilityJourneyTests/testRivalDetailCategoryViewAllIsReadableAtAX5
-            InCardViewAllAccessibilityJourneyTests/testSongPreviewViewFullLeaderboardIsReadableAtAX5
-            InCardViewAllAccessibilityJourneyTests/testScoreHistoryViewAllScoresIsReadableAtAX5
-            FeedbackSentJourneyTests/testFiledReportClosesFormThenShowsSentAlert
-            FeedbackSentJourneyTests/testFiledRequestClosesFormThenShowsSentAlert
-            FeedbackSentJourneyTests/testRefusedOrFailedReportKeepsForm
-            FeedbackSentJourneyTests/testSubmitSwapsFormForCentredSendingStatus
-            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGestures
-            PathsDismissAccessibilityJourneyTests/testPathsCloseAndZoomWithoutGesturesAtAX5
-            PathsKaraokeNoticeAccessibilityJourneyTests/testNoticeWaitsForTheHeldPath
-            PathsKaraokeNoticeAccessibilityJourneyTests/testNoticeWaitsForTheHeldPathAtAX5
-            PathsKaraokeNoticeAccessibilityJourneyTests/testNoticeWaitsForEveryPaneDuoBook
-            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterField
-            PageToolsSearchFieldJourneyTests/testSongsToolsSitApartFromTheFilterFieldAtAX5
-            PageToolsSearchFieldJourneyTests/testLeaderboardsQuickLinksIsOneIconButton
-            SongsChromeJourneyTests/testSectionJumpIsAccessibleAtLargestText
-            NotificationsPinnedTitleJourneyTests/testPinnedTitleAndRowsAtLargestText
-            QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRow
-            QuickLinksIconAccessibilityJourneyTests/testMenuInstrumentIconMatchesSymbolRowAtAX5
-            GlobalSearchAccessibilityJourneyTests/testSearchTitleStaysReadableAtAX5
-        run: |
           python3 tools/mock_service.py --large-catalogue > "$RUNNER_TEMP/mock.log" 2>&1 &
+          probe() {
+            [ "${{ matrix.variant }}" = probe ] || return 0
+            if python3 tools/ios_sim.py uitest --device "$ipad" --app phone --timeout 1500 --no-test-diagnostics \
+              --only GroupedCardAccessibilityJourneyTests/testLeaderboardsGroupedCardIsReadableAtAX5; then
+              echo "BISECT $1: PASS" | tee -a "$RUNNER_TEMP/bisect.txt"
+            else
+              echo "BISECT $1: FAIL" | tee -a "$RUNNER_TEMP/bisect.txt"
+            fi
+          }
+          probe start
+          for journey in $PLAIN; do
+            python3 tools/ios_sim.py uitest --app ipad --device "$ipad" --fail-on-skip --retries 1 --timeout 1500 \
+              --batch-size 1 --no-test-diagnostics --only "$journey" || true
+            probe "after-${journey#*/}"
+          done
+          if [ "${{ matrix.variant }}" = reboot ]; then python3 tools/ios_sim.py shutdown --device "$ipad"; fi
+      - name: GroupedCard (phone bundle) with diagnostics
+        run: |
           device=$(python3 tools/ios_sim.py ci-device --type "iPad Pro 11-inch (M5)")
           for _ in $(seq 60); do grep -q "fixture service on" "$RUNNER_TEMP/mock.log" && break; sleep 1; done
-          only=(); for journey in $JOURNEYS; do only+=(--only "$journey"); done
-          python3 tools/ios_sim.py uitest --device "$device" --app phone --batch-size 1 --fail-on-skip --retries 1 --timeout 1500 \
-            --no-test-diagnostics "${only[@]}" || true
           export FST_UITEST_KEEP_RESULTS=1
           python3 tools/ios_sim.py uitest --device "$device" --app phone --batch-size 1 --fail-on-skip --retries 1 \
             --timeout 1500 --only GroupedCardAccessibilityJourneyTests/testLeaderboardsGroupedCardIsReadableAtAX5
@@ -108,9 +77,11 @@ jobs:
         if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/out"
-          for r in apple/DerivedData/lane-driver/Results/*.xcresult; do
-            [ -d "$r" ] && xcrun xcresulttool export attachments --path "$r" --output-path "$RUNNER_TEMP/out/$(basename "$r")-att" || true
-            [ -d "$r" ] && xcrun xcresulttool get test-results tests --path "$r" > "$RUNNER_TEMP/out/$(basename "$r").tests.json" || true
+          cp "$RUNNER_TEMP/bisect.txt" "$RUNNER_TEMP/out/" 2>/dev/null || true
+          for r in apple/DerivedData/*/Results/*.xcresult; do
+            b="$(basename "$(dirname "$(dirname "$r")")")-$(basename "$r")"
+            [ -d "$r" ] && xcrun xcresulttool export attachments --path "$r" --output-path "$RUNNER_TEMP/out/$b-att" || true
+            [ -d "$r" ] && xcrun xcresulttool get test-results tests --path "$r" > "$RUNNER_TEMP/out/$b.tests.json" || true
           done
       - uses: actions/upload-artifact@v4
         if: always()

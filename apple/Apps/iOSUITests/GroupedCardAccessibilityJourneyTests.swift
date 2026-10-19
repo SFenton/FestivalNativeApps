@@ -199,8 +199,8 @@ final class GroupedCardAccessibilityJourneyTests: XCTestCase {
             note("under \(point)\n" + lines.joined(separator: "\n"))
         }
         note("tree\n" + app.debugDescription)
-        guard !rows[0].isHittable else { return }
         note("springboard\n" + XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription)
+        guard !rows[0].isHittable else { return }
         let screen = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         screen.name = "diag-\(tag)-screen"
         screen.lifetime = .keepAlways
