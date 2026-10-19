@@ -1,6 +1,6 @@
 name: diag-675
 # TEMPORARY diagnostic for #675 (reverted before the fix lands): why the Leaderboards Lead card's first row is not
-# hittable on the hosted xcode-27 iPad (GroupedCardAccessibilityJourneyTests at AX5). v3: GroupedCard after each plain-fixture journey (bisect); reboot between the steps.
+# hittable on the hosted xcode-27 iPad (GroupedCardAccessibilityJourneyTests at AX5). v4: validate the fix (no nested combined row element) on the v3 bisect/reboot sequence.
 on:
   push:
     branches: [report/675]
