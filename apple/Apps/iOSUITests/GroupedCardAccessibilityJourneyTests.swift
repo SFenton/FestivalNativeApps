@@ -199,7 +199,13 @@ final class GroupedCardAccessibilityJourneyTests: XCTestCase {
             note("under \(point)\n" + lines.joined(separator: "\n"))
         }
         note("tree\n" + app.debugDescription)
-        guard tap, !rows[0].isHittable else { return }
+        guard !rows[0].isHittable else { return }
+        note("springboard\n" + XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription)
+        let screen = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        screen.name = "diag-\(tag)-screen"
+        screen.lifetime = .keepAlways
+        add(screen)
+        guard tap else { return }
         app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y)).tap()
         Thread.sleep(forTimeInterval: 8)
         let bars = app.navigationBars.allElementsBoundByIndex.map(\.identifier)
