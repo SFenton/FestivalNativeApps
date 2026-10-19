@@ -8,7 +8,13 @@
 ``releases/2610.19``'s ``history-anonymous`` (#674) died the same way on ``E_UNEXPECTED`` (0x8000FFFF, "Catastrophic
 failure") from ``FindFirst`` right after invoking the History header's song: WinUI's UIA window provider returns it
 while it is not initialized, a passing state during the page swap (the app's own peers don't throw there). It is
-retried within the step's timeout like ``UIA_E_TIMEOUT``; every other ``COMException`` still fails the step at once.
+retried within the step's timeout like ``UIA_E_TIMEOUT``.
+
+Its next run (#677) died one call later: the drive's window element went stale during that page swap, and reading its
+``NativeWindowHandle`` threw a raw ``UIA_E_ELEMENTNOTAVAILABLE`` (0x80040201, COM's "An event was unable to invoke any
+of the subscribers"). FlaUI maps that HRESULT to ``ElementNotAvailableException`` (already transient) on its wrapped
+calls but lets it through raw on property reads, so the raw form is the same vanished-element state and is retried too.
+Every other ``COMException`` (``E_FAIL``, ``E_INVALIDARG``, ``RPC_E_DISCONNECTED``) still fails the step at once.
 
 Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root. Builds ``FstUia`` once (``dotnet``).
 """
@@ -65,8 +71,13 @@ class TransientUiaTests(unittest.TestCase):
         self.assertTrue(self.transient("timeout"))
         self.assertTrue(self.transient("element-not-available"))
 
+    def test_raw_com_element_not_available_is_transient(self):
+        # #677: the stale window element's NativeWindowHandle read after invoking fst.history.song. FlaUI maps this
+        # HRESULT to ElementNotAvailableException elsewhere, so the raw form must classify the same way.
+        self.assertTrue(self.transient("com", UIA_E_ELEMENTNOTAVAILABLE))
+
     def test_other_com_errors_are_not_swallowed(self):
-        for hresult in (E_FAIL, E_INVALIDARG, RPC_E_DISCONNECTED, UIA_E_ELEMENTNOTAVAILABLE):
+        for hresult in (E_FAIL, E_INVALIDARG, RPC_E_DISCONNECTED):
             with self.subTest(hresult=hex(hresult)):
                 self.assertFalse(self.transient("com", hresult))
 
@@ -89,9 +100,12 @@ class TransientUiaRetrySourceTests(unittest.TestCase):
                                        r"DateTime\.UtcNow <=? until\)\)")
                 self.assertIn("retried = true;", body)
         classifier = source.split("internal static bool IsTransientUia(", 1)[1].split(";", 1)[0]
-        self.assertIn("COMException { HResult: UiaTimeoutHResult or UiaUnexpectedHResult }", classifier)
+        self.assertIn("COMException { HResult: UiaTimeoutHResult or UiaUnexpectedHResult or UiaElementNotAvailableHResult }",
+                      classifier)
         self.assertIn("unchecked((int)0x80131505)", source.split("internal const int UiaTimeoutHResult", 1)[1][:60])
         self.assertIn("unchecked((int)0x8000FFFF)", source.split("internal const int UiaUnexpectedHResult", 1)[1][:60])
+        self.assertIn("unchecked((int)0x80040201)",
+                      source.split("internal const int UiaElementNotAvailableHResult", 1)[1][:60])
 
 
 if __name__ == "__main__":

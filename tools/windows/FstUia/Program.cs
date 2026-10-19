@@ -737,6 +737,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     private JsonNode Drive(Window window, JsonArray steps)
     {
         if (postKeys) Log("keyboard steps are posted to the window (session locked or post_keys)");
+        windowHandle = HandleOf(window);
         foreach (var node in steps)
         {
             var step = node!.AsObject();
@@ -1534,6 +1535,12 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// </summary>
     private Window? reacquired;
 
+    /// <summary>
+    /// The driven window's native handle, read when the drive starts and on each re-acquire, so <see cref="Reacquire"/>
+    /// still resolves the window when its old element has gone stale (#677).
+    /// </summary>
+    private IntPtr windowHandle;
+
     /// <summary>How long <see cref="Find"/> searches one window element in vain before re-acquiring it from its handle.</summary>
     private static readonly TimeSpan ReacquireAfter = TimeSpan.FromSeconds(2);
 
@@ -1587,16 +1594,19 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     }
 
     /// <summary>
-    /// Re-acquires a window element from its native handle, so a search reaches the app's current UIA provider; keeps
-    /// the old element when the handle cannot be read or resolved (the next search reports the outcome).
+    /// Re-acquires a window element from its native handle, so a search reaches the app's current UIA provider. A stale
+    /// element that can no longer report its handle falls back to the handle cached at the drive's start (#677); the
+    /// old element stays when no handle resolves (the next search reports the outcome).
     /// </summary>
     /// <param name="window">Window element to refresh.</param>
     /// <returns>The fresh window element, or <paramref name="window"/>.</returns>
     private Window Reacquire(Window window)
     {
+        var hwnd = HandleOf(window);
+        if (hwnd == IntPtr.Zero) hwnd = windowHandle;
+        else windowHandle = hwnd;
         try
         {
-            var hwnd = window.Properties.NativeWindowHandle.ValueOrDefault;
             if (hwnd == IntPtr.Zero || automation.FromHandle(hwnd) is not { } fresh) return window;
             reacquired = fresh.AsWindow();
             return reacquired;
@@ -1604,6 +1614,24 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         catch (Exception error) when (IsTransientUia(error))
         {
             return window;
+        }
+    }
+
+    /// <summary>
+    /// The window element's native handle, or <see cref="IntPtr.Zero"/> when a stale element can no longer report it
+    /// (a raw <c>UIA_E_ELEMENTNOTAVAILABLE</c> after the History header's song opened Song Detail, #677).
+    /// </summary>
+    /// <param name="window">Window element.</param>
+    /// <returns>The handle, or <see cref="IntPtr.Zero"/>.</returns>
+    private static IntPtr HandleOf(Window window)
+    {
+        try
+        {
+            return window.Properties.NativeWindowHandle.ValueOrDefault;
+        }
+        catch (Exception error) when (IsTransientUia(error))
+        {
+            return IntPtr.Zero;
         }
     }
 
@@ -1617,17 +1645,27 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
     /// </summary>
     internal const int UiaUnexpectedHResult = unchecked((int)0x8000FFFF);
 
+    /// <summary>
+    /// HRESULT of a UIA call on an element that went away (<c>UIA_E_ELEMENTNOTAVAILABLE</c>; COM's message for the same
+    /// value is "An event was unable to invoke any of the subscribers"). FlaUI maps it to
+    /// <see cref="FlaUI.Core.Exceptions.ElementNotAvailableException"/> on its wrapped calls, but a property read lets it
+    /// through raw: the window element's <c>NativeWindowHandle</c> threw it after the History header's song opened Song
+    /// Detail (#677).
+    /// </summary>
+    internal const int UiaElementNotAvailableHResult = unchecked((int)0x80040201);
+
     /// <summary>Whether a UI Automation error is a passing provider state worth searching again for.</summary>
     /// <param name="error">The error a UIA call threw.</param>
     /// <returns>
     /// True for a UIA call timeout (<c>UIA_E_TIMEOUT</c>, 0x80131505), whether .NET mapped it to a
     /// <see cref="TimeoutException"/> or FlaUI's <c>FindAll</c> let it through as a raw <see cref="COMException"/>
     /// (#622), for a provider caught mid-rebuild (<c>E_UNEXPECTED</c>, 0x8000FFFF, #674), or for an element that went
-    /// away. Any other <see cref="COMException"/> is not transient.
+    /// away, mapped or raw (<c>UIA_E_ELEMENTNOTAVAILABLE</c>, 0x80040201, #677). Any other <see cref="COMException"/>
+    /// is not transient.
     /// </returns>
     internal static bool IsTransientUia(Exception error) =>
         error is TimeoutException or FlaUI.Core.Exceptions.ElementNotAvailableException
-            or COMException { HResult: UiaTimeoutHResult or UiaUnexpectedHResult };
+            or COMException { HResult: UiaTimeoutHResult or UiaUnexpectedHResult or UiaElementNotAvailableHResult };
 
     /// <summary>
     /// Offline check of <see cref="IsTransientUia"/> for a synthetic error (the <c>transient</c> command), so tests can

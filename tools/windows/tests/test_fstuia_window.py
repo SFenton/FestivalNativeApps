@@ -74,6 +74,19 @@ class ReacquireWindowSourceTests(unittest.TestCase):
     def test_drive_adopts_the_reacquired_window(self):
         self.assertIn("if (reacquired is not null) (window, reacquired) = (reacquired, null);", self.source)
 
+    def test_a_stale_window_reacquires_from_the_cached_handle(self):
+        # #677: the stale window element threw a raw UIA_E_ELEMENTNOTAVAILABLE reading its own handle, which aborted the
+        # step; the drive now caches the handle at its start and Reacquire falls back to it.
+        drive = self.source.split("private JsonNode Drive(", 1)[1].split("foreach (var node in steps)", 1)[0]
+        self.assertIn("windowHandle = HandleOf(window);", drive)
+        reacquire = self.source.split("private Window Reacquire(", 1)[1].split("\n    }\n", 1)[0]
+        self.assertIn("var hwnd = HandleOf(window);", reacquire)
+        self.assertIn("if (hwnd == IntPtr.Zero) hwnd = windowHandle;", reacquire)
+        self.assertNotIn("Properties.NativeWindowHandle", reacquire)
+        handle_of = self.source.split("private static IntPtr HandleOf(", 1)[1].split("\n    }\n", 1)[0]
+        self.assertIn("catch (Exception error) when (IsTransientUia(error))", handle_of)
+        self.assertIn("return IntPtr.Zero;", handle_of)
+
 
 if __name__ == "__main__":
     unittest.main()
