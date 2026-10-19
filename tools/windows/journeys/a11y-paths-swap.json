@@ -1,6 +1,6 @@
 [
   {"name": "paths-swap", "route": "/songs/fixture-pulse", "settings": {"pathUnavailableWarningDismissed": true},
-   "fixture": ["paths_fixture.py"], "tabs": 12, "scan": true, "sizes": ["compact", "medium"],
+   "fixture": ["paths_fixture.py", "--slow-seconds", "10"], "tabs": 12, "scan": true, "sizes": ["compact", "medium"],
    "ready": ["waitfor:id=fst.song-detail.paths@20",
              "focus:id=fst.song-detail.paths",
              "key:enter",
@@ -115,7 +115,7 @@
                    "assertpaint:id=fst.paths.display.compact|ring:L1,M0|R1,M0=@ring~48|C0,T1=@ring~48|C0,B1=@ring~48|R-8,M0!=@ring~48"],
    "teardown": ["key:esc", "waitgone:id=fst.paths@5", "assertfocus:id=fst.song-detail.paths@3"]},
   {"name": "paths-swap-keyboard-wide", "route": "/songs/fixture-pulse", "settings": {"pathUnavailableWarningDismissed": true},
-   "fixture": ["paths_fixture.py"], "tabs": 0, "scan": true, "sizes": ["wide"],
+   "fixture": ["paths_fixture.py", "--slow-seconds", "10"], "tabs": 0, "scan": true, "sizes": ["wide"],
    "ready": ["waitfor:id=fst.song-detail.paths@20",
              "invoke:id=fst.song-detail.paths",
              "waitfor:id=fst.paths@10",

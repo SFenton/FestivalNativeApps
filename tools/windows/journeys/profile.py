@@ -544,6 +544,10 @@ def run(journey: Journey, exe: Path, shots: Path | None) -> list[str]:
             result = _uiwin("drive", "--pid", str(pid), "--steps", "; ".join(steps), check=False)
             if result.returncode != 0:
                 failures.append(f"phase {index}: {result.stderr.strip() or result.stdout.strip()}")
+                if shots is not None:
+                    # Keep what the window showed when the phase failed (phases only shoot on success; #676).
+                    _uiwin("shot", "--pid", str(pid), str(shots / f"{journey.name}-{index}-failed.png"), check=False)
+                    _uiwin("tree", "--pid", str(pid), str(shots / f"{journey.name}-{index}-failed.txt"), check=False)
                 break
             text = tree.read_text(encoding="utf-8", errors="replace") if tree.exists() else ""
             for needle in journey.expect[index] if index < len(journey.expect) else []:

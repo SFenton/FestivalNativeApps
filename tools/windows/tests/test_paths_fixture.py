@@ -62,5 +62,31 @@ class PathsJourneyTests(unittest.TestCase):
             self.assertEqual(page["route"], "/songs/fixture-pulse", page["name"])
 
 
+class PathsMidLoadScanTests(unittest.TestCase):
+    """A11y pages that scan the Paths spinner mid-load hold the read long enough for the scan to finish mid-load."""
+
+    def test_mid_load_scans_hold_the_read_ten_seconds(self):
+        # Issue #676: with the default 6 s hold the Hard read answered during a 4 s compact scan on the windows-ui
+        # runner; the ring went inactive mid-scan ("Loading path" without WinUI's "Busy" prefix) and Axe flagged it and
+        # its LottiePlayer IsControlElementTrueRequired. Same 10 s hold as the load-swap boards (#431 review).
+        found = set()
+        for path in sorted(JOURNEYS.parent.glob("a11y-*.json")):
+            for page in json.loads(path.read_text(encoding="utf-8")):
+                fixture = page.get("fixture") or []
+                if not fixture or fixture[0] != "paths_fixture.py":
+                    continue
+                loading = False
+                for step in (page.get("ready") or []) + (page.get("after_ready") or []):
+                    if step.startswith("waitfor:id=fst.paths.loading"):
+                        loading = True
+                    elif step.startswith(("waitgone:id=fst.paths.loading", "waitfor:name=Lead Hard CHOpt path")):
+                        loading = False
+                    elif step.startswith("scan:") and loading:
+                        found.add(page["name"])
+                        self.assertIn("--slow-seconds", fixture, page["name"])
+                        self.assertGreaterEqual(float(fixture[fixture.index("--slow-seconds") + 1]), 10, page["name"])
+        self.assertEqual(found, {"paths-swap", "paths-swap-keyboard-wide"})
+
+
 if __name__ == "__main__":
     unittest.main()
