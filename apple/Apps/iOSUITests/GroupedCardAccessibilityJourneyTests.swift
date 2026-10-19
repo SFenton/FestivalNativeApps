@@ -42,11 +42,13 @@ final class GroupedCardAccessibilityJourneyTests: XCTestCase {
         continueAfterFailure = false
         let standard = try launchLeaderboards(size: nil)
         let standardRows = try revealRows(in: standard)
+        expectOneElementPerRow(standardRows)
         let standardHeights = standardRows.map(\.frame.height)
         standard.terminate()
 
         let app = try launchLeaderboards(size: UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue)
         let rows = try revealRows(in: app)
+        expectOneElementPerRow(rows)
         let window = app.windows.firstMatch.frame
         record(app, name: "grouped-leaderboards-card-ax5")
 
@@ -160,6 +162,20 @@ final class GroupedCardAccessibilityJourneyTests: XCTestCase {
         // Let the card's fade-in finish.
         sleep(UInt32(FestivalApp.budget(1)))
         return rows
+    }
+
+    /// Each row is one element (#675): the iPad's Open in New Window menu surfaced a second,
+    /// combined copy of the row's columns inside its button, which XCUITest hit-tested
+    /// instead of the button and reported the row unhittable.
+    ///
+    /// - Parameter rows: The Lead card's first three rows, top to bottom.
+    @MainActor
+    private func expectOneElementPerRow(_ rows: [XCUIElement]) {
+        for (row, name) in zip(rows, ["Fixture Player 1", "Fixture Player 2", "Fixture Rank 3"]) {
+            let copies = row.descendants(matching: .any)
+                .matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS ','", name))
+            XCTAssertEqual(copies.count, 0, "\(row.identifier) reads its columns once: \(copies.debugDescription)")
+        }
     }
 
     /// Keep a screenshot with the test result.
