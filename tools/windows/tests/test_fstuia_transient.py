@@ -5,6 +5,11 @@
 ``TimeoutException``, so the step's transient-error retry (#552, #574, #618) never ran. Every retry loop (``Find``,
 ``scrollinto``, ``waitgone``, the launch window poll) shares ``IsTransientUia``, so pinning it covers them all.
 
+``releases/2610.19``'s ``history-anonymous`` (#674) died the same way on ``E_UNEXPECTED`` (0x8000FFFF, "Catastrophic
+failure") from ``FindFirst`` right after invoking the History header's song: WinUI's UIA window provider returns it
+while it is not initialized, a passing state during the page swap (the app's own peers don't throw there). It is
+retried within the step's timeout like ``UIA_E_TIMEOUT``; every other ``COMException`` still fails the step at once.
+
 Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root. Builds ``FstUia`` once (``dotnet``).
 """
 
@@ -19,7 +24,10 @@ from pathlib import Path
 from tools.windows import uiwin as u
 
 UIA_E_TIMEOUT = 0x80131505
+E_UNEXPECTED = 0x8000FFFF
 E_FAIL = 0x80004005
+E_INVALIDARG = 0x80070057
+RPC_E_DISCONNECTED = 0x80010108
 UIA_E_ELEMENTNOTAVAILABLE = 0x80040201
 
 
@@ -49,12 +57,16 @@ class TransientUiaTests(unittest.TestCase):
         # #622: the form FindAll threw in PageDown after Back to Song Detail.
         self.assertTrue(self.transient("com", UIA_E_TIMEOUT))
 
+    def test_raw_com_unexpected_is_transient(self):
+        # #674: FindFirst right after invoking fst.history.song on the anonymous History page.
+        self.assertTrue(self.transient("com", E_UNEXPECTED))
+
     def test_mapped_timeout_and_vanished_element_stay_transient(self):
         self.assertTrue(self.transient("timeout"))
         self.assertTrue(self.transient("element-not-available"))
 
     def test_other_com_errors_are_not_swallowed(self):
-        for hresult in (E_FAIL, UIA_E_ELEMENTNOTAVAILABLE):
+        for hresult in (E_FAIL, E_INVALIDARG, RPC_E_DISCONNECTED, UIA_E_ELEMENTNOTAVAILABLE):
             with self.subTest(hresult=hex(hresult)):
                 self.assertFalse(self.transient("com", hresult))
 
@@ -77,8 +89,9 @@ class TransientUiaRetrySourceTests(unittest.TestCase):
                                        r"DateTime\.UtcNow <=? until\)\)")
                 self.assertIn("retried = true;", body)
         classifier = source.split("internal static bool IsTransientUia(", 1)[1].split(";", 1)[0]
-        self.assertIn("COMException { HResult: UiaTimeoutHResult }", classifier)
+        self.assertIn("COMException { HResult: UiaTimeoutHResult or UiaUnexpectedHResult }", classifier)
         self.assertIn("unchecked((int)0x80131505)", source.split("internal const int UiaTimeoutHResult", 1)[1][:60])
+        self.assertIn("unchecked((int)0x8000FFFF)", source.split("internal const int UiaUnexpectedHResult", 1)[1][:60])
 
 
 if __name__ == "__main__":
