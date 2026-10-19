@@ -35,11 +35,44 @@ class TargetWindowSourceTests(unittest.TestCase):
         self.assertIn("NativeWindowHandle.ValueOrDefault is var hwnd && hwnd != IntPtr.Zero", minimized)
 
     def test_windows_come_only_from_the_guarded_lookups(self):
-        # Every AsWindow() is inside TopWindow or MinimizedWindow, so no command gets an unguarded target.
-        self.assertEqual(2, len(re.findall(r"\.AsWindow\(\)", self.source)))
+        # Every AsWindow() is inside TopWindow, MinimizedWindow or Reacquire (from a guarded window's own non-zero
+        # handle), so no command gets an unguarded target.
+        self.assertEqual(3, len(re.findall(r"\.AsWindow\(\)", self.source)))
         for lookup in ("private Window? TopWindow(", "private Window? MinimizedWindow("):
             with self.subTest(lookup=lookup):
                 self.assertIn(".AsWindow()", self.body(lookup, ".FirstOrDefault()"))
+        reacquire = self.body("private Window Reacquire(", "\n    }\n")
+        self.assertIn("if (hwnd == IntPtr.Zero || automation.FromHandle(hwnd) is not { } fresh) return window;", reacquire)
+        self.assertIn("fresh.AsWindow()", reacquire)
+
+
+class ReacquireWindowSourceTests(unittest.TestCase):
+    """A search re-acquires its window from the handle after a transient error or a run of misses (issue #676).
+
+    ``releases/2610.19``'s ``history-anonymous`` invoked the History header's song, then found no Song Detail title for
+    15 s with no UIA error left: the window provider rebuilds during that page swap (E_UNEXPECTED, #674), and the
+    window element the drive started with can keep searching the old provider.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.source = (u.DRIVER_DIR / "Program.cs").read_text(encoding="utf-8")
+        cls.find = cls.source.split("internal AutomationElement Find(", 1)[1].split("\n    }\n", 1)[0]
+
+    def test_find_searches_the_reacquired_root(self):
+        self.assertIn("root = Reacquire(root);", self.find)
+        self.assertIn("search.FindFirstDescendant(condition)", self.find)
+        self.assertNotIn("window.FindFirstDescendant", self.find)
+
+    def test_a_transient_error_reacquires_on_the_next_search(self):
+        catch = self.find.split("catch (Exception error) when (IsTransientUia(error)", 1)[1]
+        self.assertIn("reacquireAt = DateTime.UtcNow;", catch.split("continue;", 1)[0])
+
+    def test_the_timeout_says_what_was_last_seen(self):
+        self.assertIn('$"no on-screen element {label} ({seen})"', self.find)
+
+    def test_drive_adopts_the_reacquired_window(self):
+        self.assertIn("if (reacquired is not null) (window, reacquired) = (reacquired, null);", self.source)
 
 
 if __name__ == "__main__":

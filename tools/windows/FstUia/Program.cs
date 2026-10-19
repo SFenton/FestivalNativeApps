@@ -746,6 +746,7 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
                 && !(bool)EnsureForeground(window)["foreground"]!)
                 Log("warning: target is not foreground (nothing covers it, so input proceeds)");
             RunStep(window, verb, arg, step);
+            if (reacquired is not null) (window, reacquired) = (reacquired, null);
             Log($"ok {verb}:{arg}");
         }
         var result = Describe(window).AsObject();
@@ -1527,30 +1528,82 @@ internal sealed partial class Driver(UIA3Automation automation, JsonObject respo
         using (request.Activate()) return search();
     }
 
+    /// <summary>
+    /// A window element <see cref="Find"/> re-acquired from its handle, which <see cref="Drive"/> adopts for the
+    /// following steps.
+    /// </summary>
+    private Window? reacquired;
+
+    /// <summary>How long <see cref="Find"/> searches one window element in vain before re-acquiring it from its handle.</summary>
+    private static readonly TimeSpan ReacquireAfter = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Finds the step's element under the window, polling until the step's timeout. A busy app (e.g. restoring a page
+    /// after Back on a slow runner) can time out one UIA call, drop an element mid-search or answer E_UNEXPECTED while
+    /// its window provider rebuilds after a navigation (#674); the search continues within the timeout, at least once
+    /// (#552). Because a rebuilt provider can leave the old window element searching an empty tree, a transient error
+    /// or <see cref="ReacquireAfter"/> of misses re-acquires the window from its handle (#676).
+    /// </summary>
+    /// <param name="window">Window to search.</param>
+    /// <param name="step">Step with the selector and optional <c>timeout</c> (seconds, default 5).</param>
+    /// <param name="key">Selector key in <paramref name="step"/>.</param>
+    /// <param name="onScreen">Whether the element must be on screen.</param>
+    /// <returns>The element.</returns>
+    /// <exception cref="InvalidOperationException">No (on-screen) element by the timeout; says what was last seen.</exception>
     internal AutomationElement Find(Window window, JsonObject step, string key = "selector", bool onScreen = true)
     {
         var (condition, label) = Condition(step, key);
         var raw = IsRaw(step, key);
         var until = DateTime.UtcNow + TimeSpan.FromSeconds((double?)step["timeout"] ?? 5);
         var retried = false;
+        var seen = "not found";
+        var root = window;
+        var reacquireAt = DateTime.UtcNow + ReacquireAfter;
         while (true)
         {
+            if (DateTime.UtcNow >= reacquireAt)
+            {
+                root = Reacquire(root);
+                reacquireAt = DateTime.UtcNow + ReacquireAfter;
+            }
             try
             {
-                var found = InView(raw, () => window.FindFirstDescendant(condition));
+                var search = root;
+                var found = InView(raw, () => search.FindFirstDescendant(condition));
                 if (found is not null && (!onScreen || !found.Properties.IsOffscreen.ValueOrDefault)) return found;
+                seen = found is null ? "not found" : $"found offscreen at {found.Properties.BoundingRectangle.ValueOrDefault}";
             }
-            // A busy app (e.g. restoring a page after Back on a slow runner) can time out one UIA call, drop an
-            // element mid-search or answer E_UNEXPECTED while its provider rebuilds after a navigation (#674); search
-            // again within the step's timeout, at least once (#552), and still fail if it persists.
             catch (Exception error) when (IsTransientUia(error) && (!retried || DateTime.UtcNow <= until))
             {
                 retried = true;
+                seen = $"transient {error.GetType().Name} 0x{error.HResult:X8}";
+                reacquireAt = DateTime.UtcNow;
                 Thread.Sleep(200);
                 continue;
             }
-            if (DateTime.UtcNow > until) throw new InvalidOperationException($"no on-screen element {label}");
+            if (DateTime.UtcNow > until) throw new InvalidOperationException($"no on-screen element {label} ({seen})");
             Thread.Sleep(200);
+        }
+    }
+
+    /// <summary>
+    /// Re-acquires a window element from its native handle, so a search reaches the app's current UIA provider; keeps
+    /// the old element when the handle cannot be read or resolved (the next search reports the outcome).
+    /// </summary>
+    /// <param name="window">Window element to refresh.</param>
+    /// <returns>The fresh window element, or <paramref name="window"/>.</returns>
+    private Window Reacquire(Window window)
+    {
+        try
+        {
+            var hwnd = window.Properties.NativeWindowHandle.ValueOrDefault;
+            if (hwnd == IntPtr.Zero || automation.FromHandle(hwnd) is not { } fresh) return window;
+            reacquired = fresh.AsWindow();
+            return reacquired;
+        }
+        catch (Exception error) when (IsTransientUia(error))
+        {
+            return window;
         }
     }
 

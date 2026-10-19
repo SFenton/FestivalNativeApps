@@ -6,8 +6,10 @@ Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root (
 import importlib.util
 import re
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import fade_journey  # noqa: E402  (sibling module)
@@ -78,6 +80,39 @@ class ProfileJourneyStepTests(unittest.TestCase):
                                                 "waitgone:id=fst.quick-links.item.bands@10", "wait:1"]))
         self.assertEqual([], quick_link_pick_errors(
             ["toggle:id=fst.quick-links.item.bands", *fade_journey.QUICK_LINK_JUMPED]))
+
+
+class ProfileJourneyFailureCaptureTests(unittest.TestCase):
+    """A failed phase keeps a screenshot and UIA tree of the window as it failed (#676)."""
+
+    def run_failing(self, shots):
+        calls = []
+
+        def fake_uiwin(*args, check=True):
+            calls.append(args)
+            out = '{\n  "pid": 4242,\n}' if args[0] == "launch" else ""
+            code = 1 if args[0] == "drive" else 0
+            return p.subprocess.CompletedProcess(args, code, stdout=out, stderr="error: no on-screen element")
+
+        journey = next(j for j in p.JOURNEYS if j.name == "history-anonymous")
+        with mock.patch.object(p, "_uiwin", fake_uiwin), mock.patch.object(p, "_wait_for_port"), \
+                mock.patch.object(p.subprocess, "Popen"):
+            failures = p.run(journey, Path("app.exe"), shots)
+        return failures, calls
+
+    def test_a_failed_phase_captures_the_window(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            shots = Path(tmp)
+            failures, calls = self.run_failing(shots)
+        self.assertEqual(["phase 0: error: no on-screen element"], failures)
+        verbs = [c[0] for c in calls]
+        self.assertEqual(["launch", "drive", "shot", "tree", "close"], verbs)
+        self.assertEqual(("shot", "--pid", "4242", str(shots / "history-anonymous-0-failed.png")), calls[2])
+        self.assertEqual(("tree", "--pid", "4242", str(shots / "history-anonymous-0-failed.txt")), calls[3])
+
+    def test_without_shots_nothing_is_captured(self):
+        _, calls = self.run_failing(None)
+        self.assertEqual(["launch", "drive", "close"], [c[0] for c in calls])
 
 
 if __name__ == "__main__":

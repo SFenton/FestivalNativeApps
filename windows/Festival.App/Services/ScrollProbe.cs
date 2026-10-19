@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Festival.Core.Domain;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -17,7 +18,8 @@ namespace Festival.App.Services;
 /// thread. A smooth scroll moves the offset one way every frame (<c>reversals</c> counts frames moving against it), keeps
 /// frame intervals near the display's refresh (<c>over33</c> counts stalls of two 60 Hz frames or more), keeps each
 /// frame's UI-thread work short (<c>work95</c>, <c>work33</c>, <c>work100</c>: from <see cref="CompositionTarget.Rendering"/>
-/// to the thread's next idle moment, so software rendering or DWM pacing on a hosted runner does not count) and leaves the
+/// to the thread's next idle moment, or at most to the next frame's Rendering (<see cref="FrameWorkMeter"/>), so software
+/// rendering or DWM pacing on a hosted runner does not count) and leaves the
 /// frames to rendering (<see cref="ScrollCost"/>: the UI-thread time of per-scroll handlers). Each notch restarts the
 /// scroll animation's ease, so the wheel speed varies from frame to frame by design. A pass names a <c>hidden=</c> reason when the
 /// window was covered, cloaked, locked or on a display that turned off during it: DWM then throttles frames to its
@@ -36,11 +38,10 @@ internal static class ScrollProbe
     private static readonly TimeSpan FindTimeout = TimeSpan.FromSeconds(60);
     private static readonly List<double> Intervals = new(1024);
     private static readonly List<double> Deltas = new(1024);
-    private static readonly List<double> Work = new(1024);
+    private static readonly FrameWorkMeter Work = new();
     private static readonly List<string> Trace = [];
     // One cached handler: a new delegate per frame would marshal a new COM wrapper each time.
     private static readonly DispatcherQueueHandler WorkDone = OnWorkDone;
-    private static long workStart;
     private static long allocated;
     private static int gen0;
     private static int gen2;
@@ -173,8 +174,7 @@ internal static class ScrollProbe
     {
         Intervals.Clear();
         Deltas.Clear();
-        Work.Clear();
-        workStart = 0;
+        Work.Reset();
         Trace.Clear();
         allocated = GC.GetTotalAllocatedBytes();
         gen0 = GC.CollectionCount(0);
@@ -200,8 +200,10 @@ internal static class ScrollProbe
         if (lastFrame is { } previous) Intervals.Add(Stopwatch.GetElapsedTime(previous, now).TotalMilliseconds);
         lastFrame = now;
         // The frame's layout and render walk run after this event in the same dispatch, so a low-priority item queued
-        // now runs once the UI thread is idle again: the gap is the frame's UI-thread work, whatever DWM's pacing.
-        if (workStart == 0 && viewer.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, WorkDone)) workStart = now;
+        // now runs once the UI thread is idle again: the gap is the frame's UI-thread work, whatever DWM's pacing. A
+        // marker still pending at this Rendering ends its sample here (FrameWorkMeter).
+        var nowMs = Stopwatch.GetElapsedTime(0, now).TotalMilliseconds;
+        if (Work.Frame(nowMs) && viewer.DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, WorkDone)) Work.Marked(nowMs);
         var offset = viewer.VerticalOffset;
         var delta = offset - lastOffset;
         if (delta != 0 && Intervals.Count > 0) Deltas.Add(delta * direction);
@@ -224,15 +226,11 @@ internal static class ScrollProbe
 
     /// <summary>
     /// Records one frame's UI-thread work: from its <see cref="CompositionTarget.Rendering"/> to the UI thread's next idle
-    /// moment (layout, realization, render walk and per-scroll handlers). A frame that overruns into the next one
-    /// counts once, for its whole length.
+    /// moment (layout, realization, render walk and per-scroll handlers), unless the next frame's Rendering already
+    /// ended the sample at the frame interval (<see cref="FrameWorkMeter"/>; a frame that overruns counts for its whole
+    /// length, since the next Rendering waits for it).
     /// </summary>
-    private static void OnWorkDone()
-    {
-        if (workStart == 0) return;
-        Work.Add(Stopwatch.GetElapsedTime(workStart).TotalMilliseconds);
-        workStart = 0;
-    }
+    private static void OnWorkDone() => Work.Idle(Stopwatch.GetElapsedTime(0, Stopwatch.GetTimestamp()).TotalMilliseconds);
 
     /// <summary>Writes one pass's statistics.</summary>
     /// <param name="label">Pass label.</param>
@@ -246,7 +244,7 @@ internal static class ScrollProbe
         var foreground = MainWindow.Instance is { } window && Win32.GetForegroundWindow() == WinRT.Interop.WindowNative.GetWindowHandle(window);
         if (OcclusionTracker.Current is { IsHidden: true } tracker) hidden ??= tracker.Reason;
         double P(double q) => sorted[Math.Min(sorted.Count - 1, (int)(q * sorted.Count))];
-        var work = Work.Order().ToList();
+        var work = Work.Samples.Order().ToList();
         double W(double q) => work.Count == 0 ? 0 : work[Math.Min(work.Count - 1, (int)(q * work.Count))];
         PerfLog.Write(
             $"scroll-probe {label} frames={sorted.Count} p50={P(0.5):F1} p95={P(0.95):F1} max={sorted[^1]:F1} over33={sorted.Count(i => i > 33.4)} " +
