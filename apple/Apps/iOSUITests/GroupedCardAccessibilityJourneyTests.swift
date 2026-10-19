@@ -42,15 +42,15 @@ final class GroupedCardAccessibilityJourneyTests: XCTestCase {
         continueAfterFailure = false
         let standard = try launchLeaderboards(size: nil)
         let standardRows = try revealRows(in: standard)
-        diagnose(standard, rows: standardRows, tag: "default", tap: false)
+        expectOneElementPerRow(standardRows)
         let standardHeights = standardRows.map(\.frame.height)
         standard.terminate()
 
         let app = try launchLeaderboards(size: UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue)
         let rows = try revealRows(in: app)
+        expectOneElementPerRow(rows)
         let window = app.windows.firstMatch.frame
         record(app, name: "grouped-leaderboards-card-ax5")
-        diagnose(app, rows: rows, tag: "ax5", tap: true)
 
         // Names, roles and state: one button per row, the selected one said in words.
         for row in rows {
@@ -164,53 +164,18 @@ final class GroupedCardAccessibilityJourneyTests: XCTestCase {
         return rows
     }
 
-    // TEMP diag #675: hittability timeline, elements under the row's centre, tree, tap probe.
+    /// Each row is one element (#675): the iPad's Open in New Window menu surfaced a second,
+    /// combined copy of the row's columns inside its button, which XCUITest hit-tested
+    /// instead of the button and reported the row unhittable.
+    ///
+    /// - Parameter rows: The Lead card's first three rows, top to bottom.
     @MainActor
-    private func diagnose(_ app: XCUIApplication, rows: [XCUIElement], tag: String, tap: Bool) {
-        func note(_ text: String) {
-            let attachment = XCTAttachment(string: text)
-            attachment.name = "diag-\(tag)-\(text.prefix(24))"
-            attachment.lifetime = .keepAlways
-            add(attachment)
-            print("DIAG675 [\(tag)] \(text.prefix(4000))")
+    private func expectOneElementPerRow(_ rows: [XCUIElement]) {
+        for (row, name) in zip(rows, ["Fixture Player 1", "Fixture Player 2", "Fixture Rank 3"]) {
+            let copies = row.descendants(matching: .any)
+                .matching(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS ','", name))
+            XCTAssertEqual(copies.count, 0, "\(row.identifier) reads its columns once: \(copies.debugDescription)")
         }
-        var timeline: [String] = []
-        let started = Date()
-        for _ in 0..<10 {
-            let t0 = Date()
-            let hittable = rows.map(\.isHittable)
-            let cost = Date().timeIntervalSince(t0)
-            timeline.append(String(format: "t=%.1f hittable=%@ cost=%.2fs frame0=%@", Date().timeIntervalSince(started),
-                                   "\(hittable)", cost, "\(rows[0].frame)"))
-            if hittable.allSatisfy({ $0 }) { break }
-            Thread.sleep(forTimeInterval: 4)
-        }
-        note("timeline\n" + timeline.joined(separator: "\n"))
-        let point = CGPoint(x: rows[0].frame.midX, y: rows[0].frame.midY)
-        if let snapshot = try? app.snapshot() {
-            var lines: [String] = []
-            func walk(_ node: XCUIElementSnapshot, depth: Int) {
-                if node.frame.contains(point) {
-                    lines.append("\(String(repeating: "  ", count: depth))type=\(node.elementType.rawValue) id='\(node.identifier)' label='\(node.label.prefix(60))' frame=\(node.frame) enabled=\(node.isEnabled)")
-                }
-                for child in node.children { walk(child, depth: depth + 1) }
-            }
-            walk(snapshot, depth: 0)
-            note("under \(point)\n" + lines.joined(separator: "\n"))
-        }
-        note("tree\n" + app.debugDescription)
-        note("springboard\n" + XCUIApplication(bundleIdentifier: "com.apple.springboard").debugDescription)
-        guard !rows[0].isHittable else { return }
-        let screen = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        screen.name = "diag-\(tag)-screen"
-        screen.lifetime = .keepAlways
-        add(screen)
-        guard tap else { return }
-        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y)).tap()
-        Thread.sleep(forTimeInterval: 8)
-        let bars = app.navigationBars.allElementsBoundByIndex.map(\.identifier)
-        note("after tap: leaderboards bar \(app.navigationBars["Leaderboards"].exists), bars \(bars), row exists \(rows[0].exists)")
-        record(app, name: "diag-after-tap")
     }
 
     /// Keep a screenshot with the test result.
