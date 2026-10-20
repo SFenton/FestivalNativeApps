@@ -673,7 +673,8 @@ final class NavButtonHitRegionJourneyTests: XCTestCase {
             node.label.range(of: #"^Notifications(, [0-9]+ unread)?$"#, options: .regularExpression),
             "bell label '\(node.label)'", file: file, line: line
         )
-        XCTAssertTrue(((node.value as? String) ?? "").isEmpty, "bell value '\(String(describing: node.value))'",
+        XCTAssertTrue(FestivalApp.isAllowedBellValue(node.value, label: node.label),
+                      "bell value '\(String(describing: node.value))' with label '\(node.label)'",
                       file: file, line: line)
         XCTAssertTrue(ancestors(of: bell).contains(bar), "the bell is not in the navigation bar", file: file, line: line)
         XCTAssertFalse(toolButtons.contains(bell), "the bell is a floating page tool", file: file, line: line)

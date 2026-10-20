@@ -969,8 +969,11 @@ final class SongsChromeJourneyTests: XCTestCase {
         let letters = Set("#ABCDEFGHIJKLMNOPQRSTUVWXYZ".map(String.init))
         XCTAssertTrue(letters.contains(bar.label), "Section bar reads '\(bar.label)'")
         XCTAssertEqual(app.staticTexts.matching(identifier: "fst.songs.section-bar").count, 1)
-        let navigation = app.navigationBars.firstMatch.frame
-        XCTAssertGreaterThanOrEqual(bar.frame.minY, navigation.maxY - 1, "Bar \(bar.frame) under \(navigation)")
+        // The bar's drawn bottom, not its accessibility frame, which overstates (#678).
+        let navigationBottom = try FestivalApp.navigationBarContentBottom(in: app)
+        XCTAssertGreaterThanOrEqual(
+            bar.frame.minY, navigationBottom - 1, "Bar \(bar.frame) under navigation chrome ending \(navigationBottom)"
+        )
         let barHeight = bar.frame.height
         let barBottom = bar.frame.maxY
         let tabs = app.tabBars.firstMatch.frame
@@ -1127,20 +1130,25 @@ final class SongsChromeJourneyTests: XCTestCase {
                 accepted.append("floating tools type cap: \(description)")
             } else if issue.auditType == .contrast, let text = issue.element,
                       text.elementType == .staticText, !text.frame.isEmpty {
-                let measured = try? self.renderedContrast(
-                    of: text.frame, in: current.image, window: current.window
-                )
+                // Measured only when neither chrome nor ramp accounts for it: a text the
+                // audit reports off screen has no crop, and `XCTUnwrap` records that even
+                // under `try?` (#678).
                 if text.frame.maxY > current.chromeTop {
                     accepted.append("under bottom chrome (top \(current.chromeTop)): \(description)")
                 } else if text.frame.minY < current.rampEnd, ramp > 0 || text.identifier != "fst.songs.section-bar" {
                     accepted.append("\(ramp > 0 ? "in the top ramp" : "cut by the edge") (ends \(current.rampEnd)): \(description)")
-                } else if let measured, measured.ratio >= 4.5, measured.brightPixels >= 20 {
-                    accepted.append("renders \(measured.ratio):1: \(description)")
                 } else {
-                    failures.append(
-                        "\(description) measured \(String(describing: measured)), "
-                            + "ramp ends \(current.rampEnd), chrome top \(current.chromeTop)"
+                    let measured = try? self.renderedContrast(
+                        of: text.frame, in: current.image, window: current.window
                     )
+                    if let measured, measured.ratio >= 4.5, measured.brightPixels >= 20 {
+                        accepted.append("renders \(measured.ratio):1: \(description)")
+                    } else {
+                        failures.append(
+                            "\(description) measured \(String(describing: measured)), "
+                                + "ramp ends \(current.rampEnd), chrome top \(current.chromeTop)"
+                        )
+                    }
                 }
             } else if issue.auditType == .contrast, issue.element == nil {
                 unattributedContrast.append(description)
@@ -2165,6 +2173,11 @@ final class SongsChromeJourneyTests: XCTestCase {
     /// the toolbar buttons, Open Navigation and Choose Profile stay hittable with their
     /// 36 pt glass targets, and the first section title is not hidden under the Filter
     /// field. Needs the large fixture (skips otherwise). Runs on every supported iOS.
+    ///
+    /// Since #632 the iPhone's own pose floats its page tools and gives Songs the leading
+    /// inline title, which never collapses, so the journey runs in the simulated folded
+    /// Duo window (`FST_DEBUG_DUO_WINDOW=folded`), where the same build keeps the system
+    /// large title, Open Navigation and Profile (#678).
     @MainActor
     func testProgrammaticScrollNeverRestsPartWayThroughTheLargeTitle() throws {
         try assertProgrammaticParkSettles(legacyScrollGeometry: false)
@@ -2204,9 +2217,24 @@ final class SongsChromeJourneyTests: XCTestCase {
             "FST_DEBUG_SONGS_PARK_TOP": "15@\(trigger.path)",
         ]
         if legacyScrollGeometry { environment["FST_DEBUG_LEGACY_SCROLL_GEOMETRY"] = "1" }
+        // The large title lives where page tools do not float (standard placement): on an
+        // iPhone, the simulated folded window (#632, #678).
+        let simulatesFolded = UIDevice.current.userInterfaceIdiom == .phone
+        if simulatesFolded {
+            environment["FST_DEBUG_DUO_WINDOW_REMOTE"] = "1"
+            environment["FST_DEBUG_DUO_WINDOW"] = "folded"
+        }
         let app = FestivalApp.makeApp(environment)
         app.launch()
         defer { app.terminate() }
+        if simulatesFolded {
+            let readout = app.staticTexts["fst.shell.debug.duo-window"]
+            let folded = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "label BEGINSWITH %@", "folded "), object: readout
+            )
+            XCTAssertEqual(XCTWaiter().wait(for: [folded], timeout: FestivalApp.budget(10)), .completed,
+                           "The app never simulated the folded window")
+        }
         XCTAssertTrue(app.buttons["fst.songs.sort"].waitForExistence(timeout: FestivalApp.budget(15)))
         // The Sort button shows before the catalogue loads: wait for a row before judging
         // the catalogue's length by the A–Z rail.
@@ -2274,12 +2302,26 @@ final class SongsChromeJourneyTests: XCTestCase {
                 "Large title \(title.frame) overlaps \(button.identifier) \(button.frame)"
             )
         }
-        let field = SongsUITestSupport.songsSearchField(in: app)
-        XCTAssertTrue(field.isHittable)
+        // The first section title sits below everything the navigation bar draws: the
+        // large title, and the Filter field where it is the bar's search.
+        let chromeBottom = try FestivalApp.navigationBarContentBottom(in: app)
         XCTAssertGreaterThanOrEqual(
-            first.frame.minY, field.frame.maxY - 1,
-            "The first section title \(first.frame) sits under the Filter field \(field.frame)"
+            first.frame.minY, chromeBottom - 1,
+            "The first section title \(first.frame) sits under the navigation bar (ends \(chromeBottom))"
         )
+        let field = SongsUITestSupport.songsSearchField(in: app)
+        if field.frame.minY < first.frame.minY {
+            XCTAssertTrue(field.isHittable)
+            XCTAssertGreaterThanOrEqual(
+                first.frame.minY, field.frame.maxY - 1,
+                "The first section title \(first.frame) sits under the Filter field \(field.frame)"
+            )
+        } else {
+            // The folded window's bottom field (#633), under the list, not over it; its
+            // hit region is `DuoFilterFieldAccessibilityJourneyTests`' (on a plain iPhone
+            // the simulation keeps the phone's tab bar over it).
+            XCTAssertGreaterThanOrEqual(field.frame.minY, first.frame.maxY, "Filter field \(field.frame) above #")
+        }
         XCTAssertEqual(first.label, "#")
         XCTAssertEqual(settles(), 1, "The settle repeated: the List kept moving")
     }

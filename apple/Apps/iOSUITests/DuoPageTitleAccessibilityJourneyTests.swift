@@ -16,7 +16,8 @@ import XCTest
 /// - be read before the page's content (the first row, card or setting; Statistics' empty
 ///   state and its Choose Profile button);
 /// - grow (> 1.35× its default-size line height; > 1.05× on the iPhone Duo device type, whose
-///   system bar caps it, `system-bar-title-size`) and render whole, never "S…";
+///   system bar caps it, and > 1.15× for the iPhone's own leading inline bar title beside the
+///   floating page tools, #632/#678, `system-bar-title-size`) and render whole, never "S…";
 /// - render ≥ 4.5:1 on the page and pass a scoped audit (Dynamic Type, clipped text,
 ///   description, contrast). iOS 27's audit flags the white system title's contrast on some
 ///   pages; that issue passes only on the measured rendered contrast (the #388 rule).
@@ -164,7 +165,7 @@ final class DuoPageTitleAccessibilityJourneyTests: XCTestCase {
                           "\(state): title whole: \(reading.text ?? "nil")")
         }
         let height = try XCTUnwrap(reading.lineHeight, "\(state): title measured")
-        XCTAssertGreaterThan(height, standardHeight * Self.minimumTitleGrowth,
+        XCTAssertGreaterThan(height, standardHeight * Self.minimumTitleGrowth(duoWindow: duoWindow),
                              "\(state): title grows at AX5: \(height) pt vs \(standardHeight) pt")
 
         // Contrast: the title's glyphs render ≥ 4.5:1 on the page behind it.
@@ -240,9 +241,20 @@ final class DuoPageTitleAccessibilityJourneyTests: XCTestCase {
     }
 
     /// Minimum growth of the title's recognized line height from the default size to AX5:
-    /// the project's 1.35×, except on the iPhone Duo device type, whose system bar caps its
-    /// title (`system-bar-title-size`, testing/apple/accessibility.md; 1.10× folded on iOS 27.1).
-    private static var minimumTitleGrowth: CGFloat { isDuo ? 1.05 : RecognizedText.minimumGrowth }
+    /// the project's 1.35×, except where UIKit's bar caps the title (`system-bar-title-size`,
+    /// testing/apple/accessibility.md): the iPhone Duo device type (1.10× folded on iOS 27.1)
+    /// and the iPhone's own pose, whose floating page tools give every root the leading inline
+    /// bar title instead of the large title (#632; 1.155× measured on iOS 27, #678).
+    ///
+    /// - Parameter duoWindow: The simulated Duo window, or nil for the device's own pose.
+    /// - Returns: The growth floor.
+    private static func minimumTitleGrowth(duoWindow: String?) -> CGFloat {
+        if isDuo { return 1.05 }
+        if duoWindow == nil, UIDevice.current.userInterfaceIdiom == .phone {
+            return RecognizedText.minimumBarTitleGrowth
+        }
+        return RecognizedText.minimumGrowth
+    }
 
     // MARK: - Launch and queries
 
