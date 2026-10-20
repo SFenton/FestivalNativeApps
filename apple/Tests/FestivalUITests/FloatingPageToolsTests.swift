@@ -170,6 +170,21 @@ struct PageToolsRegistryTests {
         #expect(registry.frontItems.map(\.id) == [sort, sortTwin, filter, quickLinks])
     }
 
+    @Test("Only a page with registered tools reserves the floating row (issue #678)")
+    func hasToolsPerPage() {
+        let registry = PageToolsRegistry()
+        let profile = UUID()
+        let board = UUID()
+        registry.pageAppeared(profile)
+        registry.pageAppeared(board)
+        #expect(!registry.hasTools(in: profile))
+        let quickLinks = entry(registry, profile, PageToolOrder.primary)
+        #expect(registry.hasTools(in: profile))
+        #expect(!registry.hasTools(in: board))
+        registry.remove(id: quickLinks)
+        #expect(!registry.hasTools(in: profile))
+    }
+
     @Test("Only the front page's tools show; popping restores the page below")
     func frontPageScoping() {
         let registry = PageToolsRegistry()
