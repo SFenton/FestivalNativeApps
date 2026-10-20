@@ -26,6 +26,23 @@ struct FloatingPageToolsFitTests {
         #expect(FloatingPageToolsFit.reservedHeight == 60)
     }
 
+    @Test("A page ends its content at the floating row's top (issue #678)")
+    func pageBottomReserve() {
+        // iPhone 17 Pro: the page's frame ends at the tab bar (791), the row starts 60 pt up.
+        #expect(FloatingPageToolsFit.pageBottomReserve(pageBottom: 791, floatingRowTop: 731) == 60)
+        // Fractional overlap rounds up so the last row never touches a button.
+        #expect(FloatingPageToolsFit.pageBottomReserve(pageBottom: 791, floatingRowTop: 730.5) == 61)
+    }
+
+    @Test("No reserve where no row floats, the inset already reaches the page, or before layout")
+    func pageBottomReserveNone() {
+        #expect(FloatingPageToolsFit.pageBottomReserve(pageBottom: 791, floatingRowTop: nil) == 0)
+        // The stack's inset already ends the page at the row: never lift twice.
+        #expect(FloatingPageToolsFit.pageBottomReserve(pageBottom: 731, floatingRowTop: 731) == 0)
+        #expect(FloatingPageToolsFit.pageBottomReserve(pageBottom: 700, floatingRowTop: 731) == 0)
+        #expect(FloatingPageToolsFit.pageBottomReserve(pageBottom: 0, floatingRowTop: 731) == 0)
+    }
+
     @Test("The available width is the window less a 16 pt margin each side")
     func availableWidth() {
         #expect(FloatingPageToolsFit.availableWidth(windowWidth: 402) == 370)

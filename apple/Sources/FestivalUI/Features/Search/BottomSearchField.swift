@@ -189,11 +189,13 @@ enum BottomSearchFieldPlacement {
     /// Extra padding that lifts the row above the floating page tools (issue #633).
     ///
     /// Where page tools float (iPhone Duo inner display in portrait), the selected
-    /// tab's floating row sits in its navigation stack's bottom safe-area inset, but
-    /// the page's own bottom safe area still ends at the tab bar, so without this the
-    /// field would cover the row. The row's bottom is the inset's anchor, independent
-    /// of this padding, so the result never feeds back into its own input; with the
-    /// keyboard up, both rise and the field stays above the row.
+    /// tab's floating row sits in its navigation stack's bottom safe-area inset. Pages
+    /// now end their safe area at the row themselves
+    /// (``FloatingPageToolsFit/pageBottomReserve(pageBottom:floatingRowTop:)``, #678),
+    /// so this is normally zero; it stays as a measured guard so the field never covers
+    /// the row while that reserve settles. The row's bottom is the inset's anchor,
+    /// independent of this padding, so the result never feeds back into its own input;
+    /// with the keyboard up, both rise and the field stays above the row.
     ///
     /// - Parameters:
     ///   - rowBottom: The field row's bottom edge, in window (global) points.

@@ -367,6 +367,27 @@ enum FloatingPageToolsFit {
     /// the content's bottom edge.
     static var reservedHeight: CGFloat { slot + verticalPadding * 2 }
 
+    /// Bottom padding that ends a page's content at the floating row's top (issue #678).
+    ///
+    /// The row sits in the tab stack's bottom safe-area inset, but on iOS 26.5 and 27 a
+    /// page's scroll view inside the `NavigationStack` still ends at the tab bar: the
+    /// page's frame stops there and its scroll content insets only for the tab bar, so
+    /// the last row (a failed section's Retry) scrolled under the buttons. (The page's
+    /// geometry reports the stack's inset in its safe area, but the scroll view ignores
+    /// it.) Measured from the page's frame rather than fixed, it falls to zero wherever
+    /// a page already ends above the row, so content is never lifted twice.
+    ///
+    /// - Parameters:
+    ///   - pageBottom: The page's bottom edge, in window (global) points, before this
+    ///     padding.
+    ///   - floatingRowTop: The floating row's top in the same space, or `nil` where no
+    ///     row floats (``PageToolsRegistry/floatingRowTop``).
+    /// - Returns: The overlap to reserve, in whole points (never negative).
+    static func pageBottomReserve(pageBottom: CGFloat, floatingRowTop: CGFloat?) -> CGFloat {
+        guard let floatingRowTop, pageBottom > 0 else { return 0 }
+        return max(0, pageBottom - floatingRowTop).rounded(.up)
+    }
+
     /// Width the row needs for some tools.
     ///
     /// - Parameter pageTools: Page actions plus Quick Links.
@@ -547,9 +568,11 @@ extension View {
 /// Implementation of ``SwiftUICore/View/floatingPageTools(isSelected:)``.
 ///
 /// The row sits in the stack's bottom safe-area inset, outside the pushed pages, so a
-/// push or pop swaps the tools with a fade instead of sliding them, every page's scroll
-/// content ends ``FloatingPageToolsFit/reservedHeight`` above the tab bar (the last row
-/// scrolls clear of the buttons), and the tab bar minimizing on scroll does not move it.
+/// push or pop swaps the tools with a fade instead of sliding them, and the tab bar
+/// minimizing on scroll does not move it. Pages' scroll views inside the stack ignore
+/// that inset (iOS 26.5, 27), so each page reserves the row itself
+/// (``PageToolsScopeModifier``, ``FloatingPageToolsFit/pageBottomReserve(pageBottom:floatingRowTop:)``):
+/// the last row scrolls clear of the buttons.
 struct FloatingPageToolsInset: ViewModifier {
     let isSelected: Bool
     @Environment(\.pageToolsRegistry) private var registry
@@ -711,10 +734,22 @@ struct PageToolsScopeModifier: ViewModifier {
     @Environment(\.pageToolsRegistry) private var registry
     @State private var scope = UUID()
     @State private var onScreen = false
+    /// The page's bottom edge in global points, measured outside the reserve.
+    @State private var pageBottom: CGFloat = 0
 
     func body(content: Content) -> some View {
         content
             .environment(\.pageToolsScope, scope)
+            #if os(iOS)
+            // Every page ends its content at the floating row (pattern
+            // page-tools-and-nav-chrome R28), tools or not, so a push never moves it.
+            .safeAreaPadding(.bottom, FloatingPageToolsFit.pageBottomReserve(
+                pageBottom: pageBottom, floatingRowTop: registry?.floatingRowTop
+            ))
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.frame(in: .global).maxY.rounded()
+            } action: { pageBottom = $0 }
+            #endif
             .onAppear {
                 onScreen = true
                 sync()
