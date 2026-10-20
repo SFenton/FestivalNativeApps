@@ -77,12 +77,22 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         let baseline = try assertRevealedRow(in: standard, minimumSide: 44, footerPinned: true)
         let standardText = rowTextHeights(in: standard)
         var flagged: Set<String> = []
+        var unattributedDynamicType = false
         try SongsUITestSupport.performAuditRetryingTimeout(
-            standard, [.dynamicType, .textClipped], name: "default-text", reset: { flagged = [] }
+            standard, [.dynamicType, .textClipped], name: "default-text",
+            reset: { flagged = []; unattributedDynamicType = false }
         ) { issue in
             let detail = self.attach(issue, name: "default-text")
             if issue.auditType == .dynamicType, let frame = issue.element?.frame,
                Self.isSystemBadge(frame, in: self.systemBadgeFrame(in: standard)) {
+                return true
+            }
+            if self.isPinnedBarTitleText(issue, in: standard) {
+                return true
+            }
+            if issue.auditType == .dynamicType, issue.element == nil {
+                // `unattributed-dynamic-type-page-growth`: checked below on the AX5 launch.
+                unattributedDynamicType = true
                 return true
             }
             if issue.auditType == .dynamicType, let label = issue.element?.label,
@@ -117,6 +127,21 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         for kind in flagged.sorted() {
             let before = try XCTUnwrap(standardText[kind]), after = try XCTUnwrap(largeText[kind], "No \(kind) text at AX5")
             XCTAssertGreaterThanOrEqual(after, before * 1.35, "\(kind) text grew only \(before) → \(after) pt at AX5")
+        }
+        if unattributedDynamicType {
+            // An element-less default-size Dynamic Type issue: every board text kind drawn
+            // in both launches must have grown 1.35× (testing/apple/accessibility.md).
+            let both = standardText.keys.filter { largeText[$0] != nil }.sorted()
+            XCTAssertTrue(
+                Set(["rank", "score", "accuracy"]).isSubset(of: both),
+                "No card text to measure for the unattributed Dynamic Type issue: \(both)"
+            )
+            for kind in both {
+                let before = standardText[kind]!, after = largeText[kind]!
+                XCTAssertGreaterThanOrEqual(
+                    after, before * 1.35, "\(kind) text grew only \(before) → \(after) pt at AX5 (unattributed)"
+                )
+            }
         }
         try audit(large, types: .all.subtracting(.contrast), chromeTop: grown.chromeTop, name: "ax5")
     }
@@ -225,7 +250,7 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         // Reading order, from the layout (XCUITest lists descendants depth first, the pinned
         // chrome before the scrolling rows; `DuoDrawerJourneyTests` precedent): the song header,
         // rows by rank, then the band's own row, then the pager. The revealed row sits fully
-        // above the pinned chrome, not under its fade.
+        // above the pinned chrome, not under its fade (a row taller than the page: centred).
         let footer = any("\(Self.boardPrefix)spotlight-footer", in: app)
         let pager = any("\(Self.boardPrefix)page-info", in: app).frame
         XCTAssertFalse(pager.isEmpty, "No pager")
@@ -243,11 +268,35 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
             }
             chromeTop = pager.minY
         }
-        XCTAssertLessThanOrEqual(row.frame.maxY, chromeTop + 1, "The revealed row is under the pinned chrome")
         let barBottom = app.navigationBars.allElementsBoundByIndex.map(\.frame.maxY).max() ?? 0
-        XCTAssertGreaterThanOrEqual(row.frame.minY, barBottom - 1, "The revealed row is under the bar")
+        if row.frame.height <= chromeTop - barBottom + 1 {
+            XCTAssertLessThanOrEqual(row.frame.maxY, chromeTop + 1, "The revealed row is under the pinned chrome")
+            XCTAssertGreaterThanOrEqual(row.frame.minY, barBottom - 1, "The revealed row is under the bar")
+        } else {
+            // Taller than the space between the bar and the pinned chrome (an AX5 card once
+            // the iPhone floating page tools reserve their row, page-tools R28, #678): no
+            // scroll can show all of its frame, so the reveal centres it (web `navToPlayer`
+            // `block: 'center'`), it fills that space, and every text it draws sits clear
+            // of both the bar and the pinned chrome.
+            attach(note: "Row \(row.frame) taller than bar \(barBottom) to chrome \(chromeTop)", name: "tall-row")
+            XCTAssertLessThanOrEqual(row.frame.minY, barBottom + 1, "The tall revealed row does not fill the page")
+            XCTAssertGreaterThanOrEqual(row.frame.maxY, chromeTop - 1, "The tall revealed row does not fill the page")
+            XCTAssertEqual(
+                barBottom - row.frame.minY, row.frame.maxY - chromeTop, accuracy: 2,
+                "The tall revealed row is not centred: \(row.frame), bar \(barBottom), chrome \(chromeTop)"
+            )
+            let texts = app.staticTexts.allElementsBoundByIndex.map(\.frame)
+                .filter { !$0.isEmpty && row.frame.contains($0) }
+            XCTAssertFalse(texts.isEmpty, "The revealed row draws no text")
+            for text in texts {
+                XCTAssertGreaterThanOrEqual(text.minY, barBottom - 1, "Revealed row text under the bar: \(text)")
+                XCTAssertLessThanOrEqual(text.maxY, chromeTop + 1, "Revealed row text under the pinned chrome: \(text)")
+            }
+        }
         let window = app.windows.firstMatch.frame
-        let visible = rows.filter { $0.frame.minY >= window.minY && $0.frame.maxY <= chromeTop + 1 }
+        let visible = rows.filter {
+            $0.frame.minY >= window.minY && ($0.frame.maxY <= chromeTop + 1 || $0.identifier == Self.focusedRow)
+        }
             .sorted { $0.frame.minY < $1.frame.minY }
         XCTAssertTrue(visible.contains { $0.identifier == Self.focusedRow }, "The revealed row is off screen")
         let ranks = visible.compactMap { $0.identifier.split(separator: ":").last.flatMap { Int($0) } }
@@ -280,15 +329,27 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
     ) throws {
         SongsUITestSupport.record(app, name: "song-band-reveal-\(name)")
         let badge = systemBadgeFrame(in: app)
+        var unattributedClip = false
         try SongsUITestSupport.performAuditRetryingTimeout(
-            app, types.subtracting(.contrast), name: name, reset: {}
+            app, types.subtracting(.contrast), name: name, reset: { unattributedClip = false }
         ) { issue in
             let detail = self.attach(issue, name: name)
             if issue.auditType == .dynamicType, let frame = issue.element?.frame, Self.isSystemBadge(frame, in: badge) {
                 return true
             }
+            if self.isPinnedBarTitleText(issue, in: app) {
+                return true
+            }
+            if issue.auditType == .textClipped, issue.element == nil {
+                // `unattributed-text-clipped-page-whole`: checked below from the capture.
+                unattributedClip = true
+                return true
+            }
             XCTFail("Band board audit (\(name)): \(detail)")
             return false
+        }
+        if unattributedClip {
+            assertPageTextDrawnWhole(in: app, badge: badge, chromeTop: chromeTop, name: name)
         }
         guard types.contains(.contrast) else { return }
         let window = app.windows.firstMatch.frame
@@ -309,6 +370,53 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(ratio, 4.5, "Band board contrast (\(name)): \(detail), rendered \(ratio):1")
             return true
         }
+    }
+
+    /// An element-less "Text clipped" passes only when every leaf static text wholly on
+    /// screen between the bars and the pager, and the pager's own text, reads back
+    /// untruncated from its own capture (`testing/apple/accessibility.md`
+    /// `unattributed-text-clipped-page-whole`, as the iPad audit's `IPadAuditWaivers`).
+    /// Bar-hosted text (`system-bar-title-size`), the system badge and page text scrolled
+    /// under the bar or under the pager and floating tools are listed in the evidence and do
+    /// not block.
+    ///
+    /// - Parameters:
+    ///   - app: Running app on the audited board.
+    ///   - badge: The bell's system badge frame.
+    ///   - chromeTop: Top of the pinned bottom chrome (the pager or spotlight footer).
+    ///   - name: Audit name, for the evidence attachment.
+    @MainActor
+    private func assertPageTextDrawnWhole(in app: XCUIApplication, badge: CGRect, chromeTop: CGFloat, name: String) {
+        let window = app.windows.firstMatch.frame
+        let bars = app.navigationBars.allElementsBoundByIndex.map(\.frame).filter { !$0.isEmpty }
+        let barBottom = bars.map(\.maxY).max() ?? window.minY
+        let pager = any("\(Self.boardPrefix)page-info", in: app)
+        let pagerFrame = pager.exists ? pager.frame.insetBy(dx: -1, dy: -1) : .null
+        var whole: [String] = [], apart: [String] = []
+        for text in app.staticTexts.allElementsBoundByIndex {
+            let frame = text.frame, label = text.label
+            guard !frame.isEmpty, !label.isEmpty, window.intersects(frame) else { continue }
+            if Self.isSystemBadge(frame, in: badge) || bars.contains(where: { $0.insetBy(dx: 0, dy: -1).contains(frame) }) {
+                apart.append("bar '\(label)' \(frame)")
+                continue
+            }
+            let inPage = frame.minY >= barBottom - 1 && frame.maxY <= chromeTop + 1
+            guard inPage || (!pagerFrame.isNull && pagerFrame.contains(frame)) else {
+                apart.append("scrolled under the chrome '\(label)' \(frame)")
+                continue
+            }
+            let reading = RecognizedText.recognize(text, label: label, frame: frame)
+            XCTAssertTrue(
+                RecognizedText.showsWhole(label, in: reading.text),
+                "Band board audit (\(name)): unattributed Text clipped and '\(label)' \(frame) reads '\(reading.text ?? "")'"
+            )
+            whole.append("'\(label)' read '\(reading.text ?? "")'")
+        }
+        XCTAssertFalse(whole.isEmpty, "Band board audit (\(name)): no page text to read back for an unattributed clip")
+        attach(
+            note: "unattributed-text-clipped-page-whole:\n" + (whole + apart).joined(separator: "\n"),
+            name: "\(name)-page-whole"
+        )
     }
 
     /// Every board row and the song header's text in `content` must render 4.5:1.
@@ -406,6 +514,30 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         return label
     }
 
+    /// Whether an audit issue is Dynamic Type on static text inside the shown pinned bar title
+    /// (`testing/apple/accessibility.md` `system-bar-title-size`, as `RivalDetailFrozenAccessibilityJourneyTests`):
+    /// UIKit caps the text a bar hosts, the title offers the Large Content Viewer and the
+    /// song header it repeats grows in full (`SongBandLeaderboardAccessibilityJourneyTests`).
+    /// The title's frame is read when the issue is raised: the leading title (#632) can
+    /// settle a few points after an earlier read (#659).
+    ///
+    /// - Parameters:
+    ///   - issue: The audit issue.
+    ///   - app: Running app on the revealed board.
+    /// - Returns: True when the issue is accepted; it is attached as evidence.
+    @MainActor
+    private func isPinnedBarTitleText(_ issue: XCUIAccessibilityAuditIssue, in app: XCUIApplication) -> Bool {
+        guard issue.auditType == .dynamicType, let element = issue.element, element.elementType == .staticText else {
+            return false
+        }
+        let pinned = app.descendants(matching: .any).matching(identifier: "\(Self.boardPrefix)pinned-title").firstMatch
+        guard pinned.exists else { return false }
+        let title = pinned.frame.intersection(app.navigationBars.firstMatch.frame.insetBy(dx: 0, dy: -1))
+        guard !title.isNull, title.insetBy(dx: -1, dy: -1).contains(element.frame) else { return false }
+        attach(note: "system-bar-title-size: '\(element.label)' \(element.frame) inside the pinned title \(title)", name: "bar-title")
+        return true
+    }
+
     /// The tallest static text of each kind inside the board's band cards.
     ///
     /// - Parameter app: Running app on the revealed board.
@@ -415,10 +547,13 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         let rows = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "\(Self.boardPrefix)row.")
         ).allElementsBoundByIndex.map(\.frame)
+        let barBottom = app.navigationBars.allElementsBoundByIndex.map(\.frame.maxY).max() ?? 0
         var heights: [String: CGFloat] = [:]
         for text in app.staticTexts.allElementsBoundByIndex {
             let frame = text.frame
-            guard !frame.isEmpty, rows.contains(where: { $0.contains(frame) }) else { continue }
+            // Bar-hosted text (the pinned title over a row scrolled under the bar) is capped by
+            // UIKit (`system-bar-title-size`), not the board's.
+            guard !frame.isEmpty, frame.minY >= barBottom - 1, rows.contains(where: { $0.contains(frame) }) else { continue }
             let kind = Self.textKind(text.label)
             heights[kind] = max(heights[kind] ?? 0, frame.height)
         }

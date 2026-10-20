@@ -66,9 +66,10 @@ final class NotificationsJourneyTests: XCTestCase {
         let bell = app.buttons["fst.shell.notifications"]
         XCTAssertTrue(bell.waitForExistence(timeout: 15))
         XCTAssertEqual(bell.label, "Notifications, 2 unread")
-        XCTAssertEqual(
-            bell.value as? String ?? "", "",
-            "The system badge's count must not be read twice (label already has it)"
+        // Empty, or on iOS 27 only the system badge's own phrase for this count (#678).
+        XCTAssertTrue(
+            FestivalApp.isAllowedBellValue(bell.value, label: bell.label),
+            "The system badge's count must not be read twice (label already has it): '\(String(describing: bell.value))'"
         )
         bell.tap()
         XCTAssertTrue(app.navigationBars["Notifications"].waitForExistence(timeout: 15))

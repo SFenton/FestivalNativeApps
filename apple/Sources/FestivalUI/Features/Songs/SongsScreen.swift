@@ -602,20 +602,22 @@ struct SongsScreen: View, Equatable {
         }
         #if DEBUG
         .navigationDestination(item: $debugPushedSong) { song in
-            // Same pushed-page chrome (Search + avatar) as `FestivalTabStack` destinations.
-            if let bandType = FestivalDebugLaunch.songBandType {
-                SongBandLeaderboardScreen(session: session, song: song, bandType: bandType)
-                    .pageTrailingItems()
-            } else if let instrument = FestivalDebugLaunch.songInstrument {
-                SoloLeaderboardScreen(
-                    song: song, instrument: instrument, session: session,
-                    initialPage: 1, path: .constant([])
-                )
-                .pageTrailingItems()
-            } else {
-                SongDetailScreen(song: song, session: session, visibleInstruments: visibleInstruments)
-                    .pageTrailingItems()
+            // Same pushed-page chrome (Search + avatar, floating page tools) as
+            // `FestivalTabStack` destinations.
+            Group {
+                if let bandType = FestivalDebugLaunch.songBandType {
+                    SongBandLeaderboardScreen(session: session, song: song, bandType: bandType)
+                } else if let instrument = FestivalDebugLaunch.songInstrument {
+                    SoloLeaderboardScreen(
+                        song: song, instrument: instrument, session: session,
+                        initialPage: 1, path: .constant([])
+                    )
+                } else {
+                    SongDetailScreen(song: song, session: session, visibleInstruments: visibleInstruments)
+                }
             }
+            .pageTrailingItems()
+            .pageToolsScope(inSelectedTab: isVisible)
         }
         .task(id: FestivalDebugLaunch.songTitleOrId) {
             guard debugPushedSong == nil, let target = FestivalDebugLaunch.songTitleOrId
