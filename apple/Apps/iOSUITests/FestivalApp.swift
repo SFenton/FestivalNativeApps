@@ -120,6 +120,58 @@ enum FestivalApp {
         return found
     }
 
+    // MARK: - Notifications bell
+
+    /// Whether the bell's accessibility value is acceptable: empty, or on iOS 27+ exactly
+    /// the system toolbar-item badge's own count phrase for the bell's current unread
+    /// count ("2 items").
+    ///
+    /// From iOS 27 UIKit publishes the badge as the bar button's value, and SwiftUI's
+    /// `accessibilityValue` cannot replace it (measured, #678). HIG Notifications rules
+    /// out a custom badge ("Avoid custom images or components that mimic a badge"), so
+    /// that one system phrase is allowed; any other value, a stale count, or a value
+    /// with no unread rows still fails, and iOS 26 must stay empty
+    /// (`.agents/controls/notifications/ios.md`).
+    ///
+    /// - Parameters:
+    ///   - value: The bell's accessibility value.
+    ///   - label: The bell's label, "Notifications" or "Notifications, N unread".
+    ///   - osMajor: The simulator's iOS major version.
+    /// - Returns: True when the value is empty or the current count's system phrase.
+    static func isAllowedBellValue(
+        _ value: Any?, label: String,
+        osMajor: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+    ) -> Bool {
+        let text = (value as? String) ?? ""
+        if text.isEmpty { return true }
+        guard osMajor >= 27,
+              let match = label.firstMatch(of: /^Notifications, ([0-9]+) unread$/),
+              let unread = Int(match.1), (1...9).contains(unread)
+        else { return false }
+        return text == (unread == 1 ? "1 item" : "\(unread) items")
+    }
+
+    /// The bottom of what the navigation bar draws: its lowest title, button or search
+    /// field.
+    ///
+    /// On iOS 26.5 and 27 a bar with the editor-role inline title and the drawer search
+    /// reports an accessibility frame about 90 pt taller than what it draws (Songs: frame
+    /// to 250 pt, search field ending at 160 pt), so content pinned under the visible
+    /// chrome reads as overlapping the bar (#678). Read this line instead of
+    /// `navigationBars.firstMatch.frame.maxY` where the pin line matters.
+    ///
+    /// - Parameter app: The app.
+    /// - Returns: The lowest drawn item's bottom edge, or the bar's frame bottom when it
+    ///   has no such item.
+    /// - Throws: A snapshot XCTest cannot take.
+    @MainActor
+    static func navigationBarContentBottom(in app: XCUIApplication) throws -> CGFloat {
+        let bar = app.navigationBars.firstMatch
+        let drawn: Set<XCUIElement.ElementType> = [.button, .staticText, .searchField, .textField, .image]
+        let items = try snapshotNodes(in: bar) { drawn.contains($0.elementType) && !$0.frame.isEmpty }
+        return items.map(\.frame.maxY).max() ?? bar.frame.maxY
+    }
+
     // MARK: - Quick Links
 
     /// Matches a Quick Links row by its identifier or, in a native menu that drops its rows'
