@@ -371,9 +371,8 @@ enum FloatingPageToolsFit {
     static let margin: CGFloat = 16
     /// Clear space above and below the row, between the content and the tab bar.
     static let verticalPadding: CGFloat = 8
-    /// The bottom safe-area height the row reserves on every page of the tab, tools or
-    /// not, so the last content row scrolls clear of the buttons and a push never moves
-    /// the content's bottom edge.
+    /// The bottom safe-area height the row reserves on each page that has tools, so the
+    /// last content row scrolls clear of the buttons (issue #678).
     static var reservedHeight: CGFloat { slot + verticalPadding * 2 }
 
     /// Bottom padding that ends a tool-bearing page's content at the floating row's top
