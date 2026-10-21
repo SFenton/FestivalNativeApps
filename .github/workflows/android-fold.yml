@@ -57,10 +57,17 @@ jobs:
           ram-size: 4096M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          # Each line runs on its own. The hinge angle is device.py's "half" posture for book folds.
+          # Each line runs on its own. As in android-device, wake, unlock, clear system dialogs and let
+          # the freshly booted launcher settle: run 39589122517 started tests ~60 s after boot and
+          # "Pixel Launcher isn't responding" took the active window (#679; JourneyHarness also
+          # answers such a dialog with Wait). The hinge angle is device.py's "half" posture for book folds.
           script: |
+            adb shell svc power stayon true
+            adb shell wm dismiss-keyguard
+            adb shell input keyevent 82
+            adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS || true
             adb emu sensor set hinge-angle0 90
-            sleep 5
+            sleep 20
             adb shell dumpsys device_state | grep -i -m 3 'state' || true
             adb shell wm size
             bash android/gradlew -p android :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.annotation=com.festivalscoretracker.android.journeys.HalfOpenFoldJourney -Pandroid.testInstrumentationRunnerArguments.fstRequireHinge=true --no-daemon || { adb logcat -d -v threadtime -s FST_ATF:V FST_A11Y:V TestRunner:V AndroidRuntime:E > android-fold-logcat.txt; exit 1; }
