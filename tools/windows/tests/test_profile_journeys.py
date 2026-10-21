@@ -87,7 +87,7 @@ class ProfileJourneyFailureCaptureTests(unittest.TestCase):
     """A failed phase keeps a screenshot and UIA tree of the window as it failed (#676), and what happened to the app:
     exit code or hang, event-log crash records and its own ``diagnostics.log`` (#680)."""
 
-    def run_failing(self, shots, work, state="exited with code 0xC000027B", events="", capture_code=0):
+    def run_failing(self, shots, work, state="exited with code 0xC000027B", events="", capture_code=0, dumps=None):
         calls = []
 
         def fake_uiwin(*args, check=True):
@@ -97,12 +97,18 @@ class ProfileJourneyFailureCaptureTests(unittest.TestCase):
             return p.subprocess.CompletedProcess(args, code, stdout=out, stderr="error: no on-screen element")
 
         journey = next(j for j in p.JOURNEYS if j.name == "history-anonymous")
+        environment = {p.CRASH_DUMPS_VARIABLE: str(dumps)} if dumps else {}
         with mock.patch.object(p, "_uiwin", fake_uiwin), mock.patch.object(p, "_wait_for_port"), \
-                mock.patch.object(p.subprocess, "Popen"), mock.patch.object(p.tempfile, "mkdtemp", return_value=str(work)), \
+                mock.patch.dict(p.os.environ, environment, clear=False), \
+                mock.patch.object(p.subprocess, "Popen") as popen, \
+                mock.patch.object(p.tempfile, "mkdtemp", return_value=str(work)), \
                 mock.patch.object(p, "_hold", return_value=77) as hold, mock.patch.object(p, "_release") as release, \
                 mock.patch.object(p, "_app_state", return_value=state) as app_state, \
                 mock.patch.object(p, "_crash_events", return_value=events):
+            if not dumps:
+                p.os.environ.pop(p.CRASH_DUMPS_VARIABLE, None)
             failures = p.run(journey, Path("app.exe"), shots)
+        self.popen = popen
         hold.assert_called_once_with(4242)
         app_state.assert_called_with(4242, 77)
         release.assert_called_once_with(77)
@@ -148,6 +154,28 @@ class ProfileJourneyFailureCaptureTests(unittest.TestCase):
         self.assertIn("Source: Application Error", report)
         self.assertIn("diagnostics.log:\n2026-10-19T14:49:44Z Catastrophic failure\nCOMException", report)
 
+    def test_without_a_dump_folder_no_debugger_attaches(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.run_failing(None, Path(tmp))
+        self.assertFalse(any("crash_dump.py" in str(c.args[0]) for c in self.popen.call_args_list))
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows debugger")
+    def test_a_dump_folder_attaches_the_debugger_and_reports_its_exception(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            shots, work, dumps = Path(tmp) / "shots", Path(tmp) / "work", Path(tmp) / "dumps"
+            shots.mkdir()
+            dumps.mkdir()
+            (dumps / "history-anonymous-C000027B.txt").write_text("code: 0xC000027B\nparameters: 0x1f0 0x1\n",
+                                                                  encoding="utf-8")
+            self.run_failing(shots, work, dumps=dumps)
+            report = (shots / "history-anonymous-0-failed-app.txt").read_text(encoding="utf-8")
+        watcher = [c for c in self.popen.call_args_list if str(c.args[0][1]).endswith("crash_dump.py")]
+        self.assertEqual([[sys.executable, str(p.CRASH_DUMP), "4242", str(dumps), "history-anonymous"]],
+                         [c.args[0] for c in watcher])
+        self.popen.return_value.wait.assert_called()
+        self.assertIn("fatal exception (crash_dump.py):\nhistory-anonymous-C000027B.txt "
+                      "(dump history-anonymous-C000027B.dmp):\ncode: 0xC000027B\nparameters: 0x1f0 0x1", report)
+
     def test_the_failure_report_says_when_nothing_was_recorded(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(p, "_app_state", return_value="running; window responding"), \
@@ -187,6 +215,50 @@ class ProfileJourneyCrashEventTests(unittest.TestCase):
         finally:
             p._release(handle)
         self.assertRegex(state, r"^exited with code 0xC000027B \d+\.\d s ago$")
+
+
+@unittest.skipUnless(sys.platform == "win32", "Windows debugger")
+class CrashDumpTests(unittest.TestCase):
+    """`crash_dump.py` keeps a WinUI-style stowed fail-fast that Windows Error Reporting drops on hosted runners
+    (#680), and leaves an app that exits normally alone."""
+
+    #: Waits for the debugger, then fails fast the way XAML does: an originated E_UNEXPECTED, stowed and raised.
+    FAIL_FAST = ("import ctypes, time\n"
+                 "while not ctypes.windll.kernel32.IsDebuggerPresent(): time.sleep(0.05)\n"
+                 "combase = ctypes.WinDLL('combase')\n"
+                 "combase.RoOriginateError(ctypes.c_long(-2147418113), None)\n"
+                 "combase.RoFailFastWithErrorContext(ctypes.c_long(-2147418113))\n")
+    EXIT = ("import ctypes, time\n"
+            "while not ctypes.windll.kernel32.IsDebuggerPresent(): time.sleep(0.05)\n"
+            "try:\n    1 / 0\nexcept ZeroDivisionError:\n    pass\n"
+            "raise SystemExit(3)\n")
+
+    def watch(self, script, folder):
+        child = p.subprocess.Popen([sys.executable, "-c", script])
+        try:
+            result = p.subprocess.run([sys.executable, str(p.CRASH_DUMP), str(child.pid), str(folder), "journey"],
+                                      timeout=120, capture_output=True, text=True)
+        finally:
+            child.wait(timeout=60)
+        return result.returncode, child.returncode
+
+    def test_a_stowed_fail_fast_keeps_its_report_and_dump(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            code, exit_code = self.watch(self.FAIL_FAST, folder)
+            report = (folder / "journey-C000027B.txt").read_text(encoding="utf-8")
+            dump = (folder / "journey-C000027B.dmp").read_bytes()
+        self.assertEqual((1, 0xC000027B), (code, exit_code))
+        self.assertIn("code: 0xC000027B\nfirst chance: False\n", report)
+        self.assertRegex(report, r"parameters: 0x[0-9a-f]+ 0x1\n")
+        self.assertEqual(b"MDMP", dump[:4])
+
+    def test_a_normal_exit_keeps_nothing_and_ends_as_usual(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            code, exit_code = self.watch(self.EXIT, folder)
+            kept = list(folder.iterdir())
+        self.assertEqual((0, 3, []), (code, exit_code, kept))
 
 
 if __name__ == "__main__":

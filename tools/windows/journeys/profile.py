@@ -32,6 +32,9 @@ import journey_exe  # noqa: E402  (tools/windows module)
 
 REPO = Path(__file__).resolve().parents[3]
 UIWIN = REPO / "tools" / "windows" / "uiwin.py"
+CRASH_DUMP = REPO / "tools" / "windows" / "crash_dump.py"
+#: Folder for fail-fast reports and dumps (``crash_dump.py``); CI sets it inside the uploaded results (#680).
+CRASH_DUMPS_VARIABLE = "FST_CRASH_DUMPS"
 
 # region Model
 
@@ -562,6 +565,45 @@ def _release(handle: int | None) -> None:
         _kernel32().CloseHandle(handle)
 
 
+def _watch(pid: int, name: str) -> subprocess.Popen | None:
+    """Attach :mod:`crash_dump` to the app when ``FST_CRASH_DUMPS`` names a folder, so a fail-fast that Windows Error
+    Reporting doesn't record (hosted runners, #680) still leaves its exception and a dump.
+
+    Args:
+        pid: App process ID.
+        name: Journey name (the report and dump file prefix).
+
+    Returns:
+        The watcher process for :func:`_unwatch`, or ``None`` when dumps are off.
+    """
+    folder = os.environ.get(CRASH_DUMPS_VARIABLE)
+    if not folder or sys.platform != "win32":
+        return None
+    return subprocess.Popen([sys.executable, str(CRASH_DUMP), str(pid), folder, name],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def _unwatch(watcher: subprocess.Popen | None) -> None:
+    """Wait for a :func:`_watch` watcher to see the closed app exit (it may still be writing a dump), then stop it."""
+    if watcher is None:
+        return
+    try:
+        watcher.wait(timeout=60)
+    except subprocess.TimeoutExpired:
+        watcher.terminate()
+        watcher.wait(timeout=10)
+
+
+def _crash_reports(name: str) -> str:
+    """The :mod:`crash_dump` reports for journey ``name`` (exception code, thread, stowed-exception parameters)."""
+    folder = os.environ.get(CRASH_DUMPS_VARIABLE)
+    if not folder:
+        return ""
+    reports = sorted(Path(folder).glob(f"{name}-*.txt"))
+    return "\n".join(f"{report.name} (dump {report.with_suffix('.dmp').name}):\n"
+                     f"{report.read_text(encoding='utf-8', errors='replace')}" for report in reports)
+
+
 def _app_state(pid: int, handle: int | None = None) -> str:
     """Describe the app process after a failed phase: exited (with its exit code and how long ago) or running, and
     whether its windows answer messages. A crash or hang leaves no window to screenshot, so this is the evidence that
@@ -639,9 +681,9 @@ def _crash_events(since: float) -> str:
 
 
 def _failure_report(pid: int, data: Path, since: float, captures: dict[str, subprocess.CompletedProcess],
-                    handle: int | None = None) -> str:
-    """Everything known about the app when a phase failed: process state, failed captures, event log and the app's
-    own ``diagnostics.log`` (#680: three failures of one step left no screenshot or tree to explain them).
+                    handle: int | None = None, name: str = "") -> str:
+    """Everything known about the app when a phase failed: process state, failed captures, a kept fail-fast, event log
+    and the app's own ``diagnostics.log`` (#680: three failures of one step left no screenshot or tree to explain them).
 
     Args:
         pid: App process ID.
@@ -649,14 +691,17 @@ def _failure_report(pid: int, data: Path, since: float, captures: dict[str, subp
         since: ``time.time()`` when the journey started.
         captures: The failed-phase ``shot`` and ``tree`` results.
         handle: The app's process handle from :func:`_hold`.
+        name: Journey name, for the :mod:`crash_dump` reports.
 
     Returns:
         Report text.
     """
     lines = [f"app: {_app_state(pid, handle)}"]
-    for name, capture in captures.items():
+    for capture_name, capture in captures.items():
         if capture.returncode != 0:
-            lines.append(f"{name} failed: {(capture.stderr or capture.stdout).strip()[-2000:]}")
+            lines.append(f"{capture_name} failed: {(capture.stderr or capture.stdout).strip()[-2000:]}")
+    if name and (kept := _crash_reports(name)):
+        lines.append("fatal exception (crash_dump.py):\n" + kept)
     events = _crash_events(since)
     lines.append("application event log:\n" + (events or "(no entries for the app)"))
     log = data / "diagnostics.log"
@@ -677,11 +722,13 @@ def run(journey: Journey, exe: Path, shots: Path | None) -> list[str]:
     started = time.time()
     pid = None
     handle = None
+    watcher = None
     try:
         _wait_for_port(port)
         base = f"http://127.0.0.1:{port}/"
         pid = _launch(exe, base, settings, journey.launch, journey.preset)
         handle = _hold(pid)
+        watcher = _watch(pid, journey.name)
         for index, phase in enumerate(journey.steps):
             tree = work / f"tree-{index}.txt"
             steps = [*phase, f"tree:{tree}"]
@@ -700,7 +747,7 @@ def run(journey: Journey, exe: Path, shots: Path | None) -> list[str]:
                                        check=False),
                     }
                 # A crashed or hung app leaves no window to capture; say what happened to it (#680).
-                report = _failure_report(pid, work / "data", started, captures, handle)
+                report = _failure_report(pid, work / "data", started, captures, handle, journey.name)
                 failures.append(f"phase {index}: {report.splitlines()[0]}")
                 if shots is not None:
                     (shots / f"{journey.name}-{index}-failed-app.txt").write_text(report, encoding="utf-8")
@@ -715,14 +762,17 @@ def run(journey: Journey, exe: Path, shots: Path | None) -> list[str]:
             if journey.relaunch == index:
                 _uiwin("close", "--pid", str(pid), check=False)
                 _release(handle)
+                _unwatch(watcher)
                 pid = _launch(exe, base, settings, journey.relaunch_args, journey.preset)
                 handle = _hold(pid)
+                watcher = _watch(pid, journey.name)
     except RuntimeError as error:
         failures.append(str(error))
     finally:
         if pid is not None:
             _uiwin("close", "--pid", str(pid), check=False)
         _release(handle)
+        _unwatch(watcher)
         mock.terminate()
     return failures
 

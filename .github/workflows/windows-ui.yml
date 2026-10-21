@@ -85,14 +85,14 @@ jobs:
       - name: Animation and transparency effects on
         shell: pwsh
         run: ./tools/windows/ci_effects.ps1
-      - name: Keep app crash dumps
-        shell: pwsh
-        run: ./tools/windows/ci_dumps.ps1 -Folder "$env:RUNNER_TEMP\windows-ui-journeys\${{ matrix.shard }}\dumps"
       - name: Build the app (Debug)
         shell: pwsh
         run: ./tools/windows/build.ps1
       - name: Feature journeys
         shell: pwsh
+        env:
+          # profile.py attaches tools/windows/crash_dump.py to the app: WER records no XAML fail-fast here (#680).
+          FST_CRASH_DUMPS: ${{ runner.temp }}/windows-ui-journeys/${{ matrix.shard }}/dumps
         run: python tools/windows/ci_ui.py --shard ${{ matrix.shard }} --shards 4 --retries 2 --out "$env:RUNNER_TEMP\windows-ui-journeys\${{ matrix.shard }}"
       - name: Upload journey diagnostics
         if: always()
