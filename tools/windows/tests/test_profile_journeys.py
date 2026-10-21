@@ -1,4 +1,5 @@
-"""Profile journeys (``journeys/profile.py``): step syntax, and a Quick Links pick waits for its jump (issue #663).
+"""Profile journeys (``journeys/profile.py``): step syntax, a Quick Links pick waits for its jump (issue #663), and a
+failed phase records what happened to the app (issue #680).
 
 Run: ``python -m unittest discover -s tools/windows/tests`` from the repo root (CI: ``native.yml``).
 """
@@ -83,36 +84,94 @@ class ProfileJourneyStepTests(unittest.TestCase):
 
 
 class ProfileJourneyFailureCaptureTests(unittest.TestCase):
-    """A failed phase keeps a screenshot and UIA tree of the window as it failed (#676)."""
+    """A failed phase keeps a screenshot and UIA tree of the window as it failed (#676), and what happened to the app:
+    exit code or hang, event-log crash records and its own ``diagnostics.log`` (#680)."""
 
-    def run_failing(self, shots):
+    def run_failing(self, shots, work, state="exited with code 0xC000027B", events="", capture_code=0):
         calls = []
 
         def fake_uiwin(*args, check=True):
             calls.append(args)
             out = '{\n  "pid": 4242,\n}' if args[0] == "launch" else ""
-            code = 1 if args[0] == "drive" else 0
+            code = 1 if args[0] == "drive" else capture_code if args[0] in ("shot", "tree") else 0
             return p.subprocess.CompletedProcess(args, code, stdout=out, stderr="error: no on-screen element")
 
         journey = next(j for j in p.JOURNEYS if j.name == "history-anonymous")
         with mock.patch.object(p, "_uiwin", fake_uiwin), mock.patch.object(p, "_wait_for_port"), \
-                mock.patch.object(p.subprocess, "Popen"):
+                mock.patch.object(p.subprocess, "Popen"), mock.patch.object(p.tempfile, "mkdtemp", return_value=str(work)), \
+                mock.patch.object(p, "_app_state", return_value=state) as app_state, \
+                mock.patch.object(p, "_crash_events", return_value=events):
             failures = p.run(journey, Path("app.exe"), shots)
+        app_state.assert_called_with(4242)
         return failures, calls
 
     def test_a_failed_phase_captures_the_window(self):
         with tempfile.TemporaryDirectory() as tmp:
             shots = Path(tmp)
-            failures, calls = self.run_failing(shots)
-        self.assertEqual(["phase 0: error: no on-screen element"], failures)
+            failures, calls = self.run_failing(shots, shots / "work")
+        self.assertEqual(["phase 0: error: no on-screen element", "phase 0: app: exited with code 0xC000027B"], failures)
         verbs = [c[0] for c in calls]
         self.assertEqual(["launch", "drive", "shot", "tree", "close"], verbs)
         self.assertEqual(("shot", "--pid", "4242", str(shots / "history-anonymous-0-failed.png")), calls[2])
         self.assertEqual(("tree", "--pid", "4242", str(shots / "history-anonymous-0-failed.txt")), calls[3])
 
     def test_without_shots_nothing_is_captured(self):
-        _, calls = self.run_failing(None)
+        with tempfile.TemporaryDirectory() as tmp:
+            failures, calls = self.run_failing(None, Path(tmp), state="running; window not responding (hung)")
         self.assertEqual(["launch", "drive", "close"], [c[0] for c in calls])
+        self.assertEqual("phase 0: app: running; window not responding (hung)", failures[-1])
+
+    def test_the_app_keeps_its_data_beside_the_settings(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            _, calls = self.run_failing(None, work)
+        launch = calls[0]
+        self.assertEqual(f"FST_DEBUG_DATA_DIR={work / 'data'}", launch[launch.index("--extra") + 1])
+        self.assertIn(f"--arg={work / 'settings.json'}", launch)
+
+    def test_the_failure_report_keeps_the_crash_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            shots, work = Path(tmp) / "shots", Path(tmp) / "work"
+            shots.mkdir()
+            (work / "data").mkdir(parents=True)
+            (work / "data" / "diagnostics.log").write_text("2026-10-19T14:49:44Z Catastrophic failure\nCOMException",
+                                                           encoding="utf-8")
+            self.run_failing(shots, work, events="Event[0]:\n  Source: Application Error\n  FestivalScoreTracker.exe",
+                             capture_code=1)
+            report = (shots / "history-anonymous-0-failed-app.txt").read_text(encoding="utf-8")
+        self.assertTrue(report.startswith("app: exited with code 0xC000027B\n"))
+        self.assertIn("shot failed: error: no on-screen element", report)
+        self.assertIn("tree failed: error: no on-screen element", report)
+        self.assertIn("Source: Application Error", report)
+        self.assertIn("diagnostics.log:\n2026-10-19T14:49:44Z Catastrophic failure\nCOMException", report)
+
+    def test_the_failure_report_says_when_nothing_was_recorded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(p, "_app_state", return_value="running; window responding"), \
+                    mock.patch.object(p, "_crash_events", return_value=""):
+                report = p._failure_report(4242, Path(tmp), 0.0, {})
+        self.assertEqual("app: running; window responding\napplication event log:\n(no entries for the app)\n"
+                         "diagnostics.log:\n(none)", report)
+
+
+class ProfileJourneyCrashEventTests(unittest.TestCase):
+    """The failure report keeps only the app's own event-log records (#680)."""
+
+    def test_only_the_apps_events_are_kept(self):
+        out = ("Event[0]:\n  Source: Application Error\n  Faulting application name: FestivalScoreTracker.exe\n"
+               "Event[1]:\n  Source: Other\n  Description: something else\n")
+        with mock.patch.object(p.sys, "platform", "win32"), \
+                mock.patch.object(p.subprocess, "run", return_value=p.subprocess.CompletedProcess([], 0, stdout=out)) as run:
+            events = p._crash_events(p.time.time() - 30)
+        self.assertEqual("Event[0]:\n  Source: Application Error\n  Faulting application name: FestivalScoreTracker.exe",
+                         events)
+        command = run.call_args.args[0]
+        self.assertEqual(["wevtutil", "qe", "Application"], command[:3])
+        self.assertTrue(any(a.startswith("/q:*[System[TimeCreated[timediff(@SystemTime) <= ") for a in command))
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows process APIs")
+    def test_a_missing_process_is_reported_gone(self):
+        self.assertEqual("gone (no process with that pid)", p._app_state(0x7FFFFFFC))
 
 
 if __name__ == "__main__":

@@ -513,13 +513,114 @@ def _app_args(extra: list[str]) -> list[str]:
 
 
 def _launch(exe: Path, base: str, settings: Path, extra: list[str], preset: str = "medium") -> int:
-    """Launch the app and return its pid."""
+    """Launch the app and return its pid.
+
+    The app keeps its data folder (``diagnostics.log`` and seen-state) next to ``settings``, so each journey starts
+    from the same state and a failure can attach the app's own crash log (#680).
+    """
     out = _uiwin("launch", str(exe), "--arg=--base-url", f"--arg={base}", "--arg=--settings-path",
-                 f"--arg={settings}", "--preset", preset, *_app_args(extra)).stdout
+                 f"--arg={settings}", "--extra", f"FST_DEBUG_DATA_DIR={settings.parent / 'data'}",
+                 "--preset", preset, *_app_args(extra)).stdout
     for line in out.splitlines():
         if '"pid"' in line:
             return int(line.split(":")[1].strip().rstrip(","))
     raise RuntimeError(f"no pid in launch output: {out}")
+
+
+def _app_state(pid: int) -> str:
+    """Describe the app process after a failed phase: exited (with its exit code) or running, and whether its
+    windows answer messages. A crash or hang leaves no window to screenshot, so this is the evidence that remains (#680).
+
+    Args:
+        pid: App process ID.
+
+    Returns:
+        For example ``"exited with code 0xC000027B"`` or ``"running; window responding"``.
+    """
+    if sys.platform != "win32":
+        return "unknown (not Windows)"
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return "gone (no process with that pid)"
+    try:
+        code = wintypes.DWORD()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            return "unknown (exit code unreadable)"
+        if code.value != 259:  # STILL_ACTIVE
+            return f"exited with code 0x{code.value:08X}"
+    finally:
+        kernel32.CloseHandle(handle)
+    hung: list[bool] = []
+    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def visit(hwnd, _):
+        owner = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+        if owner.value == pid and user32.IsWindowVisible(hwnd):
+            hung.append(bool(user32.IsHungAppWindow(hwnd)))
+        return True
+
+    user32.EnumWindows(callback_type(visit), 0)
+    if not hung:
+        return "running; no visible window"
+    return "running; window not responding (hung)" if any(hung) else "running; window responding"
+
+
+def _crash_events(since: float) -> str:
+    """Application event log entries about the app since ``since`` (WER ``Application Error`` with the exception code
+    and faulting module, ``.NET Runtime`` with the managed stack), newest first; empty when there are none.
+
+    Args:
+        since: ``time.time()`` when the journey started.
+
+    Returns:
+        The matching events as text.
+    """
+    if sys.platform != "win32":
+        return ""
+    window_ms = int((time.time() - since + 60) * 1000)
+    query = f"*[System[TimeCreated[timediff(@SystemTime) <= {window_ms}]]]"
+    try:
+        out = subprocess.run(["wevtutil", "qe", "Application", f"/q:{query}", "/f:text", "/rd:true", "/c:50"],
+                             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30).stdout
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return f"(event log unreadable: {error})"
+    events = [e for e in out.split("Event[") if journey_exe.EXE_NAME.lower() in e.lower()]
+    return "\n".join("Event[" + e.strip() for e in events)
+
+
+def _failure_report(pid: int, data: Path, since: float, captures: dict[str, subprocess.CompletedProcess]) -> str:
+    """Everything known about the app when a phase failed: process state, failed captures, event log and the app's
+    own ``diagnostics.log`` (#680: three failures of one step left no screenshot or tree to explain them).
+
+    Args:
+        pid: App process ID.
+        data: The app's data folder (``FST_DEBUG_DATA_DIR``).
+        since: ``time.time()`` when the journey started.
+        captures: The failed-phase ``shot`` and ``tree`` results.
+
+    Returns:
+        Report text.
+    """
+    lines = [f"app: {_app_state(pid)}"]
+    for name, capture in captures.items():
+        if capture.returncode != 0:
+            lines.append(f"{name} failed: {(capture.stderr or capture.stdout).strip()[-2000:]}")
+    events = _crash_events(since)
+    lines.append("application event log:\n" + (events or "(no entries for the app)"))
+    log = data / "diagnostics.log"
+    lines.append("diagnostics.log:\n" + (log.read_text(encoding="utf-8", errors="replace")[-20000:] if log.exists()
+                                          else "(none)"))
+    return "\n".join(lines)
 
 
 def run(journey: Journey, exe: Path, shots: Path | None) -> list[str]:
@@ -531,6 +632,7 @@ def run(journey: Journey, exe: Path, shots: Path | None) -> list[str]:
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     work = Path(tempfile.mkdtemp(prefix=f"fst-journey-{journey.name}-"))
     settings = work / "settings.json"
+    started = time.time()
     pid = None
     try:
         _wait_for_port(port)
@@ -544,10 +646,20 @@ def run(journey: Journey, exe: Path, shots: Path | None) -> list[str]:
             result = _uiwin("drive", "--pid", str(pid), "--steps", "; ".join(steps), check=False)
             if result.returncode != 0:
                 failures.append(f"phase {index}: {result.stderr.strip() or result.stdout.strip()}")
+                captures = {}
                 if shots is not None:
                     # Keep what the window showed when the phase failed (phases only shoot on success; #676).
-                    _uiwin("shot", "--pid", str(pid), str(shots / f"{journey.name}-{index}-failed.png"), check=False)
-                    _uiwin("tree", "--pid", str(pid), str(shots / f"{journey.name}-{index}-failed.txt"), check=False)
+                    captures = {
+                        "shot": _uiwin("shot", "--pid", str(pid), str(shots / f"{journey.name}-{index}-failed.png"),
+                                       check=False),
+                        "tree": _uiwin("tree", "--pid", str(pid), str(shots / f"{journey.name}-{index}-failed.txt"),
+                                       check=False),
+                    }
+                # A crashed or hung app leaves no window to capture; say what happened to it (#680).
+                report = _failure_report(pid, work / "data", started, captures)
+                failures.append(f"phase {index}: {report.splitlines()[0]}")
+                if shots is not None:
+                    (shots / f"{journey.name}-{index}-failed-app.txt").write_text(report, encoding="utf-8")
                 break
             text = tree.read_text(encoding="utf-8", errors="replace") if tree.exists() else ""
             for needle in journey.expect[index] if index < len(journey.expect) else []:
