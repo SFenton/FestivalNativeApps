@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 
-namespace Festival.Core.Threading;
+namespace Festival.Core.Domain;
 
 #region Context
 /// <summary>

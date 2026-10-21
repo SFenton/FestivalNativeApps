@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
-using Festival.Core.Threading;
+using Festival.Core.Domain;
 
 namespace Festival.Core.Tests;
 

@@ -16,7 +16,7 @@ public partial class App : Application
     {
         PerfLog.Mark("app-constructor");
         // Before any XAML work: contended waits on the UI thread must not pump into WinUI's protected tick (#680).
-        Festival.Core.Threading.NonReentrantWaitContext.InstallOnCurrentThread();
+        Festival.Core.Domain.NonReentrantWaitContext.InstallOnCurrentThread();
         InitializeComponent();
         UnhandledException += (_, e) => CrashLog.Write(e.Exception, e.Message);
         DebugSettings.BindingFailed += (_, e) => CrashLog.Write(null, "Binding failed: " + e.Message);
