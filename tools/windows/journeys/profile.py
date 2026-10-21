@@ -638,7 +638,8 @@ def _app_state(pid: int, handle: int | None = None) -> str:
             if not kernel32.GetProcessTimes(handle, *[ctypes.byref(t) for t in times]):
                 return f"exited with code 0x{code.value:08X}"
             exited = times[1].value / 1e7 - 11644473600  # FILETIME (100 ns since 1601) to Unix time
-            return f"exited with code 0x{code.value:08X} {time.time() - exited:.1f} s ago"
+            # time.time() and the kernel's exit FILETIME can disagree by a few ms, so a fresh exit can read negative.
+            return f"exited with code 0x{code.value:08X} {max(0.0, time.time() - exited):.1f} s ago"
     finally:
         if own:
             kernel32.CloseHandle(handle)
