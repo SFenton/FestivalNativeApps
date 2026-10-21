@@ -579,8 +579,10 @@ def _watch(pid: int, name: str) -> subprocess.Popen | None:
     folder = os.environ.get(CRASH_DUMPS_VARIABLE)
     if not folder or sys.platform != "win32":
         return None
-    return subprocess.Popen([sys.executable, str(CRASH_DUMP), str(pid), folder, name],
-                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    Path(folder).mkdir(parents=True, exist_ok=True)
+    with open(Path(folder) / f"{name}-crash_dump.log", "a", encoding="utf-8") as log:
+        return subprocess.Popen([sys.executable, str(CRASH_DUMP), str(pid), folder, name], stdout=log,
+                                stderr=subprocess.STDOUT)
 
 
 def _unwatch(watcher: subprocess.Popen | None) -> None:
@@ -600,8 +602,7 @@ def _crash_reports(name: str) -> str:
     if not folder:
         return ""
     reports = sorted(Path(folder).glob(f"{name}-*.txt"))
-    return "\n".join(f"{report.name} (dump {report.with_suffix('.dmp').name}):\n"
-                     f"{report.read_text(encoding='utf-8', errors='replace')}" for report in reports)
+    return "\n".join(f"{report.name}:\n{report.read_text(encoding='utf-8', errors='replace')}" for report in reports)
 
 
 def _app_state(pid: int, handle: int | None = None) -> str:

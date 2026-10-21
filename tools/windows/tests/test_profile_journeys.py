@@ -173,8 +173,8 @@ class ProfileJourneyFailureCaptureTests(unittest.TestCase):
         self.assertEqual([[sys.executable, str(p.CRASH_DUMP), "4242", str(dumps), "history-anonymous"]],
                          [c.args[0] for c in watcher])
         self.popen.return_value.wait.assert_called()
-        self.assertIn("fatal exception (crash_dump.py):\nhistory-anonymous-C000027B.txt "
-                      "(dump history-anonymous-C000027B.dmp):\ncode: 0xC000027B\nparameters: 0x1f0 0x1", report)
+        self.assertIn("fatal exception (crash_dump.py):\nhistory-anonymous-C000027B.txt:\ncode: 0xC000027B\n"
+                      "parameters: 0x1f0 0x1", report)
 
     def test_the_failure_report_says_when_nothing_was_recorded(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -251,6 +251,11 @@ class CrashDumpTests(unittest.TestCase):
         self.assertEqual((1, 0xC000027B), (code, exit_code))
         self.assertIn("code: 0xC000027B\nfirst chance: False\n", report)
         self.assertRegex(report, r"parameters: 0x[0-9a-f]+ 0x1\n")
+        # The stowed error is decoded in the report itself, down to the python frames that originated it.
+        thread = re.search(r"^thread: (\d+)$", report, re.M).group(1)
+        self.assertRegex(report, rf"stowed\[0\]: SE02 hr 0x8000FFFF thread {thread}\n  originated at combase\.dll\+0x")
+        self.assertRegex(report, r"\n +\d+: _ctypes\.pyd\+0x[0-9a-f]+\n")
+        self.assertIn("dump journey-C000027B-small.dmp: written\ndump journey-C000027B.dmp: written\n", report)
         self.assertEqual(b"MDMP", dump[:4])
 
     def test_a_normal_exit_keeps_nothing_and_ends_as_usual(self):
