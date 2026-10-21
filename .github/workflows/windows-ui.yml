@@ -85,6 +85,9 @@ jobs:
       - name: Animation and transparency effects on
         shell: pwsh
         run: ./tools/windows/ci_effects.ps1
+      - name: Keep app crash dumps
+        shell: pwsh
+        run: ./tools/windows/ci_dumps.ps1 -Folder "$env:RUNNER_TEMP\windows-ui-journeys\${{ matrix.shard }}\dumps"
       - name: Build the app (Debug)
         shell: pwsh
         run: ./tools/windows/build.ps1

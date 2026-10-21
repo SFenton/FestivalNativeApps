@@ -527,28 +527,63 @@ def _launch(exe: Path, base: str, settings: Path, extra: list[str], preset: str 
     raise RuntimeError(f"no pid in launch output: {out}")
 
 
-def _app_state(pid: int) -> str:
-    """Describe the app process after a failed phase: exited (with its exit code) or running, and whether its
-    windows answer messages. A crash or hang leaves no window to screenshot, so this is the evidence that remains (#680).
+def _kernel32():
+    """kernel32 with the process functions the failure report uses."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+    kernel32.GetProcessTimes.argtypes = [wintypes.HANDLE, *[ctypes.POINTER(ctypes.c_ulonglong)] * 4]
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    return kernel32
+
+
+def _hold(pid: int) -> int | None:
+    """Open the app process for the journey's lifetime, so its exit code and exit time stay readable after it exits
+    (the driver, not this script, started it, so nothing else keeps the process object alive; #680).
 
     Args:
         pid: App process ID.
 
     Returns:
-        For example ``"exited with code 0xC000027B"`` or ``"running; window responding"``.
+        A process handle for :func:`_app_state` and :func:`_release`, or ``None`` when it can't be opened.
+    """
+    if sys.platform != "win32":
+        return None
+    return _kernel32().OpenProcess(0x101000, False, pid) or None  # SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION
+
+
+def _release(handle: int | None) -> None:
+    """Close a handle from :func:`_hold`."""
+    if handle:
+        _kernel32().CloseHandle(handle)
+
+
+def _app_state(pid: int, handle: int | None = None) -> str:
+    """Describe the app process after a failed phase: exited (with its exit code and how long ago) or running, and
+    whether its windows answer messages. A crash or hang leaves no window to screenshot, so this is the evidence that
+    remains (#680).
+
+    Args:
+        pid: App process ID.
+        handle: The process handle :func:`_hold` opened at launch; without it an exited app is just gone.
+
+    Returns:
+        For example ``"exited with code 0xC000027B 14.2 s ago"`` or ``"running; window responding"``.
     """
     if sys.platform != "win32":
         return "unknown (not Windows)"
     import ctypes
     from ctypes import wintypes
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32 = _kernel32()
     user32 = ctypes.WinDLL("user32", use_last_error=True)
-    kernel32.OpenProcess.restype = wintypes.HANDLE
-    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
-    kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
-    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
-    handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    own = handle is None
+    if own:
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
     if not handle:
         return "gone (no process with that pid)"
     try:
@@ -556,9 +591,14 @@ def _app_state(pid: int) -> str:
         if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
             return "unknown (exit code unreadable)"
         if code.value != 259:  # STILL_ACTIVE
-            return f"exited with code 0x{code.value:08X}"
+            times = [ctypes.c_ulonglong() for _ in range(4)]
+            if not kernel32.GetProcessTimes(handle, *[ctypes.byref(t) for t in times]):
+                return f"exited with code 0x{code.value:08X}"
+            exited = times[1].value / 1e7 - 11644473600  # FILETIME (100 ns since 1601) to Unix time
+            return f"exited with code 0x{code.value:08X} {time.time() - exited:.1f} s ago"
     finally:
-        kernel32.CloseHandle(handle)
+        if own:
+            kernel32.CloseHandle(handle)
     hung: list[bool] = []
     callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
@@ -598,7 +638,8 @@ def _crash_events(since: float) -> str:
     return "\n".join("Event[" + e.strip() for e in events)
 
 
-def _failure_report(pid: int, data: Path, since: float, captures: dict[str, subprocess.CompletedProcess]) -> str:
+def _failure_report(pid: int, data: Path, since: float, captures: dict[str, subprocess.CompletedProcess],
+                    handle: int | None = None) -> str:
     """Everything known about the app when a phase failed: process state, failed captures, event log and the app's
     own ``diagnostics.log`` (#680: three failures of one step left no screenshot or tree to explain them).
 
@@ -607,11 +648,12 @@ def _failure_report(pid: int, data: Path, since: float, captures: dict[str, subp
         data: The app's data folder (``FST_DEBUG_DATA_DIR``).
         since: ``time.time()`` when the journey started.
         captures: The failed-phase ``shot`` and ``tree`` results.
+        handle: The app's process handle from :func:`_hold`.
 
     Returns:
         Report text.
     """
-    lines = [f"app: {_app_state(pid)}"]
+    lines = [f"app: {_app_state(pid, handle)}"]
     for name, capture in captures.items():
         if capture.returncode != 0:
             lines.append(f"{name} failed: {(capture.stderr or capture.stdout).strip()[-2000:]}")
@@ -634,10 +676,12 @@ def run(journey: Journey, exe: Path, shots: Path | None) -> list[str]:
     settings = work / "settings.json"
     started = time.time()
     pid = None
+    handle = None
     try:
         _wait_for_port(port)
         base = f"http://127.0.0.1:{port}/"
         pid = _launch(exe, base, settings, journey.launch, journey.preset)
+        handle = _hold(pid)
         for index, phase in enumerate(journey.steps):
             tree = work / f"tree-{index}.txt"
             steps = [*phase, f"tree:{tree}"]
@@ -656,7 +700,7 @@ def run(journey: Journey, exe: Path, shots: Path | None) -> list[str]:
                                        check=False),
                     }
                 # A crashed or hung app leaves no window to capture; say what happened to it (#680).
-                report = _failure_report(pid, work / "data", started, captures)
+                report = _failure_report(pid, work / "data", started, captures, handle)
                 failures.append(f"phase {index}: {report.splitlines()[0]}")
                 if shots is not None:
                     (shots / f"{journey.name}-{index}-failed-app.txt").write_text(report, encoding="utf-8")
@@ -670,12 +714,15 @@ def run(journey: Journey, exe: Path, shots: Path | None) -> list[str]:
                     failures.append(f"phase {index}: did not expect {needle!r} in the UIA tree")
             if journey.relaunch == index:
                 _uiwin("close", "--pid", str(pid), check=False)
+                _release(handle)
                 pid = _launch(exe, base, settings, journey.relaunch_args, journey.preset)
+                handle = _hold(pid)
     except RuntimeError as error:
         failures.append(str(error))
     finally:
         if pid is not None:
             _uiwin("close", "--pid", str(pid), check=False)
+        _release(handle)
         mock.terminate()
     return failures
 

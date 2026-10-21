@@ -99,10 +99,13 @@ class ProfileJourneyFailureCaptureTests(unittest.TestCase):
         journey = next(j for j in p.JOURNEYS if j.name == "history-anonymous")
         with mock.patch.object(p, "_uiwin", fake_uiwin), mock.patch.object(p, "_wait_for_port"), \
                 mock.patch.object(p.subprocess, "Popen"), mock.patch.object(p.tempfile, "mkdtemp", return_value=str(work)), \
+                mock.patch.object(p, "_hold", return_value=77) as hold, mock.patch.object(p, "_release") as release, \
                 mock.patch.object(p, "_app_state", return_value=state) as app_state, \
                 mock.patch.object(p, "_crash_events", return_value=events):
             failures = p.run(journey, Path("app.exe"), shots)
-        app_state.assert_called_with(4242)
+        hold.assert_called_once_with(4242)
+        app_state.assert_called_with(4242, 77)
+        release.assert_called_once_with(77)
         return failures, calls
 
     def test_a_failed_phase_captures_the_window(self):
@@ -172,6 +175,18 @@ class ProfileJourneyCrashEventTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform == "win32", "Windows process APIs")
     def test_a_missing_process_is_reported_gone(self):
         self.assertEqual("gone (no process with that pid)", p._app_state(0x7FFFFFFC))
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows process APIs")
+    def test_a_held_process_keeps_its_exit_code_and_time(self):
+        child = p.subprocess.Popen([sys.executable, "-c", "import ctypes; ctypes.windll.kernel32.ExitProcess(0xC000027B)"])
+        handle = p._hold(child.pid)
+        try:
+            self.assertIsNotNone(handle)
+            child.wait(timeout=30)
+            state = p._app_state(child.pid, handle)
+        finally:
+            p._release(handle)
+        self.assertRegex(state, r"^exited with code 0xC000027B \d+\.\d s ago$")
 
 
 if __name__ == "__main__":
