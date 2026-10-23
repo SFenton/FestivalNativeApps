@@ -321,8 +321,9 @@ final class ScrollEdgeFadeAccessibilityJourneyTests: XCTestCase {
 
         // Scroll to the end of page 1: rows pass under the pager and the last rests above it.
         let restingPagerTop = pager.map(\.frame.minY).min() ?? window.maxY
-        let listTop = rows.first.map { max($0.frame.minY, window.minY) } ?? window.minY
-        scrollToEnd(board, in: app, region: listTop ... restingPagerTop)
+        let listTop = Self.dragTop(in: app, firstRowTop: rows.first?.frame.minY, window: window)
+        XCTAssertTrue(scrollToEnd(board, in: app, region: listTop ... restingPagerTop),
+                      "\(context): page 1's rows stopped moving (its end) within the drag budget")
         nodes = Self.nodes(in: app)
         let settledPager = Self.pagerNodes(board, in: nodes)
         let pagerTop = settledPager.map(\.frame.minY).min() ?? .greatestFiniteMagnitude
@@ -406,15 +407,42 @@ final class ScrollEdgeFadeAccessibilityJourneyTests: XCTestCase {
                       "\(context): closing the menu on Duos changed the band size: '\(menu.label)'")
     }
 
+    /// Top of the span ``scrollToEnd(_:in:region:)`` drags over: the navigation bar's
+    /// bottom edge, so each drag crosses the whole visible list, or the first row's top
+    /// where no bar spans the drag's column.
+    ///
+    /// At AX5 a song's header fills the page above its first row, leaving about 110 pt to
+    /// the pager; drags that short did not reach the end of the band song board's page 1
+    /// within the drag budget on the CI runner, so its last row was checked mid-scroll
+    /// (#681). The header is scroll content, so a drag may end over it.
+    ///
+    /// - Parameters:
+    ///   - app: The running app.
+    ///   - firstRowTop: The first row's top at rest, if any row is on screen.
+    ///   - window: The app window's frame.
+    /// - Returns: The span's top edge in window points.
+    @MainActor
+    private static func dragTop(in app: XCUIApplication, firstRowTop: CGFloat?, window: CGRect) -> CGFloat {
+        let rowTop = max(firstRowTop ?? window.minY, window.minY)
+        let bar = app.navigationBars.firstMatch
+        guard bar.exists else { return rowTop }
+        let frame = bar.frame
+        guard frame.width > 0, frame.minX <= window.midX, frame.maxX >= window.midX,
+              frame.maxY > window.minY, frame.maxY < rowTop else { return rowTop }
+        return frame.maxY
+    }
+
     /// Fling the list until page 1's rows stop moving (its end).
     ///
     /// - Parameters:
     ///   - board: The open board.
     ///   - app: The running app.
-    ///   - region: The list's visible span at rest, between the page header and the pager:
-    ///     drags start and end inside it so they never press the pager or the navigation bar.
+    ///   - region: The list's visible span at rest, between the navigation bar
+    ///     (``dragTop(in:firstRowTop:window:)``) and the pager: drags start and end inside
+    ///     it so they never press the pager or the navigation bar.
+    /// - Returns: Whether the rows stopped moving before the drag budget ran out.
     @MainActor
-    private func scrollToEnd(_ board: Board, in app: XCUIApplication, region: ClosedRange<CGFloat>) {
+    private func scrollToEnd(_ board: Board, in app: XCUIApplication, region: ClosedRange<CGFloat>) -> Bool {
         let window = app.windows.firstMatch.frame
         let origin = app.windows.firstMatch.coordinate(withNormalizedOffset: .zero)
         let inset = min(12, (region.upperBound - region.lowerBound) / 4)
@@ -426,9 +454,10 @@ final class ScrollEdgeFadeAccessibilityJourneyTests: XCTestCase {
             settle(0.6)
             let rows = Self.rowNodes(board, in: Self.nodes(in: app))
             let frames = Dictionary(rows.map { ($0.id, $0.frame) }, uniquingKeysWith: { first, _ in first })
-            if !frames.isEmpty, frames == previous { return }
+            if !frames.isEmpty, frames == previous { return true }
             previous = frames
         }
+        return false
     }
 
     // MARK: - Sheet assertions
