@@ -119,7 +119,9 @@ final class SongLeaderboardEndJourneyTests: XCTestCase {
         let pagerTop = assertPager(in: app, window: window)
         // The row pins until it is measured, then leaves the chrome if it is too tall (R12).
         let unpinned = XCTNSPredicateExpectation(
-            predicate: NSPredicate { _, _ in !footer.exists || !footer.isHittable }, object: nil
+            predicate: NSPredicate { _, _ in
+                MainActor.assumeIsolated { Self.footerLeftChrome(in: app, window: window) }
+            }, object: nil
         )
         var resolved = placement
         switch placement {
@@ -181,6 +183,26 @@ final class SongLeaderboardEndJourneyTests: XCTestCase {
             scrollToEndOfPage(rows, above: pagerTop, in: app, window: window)
             assertLastRow(restsAbove: assertPager(in: app, window: window), in: app)
         }
+    }
+
+    /// Whether the player's footer has left the pinned chrome: gone from the tree or wholly
+    /// off screen. Read from one accessibility snapshot, never `isHittable`: polled for
+    /// seconds over a pinned footer, a slow runner's hit test once found no activation point
+    /// on the visible, unmoving row and failed the journey outright (#682). A snapshot that
+    /// fails, or a node with no frame yet, proves nothing and reads as still pinned; the
+    /// footer's reachability is asserted once it has settled (``assertFooter(_:above:window:)``).
+    ///
+    /// - Parameters:
+    ///   - app: The running app.
+    ///   - window: The app window's frame.
+    /// - Returns: True once the footer is gone or off screen.
+    @MainActor
+    private static func footerLeftChrome(in app: XCUIApplication, window: CGRect) -> Bool {
+        guard let nodes = try? FestivalApp.snapshotNodes(in: app, where: {
+            $0.elementType == .button && $0.identifier == footerID
+        }) else { return false }
+        guard let node = nodes.first else { return true }
+        return !node.frame.isEmpty && !window.intersects(node.frame)
     }
 
     /// The player's footer: one enabled, reachable, named 44 pt button on screen above the

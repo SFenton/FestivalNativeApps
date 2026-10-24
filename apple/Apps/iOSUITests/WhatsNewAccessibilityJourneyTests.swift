@@ -13,8 +13,12 @@ import XCTest
 /// every heading and bullet must be read in page order (headings with the header trait), grow
 /// by more than 1.35× (recognized line height), come wholly into view between the navigation
 /// bar and the Dismiss bar and read back untruncated from the capture; Close and Dismiss stay
-/// hittable and Dismiss closes the cover. A scoped audit covers Dynamic Type, clipped text,
-/// hit regions and descriptions on the cover's own elements. macOS hosting cannot scale text,
+/// hittable, Dismiss's own title grows by more than 1.35× too, and Dismiss closes the cover. A
+/// scoped audit covers Dynamic Type, clipped text, hit regions and descriptions on the cover's
+/// own elements. iOS 27's audit intermittently flags every cover text as Dynamic Type "partially
+/// unsupported" at once on a slow runner (#682: all 2.84–3.79× grown in the same run); such a
+/// flag passes only as `dynamic-type-grows`, on a text this run measured above 1.35×, and is
+/// attached as evidence. macOS hosting cannot scale text,
 /// so this journey is the AX5 evidence; `FestivalUITests/WhatsNewAccessibilityTests` covers
 /// names, order and target size in `apple-ci`.
 ///
@@ -118,6 +122,11 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
             XCTAssertGreaterThan(height, 4, "'\(note.text)' has a measurable line height")
             baseline.append(height)
         }
+        let standardDismiss = standard.buttons["fst.whats-new.dismiss"]
+        let dismissBaseline = try XCTUnwrap(
+            RecognizedText.recognize(standardDismiss, label: "Dismiss", frame: standardDismiss.frame).lineHeight,
+            "'Dismiss' recognized at the default size"
+        )
         record(standard, name: "whats-new-default-\(name)")
         standard.terminate()
 
@@ -142,7 +151,6 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
             XCTAssertGreaterThan(ratio, RecognizedText.minimumGrowth,
                                  "'\(note.text)' glyphs grow at AX5: \(height) vs \(baseline[index]) pt")
         }
-        attach("whats-new-ax5-\(name)-growth", growth.joined(separator: "\n"))
         record(app, name: "whats-new-ax5-\(name)-end")
 
         let close = app.buttons["fst.whats-new.close"]
@@ -154,8 +162,17 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
         XCTAssertTrue(window.insetBy(dx: -1, dy: -1).contains(dismiss.frame),
                       "Dismiss is wholly on screen: \(dismiss.frame) in \(window)")
         XCTAssertEqual(dismiss.label, "Dismiss")
+        let dismissHeight = try XCTUnwrap(
+            RecognizedText.recognize(dismiss, label: "Dismiss", frame: dismiss.frame).lineHeight,
+            "'Dismiss' recognized at AX5"
+        )
+        growth.append(String(format: "Dismiss %.2f", dismissHeight / dismissBaseline))
+        XCTAssertGreaterThan(dismissHeight / dismissBaseline, RecognizedText.minimumGrowth,
+                             "'Dismiss' grows at AX5: \(dismissHeight) vs \(dismissBaseline) pt")
+        attach("whats-new-ax5-\(name)-growth", growth.joined(separator: "\n"))
 
         var issues: [String] = []
+        var proven: [String] = []
         let names = Set(Self.readingOrder.map(\.text))
         try app.performAccessibilityAudit(
             for: [.dynamicType, .textClipped, .hitRegion, .sufficientElementDescription]
@@ -163,10 +180,19 @@ final class WhatsNewAccessibilityJourneyTests: XCTestCase {
             let id = issue.element?.identifier ?? ""
             let label = issue.element?.label ?? ""
             guard id.hasPrefix("fst.whats-new.") || names.contains(label) else { return true }
+            // Every note and Dismiss grew past `minimumGrowth` above (`dynamic-type-grows`).
+            if issue.auditType == .dynamicType, issue.compactDescription.contains("partially unsupported"),
+               names.contains(label) || id == "fst.whats-new.dismiss" {
+                proven.append("dynamic-type-grows: \(id) '\(label)'")
+                return true
+            }
             issues.append("\(id) '\(label)': \(issue.compactDescription)")
             return true
         }
         XCTAssertEqual(issues, [], "What's New audit issues at AX5 (\(name))")
+        if !proven.isEmpty {
+            attach("whats-new-ax5-\(name)-audit-dynamic-type-grows", proven.joined(separator: "\n"))
+        }
 
         dismiss.tap()
         XCTAssertTrue(dismiss.waitForNonExistence(timeout: FestivalApp.budget(10)), "Dismiss closes the cover at AX5")
