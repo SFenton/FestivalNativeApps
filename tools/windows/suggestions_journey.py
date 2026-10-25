@@ -68,6 +68,8 @@ NAMED_TITLES = {"song_rival_near_fc": ("FC These to Beat ", "!"), "song_rival_st
 """Named-rival family -> (title prefix, title suffix) around the rival's name (Suggestions R1)."""
 TYPES = ("nearFC", "starProgress", "unplayed", "varietyPack", "artistEssentials", "artistDiscover", "sameName",
          "almostElite", "percentilePush", "stale", "pctImprove", "nearMax", "songRivals")
+FIRST_INSTRUMENT = "fst.suggestions.filter.instrument.Solo_Guitar"
+"""First switch in the filter's Instruments list (Lead): on screen only once the expanded list is laid out."""
 LOADED = [f"waitfor:{ROW}@30", f"waitfor:{CARD}@5", "waitfor:id=fst.suggestions.filter-button@5"]
 
 # name -> (profile or None for anonymous, extra environment, steps). {shot:NAME} placeholders become screenshots
@@ -109,6 +111,9 @@ SCENARIOS: dict[str, tuple[str | None, dict[str, str], list[str]]] = {
             "invoke:id=fst.suggestions.filter-button",
             "waitfor:id=fst.suggestions.filter.instruments@10",
             "expand:id=fst.suggestions.filter.instruments",
+            # The Expander shows its content on its expand storyboard's first tick, after the UIA Expand call returns, so
+            # a slow host still lays General out above the fold for a moment (#683): wait for the first switch on screen.
+            f"waitfor:id={FIRST_INSTRUMENT}@5",
             # The flyout fits the window (#513), so the open Instruments list can push General below the fold.
             "scrollinto:id=fst.suggestions.filter.general@5",
             "expand:id=fst.suggestions.filter.general",
