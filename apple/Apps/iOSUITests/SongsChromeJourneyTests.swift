@@ -685,10 +685,10 @@ final class SongsChromeJourneyTests: XCTestCase {
         let window = app.windows.firstMatch.frame
         let rail = app.descendants(matching: .any)
             .matching(identifier: "fst.songs.section-index").firstMatch.frame
-        let tabs = app.tabBars.firstMatch.frame
+        let tabsTop = SongsUITestSupport.tabBarTop(in: app)
         let accessory = app.descendants(matching: .any).matching(identifier: "fst.page-tools").firstMatch
         let chromeTop = accessory.exists && accessory.frame.minY > window.midY
-            ? min(tabs.minY, accessory.frame.minY) : tabs.minY
+            ? min(tabsTop, accessory.frame.minY) : tabsTop
         let heading = try isHeading(bar)
         XCTContext.runActivity(named: "\(label): bar '\(bar.label)' header trait \(String(describing: heading))") { _ in }
         XCTAssertNotEqual(heading, false, "\(label): the section bar is not a heading")
@@ -976,12 +976,13 @@ final class SongsChromeJourneyTests: XCTestCase {
         )
         let barHeight = bar.frame.height
         let barBottom = bar.frame.maxY
-        let tabs = app.tabBars.firstMatch.frame
+        let tabsTop = SongsUITestSupport.tabBarTop(in: app)
         let window = app.windows.firstMatch.frame
         // At AX5 a row can be taller than the band, so count any row showing ≥ 44 pt of it
-        // between the bar and the tab bar. One snapshot: the lazy list recycles rows (#572).
+        // between the bar and the tab bar (the window bottom in the iPad flyout shell, which
+        // has none). One snapshot: the lazy list recycles rows (#572).
         let visible = try FestivalApp.snapshotNodes(in: app, where: SongsUITestSupport.isSongsRow).filter {
-            window.intersects($0.frame) && min($0.frame.maxY, tabs.minY) - max($0.frame.minY, barBottom) >= 44
+            window.intersects($0.frame) && min($0.frame.maxY, tabsTop) - max($0.frame.minY, barBottom) >= 44
         }
         XCTAssertFalse(visible.isEmpty, "No song rows below the section bar")
         for row in visible {
@@ -2356,9 +2357,8 @@ private struct ScrollAwayAuditPage {
         rail = app.descendants(matching: .any)
             .matching(identifier: "fst.songs.section-index").firstMatch.frame
         window = app.windows.firstMatch.frame
-        let tabs = app.tabBars.firstMatch
         let accessory = app.descendants(matching: .any).matching(identifier: "fst.page-tools").firstMatch
-        var chromeTop = tabs.exists ? tabs.frame.minY : window.maxY
+        var chromeTop = SongsUITestSupport.tabBarTop(in: app)
         if accessory.exists, accessory.frame.minY > window.midY {
             chromeTop = min(chromeTop, accessory.frame.minY)
             self.accessory = accessory.frame

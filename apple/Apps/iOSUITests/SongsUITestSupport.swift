@@ -698,6 +698,19 @@ enum SongsUITestSupport {
         return field
     }
 
+    /// The top of the root tab bar, or the window's bottom where the shell shows none.
+    ///
+    /// The iPad flyout shell hides the root tab bar (`rootTabBarVisibility()`), so a
+    /// regular-width iPad has no `TabBar` element and reading its frame fails the test.
+    ///
+    /// - Parameter app: Foreground app.
+    /// - Returns: The y where bottom content stops.
+    @MainActor
+    static func tabBarTop(in app: XCUIApplication) -> CGFloat {
+        let tabs = app.tabBars.firstMatch
+        return tabs.exists ? tabs.frame.minY : app.windows.firstMatch.frame.maxY
+    }
+
     /// The Songs search entry point: the pinned "Filter Songs" field.
     ///
     /// - Parameter app: Foreground app on the Songs root.

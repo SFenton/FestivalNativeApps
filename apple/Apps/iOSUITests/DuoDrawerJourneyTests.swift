@@ -95,7 +95,10 @@ final class DuoDrawerJourneyTests: XCTestCase {
         XCTAssertTrue(panel.waitForExistence(timeout: 10), "The drawer never opened")
         settle()
         let after = try bitmap(of: app, pointWidth: windowFrame.width, name: "duo-drawer-open-\(pose)")
-        let panelFrame = panel.frame
+        // The element can be wider than the glass (on the folded Duo it spans the whole
+        // window, the bar included), so the panel is the glass measured in the screenshots.
+        let panelFrame = try glassFrame(of: panel.frame, in: windowFrame, closed: before, open: after)
+        print("drawer-glass \(pose): element \(panel.frame), glass \(panelFrame)")
 
         // The panel runs to the floating margin at the bottom (rows clear the home
         // indicator inside it), as on iPhone and the iPad flyout.
@@ -193,6 +196,41 @@ final class DuoDrawerJourneyTests: XCTestCase {
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         } while Date() < deadline
         return tabs
+    }
+
+    /// The drawn glass panel: the drawer element's leading and top edges, with the
+    /// trailing and bottom edges measured where the open window stops differing from the
+    /// closed one under the scrim (``ButtonFillPixels/drawerGlassMaxX(in:against:gain:)``,
+    /// as `DrawerMotionJourneyTests` measures it).
+    ///
+    /// - Parameters:
+    ///   - element: The `fst.shell.drawer` element's frame.
+    ///   - window: The app window's frame.
+    ///   - closed: The window before the drawer opened.
+    ///   - open: The window with the drawer open.
+    /// - Returns: The glass's frame in window coordinates.
+    /// - Throws: No measurable glass edge.
+    private func glassFrame(
+        of element: CGRect, in window: CGRect, closed: ButtonFillPixels, open: ButtonFillPixels
+    ) throws -> CGRect {
+        let local = element.offsetBy(dx: -window.minX, dy: -window.minY)
+        // Below the status bar, which the scrim never dims; across the header and rows.
+        let bandTop = max(local.minY + 24, DrawerMotionJourneyTests.statusBarClearance)
+        let band = CGRect(x: local.minX, y: bandTop, width: local.width, height: min(local.maxY - 24 - bandTop, 240))
+        let gain = open.drawerMotionGain(
+            in: CGRect(x: window.width - 14, y: window.height * 0.25, width: 12, height: window.height * 0.67),
+            against: closed
+        ) ?? 0.55
+        let maxX = try XCTUnwrap(
+            open.drawerGlassMaxX(in: band, against: closed, gain: gain), "No glass edge in \(band) (gain \(gain))"
+        )
+        // Clear of the rounded bottom corners, from mid-panel to the window bottom.
+        let column = CGRect(x: local.minX + 60, y: local.midY, width: max(4, maxX - local.minX - 120),
+                            height: local.maxY - local.midY)
+        let maxY = try XCTUnwrap(
+            open.drawerGlassMaxY(in: column, against: closed, gain: gain), "No glass bottom in \(column) (gain \(gain))"
+        )
+        return CGRect(x: element.minX, y: element.minY, width: maxX - local.minX, height: maxY - local.minY)
     }
 
     /// The part of the bar to measure: the bar outside the panel and its 20 pt shadow,
