@@ -38,7 +38,7 @@ final class DrawerMotionJourneyTests: XCTestCase {
     private static let sequence = 0.4
 
     /// Window points below the top kept out of the measured regions (the status bar).
-    fileprivate static let statusBarClearance: CGFloat = 64
+    static let statusBarClearance: CGFloat = 64
 
     /// Ratio tolerance for "the scrim is fully dark" (the 45 % scrim keeps ~55 %).
     private static let fullScrimTolerance = 0.05
@@ -302,17 +302,10 @@ final class DrawerMotionJourneyTests: XCTestCase {
                 in: CGRect(x: window.width - 14, y: window.height * 0.25, width: 12, height: window.height * 0.67),
                 against: closed
             ) ?? 0.55
-            // The drawer element can be wider than its glass (the Duo's spans to the
-            // vertical bar, the iPad flyout's the window): find the glass's trailing
+            // The drawer element can be wider than its glass (the folded Duo's spans the
+            // whole window, the iPad flyout's the window): find the glass's trailing
             // edge where the open window stops differing from the dimmed closed one.
-            var glassMaxX = element.maxX
-            for x in stride(from: element.maxX - 4, to: element.minX + 40, by: -4) {
-                let column = CGRect(x: x, y: band.minY, width: 4, height: band.height)
-                if (open.drawerMotionChanged(in: column, against: closed, gain: edgeGain) ?? 0) > 0.5 {
-                    glassMaxX = x + 4
-                    break
-                }
-            }
+            let glassMaxX = open.drawerGlassMaxX(in: band, against: closed, gain: edgeGain) ?? element.maxX
             let local = CGRect(x: element.minX, y: element.minY, width: glassMaxX - element.minX, height: element.height)
             // The shadow (radius 20, x 4) is negligible 28 pt past the panel.
             let scrimMinX = local.maxX + 28
@@ -497,5 +490,43 @@ extension ButtonFillPixels {
             }
         }
         return Double(changed) / Double(count)
+    }
+
+    /// The drawer glass's trailing edge, found where the open window stops differing from
+    /// the closed one dimmed by the scrim. The `fst.shell.drawer` element can be wider than
+    /// its glass (the folded Duo's spans the whole window, the iPad flyout's the window), so
+    /// journeys that check the panel's geometry measure it here (#339, #362).
+    ///
+    /// - Parameters:
+    ///   - band: Where to scan, in screenshot points: the element's width, below the status
+    ///     bar, across the header and first rows.
+    ///   - reference: The same window with the drawer closed.
+    ///   - gain: The scrim's measured gain (``drawerMotionGain(in:against:)``).
+    /// - Returns: The edge (the first 4 pt column, from the band's trailing end, that is
+    ///   mostly changed), or nil when no column is.
+    func drawerGlassMaxX(in band: CGRect, against reference: ButtonFillPixels, gain: Double) -> CGFloat? {
+        for x in stride(from: band.maxX - 4, to: band.minX + 40, by: -4) {
+            let column = CGRect(x: x, y: band.minY, width: 4, height: band.height)
+            if (drawerMotionChanged(in: column, against: reference, gain: gain) ?? 0) > 0.5 { return x + 4 }
+        }
+        return nil
+    }
+
+    /// The drawer glass's bottom edge, found like ``drawerGlassMaxX(in:against:gain:)``
+    /// from the band's bottom up (#339: the panel runs to the floating margin).
+    ///
+    /// - Parameters:
+    ///   - band: Where to scan, in screenshot points: inside the glass's width, clear of its
+    ///     rounded corners, from mid-panel down to the window bottom.
+    ///   - reference: The same window with the drawer closed.
+    ///   - gain: The scrim's measured gain.
+    /// - Returns: The edge (the first 2 pt row, from the band's bottom, that is mostly
+    ///   changed), or nil when no row is.
+    func drawerGlassMaxY(in band: CGRect, against reference: ButtonFillPixels, gain: Double) -> CGFloat? {
+        for y in stride(from: band.maxY - 2, to: band.minY, by: -2) {
+            let row = CGRect(x: band.minX, y: y, width: band.width, height: 2)
+            if (drawerMotionChanged(in: row, against: reference, gain: gain) ?? 0) > 0.5 { return y + 2 }
+        }
+        return nil
     }
 }
