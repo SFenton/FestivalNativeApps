@@ -98,6 +98,31 @@ enum RecognizedText {
         return Reading(text: nil, lineHeight: nil)
     }
 
+    /// Every line Vision reads in an upright app capture, with its frame in the capture's
+    /// points, for proving where unattributed audit text lies (the iPad page behind a form
+    /// sheet, `unattributed-text-behind-sheet` in `testing/apple/accessibility.md`).
+    ///
+    /// - Parameter screenshot: A capture of the app window.
+    /// - Returns: The recognized lines, top to bottom; empty when the capture has no bitmap.
+    static func lines(in screenshot: XCUIScreenshot) -> [(text: String, frame: CGRect)] {
+        let capture = screenshot.image
+        guard let image = capture.cgImage else { return [] }
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = false
+        request.minimumTextHeight = 0
+        guard (try? VNImageRequestHandler(cgImage: image, orientation: .up, options: [:]).perform([request])) != nil
+        else { return [] }
+        let size = capture.size
+        return (request.results ?? []).compactMap { line in
+            guard let text = line.topCandidates(1).first?.string else { return nil }
+            let box = line.boundingBox
+            let frame = CGRect(x: box.minX * size.width, y: (1 - box.maxY) * size.height,
+                               width: box.width * size.width, height: box.height * size.height)
+            return (text, frame)
+        }.sorted { $0.frame.minY < $1.frame.minY }
+    }
+
     /// True when the recognized text shows the whole label without an ellipsis (letters and
     /// digits, one recognition error per ten characters tolerated; same rule as the iPad
     /// audit's `IPadAuditTextEvidence.showsWhole`).

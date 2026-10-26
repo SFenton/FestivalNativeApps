@@ -738,12 +738,63 @@ final class FirstRunJourneyTests: XCTestCase {
         }
 
         var issues: [String] = []
+        var behindSheet = 0
         try app.performAccessibilityAudit(for: [.textClipped, .hitRegion, .sufficientElementDescription, .elementDetection]) { issue in
             let element = issue.element
+            if UIDevice.current.userInterfaceIdiom == .pad, element == nil, issue.auditType == .elementDetection {
+                // Proved below: the iPad form sheet leaves the dimmed page visible.
+                behindSheet += 1
+                return true
+            }
             issues.append("\(issue.compactDescription): #\(element?.identifier ?? "") '\(element?.label ?? "")' \(element?.frame ?? .zero)")
             return true
         }
         XCTAssertEqual(issues, [], "Open audit issues")
+        if behindSheet > 0 {
+            try assertUnnamedTextIsBehindSheet(app, slide: slide, issues: behindSheet)
+        }
+    }
+
+    /// Prove that element-less "Potentially inaccessible text" on iPad is the page behind the
+    /// guide's form sheet (`unattributed-text-behind-sheet`, `testing/apple/accessibility.md`):
+    /// the sheet is narrower than the window, so the dimmed Songs page shows around it and is
+    /// correctly outside the tree while the sheet is modal. Every line Vision reads inside the
+    /// sheet must be named by an element, or lie in the slide, whose one element covers its
+    /// decorative demo; and some text must show outside the sheet for the audit to have meant.
+    ///
+    /// - Parameters:
+    ///   - app: The guide at rest, as the audit left it.
+    ///   - slide: The slide element.
+    ///   - issues: How many element-less issues the audit reported.
+    /// - Throws: A missing snapshot.
+    @MainActor
+    private func assertUnnamedTextIsBehindSheet(_ app: XCUIApplication, slide: XCUIElement, issues: Int) throws {
+        let window = app.windows.firstMatch.frame
+        let nodes = Self.flatten(try app.snapshot()).map(\.node)
+        // The slide scrolls at AX5, so its frame can run past the sheet: Close (top) and
+        // Skip (bottom) bound it instead.
+        let parts = [app.buttons["fst.first-run.close"].frame, app.buttons["fst.first-run.skip"].frame]
+        // The sheet: the smallest container holding Close and Skip.
+        let sheet = nodes.map(\.frame)
+            .filter { frame in parts.allSatisfy { frame.insetBy(dx: -1, dy: -1).contains($0) } }
+            .min { $0.width * $0.height < $1.width * $1.height }
+        let sheetFrame = try XCTUnwrap(sheet, "No container holds the guide's Close and Skip")
+        XCTAssertLessThan(sheetFrame.width, window.width - 40, "\(issues) unnamed texts, but the sheet \(sheetFrame) fills \(window)")
+        let names = nodes.flatMap { [$0.label, ($0.value as? String) ?? "", $0.title] }.filter { !$0.isEmpty }
+        let lines = RecognizedText.lines(in: app.screenshot())
+        let centre = { (frame: CGRect) in CGPoint(x: frame.midX + window.minX, y: frame.midY + window.minY) }
+        let unnamed = lines.filter { line in
+            let point = centre(line.frame)
+            guard sheetFrame.contains(point), !slide.frame.contains(point),
+                  line.text.filter({ $0.isLetter || $0.isNumber }).count >= 3 else { return false }
+            return !names.contains { RecognizedText.showsWhole(line.text, in: $0) }
+        }.map(\.text)
+        let behind = lines.filter { !sheetFrame.contains(centre($0.frame)) }.map(\.text)
+        XCTContext.runActivity(
+            named: "\(issues) unnamed texts; sheet \(sheetFrame); behind it: \(behind.prefix(12))"
+        ) { _ in }
+        XCTAssertEqual(unnamed, [], "Text inside the sheet \(sheetFrame) that no element names")
+        XCTAssertFalse(behind.isEmpty, "\(issues) unnamed texts, but no text shows outside the sheet \(sheetFrame)")
     }
 
     // MARK: - Real-control demos (issue #380, accessibility backfill #498)
