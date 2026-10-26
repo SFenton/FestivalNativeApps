@@ -181,7 +181,8 @@ class ProfileTests(unittest.TestCase):
     def test_default_profile(self):
         profile = json.loads(sim_slim.DEFAULT_PROFILE.read_text())
         self.assertEqual(profile["except"], ["photos"])
-        self.assertEqual(profile["keep"], ["com.apple.WebBookmarks.webbookmarksd"])
+        # Safari web clips (pwa_ios.py install and launch) work without webbookmarksd.
+        self.assertEqual(profile["keep"], [])
 
 
 class BootExclusiveTests(unittest.TestCase):

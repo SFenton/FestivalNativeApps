@@ -7,7 +7,7 @@ launchd overrides stored on the device, so a slimmed simulator stays slim across
 devcap hold and before the app launches; ``python3 tools/ios_sim.py slim --device <alias>``
 does it on its own. Rules: ``.agents/platforms/apple/capacity.md`` (Slim simulators).
 
-- Idempotent: a simulator already on the profile costs one ``simslim verify`` (about 3 s),
+- Idempotent: a simulator already on the profile costs one ``simslim verify`` (about 0.5 s),
   and nothing at all when this process verified it and it has stayed booted since. A stock
   one costs about 90 s the first time.
 - ``FST_SIM_SLIM=0`` leaves the simulator stock (A/B and perf runs); ``FST_SIM_SLIM_PROFILE``
@@ -30,7 +30,7 @@ import devcap  # noqa: E402  (the hold that must cover every slim)
 
 # region Configuration
 
-#: Default profile: everything off except what FST journeys and the PWA lab use.
+#: Default profile: everything off except Photos, which the feedback journeys use.
 DEFAULT_PROFILE = Path(__file__).resolve().parent / "simslim" / "ui.json"
 #: ``0`` skips slimming for this run (the stored overrides of an already slim device stay).
 SLIM_ENV = "FST_SIM_SLIM"
