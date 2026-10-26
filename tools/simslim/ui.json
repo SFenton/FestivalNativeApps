@@ -1,0 +1,6 @@
+{
+  "name": "fst-ui",
+  "description": "FST journeys and PWA lab: slim everything except Photos (feedback attachments, Photos drag source) and Safari web clips (PWA Add to Home Screen)",
+  "except": ["photos"],
+  "keep": ["com.apple.WebBookmarks.webbookmarksd"]
+}

@@ -31,6 +31,32 @@ Consequences: never boot or drive a simulator outside a hold (a direct `simctl b
 - The FST locks are always taken before the devcap gates, and devcap takes devices before pools, so holders never deadlock. A child of a devcap hold inherits `DEVCAP_HELD` and reuses its parent's gates.
 - The 5-minute hold rule ([simulator driver](../../workflow/simulator-driver.md)) still bounds FST holds; `sim_lock` adds no devcap watchdog of its own.
 
+## Slim simulators
+
+> **Why:** a stock simulator runs about 258 processes in about 4 GB; slimmed with simslim it needs a fraction of that (measured below), so FST lanes stop taking stock simulators from the shared `simulator` slots (owner, 2026-10-25, the same change as Fenton-HASS-Native's SFenton/Fenton-HASS-Native#154).
+
+[simslim](https://github.com/MobAI-App/simslim) (`brew install mobai-app/tap/simslim`, 0.12.2 on the Mac) disables a simulator's background daemons with launchd overrides stored on the device, so a slimmed product simulator stays slim across shutdowns. `ios_sim.boot_exclusive` slims every FST simulator right after its boot, inside the `sim_lock` hold and before the app is installed (`tools/sim_slim.py`), so `shot`, `drive`, `uitest` batches, `pose`, `slim`, `apple_perf.py ipad` and `pwa_ios.py` all come up slim. It is idempotent: a simulator already on the profile costs one `simslim verify` (about 3 s), nothing more while it stays booted in the same `ios_sim.py` process (later `uitest` batches), and about 90 s the first time.
+
+`tools/simslim/ui.json` (the one profile) turns off everything except:
+
+| Kept | Why | Proof |
+|---|---|---|
+| `photos` category (`assetsd`, `photoanalysisd`, …) | Feedback attachments: `PhotosPicker` and the inline library (`FeedbackFormSheet`), and the iPad drag from the Photos app (`FeedbackMediaJourneyTests`) | `simslim doctor <UDID> --requires photos` (run after every fresh slim) and `FeedbackMediaJourneyTests` |
+| `com.apple.WebBookmarks.webbookmarksd` | Safari's Add to Home Screen stores web clips through it; `pwa_ios.py install` and the installed-PWA reference lab need them | no `doctor` feature exists; `pwa_ios.py install` on a slim simulator |
+
+Off on purpose: `store` (push, StoreKit: the app has no entitlements or push, and Debug builds never call StoreKit, since `AppDistributionResolver` answers `.development` or `FST_DEBUG_DISTRIBUTION`), `widgets` (no widget or Live Activity extension), `siri` (no App Intents), `search`, `icloud`, `pim`, `family`, `health`, `apps`, `messaging`, `connectivity` (share sheets keep `sharingd`, which simslim never disables), `telemetry`, `other` and the rest of `web`. Networking, accessibility settings, the keyboard, XCUITest's services and Vision text recognition in the test runner are core and never disabled.
+
+Rules:
+
+- **Slim inside the hold, after the boot.** Go through `ios_sim.py` (or `python3 tools/ios_sim.py slim --device <alias> [--measure]` to slim ahead of a run). `sim_slim.ensure_slim` refuses a UDID whose `device-<UDID>` gate is not in `DEVCAP_HELD`: never run `simslim` on a simulator you do not hold, or on another project's device.
+- **Never `simslim off`, `erase` or `delete` a product simulator** another lane may use. A newly created device is stock and is slimmed by its first `ios_sim.py` boot; overrides do not survive `simctl clone`.
+- **A first slim may reboot.** `simslim on --no-reboot` is tried first; when the profile needs a daemon back on, `simslim on` reboots the device, which drops an unfolded iPhone Duo to folded. `boot_exclusive` then reports the device as fresh, so `uitest --pose … --set-pose` sets the pose again.
+- **Need a feature that is off?** Add its category to `except` (or a daemon to `keep`) in `tools/simslim/ui.json`, prove it with `simslim doctor <UDID> --requires <feature>` where a feature exists (`simslim doctor --list`; `simslim profiles <category>` lists daemons), add a row to the table above and say why in the commit. Do not widen the profile to make one failing journey pass: find the daemon the app really needs.
+- **Opt out for one run:** `FST_SIM_SLIM=0` skips slimming (A/B and perf comparisons); `FST_SIM_SLIM_PROFILE=<file>` applies another profile. Opting out does not un-slim a device: its overrides are stored; `simslim off <UDID>` inside a hold does, and costs a reboot.
+- **CI stays stock.** GitHub Actions runners skip slimming: each run creates a fresh runner simulator, so slimming would cost a `brew install` and a 90 s first slim per device on a VM that already runs journeys several times slower, for RAM a runner does not share.
+- **Perf baselines.** Slim simulators have less background noise than the stock ones earlier `apple_perf.py ipad` numbers were taken on: compare a run against a baseline taken the same way.
+- A missing `simslim` or a failed `simslim on` is a warning (`sim_slim: leaving … as it is`); the run goes ahead on the simulator as it is. `simslim list --booted` shows a booted simulator's slim count (`0/N slim` is stock), `simslim measure <UDID>` its memory.
+
 ## Commands
 
 ```bash

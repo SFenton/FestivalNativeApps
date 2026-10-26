@@ -647,8 +647,6 @@ def cmd_mac(args: argparse.Namespace) -> int:
 
 
 def cmd_ipad(args: argparse.Namespace) -> int:
-    import fcntl
-
     if args.trace:
         # Xcode 27.1: `xctrace record --attach` finds no simulator app, by host pid
         # ("Cannot find process for provided pid") or by name with `--device`.
@@ -686,14 +684,9 @@ def cmd_ipad(args: argparse.Namespace) -> int:
     for pair in args.env or []:
         key, _, value = pair.partition("=")
         launch_env[f"SIMCTL_CHILD_{key}"] = value
-    ios_sim.LOCK_PATH.touch(exist_ok=True)
-    with open(ios_sim.LOCK_PATH, "w") as lock:
-        print(f"waiting for simulator lock {ios_sim.LOCK_PATH} ...", file=sys.stderr)
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        lock.write(f"{os.getpid()} {REPO_ROOT}\n")
-        lock.flush()
+    # The FST simulator lock plus the devcap hold that boot_exclusive's slim step requires.
+    with ios_sim.sim_lock(udid, "perf ipad"):
         ios_sim.boot_exclusive(udid)
-        _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
         _run(["xcrun", "simctl", "install", udid, str(bundle)])
         _run(["xcrun", "simctl", "terminate", udid, bundle_id], check=False, capture_output=True)
         launched = _run(["xcrun", "simctl", "launch", udid, bundle_id], env=launch_env,
