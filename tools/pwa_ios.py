@@ -123,7 +123,6 @@ class SimLock:
         self.hold.__enter__()
         try:
             ios_sim.boot_exclusive(self.udid)
-            ios_sim._run(["xcrun", "simctl", "bootstatus", self.udid, "-b"], capture_output=True)
         except BaseException:
             self.__exit__(*sys.exc_info())
             raise
