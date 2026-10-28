@@ -29,6 +29,7 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<AppSection, Frame> frames = [];
     private readonly Dictionary<AppSection, OnDemandSplitHost> splits = [];
     private readonly UISettings uiSettings = new();
+    private readonly FlyoutReopenGate profileFlyoutGate = new();
     private AppSection current = AppSection.Songs;
     private bool windowVisible = true;
     private bool minimized;
@@ -191,8 +192,14 @@ public sealed partial class MainWindow : Window
             split.NoteOutside();
     }
 
-    /// <summary>Opens the title-bar profile picker (pages' "Select Player" actions, the context menu and Ctrl+Shift+P).</summary>
-    public void OpenProfilePicker() => ProfileFlyout.ShowAt(ProfileButton);
+    /// <summary>
+    /// Opens the title-bar profile picker (pages' "Select Player" actions, the avatar, the context menu and Ctrl+Shift+P).
+    /// While the picker is still closing, WinUI would ignore <c>ShowAt</c>, so it opens once closed instead (issue #684).
+    /// </summary>
+    public void OpenProfilePicker()
+    {
+        if (profileFlyoutGate.RequestShow(ProfileFlyout.IsOpen)) ProfileFlyout.ShowAt(ProfileButton);
+    }
 
     /// <summary>The avatar's click: the selected player's Statistics, or the picker when anonymous (issue #290).</summary>
     /// <param name="sender">Profile button.</param>
@@ -453,6 +460,7 @@ public sealed partial class MainWindow : Window
     /// <param name="e">Unused.</param>
     private void OnProfileFlyoutOpened(object sender, object e)
     {
+        profileFlyoutGate.Opened();
         var index = ProfileScopeIndex(Shell.ProfileScope);
         if (ProfileScope.Items.IndexOf(ProfileScope.SelectedItem) != index) ProfileScope.SelectedItem = ProfileScope.Items[index];
         ProfileSearchBox.Focus(FocusState.Programmatic);
@@ -472,10 +480,18 @@ public sealed partial class MainWindow : Window
         ProfileFlyout.Hide();
     }
 
-    /// <summary>Stops the flyout's pending search (no automatic retry keeps running behind a closed flyout).</summary>
+    /// <summary>
+    /// Stops the flyout's pending search (no automatic retry keeps running behind a closed flyout), then reopens it on
+    /// the next dispatcher turn when it was asked to open while closing: WinUI clears its open-flyout record only after
+    /// this handler returns (issue #684).
+    /// </summary>
     /// <param name="sender">Flyout.</param>
     /// <param name="e">Unused.</param>
-    private void OnProfileFlyoutClosed(object sender, object e) => Shell.ProfileSearch.Deactivate();
+    private void OnProfileFlyoutClosed(object sender, object e)
+    {
+        Shell.ProfileSearch.Deactivate();
+        if (profileFlyoutGate.Closed()) DispatcherQueue.TryEnqueue(OpenProfilePicker);
+    }
 
     /// <summary>
     /// Speaks a settled profile search ("3 players", "No players found." or the failure) while the flyout is open:
