@@ -20,7 +20,7 @@ public enum UKApp {
     ///   if any.
     /// - Returns: The window's root.
     public static func makeRootViewController(userActivity: NSUserActivity? = nil) -> UIViewController {
-        UKRootViewController(windowRoute: nil)
+        UKRootViewController(windowRoute: UKWindows.route(from: userActivity))
     }
 }
 #endif
