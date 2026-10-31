@@ -31,7 +31,7 @@ final class UKSongsFilterSheetController: UKFormViewController {
     private var committed: ChoiceKey
     private let availableDecades: [Int]
     private let availableDurations: [Int]
-    private let onApply: @MainActor (SongGeneralFilter, SongPlayerScoreFilter, Instrument?) throws -> Void
+    private let onApply: (SongGeneralFilter, SongPlayerScoreFilter, Instrument?) throws -> Void
     private var errorLabel: UILabel?
     private var buckets: UKAccordionView<Instrument>?
 
@@ -44,7 +44,7 @@ final class UKSongsFilterSheetController: UKFormViewController {
     private var canEnableScores: Bool { inputs.selectedPlayer && inputs.scoreAvailable }
 
     /// Creates the sheet.
-    init(_ inputs: Inputs, onApply: @escaping @MainActor (SongGeneralFilter, SongPlayerScoreFilter, Instrument?) throws -> Void) {
+    init(_ inputs: Inputs, onApply: @escaping (SongGeneralFilter, SongPlayerScoreFilter, Instrument?) throws -> Void) {
         var inputs = inputs
         inputs.appliedPlayerFilter = inputs.appliedPlayerFilter.scoped(to: inputs.visibleInstruments)
         self.inputs = inputs
@@ -138,8 +138,9 @@ final class UKSongsFilterSheetController: UKFormViewController {
         return stack
     }
 
-    private func bulkRow(id: String, title: String, enabled: Bool, all: @escaping @MainActor () -> Void, none: @escaping @MainActor () -> Void) -> UIView {
-        func button(_ text: String, color: UIColor, suffix: String, action: @escaping @MainActor () -> Void) -> UIButton {
+    private func bulkRow(id: String, title: String, enabled: Bool, all: @escaping () -> Void, none: @escaping () -> Void) -> UIView {
+        func button(_ text: String, color: UIColor, suffix: String, action: @escaping () -> Void) -> UIButton {
+            nonisolated(unsafe) let action = action
             var configuration = UIButton.Configuration.plain()
             configuration.title = text
             configuration.baseForegroundColor = color

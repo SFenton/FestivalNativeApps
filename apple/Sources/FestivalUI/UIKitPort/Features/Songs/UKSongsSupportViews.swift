@@ -161,7 +161,7 @@ enum UKSongsButtons {
     ///   - title: Label.
     ///   - identifier: Accessibility identifier.
     ///   - action: Called on tap.
-    static func plated(_ title: String, identifier: String, action: @escaping @MainActor () -> Void) -> UIButton {
+    static func plated(_ title: String, identifier: String, action: @escaping () -> Void) -> UIButton {
         var configuration = UIButton.Configuration.plain()
         configuration.title = title
         configuration.baseForegroundColor = BrandUIColors.textPrimary
@@ -173,6 +173,7 @@ enum UKSongsButtons {
             outgoing.font = UKFont.font(.body)
             return outgoing
         }
+        nonisolated(unsafe) let action = action
         let button = UIButton(configuration: configuration, primaryAction: UIAction { _ in action() })
         button.titleLabel?.adjustsFontForContentSizeCategory = true
         button.accessibilityIdentifier = identifier

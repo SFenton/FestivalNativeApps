@@ -59,7 +59,7 @@ struct SongsPipelineTests {
         }
         #expect(line(.loading).text == "Loading Fixture Player 1's scores")
         #expect(line(.syncing).symbol == "arrow.triangle.2.circlepath")
-        #expect(line(.failed).gold)
+        #expect(line(.failed(.other(message: "offline"))).gold)
         #expect(line(.none).text == "Selected player scores are not loaded")
         #expect(line(.available, available: false).text == "\(Instrument.lead.label) is not charted for this song")
         #expect(line(.available).text == "No \(Instrument.lead.label) score for Fixture Player 1")

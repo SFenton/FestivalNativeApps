@@ -16,7 +16,7 @@ class UKFormViewController: UIViewController, UKModalScrollProviding {
         return collection
     }()
     let stack = UIStackView()
-    private var refreshers: [@MainActor () -> Void] = []
+    var refreshers: [() -> Void] = []
 
     var ukModalScrollView: UIScrollView? { scroll }
 
@@ -51,7 +51,7 @@ class UKFormViewController: UIViewController, UKModalScrollProviding {
     func refresh() { refreshers.forEach { $0() } }
 
     /// Registers a row's refresh closure.
-    func onRefresh(_ refresh: @escaping @MainActor () -> Void) { refreshers.append(refresh) }
+    func onRefresh(_ refresh: @escaping () -> Void) { refreshers.append(refresh) }
 
     // MARK: Sections
 
@@ -78,15 +78,16 @@ class UKFormViewController: UIViewController, UKModalScrollProviding {
     /// A switch row: the title (and optional hint) with a trailing switch.
     func toggleRow(
         _ title: String, hint: String? = nil, identifier: String, accessibilityHint: String? = nil, visual: UIView? = nil,
-        isOn: @escaping @MainActor () -> Bool, enabled: @escaping @MainActor () -> Bool = { true }, set: @escaping @MainActor (Bool) -> Void
+        isOn: @escaping () -> Bool, enabled: @escaping () -> Bool = { true }, set: @escaping (Bool) -> Void
     ) -> UIView {
         let row = UKToggleRow(title: title, hint: hint, identifier: identifier, accessibilityHint: accessibilityHint, visual: visual)
+        nonisolated(unsafe) let set = set
         row.toggle.addAction(UIAction { [weak self, weak row] _ in
             guard let row else { return }
             set(row.toggle.isOn)
             self?.refresh()
         }, for: .valueChanged)
-        let sync: @MainActor () -> Void = { [weak row] in
+        let sync: () -> Void = { [weak row] in
             row?.toggle.isOn = isOn()
             row?.toggle.isEnabled = enabled()
             row?.alpha = enabled() ? 1 : 0.5
@@ -98,24 +99,26 @@ class UKFormViewController: UIViewController, UKModalScrollProviding {
 
     /// A choice row of an inline picker: the label with a trailing checkmark when selected.
     func radioRow(
-        _ title: String, subtitle: String? = nil, identifier: String, selected: @escaping @MainActor () -> Bool,
-        enabled: Bool = true, select: @escaping @MainActor () -> Void
+        _ title: String, subtitle: String? = nil, identifier: String, selected: @escaping () -> Bool,
+        enabled: Bool = true, select: @escaping () -> Void
     ) -> UIView {
         let row = UKRadioRow(title: title, subtitle: subtitle, identifier: identifier)
+        nonisolated(unsafe) let select = select
         row.addAction(UIAction { [weak self] _ in
             select()
             self?.refresh()
         }, for: .touchUpInside)
         row.isEnabled = enabled
         row.alpha = enabled ? 1 : 0.5
-        let sync: @MainActor () -> Void = { [weak row] in row?.setSelected(selected()) }
+        let sync: () -> Void = { [weak row] in row?.setSelected(selected()) }
         sync()
         onRefresh(sync)
         return row
     }
 
     /// A text button row (Reset in red).
-    func buttonRow(_ title: String, color: UIColor, identifier: String, action: @escaping @MainActor () -> Void) -> UIView {
+    func buttonRow(_ title: String, color: UIColor, identifier: String, action: @escaping () -> Void) -> UIView {
+        nonisolated(unsafe) let action = action
         var configuration = UIButton.Configuration.plain()
         configuration.title = title
         configuration.baseForegroundColor = color
