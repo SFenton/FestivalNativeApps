@@ -28,5 +28,13 @@ public enum UKApp {
         #endif
         return root
     }
+
+    /// The iPadOS menu bar and ⌘-hold overlay, the UIKit counterpart of `FestivalCommands`
+    /// (adds nothing on iPhone).
+    ///
+    /// - Parameter builder: The app delegate's main menu builder.
+    public static func buildMenu(with builder: any UIMenuBuilder) {
+        UKMenuBar.build(with: builder)
+    }
 }
 #endif

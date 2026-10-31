@@ -6,7 +6,7 @@ import UIKit
 /// SwiftUI app (`FestivalMobileApp`), with every window's root drawn by UIKit
 /// (`FestivalUI/UIKitPort`, ``UKSceneDelegate``).
 @main
-final class UKAppDelegate: NSObject, UIApplicationDelegate {
+final class UKAppDelegate: UIResponder, UIApplicationDelegate {
     func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -23,6 +23,11 @@ final class UKAppDelegate: NSObject, UIApplicationDelegate {
         let configuration = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
         configuration.delegateClass = UKSceneDelegate.self
         return configuration
+    }
+
+    override func buildMenu(with builder: any UIMenuBuilder) {
+        super.buildMenu(with: builder)
+        UKApp.buildMenu(with: builder)
     }
 
     /// iPhone stays portrait (Info.plist), iPad keeps all four, and a device with a hinge
