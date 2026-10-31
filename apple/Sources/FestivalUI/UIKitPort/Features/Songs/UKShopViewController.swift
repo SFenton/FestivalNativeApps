@@ -503,7 +503,7 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
         input.shopOffer = row.decoration
         let columns = CGFloat(max(1, listColumns))
         let width = (collectionView.bounds.width - 32 - (columns - 1) * SongGridPolicy.spacing) / columns
-        cell.configure(input, width: width)
+        cell.configure(input, width: width, traits: collectionView.traitCollection)
         cell.rowOpens = row.detailSong != nil
         cell.rowIdentifierOverride = row.detailSong != nil ? "fst.shop.song.\(offer.songId)" : "fst.shop.row.\(offer.songId)"
         let detail = row.detailSong

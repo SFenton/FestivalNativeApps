@@ -210,9 +210,9 @@ final class UKSongRowCell: UICollectionViewCell {
     /// - Parameters:
     ///   - input: The row's inputs.
     ///   - width: The cell's width.
-    func configure(_ input: UKSongRowInput, width: CGFloat) {
+    func configure(_ input: UKSongRowInput, width: CGFloat, traits: UITraitCollection? = nil) {
         songId = input.song.songId
-        row.configure(input, width: width)
+        row.configure(input, width: width, traits: traits)
         let tone: ShopStatusTone?
         if let offer = input.shopOffer { tone = offer.pulseTone } else { tone = input.inShop ? ShopStatusTone(highlight: input.shopHighlight) : nil }
         if let tone {
@@ -255,7 +255,7 @@ final class UKSongRowCell: UICollectionViewCell {
         super.layoutSubviews()
         let below = shopLink?.below == true ? Self.linkGap + Self.linkHeight : 0
         card.frame = CGRect(x: 0, y: 0, width: contentView.bounds.width, height: contentView.bounds.height - below)
-        row.frame = card.contentView.bounds
+        row.frame = card.bounds
         if let slot = row.bagSlotFrame, shopLink?.below != true {
             let center = row.convert(CGPoint(x: slot.midX, y: slot.midY), to: contentView)
             bagButton.frame = CGRect(x: center.x - 22, y: center.y - 22, width: 44, height: 44)

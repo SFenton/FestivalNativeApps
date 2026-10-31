@@ -8,7 +8,13 @@ import UIKit
 /// A sheet page of grouped rows (the SwiftUI `Form` in `FestivalModal`): a scrolling stack of
 /// ``UKGroupSectionView`` cards with the sheet's top edge fade driven by its scroll view.
 class UKFormViewController: UIViewController, UKModalScrollProviding {
-    let scroll = UIScrollView()
+    /// A collection view with no items, so the scrolling form is addressable as the list the
+    /// SwiftUI `Form` is (XCUITest finds `Form` content in a table or collection view).
+    let scroll: UIScrollView = {
+        let collection = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewFlowLayout())
+        collection.backgroundColor = .clear
+        return collection
+    }()
     let stack = UIStackView()
     private var refreshers: [@MainActor () -> Void] = []
 

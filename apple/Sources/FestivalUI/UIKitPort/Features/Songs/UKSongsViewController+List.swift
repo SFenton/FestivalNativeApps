@@ -151,7 +151,7 @@ extension UKSongsViewController {
     func configure(_ cell: UKSongRowCell, songId: String) {
         guard case let .loaded(payload) = state, let song = songsById[songId] else { return }
         let row = makeRowContext(pipeline: makePipeline(), payload: payload)
-        cell.configure(rowInput(for: song, context: row), width: cellWidth())
+        cell.configure(rowInput(for: song, context: row), width: cellWidth(), traits: collectionView.traitCollection)
         cell.onOpen = { [weak self] in self?.open(song) }
         cell.onInvalidScore = { [weak self] warning in self?.explain(warning) }
     }

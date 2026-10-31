@@ -160,6 +160,8 @@ final class UKSongRowView: UIView {
     private var plan: Plan?
     private var pieces: Pieces = Pieces()
     private var isAX = false
+    /// The traits the row lays out for: the collection view's, since a cell is configured before it is attached.
+    private var layoutTraits = UITraitCollection.current
 
     /// What the current configuration put in the row, for layout and accessibility.
     private struct Pieces {
@@ -233,13 +235,14 @@ final class UKSongRowView: UIView {
     /// - Parameters:
     ///   - input: The row's inputs.
     ///   - width: The row card's width (decides the wide split row).
-    func configure(_ input: UKSongRowInput, width: CGFloat) {
+    func configure(_ input: UKSongRowInput, width: CGFloat, traits: UITraitCollection? = nil) {
         self.input = input
+        layoutTraits = traits ?? (window == nil ? layoutTraits : traitCollection)
         plan = nil
         dynamicViews.forEach { $0.removeFromSuperview() }
         dynamicViews = []
         pieces = Pieces()
-        isAX = traitCollection.preferredContentSizeCategory.isAccessibilityCategory
+        isAX = layoutTraits.preferredContentSizeCategory.isAccessibilityCategory
         let song = input.song
         let presentation = input.presentation
         pieces.presentation = presentation
@@ -249,7 +252,7 @@ final class UKSongRowView: UIView {
         statusLabel.isHidden = true
         pieces.invalid = presentation.invalidScoreWarning
         var parts = [song.title, presentation.subtitle]
-        let traits = traitCollection
+        let traits = layoutTraits
 
         if let offer = input.shopOffer {
             pieces.kind = isAX ? .shopAX : .shop
@@ -314,7 +317,7 @@ final class UKSongRowView: UIView {
         case .pausedPlayer:
             setStatus("Player scores paused until songs update", symbol: "pause.circle", gold: true, id: "fst.songs.profile-paused-row.\(song.songId)", parts: &parts)
         case let .chips(badges):
-            let chips = UKSongStatusChipsView(badges: badges, keyboard: song.usesKeyboardIcon, traits: traitCollection)
+            let chips = UKSongStatusChipsView(badges: badges, keyboard: song.usesKeyboardIcon, traits: layoutTraits)
             pieces.chips = chips
             addDynamic(chips)
             parts.append(chips.announcement)
@@ -331,7 +334,7 @@ final class UKSongRowView: UIView {
         case .bandPaused:
             setStatus("Band scores paused until songs update", symbol: "pause.circle", gold: true, id: "fst.songs.profile-paused-row.\(song.songId)", parts: &parts)
         case let .bandFields(fields):
-            let flow = UKSongMetadataFlowView(fields: fields, traits: traitCollection, leading: false)
+            let flow = UKSongMetadataFlowView(fields: fields, traits: layoutTraits, leading: false)
             pieces.flow = flow
             addDynamic(flow)
             parts.append(contentsOf: fields.map(\.announcement))
@@ -371,7 +374,7 @@ final class UKSongRowView: UIView {
 
     private func buildGlyphAndShop(input: UKSongRowInput, presentation: SongRowPresentation, song: Song, parts: inout [String]) {
         if let warning = pieces.invalid {
-            let side = UKFont.scaled(28, relativeTo: .body, traits: traitCollection)
+            let side = UKFont.scaled(28, relativeTo: .body, traits: layoutTraits)
             let image = UIImage(systemName: InvalidScoreGlyph.symbol(for: warning))
             let view = UIImageView(image: image)
             view.tintColor = warning.isOverThreshold ? BrandUIColors.gold : BrandUIColors.statusRed
@@ -807,7 +810,7 @@ final class UKSongRowView: UIView {
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
         if previous?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory, let input {
-            configure(input, width: bounds.width)
+            configure(input, width: bounds.width, traits: traitCollection)
         }
     }
 }
