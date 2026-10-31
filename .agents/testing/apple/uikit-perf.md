@@ -58,7 +58,7 @@ Medians over rounds (`n` = runs behind the cell; a scroll cell has two runs per 
 - **Cold launch:** `first content ms` (lower is better) with the CPU, instructions and memory the process had used at the end of the settle time.
 - **Navigation:** first-frame and settled percentiles in ms, and the main thread's turn costs while pushing/popping.
 
-A difference smaller than the spread between rounds is noise; rerun with more rounds before reading it. The simulator's frame rate says little; trust CPU, turns over 8 ms, render-server CPU and memory first.
+`render server CPU ms` comes from `ps` TIME deltas of `backboardd` (coarse, often 0 for an idle run) and `Mac GPU %` is blank when `ioreg` returned no reading in the window; compare scroll minus idle over several rounds, not single cells. A difference smaller than the spread between rounds is noise; rerun with more rounds before reading it. The simulator's frame rate says little; trust CPU, turns over 8 ms, render-server CPU and memory first.
 
 ## Pure-logic tests
 
@@ -68,4 +68,5 @@ A difference smaller than the spread between rounds is noise; rerun with more ro
 
 | Date | Family | Scope | Result |
 |---|---|---|---|
-| 2026-10-31 | iPhone | Smoke (Songs, Settings; 1 round; UIKit pages still placeholders) | TODO |
+| 2026-10-31 | iPhone (FST iOS 26.5 iPhone 17 Pro) | Smoke: Songs (long list) and Settings, 1 round, fixtures, optimized probe builds. UIKit pages are still placeholders (no scroll view, first content -1); the idle rows and launch CPU/memory are the empty shell's | Pipeline proven end to end. SwiftUI Songs scroll: 52 fps, 59 dropped frames, main p95 21 ms, 170 turns over 8 ms, 4.3 s main CPU per 16 s of scrolling, first content 2.8 s; SwiftUI Settings scroll: main p95 2.1 ms, 0 turns over 8 ms; SwiftUI idle main CPU 100-106 ms vs UIKit shell 50-60 ms |
+| 2026-10-31 | iPhone | Smoke navigation: push Leaderboards from Songs, 6 cycles, 1 round | Both apps push and pop through the shared hooks. First frame p50: SwiftUI 203 ms push / 234 ms pop, UIKit 22 / 24 ms (the port's page is still a placeholder); settled 684 vs 500 ms |
