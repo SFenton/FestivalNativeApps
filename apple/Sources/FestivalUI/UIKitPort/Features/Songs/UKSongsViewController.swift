@@ -108,6 +108,7 @@ final class UKSongsViewController: UIViewController, UICollectionViewDelegate, U
     var lastTaskKey: [Int] = []
     var jumpGeneration = 0
     nonisolated(unsafe) var defaultsObserver: NSObjectProtocol?
+    nonisolated(unsafe) var presetObserver: NSObjectProtocol?
 
     // MARK: Init
 
@@ -126,6 +127,7 @@ final class UKSongsViewController: UIViewController, UICollectionViewDelegate, U
 
     deinit {
         if let defaultsObserver { NotificationCenter.default.removeObserver(defaultsObserver) }
+        if let presetObserver { NotificationCenter.default.removeObserver(presetObserver) }
     }
 
     // MARK: Lifecycle
@@ -254,6 +256,25 @@ final class UKSongsViewController: UIViewController, UICollectionViewDelegate, U
         defaultsObserver = NotificationCenter.default.addObserver(
             forName: UKSettings.didChange, object: nil, queue: .main
         ) { [weak self] _ in MainActor.assumeIsolated { self?.settingsMayHaveChanged() } }
+        // A Profile stat tile saved a Songs preset: apply its instrument and clear the search,
+        // as the SwiftUI root's `showSongs` does.
+        presetObserver = NotificationCenter.default.addObserver(
+            forName: UKProfileLinks.songsPresetApplied, object: nil, queue: .main
+        ) { [weak self] note in
+            let raw = note.userInfo?["instrument"] as? String
+            MainActor.assumeIsolated { self?.applyPreset(instrument: raw.flatMap(Instrument.init(rawValue:))) }
+        }
+    }
+
+    private func applyPreset(instrument preset: Instrument?) {
+        instrument = preset
+        searchController.searchBar.text = ""
+        bottomField?.text = ""
+        searchTask?.cancel()
+        searchText = ""
+        settledSearch = ""
+        settings = SongsSettings.load()
+        recompute()
     }
 
     private func settingsMayHaveChanged() {
