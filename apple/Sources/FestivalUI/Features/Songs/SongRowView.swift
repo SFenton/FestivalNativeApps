@@ -191,15 +191,24 @@ struct SongRowView: View {
         self.shopOffer = shopOffer
     }
 
+    /// The shared decisions behind this row (``SongRowPresentation``).
+    private var presentation: SongRowPresentation {
+        SongRowPresentation(
+            song: song, instrument: instrument, session: session, profileChart: profileChart,
+            catalogueObservation: catalogueObservation, metadata: metadata,
+            invalidScoreLeeway: invalidScoreLeeway, overThresholdCharts: overThresholdCharts,
+            showInstrumentIcons: showInstrumentIcons, visibleInstruments: visibleInstruments,
+            currentSeason: currentSeason, isShopRow: shopOffer != nil, fieldOrder: fieldOrder
+        )
+    }
+
     private var trailingLayout: AnyLayout {
         dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(spacing: 8))
             : AnyLayout(HStackLayout(spacing: 8))
     }
 
-    private var scoreDataCurrent: Bool {
-        session.hasCurrentPlayerScores(forCatalogue: catalogueObservation)
-    }
+    private var scoreDataCurrent: Bool { presentation.scoreDataCurrent }
 
     /// Score-field order on this row: the saved Song Row Visual Order only while
     /// Independent Visual Order is on (web `SongsPage.visibleMetadataOrder`).
@@ -207,21 +216,9 @@ struct SongRowView: View {
         MetadataField.songRowOrder(independent: enableVisualOrder, saved: songRowVisualOrderRaw)
     }
 
-    /// The selected band's index is available and matches these Songs rows.
-    private var bandScoreDataCurrent: Bool {
-        session.hasCurrentBandScores(forCatalogue: catalogueObservation)
-    }
+    private var bandScoreDataCurrent: Bool { presentation.bandScoreDataCurrent }
 
-    /// The selected band's fields for this song on a plain row, or nil without a
-    /// current, positive band score.
-    private var bandFields: [SongMetadataField]? {
-        guard session.selectedBand != nil, bandScoreDataCurrent,
-              let entry = session.selectedBandScores[song.songId], entry.score > 0,
-              let fields = try? SongProfileCardPolicy.bandFields(
-                  for: entry, currentSeason: currentSeason, visibility: metadata
-              ), !fields.isEmpty else { return nil }
-        return SongProfileCardPolicy.reordered(fields, by: fieldOrder)
-    }
+    private var bandFields: [SongMetadataField]? { presentation.bandFields }
 
     /// Selected-band state under a plain row: loading, unavailable or paused (the
     /// player rows' copy and paused test ID), else the band's pills when it scored
@@ -253,36 +250,11 @@ struct SongRowView: View {
         }
     }
 
-    private var usesInstrumentChips: Bool {
-        SongInstrumentStatusPolicy.showsChips(
-            hasSelectedPlayer: session.selectedPlayer != nil,
-            scoresAvailable: scoreDataCurrent,
-            iconsEnabled: showInstrumentIcons,
-            instrumentFilter: instrument,
-            visibleInstruments: visibleInstruments
-        )
-    }
+    private var usesInstrumentChips: Bool { presentation.usesInstrumentChips }
 
-    /// The selected player's scores for this song as the row shows them: raw, or with
-    /// Filter Invalid Scores applied (web `SongsPage.effectiveScores`).
-    private var playerScores: SongEffectiveScores {
-        let raw = session.selectedPlayerScores[song.songId] ?? [:]
-        guard let invalidScoreLeeway, !raw.isEmpty else { return SongEffectiveScores(scores: raw) }
-        return InvalidScorePolicy.resolve(
-            raw, song: song, leeway: invalidScoreLeeway, overThreshold: overThresholdCharts
-        )
-    }
+    private var playerScores: SongEffectiveScores { presentation.playerScores }
 
-    /// The invalid-score indicator's tone and alert (web `SongRow` `hasInvalid`), only
-    /// for a selected player's current scores on a Songs row.
-    private var invalidScoreWarning: InvalidScoreWarning? {
-        guard invalidScoreLeeway != nil, shopOffer == nil, session.selectedPlayer != nil,
-              session.selectedBand == nil, scoreDataCurrent else { return nil }
-        return InvalidScoreWarning.make(
-            songTitle: song.title, reasons: playerScores.reasons,
-            instrumentFilter: instrument, visibleInstruments: visibleInstruments
-        )
-    }
+    private var invalidScoreWarning: InvalidScoreWarning? { presentation.invalidScoreWarning }
 
     /// The indicator's glyph; ``SwiftUI/View/songInvalidScoreIndicator(songId:)`` puts
     /// its button over it, outside the row's link.
@@ -292,29 +264,9 @@ struct SongRowView: View {
         }
     }
 
-    private var structuredScore: (chart: Instrument, score: PlayerScore)? {
-        guard !usesInstrumentChips,
-              scoreDataCurrent,
-              let chart = profileChart, song.supports(chart),
-              let score = playerScores.scores[chart],
-              score.score > 0 else {
-            return nil
-        }
-        return (chart, score)
-    }
+    private var structuredScore: (chart: Instrument, score: PlayerScore)? { presentation.structuredScore }
 
-    private var structuredFields: Result<[SongMetadataField], Error>? {
-        guard let structuredScore else { return nil }
-        return Result {
-            let fields = try SongProfileCardPolicy.fields(
-                for: structuredScore.score, chart: structuredScore.chart,
-                song: song, currentSeason: currentSeason, visibility: metadata
-            )
-            return SongProfileCardPolicy.reordered(
-                fields, by: fieldOrder
-            )
-        }
-    }
+    private var structuredFields: Result<[SongMetadataField], Error>? { presentation.structuredFields }
 
     private var artworkTile: some View {
         ArtworkTile(raw: song.albumArt, session: session, size: 44)
@@ -322,16 +274,7 @@ struct SongRowView: View {
             .accessibilityHidden(true)
     }
 
-    private var songSubtitle: String {
-        var subtitle = song.artist
-        if let year = song.year, year != 0 {
-            subtitle += " · \(year)"
-        }
-        if let duration = song.formattedDuration {
-            subtitle += " · \(duration)"
-        }
-        return subtitle
-    }
+    private var songSubtitle: String { presentation.subtitle }
 
     /// Title/artist·year·duration, ported to `MarqueeText` (web `SongInfo.tsx` does
     /// the same) so a long combination auto-scrolls on one line instead of wrapping
