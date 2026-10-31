@@ -97,25 +97,25 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
     @MainActor
     func testInstrumentSelector() throws {
         let app = try openGallery("selector")
-        let lead = app.buttons["fst.uikit.gallery.selector.full.lead"]
+        let lead = element("fst.uikit.gallery.selector.full.Solo_Guitar", in: app)
         reveal(lead, in: app)
         XCTAssertEqual(lead.label, "Lead")
         XCTAssertTrue(lead.isSelected, "initial choice is selected")
-        let bass = app.buttons["fst.uikit.gallery.selector.full.bass"]
+        let bass = element("fst.uikit.gallery.selector.full.Solo_Bass", in: app)
         assertTarget(bass, minimum: 64, "instrument circle")
         bass.tap()
         XCTAssertTrue(bass.isSelected)
         XCTAssertFalse(lead.isSelected)
         XCTAssertTrue(app.staticTexts["Selected: Bass"].waitForExistence(timeout: 2))
-        let next = app.buttons["fst.uikit.gallery.selector.compact.next"]
+        let next = element("fst.uikit.gallery.selector.compact.next", in: app)
         reveal(next, in: app)
         XCTAssertEqual(next.label, "Next Instrument")
         assertTarget(next, "compact next arrow")
-        XCTAssertTrue(app.buttons["fst.uikit.gallery.selector.compact.centre"].exists)
-        let muted = app.buttons["fst.uikit.gallery.selector.states.bass"]
+        XCTAssertTrue(element("fst.uikit.gallery.selector.compact.centre", in: app).exists)
+        let muted = element("fst.uikit.gallery.selector.states.Solo_Bass", in: app)
         reveal(muted, in: app)
         XCTAssertEqual(muted.value as? String ?? "", "")
-        XCTAssertFalse(app.buttons["fst.uikit.gallery.selector.states.vocals"].isEnabled, "disabled instrument")
+        XCTAssertFalse(element("fst.uikit.gallery.selector.states.Solo_Vocals", in: app).isEnabled, "disabled instrument")
     }
 
     /// The accordion opens its content and the disclosure group announces its state.
@@ -145,7 +145,7 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
         let combined = app.staticTexts["fst.uikit.gallery.empty.combined"]
         reveal(combined, in: app)
         XCTAssertEqual(combined.label, "No Results. Search for a song, artist or player.")
-        reveal(app.staticTexts["Loading songs"], in: app)
+        reveal(app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", "Loading songs")).firstMatch, in: app)
         let retry = app.buttons.matching(identifier: "fst.service-status.retry").firstMatch
         reveal(retry, in: app)
         assertTarget(retry, "Retry")
@@ -155,7 +155,9 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
         XCTAssertTrue(countdown.waitForExistence(timeout: 4), "scrape freeze counts down")
         XCTAssertTrue(countdown.label.hasPrefix("Trying again automatically in "), countdown.label)
         reveal(app.otherElements["fst.service-status.inline"], in: app)
-        XCTAssertTrue(app.staticTexts["Update failed: The network connection was lost."].exists || app.staticTexts.matching(identifier: "fst.songs.refresh-error").firstMatch.exists)
+        let banner = element("fst.songs.refresh-error", in: app)
+        reveal(banner, in: app)
+        XCTAssertEqual(banner.label, "Update failed: The network connection was lost.")
     }
 
     /// Marquee text is one static text with its full string, even while it overflows.
@@ -186,7 +188,9 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
         reveal(indicator, in: app)
         XCTAssertEqual(indicator.label, "Gallery Cards")
         XCTAssertTrue((indicator.value as? String ?? "").hasPrefix("Page 1 of 5"), "\(String(describing: indicator.value))")
-        indicator.adjust(toNormalizedSliderPosition: 1)
+        // The indicator is an adjustable element (VoiceOver swipes up and down); XCUITest
+        // can only adjust sliders, so page by swiping the cards.
+        app.collectionViews["fst.carousel.gallery-cards"].swipeLeft()
         XCTAssertTrue((indicator.value as? String ?? "").hasPrefix("Page 2 of 5"), "\(String(describing: indicator.value))")
     }
 
@@ -200,7 +204,8 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
         let close = app.buttons["fst.uikit.gallery.sheet.close"]
         XCTAssertTrue(close.waitForExistence(timeout: FestivalApp.budget(5)))
         XCTAssertEqual(close.label, "Close")
-        assertTarget(close, "sheet Close")
+        // The system bar button draws 34 pt tall inside a 44 pt hit region.
+        assertTarget(close, minimum: 34, "sheet Close")
         XCTAssertTrue(app.staticTexts["Sheet row 1"].exists)
         close.tap()
         XCTAssertTrue(app.buttons["fst.uikit.gallery.sheet.open"].waitForExistence(timeout: FestivalApp.budget(5)))

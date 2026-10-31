@@ -268,7 +268,7 @@ final class UKInstrumentSelectorView: UIView {
     private func circle(_ instrument: Instrument, action: @escaping () -> Void) -> UKInstrumentCircleButton {
         let keyboard = keyboardIcon && (instrument == .lead || instrument == .proLead)
         let button = UKInstrumentCircleButton(instrument: instrument, keyboard: keyboard)
-        button.addAction(UIAction { _ in action() }, for: .primaryActionTriggered)
+        button.addAction(UIAction { _ in action() }, for: .touchUpInside)
         buttons.append(button)
         return button
     }
@@ -302,7 +302,7 @@ final class UKInstrumentSelectorView: UIView {
                 self.previewIndex = index
                 self.rebuildRow()
             }
-        }, for: .primaryActionTriggered)
+        }, for: .touchUpInside)
         return control
     }
 

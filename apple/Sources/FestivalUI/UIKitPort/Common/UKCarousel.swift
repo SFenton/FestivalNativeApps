@@ -18,7 +18,7 @@ final class UKHorizontalCarouselView: UIView, UICollectionViewDataSource, UIColl
     private let makeCard: (Int) -> UIView
     private let collection: UICollectionView
     private let flow = UICollectionViewFlowLayout()
-    private let indicator = UIView()
+    private let indicator = UKCarouselIndicatorView()
     private let dots = UIStackView()
     private let counter = UKLabel(style: .caption1, monospacedDigit: true, color: BrandUIColors.textSecondary, lines: 1, alignment: .center)
     private var heightConstraint: NSLayoutConstraint!
@@ -72,6 +72,7 @@ final class UKHorizontalCarouselView: UIView, UICollectionViewDataSource, UIColl
             indicator.addSubview(view)
         }
         indicator.isAccessibilityElement = true
+        indicator.onAdjust = { [weak self] forward in self?.page(forward: forward) }
         indicator.accessibilityLabel = title
         indicator.accessibilityTraits = .adjustable.union(.updatesFrequently)
         indicator.accessibilityIdentifier = "fst.carousel.indicator"
@@ -197,8 +198,14 @@ final class UKHorizontalCarouselView: UIView, UICollectionViewDataSource, UIColl
         indicator.isHidden = !(count > columns || hasMore)
     }
 
-    override func accessibilityIncrement() { page(forward: true) }
-    override func accessibilityDecrement() { page(forward: false) }
+}
+
+/// The carousel's page indicator: one adjustable accessibility element.
+final class UKCarouselIndicatorView: UIView {
+    /// Called with true to page forward (swipe up), false to page back.
+    var onAdjust: ((Bool) -> Void)?
+    override func accessibilityIncrement() { onAdjust?(true) }
+    override func accessibilityDecrement() { onAdjust?(false) }
 }
 
 /// One carousel card: the card in its own vertical scroller that bounces only on overflow.

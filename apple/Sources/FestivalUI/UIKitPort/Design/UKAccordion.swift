@@ -172,7 +172,7 @@ final class UKDisclosureGroupView: UIView {
         header.isAccessibilityElement = true
         header.accessibilityTraits = .button
         header.accessibilityIdentifier = identifier
-        header.addAction(UIAction { [weak self] _ in self?.toggle() }, for: .primaryActionTriggered)
+        header.addAction(UIAction { [weak self] _ in self?.toggle() }, for: .touchUpInside)
         let stack = UIStackView(arrangedSubviews: [header, accordion])
         stack.axis = .vertical
         stack.translatesAutoresizingMaskIntoConstraints = false
