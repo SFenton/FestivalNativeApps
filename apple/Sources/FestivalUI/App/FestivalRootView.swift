@@ -83,79 +83,15 @@ public struct FestivalRootView: View {
     public init(windowRoute: FestivalWindowRoute?) {
         self.windowRoute = windowRoute
         NavigationTitleStyle.apply()
-        var initialSection = FestivalSection.songs
-        var selectionStorage: UserDefaults? = .standard
-        var initialRoute: AppRoute?
-        var debugSelectedPlayer: SelectedPlayerIdentity?
-        var debugSelectedBand: SelectedBandIdentity?
-        #if DEBUG
-        let debug = DebugLaunchRoute(environment: ProcessInfo.processInfo.environment)
-        if let tab = debug.section { initialSection = tab }
-        _searchActive = State(initialValue: debug.opensSearch)
-        initialRoute = debug.route
-        _drawerPresented = State(initialValue: debug.opensDrawer)
-        _drawerMounted = State(initialValue: debug.opensDrawer)
-        _rootProfilePresented = State(initialValue: debug.opensProfileSheet)
-        // Once per process: SwiftUI may build the root view again (a new scene or an
-        // App body pass), and clearing then would erase a selection the journey made
-        // since launch, so a cold relaunch came back anonymous.
-        if ProcessInfo.processInfo.environment["FST_UI_TEST_CLEAR_PROFILE"] == "1",
-           !Self.debugProfileCleared {
-            Self.debugProfileCleared = true
-            UserDefaults.standard.removeObject(forKey: SelectedPlayerIdentity.storageKey)
-            NotificationSeenStore.reset()
-        }
-        // In memory only: never written to `selectionStorage`. Parallel lanes share
-        // one simulator, and writing this to real `UserDefaults.standard` (the
-        // previous behavior) let one lane's debug launch clobber another lane's
-        // actually-persisted selection.
-        debugSelectedPlayer = debug.debugSelectedPlayer()
-        debugSelectedBand = debug.debugSelectedBand()
-        if debug.anonymous { selectionStorage = nil }
-        #endif
-        let session: FestivalSession
-        if let shared = Self.processSession {
-            session = shared
-        } else {
-            let factory: @Sendable () throws -> FestivalAPI = {
-                try Self.makeClient(environment: ProcessInfo.processInfo.environment)
-            }
-            session = FestivalSession(
-                factory: factory, selectionStorage: selectionStorage,
-                debugSelectedPlayer: debugSelectedPlayer, debugSelectedBand: debugSelectedBand,
-                liveConnection: PublicationLiveConnection.isEnabled() ? PublicationLiveConnection() : nil
-            )
-            Self.processSession = session
-        }
-        _session = State(initialValue: session)
-        if let windowRoute { initialSection = windowRoute.section }
-        // A deep link or restored tab may name a section the stored profile hides. The
-        // first geometry pass has not published a layout yet; `shell(_:)`'s
-        // `onChange(of: sections)` re-resolves once it has.
-        let profile: FestivalProfileKind =
-            session.selectedPlayer == nil && !Self.keepsProfileRoutes ? .none : .player
-        let visible = ShellPresentation.resolve(
-            layout: .standardPhone, usesSidebarShell: Self.supportsSidebar
-        ).sections(
-            profile: profile,
-            hideShop: UserDefaults.standard.bool(forKey: "fst.settings.hideShop")
-        )
-        let resolved = FestivalTabPolicy.resolve(initialSection, in: visible)
-        // A section the phone tab bar dropped for the Search tab opens as the drawer
-        // would: pushed on the resolved tab (issue #92).
-        if initialRoute == nil {
-            initialRoute = FestivalTabPolicy.searchTabOverflowRoute(
-                for: initialSection, profile: profile, visible: visible
-            )
-        }
-        _selected = State(initialValue: resolved)
-        if let initialRoute { _paths = State(initialValue: [resolved: [initialRoute]]) }
-        if let route = windowRoute?.immediateRoute { _paths = State(initialValue: [resolved: [route]]) }
+        let launch = FestivalLaunch.resolve(windowRoute: windowRoute)
+        _searchActive = State(initialValue: launch.opensSearch)
+        _drawerPresented = State(initialValue: launch.opensDrawer)
+        _drawerMounted = State(initialValue: launch.opensDrawer)
+        _rootProfilePresented = State(initialValue: launch.opensProfileSheet)
+        _session = State(initialValue: launch.session)
+        _selected = State(initialValue: launch.selected)
+        _paths = State(initialValue: launch.paths)
     }
-
-    /// The one session every window of this process shares (iPad multiple windows):
-    /// a second window must see the same selected profile, publication and caches.
-    @MainActor private static var processSession: FestivalSession?
 
     /// Use the public HTTPS service unless Debug explicitly selects a fixture.
     ///
@@ -283,11 +219,6 @@ public struct FestivalRootView: View {
         .frame(maxWidth: Self.debugCanvasWidth)
     }
 
-    #if DEBUG
-    /// Whether this process already applied `FST_UI_TEST_CLEAR_PROFILE`.
-    @MainActor private static var debugProfileCleared = false
-    #endif
-
     /// `FST_DEBUG_CANVAS_WIDTH=<points>` (Debug builds only); nil fills the window.
     private static let debugCanvasWidth: CGFloat? = {
         #if DEBUG
@@ -314,7 +245,7 @@ public struct FestivalRootView: View {
     private var usesSidebarShell: Bool {
         #if os(iOS)
         ShellPresentation.usesSidebarShell(
-            supportsSidebar: Self.supportsSidebar,
+            supportsSidebar: FestivalLaunch.supportsSidebar,
             widthClass: horizontalSizeClass == .compact ? .compact : .regular
         )
         #else
@@ -322,30 +253,9 @@ public struct FestivalRootView: View {
         #endif
     }
 
-    /// iPad and macOS can show the sidebar; the phone idiom never does.
-    private static var supportsSidebar: Bool {
-        #if os(iOS)
-        UIDevice.current.userInterfaceIdiom == .pad
-        #else
-        true
-        #endif
-    }
-
     /// Profile kind driving conditional tabs.
     private var profileKind: FestivalProfileKind {
-        session.selectedPlayer == nil && !Self.keepsProfileRoutes ? .none : .player
-    }
-
-    /// Debug launches with `FST_DEBUG_KEEP_PROFILE_ROUTES=1` keep the profile-only tabs
-    /// and routes (`ProfileRoutePolicy`) without a player, so a journey can hold
-    /// Statistics' otherwise momentary no-profile state open in the real shell (issue
-    /// #341). Always false in Release.
-    private static var keepsProfileRoutes: Bool {
-        #if DEBUG
-        ProcessInfo.processInfo.environment["FST_DEBUG_KEEP_PROFILE_ROUTES"] == "1"
-        #else
-        false
-        #endif
+        session.selectedPlayer == nil && !FestivalLaunch.keepsProfileRoutes ? .none : .player
     }
 
     /// Root sections currently visible (web `BottomNav` rules).
@@ -637,13 +547,12 @@ public struct FestivalRootView: View {
         Binding {
             // Profile-only pages disappear without a player (`ProfileRoutePolicy`).
             ProfileRoutePolicy.resolve(
-                paths[section] ?? [], hasPlayer: session.selectedPlayer != nil || Self.keepsProfileRoutes
+                paths[section] ?? [], hasPlayer: session.selectedPlayer != nil || FestivalLaunch.keepsProfileRoutes
             )
         } set: { value in
             paths[section] = value
         }
     }
-
 
     // MARK: - Keyboard commands
 
@@ -1002,7 +911,6 @@ public struct FestivalRootView: View {
     }
 }
 
-
 // MARK: - Tab content identifier
 
 /// The phone tab content's `fst.nav.<section>` identifier (iPhone journeys find tabs
@@ -1066,7 +974,7 @@ private struct ShellCommandsPublisher: ViewModifier {
 /// (issue #340; band selection has no user-facing entry yet) and wins over any player.
 /// `FST_DEBUG_ANONYMOUS=1` ignores any stored profile for this launch without deleting it.
 /// `FST_DEBUG_KEEP_PROFILE_ROUTES=1` keeps profile-only tabs and routes without a player
-/// (read by `FestivalRootView.keepsProfileRoutes`).
+/// (read by `FestivalLaunch.keepsProfileRoutes`).
 /// `FST_DEBUG_DRAWER_RADII=1` overlays the drawer panel's frame and resolved concentric
 /// corner radii (read by `FestivalDrawer`, not here).
 struct DebugLaunchRoute {

@@ -54,6 +54,72 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGNING_ALLOWED: NO
+  FestivalMobileUIKit:
+    # The UIKit port (owner request 2026-10-31): the same universal iPhone/iPad app drawn
+    # with UIKit (`Sources/FestivalUI/UIKitPort`), installed beside the SwiftUI app so the
+    # two can be compared screen for screen and measured A/B (tools/uikit_perf.py).
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Apps/iOSUIKit
+      # The SwiftUI app's assets (icon, launch colour) and What's New notes.
+      - path: Apps/iOS
+        excludes:
+          - FestivalMobileApp.swift
+          - Info.plist
+    dependencies:
+      - package: FestivalApple
+        product: FestivalUI
+    info:
+      path: Apps/iOSUIKit/Info.plist
+      properties:
+        CFBundleDisplayName: FST UIKit
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        FSTGitSHA: $(FST_GIT_SHA)
+        UILaunchScreen:
+          UIColorName: FestivalLaunchBackground
+        CADisableMinimumFrameDurationOnPhone: true
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.native.uikit
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        FST_GIT_SHA: dev
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGNING_ALLOWED: NO
+  FestivalMobileUIKitUITests:
+    # The SwiftUI app's iPhone journeys, unchanged, against the UIKit port: the parity check.
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Apps/iOSUITests
+    dependencies:
+      - target: FestivalMobileUIKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.nativeuikituitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TEST_TARGET_NAME: FestivalMobileUIKit
+        CODE_SIGNING_ALLOWED: NO
   FestivalDesktop:
     type: application
     platform: macOS
@@ -147,6 +213,55 @@ targets:
         SWIFT_VERSION: "6.0"
         TEST_TARGET_NAME: FestivalMobile
         CODE_SIGNING_ALLOWED: NO
+  FestivalMobileUIKitIPadUITests:
+    # The iPad journeys, unchanged, against the UIKit port (scheme FestivalMobileUIKitIPad).
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Apps/iPadOSUITests
+      # Shared launch helper and the `ios_sim.py drive` step driver.
+      - path: Apps/iOSUITests/FestivalApp.swift
+      - path: Apps/iOSUITests/DriverTests.swift
+      - path: Apps/iOSUITests/HomeScreenNameJourneyTests.swift
+      - path: Apps/iOSUITests/WindowResize.swift
+      # Issue #362 drawer open/close sequence, run on the iPad flyout too.
+      - path: Apps/iOSUITests/DrawerMotionJourneyTests.swift
+      - path: Apps/iOSUITests/ButtonFillPixels.swift
+      - path: Apps/iOSUITests/ShellUITestSupport.swift
+      # Issue #311 avatar journey, run on iPad too (its Search page has the avatar).
+      - path: Apps/iOSUITests/ProfileAvatarFillJourneyTests.swift
+      - path: Apps/iOSUITests/ProfileAvatarPixels.swift
+      # Issue #373 inline photo library and cross-app drop journeys.
+      - path: Apps/iOSUITests/FeedbackMediaJourneyTests.swift
+      # Issue #444 Rival Detail during a publish freeze, at regular width (and the
+      # rendered-contrast helpers its audit handler measures with).
+      - path: Apps/iOSUITests/RivalDetailFrozenAccessibilityJourneyTests.swift
+      - path: Apps/iOSUITests/SongsUITestSupport.swift
+      - path: Apps/iOSUITests/FeedbackUITestSupport.swift
+      # Issue #565: a filed report closes its form, then the sent alert shows.
+      - path: Apps/iOSUITests/FeedbackSentJourneyTests.swift
+      # Issue #432 Songs Filter accessibility journey (no profile), run on iPad too.
+      - path: Apps/iOSUITests/SongsFilterAccessibilityJourneyTests.swift
+      - path: Apps/iOSUITests/SongsUITestSupport.swift
+      # Issue #434 What's New at AX5, portrait and landscape, run on iPad too.
+      - path: Apps/iOSUITests/WhatsNewAccessibilityJourneyTests.swift
+      - path: Apps/iOSUITests/RecognizedText.swift
+      # Issue #473 board footer fade at AX5, run on iPad too.
+      - path: Apps/iOSUITests/BoardFooterFadeJourneyTests.swift
+      # Issue #480: the split band and Close's 44 pt hit region, shared with the Duo journey.
+      - path: Apps/iOSUITests/SplitBandUITestSupport.swift
+      # Issue #649: the Paths audit checks the Karaoke notice follows the loaded chart.
+      - path: Apps/iOSUITests/PathsUITestSupport.swift
+    dependencies:
+      - target: FestivalMobileUIKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sfenton.festivalscoretracker.nativeuikitipaduitests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"
+        TEST_TARGET_NAME: FestivalMobileUIKit
+        CODE_SIGNING_ALLOWED: NO
   FestivalDesktopUITests:
     type: bundle.ui-testing
     platform: macOS
@@ -180,6 +295,22 @@ schemes:
       gatherCoverageData: true
       targets:
         - name: FestivalMobileIPadUITests
+  FestivalMobileUIKit:
+    build:
+      targets:
+        FestivalMobileUIKit: all
+    test:
+      gatherCoverageData: true
+      targets:
+        - name: FestivalMobileUIKitUITests
+  FestivalMobileUIKitIPad:
+    build:
+      targets:
+        FestivalMobileUIKit: all
+    test:
+      gatherCoverageData: true
+      targets:
+        - name: FestivalMobileUIKitIPadUITests
   FestivalDesktop:
     build:
       targets:

@@ -13,51 +13,7 @@ struct FestivalMobileApp: App {
     init() {
         #if DEBUG
         MainThreadStallMonitor.startIfRequested()
-        if ProcessInfo.processInfo.environment["FST_UI_TEST_RESET_VISUALS"] == "1" {
-            for key in [
-                "fst.accessibility.reduceMotion",
-                "fst.accessibility.disableAnimatedArtwork",
-                "fst.accessibility.lessTransparency",
-                "fst.accessibility.moreContrast",
-            ] {
-                UserDefaults.standard.removeObject(forKey: key)
-            }
-        }
-        if ProcessInfo.processInfo.environment["FST_UI_TEST_RESET_SONG_CARDS"] == "1" {
-            for key in [
-                "fst.settings.showInstrumentIcons",
-                "fst.settings.filterInvalidScores",
-                "fst.settings.leeway",
-                "fst.settings.showLead",
-                "fst.settings.showBass",
-                "fst.settings.showDrums",
-                "fst.settings.showVocals",
-                "fst.settings.showProLead",
-                "fst.settings.showProBass",
-                "fst.settings.showKaraoke",
-                "fst.settings.showProCymbals",
-                "fst.settings.showProDrums",
-                "fst.settings.metadataScore",
-                "fst.settings.metadataPercentage",
-                "fst.settings.metadataPercentile",
-                "fst.settings.metadataSeason",
-                "fst.settings.metadataIntensity",
-                "fst.settings.metadataDifficulty",
-                "fst.settings.metadataStars",
-                "fst.settings.metadataLastPlayed",
-                SongGeneralFilter.legacyInShopKey,
-                SongGeneralFilter.legacyLeavingTomorrowKey,
-                SongGeneralFilter.storageKey,
-                SongPlayerScoreFilter.storageKey,
-            ] {
-                UserDefaults.standard.removeObject(forKey: key)
-            }
-        }
-        if ProcessInfo.processInfo.environment["FST_UI_TEST_RESET_PATH_WARNING"] == "1" {
-            UserDefaults.standard.removeObject(
-                forKey: "fst.settings.pathUnavailableWarningDismissed"
-            )
-        }
+        FestivalLaunchResets.applyIfRequested()
         #endif
     }
 

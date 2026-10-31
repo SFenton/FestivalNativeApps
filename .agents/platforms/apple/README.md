@@ -10,5 +10,6 @@
 | [capacity.md](capacity.md) | Machine-wide simulator, device and build slots shared with other repos (`tools/devcap.py`) |
 | [duo.md](duo.md) | iPhone Duo simulator/posture facts |
 | [macos.md](macos.md) | macOS signing and GUI-automation limits on this host |
+| [uikit-port.md](uikit-port.md) | The UIKit port of the iOS/iPadOS app: shape, seams, lanes, tools |
 
 Design decisions: [design/apple/](../../design/apple/README.md); HIG lookups go through the installed `apple-hig` skill (route with `python3 ~/.claude/skills/apple-hig/scripts/hig_route.py --request-file <req.txt>`), Duo adaptation through its `/duo` workflow ([AGENTS.md](../../../AGENTS.md)). Tests: [testing/apple/](../../testing/apple/README.md).

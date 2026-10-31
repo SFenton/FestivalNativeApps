@@ -73,6 +73,8 @@ import devcap  # noqa: E402  (machine-wide simulator/build capacity shared with 
 
 DEVELOPER_DIR = "/Applications/Xcode.app/Contents/Developer"
 BUNDLE_ID = "com.sfenton.festivalscoretracker.native"
+#: The UIKit port installed beside it (`FestivalMobileUIKit`).
+UIKIT_BUNDLE_ID = "com.sfenton.festivalscoretracker.native.uikit"
 LOCK_PATH = Path.home() / ".fst-sim.lock"
 BUILD_LOCK_PATH = Path.home() / ".fst-build.lock"
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -95,7 +97,7 @@ CLEAN_STATUS_BAR = (
 )
 
 #: Source trees that, if changed, require rebuilding the driver's UI-test bundle.
-DRIVER_HASH_ROOTS = ("Sources", "Apps/iOS", "Apps/iOSUITests", "Apps/iPadOSUITests", "project.yml")
+DRIVER_HASH_ROOTS = ("Sources", "Apps/iOS", "Apps/iOSUIKit", "Apps/iOSUITests", "Apps/iPadOSUITests", "project.yml")
 
 
 @dataclass(frozen=True)
@@ -125,6 +127,16 @@ PRODUCTS = {
     ),
     "ipad": AppProduct(
         "FestivalMobileIPad", "FestivalMobile", BUNDLE_ID, "FestivalMobileIPadUITests", "lane-driver-ipad"
+    ),
+    # The UIKit port (owner request 2026-10-31, `.agents/platforms/apple/uikit-port.md`):
+    # the same journeys, built against the side-by-side `FestivalMobileUIKit` app.
+    "uikit": AppProduct(
+        "FestivalMobileUIKit", "FestivalMobileUIKit", UIKIT_BUNDLE_ID, "FestivalMobileUIKitUITests",
+        "lane-driver-uikit"
+    ),
+    "uikit-ipad": AppProduct(
+        "FestivalMobileUIKitIPad", "FestivalMobileUIKit", UIKIT_BUNDLE_ID, "FestivalMobileUIKitIPadUITests",
+        "lane-driver-uikit-ipad"
     ),
 }
 
