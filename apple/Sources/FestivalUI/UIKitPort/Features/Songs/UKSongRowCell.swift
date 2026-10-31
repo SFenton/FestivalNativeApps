@@ -133,7 +133,7 @@ final class UKSongRowCell: UICollectionViewCell {
     private var songId = ""
     private var rowElement: UKSongRowElement?
     private var stops: [UKSongRowStop] = []
-    private var voiceOver: NSObjectProtocol?
+    nonisolated(unsafe) private var voiceOver: NSObjectProtocol?
     /// Opens the song (tap, VoiceOver activate).
     var onOpen: (() -> Void)?
     /// Shows the invalid-score explanation for the warning.

@@ -539,4 +539,50 @@ struct SongsPipeline {
         }
         return items
     }
+
+    // MARK: Artwork
+
+    /// Rows primed before the very first reveal, and how long priming may block it.
+    static let artworkPrimeCount = 12
+    static let artworkPrimeTimeout = Duration.milliseconds(900)
+
+    /// Decodes the first visible rows' artwork before the very first reveal, so those rows
+    /// hit the in-memory cache instantly once shown (no spinner flash). Bounded by
+    /// ``artworkPrimeTimeout``.
+    ///
+    /// - Parameters:
+    ///   - payload: Just-fetched catalogue, not yet shown.
+    ///   - session: The artwork cache owner.
+    ///   - instrument: The Songs instrument filter.
+    ///   - settings: Saved sort.
+    static func primeFirstArtwork(
+        for payload: CatalogPayload, session: FestivalSession, instrument: Instrument?, settings: SongsSettings
+    ) async {
+        let filtered = payload.catalog.songs.filter { song in instrument.map(song.supports) ?? true }
+        let sortMode = settings.sortMode
+        let ordered = (try? SongCatalogSort.sorted(
+            filtered, mode: sortMode == .shop || sortMode.isPlayerChartMode ? .title : sortMode,
+            ascending: settings.sortAscending
+        )) ?? filtered
+        let artworkPaths = ordered.prefix(artworkPrimeCount)
+            .compactMap { $0.albumArt?.isEmpty == false ? $0.albumArt : nil }
+        guard !artworkPaths.isEmpty else { return }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                await withTaskGroup(of: Void.self) { downloads in
+                    for raw in artworkPaths {
+                        downloads.addTask {
+                            _ = try? await session.preparedArtwork(raw: raw, maxPixels: 132)
+                        }
+                    }
+                    await downloads.waitForAll()
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(for: artworkPrimeTimeout)
+            }
+            await group.next()
+            group.cancelAll()
+        }
+    }
 }

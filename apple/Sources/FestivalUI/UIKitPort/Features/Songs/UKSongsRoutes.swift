@@ -27,7 +27,10 @@ enum UKSongsRoutes {
     ///   - context: The section's context.
     /// - Returns: The ported root, or nil while it is not ported.
     static func root(for section: FestivalSection, context: UKContext) -> UIViewController? {
-        nil
+        switch section {
+        case .songs: UKSongsViewController(context: context)
+        default: nil
+        }
     }
 }
 #endif

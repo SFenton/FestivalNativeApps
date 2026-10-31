@@ -1453,8 +1453,6 @@ struct SongsScreen: View, Equatable {
     /// spinning-placeholder art that pops in piecemeal while scrolling settles, so
     /// natives hold the loading state a little longer and prime the first visible
     /// slice's artwork before the first reveal, then cross-fade in once.
-    private static let artworkPrimeCount = 12
-    private static let artworkPrimeTimeout = Duration.milliseconds(900)
 
     /// Reopen the row stagger window and reset the section headers as a new list is
     /// revealed (a reload or a publication refresh).
@@ -1528,33 +1526,9 @@ struct SongsScreen: View, Equatable {
     ///
     /// - Parameter payload: Just-fetched catalogue, not yet published to `state`.
     private func primeFirstArtwork(for payload: CatalogPayload) async {
-        let filtered = payload.catalog.songs.filter { song in
-            instrument.map(song.supports) ?? true
-        }
-        let ordered = (try? SongCatalogSort.sorted(
-            filtered, mode: sortMode == .shop || sortMode.isPlayerChartMode ? .title : sortMode,
-            ascending: sortAscending
-        )) ?? filtered
-        let artworkPaths = ordered.prefix(Self.artworkPrimeCount)
-            .compactMap { $0.albumArt?.isEmpty == false ? $0.albumArt : nil }
-        guard !artworkPaths.isEmpty else { return }
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask {
-                await withTaskGroup(of: Void.self) { downloads in
-                    for raw in artworkPaths {
-                        downloads.addTask {
-                            _ = try? await session.preparedArtwork(raw: raw, maxPixels: 132)
-                        }
-                    }
-                    await downloads.waitForAll()
-                }
-            }
-            group.addTask {
-                try? await Task.sleep(for: Self.artworkPrimeTimeout)
-            }
-            await group.next()
-            group.cancelAll()
-        }
+        await SongsPipeline.primeFirstArtwork(
+            for: payload, session: session, instrument: instrument, settings: pipeline.settings
+        )
     }
 
     /// Keep Shop status distinct from Songs while revealing a usable retry on failure.
