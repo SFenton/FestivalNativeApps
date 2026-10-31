@@ -1,0 +1,25 @@
+# Surfaces for tools/uikit_perf.py (SwiftUI app against its UIKit port). One per line: `Name|ENV=value ENV=value`
+# (space-separated, shell quoting allowed). Sections: [surfaces] get launch, idle and scroll measurements; [nav] get
+# push/pop timing (FST_PERF_NAV = `;`-separated FST_DEBUG_ROUTE tokens pushed from the tab named by FST_DEBUG_TAB).
+# Data: the fixture service (tools/mock_service.py --large-catalogue, started by the tool); ids below are its fixtures
+# (fixture-pulse song, fixture-player-1 player). Only read-only GETs ever happen (service-safety.md).
+[surfaces]
+Songs (long list)|FST_DEBUG_TAB=songs
+Song Detail|FST_DEBUG_TAB=songs FST_DEBUG_SONG=fixture-pulse
+Song Leaderboard|FST_DEBUG_TAB=songs FST_DEBUG_SONG=fixture-pulse FST_DEBUG_SONG_INSTRUMENT=Solo_Guitar
+Leaderboards|FST_DEBUG_TAB=leaderboards
+Full Rankings|FST_DEBUG_TAB=leaderboards FST_DEBUG_ROUTE=fullRankings:Solo_Guitar
+Player Profile|FST_DEBUG_TAB=songs FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_DEBUG_ROUTE=player:fixture-player-1
+Statistics|FST_DEBUG_TAB=statistics FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer
+Rivals|FST_DEBUG_TAB=rivals FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer
+Suggestions|FST_DEBUG_TAB=suggestions FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer
+Settings|FST_DEBUG_TAB=settings
+Shop|FST_DEBUG_TAB=songs FST_DEBUG_ROUTE=shop
+Global Search|FST_DEBUG_TAB=search
+
+[nav]
+Push Leaderboards from Songs|FST_DEBUG_TAB=songs FST_PERF_NAV=leaderboards
+Push Shop from Songs|FST_DEBUG_TAB=songs FST_PERF_NAV=shop
+Push Full Rankings|FST_DEBUG_TAB=leaderboards FST_PERF_NAV=fullRankings:Solo_Guitar
+Push Player Profile|FST_DEBUG_TAB=songs FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_PERF_NAV=player:fixture-player-1
+Push Settings topic|FST_DEBUG_TAB=settings FST_PERF_NAV=settingsTopic:accessibility
