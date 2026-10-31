@@ -117,7 +117,7 @@ struct WindowGeometry: Sendable, Equatable {
     init(proxy: GeometryProxy) {
         size = proxy.size
         safeAreaInsets = proxy.safeAreaInsets
-        #if os(iOS) && !FST_IOS_SDK_BEFORE_27_1
+        #if os(iOS)
         if #available(iOS 27.1, *) {
             occlusions = proxy.reservedRegions(kind: .occlusion).filter(\.isActive).map(\.frame)
             divisions = proxy.reservedRegions(kind: .division).filter(\.isActive).map(\.frame)
@@ -133,7 +133,7 @@ private struct DuoSignalProbe: ViewModifier {
     @Binding var hinge: HingeState?
 
     func body(content: Content) -> some View {
-        #if os(iOS) && !FST_IOS_SDK_BEFORE_27_1
+        #if os(iOS)
         if #available(iOS 27.1, *) {
             content.modifier(DuoSignalProbe27(verticalBarEdge: $verticalBarEdge, hinge: $hinge))
         } else {
@@ -145,9 +145,7 @@ private struct DuoSignalProbe: ViewModifier {
     }
 }
 
-// App Store archives use the released iOS 27.0 SDK until Xcode 27.1 ships
-// (tools/release/ios_appstore_build.sh defines FST_IOS_SDK_BEFORE_27_1).
-#if os(iOS) && !FST_IOS_SDK_BEFORE_27_1
+#if os(iOS)
 /// iOS 27.1 implementation of ``DuoSignalProbe``.
 @available(iOS 27.1, *)
 private struct DuoSignalProbe27: ViewModifier {
