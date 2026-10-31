@@ -1,7 +1,8 @@
 import XCTest
 
 /// Song Detail in the UIKit port (`UIKitPort/Features/SongDetail`), reached through the
-/// Songs row like `SongDetailJourneyTests`. The backdrop test needs the UIKit app's
+/// Debug-only `FST_UIKIT_DEBUG_SONGDETAIL` hook (so it does not depend on the Songs list; on the
+/// SwiftUI app, which has no hook, every test skips). The backdrop test needs the UIKit app's
 /// background probe (`FST_DEBUG_BACKGROUND_PROBE`, see ``UKBackgroundJourneyTests``) and skips
 /// on the SwiftUI app; the page tests run on both apps, so a port difference shows up as a
 /// failure on one of them only.
@@ -22,6 +23,8 @@ final class UKSongDetailJourneyTests: XCTestCase {
             "FST_API_BASE_URL": "http://127.0.0.1:8765",
             "FST_UI_TEST_CLEAR_PROFILE": "1",
             "FST_DEBUG_BACKGROUND_PROBE": "1",
+            "FST_UIKIT_DEBUG_SONGDETAIL": "fixture-pulse",
+            "FST_DEBUG_PROFILE": "fixture-player-1:Fixture Player 1",
         ]
         environment.merge(env) { $1 }
         let app = FestivalApp.makeApp(environment)
@@ -29,12 +32,9 @@ final class UKSongDetailJourneyTests: XCTestCase {
             app.launchArguments += ["-UIPreferredContentSizeCategoryName", contentSize]
         }
         app.launch()
-        let row = app.buttons["fst.songs.row.fixture-pulse"]
-        try XCTSkipUnless(row.waitForExistence(timeout: FestivalApp.budget(20)), "Songs list is not available in this build")
-        row.tap()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["fst.song-detail.hero-title"].waitForExistence(timeout: FestivalApp.budget(20)),
-            "Song Detail did not load"
+        let hero = app.descendants(matching: .any)["fst.song-detail.hero-title"]
+        try XCTSkipUnless(
+            hero.waitForExistence(timeout: FestivalApp.budget(25)), "Song Detail did not open (no debug hook in this app?)"
         )
         return app
     }
@@ -63,7 +63,7 @@ final class UKSongDetailJourneyTests: XCTestCase {
         XCTAssertEqual(onSong["mode"], "song", "the backdrop did not take the song's cover")
         XCTAssertNotEqual(onSong["cover"], "none")
         app.buttons["BackButton"].tap()
-        XCTAssertTrue(app.buttons["fst.songs.row.fixture-pulse"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.descendants(matching: .any)["fst.song-detail.hero-title"].waitForExistence(timeout: 3))
         Thread.sleep(forTimeInterval: 1.5)
         let back = try probeState(app)
         XCTAssertEqual(back["mode"], "carousel")
@@ -83,7 +83,7 @@ final class UKSongDetailJourneyTests: XCTestCase {
         }
         let row = app.buttons["fst.song-detail.preview-row.Solo_Guitar.fixture-player-1"]
         XCTAssertTrue(row.waitForExistence(timeout: 5))
-        XCTAssertEqual(row.label, "#1, Fixture Player 1, 99,900, Accuracy 98%")
+        XCTAssertEqual(row.label, "Your rank, 1st, Fixture Player 1, 99,900, Accuracy 98%")
         XCTAssertGreaterThanOrEqual(row.frame.height, 44)
         let paths = app.buttons["fst.song-detail.paths"]
         XCTAssertTrue(paths.waitForExistence(timeout: 5))

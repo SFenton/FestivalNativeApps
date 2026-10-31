@@ -96,10 +96,10 @@ final class UKScoreHistoryPlotView: UIView {
         guard let context = UIGraphicsGetCurrentContext(), !range.isEmpty, range.upperBound <= points.count else { return }
         let plot = plotRect
         // Gridlines and the leading (score) labels.
-        context.setStrokeColor(BrandUIColors.glassBorder.cgColor)
-        context.setLineWidth(1)
         for tick in leadingTicks {
             let yy = y(tick, plot: plot)
+            context.setStrokeColor(BrandUIColors.glassBorder.cgColor)
+            context.setLineWidth(1)
             context.move(to: CGPoint(x: plot.minX, y: yy))
             context.addLine(to: CGPoint(x: plot.maxX, y: yy))
             context.strokePath()

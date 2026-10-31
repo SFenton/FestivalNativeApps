@@ -275,10 +275,13 @@ final class UKLeaderboardNameView: UIView {
         }
         content.translatesAutoresizingMaskIntoConstraints = false
         addSubview(content)
+        // Leading-pinned at its natural width, compressing (and scrolling) only when the
+        // column is narrower: the text never drifts to the middle of a wide column.
         NSLayoutConstraint.activate([
-            content.leadingAnchor.constraint(equalTo: leadingAnchor), content.trailingAnchor.constraint(equalTo: trailingAnchor),
+            content.leadingAnchor.constraint(equalTo: leadingAnchor), content.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor),
             content.topAnchor.constraint(equalTo: topAnchor), content.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
+        content.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         isAccessibilityElement = true
         accessibilityLabel = name
         accessibilityTraits = .staticText

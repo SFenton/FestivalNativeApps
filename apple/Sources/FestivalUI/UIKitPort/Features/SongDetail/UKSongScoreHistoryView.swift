@@ -23,7 +23,8 @@ final class UKSongScoreHistoryView: UIView {
     private let section: UKGroupSectionView
     private let graphRow = UIView()
     private let chartHolder = UIView()
-    private let selector: UKInstrumentSelectorView
+    private var selector: UKInstrumentSelectorView?
+    private let selectorHolder = UIView()
     private var displayed: Instrument
     private var chartWidth: CGFloat = 0
     private var swap: Task<Void, Never>?
@@ -58,10 +59,6 @@ final class UKSongScoreHistoryView: UIView {
         let shown = SongScoreHistoryModel.resolvedInstrument(preferred: preferred, available: available) ?? .lead
         displayed = shown
         chosen = shown
-        selector = UKInstrumentSelectorView(
-            instruments: available, selected: shown, required: true, look: .graph, keyboardIcon: song.usesKeyboardIcon,
-            identifier: "fst.song-detail.history.instrument"
-        )
         section = UKGroupSectionView("Score History", subtitle: "Select a bar to see more score details.", rows: .flush(separatorInset: 14))
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
@@ -72,7 +69,9 @@ final class UKSongScoreHistoryView: UIView {
             section.topAnchor.constraint(equalTo: topAnchor), section.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
         chartHolder.translatesAutoresizingMaskIntoConstraints = false
-        let column = UIStackView(arrangedSubviews: [selector, chartHolder])
+        selectorHolder.translatesAutoresizingMaskIntoConstraints = false
+        selectorHolder.heightAnchor.constraint(equalToConstant: InstrumentSelectorMetrics.buttonSize).isActive = true
+        let column = UIStackView(arrangedSubviews: [selectorHolder, chartHolder])
         column.axis = .vertical
         column.spacing = 12
         column.translatesAutoresizingMaskIntoConstraints = false
@@ -81,7 +80,6 @@ final class UKSongScoreHistoryView: UIView {
             column.leadingAnchor.constraint(equalTo: graphRow.leadingAnchor, constant: 14), column.trailingAnchor.constraint(equalTo: graphRow.trailingAnchor, constant: -14),
             column.topAnchor.constraint(equalTo: graphRow.topAnchor, constant: 14), column.bottomAnchor.constraint(equalTo: graphRow.bottomAnchor, constant: -14),
         ])
-        selector.onSelect = { [weak self] in if let instrument = $0 { self?.choose(instrument) } }
         accessibilityContainerType = .semanticGroup
         accessibilityIdentifier = Self.anchor
         render(for: shown)
@@ -97,11 +95,34 @@ final class UKSongScoreHistoryView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        installSelectorIfNeeded()
         let width = chartHolder.bounds.width.rounded()
         if width != renderedChartWidth, width > 0, swap == nil {
             renderedChartWidth = width
             render(for: displayed)
         }
+    }
+
+    /// Builds the selector once the row's width is known, choosing the arrow layout from it
+    /// (an explicit choice, so the row never waits on the selector's own measuring pass).
+    private func installSelectorIfNeeded() {
+        let width = selectorHolder.bounds.width
+        guard selector == nil, width > 0 else { return }
+        let compact = InstrumentSelection(instruments: available, required: true).needsCompact(
+            width: Double(width), buttonWidth: Double(InstrumentSelectorMetrics.buttonSize), gap: Double(InstrumentSelectorMetrics.gap)
+        )
+        let view = UKInstrumentSelectorView(
+            instruments: available, selected: displayed, required: true, compact: compact, look: .graph,
+            keyboardIcon: song.usesKeyboardIcon, identifier: "fst.song-detail.history.instrument"
+        )
+        view.onSelect = { [weak self] in if let instrument = $0 { self?.choose(instrument) } }
+        view.translatesAutoresizingMaskIntoConstraints = false
+        selectorHolder.addSubview(view)
+        NSLayoutConstraint.activate([
+            view.leadingAnchor.constraint(equalTo: selectorHolder.leadingAnchor), view.trailingAnchor.constraint(equalTo: selectorHolder.trailingAnchor),
+            view.topAnchor.constraint(equalTo: selectorHolder.topAnchor), view.bottomAnchor.constraint(equalTo: selectorHolder.bottomAnchor),
+        ])
+        selector = view
     }
 
     // MARK: Rendering
