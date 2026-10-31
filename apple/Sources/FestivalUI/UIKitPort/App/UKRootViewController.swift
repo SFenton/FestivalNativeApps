@@ -64,6 +64,11 @@ final class UKRootViewController: UIViewController {
     var expandedBarInset: CGFloat = 0
     var tabsSearchAsTab = false
 
+    // MARK: Background lane
+
+    /// The shared artwork backdrop, installed once under the shell (``UKBackgroundView``).
+    lazy var background = UKBackgroundView(session: session)
+
     /// Creates a window's root.
     ///
     /// - Parameter windowRoute: The content an "Open in New Window" request opened this
@@ -97,6 +102,7 @@ final class UKRootViewController: UIViewController {
         focusAnchor.frame = .zero
         view.addSubview(focusAnchor)
         view.addSubview(tabs.view)
+        background.install(in: view) // Background lane: the one shared backdrop, beneath the tabs.
         tabs.didMove(toParent: self)
         if #available(iOS 26.0, *) { tabs.tabBarMinimizeBehavior = .onScrollDown }
         floatingTools.translatesAutoresizingMaskIntoConstraints = false

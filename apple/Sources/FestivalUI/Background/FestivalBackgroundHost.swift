@@ -1,6 +1,5 @@
 import Combine
 import CoreGraphics
-import OSLog
 import SwiftUI
 import FestivalCore
 import FestivalDesign
@@ -36,10 +35,6 @@ struct FestivalBackgroundHost: View {
     @Environment(\.displayScale) private var displayScale
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.festivalWindowVisible) private var windowVisible
-
-    private static let log = Logger(
-        subsystem: "com.sfenton.festivalscoretracker", category: "artwork-background"
-    )
 
     /// Inputs of the carousel loader; any change restarts it from the same state.
     private struct CarouselKey: Hashable {
@@ -110,14 +105,13 @@ struct FestivalBackgroundHost: View {
     ///   - artCount: Number of candidate covers.
     /// - Returns: Loading and animation decisions.
     private func policy(visible: Bool, artCount: Int) -> ArtworkPlaybackPolicy {
-        ArtworkPlaybackPolicy(
-            activeScene: AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible),
-            visiblePage: visible && ArtworkNetworkStatus.canFetch(
-                known: ArtworkNetworkStatus.shared.pathKnown,
-                satisfied: ArtworkNetworkStatus.shared.pathSatisfied
-            ),
+        ArtworkPlaybackPolicy.resolve(
+            sceneActive: AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible),
+            visible: visible,
+            pathKnown: ArtworkNetworkStatus.shared.pathKnown,
+            pathSatisfied: ArtworkNetworkStatus.shared.pathSatisfied,
             reduceMotion: reduceMotion || systemReduceMotion,
-            disableAnimation: disableAnimation || DebugAnimationOverride.stillBackground,
+            disableAnimation: disableAnimation,
             reduceTransparency: lessTransparency || systemReduceTransparency,
             saveData: ArtworkNetworkStatus.shared.isConstrained,
             lowPower: lowPower, artCount: artCount
@@ -137,36 +131,7 @@ struct FestivalBackgroundHost: View {
         _ mode: ArtworkBackgroundMode, coordinator: FestivalBackgroundCoordinator,
         policy: ArtworkPlaybackPolicy, maxPixels: Int
     ) async {
-        switch mode {
-        case .carousel:
-            coordinator.dismissOverlay()
-        case let .song(optionalRaw):
-            let raw = optionalRaw ?? ""
-            let opaque = policy.saveData || policy.reduceTransparency
-            if let current = coordinator.overlay, current.raw == raw,
-               current.image != nil || opaque || raw.isEmpty {
-                return
-            }
-            var image: CGImage?
-            if !raw.isEmpty && !opaque {
-                // Keep the carousel until the scene and network allow a fetch.
-                guard policy.mayLoad else { return }
-                do {
-                    image = try await session.preparedArtwork(
-                        raw: raw, maxPixels: maxPixels
-                    ).image
-                } catch is CancellationError {
-                    return
-                } catch let error as URLError where error.code == .cancelled {
-                    return
-                } catch {
-                    guard !Task.isCancelled else { return }
-                    Self.log.error("Song backdrop unavailable: \(error.localizedDescription)")
-                }
-            }
-            guard !Task.isCancelled else { return }
-            coordinator.showOverlay(SongOverlay(raw: raw, image: image, start: .now))
-        }
+        await coordinator.present(mode, session: session, policy: policy, maxPixels: maxPixels)
     }
 
     // MARK: - Debug
@@ -177,20 +142,7 @@ struct FestivalBackgroundHost: View {
     ///
     /// - Parameter coordinator: Coordinator to override.
     private func debugCycle(_ coordinator: FestivalBackgroundCoordinator) async {
-        guard let raw = ProcessInfo.processInfo.environment["FST_DEBUG_BACKGROUND_CYCLE"],
-              let seconds = Double(raw), seconds > 0 else { return }
-        var showSong = true
-        while !Task.isCancelled {
-            do {
-                try await Task.sleep(for: .seconds(seconds))
-            } catch {
-                return
-            }
-            guard let art = session.artworkPaths.first
-            else { continue }
-            coordinator.debugOverride(showSong ? .song(art) : .carousel)
-            showSong.toggle()
-        }
+        await coordinator.debugCycle(session: session)
     }
     #endif
 }
@@ -225,13 +177,20 @@ struct FestivalBackdropView: View {
             overlay: coordinator.overlay,
             exiting: coordinator.exiting,
             animate: appeared,
-            showsArt: !(lessTransparency || systemReduceTransparency
-                || ArtworkNetworkStatus.shared.isConstrained),
+            showsArt: BackdropPresentation.showsArt(
+                appLessTransparency: lessTransparency,
+                systemReduceTransparency: systemReduceTransparency,
+                constrained: ArtworkNetworkStatus.shared.isConstrained
+            ),
             dimming: dimming
         )
         .ignoresSafeArea()
     }
 
     /// Black-overlay equivalent (0.7, or 0.82 with increased contrast).
-    private var dimming: Double { moreContrast || systemContrast == .increased ? 0.82 : 0.7 }
+    private var dimming: Double {
+        BackdropPresentation.dimming(
+            appMoreContrast: moreContrast, systemIncreased: systemContrast == .increased
+        )
+    }
 }
