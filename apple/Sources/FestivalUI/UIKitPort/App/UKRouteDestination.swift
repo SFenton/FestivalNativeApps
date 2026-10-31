@@ -21,7 +21,9 @@ enum UKRouteDestination {
     static func make(_ route: AppRoute, context: UKContext) -> UIViewController {
         let made: UIViewController?
         switch route {
-        case .songDetail, .shop:
+        case .songDetail:
+            made = UKSongDetailRoutes.make(route, context: context)
+        case .shop:
             made = UKSongsRoutes.make(route, context: context)
         case .songLeaderboard, .songBandLeaderboard, .playerHistory, .leaderboards,
              .fullRankings, .fullComboRankings, .bandRankings:

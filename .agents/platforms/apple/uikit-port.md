@@ -59,7 +59,8 @@ Each lane works in its own worktree and branch off `claude/uikit-port`, owns the
 | Background | `Background/` (artwork carousel, song backdrop) | `UIKitPort/Background` |
 | Shell | `App/Shell`, `App/Layout`, `Features/Search`, `Common/QuickLinks`, `Common/Chrome` (tabs, Search tab, drawer, iPad flyout, profile button, menus, Duo layouts) | `UIKitPort/App` |
 | Perf | Measurement probes and the A/B tool | `UIKitPort/Diagnostics`, `FestivalUI/Diagnostics`, `tools/uikit_perf*` |
-| Songs | `Features/Songs`, `SongDetail`, `Shop` | `UIKitPort/Features/Songs` |
+| Songs | `Features/Songs`, `Shop` | `UIKitPort/Features/Songs` |
+| Song Detail | `Features/SongDetail` | `UIKitPort/Features/SongDetail` |
 | Leaderboards | `Features/Leaderboards`, `SongLeaderboard` | `UIKitPort/Features/Leaderboards` |
 | Profile | `Features/Profile`, `Bands`, `Statistics` | `UIKitPort/Features/Profile` |
 | Rivals | `Features/Rivals`, `Compete`, `Suggestions` | `UIKitPort/Features/Rivals` |

@@ -4,9 +4,9 @@ import UIKit
 
 // MARK: - Songs lane routes
 
-/// The Songs, Song Detail and Item Shop lane's screens in the UIKit port (ports `Features/Songs, Features/SongDetail, Features/Shop`).
+/// The Songs and Item Shop lane's screens in the UIKit port (ports `Features/Songs, Features/Shop`).
 ///
-/// Owned by the Songs lane: `.songDetail`, `.shop`; roots `.songs`, `.shop`. ``UKRouteDestination`` calls these; return nil for a
+/// Owned by the Songs lane: `.shop`; roots `.songs`, `.shop`. ``UKRouteDestination`` calls these; return nil for a
 /// route not ported yet and the placeholder shows.
 @MainActor
 enum UKSongsRoutes {
