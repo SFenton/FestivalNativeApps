@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import Observation
+import OSLog
 import SwiftUI
 
 // MARK: - Background registrations
@@ -189,5 +190,92 @@ final class FestivalBackgroundCoordinator {
         resolvedMode = mode
     }
 
+    #endif
+
+    // MARK: - Mode changes
+
+    /// Whether the shown song cover already satisfies a requested song.
+    ///
+    /// - Parameters:
+    ///   - current: Cover on screen, if any.
+    ///   - raw: Requested artwork path ("" for a song without art).
+    ///   - opaque: Data saving or opaque accessibility presentation (no art is shown).
+    /// - Returns: True when presenting the request would change nothing.
+    nonisolated static func keepsCover(
+        current: (raw: String, hasImage: Bool)?, raw: String, opaque: Bool
+    ) -> Bool {
+        guard let current, current.raw == raw else { return false }
+        return current.hasImage || opaque || raw.isEmpty
+    }
+
+    /// Move the shared backdrop to the page-on-top's mode: dismiss the cover for
+    /// the carousel, or decode and fade in a song's cover. Shared by the SwiftUI
+    /// ``FestivalBackgroundHost`` and the UIKit port's host.
+    ///
+    /// - Parameters:
+    ///   - mode: Mode of the page on top.
+    ///   - session: Artwork cache owner.
+    ///   - policy: Artwork policy for a single still cover.
+    ///   - maxPixels: Decode bound for a full-screen cover.
+    func present(
+        _ mode: ArtworkBackgroundMode, session: FestivalSession,
+        policy: ArtworkPlaybackPolicy, maxPixels: Int
+    ) async {
+        switch mode {
+        case .carousel:
+            dismissOverlay()
+        case let .song(optionalRaw):
+            let raw = optionalRaw ?? ""
+            let opaque = policy.saveData || policy.reduceTransparency
+            if Self.keepsCover(
+                current: overlay.map { ($0.raw, $0.image != nil) }, raw: raw, opaque: opaque
+            ) {
+                return
+            }
+            var image: CGImage?
+            if !raw.isEmpty && !opaque {
+                // Keep the carousel until the scene and network allow a fetch.
+                guard policy.mayLoad else { return }
+                do {
+                    image = try await session.preparedArtwork(
+                        raw: raw, maxPixels: maxPixels
+                    ).image
+                } catch is CancellationError {
+                    return
+                } catch let error as URLError where error.code == .cancelled {
+                    return
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    Logger(
+                        subsystem: "com.sfenton.festivalscoretracker", category: "artwork-background"
+                    ).error("Song backdrop unavailable: \(error.localizedDescription)")
+                }
+            }
+            guard !Task.isCancelled else { return }
+            showOverlay(SongOverlay(raw: raw, image: image, start: .now))
+        }
+    }
+
+    #if DEBUG
+    /// `FST_DEBUG_BACKGROUND_CYCLE=<seconds>` alternates carousel and a song cover
+    /// so screenshots can show transitions.
+    ///
+    /// - Parameter session: Source of the cover path.
+    func debugCycle(session: FestivalSession) async {
+        guard let raw = ProcessInfo.processInfo.environment["FST_DEBUG_BACKGROUND_CYCLE"],
+              let seconds = Double(raw), seconds > 0 else { return }
+        var showSong = true
+        while !Task.isCancelled {
+            do {
+                try await Task.sleep(for: .seconds(seconds))
+            } catch {
+                return
+            }
+            guard let art = session.artworkPaths.first
+            else { continue }
+            debugOverride(showSong ? .song(art) : .carousel)
+            showSong.toggle()
+        }
+    }
     #endif
 }

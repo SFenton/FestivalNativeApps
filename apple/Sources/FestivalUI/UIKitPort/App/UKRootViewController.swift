@@ -17,6 +17,8 @@ final class UKRootViewController: UIViewController, UKNavigating {
     private let tabs = UITabBarController()
     private let shellState = UKShellState()
     private let observations = UKObservationBag()
+    // MARK: Background lane
+    private lazy var background = UKBackgroundView(session: session)
     private var stacks: [FestivalSection: UINavigationController] = [:]
     private var sections: [FestivalSection] = []
 
@@ -44,6 +46,7 @@ final class UKRootViewController: UIViewController, UKNavigating {
         tabs.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         tabs.view.backgroundColor = .clear
         view.addSubview(tabs.view)
+        background.install(in: view) // Background lane: the one shared backdrop, beneath the tabs.
         tabs.didMove(toParent: self)
         observations.observe { [weak self] in self?.rebuildSections() }
         if let selected = stacks[launch.selected] { tabs.selectedViewController = selected }
