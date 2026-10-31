@@ -6,7 +6,8 @@ import UIKit
 // MARK: - Gallery
 
 /// Debug gallery of every UIKit design primitive in its states, reached with
-/// `FST_UIKIT_GALLERY=design` (``UKApp/makeRootViewController(userActivity:)``). Each
+/// `FST_UIKIT_GALLERY=design` (``UKApp/makeRootViewController(userActivity:)``), or
+/// `design:<id>,<id>` to show only those sections (smaller hierarchies keep UI tests fast). Each
 /// primitive carries a `fst.uikit.gallery.<name>` identifier so
 /// `UKDesignGalleryJourneyTests` can check labels, traits, targets and text scaling; the
 /// SwiftUI app has no gallery, so the journey skips there.
@@ -15,7 +16,18 @@ final class UKDesignGalleryViewController: UIViewController, UKModalScrollProvid
     private let stack = UIStackView()
     private var fade: UKModalTopEdgeFade?
     private var accordion: UKAccordionView<Bool>?
-    private var instrumentLabel: UILabel?
+    private let only: Set<String>?
+
+    /// Creates the gallery.
+    ///
+    /// - Parameter only: Section identifiers to show; nil shows all.
+    init(only: Set<String>? = nil) {
+        self.only = only
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     var ukModalScrollView: UIScrollView? { scroll }
 
@@ -68,6 +80,7 @@ final class UKDesignGalleryViewController: UIViewController, UKModalScrollProvid
     }
 
     private func add(_ name: String, _ view: UIView, id: String) {
+        if let only, !only.contains(id) { return }
         let header = UKLabel(name, style: .caption1, weight: .semibold, color: BrandUIColors.textMuted).asHeader()
         header.accessibilityIdentifier = "fst.uikit.gallery.\(id).title"
         view.accessibilityIdentifier = view.accessibilityIdentifier ?? "fst.uikit.gallery.\(id)"

@@ -27,8 +27,8 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
 
     /// Launches the gallery and skips when this build has none.
     @MainActor
-    private func openGallery(size: String? = nil) throws -> XCUIApplication {
-        let app = FestivalApp.makeApp(["FST_UIKIT_GALLERY": "design"])
+    private func openGallery(_ sections: String, size: String? = nil) throws -> XCUIApplication {
+        let app = FestivalApp.makeApp(["FST_UIKIT_GALLERY": "design:\(sections)"])
         if let size { app.launchArguments += ["-UIPreferredContentSizeCategoryName", size] }
         app.launch()
         let scroll = app.scrollViews["fst.uikit.gallery.design.scroll"]
@@ -64,7 +64,7 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
     /// Text, section header, surfaces and the group card exist with their copy.
     @MainActor
     func testSurfacesAndGroupSection() throws {
-        let app = try openGallery()
+        let app = try openGallery("section-header,surfaces,group")
         XCTAssertTrue(app.staticTexts["Find a Profile"].exists, "section header title")
         XCTAssertTrue(app.staticTexts["Search by username."].exists, "section header subtitle")
         for role in ["card", "control", "overlay"] {
@@ -80,7 +80,7 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
     /// Stars and the difficulty meter speak the same labels as the SwiftUI views.
     @MainActor
     func testStarsAndDifficultyLabels() throws {
-        let app = try openGallery()
+        let app = try openGallery("stars,difficulty")
         let three = app.images["3 stars"]
         reveal(three, in: app)
         XCTAssertTrue(app.images["5 gold stars"].exists)
@@ -96,7 +96,7 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
     /// targets and lays out as arrows when compact.
     @MainActor
     func testInstrumentSelector() throws {
-        let app = try openGallery()
+        let app = try openGallery("selector")
         let lead = app.buttons["fst.uikit.gallery.selector.full.lead"]
         reveal(lead, in: app)
         XCTAssertEqual(lead.label, "Lead")
@@ -121,7 +121,7 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
     /// The accordion opens its content and the disclosure group announces its state.
     @MainActor
     func testAccordionAndDisclosure() throws {
-        let app = try openGallery()
+        let app = try openGallery("accordion")
         let toggle = app.buttons["fst.uikit.gallery.accordion.toggle"]
         reveal(toggle, in: app)
         XCTAssertFalse(app.staticTexts["fst.uikit.gallery.accordion.content"].exists)
@@ -139,7 +139,7 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
     /// Empty, loading and service states carry their identifiers, labels and 44 pt retry.
     @MainActor
     func testCommonStates() throws {
-        let app = try openGallery()
+        let app = try openGallery("states")
         reveal(app.staticTexts["No Songs"], in: app)
         XCTAssertTrue(app.staticTexts["Try a different filter."].exists)
         let combined = app.staticTexts["fst.uikit.gallery.empty.combined"]
@@ -161,7 +161,7 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
     /// Marquee text is one static text with its full string, even while it overflows.
     @MainActor
     func testMarqueeIsSpokenInFull() throws {
-        let app = try openGallery()
+        let app = try openGallery("marquee")
         let marquee = app.staticTexts["fst.uikit.gallery.marquee.long"]
         reveal(marquee, in: app)
         XCTAssertEqual(marquee.label, "A very long song title that does not fit on one line at all, so it scrolls")
@@ -170,7 +170,7 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
     /// Page titles combine title and subtitle into one element.
     @MainActor
     func testInstrumentPageTitles() throws {
-        let app = try openGallery()
+        let app = try openGallery("titles")
         let header = app.descendants(matching: .any).matching(identifier: "fst.uikit.gallery.title.header").firstMatch
         reveal(header, in: app)
         XCTAssertEqual(header.label, "Lead Guitar, Rank 12")
@@ -181,7 +181,7 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
     /// The carousel exposes one adjustable page indicator that pages the cards.
     @MainActor
     func testCarouselIndicator() throws {
-        let app = try openGallery()
+        let app = try openGallery("carousel")
         let indicator = element("fst.carousel.indicator", in: app)
         reveal(indicator, in: app)
         XCTAssertEqual(indicator.label, "Gallery Cards")
@@ -193,7 +193,7 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
     /// The sheet opens with its title and a 44 pt Close button, and closes.
     @MainActor
     func testSheetChrome() throws {
-        let app = try openGallery()
+        let app = try openGallery("sheet")
         let open = app.buttons["fst.uikit.gallery.sheet.open"]
         reveal(open, in: app)
         open.tap()
@@ -209,13 +209,13 @@ final class UKDesignGalleryJourneyTests: XCTestCase {
     /// At AX5 text grows and wraps, targets stay 44 pt and nothing clips.
     @MainActor
     func testAccessibilityTextScaling() throws {
-        let normal = try openGallery()
+        let normal = try openGallery("text,group,accordion")
         let body = normal.staticTexts["Body text wraps at every Dynamic Type size up to AX5 and stays white."]
         XCTAssertTrue(body.exists)
         let normalHeight = body.frame.height
         normal.terminate()
 
-        let large = try openGallery(size: Self.ax5)
+        let large = try openGallery("text,group,accordion", size: Self.ax5)
         let big = large.staticTexts["Body text wraps at every Dynamic Type size up to AX5 and stays white."]
         XCTAssertTrue(big.waitForExistence(timeout: 4))
         XCTAssertGreaterThan(big.frame.height, normalHeight * 1.35, "body text grows with Dynamic Type")

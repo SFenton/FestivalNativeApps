@@ -316,7 +316,7 @@ final class UKArcView: UIView {
     override func didMoveToWindow() {
         super.didMoveToWindow()
         arc.removeAnimation(forKey: "spin")
-        guard window != nil else { return }
+        guard window != nil, !DebugAnimationOverride.stillBackground else { return }
         let start = -135.0 * .pi / 180
         let spin = CABasicAnimation(keyPath: "transform.rotation.z")
         spin.fromValue = start
@@ -368,7 +368,7 @@ final class UKServiceStatusView: UIView {
         symbol.tintColor = issue.retriesAutomatically ? BrandUIColors.gold : BrandUIColors.textPrimary
         symbol.contentMode = .scaleAspectFit
         symbol.isAccessibilityElement = false
-        if issue.retriesAutomatically && !UKAccessibility.reduceMotion {
+        if issue.retriesAutomatically && !UKAccessibility.reduceMotion && !DebugAnimationOverride.stillBackground {
             symbol.addSymbolEffect(.pulse, options: .repeating)
         }
         let titleLabel = UKLabel(heading, style: .title2, weight: .bold, alignment: .center).asHeader()

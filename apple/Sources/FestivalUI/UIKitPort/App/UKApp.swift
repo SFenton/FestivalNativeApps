@@ -22,8 +22,10 @@ public enum UKApp {
     public static func makeRootViewController(userActivity: NSUserActivity? = nil) -> UIViewController {
         #if DEBUG
         // Design lane: `FST_UIKIT_GALLERY=design` shows the design-primitive gallery.
-        if ProcessInfo.processInfo.environment["FST_UIKIT_GALLERY"] == "design" {
-            return UINavigationController(rootViewController: UKDesignGalleryViewController())
+        if let gallery = ProcessInfo.processInfo.environment["FST_UIKIT_GALLERY"], gallery.hasPrefix("design") {
+            let ids = gallery.split(separator: ":", maxSplits: 1).dropFirst().first
+                .map { Set($0.split(separator: ",").map(String.init)) }
+            return UINavigationController(rootViewController: UKDesignGalleryViewController(only: ids))
         }
         #endif
         return UKRootViewController(windowRoute: nil)
