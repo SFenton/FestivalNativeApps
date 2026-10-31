@@ -123,6 +123,8 @@ Chose **B**: the Fluent text-scaling *must* rules out C, and A would break this 
 |---|---|---|
 | None verified. | — | Keep the shared-shell guards enabled; the feedback form is the documented R6 exception. |
 
+UIKit: `UKSheet.present` / `UKSheet.make` build a `UKSheetNavigationController` (transparent bar, inline title, Close button, dark glass or frosted background, detents and grabber, top edge fade) in `UIKitPort/Design/UKSheet.swift`; `UKPullDownToDismiss` mirrors `PullDownToDismiss`.
+
 ## Guards (tools/pattern_guard.py)
 
 - `modal-shell/windows-content-dialog`

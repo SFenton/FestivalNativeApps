@@ -73,6 +73,29 @@ Rules for `UIKitPort/App` (Shell lane, 2026-10-31). The shell is `UKRootViewCont
 - **Layout is published, not read from SwiftUI.** `refreshLayout` builds `LayoutSignals` from the root view (size, size classes, safe area, `traitCollection.verticalBarEdge`, `UIHingeInteraction`, `reservedRegions(kind:)`; iOS 27.1+), applies the `FST_DEBUG_DUO_POSE` / `FST_DEBUG_DUO_WINDOW` overrides, resolves `DeviceLayout` and `ShellPresentation` and writes both into `UKShellState`. Pages read `UIViewController.ukWindowLayout` / `ukLayout` (re-classified by the pane width inside a split). The section set trails a size-class change by a run-loop turn (`ShellPresentation.applying`), the same guard against the 2026-10-04 tab-rebuild crash.
 - **The `[AppRoute]` path is the navigation state.** `UKSectionStack.path` is the leading stack's routes plus the trailing pane's; `reshape` lays them out as one pushed stack or, in a landscape regular window with a list page on top, as `OnDemandSplitPolicy.cut` (leading list, trailing detail), moving page controllers between the two navigation controllers instead of rebuilding them. Rows call `navigator.selectDetail(route)` (replaces the open item); `push` appends.
 - **Chrome.** Section roots get the drawer button (leading) and the bell and profile (trailing, avatar last) from `UKRootChrome.install`; pages add tools by adopting `UKPageToolsProviding` and calling `ukPageToolsDidChange()`; a pushed page that shows the account group calls `ukInstallAccountItems()`. Identifiers: `fst.shell.drawer.open`, `fst.shell.notifications`, `fst.shell.profile`, `fst.shell.drawer.*`, `fst.split.*`, `fst.global-search.*`, `fst.profile.*`.
-- **Drawer.** Display-link driven so the scrim's cut-out follows the panel (`DrawerMotion` is the one source of timing and stage maths). The panel is `UIGlassEffect` with `UICornerConfiguration.containerConcentric` corners on iOS 26 (TODO(uikit-design): replace with `UKGlass`).
+- **Drawer.** Display-link driven so the scrim's cut-out follows the panel (`DrawerMotion` is the one source of timing and stage maths). The panel is `UIGlassEffect` with `UICornerConfiguration.containerConcentric` corners on iOS 26 (`UKGlassView(.overlay)` with `concentricMinimumRadius`, so it takes the Reduce Transparency and Increase Contrast fallbacks).
 - **Menu bar.** `UKMenuBar.build(with:)` (called from the app delegate's `buildMenu(with:)`) sends `UKShellCommands` selectors down the responder chain; `UKRootViewController.canPerformAction` enables or disables each. Phones get the same shortcuts as `keyCommands`.
 - **Refresh and Quick Links.** Refreshable pages register with `UKRefreshCommands.shared`; scrolling pages bind a `QuickLinksController` with `UKQuickLinks` (frames against the visible region below the bars, jump with the corrective re-landing pass).
+
+## Design primitives (Design lane)
+
+Feature lanes build pages from these (`UIKitPort/Design`, `UIKitPort/Common`); see each type's DocC for parameters. `FST_UIKIT_GALLERY=design` (Debug) launches `UKDesignGalleryViewController`, which shows every one in its states, and `UKDesignGalleryJourneyTests` checks it.
+
+| SwiftUI | UIKit | Notes |
+|---|---|---|
+| `.font(.body.weight(…))`, `FestivalText` | `UKFont.font(_:weight:monospacedDigit:)`, `UKLabel` (white, Dynamic Type) | `UKAccentText.blue` / `.prominentFill` |
+| `festivalCard`, `festivalCardCapsule`, group segments | `UKCardView(cornerRadius:segment:capsule:)` | add views to `contentView`, or `embed(_:insets:)` |
+| `festivalGlass`, `FestivalGlassGroup` | `UKGlassView(role,…)`, `UKGlassGroupView` | settings from `UKAccessibility`; observe with `UKAccessibilityObserver` |
+| `FestivalSectionHeader`, `SectionViewAllLink`, `FestivalGlassSection`, `FestivalFootnote` | `UKSectionHeaderView`, `UKViewAllButton`, `UKGroupSectionView.setRows/setAction`, `UKFootnoteLabel` | |
+| `InstrumentIcon`, `StarRating`, `DifficultyMeter` | `UKInstrumentIconView`, `UKInstrumentIconRow`, `UKStarRatingView`, `UKDifficultyMeterView` | spoken labels come from shared statics |
+| `InstrumentSelector` | `UKInstrumentSelectorView` (`onSelect`, optional `panel`) | |
+| `MarqueeText`, `.marqueeSync()` | `UKMarqueeLabel`, `UKMarqueeSyncGroup` | |
+| `FestivalAccordion*`, `FestivalDisclosureGroup` | `UKAccordionView<Value>.follow(_:)`, `UKDisclosureGroupView` | |
+| scroll-edge fades | `UKModalTopEdgeFade`, `UKBottomChromeFade`, `UKPinnedHeaderEdgeFade` (mask a non-scrolling container) | |
+| `festivalSheet`, `FestivalModal`, `festivalModalPresentation` | `UKSheet.present(_:from:title:closeIdentifier:size:sizing:coverage:)`; pages adopt `UKModalScrollProviding` | |
+| `FestivalEmptyState`, `FestivalLoadingView`, `ServiceStatusView/Inline`, `FreshnessDisclosure`, `RefreshErrorBanner` | `UKEmptyStateView`, `UKLoadingView`, `UKServiceStatusView/InlineView`, `UKFreshnessDisclosureView`, `UKRefreshErrorBanner` | fill placements take `hingeProvider` |
+| `FestivalReloadGate`, `festivalFadeIn`, `ListJump` | `UKReloadGate`, `UKFadeIn.fadeIn`, `UKListJump.teleport` | |
+| `festivalNavigationTitle`, `InstrumentPageTitle`, `SongHeaderText`, `SongBoardLine` | `UIViewController.ukSetPageTitle`, `UKInstrumentPageTitleView`, `UKSongHeaderTextView`, `UKSongBoardLine` | `SongHeaderRow` / `SongBarTitle` need `ArtworkTile` (Background lane) |
+| `LeaderboardColumnSlot`, `LeaderboardRowMetrics` | `UKLeaderboardColumnSlot`, `UKLeaderboardRowMetrics` | |
+| `HorizontalCarousel` | `UKHorizontalCarouselView` | |
+| self-sizing rows | `UKSelfSizingCell`, `UKSelfSizing.fittingHeight(of:width:)` | |

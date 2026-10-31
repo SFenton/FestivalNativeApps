@@ -3,6 +3,25 @@ import FestivalDesign
 
 // MARK: - Empty state
 
+/// Where an empty state sits in its container (web `EmptyState` `fullPage`); non-generic
+/// so the UIKit port's `UKEmptyStateView` shares it.
+enum FestivalEmptyStatePlacement: Sendable {
+    /// Fill the proposed region and centre in it, scrolling at large text sizes.
+    /// For a page, a list region or a pane with a bounded height.
+    case fill
+    /// Content height with the web's 48-point vertical padding, centred
+    /// horizontally. For a region inside an existing scroll view.
+    case inline
+}
+
+/// How VoiceOver reads an empty state's title and subtitle.
+enum FestivalEmptyStateReading: Sendable {
+    /// The title as a heading, then the subtitle (the default).
+    case separate
+    /// One static element, "title. subtitle" (Global Search, issue #299).
+    case combined
+}
+
 /// The one empty state for every page, region and pane (issue #377,
 /// `.agents/patterns/empty-error-states.md` R2/R5/R8): the web `EmptyState`'s optional
 /// icon, bold title and subtitle, centred horizontally and vertically, on no card and
@@ -19,22 +38,10 @@ import FestivalDesign
 /// keep ``FestivalLoadingView`` and ``ServiceStatusView`` (R1).
 struct FestivalEmptyState<Actions: View>: View {
     /// Where the state sits in its container (web `EmptyState` `fullPage`).
-    enum Placement: Sendable {
-        /// Fill the proposed region and centre in it, scrolling at large text sizes.
-        /// For a page, a list region or a pane with a bounded height.
-        case fill
-        /// Content height with the web's 48-point vertical padding, centred
-        /// horizontally. For a region inside an existing scroll view.
-        case inline
-    }
+    typealias Placement = FestivalEmptyStatePlacement
 
     /// How VoiceOver reads the title and subtitle.
-    enum Reading: Sendable {
-        /// The title as a heading, then the subtitle (the default).
-        case separate
-        /// One static element, "title. subtitle" (Global Search, issue #299).
-        case combined
-    }
+    typealias Reading = FestivalEmptyStateReading
 
     private let title: String
     private let systemImage: String?

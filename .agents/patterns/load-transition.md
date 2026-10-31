@@ -90,6 +90,8 @@ Page spinner placement extends [empty-error-states](empty-error-states.md) R2/R7
 | Apple `SoloLeaderboardScreen` keeps the pinned footer and pager from the last shown page when a page change fails; R4 and the web hide them on failure (#283 Windows check). | R4 | Cross-platform check from #283's blast radius (Apple session). |
 | Android Full Rankings and Band Rankings keep the last page count through an in-place instrument, Rank By or band-size switch (#431 note below); Android song band and Player Bands size/group switches are unverified against the Windows rule; Windows hides the pager until the new board's count commits (#575 decision below). Apple boards are unverified. | R4 | Android and Apple follow-ups from #575's blast radius, unless the owner chooses the keep-the-count option. |
 
+UIKit: `UKReloadGate` (the shared `ReloadTransition` driven with `UIViewPropertyAnimator`), `UKFadeIn` and `UKListJump` in `UIKitPort/Common/UKLoadTransitions.swift`; the spinner is `UKLoadingView`.
+
 ## Guards (`tools/pattern_guard.py`)
 
 - `load-transition/apple-reload-gate`

@@ -77,6 +77,8 @@ Chose **B**: R9's behavior is kept; only the scale follows R3 inside a picker th
 | Debt | Breaks | Plan |
 |---|---|---|
 
+UIKit: `UKSectionHeaderView` (headline, heading trait) and `UKViewAllButton` (44 pt, "View All <list>") in `UIKitPort/Design/UKSections.swift`; the card section is `UKGroupSectionView`.
+
 ## Guards (`tools/pattern_guard.py`)
 
 - `section-headers/apple-songs-bar`

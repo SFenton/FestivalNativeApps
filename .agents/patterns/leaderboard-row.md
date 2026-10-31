@@ -213,6 +213,8 @@ Alignment audit (web column alignment vs Android, #594):
 | Apple percentile rows (two-line rating) and large-text skeletons are not yet audited against R2's #188 clarification; Apple's `RankingRowLayout` pads 8 pt over a body + caption rating, which suggests about 54 pt. Windows was audited in #281: percentile rows are 48 epx at 100% text and the skeletons now fit like loaded rows. | R2 on Apple for Adjusted/Weighted and at large text. | Apple lane: measure and fit, as Android's `RANKING_ROW_VERTICAL_PADDING` and `RankingsSkeletonRows` and Windows' `LeaderboardSkeletonRow` do. |
 | Apple has no rank history snapshot list (web `RankHistoryChart`/`BandRankHistoryChart` list recent snapshots in a shared rank column); its rank history shows the current rank summary, chart and legend only. | Web parity of Profile, Band and Leaderboards rank history; the #594 bold-rank alignment applies once the list exists. | Apple lane: when porting the list, fit its rank column once from every listed rank through `LeaderboardRowColumns`/`LeaderboardColumnSlot` (R1). |
 
+UIKit: `UKLeaderboardColumnSlot` and `UKLeaderboardRowMetrics` (`UIKitPort/Common/UKPageChrome.swift`) read the same column templates and `LeaderboardRowMetrics`.
+
 ## Guards (`tools/pattern_guard.py`)
 
 - `leaderboard-row/apple-name-owner`

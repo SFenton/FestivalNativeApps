@@ -40,11 +40,22 @@ public struct DifficultyMeter: View {
         return Int(displayLevel(level: level, raw: raw).rounded(.down))
     }
 
+    /// The spoken label: "Difficulty 4 of 7", keeping a fractional display level.
+    ///
+    /// - Parameters:
+    ///   - level: Numeric difficulty from the song model (finite).
+    ///   - raw: Whether the source uses the 0-6 scale.
+    /// - Returns: The label SwiftUI and the UIKit port both speak.
+    nonisolated public static func accessibilityLabel(level: Double, raw: Bool) -> String {
+        let displayed = displayLevel(level: level, raw: raw)
+        let filled = filledBars(level: level, raw: raw)
+        return "Difficulty \(displayed == Double(filled) ? String(filled) : String(displayed)) of 7"
+    }
+
     /// Native Canvas reproduces the original meter without raster assets.
     public var body: some View {
         Group {
             if level.isFinite {
-                let displayed = Self.displayLevel(level: level, raw: raw)
                 let filled = Self.filledBars(level: level, raw: raw)
                 Canvas(opaque: false, rendersAsynchronously: true) { context, _ in
                     for index in 0..<7 {
@@ -69,9 +80,7 @@ public struct DifficultyMeter: View {
                 // A level indicator fills in reading order: right to left in RTL (HIG Right to left).
                 .flipsForRightToLeftLayoutDirection(true)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(
-                    "Difficulty \(displayed == Double(filled) ? String(filled) : String(displayed)) of 7"
-                )
+                .accessibilityLabel(Self.accessibilityLabel(level: level, raw: raw))
             } else {
                 Text("Difficulty unavailable")
                     .accessibilityIdentifier("fst.songs.difficulty-unavailable")

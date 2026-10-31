@@ -59,6 +59,8 @@ Chose B: web behavior beats an undocumented native copy (consistency-sweep prece
 |---|---|---|
 | Android Player History shows instrument icon + title without the art and artist line of web `SongInfoHeader` | R1 | Follow-up; the title itself complies with R2–R3 |
 
+UIKit: `UKMarqueeLabel` / `UKMarqueeSyncGroup` (`UIKitPort/Design/UKMarquee.swift`, honours `FST_DEBUG_STILL_BACKGROUND`) and `UKSongHeaderTextView` / `UKSongBoardLine` (`UIKitPort/Common/UKPageChrome.swift`).
+
 ## Guards (`tools/pattern_guard.py`)
 
 - `song-header/windows-no-textblock-title`: a Windows page binds the song title (`Song.Title`, `SongTitle`) to a plain `TextBlock` or a page-local `controls:MarqueeText` instead of `SongHeaderText`.

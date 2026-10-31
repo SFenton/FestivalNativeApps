@@ -22,6 +22,14 @@ public enum UKApp {
     ///   if any.
     /// - Returns: The window's root.
     public static func makeRootViewController(userActivity: NSUserActivity? = nil) -> UIViewController {
+        #if DEBUG
+        // Design lane: `FST_UIKIT_GALLERY=design` shows the design-primitive gallery.
+        if let gallery = ProcessInfo.processInfo.environment["FST_UIKIT_GALLERY"], gallery.hasPrefix("design") {
+            let ids = gallery.split(separator: ":", maxSplits: 1).dropFirst().first
+                .map { Set($0.split(separator: ",").map(String.init)) }
+            return UINavigationController(rootViewController: UKDesignGalleryViewController(only: ids))
+        }
+        #endif
         let root = UKRootViewController(windowRoute: UKWindows.route(from: userActivity))
         #if DEBUG
         PerfNavigationHooks.register(push: { [weak root] in root?.push($0) }, pop: { [weak root] in root?.pop() })

@@ -68,6 +68,8 @@ Apple ramp constants live only in `FestivalCore/ScrollEdgeFade.swift` (`topDista
 
 **Agent decision (Windows, #305 design review; the owner may override with `/choose`).** #308 had moved the Windows board ramp from 40 to 36 epx citing `useScrollFade`. The web source shows no board uses `useScrollFade`: `Page.tsx` calls `useScrollMask` on every page with no size override, and the board's footer scroll margin ends the viewport at the pager, so the web board fade is 40 px linear. Windows `BoardFooterEdgeFade.Depth` is 40 and the UIA journeys assert `fading:40`. Options weighed: keep 36 to match Apple/Android (rejected: copies a native divergence over the web, which ranks higher on the design ladder) or 40 on Windows now with Apple/Android as listed debt (chosen). Apple (`ScrollEdgeFade.distance = 40`) and Android (`BOTTOM_DP = 40`) followed in #329.
 
+UIKit: gradient-mask helpers in `UIKitPort/Design/UKEdgeFades.swift` on the scroll view's non-scrolling container: `UKModalTopEdgeFade` (sheet header), `UKBottomChromeFade` (footers and pagers) and `UKPinnedHeaderEdgeFade` (pinned titles). They use the shared `ScrollEdgeFade`, `ModalTopEdgeFade` and `PinnedHeaderEdgeFade` statics and the hard edge under Reduce Transparency / Increase Contrast.
+
 ## Guards (`tools/pattern_guard.py`)
 
 - `scroll-edge/apple-mask`: `.mask` in Apple sources outside `Design/`, the shell drawer and first-run demos needs an approved entry.

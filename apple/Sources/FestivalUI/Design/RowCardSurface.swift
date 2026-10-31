@@ -175,15 +175,24 @@ enum RowCardStyle {
     /// iOS/iPadOS glass stays dark over the dimmed artwork; a 68% near-neutral navy
     /// over the dark ultra-thin material matches it (`cardBackground` reads too blue).
     /// Under system Increase Contrast the glass darkens by 6–8 levels; 88% matches it.
-    private static let tintColor = Color(.sRGB, red: 15.0 / 255, green: 17.0 / 255, blue: 23.0 / 255)
-    private static let baseTint = tintColor.opacity(0.68)
-    private static let contrastTint = tintColor.opacity(0.88)
+    static let tintRGB = (red: 15.0 / 255, green: 17.0 / 255, blue: 23.0 / 255)
+    /// Opacity of the tint over the material (shared with the UIKit port's `UKCardView`).
+    static let baseTintOpacity = 0.68
+    /// Opacity of the tint under system Increase Contrast.
+    static let contrastTintOpacity = 0.88
+    /// Rim opacity at the card's top edge.
+    static let rimTopOpacity = 0.14
+    /// Rim opacity at the card's bottom edge (and the sides of rows below a group's first).
+    static let rimBottomOpacity = 0.03
+    private static let tintColor = Color(.sRGB, red: tintRGB.red, green: tintRGB.green, blue: tintRGB.blue)
+    private static let baseTint = tintColor.opacity(baseTintOpacity)
+    private static let contrastTint = tintColor.opacity(contrastTintOpacity)
     /// iOS glass edge: a light top rim fading towards the bottom.
     static let rim = LinearGradient(
-        colors: [.white.opacity(0.14), .white.opacity(0.03)], startPoint: .top, endPoint: .bottom
+        colors: [.white.opacity(rimTopOpacity), .white.opacity(rimBottomOpacity)], startPoint: .top, endPoint: .bottom
     )
     /// The rim's end colour: the sides of a group card's rows below its first (#543).
-    static let rimEnd = Color.white.opacity(0.03)
+    static let rimEnd = Color.white.opacity(rimBottomOpacity)
     #endif
 
     /// The tint layer above the material.

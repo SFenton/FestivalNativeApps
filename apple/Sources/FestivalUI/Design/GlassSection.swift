@@ -1,6 +1,17 @@
 import SwiftUI
 import FestivalDesign
 
+// MARK: - Section card metrics
+
+/// The group card's metrics, non-generic so the UIKit port's `UKGroupSectionView` reads
+/// the same numbers as ``FestivalGlassSection``.
+enum FestivalGroupCardMetrics {
+    /// The card's corner radius.
+    static let cornerRadius: CGFloat = 22
+    /// Margin between the card's edge and its in-card action on every side.
+    static var actionInset: CGFloat { cornerRadius - PurpleActionSurface.cornerRadius }
+}
+
 // MARK: - Section card
 
 /// A titled group of rows on one Festival material card (``View/festivalCard(cornerRadius:)``) — the native form of the web's
@@ -46,11 +57,11 @@ public struct FestivalGlassSection<Content: View, Action: View>: View {
     private var forcesStackedRows = false
 
     /// The card's corner radius (the Rivals and Settings group card).
-    static var cornerRadius: CGFloat { 22 }
+    static var cornerRadius: CGFloat { FestivalGroupCardMetrics.cornerRadius }
 
     /// Margin between the card's edge and its in-card action on every side. With the
     /// action's 12 pt corners it keeps the two shapes concentric (22 − 10 = 12).
-    static var actionInset: CGFloat { cornerRadius - PurpleActionSurface.cornerRadius }
+    static var actionInset: CGFloat { FestivalGroupCardMetrics.actionInset }
 
     /// Create a section card whose last element is a call to action inside the card.
     ///

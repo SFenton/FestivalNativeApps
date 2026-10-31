@@ -69,6 +69,8 @@ Every result region communicates whether it is loading, empty or unavailable wit
 | R9 cold case (#554): the service fix (SFenton/FortniteFestivalLeaderboardScraper#189) covers only the band-song routes (`/songs`, `/song-rows`). The band profile (`/api/rankings/bands/{type}?teamKey=`), `/history` and account-scoped reads such as `/api/rankings/{instrument}/{accountId}[/history]` still add the `X-FST-Selected-*` headers to their route-cache key (`PublicationApiResponseCachePolicy.IsProfileInvariantRequest`). They are not behind the mid-scrape projection gate, so they stay live through a normal scrape and pause only in the short publication-commit and maintenance windows. | A section first opened during one of those windows, and never read this publication, shows "Scores are updating" (automatic retry) on native while the web may show its warm entry. | Service: make these reads profile-invariant like the band-song routes ([service-safety](../platforms/service-safety.md#public-read-freeze)). |
 | Apple R9 bounds (#554): Apple's verified `SessionResponseCache` entries have no byte budget; they are emptied on every publication change. | Memory grows with the distinct public reads opened in one publication. | Give verified JSON entries the same byte-bounded LRU as Android (`RETAINED_BYTES`) and its unverified snapshots. |
 
+UIKit: `UKEmptyStateView`, `UKLoadingView`, `UKServiceStatusView` / `UKServiceStatusInlineView`, `UKFreshnessDisclosureView` and `UKRefreshErrorBanner` in `UIKitPort/Common/UKStates.swift`, counting down through the shared `ServiceRetryScheduler`.
+
 ## Guards (tools/pattern_guard.py)
 
 - `empty-error-states/global-search-retry`
