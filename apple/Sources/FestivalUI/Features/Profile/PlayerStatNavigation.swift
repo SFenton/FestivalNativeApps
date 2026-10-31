@@ -36,6 +36,28 @@ struct PlayerStatNavigator: Equatable {
     }
 }
 
+extension PlayerStatNavigator {
+    /// Carry out a tapped stat tile's link: push its route, show Songs with its preset, or
+    /// open Song Detail (shared by the Player profile, Band Detail and the UIKit port).
+    ///
+    /// - Parameters:
+    ///   - link: The tapped tile's link.
+    ///   - session: Session whose catalogue resolves a song id.
+    @MainActor
+    func follow(_ link: PlayerStatLink, session: FestivalSession) {
+        switch link {
+        case let .songs(preset):
+            showSongs(preset)
+        case let .fullRankings(instrument, rankBy):
+            push(.fullRankings(instrument: instrument, rankBy: rankBy))
+        case let .songDetail(songId, _), let .bandSongDetail(songId):
+            pushSongDetail(songId, session: session)
+        case let .bandRankings(bandType, rankBy, page):
+            push(.bandRankings(bandType: bandType.rawValue, rankBy: rankBy.rawValue, page: page))
+        }
+    }
+}
+
 extension EnvironmentValues {
     /// Stat-tile navigation installed by the root shell; nil outside it.
     @Entry var playerStatNavigator: PlayerStatNavigator?
