@@ -329,6 +329,9 @@ final class UKSongLeaderboardEntryRowView: UIControl {
         rank.accessibilityLabel = rankText
         let rankSlot = UKLeaderboardColumnSlot(template: columns?.rankLabel, content: rank)
         let nameView = UKLeaderboardNameView(name: name, emphasized: isPlayer, wraps: accessibilitySize)
+        rankSlot.setContentHuggingPriority(.required, for: .horizontal)
+        rankSlot.setContentCompressionResistancePriority(.required, for: .horizontal)
+        nameView.setContentHuggingPriority(UILayoutPriority(1), for: .horizontal)
 
         var values: [UIView] = []
         var spokenParts = [rankText, name]
@@ -340,7 +343,9 @@ final class UKSongLeaderboardEntryRowView: UIControl {
         }
         let score = UKLabel(entry.score.formatted(), style: .body, monospacedDigit: true, lines: 1, alignment: .right)
         score.setContentCompressionResistancePriority(.required, for: .horizontal)
-        values.append(UKLeaderboardColumnSlot(template: columns?.scoreLabel, content: score))
+        let scoreSlot = UKLeaderboardColumnSlot(template: columns?.scoreLabel, content: score)
+        scoreSlot.setContentHuggingPriority(.required, for: .horizontal)
+        values.append(scoreSlot)
         spokenParts.append(entry.score.formatted())
         if let badge = UKAccuracyBadgeView.make(
             accuracy: entry.accuracy, fullCombo: entry.isFullCombo == true, accessibilitySize: accessibilitySize,

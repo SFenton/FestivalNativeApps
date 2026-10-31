@@ -100,3 +100,17 @@ Feature lanes build pages from these (`UIKitPort/Design`, `UIKitPort/Common`); s
 | `LeaderboardColumnSlot`, `LeaderboardRowMetrics` | `UKLeaderboardColumnSlot`, `UKLeaderboardRowMetrics` | |
 | `HorizontalCarousel` | `UKHorizontalCarouselView` | |
 | self-sizing rows | `UKSelfSizingCell`, `UKSelfSizing.fittingHeight(of:width:)` | |
+
+## Song Detail
+
+Rules for `UIKitPort/Features/SongDetail` (Song Detail lane, 2026-10-31). Entry: `UKSongDetailViewController` (route `.songDetail`).
+
+- **Shape.** One `UIScrollView` with a vertical stack: hero, Intensity, Score History, the instrument cards, the Duos/Trios/Quads previews. A fill spinner shows until the gate (every card's top ten, the selected player's history, the band read, the Shop feed) settles, then the page fades in with `UKFadeIn` stagger. The gate, tools and Quick Links rules are the SwiftUI page's, shared through `SongDetailPlan`, `SongDetailPageTools`, `SongDetailPreloader` and `SongBandPreviewLoader`.
+- **Shared extractions (SwiftUI side, behaviour unchanged).** `SongDetailPlan` (charts, path instruments, Quick Links order, card captions), `SongScoreHistoryChartMath` (colour ramp, date and axis labels, spoken rows, score ticks), `SongPathsLoad.swift` (`SongPathsLoadState.fetch`, `SongPathsActivation`). Change a rule there, never in the UIKit copy.
+- **Cards.** `UKSongScorePreviewView` adopts the page's preload once and reloads only for a new publication, leeway or Retry. `UKSongDetailCardGridView` is the eager hinge-aware grid (`HingeColumns.spec`); cards are built once, never lazily.
+- **Rows are one button.** A score row with a destination is a single accessibility element (label `#2, Name, 99,800, Full combo, accuracy 98%`, hint, button trait), as VoiceOver reads the SwiftUI row. XCUITest cannot query the accuracy text inside it (`previewText` helpers in `SongDetailJourneyTests` find nothing under a UIKit button); assert the row label instead.
+- **Score History chart** is Core Graphics (`UKScoreHistoryPlotView`): bars, monotone score line, axes, tap to select the nearest bar, swipe to page. One chart element plus three axis elements, the same labels as the SwiftUI chart.
+- **Paths** (`UKSongPathsViewController`) reuses `SongPathsPolicy`, `PathSwitchTransition` and `SongPathsSheet`'s statics; panes load independently and fade through the spinner. Zoom is `UKPathImageScrollView.zoom`, 1x to 3x.
+- **Shop action.** `UKSongDetailShopAction.item`: a breathing glyph (Core Animation opacity) in the navigation bar; a still image as a floating tool (floating tools draw bar items from their image); a titled `bag` item in the Duo vertical bar.
+- **Debug entry.** `FST_UIKIT_DEBUG_SONGDETAIL=<songId or title>` (Debug only, `UKSongDetailDebug`, called from `UKApp`) pushes the page once the catalogue loads; the Songs lane's `FST_DEBUG_SONG` is separate.
+- **Common additions.** `Common/UKScoreRowParts.swift` (`UKAccuracyBadgeView`, `UKSeasonPillView`, `UKPurpleActionButton`, `UKLeaderboardNameView`, `UKSongLeaderboardEntryRowView`) and `Common/UKSongHeaderRow.swift` (`UKSongHeaderRowView`, `UKSongBarTitleView`) are for Song Leaderboard too.
