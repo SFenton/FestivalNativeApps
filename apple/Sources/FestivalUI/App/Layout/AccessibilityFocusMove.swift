@@ -143,7 +143,7 @@ extension View {
 /// UIKit side of ``SwiftUI/View/accessibilityFocusMove(_:)``: walks the window's
 /// accessibility elements (SwiftUI's nodes and UIKit's bar titles alike) and posts
 /// `screenChanged`/`layoutChanged` with the chosen element.
-private struct AccessibilityFocusAnchor: UIViewRepresentable {
+struct AccessibilityFocusAnchor: UIViewRepresentable {
     let request: AccessibilityFocusRequest?
 
     func makeUIView(context: Context) -> AnchorView {

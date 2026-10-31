@@ -69,6 +69,14 @@ final class UKShellState {
     var layout: DeviceLayout?
     /// The shell's navigation style and section set for the window.
     var presentation: ShellPresentation?
+    /// The selected root section (underneath Search while it is open). Shell lane.
+    var selectedSection: FestivalSection?
+    /// The Search tab (or the iPad flyout's Search row) is showing. Shell lane.
+    var searchActive = false
+    /// The drawer or flyout is open. Shell lane.
+    var drawerPresented = false
+    /// Whether the section on screen has a split open beside its list page. Shell lane.
+    var splitOpen = false
 
     init() {}
 }
@@ -91,5 +99,24 @@ protocol UKNavigating: AnyObject {
     func openDrawer()
     /// Presents the profile sheet from the profile button.
     func presentProfile()
+    // MARK: Additive (Shell lane)
+    /// Opens a list row's detail: beside the list page in a split window, else pushed.
+    func selectDetail(_ route: AppRoute)
+    /// Closes the open item beside the list page; returns whether one was open.
+    @discardableResult func closeDetail() -> Bool
+    /// Presents a controller as a sheet over the window (profile, notifications, filters).
+    func presentSheet(_ controller: UIViewController, detents: [UISheetPresentationController.Detent]?)
+    /// Opens global search (the Search tab or the iPad flyout's Search row).
+    func openSearch()
+    /// Presents the notifications sheet from the bell.
+    func presentNotifications()
+}
+
+extension UKNavigating {
+    func selectDetail(_ route: AppRoute) { push(route) }
+    @discardableResult func closeDetail() -> Bool { false }
+    func presentSheet(_ controller: UIViewController, detents: [UISheetPresentationController.Detent]? = nil) {}
+    func openSearch() {}
+    func presentNotifications() {}
 }
 #endif

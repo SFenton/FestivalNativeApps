@@ -7,18 +7,62 @@ import UIKit
 
 /// A window's root in the UIKit port: the UIKit counterpart of ``FestivalRootView``.
 ///
-/// Foundation version (orchestrator): the shared background colour, one
-/// `UINavigationController` per visible section in a `UITabBarController`, launch
-/// overrides from ``FestivalLaunch`` and the ``UKNavigating`` commands. The Shell lane
-/// replaces the tab-only container with the full shell (drawer, iPad flyout, Search tab,
-/// profile button, iPhone Duo layouts) behind the same type.
-final class UKRootViewController: UIViewController, UKNavigating {
-    private let launch: FestivalLaunch
-    private let tabs = UITabBarController()
-    private let shellState = UKShellState()
-    private let observations = UKObservationBag()
-    private var stacks: [FestivalSection: UINavigationController] = [:]
-    private var sections: [FestivalSection] = []
+/// Owns the shell: one ``UKSectionStack`` per section inside a `UITabBarController` (phone
+/// tabs with the trailing Search tab; at regular iPad width the same controller with its bar
+/// hidden and the drawer as the flyout), the hamburger drawer, the profile and notification
+/// buttons, the Search tab, tab and section transitions (``RootTabTransition``), conditional
+/// sections (``ShellPresentation``, ``FestivalTabPolicy``), launch overrides
+/// (``FestivalLaunch``) and the published ``DeviceLayout`` / ``ShellPresentation`` in
+/// ``UKShellState``. Pages reach it through ``UKNavigating``.
+///
+/// The class is split across extensions: ``UKRootViewController+Layout``,
+/// ``UKRootViewController+Navigation``, ``UKRootViewController+Chrome`` and
+/// ``UKRootViewController+Commands``.
+final class UKRootViewController: UIViewController {
+    // MARK: Inputs
+
+    let launch: FestivalLaunch
+    let shellState = UKShellState()
+    let observations = UKObservationBag()
+
+    // MARK: Structure
+
+    let tabs = UITabBarController()
+    var stacks: [FestivalSection: UKSectionStack] = [:]
+    var sections: [FestivalSection] = []
+    var searchModel = GlobalSearchModel()
+    var searchController: UKGlobalSearchViewController?
+    var searchNavigation: UINavigationController?
+    var drawer: UKDrawerViewController?
+    var edgeSwipe: UIScreenEdgePanGestureRecognizer?
+
+    // MARK: State
+
+    var selected: FestivalSection
+    var searchActive = false
+    var layout: DeviceLayout = .standardPhone
+    var hingeState: HingeState?
+    var appliedRegularSet: Bool?
+    var presentation = ShellPresentation.resolve(layout: .standardPhone, usesSidebarShell: false)
+    var applyingTabSelection = false
+    var didApplyLaunch = false
+    var windowRoute: FestivalWindowRoute?
+    var windowRouteApplied = false
+    var liveToken = UUID()
+    var chromeControllers = NSHashTable<UIViewController>.weakObjects()
+    var accessoryFocusToken = 0
+    var pendingSheetRoute: AppRoute?
+    var hingeInteractionInstalled = false
+    var splitOpenSections: Set<FestivalSection> = []
+    var refreshTask: Task<Void, Never>?
+    var openingApplied = false
+    let focusAnchor = AccessibilityFocusAnchor.AnchorView()
+    var tabsHidden = false
+    var searchTabRef: AnyObject?
+    let floatingTools = UKFloatingPageToolsView()
+    var floatingBottom: NSLayoutConstraint?
+    var expandedBarInset: CGFloat = 0
+    var tabsSearchAsTab = false
 
     /// Creates a window's root.
     ///
@@ -26,6 +70,9 @@ final class UKRootViewController: UIViewController, UKNavigating {
     ///   window with, if any.
     init(windowRoute: FestivalWindowRoute? = nil) {
         launch = FestivalLaunch.resolve(windowRoute: windowRoute)
+        selected = launch.selected
+        self.windowRoute = windowRoute
+        searchActive = launch.opensSearch
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -35,6 +82,8 @@ final class UKRootViewController: UIViewController, UKNavigating {
     /// The session every screen of this window reads.
     var session: FestivalSession { launch.session }
 
+    // MARK: Lifecycle
+
     override func viewDidLoad() {
         super.viewDidLoad()
         overrideUserInterfaceStyle = .dark
@@ -43,92 +92,100 @@ final class UKRootViewController: UIViewController, UKNavigating {
         tabs.view.frame = view.bounds
         tabs.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         tabs.view.backgroundColor = .clear
+        tabs.delegate = self
+        focusAnchor.isUserInteractionEnabled = false
+        focusAnchor.frame = .zero
+        view.addSubview(focusAnchor)
         view.addSubview(tabs.view)
         tabs.didMove(toParent: self)
-        observations.observe { [weak self] in self?.rebuildSections() }
-        if let selected = stacks[launch.selected] { tabs.selectedViewController = selected }
-        for (section, routes) in launch.paths {
-            guard let stack = stacks[section] else { continue }
-            for route in routes {
-                stack.pushViewController(UKRouteDestination.make(route, context: context(for: section)), animated: false)
-            }
-        }
-    }
-
-    // MARK: Sections
-
-    /// The context a section's screens are created with.
-    private func context(for section: FestivalSection) -> UKContext {
-        UKContext(session: session, navigator: self).with {
-            $0.section = section
-            $0.shell = shellState
-        }
-    }
-
-    /// Rebuilds the tab set when the selected profile changes which sections show
-    /// (``ShellPresentation``), keeping the stacks of sections that stay.
-    private func rebuildSections() {
-        let profile: FestivalProfileKind =
-            session.selectedPlayer == nil && !FestivalLaunch.keepsProfileRoutes ? .none : .player
-        let presentation = ShellPresentation.resolve(layout: .standardPhone, usesSidebarShell: false)
-        shellState.presentation = presentation
-        let next = presentation.sections(
-            profile: profile, hideShop: UKSettings.bool("fst.settings.hideShop", default: false)
+        if #available(iOS 26.0, *) { tabs.tabBarMinimizeBehavior = .onScrollDown }
+        floatingTools.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(floatingTools)
+        let bottom = floatingTools.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -90)
+        floatingBottom = bottom
+        NSLayoutConstraint.activate([
+            floatingTools.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -FloatingPageToolsFit.margin),
+            floatingTools.leadingAnchor.constraint(greaterThanOrEqualTo: view.safeAreaLayoutGuide.leadingAnchor, constant: FloatingPageToolsFit.margin),
+            bottom,
+        ])
+        installHingeInteraction()
+        installEdgeSwipe()
+        shellState.selectedSection = selected
+        shellState.searchActive = searchActive
+        refreshLayout(initial: true)
+        rebuildSections()
+        applyLaunchState()
+        observations.observe { [weak self] in self?.sessionChanged() }
+        observations.observe { [weak self] in self?.refreshChromeFromState() }
+        observations.observe { [weak self] in self?.refreshNotifications() }
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(settingsChanged), name: UKSettings.didChange, object: nil
         )
-        guard next != sections else { return }
-        sections = next
-        let controllers = next.map { section -> UINavigationController in
-            if let existing = stacks[section] { return existing }
-            let root = UKRouteDestination.root(for: section, context: context(for: section))
-            let stack = UINavigationController(rootViewController: root)
-            stack.navigationBar.prefersLargeTitles = true
-            stack.view.backgroundColor = .clear
-            stack.tabBarItem = UITabBarItem(
-                title: section.title, image: UIImage(systemName: section.symbol), tag: section.hashValue
-            )
-            stack.tabBarItem.accessibilityIdentifier = "fst.nav.\(section.rawValue)"
-            stacks[section] = stack
-            return stack
+        let center = NotificationCenter.default
+        center.addObserver(self, selector: #selector(sceneForeground), name: UIScene.willEnterForegroundNotification, object: nil)
+        center.addObserver(self, selector: #selector(sceneBackground), name: UIScene.didEnterBackgroundNotification, object: nil)
+        center.addObserver(self, selector: #selector(sceneForeground), name: UIScene.didActivateNotification, object: nil)
+        session.acquireLiveUpdates(liveToken)
+        #if DEBUG
+        DebugDuoWindowRemote.shared.start()
+        #endif
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        applyOpeningSheets()
+        Task { await applyWindowRoute() }
+    }
+
+    deinit {
+        let token = liveToken
+        let session = launch.session
+        Task { @MainActor in session.releaseLiveUpdates(token) }
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func sceneForeground() { session.acquireLiveUpdates(liveToken) }
+    @objc private func sceneBackground() { session.releaseLiveUpdates(liveToken) }
+
+    override var canBecomeFirstResponder: Bool { true }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        refreshLayout(initial: false)
+        positionFloatingTools()
+    }
+
+    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
+        super.traitCollectionDidChange(previousTraitCollection)
+        refreshLayout(initial: false)
+    }
+
+    override func viewWillTransition(to size: CGSize, with coordinator: any UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        coordinator.animate(alongsideTransition: nil) { [weak self] _ in self?.refreshLayout(initial: false) }
+    }
+
+    // MARK: Launch
+
+    /// Applies the launch overrides (`FST_DEBUG_TAB/ROUTE`): the selected section and each
+    /// section's initial path.
+    private func applyLaunchState() {
+        guard !didApplyLaunch else { return }
+        didApplyLaunch = true
+        for (section, routes) in launch.paths {
+            stackFor(section)?.setPath(routes, animated: false)
         }
-        stacks = stacks.filter { next.contains($0.key) }
-        tabs.setViewControllers(controllers, animated: false)
+        syncTabSelection()
+        shellState.splitOpen = false
     }
 
-    /// The section whose tab is selected.
-    private var selectedSection: FestivalSection? {
-        stacks.first { $0.value === tabs.selectedViewController }?.key
+    /// The sheets and drawer a launch asks to start with, once the window is on screen.
+    private func applyOpeningSheets() {
+        guard didApplyLaunch, !openingApplied else { return }
+        openingApplied = true
+        if launch.opensDrawer { openDrawer(animated: false) }
+        if launch.opensProfileSheet { presentProfile() }
     }
-
-    // MARK: UKNavigating
-
-    func push(_ route: AppRoute) {
-        guard let section = selectedSection, let stack = stacks[section] else { return }
-        stack.pushViewController(UKRouteDestination.make(route, context: context(for: section)), animated: true)
-    }
-
-    func pop() {
-        (tabs.selectedViewController as? UINavigationController)?.popViewController(animated: true)
-    }
-
-    func replaceTop(with route: AppRoute) {
-        guard let section = selectedSection, let stack = stacks[section] else { return }
-        var controllers = stack.viewControllers
-        guard controllers.count > 1 else { return push(route) }
-        controllers[controllers.count - 1] = UKRouteDestination.make(route, context: context(for: section))
-        stack.setViewControllers(controllers, animated: false)
-    }
-
-    func select(_ section: FestivalSection) {
-        guard let stack = stacks[section] else { return }
-        if tabs.selectedViewController === stack {
-            stack.popToRootViewController(animated: true)
-        } else {
-            tabs.selectedViewController = stack
-        }
-    }
-
-    func openDrawer() {}
-
-    func presentProfile() {}
 }
+
 #endif
