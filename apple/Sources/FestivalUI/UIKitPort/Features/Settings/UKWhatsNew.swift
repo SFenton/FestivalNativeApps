@@ -73,6 +73,7 @@ final class UKWhatsNewViewController: UIViewController, UKModalScrollProviding {
             button.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: 20),
             button.trailingAnchor.constraint(equalTo: bar.trailingAnchor, constant: -20),
             button.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -12),
+            scroll.contentLayoutGuide.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
             column.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 12),
             column.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -12),
             column.leadingAnchor.constraint(equalTo: scroll.frameLayoutGuide.leadingAnchor, constant: 20),

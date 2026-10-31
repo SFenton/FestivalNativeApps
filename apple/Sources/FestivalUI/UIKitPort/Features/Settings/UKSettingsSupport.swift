@@ -98,24 +98,59 @@ class UKSettingsScrollPage: UIViewController, UKModalScrollProviding {
         column.spacing = Self.cardSpacing
         column.alignment = .fill
         column.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.addSubview(column)
+        let holder = UIView()
+        holder.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.addSubview(holder)
+        holder.addSubview(column)
         let frame = scrollView.frameLayoutGuide
         let content = scrollView.contentLayoutGuide
-        let fill = column.widthAnchor.constraint(equalTo: frame.widthAnchor, constant: -32)
-        fill.priority = .defaultHigh
+        let fill = column.widthAnchor.constraint(equalTo: holder.widthAnchor, constant: -32)
+        fill.priority = UILayoutPriority(999)
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.topAnchor.constraint(equalTo: view.topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            column.topAnchor.constraint(equalTo: content.topAnchor, constant: 8),
-            column.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -32),
-            column.centerXAnchor.constraint(equalTo: content.centerXAnchor),
-            column.leadingAnchor.constraint(greaterThanOrEqualTo: frame.leadingAnchor, constant: 16),
-            column.trailingAnchor.constraint(lessThanOrEqualTo: frame.trailingAnchor, constant: -16),
+            holder.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            holder.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            holder.topAnchor.constraint(equalTo: content.topAnchor),
+            holder.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            holder.widthAnchor.constraint(equalTo: frame.widthAnchor),
+            column.topAnchor.constraint(equalTo: holder.topAnchor, constant: 8),
+            column.bottomAnchor.constraint(equalTo: holder.bottomAnchor, constant: -32),
+            column.centerXAnchor.constraint(equalTo: holder.centerXAnchor),
             column.widthAnchor.constraint(lessThanOrEqualToConstant: Self.columnWidth),
             fill,
         ])
+    }
+
+    private var laidOutWidth: CGFloat = 0
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        // Wrapped text measures at the width the column settled on: lay out again when it moves.
+        if Self.remeasureLabels(in: column) {
+            column.setNeedsLayout()
+            scrollView.setNeedsLayout()
+        }
+    }
+
+    /// Gives every wrapping label the width it was laid out at as its wrap width, so its height
+    /// follows the final column rather than the width of an earlier pass.
+    ///
+    /// - Parameter view: The root to walk.
+    /// - Returns: Whether any label changed.
+    @discardableResult
+    static func remeasureLabels(in view: UIView) -> Bool {
+        var changed = false
+        if let label = view as? UILabel, label.numberOfLines != 1, label.bounds.width > 0,
+           abs(label.preferredMaxLayoutWidth - label.bounds.width) > 0.5 {
+            label.preferredMaxLayoutWidth = label.bounds.width
+            label.invalidateIntrinsicContentSize()
+            changed = true
+        }
+        for sub in view.subviews where Self.remeasureLabels(in: sub) { changed = true }
+        return changed
     }
 
     /// Replaces the column's cards.
@@ -151,6 +186,10 @@ final class UKSettingLabel: UIStackView {
         translatesAutoresizingMaskIntoConstraints = false
         addArrangedSubview(titleLabel)
         if let detailLabel { addArrangedSubview(detailLabel) }
+        for label in [titleLabel, detailLabel].compactMap({ $0 }) {
+            label.setContentCompressionResistancePriority(.required, for: .vertical)
+        }
+        setContentCompressionResistancePriority(.required, for: .vertical)
     }
 
     @available(*, unavailable)
