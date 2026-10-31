@@ -353,17 +353,7 @@ struct BandDetailScreen: View {
     ///
     /// - Parameter link: The tapped tile's link.
     private func open(_ link: PlayerStatLink) {
-        guard let navigator else { return }
-        switch link {
-        case let .bandRankings(bandType, rankBy, page):
-            navigator.push(.bandRankings(bandType: bandType.rawValue, rankBy: rankBy.rawValue, page: page))
-        case let .bandSongDetail(songId), let .songDetail(songId, _):
-            navigator.pushSongDetail(songId, session: session)
-        case let .fullRankings(instrument, rankBy):
-            navigator.push(.fullRankings(instrument: instrument, rankBy: rankBy))
-        case let .songs(preset):
-            navigator.showSongs(preset)
-        }
+        navigator?.follow(link, session: session)
     }
 
     // MARK: Rank history
