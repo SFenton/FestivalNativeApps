@@ -11,6 +11,8 @@ public enum UKApp {
     public static func didFinishLaunching() {
         #if DEBUG
         MainThreadStallMonitor.startIfRequested()
+        // A/B perf autorun (`tools/uikit_perf.py`): the same code the SwiftUI app starts in `FestivalMobileApp`.
+        ScrollCostAutorun.startIfRequested()
         #endif
     }
 
@@ -20,7 +22,11 @@ public enum UKApp {
     ///   if any.
     /// - Returns: The window's root.
     public static func makeRootViewController(userActivity: NSUserActivity? = nil) -> UIViewController {
-        UKRootViewController(windowRoute: UKWindows.route(from: userActivity))
+        let root = UKRootViewController(windowRoute: UKWindows.route(from: userActivity))
+        #if DEBUG
+        PerfNavigationHooks.register(push: { [weak root] in root?.push($0) }, pop: { [weak root] in root?.pop() })
+        #endif
+        return root
     }
 }
 #endif

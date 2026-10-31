@@ -14,6 +14,8 @@ struct FestivalMobileApp: App {
         #if DEBUG
         MainThreadStallMonitor.startIfRequested()
         FestivalLaunchResets.applyIfRequested()
+        // A/B perf autorun (`tools/uikit_perf.py`); the UIKit port starts the same code in `UKApp`.
+        ScrollCostAutorun.startIfRequested()
         #endif
     }
 

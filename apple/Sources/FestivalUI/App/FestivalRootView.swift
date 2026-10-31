@@ -208,6 +208,11 @@ public struct FestivalRootView: View {
                     select: { select($0) }
                 ))
                 ScrollFlingStressRunner.startIfRequested()
+                // Push/pop for the A/B navigation timing (`FST_PERF_NAV`, `Diagnostics/ScrollCostAutorun.swift`).
+                PerfNavigationHooks.register(
+                    push: { paths[selected, default: []].append($0) },
+                    pop: { _ = paths[selected]?.popLast() }
+                )
             }
             #endif
         }

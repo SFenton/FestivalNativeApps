@@ -114,6 +114,8 @@ Measured with [`tools/apple_perf.py`](../../../tools/apple_perf.py) (live SFento
 
 ### Methodology
 
+The SwiftUI app and its UIKit port are compared A/B (scroll, launch, navigation) with [`tools/uikit_perf.py`](../../../tools/uikit_perf.py): [testing/apple/uikit-perf.md](../../testing/apple/uikit-perf.md).
+
 | Command | Measures |
 |---|---|
 | `apple_perf.py build mac\|ipad [--configuration Release] [--probe]` | `--probe` = Release optimization with the `DEBUG` condition (own DerivedData), so the Debug overrides and stall monitor run on optimized code. True Release ignores `FST_DEBUG_*` and opens on the persisted page (the first-run sheet over Songs on this Mac) |
