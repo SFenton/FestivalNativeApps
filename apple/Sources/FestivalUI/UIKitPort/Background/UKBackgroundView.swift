@@ -28,7 +28,7 @@ final class UKBackgroundView: UIView {
     private let observation = UKObservationBag()
     private var slotViews: [Int: CarouselSlotView] = [:]
     private var coverViews: [UUID: UKCoverLayerView] = [:]
-    private var settingsObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var settingsObserver: NSObjectProtocol?
     private var probe: UKBackgroundProbeView?
 
     /// Creates the backdrop for a session.

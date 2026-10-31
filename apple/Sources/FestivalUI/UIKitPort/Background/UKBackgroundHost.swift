@@ -22,7 +22,7 @@ import UIKit
 @MainActor
 final class UKBackgroundHost {
     private let session: FestivalSession
-    private var observations: [NSObjectProtocol] = []
+    nonisolated(unsafe) private var observations: [NSObjectProtocol] = []
     private let observation = UKObservationBag()
     private var carouselKey: CarouselKey?
     private var coverKey: CoverKey?
@@ -72,8 +72,9 @@ final class UKBackgroundHost {
         ]
         for name in names {
             observations.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                let name = note.name
                 MainActor.assumeIsolated {
-                    switch note.name {
+                    switch name {
                     case .NSProcessInfoPowerStateDidChange:
                         self?.lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
                     case UIScene.didActivateNotification:

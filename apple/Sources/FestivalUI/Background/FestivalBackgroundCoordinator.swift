@@ -271,8 +271,8 @@ final class FestivalBackgroundCoordinator {
             } catch {
                 return
             }
-            guard let art = session.artworkPaths.first
-            else { continue }
+            // A catalogue without art (test fixtures) cycles to the brand-surface cover.
+            let art = session.artworkPaths.first ?? ""
             debugOverride(showSong ? .song(art) : .carousel)
             showSong.toggle()
         }
