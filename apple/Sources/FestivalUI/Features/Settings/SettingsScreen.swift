@@ -625,15 +625,14 @@ struct SettingsScreen: View {
         #if os(macOS)
         "System Settings"
         #else
-        "device Settings"
+        SettingsCopy.deviceSettingsName
         #endif
     }
 
     private var accessibility: some View {
         SettingsSectionCard(
             "Accessibility",
-            subtitle: "Off follows your device; On adds an app override. "
-                + "VoiceOver and text size are managed in \(Self.systemSettingsName).",
+            subtitle: SettingsCopy.accessibilitySubtitle(systemSettingsName: Self.systemSettingsName),
             titled: showsSectionTitles
         ) {
             Toggle(isOn: $reduceMotion) { SettingLabel("Reduce Motion") }
@@ -699,14 +698,9 @@ struct SettingsScreen: View {
     private var metadata: some View {
         SettingsSectionCard(
             "Show Instrument Metadata",
-            subtitle: session.selectedPlayer == nil
-                ? "Select a player to customize score metadata."
-                : showInstrumentIcons
-                    ? "With icons and All instruments, status chips replace score "
-                        + "metadata. Turn icons off or filter one chart to show these fields."
-                    : "Visible score fields update Songs cards. Enable Independent Song Row "
-                        + "Visual Order above to choose which field leads; Last Played sort is "
-                        + "still being ported.",
+            subtitle: SettingsCopy.metadataSubtitle(
+                hasPlayer: session.selectedPlayer != nil, showInstrumentIcons: showInstrumentIcons
+            ),
             titled: showsSectionTitles
         ) {
             ForEach(MetadataField.allCases) { field in
@@ -921,17 +915,13 @@ struct SettingsScreen: View {
 
     /// Debug vs Release, useful context when a user reports a bug.
     private var buildConfigurationText: String {
-        #if DEBUG
-        "Debug"
-        #else
-        "Release"
-        #endif
+        SettingsCopy.buildConfigurationText
     }
 
     /// The live service build from keyless `GET /api/version` (pure read; see
     /// `.agents/platforms/service-safety.md`), "Loading" until it answers.
     private var serviceVersionText: String {
-        serviceVersion ?? (serviceVersionFailed ? "Unavailable" : "Loading")
+        SettingsCopy.serviceVersionText(version: serviceVersion, failed: serviceVersionFailed)
     }
 
     /// Show the feedback rows once the service reports in-app feedback is on (pure
@@ -1017,17 +1007,7 @@ struct SettingsScreen: View {
     /// - Parameter field: Metadata setting that supplies a Song-row label or meter.
     /// - Returns: Explanation of the actual currently supported row effect.
     private func metadataHint(for field: MetadataField) -> String {
-        if field == .intensity {
-            return "Controls song Intensity on selected score cards or filtered anonymous rows"
-        }
-        if field == .lastPlayed {
-            return session.selectedPlayer == nil
-                ? "Select a player to show the saved date"
-                : "Shows the saved date on native Songs cards; Last Played sort is not yet available"
-        }
-        return session.selectedPlayer == nil
-            ? "Select a player to use score metadata"
-            : "Updates Songs score fields when icons are off or one chart is filtered"
+        SettingsCopy.metadataHint(for: field, hasPlayer: session.selectedPlayer != nil)
     }
 
     // MARK: - Service and reset

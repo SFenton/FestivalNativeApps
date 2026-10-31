@@ -91,19 +91,7 @@ struct AppRouteDestination: View {
     }
 
     /// The first-run carousel page of the route, if it has one.
-    private var firstRunPage: FirstRunPageKey? {
-        switch route {
-        case .songDetail: .songInfo
-        case .playerHistory: .playerHistory
-        case .leaderboards: .leaderboards
-        case .rivals: .rivals
-        case .statistics: .statistics
-        case .suggestions: .suggestions
-        case .compete: .compete
-        case .shop: .shop
-        default: nil
-        }
-    }
+    private var firstRunPage: FirstRunPageKey? { route.firstRunPage }
 
     /// Per-entity identity rule (`.agents/platforms/apple/architecture.md`,
     /// "Per-entity screens"): every screen below that shows one account's data is
