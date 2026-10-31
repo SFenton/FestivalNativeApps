@@ -63,6 +63,8 @@ tools/**                      → orchestrator
 
 Platform order: **iPhone (iOS 26.5) → iPhone Duo → iPadOS → macOS → iPhone on iOS 17 (no Liquid Glass)**. Android/Windows run in parallel on the Windows host (resumed 2026-09-28) via `tools/win_relay.py`.
 
+- **UIKit port (operator, 2026-10-31):** port iOS/iPadOS to Swift logic + UIKit, UX identical on iPhone, iPad and iPhone Duo, tests updated, performance measured A/B against the SwiftUI app as Fenton-HASS-Native did. macOS is sidelined meanwhile. Work runs on `claude/uikit-port` (lanes branch from it, the orchestrator merges); the port app `FestivalMobileUIKit` installs beside `FestivalMobile`. Rules, seams and lanes: [uikit-port.md](.agents/platforms/apple/uikit-port.md). Wave 1 (Design, Background, Shell, Perf) started 2026-10-31; wave 2 (Songs, Leaderboards, Profile, Rivals, Settings) follows.
+
 ---
 
 ## 3. Testing phases
