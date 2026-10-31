@@ -139,6 +139,26 @@ final class UKSongRowCell: UICollectionViewCell {
     /// Shows the invalid-score explanation for the warning.
     var onInvalidScore: ((InvalidScoreWarning) -> Void)?
 
+    /// Item Shop list rows: the official bag action over the row's bag slot, or (at accessibility
+    /// sizes) a full-width link under the card.
+    struct ShopLink {
+        var label: String
+        var identifier: String
+        var action: () -> Void
+        /// Under the card instead of over the bag slot.
+        var below: Bool
+    }
+
+    var shopLink: ShopLink? { didSet { configureShopLink() } }
+    /// Overrides the row element's identifier (`fst.shop.song.<id>` for a navigable Shop row).
+    var rowIdentifierOverride: String?
+    /// Whether the row opens something (a Shop offer without a catalogue match does not).
+    var rowOpens = true
+    private let bagButton = UIButton(type: .system)
+    private let linkButton = UIButton(type: .system)
+    private static let linkHeight: CGFloat = 44
+    private static let linkGap: CGFloat = 4
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .clear
@@ -155,6 +175,23 @@ final class UKSongRowCell: UICollectionViewCell {
         pulse.isHidden = true
         card.addSubview(contrastRim)
         card.addSubview(pulse)
+        for button in [bagButton, linkButton] {
+            button.isHidden = true
+            contentView.addSubview(button)
+        }
+        bagButton.setImage(UIImage(systemName: "bag"), for: .normal)
+        bagButton.tintColor = BrandUIColors.textPrimary
+        bagButton.addAction(UIAction { [weak self] _ in self?.shopLink?.action() }, for: .touchUpInside)
+        var linkConfiguration = UIButton.Configuration.plain()
+        linkConfiguration.title = "Open Official Item Shop"
+        linkConfiguration.image = UIImage(systemName: "bag")
+        linkConfiguration.imagePadding = 6
+        linkConfiguration.baseForegroundColor = BrandUIColors.textPrimary
+        linkConfiguration.background.backgroundColor = BrandUIColors.cardBackground
+        linkConfiguration.background.cornerRadius = 12
+        linkButton.configuration = linkConfiguration
+        linkButton.contentHorizontalAlignment = .leading
+        linkButton.addAction(UIAction { [weak self] _ in self?.shopLink?.action() }, for: .touchUpInside)
         isAccessibilityElement = false
         voiceOver = NotificationCenter.default.addObserver(
             forName: UIAccessibility.voiceOverStatusDidChangeNotification, object: nil, queue: .main
@@ -194,20 +231,38 @@ final class UKSongRowCell: UICollectionViewCell {
         super.prepareForReuse()
         onOpen = nil
         onInvalidScore = nil
+        shopLink = nil
+        rowIdentifierOverride = nil
+        rowOpens = true
+    }
+
+    private func configureShopLink() {
+        bagButton.isHidden = shopLink == nil || shopLink?.below == true
+        linkButton.isHidden = shopLink?.below != true
+        setNeedsLayout()
     }
 
     // MARK: Layout
 
     override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
         let attributes = layoutAttributes.copy() as! UICollectionViewLayoutAttributes
-        attributes.size.height = row.height(forWidth: layoutAttributes.size.width)
+        let below = shopLink?.below == true ? Self.linkGap + Self.linkHeight : 0
+        attributes.size.height = row.height(forWidth: layoutAttributes.size.width) + below
         return attributes
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        card.frame = contentView.bounds
+        let below = shopLink?.below == true ? Self.linkGap + Self.linkHeight : 0
+        card.frame = CGRect(x: 0, y: 0, width: contentView.bounds.width, height: contentView.bounds.height - below)
         row.frame = card.contentView.bounds
+        if let slot = row.bagSlotFrame, shopLink?.below != true {
+            let center = row.convert(CGPoint(x: slot.midX, y: slot.midY), to: contentView)
+            bagButton.frame = CGRect(x: center.x - 22, y: center.y - 22, width: 44, height: 44)
+        }
+        if below > 0 {
+            linkButton.frame = CGRect(x: 0, y: card.frame.maxY + Self.linkGap, width: contentView.bounds.width, height: Self.linkHeight)
+        }
         contrastRim.frame = card.bounds
         pulse.frame = card.bounds
         rebuildAccessibility()
@@ -223,10 +278,10 @@ final class UKSongRowCell: UICollectionViewCell {
         let element = rowElement ?? UKSongRowElement(accessibilityContainer: self)
         rowElement = element
         element.accessibilityLabel = row.spokenParts.joined(separator: ", ")
-        element.accessibilityIdentifier = row.input?.shopOffer == nil
-            ? "fst.songs.row.\(songId)" : "fst.shop.row.\(songId)"
-        element.accessibilityTraits = .button
-        element.accessibilityFrameInContainerSpace = contentView.bounds
+        element.accessibilityIdentifier = rowIdentifierOverride
+            ?? (row.input?.shopOffer == nil ? "fst.songs.row.\(songId)" : "fst.shop.row.\(songId)")
+        element.accessibilityTraits = rowOpens ? .button : .staticText
+        element.accessibilityFrameInContainerSpace = card.frame
         element.onActivate = { [weak self] in self?.onOpen?() }
         var elements: [Any] = [element]
         var next: [UKSongRowStop] = []
@@ -251,6 +306,12 @@ final class UKSongRowCell: UICollectionViewCell {
             button.accessibilityHint = "Explains the filtered score"
             button.onActivate = { [weak self] in self?.onInvalidScore?(warning) }
             elements.append(button)
+        }
+        if let link = shopLink {
+            let frame = link.below ? linkButton.frame : bagButton.frame
+            let bag = stop(link.identifier, link.label, frame, .button)
+            bag.onActivate = link.action
+            elements.append(bag)
         }
         let cards = row.panelCards
         if !cards.isEmpty {

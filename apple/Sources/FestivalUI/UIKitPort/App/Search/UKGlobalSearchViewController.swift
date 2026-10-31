@@ -256,7 +256,26 @@ final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdat
         return background
     }
 
+    /// The cell's cover art tile, created on first use and hidden for rows without art.
+    private func artworkTile(in cell: UICollectionViewListCell) -> UKArtworkTileView {
+        if let existing = cell.contentView.viewWithTag(Self.artworkTag) as? UKArtworkTileView {
+            existing.isHidden = false
+            return existing
+        }
+        let tile = UKArtworkTileView(size: 44)
+        tile.tag = Self.artworkTag
+        cell.contentView.addSubview(tile)
+        NSLayoutConstraint.activate([
+            tile.leadingAnchor.constraint(equalTo: cell.contentView.leadingAnchor, constant: 28),
+            tile.centerYAnchor.constraint(equalTo: cell.contentView.centerYAnchor),
+        ])
+        return tile
+    }
+
+    private static let artworkTag = 4401
+
     private func configureCard(_ cell: UICollectionViewListCell, for item: Item) {
+        cell.contentView.viewWithTag(Self.artworkTag)?.isHidden = true
         cell.backgroundConfiguration = card(cell)
         cell.isAccessibilityElement = true
         cell.accessibilityTraits = .button
@@ -271,10 +290,10 @@ final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdat
             content.textProperties.font = .preferredFont(forTextStyle: .headline)
             content.secondaryText = GlobalSearchResults.subtitle(for: song)
             content.secondaryTextProperties.font = .preferredFont(forTextStyle: .subheadline)
-            // TODO(uikit-design): ArtworkTile (album art) once the Design lane lands UKArtworkTile.
-            content.image = UIImage(systemName: "music.note")
-            content.imageProperties.tintColor = BrandUIColors.textSecondary
+            // The cover is a UKArtworkTileView over the image slot, as the SwiftUI row's ArtworkTile.
+            content.image = UIImage()
             content.imageProperties.reservedLayoutSize = CGSize(width: 44, height: 44)
+            artworkTile(in: cell).configure(raw: song.albumArt, session: session)
             cell.accessibilityLabel = [content.text, content.secondaryText].compactMap { $0 }.joined(separator: ", ")
             cell.accessibilityIdentifier = ids("result.song")
         case let .player(id):
