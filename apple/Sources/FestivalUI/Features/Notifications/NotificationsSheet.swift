@@ -393,7 +393,7 @@ struct NotificationFlagChip: View {
     ///
     /// - Parameter kind: Flag kind.
     /// - Returns: The chip fill.
-    static func hex(_ kind: NotificationFlagKind) -> UInt32 {
+    nonisolated static func hex(_ kind: NotificationFlagKind) -> UInt32 {
         switch kind {
         case .improvement: 0x4B5563
         case .firstPlay: 0x6D28D9
