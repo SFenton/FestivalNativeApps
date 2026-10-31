@@ -100,3 +100,14 @@ Feature lanes build pages from these (`UIKitPort/Design`, `UIKitPort/Common`); s
 | `LeaderboardColumnSlot`, `LeaderboardRowMetrics` | `UKLeaderboardColumnSlot`, `UKLeaderboardRowMetrics` | |
 | `HorizontalCarousel` | `UKHorizontalCarouselView` | |
 | self-sizing rows | `UKSelfSizingCell`, `UKSelfSizing.fittingHeight(of:width:)` | |
+
+## Profile lane
+
+Rules for `UIKitPort/Features/Profile` (Player profile, Statistics, Player Bands, Bands, Band Detail; 2026-10-31).
+
+- **Shared logic.** Tiles, formatting, link decisions, identity rules and the profile load sequence live in `Features/Profile/PlayerProfileTiles.swift` (`PlayerProfileTiles`, `PlayerProfileLoader`); both front ends call them. `PlayerStatNavigator.follow(_:session:)` is the one link switch.
+- **Width is passed down.** UIKit has no custom `Layout`, so width-dependent views conform to `UKWidthDependent` and the page (`UKProfileScrollViewController`) calls `prepare(width:)` before Auto Layout sizes them. `UKProfileColumnGrid` is the stat-grid / two-column / Duo-fold grid.
+- **Charts.** `UKRankHistoryChartView` draws the Rank History chart with Core Graphics from `RankHistoryChartScale` / `RankHistoryPaging`; the plot is an accessibility container with one adjustable chart element (Audio Graph through `AXChart`) and three axis elements.
+- **Statistics** is `UKPlayerProfileViewController` pointed at the selected player (root or pushed). The Profiles sheet is the Shell lane's `UKProfileSelection`. The dual-source graphs carousel is shelved (`DualSourcePolicy.isEnabled` is false) and not ported.
+- **Songs link seam.** A tile that filters Songs saves the preset (`SongsPresetStore`), posts `UKProfileLinks.songsPresetApplied` (instrument in `userInfo`) and selects Songs; the Songs lane may instead set `UKProfileLinks.showSongsHandler`.
+- **Service safety.** Calls are exactly the SwiftUI pages': `viewPlayer`, `playerInstrumentRanking`, `playerRankHistory`, `playerBandsPreview`, `playerBands`, `bandProfile`, `bandRankHistory`, `bandSongExtremes`, `catalog`. No band search, band detail by id, stats or sync-status.
