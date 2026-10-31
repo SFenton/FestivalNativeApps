@@ -83,6 +83,7 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var name: String { rival.displayName ?? "Unknown Player" }
+    private var copy: RivalRowCopy { RivalRowCopy(name: rival.displayName, behindCount: rival.behindCount, aheadCount: rival.aheadCount) }
 
     /// Ahead/behind pill layout: a row, or a column at accessibility sizes (as
     /// ``RivalSongRowContent``'s rank comparison).
@@ -103,8 +104,8 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
                     .foregroundStyle(BrandTokens.textPrimary)
                     .lineLimit(1)
                 pillLayout {
-                    RivalStatusPill("\(rival.behindCount) ahead", tint: BrandTokens.statusGreen)
-                    RivalStatusPill("\(rival.aheadCount) behind", tint: BrandTokens.statusRed)
+                    RivalStatusPill(copy.aheadPill, tint: BrandTokens.statusGreen)
+                    RivalStatusPill(copy.behindPill, tint: BrandTokens.statusRed)
                 }
             }
             Spacer(minLength: 8)
@@ -116,11 +117,41 @@ struct RivalRowContent<Rival: RivalRowDisplayable>: View {
         .multilineTextAlignment(.leading)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "\(name), \(rival.behindCount) songs ahead, \(rival.aheadCount) songs behind"
-        )
+        .accessibilityLabel(copy.accessibilityLabel)
         .accessibilityAddTraits(.isButton)
     }
+}
+
+// MARK: - Rival row copy
+
+/// The words on a hub rival row, shared by the SwiftUI row and the UIKit port: the pairing
+/// of "ahead" with `behindCount` (and "behind" with `aheadCount`) lives here once.
+struct RivalRowCopy: Equatable, Sendable {
+    /// Display name, "Unknown Player" when the service sent none.
+    let name: String
+    /// The rival's `behindCount` (shown as the "ahead" pill).
+    let behindCount: Int
+    /// The rival's `aheadCount` (shown as the "behind" pill).
+    let aheadCount: Int
+
+    /// Creates the copy.
+    ///
+    /// - Parameters:
+    ///   - name: The rival's display name, if known.
+    ///   - behindCount: The wire payload's `behindCount`.
+    ///   - aheadCount: The wire payload's `aheadCount`.
+    init(name: String?, behindCount: Int, aheadCount: Int) {
+        self.name = name ?? "Unknown Player"
+        self.behindCount = behindCount
+        self.aheadCount = aheadCount
+    }
+
+    /// The green pill, e.g. "12 ahead".
+    var aheadPill: String { "\(behindCount) ahead" }
+    /// The red pill, e.g. "3 behind".
+    var behindPill: String { "\(aheadCount) behind" }
+    /// The row's single VoiceOver label.
+    var accessibilityLabel: String { "\(name), \(behindCount) songs ahead, \(aheadCount) songs behind" }
 }
 
 // MARK: - Rival status pill

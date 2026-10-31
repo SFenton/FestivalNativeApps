@@ -17,7 +17,16 @@ enum UKRivalsRoutes {
     ///   - context: The pushing screen's context.
     /// - Returns: The ported screen, or nil while it is not ported.
     static func make(_ route: AppRoute, context: UKContext) -> UIViewController? {
-        nil
+        switch route {
+        case .rivals: UKRivalsViewController(context: context)
+        case let .allRivals(scope): UKAllRivalsViewController(context: context, scope: scope)
+        case let .rivalDetail(rivalId, name, scope): UKRivalDetailViewController(context: context, rivalId: rivalId, name: name, scope: scope)
+        case let .rivalry(rivalId, mode, name, scope):
+            UKRivalryViewController(context: context, rivalId: rivalId, mode: mode, name: name, scope: scope)
+        case .compete: UKCompeteViewController(context: context)
+        case .suggestions: UKSuggestionsViewController(context: context)
+        default: nil
+        }
     }
 
     /// The root controller of a section this lane owns.
@@ -27,7 +36,12 @@ enum UKRivalsRoutes {
     ///   - context: The section's context.
     /// - Returns: The ported root, or nil while it is not ported.
     static func root(for section: FestivalSection, context: UKContext) -> UIViewController? {
-        nil
+        switch section {
+        case .rivals: UKRivalsViewController(context: context)
+        case .compete: UKCompeteViewController(context: context)
+        case .suggestions: UKSuggestionsViewController(context: context)
+        default: nil
+        }
     }
 }
 #endif

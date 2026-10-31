@@ -60,7 +60,8 @@ struct RivalryScreen: View {
         routeScope?.coerced(experimentalRanks: experimentalRanks)
     }
 
-    private static let modeTitles: [String: String] = [
+    /// Section names by `RivalCategory.key`; `nonisolated` so ``title(for:)`` (also read by the UIKit port) can use it.
+    private nonisolated static let modeTitles: [String: String] = [
         "closest_battles": "Closest Battles",
         "almost_passed": "Almost Passed",
         "slipping_away": "Slipping Away",
