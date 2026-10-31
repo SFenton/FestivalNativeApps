@@ -39,7 +39,7 @@ final class UKDrawerViewController: UIViewController {
     private let scrim = UIView()
     private let scrimMask = CAShapeLayer()
     private let panel = UIView()
-    private let glass: UIVisualEffectView
+    private let glass = UKGlassView(.overlay, cornerRadius: DrawerCorners.legacyRadius)
     private let content = UIView()
     private let header = UIStackView()
     private let titleLabel = UILabel()
@@ -100,23 +100,12 @@ final class UKDrawerViewController: UIViewController {
         self.onClose = onClose
         self.onDismissed = onDismissed
         presence = 0
-        glass = UIVisualEffectView(effect: Self.glassEffect())
         super.init(nibName: nil, bundle: nil)
         overrideUserInterfaceStyle = .dark
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    // MARK: Glass
-
-    /// Liquid Glass on iOS 26; the pre-26 fallback is a dark blur (the design lane's
-    /// `UKGlass` replaces both).
-    /// TODO(uikit-design): replace with UKGlass.
-    private static func glassEffect() -> UIVisualEffect {
-        if #available(iOS 26.0, *) { return UIGlassEffect(style: .regular) }
-        return UIBlurEffect(style: .systemThickMaterialDark)
-    }
 
     // MARK: Lifecycle
 
@@ -136,9 +125,13 @@ final class UKDrawerViewController: UIViewController {
         panel.layer.shadowRadius = 20
         panel.layer.shadowOffset = CGSize(width: 4, height: 0)
         view.addSubview(panel)
+        // The panel is `FestivalGlassModifier(role: .overlay)` on a concentric shape in
+        // SwiftUI: the same surface, including the Reduce Transparency and Increase
+        // Contrast fallbacks.
+        glass.translatesAutoresizingMaskIntoConstraints = true
+        glass.concentricMinimumRadius = DrawerCorners.minimumRadius
         glass.clipsToBounds = true
         panel.addSubview(glass)
-        applyCorners(to: glass)
 
         content.accessibilityIdentifier = "fst.shell.drawer"
         content.accessibilityViewIsModal = true
@@ -179,6 +172,7 @@ final class UKDrawerViewController: UIViewController {
         panel.bounds = CGRect(origin: .zero, size: frame.size)
         panel.center = CGPoint(x: frame.midX, y: frame.midY)
         glass.frame = panel.bounds
+        glass.layoutIfNeeded()
         content.frame = glass.contentView.bounds
         layoutContent(resolved)
         applyPresence()
@@ -510,7 +504,7 @@ final class UKDrawerViewController: UIViewController {
 
     private func cutoutRadius() -> CGFloat {
         if #available(iOS 26.0, *) {
-            return max(DrawerCorners.minimumRadius, glass.effectiveRadius(corner: .topLeft))
+            return max(DrawerCorners.minimumRadius, glass.effectiveCornerRadius)
         }
         return DrawerCorners.legacyRadius
     }

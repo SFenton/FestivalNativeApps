@@ -231,6 +231,19 @@ final class UKGlassView: UIView {
     var isCapsule: Bool { didSet { applyShape() } }
     /// Whether iOS 26 glass responds to touches.
     var isInteractive: Bool { didSet { applySurface() } }
+    /// iOS 26: corners concentric with the window, never below this radius (the drawer
+    /// panel's `ConcentricRectangle`); nil uses ``cornerRadius``. Earlier systems use
+    /// ``cornerRadius``.
+    var concentricMinimumRadius: CGFloat? { didSet { applyShape() } }
+
+    /// The resolved top-leading corner radius: concentric corners resolve against the
+    /// window, so a caller that cuts a matching hole (the drawer scrim) reads it here.
+    var effectiveCornerRadius: CGFloat {
+        if #available(iOS 26.0, *), concentricMinimumRadius != nil {
+            return effectView.effectiveRadius(corner: .topLeft)
+        }
+        return isCapsule ? bounds.height / 2 : cornerRadius
+    }
 
     /// Creates a glass surface.
     ///
@@ -274,6 +287,9 @@ final class UKGlassView: UIView {
 
     private func applyShape() {
         if !isCapsule { effectView.layer.cornerRadius = cornerRadius }
+        if #available(iOS 26.0, *), let minimum = concentricMinimumRadius {
+            effectView.cornerConfiguration = .corners(radius: .containerConcentric(minimum: minimum))
+        }
         applySurface()
         setNeedsLayout()
     }
@@ -296,8 +312,12 @@ final class UKGlassView: UIView {
                     glass.tintColor = BrandUIColors.cardBackground.withAlphaComponent(opacity)
                 }
                 effectView.effect = glass
-                effectView.cornerConfiguration = isCapsule
-                    ? .capsule() : .uniformCorners(radius: .fixed(Double(cornerRadius)))
+                if let minimum = concentricMinimumRadius {
+                    effectView.cornerConfiguration = .corners(radius: .containerConcentric(minimum: minimum))
+                } else {
+                    effectView.cornerConfiguration = isCapsule
+                        ? .capsule() : .uniformCorners(radius: .fixed(Double(cornerRadius)))
+                }
             }
         case .frosted:
             effectView.effect = UIBlurEffect(style: .systemUltraThinMaterialDark)
