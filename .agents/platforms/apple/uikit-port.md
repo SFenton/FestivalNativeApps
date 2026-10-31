@@ -64,3 +64,26 @@ Each lane works in its own worktree and branch off `claude/uikit-port`, owns the
 | Profile | `Features/Profile`, `Bands`, `Statistics` | `UIKitPort/Features/Profile` |
 | Rivals | `Features/Rivals`, `Compete`, `Suggestions` | `UIKitPort/Features/Rivals` |
 | Settings | `Features/Settings`, `FirstRun`, `WhatsNew`, `Notifications` | `UIKitPort/Features/Settings` |
+
+## Design primitives (Design lane)
+
+Feature lanes build pages from these (`UIKitPort/Design`, `UIKitPort/Common`); see each type's DocC for parameters. `FST_UIKIT_GALLERY=design` (Debug) launches `UKDesignGalleryViewController`, which shows every one in its states, and `UKDesignGalleryJourneyTests` checks it.
+
+| SwiftUI | UIKit | Notes |
+|---|---|---|
+| `.font(.body.weight(…))`, `FestivalText` | `UKFont.font(_:weight:monospacedDigit:)`, `UKLabel` (white, Dynamic Type) | `UKAccentText.blue` / `.prominentFill` |
+| `festivalCard`, `festivalCardCapsule`, group segments | `UKCardView(cornerRadius:segment:capsule:)` | add views to `contentView`, or `embed(_:insets:)` |
+| `festivalGlass`, `FestivalGlassGroup` | `UKGlassView(role,…)`, `UKGlassGroupView` | settings from `UKAccessibility`; observe with `UKAccessibilityObserver` |
+| `FestivalSectionHeader`, `SectionViewAllLink`, `FestivalGlassSection`, `FestivalFootnote` | `UKSectionHeaderView`, `UKViewAllButton`, `UKGroupSectionView.setRows/setAction`, `UKFootnoteLabel` | |
+| `InstrumentIcon`, `StarRating`, `DifficultyMeter` | `UKInstrumentIconView`, `UKInstrumentIconRow`, `UKStarRatingView`, `UKDifficultyMeterView` | spoken labels come from shared statics |
+| `InstrumentSelector` | `UKInstrumentSelectorView` (`onSelect`, optional `panel`) | |
+| `MarqueeText`, `.marqueeSync()` | `UKMarqueeLabel`, `UKMarqueeSyncGroup` | |
+| `FestivalAccordion*`, `FestivalDisclosureGroup` | `UKAccordionView<Value>.follow(_:)`, `UKDisclosureGroupView` | |
+| scroll-edge fades | `UKModalTopEdgeFade`, `UKBottomChromeFade`, `UKPinnedHeaderEdgeFade` (mask a non-scrolling container) | |
+| `festivalSheet`, `FestivalModal`, `festivalModalPresentation` | `UKSheet.present(_:from:title:closeIdentifier:size:sizing:coverage:)`; pages adopt `UKModalScrollProviding` | |
+| `FestivalEmptyState`, `FestivalLoadingView`, `ServiceStatusView/Inline`, `FreshnessDisclosure`, `RefreshErrorBanner` | `UKEmptyStateView`, `UKLoadingView`, `UKServiceStatusView/InlineView`, `UKFreshnessDisclosureView`, `UKRefreshErrorBanner` | fill placements take `hingeProvider` |
+| `FestivalReloadGate`, `festivalFadeIn`, `ListJump` | `UKReloadGate`, `UKFadeIn.fadeIn`, `UKListJump.teleport` | |
+| `festivalNavigationTitle`, `InstrumentPageTitle`, `SongHeaderText`, `SongBoardLine` | `UIViewController.ukSetPageTitle`, `UKInstrumentPageTitleView`, `UKSongHeaderTextView`, `UKSongBoardLine` | `SongHeaderRow` / `SongBarTitle` need `ArtworkTile` (Background lane) |
+| `LeaderboardColumnSlot`, `LeaderboardRowMetrics` | `UKLeaderboardColumnSlot`, `UKLeaderboardRowMetrics` | |
+| `HorizontalCarousel` | `UKHorizontalCarouselView` | |
+| self-sizing rows | `UKSelfSizingCell`, `UKSelfSizing.fittingHeight(of:width:)` | |

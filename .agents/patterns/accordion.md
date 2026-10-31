@@ -47,6 +47,8 @@ Tests: `FestivalAccordionTests` (plan, phases, interruption, Reduce Motion, hidd
 | Windows `Expander`s (Songs, Suggestions, Settings, Song Paths) use WinUI's built-in expand animation without the sequenced fade | R1 | Windows check of #561 |
 | iOS 27 beta (simulator 24A5355p): a List section header's `FestivalAccordionContent` (Songs Filter Year's Select All / Clear All) that fades in while scrolled under the sheet's bar can stay out of the accessibility hit test (VoiceOver touch exploration) until its next state change; swipe navigation and real touches work. Whether opacity or `.allowsHitTesting` keeps the stale hit test is unproven | R4 | Open finding from #432; `SongsFilterAccessibilityJourneyTests` proves those actions by a real tap and their reported state. Recheck on the iOS 27 release runtime before changing the component |
 
+UIKit: `UKAccordionView` (runs `AccordionChoreography.plan` with `UIView.animate`) and `UKDisclosureGroupView` in `UIKitPort/Design/UKAccordion.swift`; `UKInstrumentSelectorView` opens its panel in one.
+
 ## Guards (`tools/pattern_guard.py`)
 
 - `accordion/apple-raw-disclosure-group`

@@ -111,7 +111,7 @@ final class UKCardView: UIView {
         observer = UKAccessibilityObserver { [weak self] in self?.applySurface() }
         registerForTraitChanges([UITraitAccessibilityContrast.self]) { (self: UKCardView, _) in self.applySurface() }
         translatesAutoresizingMaskIntoConstraints = false
-        applySurface()
+        applyShape()
     }
 
     @available(*, unavailable)

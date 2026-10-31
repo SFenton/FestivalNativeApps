@@ -20,7 +20,13 @@ public enum UKApp {
     ///   if any.
     /// - Returns: The window's root.
     public static func makeRootViewController(userActivity: NSUserActivity? = nil) -> UIViewController {
-        UKRootViewController(windowRoute: nil)
+        #if DEBUG
+        // Design lane: `FST_UIKIT_GALLERY=design` shows the design-primitive gallery.
+        if ProcessInfo.processInfo.environment["FST_UIKIT_GALLERY"] == "design" {
+            return UINavigationController(rootViewController: UKDesignGalleryViewController())
+        }
+        #endif
+        return UKRootViewController(windowRoute: nil)
     }
 }
 #endif

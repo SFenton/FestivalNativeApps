@@ -125,6 +125,8 @@ Owner (#596, split from #573): "Band duos/trios/quads on profile page need to be
 | Apple material is measurably darker or more frosted over some bright macOS artwork than the retired glass card. | Exact glass appearance only; legibility and performance are preserved. | Accepted by the owner in #291; retain the fitted material. |
 | Apple's iPad/Mac Settings privacy topic (`Features/Settings/SettingsScreen.swift` `.privacyPolicy` → `PrivacyPolicyContent`) draws the policy text without a card; Android (#609) and Windows (`SettingsPage.xaml.cs`, `FSTCardStyle` border) card it (R4). | Legibility over bright artwork; Reduce Transparency has no opaque plate under that text. | Apple's session cards it like the others (one card under the pane header). |
 
+UIKit (port, `claude/uikit-port`): `UKCardView` (material card, segments, capsule), `UKGlassView` / `UKGlassGroupView` (glass roles, `UIGlassEffect` on iOS 26, frosted before, opaque under R4) and `UKGroupSectionView` (group card, rows, in-card action) in `apple/Sources/FestivalUI/UIKitPort/Design/`. They read the same `RowCardStyle`, `FestivalGlassRole` and `FestivalGlassSurface.resolve` values as the SwiftUI modifiers; never retype a tint, rim or opacity.
+
 ## Guards (`tools/pattern_guard.py`)
 
 - `surface-materials/apple-glass-effect` — `.glassEffect(` and `UIGlassEffect(` only in `Design/GlassSurface.swift` (the drawer search field backing, #559, included).

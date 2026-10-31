@@ -103,6 +103,18 @@
           {
             "path": "apple/Sources/FestivalUI/Design/BottomChromeFade.swift",
             "symbol": "boardBottomChrome"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKEdgeFades.swift",
+            "symbol": "UKModalTopEdgeFade"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKEdgeFades.swift",
+            "symbol": "UKBottomChromeFade"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKEdgeFades.swift",
+            "symbol": "UKPinnedHeaderEdgeFade"
           }
         ],
         "android": [
@@ -521,6 +533,14 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
             "symbol": "SongsSectionBarOverlay"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKSections.swift",
+            "symbol": "UKSectionHeaderView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKSections.swift",
+            "symbol": "UKViewAllButton"
           }
         ],
         "android": [
@@ -730,6 +750,18 @@
           {
             "path": "apple/Sources/FestivalUI/Design/GlassSurface.swift",
             "symbol": "FestivalGlassModifier"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKSurfaces.swift",
+            "symbol": "UKCardView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKSurfaces.swift",
+            "symbol": "UKGlassView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKSections.swift",
+            "symbol": "UKGroupSectionView"
           }
         ],
         "android": [
@@ -787,7 +819,8 @@
           "glob": "apple/Sources/**/*.swift",
           "regex": "\\.glassEffect\\s*\\(|UIGlassEffect\\s*\\(",
           "allow": [
-            "apple/Sources/FestivalUI/Design/GlassSurface.swift"
+            "apple/Sources/FestivalUI/Design/GlassSurface.swift",
+            "apple/Sources/FestivalUI/UIKitPort/Design/UKSurfaces.swift"
           ],
           "debt": [],
           "message": "Liquid Glass implementation (SwiftUI glassEffect or UIKit UIGlassEffect, including the #559 drawer search field backing) belongs only to GlassSurface (surface-materials R2)."
@@ -1405,6 +1438,14 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Settings/Feedback/FeedbackSendingStatus.swift",
             "symbol": "FeedbackSendingStage"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKSheet.swift",
+            "symbol": "UKSheetNavigationController"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKSheet.swift",
+            "symbol": "UKSheet"
           }
         ],
         "android": [
@@ -1742,6 +1783,10 @@
           {
             "path": "apple/Sources/FestivalUI/Features/SongLeaderboard/SongLeaderboardEntryRow.swift",
             "symbol": "spokenRank"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKPageChrome.swift",
+            "symbol": "UKLeaderboardColumnSlot"
           }
         ],
         "android": [
@@ -2156,6 +2201,18 @@
           {
             "path": "apple/Sources/FestivalUI/Features/FirstRun/Demo/FirstRunDemoRotationViews.swift",
             "symbol": "FirstRunDemoTickerPolicy"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKLoadTransitions.swift",
+            "symbol": "UKReloadGate"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKLoadTransitions.swift",
+            "symbol": "UKFadeIn"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKStates.swift",
+            "symbol": "UKLoadingView"
           }
         ],
         "android": [
@@ -2537,6 +2594,14 @@
           {
             "path": "apple/Sources/FestivalUI/Design/FestivalAccordion.swift",
             "symbol": "FestivalAccordionAccessibility"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKAccordion.swift",
+            "symbol": "UKAccordionView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKAccordion.swift",
+            "symbol": "UKDisclosureGroupView"
           }
         ],
         "android": [
@@ -2742,6 +2807,14 @@
           {
             "path": "apple/Sources/FestivalCore/FestivalAPI.swift",
             "symbol": "scrapeFreezeFallback"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKStates.swift",
+            "symbol": "UKEmptyStateView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKStates.swift",
+            "symbol": "UKServiceStatusView"
           }
         ],
         "android": [
@@ -3375,6 +3448,14 @@
           {
             "path": "apple/Sources/FestivalUI/Common/SongHeaderText.swift",
             "symbol": "songBarTitleKeepsBarVisible"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKMarquee.swift",
+            "symbol": "UKMarqueeLabel"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKPageChrome.swift",
+            "symbol": "UKSongHeaderTextView"
           }
         ],
         "android": [
