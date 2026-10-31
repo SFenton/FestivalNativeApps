@@ -1,6 +1,6 @@
 # iPhone Duo redesign notes
 Journey: (1) Songs → Song Detail → Song Leaderboard + shell; (2) Leaderboards → Full Rankings → Player; (3) Statistics → Rivals → Rival Detail/Rivalry; (4) Item Shop, Suggestions, Compete, Settings, sheets/modals; (5) sweep: Bands, Notifications, What's New, first run, Settings sub-pages, Paths.
-Stack: SwiftUI (TabView + NavigationStack/NavigationSplitView, system toolbars); package iOS 17; Xcode 27.1 / iOS 27.1 SDK (App Store archive: 27.0 SDK, Duo APIs compiled out). Evidence: live iOS 27.1 sim, SFentonX, every pose scripted through Device Hub (`ios_sim.py pose`, drive `host:` steps); shots `~/FestivalShowcase/native-duo/{poses,final}/`.
+Stack: SwiftUI (TabView + NavigationStack/NavigationSplitView, system toolbars); package iOS 17; Xcode 27.1 / iOS 27.1 SDK (App Store archive too since 2026-10-31; before that the 27.0 SDK left TestFlight builds in Duo compatibility mode). Evidence: live iOS 27.1 sim, SFentonX, every pose scripted through Device Hub (`ios_sim.py pose`, drive `host:` steps); shots `~/FestivalShowcase/native-duo/{poses,final}/`.
 Stage: 5 (journeys 1–5)  Next: operator/device only — the split redesign lane owns all list/detail layout; App Resizability skill in Xcode chat; hardware keyboard on a physical iPhone Duo; review the delegated decisions.
 
 ## Decisions (operator, 2026-10-02 unless noted)

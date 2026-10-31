@@ -194,14 +194,14 @@ fi
 
 (cd "$ROOT/apple" && run xcodegen generate -q)
 
-# App Store Connect rejects beta SDKs. With a released Xcode whose iOS SDK predates 27.1,
-# compile out the iOS 27.1 Duo APIs (DeviceLayoutEnvironment.swift).
-SWIFT_CONDITIONS='$(inherited)'
+# An app built with an iOS SDK before 27.1 runs in iPhone Duo compatibility mode (a black bar beside the
+# status bar, iPhone-sized when open) and lacks the Duo hinge/vertical-bar APIs, so refuse to archive one.
 SDK_VERSION="$(xcrun --sdk iphoneos --show-sdk-version 2>/dev/null || echo 0)"
 if [ "$(printf '%s\n27.1\n' "$SDK_VERSION" | sort -V | head -1)" != "27.1" ]; then
-  SWIFT_CONDITIONS="$SWIFT_CONDITIONS FST_IOS_SDK_BEFORE_27_1"
+  log "iOS SDK $SDK_VERSION is older than 27.1: select Xcode 27.1 or later (iPhone Duo full screen)"
+  exit 2
 fi
-log "iOS SDK $SDK_VERSION; Swift conditions: $SWIFT_CONDITIONS"
+log "iOS SDK $SDK_VERSION"
 
 run_locked xcodebuild archive \
   -project "$ROOT/apple/FestivalNativeApple.xcodeproj" \
@@ -216,7 +216,6 @@ run_locked xcodebuild archive \
   CODE_SIGNING_ALLOWED=YES \
   CODE_SIGN_STYLE=Automatic \
   TARGETED_DEVICE_FAMILY=1 \
-  SWIFT_ACTIVE_COMPILATION_CONDITIONS="$SWIFT_CONDITIONS" \
   MARKETING_VERSION="$MARKETING_VERSION" \
   CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   FST_GIT_SHA="$GIT_SHA"

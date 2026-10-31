@@ -45,7 +45,7 @@ Toolbars, navigation controls, the tab bar, the status bar and the Dynamic Islan
 | `NavigationSplitView` | Expands on the inner display, collapses on the outer; equalises column widths at the fold automatically |
 | `backgroundExtensionEffect()` | Extend hero/background art under the vertical bar |
 
-The project wraps all of these in `App/Layout` ([design/apple/duo.md](../../design/apple/duo.md#infrastructure)). They exist only in the iOS 27.1 SDK (the macOS 27.0 SDK lacks them), so guard with `#if os(iOS)` + `#available(iOS 27.1, *)`.
+The project wraps all of these in `App/Layout` ([design/apple/duo.md](../../design/apple/duo.md#infrastructure)). They exist only in the iOS 27.1 SDK (the macOS 27.0 SDK lacks them), so guard with `#if os(iOS)` + `#available(iOS 27.1, *)`. Every iOS build, the App Store archive included, uses the iOS 27.1 SDK: built with an older one the app runs in Duo compatibility mode (a black bar beside the folded status bar) and none of this compiles ([release machine](../../workflow/release-machine.md)).
 
 ## Simulator (alias `duo`)
 
