@@ -237,6 +237,7 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
     private var disclosureItems: [(String, String, String?)] = []
     private var statusView: UIView?
     private var tools: [UKPageTool] = []
+    private var sheetObserver: UKSongsSheetDismissObserver?
     private var toolsToken: [String] = []
     private var lastLayoutKey: [String] = []
     private var lastItems: [String] = []
@@ -262,9 +263,11 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
     // MARK: Settings
 
     private var defaults: UserDefaults { .standard }
+    /// A saved Boolean read like `@AppStorage` (a launch argument `-key YES` is a string).
+    private func boolSetting(_ key: String) -> Bool { defaults.object(forKey: key) == nil ? false : defaults.bool(forKey: key) }
     private var preferredMode: ShopViewMode { ShopViewMode(rawValue: defaults.string(forKey: "fst.shop.viewMode") ?? "") ?? .grid }
-    private var hideShop: Bool { UKSettings.bool("fst.settings.hideShop", default: false) }
-    private var disableHighlights: Bool { UKSettings.bool("fst.settings.disableShopHighlighting", default: false) }
+    private var hideShop: Bool { boolSetting("fst.settings.hideShop") }
+    private var disableHighlights: Bool { boolSetting("fst.settings.disableShopHighlighting") }
     private var isAX: Bool { traitCollection.preferredContentSizeCategory.isAccessibilityCategory }
     private var viewMode: ShopViewMode { traitCollection.horizontalSizeClass == .compact || isAX ? .list : preferredMode }
     private var showsViewToggle: Bool { traitCollection.horizontalSizeClass != .compact && !isAX }
@@ -279,7 +282,7 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
     private var appliedSort: ShopSortChoice {
         ShopSortChoice(
             mode: SongSortMode(rawValue: defaults.string(forKey: ShopSortChoice.modeKey) ?? "") ?? .title,
-            ascending: defaults.object(forKey: ShopSortChoice.ascendingKey) as? Bool ?? true
+            ascending: (defaults.object(forKey: ShopSortChoice.ascendingKey) == nil ? true : defaults.bool(forKey: ShopSortChoice.ascendingKey))
         )
     }
     private var listColumns: Int { isAX ? 1 : WideColumns.count(layout: ukLayout) }
@@ -686,7 +689,7 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
             self?.defaults.set(ascending, forKey: ShopSortChoice.ascendingKey)
             self?.recompute()
         }
-        UKSheet.present(sheet, from: self, title: "Sort By", closeIdentifier: "fst.shop.sort.done", size: .compact)
+        ukPresentSongsSheet(sheet, title: "Sort By", closeIdentifier: "fst.shop.sort.done", size: .compact) { sheetObserver = $0 }
     }
 
     private func presentFilter() {
@@ -698,7 +701,7 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
             self.defaults.set(false, forKey: ShopOfferFilter.legacyLeavingTomorrowKey)
             self.recompute()
         }
-        UKSheet.present(sheet, from: self, title: "Filter Shop", closeIdentifier: "fst.shop.filter.done", size: .compact)
+        ukPresentSongsSheet(sheet, title: "Filter Shop", closeIdentifier: "fst.shop.filter.done", size: .compact) { sheetObserver = $0 }
     }
 }
 #endif

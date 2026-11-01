@@ -137,6 +137,8 @@ final class UKSongRowCell: UICollectionViewCell {
         card.translatesAutoresizingMaskIntoConstraints = true
         contentView.addSubview(card)
         card.contentView.addSubview(row)
+        // The drawn row is decoration: the proxy stops beside the card are what is exposed.
+        card.accessibilityElementsHidden = true
         contrastRim.layer.cornerRadius = 12
         contrastRim.layer.cornerCurve = .continuous
         contrastRim.layer.borderWidth = 2
@@ -233,6 +235,7 @@ final class UKSongRowCell: UICollectionViewCell {
         let below = shopLink?.below == true ? Self.linkGap + Self.linkHeight : 0
         card.frame = CGRect(x: 0, y: 0, width: contentView.bounds.width, height: contentView.bounds.height - below)
         row.frame = card.bounds
+        row.layoutIfNeeded()
         if let slot = row.bagSlotFrame, shopLink?.below != true {
             let center = row.convert(CGPoint(x: slot.midX, y: slot.midY), to: contentView)
             bagButton.frame = CGRect(x: center.x - 22, y: center.y - 22, width: 44, height: 44)

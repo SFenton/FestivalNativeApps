@@ -24,7 +24,8 @@ struct SongsSettings: Equatable {
     /// - Parameter defaults: The store (the app's standard defaults).
     /// - Returns: The stored values, with each default where nothing is stored.
     static func load(from defaults: UserDefaults = .standard) -> SongsSettings {
-        func bool(_ key: String, _ fallback: Bool) -> Bool { defaults.object(forKey: key) as? Bool ?? fallback }
+        // `bool(forKey:)`, like `@AppStorage`: a launch argument such as `-key YES` is a string.
+        func bool(_ key: String, _ fallback: Bool) -> Bool { defaults.object(forKey: key) == nil ? fallback : defaults.bool(forKey: key) }
         var settings = SongsSettings()
         settings.sortMode = (defaults.string(forKey: "fst.songs.sortMode")).flatMap(SongSortMode.init(rawValue:)) ?? .title
         settings.sortAscending = bool("fst.songs.sortAscending", true)
@@ -35,7 +36,7 @@ struct SongsSettings: Equatable {
         settings.hideShop = bool("fst.settings.hideShop", false)
         settings.disableShopHighlighting = bool("fst.settings.disableShopHighlighting", false)
         settings.filterInvalidScores = bool("fst.settings.filterInvalidScores", false)
-        settings.leeway = defaults.object(forKey: "fst.settings.leeway") as? Double ?? 1.0
+        settings.leeway = defaults.object(forKey: "fst.settings.leeway") == nil ? 1.0 : defaults.double(forKey: "fst.settings.leeway")
         settings.showInstrumentIcons = bool("fst.settings.showInstrumentIcons", true)
         settings.metadata = SongMetadataVisibility(
             score: bool("fst.settings.metadataScore", true), percentage: bool("fst.settings.metadataPercentage", true),

@@ -236,6 +236,7 @@ extension UKSongsViewController {
         gate.update(key: reloadKey, isLoading: state.isLoading || searchText != settledSearch || refreshing)
         applyPresentation(pipeline: pipeline)
         updateTools(pipeline: pipeline)
+        updateRefreshAnchor()
     }
 
     private func applyPresentation(pipeline: SongsPipeline) {

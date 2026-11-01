@@ -255,6 +255,16 @@ extension UKSongsViewController {
 
     func sectionBarNeedsUpdate() { updateScrollChrome() }
 
+    /// Rows wholly under the section bar leave the accessibility tree (scroll-edge R7);
+    /// `nil` restores every row.
+    ///
+    /// - Parameter barBottom: The bar's bottom in content coordinates.
+    func hideCutRows(barBottom: CGFloat?) {
+        for cell in collectionView.visibleCells {
+            cell.accessibilityElementsHidden = barBottom.map { cell.frame.maxY <= $0 && cell is UKSongRowCell } ?? false
+        }
+    }
+
     /// Updates the section bar, the row fade under it, Quick Links and the rail position.
     func updateScrollChrome() {
         quickLinks?.scrollViewDidScroll()
@@ -262,6 +272,7 @@ extension UKSongsViewController {
             sectionBar.isHidden = true
             barBlocker.isHidden = true
             edgeFade?.update(edge: nil, scrollOffset: 0)
+            hideCutRows(barBottom: nil)
             return
         }
         let inset = collectionView.adjustedContentInset.top
@@ -270,6 +281,7 @@ extension UKSongsViewController {
             sectionBar.isHidden = true
             barBlocker.isHidden = true
             edgeFade?.update(edge: nil, scrollOffset: 0)
+            hideCutRows(barBottom: nil)
             return
         }
         let visibleTop = collectionView.contentOffset.y + inset
@@ -288,6 +300,7 @@ extension UKSongsViewController {
             sectionBar.isHidden = true
             barBlocker.isHidden = true
             edgeFade?.update(edge: nil, scrollOffset: 0)
+            hideCutRows(barBottom: nil)
             return
         }
         let barHeight = UKSongsSectionBar.height()
@@ -312,6 +325,7 @@ extension UKSongsViewController {
         )
         barBlocker.isHidden = false
         edgeFade?.update(edge: barTop + barHeight, scrollOffset: visibleTop)
+        hideCutRows(barBottom: visibleTop + barHeight)
     }
 
     // MARK: Rail and Quick Links
@@ -411,7 +425,7 @@ extension UKSongsViewController {
         return width > 0 && width < SongsToolbarFold.minimumUnfoldedWidth
     }
 
-    func pageTools() -> [UKPageTool] { tools }
+    func pageTools() -> [UKPageTool] { tools + [quickLinks?.tool].compactMap { $0 } }
 
     func updateTools(pipeline: SongsPipeline) {
         let filterActive = pipeline.generalFilterActive || pipeline.appliedPlayerScoreFilter?.isActive == true

@@ -22,7 +22,7 @@ final class UKSongsSectionHeaderView: UICollectionReusableView {
         label.numberOfLines = 0
         addSubview(label)
         isAccessibilityElement = true
-        accessibilityTraits = .header
+        accessibilityTraits = [.staticText, .header]
     }
 
     @available(*, unavailable)
@@ -76,7 +76,7 @@ final class UKSongsSectionBar: UIView {
         }
         for label in [outgoing, incoming] { label.isAccessibilityElement = false }
         current.isAccessibilityElement = true
-        current.accessibilityTraits = .header
+        current.accessibilityTraits = [.staticText, .header]
         current.accessibilityIdentifier = "fst.songs.section-bar"
         isAccessibilityElement = false
         isHidden = true
@@ -182,6 +182,25 @@ enum UKSongsButtons {
     }
 }
 
+// MARK: - Adjustable stop
+
+/// The A-Z rail's VoiceOver control: an invisible adjustable element over the rail.
+final class UKSongsAdjustableView: UIView {
+    var onIncrement: (() -> Void)?
+    var onDecrement: (() -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func accessibilityIncrement() { onIncrement?() }
+    override func accessibilityDecrement() { onDecrement?() }
+}
+
 // MARK: - A–Z scrubber
 
 /// The trailing A–Z jump rail (``SongSectionIndexScrubber``): a capsule of letters that scrubs
@@ -196,6 +215,7 @@ final class UKSongSectionIndexView: UIView {
     private var touchIndex: Int?
     private let feedback = UISelectionFeedbackGenerator()
     private var labelHeight: CGFloat = SongSectionIndexScrubber.defaultLabelHeight
+    private let adjustable = UKSongsAdjustableView()
     /// Called with a section's id as the rail passes over it.
     var onSelect: ((Int) -> Void)?
 
@@ -206,10 +226,17 @@ final class UKSongSectionIndexView: UIView {
         let press = UILongPressGestureRecognizer(target: self, action: #selector(scrub(_:)))
         press.minimumPressDuration = 0
         addGestureRecognizer(press)
-        isAccessibilityElement = true
-        accessibilityLabel = "Jump to section"
+        // The rail is a container: its letters are static texts under it (the SwiftUI strip's
+        // `Text` children), and an adjustable stop inside it carries the VoiceOver control.
+        isAccessibilityElement = false
         accessibilityIdentifier = "fst.songs.section-index"
-        accessibilityTraits = .adjustable
+        adjustable.isAccessibilityElement = true
+        adjustable.accessibilityLabel = "Jump to section"
+        adjustable.accessibilityIdentifier = "fst.songs.section-index.adjustable"
+        adjustable.accessibilityTraits = .adjustable
+        adjustable.onIncrement = { [weak self] in self?.move(by: 1) }
+        adjustable.onDecrement = { [weak self] in self?.move(by: -1) }
+        addSubview(adjustable)
     }
 
     @available(*, unavailable)
@@ -255,7 +282,6 @@ final class UKSongSectionIndexView: UIView {
         while labels.count < entries.count {
             let label = UILabel()
             label.textAlignment = .center
-            label.isAccessibilityElement = false
             card.contentView.addSubview(label)
             labels.append(label)
         }
@@ -268,7 +294,7 @@ final class UKSongSectionIndexView: UIView {
         let height = 2 * SongSectionIndexScrubber.labelInset + CGFloat(entries.count) * labelHeight
             + CGFloat(max(0, entries.count - 1)) * SongSectionIndexScrubber.labelSpacing
         let size = CGSize(width: Self.width(for: category), height: height)
-        accessibilityValue = sections.indices.contains(activeIndex) ? sections[activeIndex].label : ""
+        adjustable.accessibilityValue = sections.indices.contains(activeIndex) ? sections[activeIndex].label : ""
         refreshColors()
         setNeedsLayout()
         return size
@@ -283,6 +309,7 @@ final class UKSongSectionIndexView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         card.frame = bounds
+        adjustable.frame = bounds
         var y = SongSectionIndexScrubber.labelInset
         for (index, label) in labels.enumerated() where index < entries.count {
             label.frame = CGRect(x: 0, y: y, width: bounds.width, height: labelHeight)
@@ -308,7 +335,7 @@ final class UKSongSectionIndexView: UIView {
                 activeIndex = index
                 feedback.selectionChanged()
             }
-            accessibilityValue = sections[index].label
+            adjustable.accessibilityValue = sections[index].label
             refreshColors()
             onSelect?(sections[index].id)
         default:
@@ -318,14 +345,11 @@ final class UKSongSectionIndexView: UIView {
         }
     }
 
-    override func accessibilityIncrement() { move(by: 1) }
-    override func accessibilityDecrement() { move(by: -1) }
-
     private func move(by delta: Int) {
         guard !sections.isEmpty else { return }
         let index = min(sections.count - 1, max(0, activeIndex + delta))
         activeIndex = index
-        accessibilityValue = sections[index].label
+        adjustable.accessibilityValue = sections[index].label
         onSelect?(sections[index].id)
     }
 }
