@@ -12,8 +12,8 @@ import UIKit
 /// navigation-bar items. The row hides while Search or a root sheet covers the page, and
 /// fades its tools with ``FloatingPageToolsMotion``.
 ///
-/// A tool's menu opens inline from its circle (a deliberate simplification of the
-/// SwiftUI compact sheet: UIKit menus open from a button reliably).
+/// A tool with a ``UKPageToolSheet`` (Quick Links) opens that compact sheet, as the SwiftUI
+/// floating tool does; any other tool's menu opens inline from its circle.
 @MainActor
 final class UKFloatingPageToolsView: UIView {
     private let stack = UIStackView()
@@ -73,7 +73,7 @@ final class UKFloatingPageToolsView: UIView {
             let old = stack.arrangedSubviews
             old.forEach { $0.removeFromSuperview() }
             for (index, tool) in tools.enumerated() {
-                let button = Self.button(for: tool.item)
+                let button = Self.button(for: tool, presenter: { [weak self] in self?.presenter() })
                 stack.addArrangedSubview(button)
                 switch motion {
                 case .none: break
@@ -94,6 +94,11 @@ final class UKFloatingPageToolsView: UIView {
             }
             if let scope, !tools.isEmpty { revealedScopes.insert(ObjectIdentifier(scope)) }
         }
+        // A tool keeps its button while its state changes (Quick Links names the current section).
+        for (view, tool) in zip(stack.arrangedSubviews, tools) {
+            view.accessibilityValue = tool.item.accessibilityValue
+            view.accessibilityLabel = tool.item.accessibilityLabel ?? tool.item.title
+        }
         isHidden = tools.isEmpty
         let target: CGFloat = covered ? 0 : 1
         if motion == .none {
@@ -105,8 +110,19 @@ final class UKFloatingPageToolsView: UIView {
         accessibilityElementsHidden = covered || tools.isEmpty
     }
 
+    /// The controller that presents a tool's sheet: the shell, found through the responder chain.
+    private func presenter() -> UIViewController? {
+        var responder: UIResponder? = self
+        while let current = responder {
+            if let controller = current as? UIViewController { return controller.ukShell ?? controller }
+            responder = current.next
+        }
+        return nil
+    }
+
     /// One glass circle for a page tool's bar item.
-    private static func button(for item: UIBarButtonItem) -> UIButton {
+    private static func button(for tool: UKPageTool, presenter: @escaping () -> UIViewController?) -> UIButton {
+        let item = tool.item
         var configuration: UIButton.Configuration
         if #available(iOS 26.0, *) {
             configuration = .glass()
@@ -125,7 +141,11 @@ final class UKFloatingPageToolsView: UIView {
         button.showsLargeContentViewer = true
         button.largeContentTitle = item.accessibilityLabel ?? item.title
         button.largeContentImage = item.image
-        if let menu = item.menu {
+        if let sheet = tool.sheet {
+            button.addAction(UIAction { _ in
+                if let presenter = presenter() { UKPageToolMenuViewController.present(sheet, from: presenter) }
+            }, for: .touchUpInside)
+        } else if let menu = item.menu {
             button.menu = menu
             button.showsMenuAsPrimaryAction = true
             // A menu opened from the bottom bar otherwise lists its rows bottom-up.

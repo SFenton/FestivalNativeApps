@@ -39,6 +39,7 @@ final class UKQuickLinks {
     private var lastJump = 0
     private let feedback = UISelectionFeedbackGenerator()
     private var item: UIBarButtonItem?
+    private var sheet: UKPageToolSheet?
     /// Called when the tool appears, disappears or changes (the page then refreshes its bar).
     var onToolChange: (() -> Void)?
 
@@ -166,7 +167,7 @@ final class UKQuickLinks {
     /// The page tool while the page offers Quick Links (two or more sections), else nil.
     var tool: UKPageTool? {
         guard controller.isAvailable, let item else { return nil }
-        return UKPageTool(order: PageToolOrder.quickLinks, item: item)
+        return UKPageTool(order: PageToolOrder.quickLinks, item: item, sheet: sheet)
     }
 
     private func rebuildItem() {
@@ -191,6 +192,17 @@ final class UKQuickLinks {
             return action
         }
         let menu = UIMenu(title: menuTitle, options: [.displayInline, .singleSelection], children: actions)
+        sheet = UKPageToolSheet(title: menuTitle) { [weak self] in
+            guard let self else { return [] }
+            return self.controller.sections.map { section in
+                UKPageToolChoice(
+                    identifier: "fst.quick-links.item.\(section.id)",
+                    title: String(repeating: "\u{2007}\u{2007}", count: section.depth) + section.title,
+                    spokenTitle: section.accessibilityTitle, icon: section.icon,
+                    isSelected: section.id == self.controller.activeID
+                ) { [weak self] in self?.controller.jump(to: section.id) }
+            }
+        }
         let created = item == nil
         let bar = item ?? UIBarButtonItem(title: "Quick Links", image: UIImage(systemName: "list.bullet.indent"), target: nil, action: nil)
         bar.menu = UIMenu(children: [menu])
