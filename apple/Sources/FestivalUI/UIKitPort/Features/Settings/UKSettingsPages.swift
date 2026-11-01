@@ -57,32 +57,55 @@ enum UKPrivacyPolicyContent {
         return column
     }
 
-    private static func textView(_ text: AttributedString) -> UITextView {
-        let view = UITextView()
-        view.isEditable = false
-        view.isScrollEnabled = false
-        view.isSelectable = true
-        view.backgroundColor = .clear
-        view.textContainerInset = .zero
-        view.textContainer.lineFragmentPadding = 0
-        view.adjustsFontForContentSizeCategory = true
-        view.linkTextAttributes = [.foregroundColor: BrandUIColors.accentBlue]
-        view.tintColor = BrandUIColors.accentBlue
-        view.translatesAutoresizingMaskIntoConstraints = false
+    private static func textView(_ text: AttributedString) -> UILabel {
+        let label = UKLinkLabel()
         let body = UKFont.font(.body)
         let bold = UKFont.font(.body, weight: .bold)
         let result = NSMutableAttributedString()
         for run in text.runs {
             let piece = NSMutableAttributedString(string: String(text[run.range].characters))
             let strong = run.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
-            piece.addAttributes([
-                .font: strong ? bold : body, .foregroundColor: BrandUIColors.textPrimary,
-            ], range: NSRange(location: 0, length: piece.length))
-            if let link = run.link { piece.addAttribute(.link, value: link, range: NSRange(location: 0, length: piece.length)) }
+            let whole = NSRange(location: 0, length: piece.length)
+            piece.addAttributes([.font: strong ? bold : body, .foregroundColor: BrandUIColors.textPrimary], range: whole)
+            if let link = run.link {
+                piece.addAttributes([.link: link, .foregroundColor: BrandUIColors.accentBlue, .underlineStyle: NSUnderlineStyle.single.rawValue], range: whole)
+            }
             result.append(piece)
         }
-        view.attributedText = result
-        return view
+        label.attributedText = result
+        return label
+    }
+}
+
+/// A wrapping label whose links open when tapped: static text to accessibility (the policy's
+/// paragraphs read as text), with the link under the finger found by layout.
+@MainActor
+final class UKLinkLabel: UILabel {
+    init() {
+        super.init(frame: .zero)
+        numberOfLines = 0
+        adjustsFontForContentSizeCategory = true
+        translatesAutoresizingMaskIntoConstraints = false
+        isUserInteractionEnabled = true
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped(_:))))
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
+        guard let attributed = attributedText, attributed.length > 0 else { return }
+        let storage = NSTextStorage(attributedString: attributed)
+        let layout = NSLayoutManager()
+        let container = NSTextContainer(size: bounds.size)
+        container.lineFragmentPadding = 0
+        container.lineBreakMode = lineBreakMode
+        layout.addTextContainer(container)
+        storage.addLayoutManager(layout)
+        let point = recognizer.location(in: self)
+        let index = layout.characterIndex(for: point, in: container, fractionOfDistanceBetweenInsertionPoints: nil)
+        guard index < attributed.length, let link = attributed.attribute(.link, at: index, effectiveRange: nil) as? URL else { return }
+        UIApplication.shared.open(link)
     }
 }
 
