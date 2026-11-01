@@ -62,17 +62,20 @@ enum UKPrivacyPolicyContent {
         let body = UKFont.font(.body)
         let bold = UKFont.font(.body, weight: .bold)
         let result = NSMutableAttributedString()
+        var links: [(NSRange, URL)] = []
         for run in text.runs {
             let piece = NSMutableAttributedString(string: String(text[run.range].characters))
             let strong = run.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
             let whole = NSRange(location: 0, length: piece.length)
             piece.addAttributes([.font: strong ? bold : body, .foregroundColor: BrandUIColors.textPrimary], range: whole)
             if let link = run.link {
-                piece.addAttributes([.link: link, .foregroundColor: BrandUIColors.accentBlue, .underlineStyle: NSUnderlineStyle.single.rawValue], range: whole)
+                piece.addAttributes([.foregroundColor: BrandUIColors.accentBlue, .underlineStyle: NSUnderlineStyle.single.rawValue], range: whole)
+                links.append((NSRange(location: result.length, length: piece.length), link))
             }
             result.append(piece)
         }
         label.attributedText = result
+        label.links = links
         return label
     }
 }
@@ -81,6 +84,9 @@ enum UKPrivacyPolicyContent {
 /// paragraphs read as text), with the link under the finger found by layout.
 @MainActor
 final class UKLinkLabel: UILabel {
+    /// The tappable ranges. Kept apart from the text so the label stays plain static text.
+    var links: [(NSRange, URL)] = []
+
     init() {
         super.init(frame: .zero)
         numberOfLines = 0
@@ -104,7 +110,7 @@ final class UKLinkLabel: UILabel {
         storage.addLayoutManager(layout)
         let point = recognizer.location(in: self)
         let index = layout.characterIndex(for: point, in: container, fractionOfDistanceBetweenInsertionPoints: nil)
-        guard index < attributed.length, let link = attributed.attribute(.link, at: index, effectiveRange: nil) as? URL else { return }
+        guard let link = links.first(where: { NSLocationInRange(index, $0.0) })?.1 else { return }
         UIApplication.shared.open(link)
     }
 }
