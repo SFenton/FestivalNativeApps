@@ -68,6 +68,19 @@ private final class UKSuggestionFooterCell: UKSelfSizingCell {
     }
 }
 
+/// A scroll view that only holds the Suggestions collection view, so VoiceOver and UI tests find
+/// the list as a ScrollView (as the SwiftUI page's `ScrollView`); it never scrolls itself.
+private final class UKSuggestionsListHolder: UIScrollView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isScrollEnabled = false
+        backgroundColor = .clear
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+}
+
 // MARK: - Suggestions
 
 /// `/suggestions`: score-driven song suggestions for the selected player
@@ -150,6 +163,8 @@ final class UKSuggestionsViewController: UKRivalsPageViewController, UICollectio
     }
 
     // MARK: Tools
+
+    override var ukToolsStayInBar: Bool { true }
 
     override var pageTools: [UKPageTool] {
         guard showsFilter else { return [] }
@@ -258,12 +273,20 @@ final class UKSuggestionsViewController: UKRivalsPageViewController, UICollectio
         showFill(gate, edgeToEdge: true)
         collection.backgroundColor = .clear
         collection.delegate = self
-        collection.accessibilityIdentifier = "fst.suggestions.list"
         collection.alwaysBounceVertical = true
         collection.translatesAutoresizingMaskIntoConstraints = false
-        gate.contentView.addSubview(collection)
+        // The list reads as a ScrollView named `fst.suggestions.list` (the SwiftUI element type); a
+        // plain scroll view holds the collection view, which does the scrolling.
+        let holder = UKSuggestionsListHolder()
+        holder.accessibilityIdentifier = "fst.suggestions.list"
+        holder.translatesAutoresizingMaskIntoConstraints = false
+        gate.contentView.addSubview(holder)
+        holder.ukPin(to: gate.contentView)
+        collection.translatesAutoresizingMaskIntoConstraints = true
+        collection.frame = holder.bounds
+        collection.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        holder.addSubview(collection)
         setContentScrollView(collection)
-        collection.ukPin(to: gate.contentView)
         collection.refreshControl = {
             let control = UIRefreshControl()
             control.tintColor = BrandUIColors.textPrimary

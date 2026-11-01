@@ -38,10 +38,14 @@ protocol UKPageToolsProviding: UIViewController {
     var ukPageTools: [UKPageTool] { get }
     /// Whether the page shows the notifications bell (some pages hide it).
     var ukShowsNotifications: Bool { get }
+    /// Whether the page's tools stay in the navigation bar even where tools float above the
+    /// tab bar (Suggestions' Filter: its SwiftUI page keeps it in the bar row).
+    var ukToolsStayInBar: Bool { get }
 }
 
 extension UKPageToolsProviding {
     var ukShowsNotifications: Bool { true }
+    var ukToolsStayInBar: Bool { false }
 }
 
 extension UIViewController {

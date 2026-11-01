@@ -43,7 +43,7 @@ extension UKRootViewController {
         guard isViewLoaded else { return }
         let floats = floatsPageTools
         let page = frontPage
-        let tools = floats ? tools(of: page) : []
+        let tools = floats && !((page as? UKPageToolsProviding)?.ukToolsStayInBar ?? false) ? tools(of: page) : []
         let covered = searchActive || presentedViewController != nil || drawer != nil
         floatingTools.update(tools: tools, scope: page, covered: covered)
         floatingTools.isHidden = !floats || tools.isEmpty
@@ -86,7 +86,7 @@ extension UKRootViewController {
         let provider = controller as? UKPageToolsProviding
         UKRootChrome.install(
             on: controller, actions: self, drawer: true,
-            pageItems: floatsPageTools ? [] : tools(of: controller).map(\.item),
+            pageItems: floatsPageTools && !(provider?.ukToolsStayInBar ?? false) ? [] : tools(of: controller).map(\.item),
             showsNotifications: provider?.ukShowsNotifications ?? true
         )
         chromeControllers.add(controller)
@@ -99,7 +99,7 @@ extension UKRootViewController {
         let provider = controller as? UKPageToolsProviding
         UKRootChrome.install(
             on: controller, actions: self, drawer: false,
-            pageItems: floatsPageTools ? [] : tools(of: controller).map(\.item),
+            pageItems: floatsPageTools && !(provider?.ukToolsStayInBar ?? false) ? [] : tools(of: controller).map(\.item),
             showsNotifications: provider?.ukShowsNotifications ?? true
         )
         objc_setAssociatedObject(controller, &accountOnlyKey, true, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)

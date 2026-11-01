@@ -145,6 +145,9 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
     /// What the page's content depends on in Settings; a change rebuilds the page.
     var settingsSignature: AnyHashable { 0 }
 
+    /// Whether the page's tools stay in the navigation bar instead of floating (``UKPageToolsProviding``).
+    var ukToolsStayInBar: Bool { false }
+
     /// Extra tools besides Quick Links, in any order.
     var pageTools: [UKPageTool] { [] }
 
