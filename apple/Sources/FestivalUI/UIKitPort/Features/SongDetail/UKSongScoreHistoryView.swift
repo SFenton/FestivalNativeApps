@@ -22,9 +22,9 @@ final class UKSongScoreHistoryView: UIView {
     private let viewportWidth: CGFloat
     private let section: UKGroupSectionView
     private let graphRow = UIView()
-    private let chartHolder = UIView()
+    private let chartHolder = UKLayoutProbeView()
     private var selector: UKInstrumentSelectorView?
-    private let selectorHolder = UIView()
+    private let selectorHolder = UKLayoutProbeView()
     private var displayed: Instrument
     private var chartWidth: CGFloat = 0
     private var swap: Task<Void, Never>?
@@ -69,6 +69,10 @@ final class UKSongScoreHistoryView: UIView {
             section.topAnchor.constraint(equalTo: topAnchor), section.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
         chartHolder.translatesAutoresizingMaskIntoConstraints = false
+        // The holders' widths arrive after this view's own layout pass (a stack lays out its
+        // children later), so they report their layouts instead of being read in ours.
+        selectorHolder.onLayout = { [weak self] in self?.holderLaidOut() }
+        chartHolder.onLayout = { [weak self] in self?.holderLaidOut() }
         selectorHolder.translatesAutoresizingMaskIntoConstraints = false
         selectorHolder.heightAnchor.constraint(equalToConstant: InstrumentSelectorMetrics.buttonSize).isActive = true
         let column = UIStackView(arrangedSubviews: [selectorHolder, chartHolder])
@@ -93,13 +97,21 @@ final class UKSongScoreHistoryView: UIView {
     /// The heading, for Quick Links' rotor.
     var headerElement: UIView { section }
 
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        installSelectorIfNeeded()
-        let width = chartHolder.bounds.width.rounded()
-        if width != renderedChartWidth, width > 0, swap == nil {
-            renderedChartWidth = width
-            render(for: displayed)
+    private var holderUpdatePending = false
+
+    /// A holder has its width: build the selector and size the chart to it, once the pass ends.
+    private func holderLaidOut() {
+        guard !holderUpdatePending else { return }
+        holderUpdatePending = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.holderUpdatePending = false
+            self.installSelectorIfNeeded()
+            let width = self.chartHolder.bounds.width.rounded()
+            if width != self.renderedChartWidth, width > 0, self.swap == nil {
+                self.renderedChartWidth = width
+                self.render(for: self.displayed)
+            }
         }
     }
 

@@ -498,7 +498,7 @@ final class UKScoreHistoryChartView: UIView {
                 "Dates, " + ChartAxisLabels.span(visible.first?.label, visible.last?.label),
                 CGRect(x: area.minX, y: area.maxY, width: area.width, height: max(1, plot.bounds.height - area.maxY))
             )
-            let rest: [Any] = Array(stack.arrangedSubviews.dropFirst())
+            let rest: [Any] = stack.arrangedSubviews.dropFirst().filter { !$0.isHidden && !$0.accessibilityElementsHidden }
             let elements: [Any] = [chart, leading, trailing, bottom] + rest
             super.accessibilityElements = elements
             return elements

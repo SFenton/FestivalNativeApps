@@ -75,6 +75,10 @@ final class UKAccuracyBadgeView: UIView {
         accessibilityLabel = spoken
         accessibilityTraits = .staticText
         accessibilityIdentifier = identifier
+        // When a row turns the badge into a plain part of its button, XCUITest reads the text
+        // child: give it the spoken name and identifier too.
+        label.accessibilityLabel = spoken
+        label.accessibilityIdentifier = identifier
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKAccuracyBadgeView, _) in self.setNeedsLayout() }
     }
 
@@ -303,7 +307,7 @@ final class UKLeaderboardNameView: UIView {
 ///
 /// With a `route` the whole row is one button (rank, name, score and accuracy spoken
 /// together); without one it is plain text whose parts are separate elements.
-final class UKSongLeaderboardEntryRowView: UIControl {
+final class UKSongLeaderboardEntryRowView: UIButton {
     /// Called when a row with a route is tapped.
     var onTap: (() -> Void)?
 
@@ -419,6 +423,12 @@ final class UKSongLeaderboardEntryRowView: UIControl {
         addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .touchUpInside)
         // A row with a destination is one button; an anonymous row's parts stay separate.
         if chevron == true, !separateParts {
+            // The parts are not elements of their own (VoiceOver reads the button), but XCUITest
+            // lists a button's text-bearing subviews as its static-text children, as it does
+            // for the SwiftUI row's `Text`s.
+            for part in [rank, nameView, score] + values.compactMap({ $0 as? UKAccuracyBadgeView }) + values.compactMap({ $0 as? UKSeasonPillView }) as [UIView] {
+                part.isAccessibilityElement = false
+            }
             isAccessibilityElement = true
             accessibilityTraits = .button
             accessibilityLabel = spokenParts.joined(separator: ", ")

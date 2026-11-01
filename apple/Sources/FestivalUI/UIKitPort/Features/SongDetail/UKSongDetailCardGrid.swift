@@ -92,4 +92,19 @@ final class UKSongDetailCardGridView: UIView {
         rows.accessibilityElements = cards
     }
 }
+
+// MARK: - Layout probe
+
+/// A plain view that reports each layout pass. A view inside stacks gets its width after its
+/// ancestors' own `layoutSubviews`, so anything sized from that width (chart paging, the
+/// season column) listens here instead of reading the width in an ancestor.
+final class UKLayoutProbeView: UIView {
+    /// Called after every layout pass of this view.
+    var onLayout: (() -> Void)?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        onLayout?()
+    }
+}
 #endif
