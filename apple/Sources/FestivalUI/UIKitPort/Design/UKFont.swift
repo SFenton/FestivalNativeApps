@@ -39,6 +39,9 @@ enum UKFont {
             ])
         }
         if italic, let slanted = descriptor.withSymbolicTraits(.traitItalic) { descriptor = slanted }
+        // Keep the text style explicit: weight and digit changes can drop it, and a font without
+        // one cannot follow the content size category.
+        descriptor = descriptor.addingAttributes([.textStyle: style.rawValue])
         return UIFont(descriptor: descriptor, size: 0)
     }
 
