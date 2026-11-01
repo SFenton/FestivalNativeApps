@@ -314,6 +314,8 @@ final class UKNotificationCell: UKSelfSizingCell {
         ])
         isAccessibilityElement = false
         contentView.addSubview(proxy)
+        // The row reads as the one proxy button; its title, message and chips are not separate stops.
+        accessibilityElements = [proxy]
     }
 
     override func layoutSubviews() {
