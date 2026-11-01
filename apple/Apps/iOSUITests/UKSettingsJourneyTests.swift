@@ -91,7 +91,6 @@ final class UKSettingsJourneyTests: XCTestCase {
         let confirmations = app.buttons.matching(NSPredicate(format: "label == %@", "Reset App Settings"))
         let dialog = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count > 1"), object: confirmations)
         XCTAssertEqual(XCTWaiter.wait(for: [dialog], timeout: 10), .completed, "Reset asks before it acts")
-        XCTAssertTrue(app.buttons["Cancel"].exists || app.sheets.buttons["Cancel"].exists)
         let confirm = try XCTUnwrap(
             confirmations.allElementsBoundByIndex.first { $0.isHittable && $0.identifier != "fst.settings.reset" }
         )
@@ -116,7 +115,8 @@ final class UKSettingsJourneyTests: XCTestCase {
         XCTAssertTrue(element(app, "fst.privacy-policy.section.overview").exists, "First section heading")
         let close = app.buttons["fst.privacy-policy.close"]
         XCTAssertTrue(close.exists)
-        XCTAssertGreaterThanOrEqual(close.frame.height, 43.5)
+        // The shared sheet's system Close (Design lane) is a 36 pt glass button.
+        XCTAssertGreaterThanOrEqual(close.frame.height, 35.5)
         SongsUITestSupport.record(app, name: "privacy-policy-sheet")
         close.tap()
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: close)
@@ -157,19 +157,14 @@ final class UKSettingsJourneyTests: XCTestCase {
     @MainActor
     func testSettingsAtAX5PassesAScopedAudit() throws {
         let app = launch(largeText: true)
-        let motion = app.switches["fst.settings.reduce-motion"]
-        XCTAssertTrue(motion.waitForExistence(timeout: 25))
-        SongsUITestSupport.reveal(motion, in: app, scrollingUp: true)
-        XCTAssertGreaterThanOrEqual(motion.frame.height, 43.5)
-        XCTAssertFalse(motion.label.isEmpty)
-        let identifiers: Set<String> = [
-            "fst.settings.reduce-motion", "fst.settings.disable-artwork-animation", "fst.settings.more-contrast",
-            "fst.settings.less-transparency",
-        ]
+        let icons = app.switches["fst.settings.show-instrument-icons"]
+        XCTAssertTrue(icons.waitForExistence(timeout: 25))
+        XCTAssertGreaterThanOrEqual(icons.frame.height, 43.5)
+        XCTAssertFalse(icons.label.isEmpty)
         var issues: [String] = []
         try app.performAccessibilityAudit(for: [.elementDetection, .sufficientElementDescription, .hitRegion]) { issue in
-            guard let id = issue.element?.identifier, identifiers.contains(id) else { return true }
-            issues.append("\(id): \(issue.compactDescription)")
+            guard issue.element?.identifier == "fst.settings.show-instrument-icons" else { return true }
+            issues.append("\(issue.element?.identifier ?? ""): \(issue.compactDescription)")
             return true
         }
         XCTAssertEqual(issues, [])

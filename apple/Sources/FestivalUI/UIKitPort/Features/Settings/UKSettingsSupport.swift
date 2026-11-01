@@ -98,28 +98,44 @@ class UKSettingsScrollPage: UIViewController, UKModalScrollProviding {
         column.spacing = Self.cardSpacing
         column.alignment = .fill
         column.translatesAutoresizingMaskIntoConstraints = false
-        let holder = UIView()
-        holder.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.addSubview(holder)
-        holder.addSubview(column)
-        let frame = scrollView.frameLayoutGuide
-        let content = scrollView.contentLayoutGuide
-        let fill = column.widthAnchor.constraint(equalTo: holder.widthAnchor, constant: -32)
-        fill.priority = UILayoutPriority(999)
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.topAnchor.constraint(equalTo: view.topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            holder.leadingAnchor.constraint(equalTo: content.leadingAnchor),
-            holder.trailingAnchor.constraint(equalTo: content.trailingAnchor),
-            holder.topAnchor.constraint(equalTo: content.topAnchor),
-            holder.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+        ])
+        Self.install(column, in: scrollView, side: 16, top: 8, bottom: 32)
+    }
+
+    /// Places `content` in `scrollView` as one centred column: `side` from each edge, at most
+    /// ``columnWidth`` wide, the content guide as wide as the frame.
+    ///
+    /// - Parameters:
+    ///   - content: The column.
+    ///   - scrollView: The scroll view.
+    ///   - side: Distance from the left and right edges.
+    ///   - top: Distance below the top.
+    ///   - bottom: Distance above the bottom.
+    static func install(_ content: UIView, in scrollView: UIScrollView, side: CGFloat, top: CGFloat, bottom: CGFloat) {
+        content.translatesAutoresizingMaskIntoConstraints = false
+        let holder = UIView()
+        holder.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.addSubview(holder)
+        holder.addSubview(content)
+        let frame = scrollView.frameLayoutGuide
+        let guide = scrollView.contentLayoutGuide
+        let fill = content.widthAnchor.constraint(equalTo: holder.widthAnchor, constant: -2 * side)
+        fill.priority = UILayoutPriority(999)
+        NSLayoutConstraint.activate([
+            holder.leadingAnchor.constraint(equalTo: guide.leadingAnchor),
+            holder.trailingAnchor.constraint(equalTo: guide.trailingAnchor),
+            holder.topAnchor.constraint(equalTo: guide.topAnchor),
+            holder.bottomAnchor.constraint(equalTo: guide.bottomAnchor),
             holder.widthAnchor.constraint(equalTo: frame.widthAnchor),
-            column.topAnchor.constraint(equalTo: holder.topAnchor, constant: 8),
-            column.bottomAnchor.constraint(equalTo: holder.bottomAnchor, constant: -32),
-            column.centerXAnchor.constraint(equalTo: holder.centerXAnchor),
-            column.widthAnchor.constraint(lessThanOrEqualToConstant: Self.columnWidth),
+            content.topAnchor.constraint(equalTo: holder.topAnchor, constant: top),
+            content.bottomAnchor.constraint(equalTo: holder.bottomAnchor, constant: -bottom),
+            content.centerXAnchor.constraint(equalTo: holder.centerXAnchor),
+            content.widthAnchor.constraint(lessThanOrEqualToConstant: columnWidth),
             fill,
         ])
     }
@@ -210,7 +226,7 @@ final class UKSettingLabel: UIStackView {
 /// that follows it.
 @MainActor
 final class UKSettingsToggleRow: UIView, UIGestureRecognizerDelegate {
-    private let switchView = UISwitch()
+    private let switchView = UKSettingsRowSwitch()
     private let content = UKSettingLabel("")
     private let titleText: String
     private let detailText: String?
@@ -263,7 +279,7 @@ final class UKSettingsToggleRow: UIView, UIGestureRecognizerDelegate {
         row.translatesAutoresizingMaskIntoConstraints = false
         switchView.setContentHuggingPriority(.required, for: .horizontal)
         switchView.setContentCompressionResistancePriority(.required, for: .horizontal)
-        switchView.isAccessibilityElement = false
+        switchView.rowView = self
         switchView.addAction(UIAction { [weak self] _ in self?.switchFlipped() }, for: .valueChanged)
         addSubview(row)
         NSLayoutConstraint.activate([
@@ -274,10 +290,11 @@ final class UKSettingsToggleRow: UIView, UIGestureRecognizerDelegate {
         let tap = UITapGestureRecognizer(target: self, action: #selector(rowTapped))
         tap.delegate = self
         addGestureRecognizer(tap)
-        isAccessibilityElement = true
-        accessibilityIdentifier = identifier
-        accessibilityHint = hint
-        accessibilityTraits = .toggleButton
+        isAccessibilityElement = false
+        accessibilityElements = [switchView]
+        switchView.isAccessibilityElement = true
+        switchView.accessibilityIdentifier = identifier
+        switchView.accessibilityHint = hint
         sync()
     }
 
@@ -308,16 +325,23 @@ final class UKSettingsToggleRow: UIView, UIGestureRecognizerDelegate {
         !(touch.view is UISwitch)
     }
 
-    override func accessibilityActivate() -> Bool {
-        guard isRowEnabled else { return false }
-        rowTapped()
-        return true
-    }
-
     private func updateAccessibility() {
-        accessibilityLabel = titleText
-        accessibilityValue = switchView.isOn ? "1" : "0"
-        accessibilityTraits = isRowEnabled ? .toggleButton : [.toggleButton, .notEnabled]
+        switchView.accessibilityLabel = titleText
+    }
+}
+
+/// The system switch as the row's accessibility element: it keeps the switch role and the
+/// `1` / `0` value, and its frame is the whole row (the row is the touch target).
+@MainActor
+final class UKSettingsRowSwitch: UISwitch {
+    weak var rowView: UIView?
+
+    override var accessibilityFrame: CGRect {
+        get {
+            guard let rowView else { return super.accessibilityFrame }
+            return UIAccessibility.convertToScreenCoordinates(rowView.bounds, in: rowView)
+        }
+        set { super.accessibilityFrame = newValue }
     }
 }
 

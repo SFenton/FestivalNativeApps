@@ -88,6 +88,7 @@ final class UKFirstRunCarouselViewController: UIViewController, UIScrollViewDele
         dots.isHidden = slides.count <= 1
         dots.onSelect = { [weak self] position in self?.go(to: position) }
         primary.addAction(UIAction { [weak self] _ in self?.primaryTapped() }, for: .touchUpInside)
+        primary.heightAnchor.constraint(greaterThanOrEqualToConstant: 50).isActive = true
         var skipConfig = UIButton.Configuration.plain()
         skipConfig.title = "Skip"
         skipConfig.baseForegroundColor = UKAccentText.blue

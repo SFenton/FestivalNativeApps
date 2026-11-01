@@ -5,6 +5,30 @@ import UIKit
 
 // MARK: - Privacy policy
 
+/// The policy column: routes a tap to the link under the finger. The labels themselves take no
+/// touches, so each paragraph stays plain static text.
+@MainActor
+final class UKPolicyColumn: UIStackView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped(_:))))
+    }
+
+    @available(*, unavailable)
+    required init(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
+        func walk(_ view: UIView) {
+            if let label = view as? UKLinkLabel, !label.links.isEmpty {
+                let point = recognizer.location(in: label)
+                if label.bounds.contains(point) { label.openLink(at: point) }
+            }
+            view.subviews.forEach(walk)
+        }
+        walk(self)
+    }
+}
+
 /// The policy's effective date and sections (``PrivacyPolicyContent``), shared by the Privacy
 /// Policy sheet and the list/detail Settings' inline pane. The caller scrolls and pads it.
 @MainActor
@@ -14,7 +38,7 @@ enum UKPrivacyPolicyContent {
     /// - Parameter policy: The policy to show.
     /// - Returns: A vertical stack of the date and sections.
     static func make(policy: PrivacyPolicy = .current) -> UIStackView {
-        let column = UIStackView()
+        let column = UKPolicyColumn()
         column.axis = .vertical
         column.spacing = 24
         column.alignment = .fill
@@ -57,32 +81,61 @@ enum UKPrivacyPolicyContent {
         return column
     }
 
-    private static func textView(_ text: AttributedString) -> UITextView {
-        let view = UITextView()
-        view.isEditable = false
-        view.isScrollEnabled = false
-        view.isSelectable = true
-        view.backgroundColor = .clear
-        view.textContainerInset = .zero
-        view.textContainer.lineFragmentPadding = 0
-        view.adjustsFontForContentSizeCategory = true
-        view.linkTextAttributes = [.foregroundColor: BrandUIColors.accentBlue]
-        view.tintColor = BrandUIColors.accentBlue
-        view.translatesAutoresizingMaskIntoConstraints = false
+    private static func textView(_ text: AttributedString) -> UILabel {
+        let label = UKLinkLabel()
         let body = UKFont.font(.body)
         let bold = UKFont.font(.body, weight: .bold)
         let result = NSMutableAttributedString()
+        var links: [(NSRange, URL)] = []
         for run in text.runs {
             let piece = NSMutableAttributedString(string: String(text[run.range].characters))
             let strong = run.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
-            piece.addAttributes([
-                .font: strong ? bold : body, .foregroundColor: BrandUIColors.textPrimary,
-            ], range: NSRange(location: 0, length: piece.length))
-            if let link = run.link { piece.addAttribute(.link, value: link, range: NSRange(location: 0, length: piece.length)) }
+            let whole = NSRange(location: 0, length: piece.length)
+            piece.addAttributes([.font: strong ? bold : body, .foregroundColor: BrandUIColors.textPrimary], range: whole)
+            if let link = run.link {
+                piece.addAttributes([.foregroundColor: BrandUIColors.accentBlue, .underlineStyle: NSUnderlineStyle.single.rawValue], range: whole)
+                links.append((NSRange(location: result.length, length: piece.length), link))
+            }
             result.append(piece)
         }
-        view.attributedText = result
-        return view
+        label.attributedText = result
+        label.links = links
+        return label
+    }
+}
+
+/// A wrapping label whose links open when tapped: static text to accessibility (the policy's
+/// paragraphs read as text), with the link under the finger found by layout.
+@MainActor
+final class UKLinkLabel: UILabel {
+    /// The tappable ranges. Kept apart from the text so the label stays plain static text.
+    var links: [(NSRange, URL)] = []
+
+    init() {
+        super.init(frame: .zero)
+        numberOfLines = 0
+        adjustsFontForContentSizeCategory = true
+        translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// Opens the link at a point of the label, if there is one.
+    ///
+    /// - Parameter point: In the label's coordinates.
+    func openLink(at point: CGPoint) {
+        guard let attributed = attributedText, attributed.length > 0 else { return }
+        let storage = NSTextStorage(attributedString: attributed)
+        let layout = NSLayoutManager()
+        let container = NSTextContainer(size: bounds.size)
+        container.lineFragmentPadding = 0
+        container.lineBreakMode = lineBreakMode
+        layout.addTextContainer(container)
+        storage.addLayoutManager(layout)
+        let index = layout.characterIndex(for: point, in: container, fractionOfDistanceBetweenInsertionPoints: nil)
+        guard let link = links.first(where: { NSLocationInRange(index, $0.0) })?.1 else { return }
+        UIApplication.shared.open(link)
     }
 }
 
@@ -112,22 +165,16 @@ final class UKPrivacyPolicyViewController: UIViewController, UKModalScrollProvid
         scrollView.accessibilityIdentifier = "fst.privacy-policy.content"
         view.addSubview(scrollView)
         let content = UKPrivacyPolicyContent.make(policy: policy)
-        scrollView.addSubview(content)
-        let frame = scrollView.frameLayoutGuide
-        let guide = scrollView.contentLayoutGuide
-        let fill = content.widthAnchor.constraint(equalTo: guide.widthAnchor, constant: -40)
-        fill.priority = .defaultHigh
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor), scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.topAnchor.constraint(equalTo: view.topAnchor), scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            content.topAnchor.constraint(equalTo: guide.topAnchor, constant: 8),
-            content.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -32),
-            content.centerXAnchor.constraint(equalTo: guide.centerXAnchor),
-            content.widthAnchor.constraint(lessThanOrEqualToConstant: 680),
-            guide.widthAnchor.constraint(equalTo: frame.widthAnchor),
-            content.leadingAnchor.constraint(greaterThanOrEqualTo: guide.leadingAnchor, constant: 20),
-            fill,
         ])
+        UKSettingsScrollPage.install(content, in: scrollView, side: 20, top: 8, bottom: 32)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if UKSettingsScrollPage.remeasureLabels(in: scrollView) { scrollView.setNeedsLayout() }
     }
 
     /// Presents the policy as a large sheet.

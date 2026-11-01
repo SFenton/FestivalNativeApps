@@ -135,6 +135,7 @@ final class UKWhatsNewViewController: UIViewController, UKModalScrollProviding {
         for item in section.items {
             let dot = UKLabel("\u{2022}", style: .body)
             dot.isAccessibilityElement = false
+            dot.accessibilityElementsHidden = true
             dot.setContentHuggingPriority(.required, for: .horizontal)
             let text = UKLabel(item, style: .subheadline)
             let row = UIStackView(arrangedSubviews: [dot, text])
