@@ -44,7 +44,9 @@ final class UKFloatingPageToolsView: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        stack.arrangedSubviews.contains { $0.frame.insetBy(dx: -4, dy: -4).contains(point) } && !isHidden && alpha > 0
+        // Button frames are in the stack's coordinates, which sit inset in this view.
+        stack.arrangedSubviews.contains { stack.convert($0.frame, to: self).insetBy(dx: -4, dy: -4).contains(point) }
+            && !isHidden && alpha > 0
     }
 
     /// Whether a window floats page tools (agent decision, issue #633).

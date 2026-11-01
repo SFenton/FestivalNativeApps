@@ -172,14 +172,10 @@ extension UKRootViewController: UKNavigating {
     func openDrawer() { openDrawer(animated: true) }
 
     func presentProfile() {
-        let page = UKProfileSelection.make(
-            session: session, layout: { [weak self] in self?.layout ?? .standardPhone }
-        ) { [weak self] route in self?.pendingSheetRoute = route }
-        presentSheet(page, detents: nil, onDismiss: { [weak self] in
-            guard let self, let route = self.pendingSheetRoute else { return }
-            self.pendingSheetRoute = nil
-            self.stacks[self.selected]?.push(route)
-        })
+        let session = session
+        presentRouteSheet(detents: nil) { open in
+            UKProfileSelection.make(session: session, layout: { [weak self] in self?.layout ?? .standardPhone }, open: open)
+        }
     }
 
     func selectDetail(_ route: AppRoute) { stacks[selected]?.select(route) }
@@ -193,12 +189,32 @@ extension UKRootViewController: UKNavigating {
     func openSearch() { perform(.openSearch) }
 
     func presentNotifications() {
-        let page = UKShellSheets.notifications(session) { [weak self] route in self?.pendingSheetRoute = route }
-        presentSheet(page, detents: [.large()], onDismiss: { [weak self] in
+        let session = session
+        presentRouteSheet(detents: [.large()]) { open in UKShellSheets.notifications(session, open) }
+    }
+
+    /// Presents a sheet that can choose a route, pushed on the selected tab once the sheet has
+    /// gone, however it was dismissed.
+    ///
+    /// - Parameters:
+    ///   - detents: Sheet detents; nil is the large sheet.
+    ///   - make: Builds the sheet from its route callback. The sheet calls it, then dismisses itself.
+    private func presentRouteSheet(
+        detents: [UISheetPresentationController.Detent]?,
+        make: (@escaping (AppRoute) -> Void) -> UIViewController
+    ) {
+        var hook: SheetDismissHook?
+        var sheet: UIViewController?
+        let page = make { [weak self] route in
+            self?.pendingSheetRoute = route
+            if let hook, let sheet { hook.followProgrammaticDismissal(of: sheet) }
+        }
+        hook = presentSheet(page, detents: detents, onDismiss: { [weak self] in
             guard let self, let route = self.pendingSheetRoute else { return }
             self.pendingSheetRoute = nil
             self.stacks[self.selected]?.push(route)
         })
+        sheet = page.navigationController ?? page
     }
 
     /// Presents a sheet over the window.
@@ -207,11 +223,12 @@ extension UKRootViewController: UKNavigating {
     ///   - controller: The sheet's root.
     ///   - detents: Sheet detents; nil is the large sheet (`festivalSheet()`).
     ///   - onDismiss: Runs once the sheet has gone.
+    @discardableResult
     func presentSheet(
         _ controller: UIViewController, detents: [UISheetPresentationController.Detent]?, onDismiss: (() -> Void)?
-    ) {
+    ) -> SheetDismissHook? {
         let top = presentedViewController ?? self
-        if top is UIAlertController { return }
+        if top is UIAlertController { return nil }
         let navigation = controller as? UINavigationController ?? UINavigationController(rootViewController: controller)
         navigation.modalPresentationStyle = .pageSheet
         navigation.overrideUserInterfaceStyle = .dark
@@ -224,17 +241,41 @@ extension UKRootViewController: UKNavigating {
         objc_setAssociatedObject(navigation, &sheetHookKey, delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         shellState.drawerPresented = shellState.drawerPresented
         top.present(navigation, animated: true)
+        return delegate
     }
 }
 
 nonisolated(unsafe) private var sheetHookKey: UInt8 = 0
 
-/// Runs a closure after a sheet is dismissed by a swipe or the close button.
+/// Runs a closure once after a sheet is dismissed: by a swipe, or by the sheet itself.
 @MainActor
 final class SheetDismissHook: NSObject, UIAdaptivePresentationControllerDelegate {
     private let onDismiss: (() -> Void)?
+    private var fired = false
     init(onDismiss: (() -> Void)?) { self.onDismiss = onDismiss }
-    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) { onDismiss?() }
+
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) { fire() }
+
+    /// Follow a dismissal the sheet starts itself (after choosing a route), which never reaches
+    /// `presentationControllerDidDismiss`: runs once its transition completes.
+    ///
+    /// - Parameter sheet: The presented controller, about to call `dismiss(animated:)`.
+    func followProgrammaticDismissal(of sheet: UIViewController) {
+        // The sheet calls dismiss right after choosing: look on the next turn.
+        DispatchQueue.main.async { [weak self, weak sheet] in
+            guard let self else { return }
+            guard let sheet, sheet.presentingViewController != nil else { return fire() }
+            sheet.transitionCoordinator?.animate(alongsideTransition: nil) { [weak self] context in
+                if !context.isCancelled { self?.fire() }
+            }
+        }
+    }
+
+    private func fire() {
+        guard !fired else { return }
+        fired = true
+        onDismiss?()
+    }
 }
 
 // MARK: - Section stack host
