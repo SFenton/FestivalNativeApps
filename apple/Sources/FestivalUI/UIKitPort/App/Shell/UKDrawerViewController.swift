@@ -183,6 +183,8 @@ final class UKDrawerViewController: UIViewController {
         header.frame = .zero
         let top = placement.contentTop
         let bottom = placement.contentBottom
+        // The placement's insets already clear the status bar and home indicator.
+        content.insetsLayoutMarginsFromSafeArea = false
         content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: top, leading: inset, bottom: bottom, trailing: inset)
         focusAnchor.frame = content.bounds
         // Layout passes come often: move the footer only when its placement changed.
@@ -221,8 +223,12 @@ final class UKDrawerViewController: UIViewController {
         closeButton.accessibilityIdentifier = "fst.shell.drawer.close"
         closeButton.addAction(UIAction { [weak self] _ in self?.onClose() }, for: .touchUpInside)
         closeButton.setContentHuggingPriority(.required, for: .horizontal)
-        closeButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-        closeButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        // A fixed 44 pt target at every size, as SwiftUI's `.frame(width: 44, height: 44)`: a
+        // growing button squeezed the title column at AX5.
+        configuration.contentInsets = .zero
+        closeButton.configuration = configuration
+        closeButton.widthAnchor.constraint(equalToConstant: 44).isActive = true
+        closeButton.heightAnchor.constraint(equalToConstant: 44).isActive = true
 
         header.axis = .horizontal
         header.alignment = .center
@@ -471,6 +477,19 @@ final class UKDrawerViewController: UIViewController {
 
     /// Runs the open sequence (scrim, then panel).
     func animateIn() {
+        run(to: 1)
+    }
+
+    /// Whether the panel is sliding shut (closed, still on screen).
+    var isClosing: Bool { !isPresented }
+
+    /// Reverses a close in progress: the panel slides back open from where it is.
+    func reopen() {
+        guard !isPresented else { return }
+        isPresented = true
+        view.isUserInteractionEnabled = true
+        content.accessibilityViewIsModal = true
+        view.accessibilityElementsHidden = false
         run(to: 1)
     }
 

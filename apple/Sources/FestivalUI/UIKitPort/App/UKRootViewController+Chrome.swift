@@ -148,7 +148,15 @@ extension UKRootViewController {
     ///
     /// - Parameter animated: Whether the open sequence runs.
     func openDrawer(animated: Bool) {
-        guard drawer == nil else { return }
+        if let closing = drawer {
+            // Tapped again while it slides shut: reverse the close, as SwiftUI's drawer does.
+            guard closing.isClosing else { return }
+            closing.reopen()
+            shellState.drawerPresented = true
+            tabs.view.accessibilityElementsHidden = true
+            edgeSwipe?.isEnabled = false
+            return
+        }
         let flyout = presentation.navigation == .flyout
         let reduce = UIAccessibility.isReduceMotionEnabled || UKSettings.bool("fst.accessibility.reduceMotion", default: false)
         let panel = UKDrawerViewController(
