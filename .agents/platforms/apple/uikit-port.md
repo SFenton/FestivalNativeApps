@@ -18,6 +18,9 @@ macOS is sidelined for the port (owner, 2026-10-31): `FestivalDesktop` keeps bui
 - **Launch.** `FestivalLaunch.resolve()` (`App/FestivalLaunch.swift`) owns the process session and the `FST_DEBUG_*` launch overrides for both roots; `FestivalLaunchResets` the `FST_UI_TEST_RESET_*` resets.
 - **Service rules are unchanged** (AGENTS.md, [service-safety.md](../service-safety.md)): the port calls the same `FestivalSession` / `FestivalAPI` methods, never a new endpoint.
 - **Identifiers and labels are identical.** Every `accessibilityIdentifier`, label, value, hint and trait the SwiftUI view sets is set on the UIKit view, in the same reading order. The SwiftUI app's XCUITest journeys run unchanged against the port (`FestivalMobileUIKitUITests`, `FestivalMobileUIKitIPadUITests`) and are the parity check.
+- **Element types match too.** A `UICollectionViewListCell` reads as `Cell`, not `Button`, even with the button trait: a tappable row puts its one stop on a `UKRowAccessibilityView` (`Common/UKRowAccessibilityView.swift`) over the card and sets `cell.accessibilityElements = [proxy]`, as Songs and search rows do.
+- **Custom controls fire on `.touchUpInside`.** UIKit sends `.primaryActionTriggered` only from `UIButton` and other system controls, never from a plain `UIControl` subclass, so a row control listening for it does nothing when tapped (the 2026-11-01 View All, ranking and rival row failures).
+- **Sheets dismiss from their presenter.** While a sheet's search field is active its page is presenting the `UISearchController`, so `page.dismiss(animated:)` closes only the search: dismiss through `navigationController?.presentingViewController`.
 
 ## Seams (orchestrator-owned)
 

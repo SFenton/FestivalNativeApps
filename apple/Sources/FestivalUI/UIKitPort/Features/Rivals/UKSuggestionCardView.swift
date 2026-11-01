@@ -196,7 +196,7 @@ final class UKSuggestionSongRowView: UIControl {
         accessibilityTraits = .button
         isAccessibilityElement = true
         heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
-        addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .primaryActionTriggered)
+        addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .touchUpInside)
         rebuild()
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self, UITraitHorizontalSizeClass.self]) { (self: UKSuggestionSongRowView, _) in
             self.rebuild()

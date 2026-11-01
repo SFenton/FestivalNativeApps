@@ -345,6 +345,49 @@ final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdat
             break
         }
         cell.contentConfiguration = content
+        exposeResultAsButton(cell, item: item)
+    }
+
+    private static let buttonTag = 4402
+
+    /// Result rows read as one button stop over the whole card, as the SwiftUI rows do: a
+    /// list cell itself reads as `Cell` even with the button trait (``UKRowAccessibilityView``).
+    ///
+    /// - Parameters:
+    ///   - cell: The configured cell, carrying the row's label, hint and identifier.
+    ///   - item: The row.
+    private func exposeResultAsButton(_ cell: UICollectionViewListCell, item: Item) {
+        let isResult: Bool
+        switch item {
+        case .song, .player, .band: isResult = true
+        default: isResult = false
+        }
+        let existing = cell.contentView.viewWithTag(Self.buttonTag) as? UKRowAccessibilityView
+        guard isResult else {
+            existing?.isAccessibilityElement = false
+            cell.accessibilityElements = nil
+            return
+        }
+        let proxy = existing ?? {
+            let view = UKRowAccessibilityView()
+            view.tag = Self.buttonTag
+            view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            cell.contentView.addSubview(view)
+            return view
+        }()
+        proxy.set(
+            identifier: cell.accessibilityIdentifier ?? "", label: cell.accessibilityLabel ?? "",
+            traits: .button, frame: cell.contentView.bounds
+        )
+        proxy.accessibilityHint = cell.accessibilityHint
+        proxy.onActivate = { [weak self, weak cell] in
+            guard let self, let cell, let path = collection.indexPath(for: cell) else { return }
+            collectionView(collection, didSelectItemAt: path)
+        }
+        cell.isAccessibilityElement = false
+        cell.accessibilityIdentifier = nil
+        cell.accessibilityHint = nil
+        cell.accessibilityElements = [proxy]
     }
 
     func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
@@ -391,15 +434,26 @@ final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdat
             state.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(state)
         }
+        // The status states centre in the free area between the scope bar and the keyboard
+        // (less the iPhone Search tab's field, which floats just above it), as SwiftUI does.
+        let region = UILayoutGuide()
+        view.addLayoutGuide(region)
+        let fieldAllowance: CGFloat = asTab && traitCollection.userInterfaceIdiom == .phone ? 60 : 0
+        let fill = region.bottomAnchor.constraint(equalTo: collection.bottomAnchor)
+        fill.priority = .defaultHigh
         NSLayoutConstraint.activate([
+            region.topAnchor.constraint(equalTo: scopeControl.bottomAnchor),
+            region.bottomAnchor.constraint(lessThanOrEqualTo: collection.bottomAnchor),
+            region.bottomAnchor.constraint(lessThanOrEqualTo: view.keyboardLayoutGuide.topAnchor, constant: -fieldAllowance),
+            fill,
             hint.centerXAnchor.constraint(equalTo: collection.centerXAnchor),
-            hint.centerYAnchor.constraint(equalTo: collection.centerYAnchor),
+            hint.centerYAnchor.constraint(equalTo: region.centerYAnchor),
             hint.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
             hint.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24),
             spinner.centerXAnchor.constraint(equalTo: collection.centerXAnchor),
-            spinner.centerYAnchor.constraint(equalTo: collection.centerYAnchor),
-            emptyState.topAnchor.constraint(equalTo: collection.topAnchor),
-            emptyState.bottomAnchor.constraint(equalTo: collection.bottomAnchor),
+            spinner.centerYAnchor.constraint(equalTo: region.centerYAnchor),
+            emptyState.topAnchor.constraint(equalTo: region.topAnchor),
+            emptyState.bottomAnchor.constraint(equalTo: region.bottomAnchor),
             emptyState.leadingAnchor.constraint(equalTo: collection.leadingAnchor),
             emptyState.trailingAnchor.constraint(equalTo: collection.trailingAnchor),
         ])
