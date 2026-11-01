@@ -330,6 +330,10 @@ final class UKPlayerBandsPreviewSectionView: UIView, UKWidthDependent {
             guard let self else { return }
             self.navigate(.playerBands(accountId: self.accountId, displayName: self.routeDisplayName ?? self.displayName, group: .all))
         }
+        // At accessibility sizes the title wraps in the room View All leaves it.
+        viewAll.setContentHuggingPriority(.required, for: .horizontal)
+        viewAll.setContentCompressionResistancePriority(.required, for: .horizontal)
+        title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let row = UIStackView(arrangedSubviews: [title, viewAll])
         row.axis = .horizontal
         row.alignment = .center

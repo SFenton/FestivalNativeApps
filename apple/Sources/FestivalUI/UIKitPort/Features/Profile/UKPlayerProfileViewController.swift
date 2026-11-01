@@ -454,18 +454,10 @@ class UKPlayerProfileViewController: UKProfileScrollViewController {
     /// Selection-pause notice and Select/Switch error, in one card shown only while either
     /// applies. The page title already names the player, so there is no avatar or name here.
     private func noticesCard(_ notice: PlayerProfileIdentityNotice?) -> UIView {
-        let section = UKGroupSectionView()
+        let section = UKGroupSectionView(rows: .flush(separatorInset: 16))
         var rows: [UIView] = []
-        if let notice {
-            let label = UKLabel(notice.message, style: .footnote, color: BrandUIColors.gold)
-            label.accessibilityIdentifier = notice.accessibilityIdentifier
-            rows.append(label)
-        }
-        if let actionError {
-            let label = UKLabel(actionError, style: .footnote, color: BrandUIColors.gold)
-            label.accessibilityIdentifier = "fst.player.action-error"
-            rows.append(label)
-        }
+        if let notice { rows.append(UKProfileNoticeRow(text: notice.message, identifier: notice.accessibilityIdentifier)) }
+        if let actionError { rows.append(UKProfileNoticeRow(text: actionError, identifier: "fst.player.action-error")) }
         section.setRows(rows)
         return section
     }

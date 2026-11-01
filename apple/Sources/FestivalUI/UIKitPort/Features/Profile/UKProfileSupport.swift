@@ -140,6 +140,32 @@ final class UKProfileSection: UIStackView, UKWidthDependent {
     func prepare(width: CGFloat) { arrangedSubviews.forEach { $0.ukPrepare(width: width) } }
 }
 
+// MARK: - Notice row
+
+/// One gold footnote row of the notices card: the row is the accessibility element (its frame
+/// is the card row, the text column sits inside the 16 x 6 pt padding), spoken as its text.
+final class UKProfileNoticeRow: UIView {
+    /// Creates the row.
+    ///
+    /// - Parameters:
+    ///   - text: The message.
+    ///   - identifier: Accessibility identifier.
+    init(text: String, identifier: String) {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        let label = UKLabel(text, style: .footnote, color: BrandUIColors.gold)
+        ukPin(label, insets: UIEdgeInsets(top: 6, left: 16, bottom: 6, right: 16))
+        heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        isAccessibilityElement = true
+        accessibilityLabel = text
+        accessibilityTraits = .staticText
+        accessibilityIdentifier = identifier
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+}
+
 // MARK: - Width host
 
 /// A container that remembers the width it was prepared at and forwards it to its content:
