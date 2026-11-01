@@ -133,6 +133,8 @@ final class UKSongRowCell: UICollectionViewCell {
     private var songId = ""
     private var rowElement: UKSongRowElement?
     private var stops: [UKSongRowStop] = []
+    /// The row's accessibility stops, vended through the container protocol below.
+    private var exposedElements: [Any] = []
     nonisolated(unsafe) private var voiceOver: NSObjectProtocol?
     /// Opens the song (tap, VoiceOver activate).
     var onOpen: (() -> Void)?
@@ -320,7 +322,19 @@ final class UKSongRowCell: UICollectionViewCell {
             }
         }
         stops = next
-        accessibilityElements = elements
+        exposedElements = elements
+    }
+
+    // MARK: Accessibility container
+
+    override func accessibilityElementCount() -> Int { exposedElements.count }
+
+    override func accessibilityElement(at index: Int) -> Any? {
+        exposedElements.indices.contains(index) ? exposedElements[index] : nil
+    }
+
+    override func index(ofAccessibilityElement element: Any) -> Int {
+        exposedElements.firstIndex { ($0 as AnyObject) === (element as AnyObject) } ?? NSNotFound
     }
 
     // MARK: Taps

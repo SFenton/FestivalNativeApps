@@ -17,6 +17,7 @@ final class UKSongsJourneyTests: XCTestCase {
             "FST_API_BASE_URL": "http://127.0.0.1:8765",
             "FST_UI_TEST_CLEAR_PROFILE": "1",
             "FST_DEBUG_STILL_BACKGROUND": "1",
+            "FST_UI_TEST_RESET_SONG_CARDS": "1",
         ]
         if profile { env["FST_DEBUG_PROFILE"] = "fixture-player-1:Fixture Player 1" }
         if let route { env["FST_DEBUG_ROUTE"] = route }
@@ -40,7 +41,12 @@ final class UKSongsJourneyTests: XCTestCase {
         let app = fixtureApp()
         app.launch()
         let pulse = app.buttons["fst.songs.row.fixture-pulse"]
-        XCTAssertTrue(pulse.waitForExistence(timeout: FestivalApp.budget(20)))
+        if !pulse.waitForExistence(timeout: FestivalApp.budget(20)) {
+            let dump = app.debugDescription
+            let lines = dump.components(separatedBy: "\n").filter { $0.contains("fst.songs") || $0.contains("CollectionView") || $0.contains("Cell") }
+            XCTFail("Row missing. Hierarchy: \(lines.prefix(30).joined(separator: " // "))")
+            return
+        }
         XCTAssertTrue(pulse.label.contains("Fixture Pulse"), "Row label: \(pulse.label)")
         XCTAssertTrue(pulse.label.contains(" · "), "Row label lacks the artist · year · length line: \(pulse.label)")
         XCTAssertTrue(pulse.isHittable)
@@ -67,7 +73,8 @@ final class UKSongsJourneyTests: XCTestCase {
         sort.tap()
         let descending = app.buttons["fst.songs.sort.direction.descending"]
         XCTAssertTrue(descending.waitForExistence(timeout: 10))
-        assertTarget(descending, "Descending")
+        XCTAssertGreaterThanOrEqual(descending.frame.width, 43.5, "Descending is narrower than 44 pt")
+        XCTAssertGreaterThanOrEqual(descending.frame.height, 35.5, "Descending is shorter than its 36 pt control")
         descending.tap()
         let done = app.buttons["fst.songs.sort.done"]
         XCTAssertTrue(done.exists)

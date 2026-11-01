@@ -20,6 +20,7 @@ final class UKShopGridCell: UICollectionViewCell {
     private var highlight: ShopHighlight?
     private var element: UIAccessibilityElement?
     private var badgeStop: UIAccessibilityElement?
+    private var exposedElements: [Any] = []
     /// Opens the official Shop page.
     var onOpen: (() -> Void)?
 
@@ -155,7 +156,17 @@ final class UKShopGridCell: UICollectionViewCell {
             stop.accessibilityFrameInContainerSpace = badge.frame
             elements.append(stop)
         }
-        accessibilityElements = elements
+        exposedElements = elements
+    }
+
+    override func accessibilityElementCount() -> Int { exposedElements.count }
+
+    override func accessibilityElement(at index: Int) -> Any? {
+        exposedElements.indices.contains(index) ? exposedElements[index] : nil
+    }
+
+    override func index(ofAccessibilityElement element: Any) -> Int {
+        exposedElements.firstIndex { ($0 as AnyObject) === (element as AnyObject) } ?? NSNotFound
     }
 
     override func accessibilityActivate() -> Bool {
