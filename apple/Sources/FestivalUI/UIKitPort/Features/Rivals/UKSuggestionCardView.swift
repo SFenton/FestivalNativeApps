@@ -242,6 +242,7 @@ final class UKSuggestionSongRowView: UIControl {
         addSubview(root)
         root.ukPin(to: self)
         content = root
+        ukFlattenAccessibility()
         accessibilityLabel = ([item.song.title, subtitle] + spoken).filter { !$0.isEmpty }.joined(separator: ", ")
     }
 

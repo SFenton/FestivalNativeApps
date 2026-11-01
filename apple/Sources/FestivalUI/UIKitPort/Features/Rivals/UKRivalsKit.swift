@@ -211,6 +211,7 @@ final class UKRivalRowView: UIControl {
         accessibilityIdentifier = identifier
         addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .touchUpInside)
         applyPillAxis()
+        ukFlattenAccessibility()
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKRivalRowView, _) in self.applyPillAxis() }
     }
 
@@ -261,6 +262,7 @@ final class UKRivalSongRowView: UIControl {
         if let instrument = Instrument(rawValue: song.instrument) {
             leading.addArrangedSubview(UKInstrumentIconView(instrument, size: 22, hidesFromAccessibility: true))
         }
+        leading.widthAnchor.constraint(equalToConstant: Self.artSize).isActive = true
         let title = UKMarqueeLabel(song.title ?? song.songId, font: UKFont.font(.body, weight: .semibold))
         let column = UIStackView(arrangedSubviews: [title])
         column.axis = .vertical
@@ -299,6 +301,7 @@ final class UKRivalSongRowView: UIControl {
         accessibilityTraits = opensSong ? .button : .staticText
         isEnabled = opensSong
         addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .touchUpInside)
+        ukFlattenAccessibility()
     }
 
     @available(*, unavailable)
@@ -379,6 +382,15 @@ final class UKInstrumentSectionHeaderView: UIView {
 // MARK: - Layout helpers
 
 extension UIView {
+    /// Makes every descendant a non-element, so a row that speaks one combined label leaves
+    /// its inner labels and marquees out of the accessibility tree (and out of the audit).
+    func ukFlattenAccessibility() {
+        for child in subviews {
+            child.isAccessibilityElement = false
+            child.ukFlattenAccessibility()
+        }
+    }
+
     /// This view inside a holder with side padding, for stacking cards in a page column.
     ///
     /// - Parameter horizontal: Leading and trailing padding.
