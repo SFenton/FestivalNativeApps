@@ -242,6 +242,7 @@ final class UKSongRowCell: UICollectionViewCell {
         }
         contrastRim.frame = card.bounds
         pulse.frame = card.bounds
+        row.layoutIfNeeded()
         rebuildAccessibility()
     }
 

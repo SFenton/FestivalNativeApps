@@ -63,6 +63,10 @@ final class UKSongsViewController: UIViewController, UICollectionViewDelegate, U
     var visibleInstruments: Set<Instrument>
     var shownRevision: Int
     var refreshing = false
+    /// A publication refresh has run, so the page anchor (focus target) exists.
+    var hasRefreshed = false
+    let refreshAnchor = UIView()
+    let refreshMarker = UIView()
     var isVisible = false
     var presented = Presented.loading
     var visibleSongs: [Song] = []
@@ -161,6 +165,11 @@ final class UKSongsViewController: UIViewController, UICollectionViewDelegate, U
         collectionView.frame = bottomContainer.bounds
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         edgeFade = UKPinnedHeaderEdgeFade(maskedView: listContainer)
+        for proxy in [refreshAnchor, refreshMarker] {
+            proxy.isUserInteractionEnabled = false
+            proxy.frame = CGRect(x: 0, y: 0, width: 44, height: 44)
+            view.addSubview(proxy)
+        }
         view.addSubview(barBlocker)
         view.addSubview(sectionBar)
         view.addSubview(indexView)
@@ -387,13 +396,34 @@ final class UKSongsViewController: UIViewController, UICollectionViewDelegate, U
         let revision = session.publicationRevision
         guard revision != shownRevision, !refreshing else { return }
         refreshing = true
+        hasRefreshed = true
+        recompute()
         Task { @MainActor [weak self] in
             guard let self else { return }
+            let started = ContinuousClock.now
             await self.reloadCatalogue(publicationRefresh: true)
+            // The spinner holds at least as long as the SwiftUI boundary's fade, hold and fade.
+            let remaining = Duration.milliseconds(1200) - (ContinuousClock.now - started)
+            if remaining > .zero { try? await Task.sleep(for: remaining) }
             self.shownRevision = self.session.publicationRevision
             self.refreshing = false
             self.recompute()
         }
+    }
+
+    /// The invisible heading VoiceOver focus rests on during and after a refresh
+    /// (`fst.publication.page-anchor`, "Loading new scores" while it runs) and the spinner's marker.
+    func updateRefreshAnchor() {
+        let forced = ProcessInfo.processInfo.environment["FST_UI_TEST_PAGE_ANCHOR"] == "inside"
+        let shows = hasRefreshed && (forced || UIAccessibility.isVoiceOverRunning)
+        refreshAnchor.isAccessibilityElement = shows
+        refreshAnchor.accessibilityIdentifier = "fst.publication.page-anchor"
+        refreshAnchor.accessibilityLabel = "Songs"
+        refreshAnchor.accessibilityTraits = .header
+        refreshAnchor.accessibilityValue = refreshing ? "Loading new scores" : nil
+        refreshMarker.isAccessibilityElement = refreshing
+        refreshMarker.accessibilityIdentifier = "fst.publication.refreshing"
+        refreshMarker.accessibilityLabel = "Loading new scores"
     }
 
     /// Refreshes the public catalogue, preserving the last-viewed process cache.
