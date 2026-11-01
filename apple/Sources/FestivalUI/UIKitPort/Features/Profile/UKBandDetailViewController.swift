@@ -405,6 +405,7 @@ final class UKBandDetailViewController: UKProfileScrollViewController {
             return action
         }
         let item = UIBarButtonItem(title: current.label, image: UIImage(systemName: "arrow.up.arrow.down"), menu: UIMenu(title: "Rank By", options: .singleSelection, children: actions))
+        item.preferredMenuElementOrder = .fixed
         item.tintColor = BrandUIColors.textPrimary
         item.accessibilityLabel = current.label
         item.accessibilityIdentifier = "fst.band-rankings.rank-by-menu"

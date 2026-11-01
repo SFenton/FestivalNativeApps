@@ -374,7 +374,7 @@ final class UKRankHistoryChartView: UIView, UKWidthDependent {
     private let summary = UIStackView()
     private let legend = UIView()
     private let pager = UIStackView()
-    private let rangeLabel = UKLabel(style: .footnote, monospacedDigit: true, lines: 1, alignment: .center)
+    private let rangeLabel = UKLabel(style: .footnote, monospacedDigit: true, lines: 0, alignment: .center)
     private var buttons: [UKRoundGlyphButton] = []
     private var chartWidth: CGFloat
     private var start: Int?
