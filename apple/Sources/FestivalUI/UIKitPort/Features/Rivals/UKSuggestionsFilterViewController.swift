@@ -3,6 +3,23 @@ import FestivalCore
 import FestivalDesign
 import UIKit
 
+// MARK: - Row switch
+
+/// A switch whose accessibility frame is its whole row, and that the row's tap flips.
+private final class UKRowSwitch: UISwitch {
+    weak var row: UIView?
+
+    override var accessibilityFrame: CGRect {
+        get { row.map { UIAccessibility.convertToScreenCoordinates($0.bounds, in: $0) } ?? super.accessibilityFrame }
+        set { super.accessibilityFrame = newValue }
+    }
+
+    @objc func flip() {
+        setOn(!isOn, animated: true)
+        sendActions(for: .valueChanged)
+    }
+}
+
 // MARK: - Filter sheet
 
 /// The live Suggestions filter (``SuggestionsFilterSheet``): per-instrument visibility, a
@@ -185,7 +202,7 @@ final class UKSuggestionsFilterViewController: UIViewController, UKModalScrollPr
         title: String, detail: String? = nil, identifier: String, icon: Instrument? = nil,
         isOn: @escaping () -> Bool, onToggle: @escaping (Bool) -> Void
     ) -> UIView {
-        let toggle = UISwitch()
+        let toggle = UKRowSwitch()
         toggle.isOn = isOn()
         toggle.accessibilityLabel = title
         toggle.accessibilityIdentifier = identifier
@@ -208,6 +225,9 @@ final class UKSuggestionsFilterViewController: UIViewController, UKModalScrollPr
         row.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16)
         row.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         toggle.setContentHuggingPriority(.required, for: .horizontal)
+        // The whole row is the switch's target, as a SwiftUI `Toggle` row is.
+        toggle.row = row
+        row.addGestureRecognizer(UITapGestureRecognizer(target: toggle, action: #selector(UKRowSwitch.flip)))
         return row
     }
 }
