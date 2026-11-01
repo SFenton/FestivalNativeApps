@@ -12,12 +12,12 @@ import UIKit
 /// navigation-bar items. The row hides while Search or a root sheet covers the page, and
 /// fades its tools with ``FloatingPageToolsMotion``.
 ///
-/// A tool's menu opens inline from its circle (a deliberate simplification of the
-/// SwiftUI compact sheet: UIKit menus open from a button reliably).
+/// A tool with a ``UKPageToolSheet`` (Quick Links) opens that compact sheet, as the SwiftUI
+/// floating tool does; any other tool's menu opens inline from its circle.
 @MainActor
 final class UKFloatingPageToolsView: UIView {
     private let stack = UIStackView()
-    private var shownIDs: [ObjectIdentifier] = []
+    private var shownIDs: [String] = []
     private var revealedScopes = Set<ObjectIdentifier>()
 
     /// Creates the row.
@@ -69,13 +69,16 @@ final class UKFloatingPageToolsView: UIView {
         let reduce = UIAccessibility.isReduceMotionEnabled || UKSettings.bool("fst.accessibility.reduceMotion", default: false)
         let revealed = scope.map { revealedScopes.contains(ObjectIdentifier($0)) } ?? true
         let motion = FloatingPageToolsMotion.resolve(reduceMotion: reduce, revealed: revealed)
-        let ids = tools.map { ObjectIdentifier($0.item) }
+        // Pages build fresh bar items each time they are asked, so a tool is matched by its
+        // identifier and kind, not its object: an equal row updates in place, which keeps an open
+        // menu open (rebuilding the buttons closed it, the Full Rankings instrument switch).
+        let ids = tools.map(Self.key(for:))
         if ids != shownIDs {
             shownIDs = ids
             let old = stack.arrangedSubviews
             old.forEach { $0.removeFromSuperview() }
             for (index, tool) in tools.enumerated() {
-                let button = Self.button(for: tool.item)
+                let button = Self.button(for: tool, presenter: { [weak self] in self?.presenter() })
                 stack.addArrangedSubview(button)
                 switch motion {
                 case .none: break
@@ -100,9 +103,13 @@ final class UKFloatingPageToolsView: UIView {
             // Links' active section, a menu's checked choice).
             for (view, tool) in zip(stack.arrangedSubviews, tools) {
                 guard let button = view as? UIButton else { continue }
-                button.accessibilityValue = tool.item.accessibilityValue
-                button.menu = tool.item.menu
+                Self.refresh(button, from: tool.item)
             }
+        }
+        // A tool keeps its button while its state changes (Quick Links names the current section).
+        for (view, tool) in zip(stack.arrangedSubviews, tools) {
+            view.accessibilityValue = tool.item.accessibilityValue
+            view.accessibilityLabel = tool.item.accessibilityLabel ?? tool.item.title
         }
         isHidden = tools.isEmpty
         let target: CGFloat = covered ? 0 : 1
@@ -115,8 +122,53 @@ final class UKFloatingPageToolsView: UIView {
         accessibilityElementsHidden = covered || tools.isEmpty
     }
 
+    /// A tool's identity across rebuilt bar items: its identifier and whether it opens a
+    /// sheet or a menu. (A sheet reads its choices when it opens, so a kept button stays current.)
+    private static func key(for tool: UKPageTool) -> String {
+        let id = tool.item.accessibilityIdentifier ?? "\(ObjectIdentifier(tool.item).hashValue)"
+        return "\(id)#\(tool.sheet != nil)#\(tool.item.menu != nil)"
+    }
+
+    /// Carry a rebuilt item's look, spoken name and value, and menu onto its existing button.
+    /// The menu is replaced only when its rows changed: swapping an equal menu while it opens
+    /// crashed the context menu's row list (Full Rankings' instrument menu).
+    private static func refresh(_ button: UIButton, from item: UIBarButtonItem) {
+        if button.configuration?.image !== item.image { button.configuration?.image = item.image }
+        button.accessibilityLabel = item.accessibilityLabel ?? item.title
+        button.accessibilityValue = item.accessibilityValue
+        button.accessibilityHint = item.accessibilityHint
+        button.largeContentTitle = item.accessibilityLabel ?? item.title
+        button.largeContentImage = item.image
+        guard let menu = item.menu, let current = button.menu else { return }
+        if signature(of: current) != signature(of: menu) { button.menu = menu }
+        button.preferredMenuElementOrder = item.preferredMenuElementOrder
+    }
+
+    /// A menu's rows as text (titles, checked state, identifiers, nesting), to tell an
+    /// equal rebuilt menu from a changed one.
+    private static func signature(of element: UIMenuElement) -> String {
+        if let menu = element as? UIMenu {
+            return "[\(menu.title)|\(menu.children.map(signature(of:)).joined(separator: ","))]"
+        }
+        if let action = element as? UIAction {
+            return "\(action.title)/\(action.state.rawValue)/\(action.accessibilityIdentifier ?? "")"
+        }
+        return element.title
+    }
+
+    /// The controller that presents a tool's sheet: the shell, found through the responder chain.
+    private func presenter() -> UIViewController? {
+        var responder: UIResponder? = self
+        while let current = responder {
+            if let controller = current as? UIViewController { return controller.ukShell ?? controller }
+            responder = current.next
+        }
+        return nil
+    }
+
     /// One glass circle for a page tool's bar item.
-    private static func button(for item: UIBarButtonItem) -> UIButton {
+    private static func button(for tool: UKPageTool, presenter: @escaping () -> UIViewController?) -> UIButton {
+        let item = tool.item
         var configuration: UIButton.Configuration
         if #available(iOS 26.0, *) {
             configuration = .glass()
@@ -135,7 +187,11 @@ final class UKFloatingPageToolsView: UIView {
         button.showsLargeContentViewer = true
         button.largeContentTitle = item.accessibilityLabel ?? item.title
         button.largeContentImage = item.image
-        if let menu = item.menu {
+        if let sheet = tool.sheet {
+            button.addAction(UIAction { _ in
+                if let presenter = presenter() { UKPageToolMenuViewController.present(sheet, from: presenter) }
+            }, for: .touchUpInside)
+        } else if let menu = item.menu {
             button.menu = menu
             button.showsMenuAsPrimaryAction = true
             // A menu opened from the bottom bar otherwise lists its rows bottom-up.

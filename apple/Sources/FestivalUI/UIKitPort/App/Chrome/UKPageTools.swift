@@ -13,15 +13,20 @@ struct UKPageTool {
     var order: Int
     /// The bar button (an action or a menu), already carrying its identifier and labels.
     var item: UIBarButtonItem
+    /// A compact choice sheet the iPhone floating tool opens instead of the item's menu
+    /// (``PageToolMenu``); bar placements keep the menu.
+    var sheet: UKPageToolSheet?
 
     /// Creates a tool.
     ///
     /// - Parameters:
     ///   - order: Position (``PageToolOrder``).
     ///   - item: The bar button.
-    init(order: Int, item: UIBarButtonItem) {
+    ///   - sheet: The floating tool's choice sheet, if it has one.
+    init(order: Int, item: UIBarButtonItem, sheet: UKPageToolSheet? = nil) {
         self.order = order
         self.item = item
+        self.sheet = sheet
     }
 }
 
