@@ -17,7 +17,10 @@ enum UKSongsRoutes {
     ///   - context: The pushing screen's context.
     /// - Returns: The ported screen, or nil while it is not ported.
     static func make(_ route: AppRoute, context: UKContext) -> UIViewController? {
-        nil
+        switch route {
+        case .shop: UKShopViewController(context: context, pushed: true)
+        default: nil
+        }
     }
 
     /// The root controller of a section this lane owns.
@@ -27,7 +30,11 @@ enum UKSongsRoutes {
     ///   - context: The section's context.
     /// - Returns: The ported root, or nil while it is not ported.
     static func root(for section: FestivalSection, context: UKContext) -> UIViewController? {
-        nil
+        switch section {
+        case .songs: UKSongsViewController(context: context)
+        case .shop: UKShopViewController(context: context, pushed: false)
+        default: nil
+        }
     }
 }
 #endif

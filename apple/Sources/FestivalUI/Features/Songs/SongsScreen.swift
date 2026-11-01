@@ -122,6 +122,23 @@ struct SongsScreen: View, Equatable {
         let visible: Bool
     }
 
+    /// The shared Songs decisions for the current state and saved settings (``SongsPipeline``).
+    private var pipeline: SongsPipeline {
+        var payload: CatalogPayload?
+        if case let .loaded(loaded) = state { payload = loaded }
+        let settings = SongsSettings(
+            sortMode: sortMode, sortAscending: sortAscending, generalFilterData: generalFilterData,
+            legacyFilterInShop: legacyFilterInShop, legacyFilterLeavingTomorrow: legacyFilterLeavingTomorrow,
+            playerScoreFilterData: playerScoreFilterData, hideShop: hideShop,
+            disableShopHighlighting: disableShopHighlighting, filterInvalidScores: filterInvalidScores,
+            leeway: leeway, showInstrumentIcons: showInstrumentIcons, metadata: metadataVisibility
+        )
+        return SongsPipeline(
+            session: session, payload: payload, settings: settings, instrument: instrument,
+            visibleInstruments: visibleInstruments
+        )
+    }
+
     private var currentSeason: Int? {
         if case let .loaded(payload) = state {
             return payload.catalog.currentSeason
@@ -139,29 +156,13 @@ struct SongsScreen: View, Equatable {
         )
     }
 
-    private var generalFilterResult: Result<SongGeneralFilter, Error> {
-        Result {
-            try SongGeneralFilter.decodeSaved(
-                generalFilterData, legacyInShop: legacyFilterInShop,
-                legacyLeavingTomorrow: legacyFilterLeavingTomorrow
-            )
-        }
-    }
+    private var generalFilterFailed: Bool { pipeline.generalFilterError != nil }
 
-    private var appliedGeneralFilter: SongGeneralFilter? {
-        if case let .success(filter) = generalFilterResult { return filter }
-        return nil
-    }
+    private var appliedGeneralFilter: SongGeneralFilter? { pipeline.appliedGeneralFilter }
 
-    /// The first corrupt saved filter, which blocks the list until an explicit Reset.
-    private var savedFilterError: Error? {
-        if case let .failure(error) = generalFilterResult { return error }
-        return playerScoreFilterError
-    }
+    private var savedFilterError: Error? { pipeline.savedFilterError }
 
-    private var appliedShopFilter: SongShopFilter {
-        appliedGeneralFilter?.shop ?? SongShopFilter()
-    }
+    private var appliedShopFilter: SongShopFilter { pipeline.appliedShopFilter }
 
     /// Loaded catalogue rows (the General filter's Year and Duration options).
     private var catalogueSongs: [Song] {
@@ -169,10 +170,7 @@ struct SongsScreen: View, Equatable {
         return []
     }
 
-    /// Whether any saved General choice hides songs (Item Shop only while Shop is shown).
-    private var generalFilterActive: Bool {
-        appliedGeneralFilter?.isActive(shopVisible: !hideShop) == true
-    }
+    private var generalFilterActive: Bool { pipeline.generalFilterActive }
 
     /// Store General choices and retire the migrated legacy Item Shop toggles.
     ///
@@ -185,140 +183,37 @@ struct SongsScreen: View, Equatable {
         legacyFilterLeavingTomorrow = false
     }
 
-    private var playerScoreFilterResult: Result<SongPlayerScoreFilter, Error> {
-        Result { try SongPlayerScoreFilter.decodeSaved(playerScoreFilterData) }
-    }
+    // (decoded by the pipeline)
 
-    private var appliedPlayerScoreFilter: SongPlayerScoreFilter? {
-        if case let .success(filter) = playerScoreFilterResult { return filter }
-        return nil
-    }
+    private var appliedPlayerScoreFilter: SongPlayerScoreFilter? { pipeline.appliedPlayerScoreFilter }
 
-    private var playerScoreFilterError: Error? {
-        if case let .failure(error) = playerScoreFilterResult { return error }
-        return nil
-    }
+    private var playerScoreFilterError: Error? { pipeline.playerScoreFilterError }
 
-    private var shopPublicationMismatch: Bool {
-        guard case let .loaded(payload) = state,
-              let current = session.publicationId else { return false }
-        return payload.observedPublicationId != current
-            || session.currentShop.map {
-                $0.observedPublicationId != current
-            } == true
-    }
+    private var shopPublicationMismatch: Bool { pipeline.shopPublicationMismatch }
 
-    private var shopOffersForCurrentSongs: [String: ShopSong]? {
-        guard !hideShop, case let .loaded(payload) = state,
-              SongShopPublicationPolicy.matches(
-                catalogue: payload.observedPublicationId,
-                shop: session.currentShop?.observedPublicationId,
-                current: session.publicationId
-              ) else { return nil }
-        return session.shopOffersById
-    }
+    private var shopOffersForCurrentSongs: [String: ShopSong]? { pipeline.shopOffersForCurrentSongs }
 
-    private var profilePublicationMismatch: Bool {
-        guard case let .loaded(payload) = state,
-              session.selectedPlayer != nil,
-              session.playerLoadState == .available else { return false }
-        return !session.hasCurrentPlayerScores(
-            forCatalogue: payload.observedPublicationId
-        )
-    }
+    private var profilePublicationMismatch: Bool { pipeline.profilePublicationMismatch }
 
-    private var scoreFilterAvailable: Bool {
-        guard case let .loaded(payload) = state else { return false }
-        return session.hasCurrentPlayerScores(
-            forCatalogue: payload.observedPublicationId
-        )
-    }
+    private var scoreFilterAvailable: Bool { pipeline.scoreFilterAvailable }
 
-    private var shopFilterPausedMessage: String? {
-        guard appliedShopFilter.isActive else { return nil }
-        if hideShop {
-            return "Item Shop filters paused while Shop is hidden. Showing all songs; "
-                + "your choices are saved."
-        }
-        // Both categories off hides every song without classifying (web parity).
-        guard appliedShopFilter.needsShopFeed else { return nil }
-        if shopPublicationMismatch {
-            return "Item Shop filters paused while songs and Shop publications differ. "
-                + "Showing songs without Shop filters; your choices are saved."
-        }
-        if shopOffersForCurrentSongs == nil {
-            return "Item Shop filters paused until public Shop data loads. "
-                + "Showing all songs; retry Item Shop status if unavailable."
-        }
-        return nil
-    }
+    private var shopFilterPausedMessage: String? { pipeline.shopFilterPausedMessage }
 
-    private var effectiveShopFilter: SongShopFilter {
-        shopFilterPausedMessage == nil ? appliedShopFilter : SongShopFilter()
-    }
+    private var effectiveShopFilter: SongShopFilter { pipeline.effectiveShopFilter }
 
-    /// Why saved score checks with a real cause cannot apply right now. Without a player
-    /// there is no notice: a deselect resets them (web `resetSongSettingsForDeselect`,
-    /// issue #359), and any left over stay inert like the web's.
-    private var playerScoreFilterPausedMessage: String? {
-        guard case .loaded = state, session.selectedPlayer != nil,
-              let filter = appliedPlayerScoreFilter, filter.isActive else { return nil }
-        if !filter.scoped(to: visibleInstruments).isActive {
-            return "Player score filters paused while their charts are hidden in Settings. "
-                + "Your choices are saved."
-        }
-        if !scoreFilterAvailable {
-            return "Player score filters paused until selected scores and songs "
-                + "share the current publication. Showing songs without score filters."
-        }
-        return nil
-    }
+    private var playerScoreFilterPausedMessage: String? { pipeline.playerScoreFilterPausedMessage }
 
-    private var effectivePlayerScoreFilter: SongPlayerScoreFilter {
-        guard session.selectedPlayer != nil, playerScoreFilterPausedMessage == nil else {
-            return SongPlayerScoreFilter()
-        }
-        let scoped = appliedPlayerScoreFilter?.scoped(to: visibleInstruments)
-            ?? SongPlayerScoreFilter()
-        // Saved Over CHOpt Threshold checks are inert (and not "active") while Filter
-        // Invalid Scores is off, as on the web.
-        return invalidScoreLeeway == nil ? scoped.clearingOverThreshold : scoped
-    }
+    private var effectivePlayerScoreFilter: SongPlayerScoreFilter { pipeline.effectivePlayerScoreFilter }
 
-    /// Settings › Filter Invalid Scores' leeway (rounded to the slider's 0.1 steps)
-    /// while it is on and a player is selected, else nil. Rows, filters, sorts and the
-    /// profile panel then use the player's effective scores (web `SongsPage`
-    /// `effectiveScores`); a band's scores have no substitution.
-    private var invalidScoreLeeway: Double? {
-        guard filterInvalidScores, session.selectedPlayer != nil, session.selectedBand == nil
-        else { return nil }
-        return (leeway * 10).rounded() / 10
-    }
+    private var invalidScoreLeeway: Double? { pipeline.invalidScoreLeeway }
 
-    /// Charts whose Over CHOpt Threshold filter keeps an invalid score raw (inert while
-    /// Filter Invalid Scores is off).
-    private var overThresholdCharts: Set<Instrument> {
-        invalidScoreLeeway == nil ? [] : effectivePlayerScoreFilter.overThreshold
-    }
+    private var overThresholdCharts: Set<Instrument> { pipeline.overThresholdCharts }
 
-    /// The selected player's scores as Songs shows them: raw, or each chart's
-    /// effective score while Filter Invalid Scores is on.
-    ///
-    /// - Parameter songs: The catalogue (CHOpt maxima and population curves).
-    /// - Returns: Scores by song ID and chart.
     private func playerScoreIndex(songs: [Song]) -> [String: [Instrument: PlayerScore]] {
-        guard let invalidScoreLeeway else { return session.selectedPlayerScores }
-        let songsById = Dictionary(songs.map { ($0.songId, $0) }, uniquingKeysWith: { first, _ in first })
-        return InvalidScorePolicy.resolve(
-            index: session.selectedPlayerScores, songsById: songsById,
-            leeway: invalidScoreLeeway, overThreshold: overThresholdCharts
-        )
+        pipeline.playerScoreIndex(songs: songs)
     }
 
-    private var hiddenPlayerScoreChecks: Bool {
-        guard session.selectedPlayer != nil, let filter = appliedPlayerScoreFilter else { return false }
-        return filter.scoped(to: visibleInstruments) != filter
-    }
+    private var hiddenPlayerScoreChecks: Bool { pipeline.hiddenPlayerScoreChecks }
 
     /// Tight, web-like row gutters: a small vertical gap keeps varied-height glass
     /// cards close together (web's virtualized list uses a 2pt row gap).
@@ -326,11 +221,7 @@ struct SongsScreen: View, Equatable {
         EdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 16)
     }
 
-    /// General filters need no player, so Filter is offered whenever saved filters
-    /// decode (web: the Filter button is always shown on Songs).
-    private var canPresentFilter: Bool {
-        savedFilterError == nil
-    }
+    private var canPresentFilter: Bool { pipeline.canPresentFilter }
 
     /// Create a catalogue screen with a fixture state for hosted visual tests.
     ///
@@ -445,36 +336,8 @@ struct SongsScreen: View, Equatable {
                     invalidPlayerFilterView(error.localizedDescription)
                 } else {
                 let general = appliedGeneralFilter ?? SongGeneralFilter()
-                let matching = payload.catalog.songs.filter { song in
-                    SongSearch.matches(song, query: settledSearch)
-                        && (instrument.map(song.supports) ?? true)
-                        && general.matchesMetadata(song)
-                }
                 let effectiveMode = effectiveSortMode
-                let membership = shopOffersForCurrentSongs.map { offers in
-                    Set(offers.keys)
-                }
-                let sorted: Result<[Song], Error> = Result {
-                    let publicFiltered = try effectiveShopFilter.filtered(
-                        matching, offersById: shopOffersForCurrentSongs
-                    )
-                    let filtered = try effectivePlayerScoreFilter.filtered(
-                        publicFiltered,
-                        scoresBySong: session.hasCurrentPlayerScores(
-                            forCatalogue: payload.observedPublicationId
-                        ) ? playerScoreIndex(songs: payload.catalog.songs) : nil,
-                        visibleInstruments: visibleInstruments,
-                        selectedInstrument: instrument,
-                        overThresholdLeeway: invalidScoreLeeway
-                    )
-                    MainThreadStallMonitor.count("songs.sort")
-                    return try SongCatalogSort.sorted(
-                        filtered, mode: effectiveMode, ascending: sortAscending,
-                        shopSongIds: membership,
-                        chartScores: effectiveMode.isPlayerChartMode
-                            ? chartScores(for: payload) : nil
-                    )
-                }
+                let sorted = pipeline.visibleSongs(in: payload, search: settledSearch)
                 switch sorted {
                 case let .failure(error):
                     ServiceUnavailableView(
@@ -776,38 +639,7 @@ struct SongsScreen: View, Equatable {
             ? BrandTokens.accentBlue : BrandTokens.gold)
     }
 
-    private var filterAccessibilityValue: String {
-        let general = appliedGeneralFilter ?? SongGeneralFilter()
-        let labels = [
-            general.restrictsYear ? "Year filter" : nil,
-            general.restrictsDuration ? "Duration filter" : nil,
-            !hideShop && general.shop.isActive ? "Item Shop filter" : nil,
-            general.restrictsDoubleBass ? "Double Bass filter" : nil,
-        ].compactMap { $0 }
-        let scoreCount = appliedPlayerScoreFilter.map { filter in
-            SongScoreFilterKind.allCases.reduce(0) { count, kind in
-                count + Instrument.allCases.filter {
-                    filter.contains(kind, for: $0)
-                }.count
-            }
-        } ?? 0
-        let scoreLabel = scoreCount > 0
-            ? "\(scoreCount) player score \(scoreCount == 1 ? "check" : "checks")"
-            : nil
-        let bucketLabels = SongBucketKind.allCases.compactMap { kind in
-            appliedPlayerScoreFilter?.excluded(kind).isEmpty == false
-                ? "\(kind.rawValue.capitalized) filter" : nil
-        }
-        let selected = (labels + [scoreLabel].compactMap { $0 } + bucketLabels)
-            .joined(separator: ", ")
-        let status = selected.isEmpty ? "No filters" : selected
-        if shopFilterPausedMessage != nil {
-            return status + (effectivePlayerScoreFilter.isActive || general.restrictsMetadata
-                ? ", Item Shop filters paused" : ", paused; showing all songs")
-        }
-        return status + (playerScoreFilterPausedMessage == nil
-            ? "" : ", player score filters paused")
-    }
+    private var filterAccessibilityValue: String { pipeline.filterAccessibilityValue }
 
     private var filterAction: some View {
         Button {
@@ -824,74 +656,16 @@ struct SongsScreen: View, Equatable {
             ? BrandTokens.gold : BrandTokens.accentBlue)
     }
 
-    /// Keep a saved Shop or player sort visible when its source is hidden or unavailable.
-    private var sortPausedMessage: String? {
-        if sortMode.isPlayerChartMode { return playerSortPausedMessage }
-        guard sortMode == .shop else { return nil }
-        if hideShop {
-            return "Item Shop sort paused while Shop is hidden. Showing title order; "
-                + "your preference is saved."
-        }
-        if shopPublicationMismatch {
-            return "Item Shop sort paused while songs and Shop publications differ. "
-                + "Showing title order; your preference is saved."
-        }
-        if shopOffersForCurrentSongs == nil {
-            return "Item Shop sort paused until public Shop data loads. "
-                + "Showing title order; retry Item Shop status if unavailable."
-        }
-        return nil
-    }
+    private var sortPausedMessage: String? { pipeline.sortPausedMessage }
 
-    /// Why a saved Score/Percentile/Stars sort cannot order the rows right now (never
-    /// by treating an unavailable or mismatched score index as "no scores").
-    private var playerSortPausedMessage: String? {
-        let name = sortMode.label
-        // No instrument: normalized to Title on appear / change, not a pause. No player:
-        // a deselect reverts it to Title (issue #359); any left over shows Title silently.
-        guard instrument != nil, session.selectedPlayer != nil else { return nil }
-        if !scoreFilterAvailable {
-            return "\(name) sort paused until selected scores and songs share the current "
-                + "publication. Showing title order; your preference is saved."
-        }
-        return nil
-    }
+    private var playerSortPausedMessage: String? { pipeline.playerSortPausedMessage }
 
-    /// The sort actually applied: Title while the saved sort is paused, or while a
-    /// player sort has no instrument or no player to order by.
-    private var effectiveSortMode: SongSortMode {
-        if sortPausedMessage != nil { return .title }
-        if sortMode.isPlayerChartMode && (instrument == nil || session.selectedPlayer == nil) {
-            return .title
-        }
-        return sortMode
-    }
+    private var effectiveSortMode: SongSortMode { pipeline.effectiveSortMode }
 
-    /// Selected-player sorts the Sort sheet offers: only with a selected player and
-    /// one Songs instrument, and only those whose row metadata Settings shows (web
-    /// `SortModal` hides a mode whose metadata is hidden).
-    private var playerSortModesOffered: [SongSortMode] {
-        guard instrument != nil, session.selectedPlayer != nil else { return [] }
-        return SongSortMode.playerChartModes.filter { mode in
-            switch mode {
-            case .score: metadataScore
-            case .percentile: metadataPercentile
-            case .stars: metadataStars
-            default: false
-            }
-        }
-    }
+    private var playerSortModesOffered: [SongSortMode] { pipeline.playerSortModesOffered }
 
-    /// The selected player's scores on the Songs instrument, only from an available
-    /// score index observed with this catalogue (nil otherwise: never a newer index).
-    ///
-    /// - Parameter payload: The retained catalogue.
-    /// - Returns: Scores by song ID, or nil without one instrument or a matching index.
     private func chartScores(for payload: CatalogPayload) -> [String: PlayerScore]? {
-        guard let instrument,
-              session.hasCurrentPlayerScores(forCatalogue: payload.observedPublicationId)
-        else { return nil }
-        return playerScoreIndex(songs: payload.catalog.songs).compactMapValues { $0[instrument] }
+        pipeline.chartScores(for: payload)
     }
 
     /// Reset a player sort to Title A–Z once Songs shows every instrument.
@@ -1052,7 +826,7 @@ struct SongsScreen: View, Equatable {
                     .font(.body)
                     .foregroundStyle(FestivalText.primary)
                 Button {
-                    if case .failure = generalFilterResult {
+                    if generalFilterFailed {
                         try? saveGeneralFilter(SongGeneralFilter())
                     }
                     if playerScoreFilterError != nil { playerScoreFilterData = Data() }
@@ -1396,63 +1170,17 @@ struct SongsScreen: View, Equatable {
          instrument?.rawValue ?? ""]
     }
 
-    /// One labelled run of songs: an A–Z letter, a decade, a duration or Shop bucket.
-    private struct SongListGroup: Identifiable {
-        /// Scroll target: the scrubber's `Int` section id, or the quick-link id.
-        let id: AnyHashable
-        let label: String
-        /// VoiceOver label when it differs from `label` ("5 stars" for "5★").
-        var spokenLabel: String?
-        let accessibilityID: String
-        /// Quick Links entry for sorts without the scrubber (Year, Duration, Shop).
-        let quickLink: QuickLinkSection?
-        let songs: [Song]
-    }
+    private typealias SongListGroup = SongsListGroup
 
-    /// Group the sorted rows for the active sort (nil: an ungrouped list).
-    ///
-    /// Title/Artist use the A–Z scrubber; Year (decades), Duration (one-minute buckets),
-    /// Item Shop and the Score/Percentile/Stars sorts use Quick Links
-    /// (`.agents/controls/quick-links/ios.md`).
     private func listGroups(
         indexSections: [SongSection]?, shopSections: [SongShopSection]?,
         durationSections: [SongDurationSection]?, yearSections: [SongYearSection]?,
         scoreSections: [SongScoreSection]? = nil
     ) -> [SongListGroup]? {
-        if let indexSections {
-            return indexSections.map {
-                SongListGroup(
-                    id: AnyHashable($0.id), label: $0.label,
-                    accessibilityID: "fst.songs.section.\($0.id)", quickLink: nil, songs: $0.songs
-                )
-            }
-        }
-        func bucketed(_ kind: String, _ key: String, _ label: String, _ songs: [Song]) -> SongListGroup {
-            let link = QuickLinkSection(id: "\(kind):\(key)", title: label)
-            return SongListGroup(
-                id: AnyHashable(link.id), label: label,
-                accessibilityID: "fst.songs.\(kind)-section.\(key)", quickLink: link, songs: songs
-            )
-        }
-        if let shopSections, shopSections.count > 1 {
-            return shopSections.map { bucketed("shop", $0.kind.rawValue, $0.kind.label, $0.songs) }
-        }
-        if let durationSections, durationSections.count > 1 {
-            return durationSections.map {
-                bucketed("duration", $0.bucket.rawValue, $0.bucket.label, $0.songs)
-            }
-        }
-        if let yearSections, yearSections.count > 1 {
-            return yearSections.map { bucketed("year", $0.id, $0.label, $0.songs) }
-        }
-        if let scoreSections, scoreSections.count > 1 {
-            return scoreSections.map { section in
-                var group = bucketed("score", section.key, section.label, section.songs)
-                group.spokenLabel = section.spokenLabel == section.label ? nil : section.spokenLabel
-                return group
-            }
-        }
-        return nil
+        SongsPipeline.listGroups(
+            indexSections: indexSections, shopSections: shopSections, durationSections: durationSections,
+            yearSections: yearSections, scoreSections: scoreSections
+        )
     }
 
     /// Whether the section title lives in a bar above the List (iOS 26 scroll-edge
@@ -1725,8 +1453,6 @@ struct SongsScreen: View, Equatable {
     /// spinning-placeholder art that pops in piecemeal while scrolling settles, so
     /// natives hold the loading state a little longer and prime the first visible
     /// slice's artwork before the first reveal, then cross-fade in once.
-    private static let artworkPrimeCount = 12
-    private static let artworkPrimeTimeout = Duration.milliseconds(900)
 
     /// Reopen the row stagger window and reset the section headers as a new list is
     /// revealed (a reload or a publication refresh).
@@ -1800,33 +1526,9 @@ struct SongsScreen: View, Equatable {
     ///
     /// - Parameter payload: Just-fetched catalogue, not yet published to `state`.
     private func primeFirstArtwork(for payload: CatalogPayload) async {
-        let filtered = payload.catalog.songs.filter { song in
-            instrument.map(song.supports) ?? true
-        }
-        let ordered = (try? SongCatalogSort.sorted(
-            filtered, mode: sortMode == .shop || sortMode.isPlayerChartMode ? .title : sortMode,
-            ascending: sortAscending
-        )) ?? filtered
-        let artworkPaths = ordered.prefix(Self.artworkPrimeCount)
-            .compactMap { $0.albumArt?.isEmpty == false ? $0.albumArt : nil }
-        guard !artworkPaths.isEmpty else { return }
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask {
-                await withTaskGroup(of: Void.self) { downloads in
-                    for raw in artworkPaths {
-                        downloads.addTask {
-                            _ = try? await session.preparedArtwork(raw: raw, maxPixels: 132)
-                        }
-                    }
-                    await downloads.waitForAll()
-                }
-            }
-            group.addTask {
-                try? await Task.sleep(for: Self.artworkPrimeTimeout)
-            }
-            await group.next()
-            group.cancelAll()
-        }
+        await SongsPipeline.primeFirstArtwork(
+            for: payload, session: session, instrument: instrument, settings: pipeline.settings
+        )
     }
 
     /// Keep Shop status distinct from Songs while revealing a usable retry on failure.
@@ -1846,15 +1548,6 @@ struct SongsScreen: View, Equatable {
     }
 }
 
-private extension SongShopSectionKind {
-    var label: String {
-        switch self {
-        case .leavingTomorrow: "Leaving Tomorrow"
-        case .inShop: "In Shop"
-        case .notInShop: "Not In Shop"
-        }
-    }
-}
 
 /// Keep anonymous catalogue and Shop sorting as an Apply/Reset/Discard draft.
 
