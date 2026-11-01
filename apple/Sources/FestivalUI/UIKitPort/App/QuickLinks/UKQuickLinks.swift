@@ -204,6 +204,7 @@ final class UKQuickLinks {
             }
         }
         let created = item == nil
+        let valueChanged = item?.accessibilityValue != value
         let bar = item ?? UIBarButtonItem(title: "Quick Links", image: UIImage(systemName: "list.bullet.indent"), target: nil, action: nil)
         bar.menu = UIMenu(children: [menu])
         bar.preferredMenuElementOrder = .fixed
@@ -213,7 +214,8 @@ final class UKQuickLinks {
         bar.accessibilityHint = "Jumps to a section of this page"
         bar.accessibilityIdentifier = "fst.quick-links.open"
         item = bar
-        if created { onToolChange?() }
+        // The floating button reads the current section, so it needs the new value.
+        if created || valueChanged { onToolChange?() }
     }
 
     // MARK: Rotor
