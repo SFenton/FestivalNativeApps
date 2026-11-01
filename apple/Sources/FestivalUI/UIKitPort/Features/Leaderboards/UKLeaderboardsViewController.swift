@@ -164,6 +164,12 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
             return card.convert(card.bounds, to: scroll)
         }, element: { [weak self] id in self?.cards[id] })
         quickLinks.onToolChange = { [weak self] in self?.ukPageToolsDidChange() }
+        // The bar button's spoken value follows the active section.
+        observations.observe { [weak self] in
+            guard let self else { return }
+            _ = quickLinks.controller.activeID
+            if isViewLoaded, view.window != nil { ukPageToolsDidChange() }
+        }
         settingsObserver = NotificationCenter.default.addObserver(forName: UKSettings.didChange, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.keyMayHaveChanged() }
         }
@@ -451,7 +457,6 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
                     title: RankingsCountText.viewAllRankings(totalAccounts: payload.rankings.totalAccounts), card: instrument.label,
                     identifier: "fst.leaderboards.card.\(instrument.rawValue).view-all"
                 )
-                button.accessibilityLabel = RankingsCountText.viewAllRankings(totalAccounts: payload.rankings.totalAccounts)
                 button.onTap = { [weak self] in self?.context.navigator?.selectDetail(route) }
                 action = button
             }
@@ -543,7 +548,6 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
                     title: RankingsCountText.viewAllBandRankings(totalTeams: payload.rankings.totalTeams), card: bandType.label,
                     identifier: "fst.leaderboards.band-card.\(bandType.rawValue).view-all"
                 )
-                button.accessibilityLabel = RankingsCountText.viewAllBandRankings(totalTeams: payload.rankings.totalTeams)
                 button.onTap = { [weak self] in self?.context.navigator?.selectDetail(.bandRankings(bandType: bandType.rawValue)) }
                 action = button
             }
