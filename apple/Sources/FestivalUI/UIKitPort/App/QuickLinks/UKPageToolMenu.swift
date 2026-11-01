@@ -104,7 +104,12 @@ final class UKPageToolMenuViewController: UIViewController, UICollectionViewDele
     static func present(_ sheet: UKPageToolSheet, from presenter: UIViewController) {
         guard presenter.presentedViewController == nil else { return }
         let content = UKPageToolMenuViewController(choices: sheet.choices())
-        UKSheet.present(content, from: presenter, title: sheet.title, closeIdentifier: closeIdentifier, size: .compact)
+        let sheet = UKSheet.make(content, title: sheet.title, closeIdentifier: closeIdentifier, size: .compact)
+        // Like every SwiftUI Festival sheet (`FestivalSheetModifier`) it opens at the large detent,
+        // where the glass is opaque and the title keeps its contrast; the medium detent stays as
+        // the step down.
+        sheet.sheetPresentationController?.selectedDetentIdentifier = .large
+        presenter.present(sheet, animated: true)
     }
 
     override func viewDidLoad() {
@@ -122,6 +127,9 @@ final class UKPageToolMenuViewController: UIViewController, UICollectionViewDele
         let choices = choices
         let registration = UICollectionView.CellRegistration<UKPageToolMenuCell, Int> { cell, _, index in
             cell.configure(choices[index])
+            var background = UIBackgroundConfiguration.listGroupedCell()
+            background.backgroundColor = BrandUIColors.cardBackground
+            cell.backgroundConfiguration = background
         }
         dataSource = UICollectionViewDiffableDataSource(collectionView: collection) { collection, path, index in
             collection.dequeueConfiguredReusableCell(using: registration, for: path, item: index)
