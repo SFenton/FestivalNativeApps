@@ -17,7 +17,8 @@ enum UKSongDetailRoutes {
     ///   - context: The pushing screen's context.
     /// - Returns: The ported screen, or nil while it is not ported.
     static func make(_ route: AppRoute, context: UKContext) -> UIViewController? {
-        nil
+        guard case let .songDetail(song) = route else { return nil }
+        return UKSongDetailViewController(song: song, context: context)
     }
 }
 #endif

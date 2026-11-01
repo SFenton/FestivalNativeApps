@@ -23,7 +23,8 @@ final class UKBottomSearchField: UIView, UITextFieldDelegate {
     /// Called when the field's top edge moves (host window coordinates).
     var onTopChange: ((CGFloat) -> Void)?
 
-    private let glass: UIVisualEffectView
+    /// `festivalGlassCapsule(.control, interactive: true)`, as the SwiftUI field.
+    private let glass = UKGlassView(.control, capsule: true, interactive: true)
     private let clearButton = UIButton(type: .system)
     private let icon = UIImageView(image: UIImage(systemName: "magnifyingglass"))
     private var leading: NSLayoutConstraint?
@@ -40,16 +41,9 @@ final class UKBottomSearchField: UIView, UITextFieldDelegate {
     ///   - identifier: Accessibility identifier of the text field.
     ///   - clearIdentifier: Accessibility identifier of the clear button.
     init(prompt: String, label: String, identifier: String, clearIdentifier: String) {
-        if #available(iOS 26.0, *) {
-            glass = UIVisualEffectView(effect: UIGlassEffect(style: .regular))
-        } else {
-            glass = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterialDark))
-        }
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         glass.translatesAutoresizingMaskIntoConstraints = false
-        glass.clipsToBounds = true
-        glass.layer.cornerCurve = .continuous
         addSubview(glass)
         icon.tintColor = BrandUIColors.textSecondary
         icon.isAccessibilityElement = false
@@ -162,11 +156,6 @@ final class UKBottomSearchField: UIView, UITextFieldDelegate {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        if #available(iOS 26.0, *) {
-            glass.cornerConfiguration = .capsule()
-        } else {
-            glass.layer.cornerRadius = bounds.height / 2
-        }
         onTopChange?(convert(bounds, to: nil).minY)
     }
 

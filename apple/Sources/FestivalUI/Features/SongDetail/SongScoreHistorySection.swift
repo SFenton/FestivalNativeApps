@@ -318,9 +318,7 @@ private struct ScoreHistoryChart: View {
         // (Lane A11Y3). The rows below read every score; the chart summarizes them.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(instrument.label) score history chart")
-        .accessibilityValue(
-            "\(rows.count) scores, best \((rows.map(\.newScore).max() ?? 0).formatted())"
-        )
+        .accessibilityValue(SongScoreHistoryChartMath.spokenValue(rows))
         .accessibilityIdentifier("fst.song-detail.history.chart")
         .chartAxisElements(ChartAxisLabels(
             leading: "Score scale, 0 to \(top >= 1000 ? "\(Int((top / 1000).rounded()))k" : "\(Int(top))")",
@@ -431,16 +429,13 @@ private struct ScoreHistoryChart: View {
 
     /// Web `accuracyColor`: red (220,40,40) → green (46,204,113) over 0–100%.
     static func accuracyColor(_ percent: Double) -> Color {
-        let t = min(max(percent / 100, 0), 1)
-        return Color(.sRGB, red: (220 * (1 - t) + 46 * t) / 255, green: (40 * (1 - t) + 204 * t) / 255,
-                     blue: (40 * (1 - t) + 113 * t) / 255)
+        let rgb = SongScoreHistoryChartMath.accuracyRGB(percent)
+        return Color(.sRGB, red: rgb.red, green: rgb.green, blue: rgb.blue)
     }
 
     /// Web `dateLabel`: `M/D/YY` in local time.
     static func dateLabel(_ entry: ScoreHistoryEntry) -> String {
-        guard let date = entry.displayDate else { return "—" }
-        let parts = Calendar.current.dateComponents([.month, .day, .year], from: date)
-        return "\(parts.month ?? 0)/\(parts.day ?? 0)/\(String(parts.year ?? 0).suffix(2))"
+        SongScoreHistoryChartMath.dateLabel(entry)
     }
 }
 
@@ -535,14 +530,9 @@ struct ScoreHistoryListRow: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isStaticText)
-        .accessibilityLabel(
-            "\(dateText)"
-                + (season.map { ", " + ScoreSeasonPill.spokenLabel(season: $0, current: $0 == currentSeason).lowercased() } ?? "")
-                + ", score \(entry.newScore.formatted())"
-                + (entry.accuracy.map { ", accuracy \(ScoreFormatting.accuracy($0)) percent" } ?? "")
-                + (entry.isFullCombo == true ? ", full combo" : "")
-                + (isBest ? ", best score" : "")
-        )
+        .accessibilityLabel(SongScoreHistoryChartMath.spokenRow(
+            dateText: dateText, season: season, currentSeason: currentSeason, entry: entry, isBest: isBest
+        ))
     }
 
     /// The score's date; wraps at word boundaries at accessibility sizes, otherwise one

@@ -44,11 +44,7 @@ struct SongPathsSheet: View {
     /// Settings' Path Default View, shown when Side by Side doesn't fit the layout.
     let defaultDisplay: PathDisplayMode
 
-    private enum LoadState {
-        case image(SongPathImagePayload)
-        case text(SongPathDataPayload)
-        case failed(ServiceIssue)
-    }
+    private typealias LoadState = SongPathsLoadState
 
     private struct RequestKey: Equatable {
         let instrument: Instrument
@@ -486,14 +482,7 @@ struct SongPathsSheet: View {
     }
 
     /// Everything the card shows, for VoiceOver.
-    private func spokenValue(_ row: PathActivationRow) -> String {
-        var parts = [row.frets.isEmpty ? "No anchor note" : "Frets \(row.frets.joined(separator: ", "))"]
-        parts.append("beat \(row.beat.formatted(.number.precision(.fractionLength(2))))")
-        parts.append("time \(Self.time(row.seconds))")
-        if let score = row.scoreBeforeActivation { parts.append("score \(score.formatted())") }
-        if let od = row.odPercent { parts.append("overdrive \(Int(od.rounded())) percent") }
-        return parts.joined(separator: ", ")
-    }
+    private func spokenValue(_ row: PathActivationRow) -> String { SongPathsActivation.spokenValue(row) }
 
     /// Web `Colors.borderSubtle` (#1E2A3A), the inactive fret pill border.
     private static let borderSubtle = Color(.sRGB, red: 30 / 255, green: 42 / 255, blue: 58 / 255)
@@ -503,27 +492,14 @@ struct SongPathsSheet: View {
     /// - Parameter name: One of the five validated CHOpt fret keys.
     /// - Returns: The corresponding sRGB accent.
     private static func fretColor(_ name: String) -> Color {
-        switch name {
-        case "green": Color(red: 46.0 / 255, green: 204.0 / 255, blue: 113.0 / 255)
-        case "red": Color(red: 231.0 / 255, green: 76.0 / 255, blue: 60.0 / 255)
-        case "yellow": Color(red: 241.0 / 255, green: 196.0 / 255, blue: 15.0 / 255)
-        case "blue": Color(red: 52.0 / 255, green: 152.0 / 255, blue: 219.0 / 255)
-        case "orange": Color(red: 230.0 / 255, green: 126.0 / 255, blue: 34.0 / 255)
-        default: BrandTokens.appBackground
-        }
+        SongPathsActivation.fretRGB(name).map { Color(red: $0.red, green: $0.green, blue: $0.blue) } ?? BrandTokens.appBackground
     }
 
     /// Format seconds as the source's minute/second/millisecond time.
     ///
     /// - Parameter seconds: Nonnegative, validated time from CHOpt data.
     /// - Returns: `mm:ss:SSS` with normalized millisecond rollover.
-    private static func time(_ seconds: Double) -> String {
-        let millis = Int((seconds * 1000).rounded())
-        return String(
-            format: "%02d:%02d:%03d", millis / 60_000,
-            millis / 1_000 % 60, millis % 1_000
-        )
-    }
+    private static func time(_ seconds: Double) -> String { SongPathsActivation.time(seconds) }
 
     /// Disclose whether this path is response-verified.
     ///
@@ -655,25 +631,9 @@ struct SongPathsSheet: View {
     private static func fetch(
         _ requested: RequestKey, song: Song, session: FestivalSession
     ) async throws -> LoadState {
-        do {
-            switch requested.display {
-            case .image:
-                return .image(try await session.pathImage(
-                    song: song, instrument: requested.instrument, difficulty: requested.difficulty
-                ))
-            case .text:
-                return .text(try await session.pathData(
-                    song: song, instrument: requested.instrument, difficulty: requested.difficulty
-                ))
-            }
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch let error as URLError where error.code == .cancelled {
-            throw CancellationError()
-        } catch {
-            try Task.checkCancellation()
-            return .failed(ServiceIssue(error))
-        }
+        try await SongPathsLoadState.fetch(
+            requested.display, instrument: requested.instrument, difficulty: requested.difficulty, song: song, session: session
+        )
     }
 
     /// What VoiceOver hears once the new content fades in; failures announce themselves.
