@@ -272,6 +272,10 @@ final class UKNotificationCell: UKSelfSizingCell {
     private var railContent: UIView?
     private var textWidthReduction: CGFloat = 0
     private var hasTrailing = false
+    private let proxy = UKRowAccessibilityView()
+    private var proxyLabel = ""
+    private var proxyID = ""
+    private var proxyTraits: UIAccessibilityTraits = .staticText
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -308,7 +312,13 @@ final class UKNotificationCell: UKSelfSizingCell {
             row.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
             row.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -6),
         ])
-        isAccessibilityElement = true
+        isAccessibilityElement = false
+        contentView.addSubview(proxy)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        proxy.set(identifier: proxyID, label: proxyLabel, traits: proxyTraits, frame: contentView.bounds)
     }
 
     @available(*, unavailable)
@@ -331,9 +341,10 @@ final class UKNotificationCell: UKSelfSizingCell {
         dot.isHidden = !isUnread
         setRail(notification.media, session: session)
         textWidthReduction = 16 + 64 + 10 + (hasTrailing ? 30 : 0) + 16
-        accessibilityLabel = NotificationRow.accessibilityLabel(notification)
-        accessibilityTraits = notification.destination != nil ? .button : .staticText
-        accessibilityIdentifier = "fst.notifications.row.\(notification.id)"
+        proxyLabel = NotificationRow.accessibilityLabel(notification)
+        proxyTraits = notification.destination != nil ? .button : .staticText
+        proxyID = "fst.notifications.row.\(notification.id)"
+        setNeedsLayout()
     }
 
     private func setRail(_ media: NotificationMedia, session: FestivalSession) {

@@ -36,6 +36,10 @@ final class UKSettingsViewController: UKSettingsScrollPage, UKPageToolsProviding
     private var lastVisualOrder: Bool?
     private var lastIcons: Bool?
     private var lastHasPlayer: Bool?
+    private var feedbackEnabled = false
+    private var feedbackTask: Task<Void, Never>?
+    private var feedbackSent = FeedbackSentPresentation()
+    private var feedbackRows: [FeedbackKind: UIView] = [:]
 
     /// Creates the page.
     ///
@@ -92,6 +96,15 @@ final class UKSettingsViewController: UKSettingsScrollPage, UKPageToolsProviding
             self?.updateOpenDetail()
         }
         rebuild()
+        if let trace = UKFocusTraceView.makeIfEnabled() {
+            trace.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(trace)
+            NSLayoutConstraint.activate([
+                trace.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+                trace.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                trace.widthAnchor.constraint(equalToConstant: 1), trace.heightAnchor.constraint(equalToConstant: 1),
+            ])
+        }
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -101,6 +114,7 @@ final class UKSettingsViewController: UKSettingsScrollPage, UKPageToolsProviding
         if topic != nil { ukInstallAccountItems() }
         serviceInfo?.startPolling()
         loadServiceVersionIfNeeded()
+        loadFeedbackAvailability()
         if !didFade {
             didFade = true
             for (index, card) in column.arrangedSubviews.enumerated() {
@@ -343,6 +357,10 @@ final class UKSettingsViewController: UKSettingsScrollPage, UKPageToolsProviding
             hint: "Adds Adjusted, Weighted, FC Rate and Max Score to Rank By on Leaderboards, Rivals and Bands",
             identifier: "fst.settings.experimental-ranks"
         ))
+        if feedbackEnabled {
+            rows.append(feedbackRow(.bug, detail: "Tell us about something that isn't working.", action: "Report"))
+            rows.append(feedbackRow(.feature, detail: "Suggest something new for Festival Score Tracker.", action: "Request"))
+        }
         section.setRows(rows)
         return section
     }
@@ -392,6 +410,68 @@ final class UKSettingsViewController: UKSettingsScrollPage, UKPageToolsProviding
         stack.setCustomSpacing(12, after: text)
         stack.translatesAutoresizingMaskIntoConstraints = false
         return stack
+    }
+
+    // MARK: Feedback
+
+    /// Show the feedback rows once the service reports in-app feedback is on (pure
+    /// `GET /api/features`); off or unreadable keeps them hidden.
+    private func loadFeedbackAvailability() {
+        guard topic == nil, !feedbackEnabled, feedbackTask == nil else { return }
+        let session = context.session
+        feedbackTask = Task { [weak self] in
+            let enabled = (try? await session.client().feedbackEnabled()) ?? false
+            guard let self else { return }
+            feedbackTask = nil
+            guard enabled != feedbackEnabled else { return }
+            feedbackEnabled = enabled
+            replaceAppSettingsCard()
+        }
+    }
+
+    private func replaceAppSettingsCard() {
+        guard let old = cardsByID["app-settings"], let index = column.arrangedSubviews.firstIndex(of: old) else { return }
+        let new = appSettings()
+        column.removeArrangedSubview(old)
+        old.removeFromSuperview()
+        column.insertArrangedSubview(new, at: index)
+        cardsByID["app-settings"] = new
+        syncAll()
+    }
+
+    private func feedbackRow(_ kind: FeedbackKind, detail: String, action: String) -> UIView {
+        let row = UKSettingsShowRow(
+            title: kind.formTitle, detail: detail, action: action, hint: "Opens a form that files it on GitHub",
+            identifier: "fst.settings.feedback.\(kind.rawValue)"
+        ) { [weak self] in self?.openFeedback(kind) }
+        feedbackRows[kind] = row
+        return row
+    }
+
+    private func openFeedback(_ kind: FeedbackKind) {
+        UKFeedbackFormViewController.present(
+            kind: kind, session: context.session, from: self,
+            onSent: { [weak self] in self?.feedbackSent.formFinished($0) },
+            onDismiss: { [weak self] in
+                guard let self else { return }
+                feedbackSent.formDismissed()
+                showFeedbackSent()
+            }
+        )
+    }
+
+    /// The filed form's "Report Sent" alert, shown over Settings only after its sheet has gone.
+    private func showFeedbackSent() {
+        guard let notice = feedbackSent.shown else { return }
+        let alert = UIAlertController(title: notice.title, message: notice.message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Done", style: .cancel) { [weak self] _ in
+            guard let self, let kind = feedbackSent.acknowledge(), let row = feedbackRows[kind] else { return }
+            UIAccessibility.post(notification: .layoutChanged, argument: row)
+            AccessibilityFocusTrace.shared.record("fst.settings.feedback.\(kind.rawValue): \(row.accessibilityLabel ?? "")")
+        })
+        present(alert, animated: true) {
+            UKAlertIdentifiers.apply(["Done": "fst.settings.feedback.done"], in: alert.view)
+        }
     }
 
     // MARK: Reorder lists

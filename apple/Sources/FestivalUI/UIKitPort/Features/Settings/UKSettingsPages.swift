@@ -112,22 +112,16 @@ final class UKPrivacyPolicyViewController: UIViewController, UKModalScrollProvid
         scrollView.accessibilityIdentifier = "fst.privacy-policy.content"
         view.addSubview(scrollView)
         let content = UKPrivacyPolicyContent.make(policy: policy)
-        scrollView.addSubview(content)
-        let frame = scrollView.frameLayoutGuide
-        let guide = scrollView.contentLayoutGuide
-        let fill = content.widthAnchor.constraint(equalTo: guide.widthAnchor, constant: -40)
-        fill.priority = .defaultHigh
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor), scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.topAnchor.constraint(equalTo: view.topAnchor), scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            content.topAnchor.constraint(equalTo: guide.topAnchor, constant: 8),
-            content.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -32),
-            content.centerXAnchor.constraint(equalTo: guide.centerXAnchor),
-            content.widthAnchor.constraint(lessThanOrEqualToConstant: 680),
-            guide.widthAnchor.constraint(equalTo: frame.widthAnchor),
-            content.leadingAnchor.constraint(greaterThanOrEqualTo: guide.leadingAnchor, constant: 20),
-            fill,
         ])
+        UKSettingsScrollPage.install(content, in: scrollView, side: 20, top: 8, bottom: 32)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        if UKSettingsScrollPage.remeasureLabels(in: scrollView) { scrollView.setNeedsLayout() }
     }
 
     /// Presents the policy as a large sheet.
