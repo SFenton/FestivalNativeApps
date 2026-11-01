@@ -17,7 +17,7 @@ import UIKit
 @MainActor
 final class UKFloatingPageToolsView: UIView {
     private let stack = UIStackView()
-    private var shownIDs: [ObjectIdentifier] = []
+    private var shownIDs: [String] = []
     private var revealedScopes = Set<ObjectIdentifier>()
 
     /// Creates the row.
@@ -69,7 +69,10 @@ final class UKFloatingPageToolsView: UIView {
         let reduce = UIAccessibility.isReduceMotionEnabled || UKSettings.bool("fst.accessibility.reduceMotion", default: false)
         let revealed = scope.map { revealedScopes.contains(ObjectIdentifier($0)) } ?? true
         let motion = FloatingPageToolsMotion.resolve(reduceMotion: reduce, revealed: revealed)
-        let ids = tools.map { ObjectIdentifier($0.item) }
+        // Pages build fresh bar items each time they are asked, so a tool is matched by its
+        // identifier and kind, not its object: an equal row updates in place, which keeps an open
+        // menu open (rebuilding the buttons closed it, the Full Rankings instrument switch).
+        let ids = tools.map(Self.key(for:))
         if ids != shownIDs {
             shownIDs = ids
             let old = stack.arrangedSubviews
@@ -100,8 +103,7 @@ final class UKFloatingPageToolsView: UIView {
             // Links' active section, a menu's checked choice).
             for (view, tool) in zip(stack.arrangedSubviews, tools) {
                 guard let button = view as? UIButton else { continue }
-                button.accessibilityValue = tool.item.accessibilityValue
-                button.menu = tool.item.menu
+                Self.refresh(button, from: tool.item)
             }
         }
         isHidden = tools.isEmpty
@@ -113,6 +115,39 @@ final class UKFloatingPageToolsView: UIView {
         }
         isUserInteractionEnabled = !covered
         accessibilityElementsHidden = covered || tools.isEmpty
+    }
+
+    /// A tool's identity across rebuilt bar items: its identifier and whether it is a menu.
+    private static func key(for tool: UKPageTool) -> String {
+        let id = tool.item.accessibilityIdentifier ?? "\(ObjectIdentifier(tool.item).hashValue)"
+        return "\(id)#\(tool.item.menu != nil)"
+    }
+
+    /// Carry a rebuilt item's look, spoken name and value, and menu onto its existing button.
+    /// The menu is replaced only when its rows changed: swapping an equal menu while it opens
+    /// crashed the context menu's row list (Full Rankings' instrument menu).
+    private static func refresh(_ button: UIButton, from item: UIBarButtonItem) {
+        if button.configuration?.image !== item.image { button.configuration?.image = item.image }
+        button.accessibilityLabel = item.accessibilityLabel ?? item.title
+        button.accessibilityValue = item.accessibilityValue
+        button.accessibilityHint = item.accessibilityHint
+        button.largeContentTitle = item.accessibilityLabel ?? item.title
+        button.largeContentImage = item.image
+        guard let menu = item.menu, let current = button.menu else { return }
+        if signature(of: current) != signature(of: menu) { button.menu = menu }
+        button.preferredMenuElementOrder = item.preferredMenuElementOrder
+    }
+
+    /// A menu's rows as text (titles, checked state, identifiers, nesting), to tell an
+    /// equal rebuilt menu from a changed one.
+    private static func signature(of element: UIMenuElement) -> String {
+        if let menu = element as? UIMenu {
+            return "[\(menu.title)|\(menu.children.map(signature(of:)).joined(separator: ","))]"
+        }
+        if let action = element as? UIAction {
+            return "\(action.title)/\(action.state.rawValue)/\(action.accessibilityIdentifier ?? "")"
+        }
+        return element.title
     }
 
     /// One glass circle for a page tool's bar item.
