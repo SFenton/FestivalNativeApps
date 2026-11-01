@@ -210,7 +210,7 @@ final class UKPlayerHistoryViewController: UKSongBoardViewController {
                 )
                 rows.append(("row\(index)", UKLeaderboardRow(
                     kind: .history, make: { UKBoardScoreHistoryRowView() }, apply: { ($0 as? UKBoardScoreHistoryRowView)?.apply(model) },
-                    isSelectedBand: index == best, onTap: nil
+                    isSelectedBand: false, bare: true, onTap: nil
                 )))
             }
         } else {

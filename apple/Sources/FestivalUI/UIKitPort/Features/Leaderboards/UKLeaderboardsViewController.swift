@@ -441,7 +441,7 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
                 }
                 rows += spotlightRows(instrument: instrument, placement: placement, columns: columns)
                 let route = AppRoute.fullRankings(instrument: instrument, rankBy: metric.rawValue)
-                let button = UKBoardPurpleActionButton(
+                let button = UKPurpleActionButton(
                     title: RankingsCountText.viewAllRankings(totalAccounts: payload.rankings.totalAccounts), card: instrument.label,
                     identifier: "fst.leaderboards.card.\(instrument.rawValue).view-all"
                 )
@@ -532,7 +532,7 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
                         self?.context.navigator?.selectDetail(route)
                     })
                 }
-                let button = UKBoardPurpleActionButton(
+                let button = UKPurpleActionButton(
                     title: RankingsCountText.viewAllBandRankings(totalTeams: payload.rankings.totalTeams), card: bandType.label,
                     identifier: "fst.leaderboards.band-card.\(bandType.rawValue).view-all"
                 )

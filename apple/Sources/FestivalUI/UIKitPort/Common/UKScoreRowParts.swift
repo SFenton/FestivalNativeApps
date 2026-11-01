@@ -316,9 +316,11 @@ final class UKSongLeaderboardEntryRowView: UIControl {
     ///   - currentSeason: The catalogue's current season.
     ///   - chevron: nil for no chevron column; false keeps its width invisible; true draws it.
     ///   - hint: Spoken hint for a row with a route.
+    ///   - separateParts: Keep rank, name, season, score and accuracy separate VoiceOver elements even with a chevron (the song boards' rows, whose tap belongs to the list cell).
+    ///   - horizontalPadding: Side padding (12 in Song Detail's cards, 14 on the song boards).
     init(
         entry: LeaderboardEntry, isPlayer: Bool, columns: LeaderboardRowColumns?, currentSeason: Int?,
-        chevron: Bool?, hint: String? = nil
+        chevron: Bool?, hint: String? = nil, separateParts: Bool = false, horizontalPadding: CGFloat = 12
     ) {
         isPlayerRow = isPlayer
         super.init(frame: .zero)
@@ -408,15 +410,15 @@ final class UKSongLeaderboardEntryRowView: UIControl {
         addSubview(outer)
         let vertical: CGFloat = accessibilitySize ? 8 : 0
         NSLayoutConstraint.activate([
-            outer.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            outer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            outer.leadingAnchor.constraint(equalTo: leadingAnchor, constant: horizontalPadding),
+            outer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -horizontalPadding),
             outer.topAnchor.constraint(equalTo: topAnchor, constant: vertical),
             outer.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -vertical),
             heightAnchor.constraint(greaterThanOrEqualToConstant: LeaderboardRowMetrics.minHeight),
         ])
         addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .primaryActionTriggered)
         // A row with a destination is one button; an anonymous row's parts stay separate.
-        if chevron == true {
+        if chevron == true, !separateParts {
             isAccessibilityElement = true
             accessibilityTraits = .button
             accessibilityLabel = spokenParts.joined(separator: ", ")
