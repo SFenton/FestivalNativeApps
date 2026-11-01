@@ -5,86 +5,6 @@ import UIKit
 
 // MARK: - Compete ranking row
 
-/// One row of a Compete leaderboard preview: the Leaderboards lane's shared
-/// ``UKRankingRowView`` (``AccountRankingRow``) in a tappable control, on the purple band when it
-/// is the selected player's own row.
-final class UKRivalsRankingRow: UIControl {
-    /// Padding inside the row.
-    static let horizontalPadding: CGFloat = UKLeaderboardMetrics.horizontalPadding
-    /// Spacing between the columns.
-    static let columnSpacing: CGFloat = UKLeaderboardMetrics.columnSpacing
-
-    /// Called when the row is pressed.
-    var onSelect: (() -> Void)?
-
-    /// Creates a row.
-    ///
-    /// - Parameters:
-    ///   - entry: The ranking row.
-    ///   - columns: The card's shared columns.
-    ///   - isSelected: The selected player's own row.
-    ///   - opensProfile: Whether the row opens the player's profile.
-    ///   - identifier: Accessibility identifier.
-    init(entry: AccountRankingEntry, columns: LeaderboardRowColumns, isSelected: Bool, opensProfile: Bool, identifier: String) {
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-        let metric = RankingMetric.totalscore
-        let rank = entry.rank(for: metric)
-        let name = AccountRankingRow.displayName(entry)
-        let songs = entry.songsLabel(for: metric)
-        let links = opensProfile && entry.hasAccount
-        if isSelected {
-            let band = UIView()
-            band.backgroundColor = UKLeaderboardMetrics.playerFill
-            band.isUserInteractionEnabled = false
-            addSubview(band)
-            band.ukPin(to: self)
-        }
-        let row = UKRankingRowView()
-        row.isUserInteractionEnabled = false
-        row.apply(UKRankingRowView.Model(
-            rank: rank, name: name, songs: songs, spokenSongs: RankingsCountText.spokenSongs(songs, fullCombos: false),
-            rating: RankingFormatting.rating(entry.ratingValue(for: metric), metric: metric), bayesian: nil,
-            emphasized: isSelected, showsChevron: entry.hasAccount || isSelected, columns: columns, identifier: identifier,
-            opensSomething: links, hint: !entry.hasAccount && opensProfile ? "Profile unavailable" : nil,
-            spokenOverride: isSelected ? "Your rank, \(RankingFormatting.ordinal(rank)). \(name)." : nil
-        ))
-        addSubview(row)
-        row.ukPin(to: self)
-        addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .touchUpInside)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    /// The inner row, to adjust its spoken label.
-    var spokenRow: UIView? { subviews.last }
-
-    override var isHighlighted: Bool { didSet { alpha = isHighlighted ? 0.6 : 1 } }
-
-    /// Whether every row of a card hides its songs column: the widest row (rank, longest
-    /// name in the weight it is drawn in, songs, rating, chevron, spacing and padding) does
-    /// not fit the card's width (``RankingSongsFit``).
-    ///
-    /// - Parameters:
-    ///   - columns: The card's fitted columns.
-    ///   - names: Every row's name and whether it is the selected player's.
-    ///   - availableWidth: The card's width.
-    /// - Returns: The columns with their songs decision made.
-    static func fit(_ columns: LeaderboardRowColumns, names: [(name: String, emphasized: Bool)], availableWidth: CGFloat) -> LeaderboardRowColumns {
-        func width(_ text: String?, _ font: UIFont) -> CGFloat {
-            guard let text else { return 0 }
-            return ceil((text as NSString).size(withAttributes: [.font: font]).width)
-        }
-        let bodyBold = UKFont.font(.body, weight: .bold, monospacedDigit: true)
-        let widestName = names.map { width($0.name, UKFont.font(.body, weight: $0.emphasized ? .bold : nil)) }.max() ?? 0
-        let required = 2 * horizontalPadding + width(columns.rankLabel, bodyBold) + widestName
-            + width(columns.songsLabel, UKFont.font(.subheadline, weight: .bold, monospacedDigit: true))
-            + width(columns.ratingLabel, bodyBold) + 16 + 4 * columnSpacing
-        return columns.fittingSongs(availableWidth: Double(availableWidth), requiredWidth: Double(required))
-    }
-}
-
 // MARK: - Compete
 
 /// `/compete`: the hub combining Leaderboards and Rivals (``CompeteScreen``). The whole page
@@ -300,40 +220,36 @@ final class UKCompeteViewController: UKRivalsPageViewController {
         let spotlight = model.spotlights[scope]
         let entries = payload.rankings.entries
         let cardRows = entries + (spotlight.map { [$0] } ?? [])
-        let width = max(view.bounds.width - 32, 0)
-        let columns = UKRivalsRankingRow.fit(
-            LeaderboardRowColumns.rankings(cardRows, metric: .totalscore),
-            names: cardRows.map { (AccountRankingRow.displayName($0), isSelected($0.accountId)) },
-            availableWidth: width
+        let metric = CompetePreviewSpotlight.metric
+        let columns = UKRankingRowModels.fittingSongs(
+            LeaderboardRowColumns.rankings(cardRows, metric: metric),
+            names: cardRows.map { RankingRowName(name: AccountRankingRow.displayName($0), emphasized: isSelected($0.accountId)) },
+            sectionWidth: max(view.bounds.width - 32, 0), rowInset: 0, pageColumns: 1, traits: traitCollection
         )
-        let group = UKGroupSectionView(rows: .flush(separatorInset: UKRivalsRankingRow.horizontalPadding))
+        let group = UKGroupSectionView(rows: .flush(separatorInset: UKLeaderboardMetrics.horizontalPadding))
         var rows: [UIView] = entries.map { entry in
-            let row = UKRivalsRankingRow(
-                entry: entry, columns: columns, isSelected: isSelected(entry.accountId), opensProfile: true,
-                identifier: "fst.rankings.row.\(entry.id)"
-            )
-            row.onSelect = { [weak navigator = context.navigator] in
-                guard entry.hasAccount else { return }
+            let content = UKRankingRowView()
+            content.apply(UKRankingRowModels.account(entry: entry, metric: metric, isSelected: isSelected(entry.accountId), columns: columns))
+            return UKCardRowControl(content: content, selectedBand: isSelected(entry.accountId), onTap: entry.hasAccount ? { [weak navigator = context.navigator] in
                 navigator?.selectDetail(AccountRankingRow.route(entry))
-            }
-            return row
+            } : nil)
         }
         if let spotlight {
-            let row = UKRivalsRankingRow(
-                entry: spotlight, columns: columns, isSelected: true, opensProfile: false,
-                identifier: "fst.compete.leaderboard-card.\(scope.id).spotlight"
-            )
-            let rank = spotlight.rank(for: CompetePreviewSpotlight.metric)
-            row.spokenRow?.accessibilityLabel = CompetePreviewSpotlight.action(for: spotlight).footerLabel(for: .player, rank: rank)
-            row.spokenRow?.accessibilityTraits = .button
-            row.onSelect = { [weak navigator = context.navigator] in
+            var spotlightModel = UKRankingRowModels.account(entry: spotlight, metric: metric, isSelected: true, columns: columns, opensProfile: false)
+            spotlightModel.identifier = "fst.compete.leaderboard-card.\(scope.id).spotlight"
+            spotlightModel.opensSomething = true
+            spotlightModel.spokenOverride = CompetePreviewSpotlight.action(for: spotlight)
+                .footerLabel(for: .player, rank: spotlight.rank(for: metric))
+            let content = UKRankingRowView()
+            content.apply(spotlightModel)
+            rows.append(UKCardRowControl(content: content, selectedBand: true, onTap: { [weak navigator = context.navigator] in
                 navigator?.selectDetail(CompetePreviewSpotlight.route(for: spotlight, scope: scope))
-            }
-            rows.append(row)
+            }))
         }
         group.setRows(rows)
-        group.setAction(UKPurpleActionButton(title: "View Full Leaderboard", card: scope.label
-        , identifier: "fst.compete.leaderboard-card.\(scope.id).view-all") { [weak navigator = context.navigator, route = fullBoardRoute(scope)] in navigator?.push(route) })
+        group.setAction(UKPurpleActionButton(
+            title: "View Full Leaderboard", card: scope.label, identifier: "fst.compete.leaderboard-card.\(scope.id).view-all"
+        ) { [weak navigator = context.navigator, route = fullBoardRoute(scope)] in navigator?.push(route) })
         return group
     }
 }

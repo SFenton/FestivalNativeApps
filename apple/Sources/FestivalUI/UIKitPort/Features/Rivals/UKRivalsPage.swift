@@ -106,6 +106,7 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
         super.viewWillAppear(animated)
         if context.surface == .page { background.viewWillAppear() }
         quickLinks?.didAppear()
+        refreshSheetTools()
         // A pushed page shows the bell and profile (`.pageTrailingItems()`); a section root
         // gets them from the shell.
         if ukRoute != nil, context.surface == .page, !accountChromeInstalled {
@@ -148,6 +149,13 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
     var pageTools: [UKPageTool] { [] }
 
     // MARK: Page tools
+
+    /// Inside a sheet there is no shell to place the page's tools (the SwiftUI sheet shows
+    /// them in its navigation bar, where no tool floats), so they go in the bar's trailing items.
+    func refreshSheetTools() {
+        guard context.surface == .sheet else { return }
+        navigationItem.rightBarButtonItems = ukPageTools.sorted { $0.order < $1.order }.map(\.item).reversed()
+    }
 
     var ukPageTools: [UKPageTool] { pageTools + (quickLinks?.tool.map { [$0] } ?? []) }
 
@@ -283,7 +291,10 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
     func makeQuickLinks(title: String = "Quick Links") {
         guard quickLinks == nil else { return }
         let links = UKQuickLinks(controller: QuickLinksController(), title: title)
-        links.onToolChange = { [weak self] in self?.ukPageToolsDidChange() }
+        links.onToolChange = { [weak self] in
+            self?.ukPageToolsDidChange()
+            self?.refreshSheetTools()
+        }
         links.attach(
             to: scrollView,
             rect: { [weak self] id in
