@@ -89,34 +89,35 @@ final class UKRowPulseBorderView: UIView {
     }
 }
 
-// MARK: - Accessibility element
+// MARK: - Accessibility proxy
 
-/// The row's one accessibility element: a button over the card that opens the song.
-final class UKSongRowElement: UIAccessibilityElement {
+/// An invisible, touch-transparent view that carries one accessibility stop (the combined row
+/// button, a field, a card): real views are what UIKit and XCUITest reliably expose from a
+/// collection-view cell.
+final class UKRowAccessibilityView: UIView {
     var onActivate: (() -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     override func accessibilityActivate() -> Bool {
         onActivate?()
         return onActivate != nil
     }
-}
 
-/// A stop over part of a row (a field, the chips, an invalid-score button).
-final class UKSongRowStop: UIAccessibilityElement {
-    var onActivate: (() -> Void)?
-    var frameInCell: CGRect = .zero
-
-    override var accessibilityFrame: CGRect {
-        get {
-            guard let cell = accessibilityContainer as? UIView else { return super.accessibilityFrame }
-            return cell.convert(frameInCell, to: nil)
-        }
-        set { super.accessibilityFrame = newValue }
-    }
-
-    override func accessibilityActivate() -> Bool {
-        onActivate?()
-        return onActivate != nil
+    /// Configures the stop.
+    func set(identifier: String, label: String, traits: UIAccessibilityTraits, frame: CGRect, exposed: Bool = true) {
+        self.frame = frame
+        isAccessibilityElement = exposed
+        accessibilityIdentifier = identifier
+        accessibilityLabel = label
+        accessibilityTraits = traits
     }
 }
 
@@ -131,10 +132,10 @@ final class UKSongRowCell: UICollectionViewCell {
     private let pulse = UKRowPulseBorderView()
     private let contrastRim = UIView()
     private var songId = ""
-    private var rowElement: UKSongRowElement?
-    private var stops: [UKSongRowStop] = []
-    /// The row's accessibility stops, vended through the container protocol below.
-    private var exposedElements: [Any] = []
+    private let rowProxy = UKRowAccessibilityView()
+    private var childProxies: [UKRowAccessibilityView] = []
+    private let invalidButton = UIButton(type: .custom)
+    private var invalidWarning: InvalidScoreWarning?
     nonisolated(unsafe) private var voiceOver: NSObjectProtocol?
     /// Opens the song (tap, VoiceOver activate).
     var onOpen: (() -> Void)?
@@ -177,6 +178,12 @@ final class UKSongRowCell: UICollectionViewCell {
         pulse.isHidden = true
         card.addSubview(contrastRim)
         card.addSubview(pulse)
+        contentView.addSubview(rowProxy)
+        invalidButton.isHidden = true
+        invalidButton.addAction(UIAction { [weak self] _ in
+            if let warning = self?.invalidWarning { self?.onInvalidScore?(warning) }
+        }, for: .touchUpInside)
+        contentView.addSubview(invalidButton)
         for button in [bagButton, linkButton] {
             button.isHidden = true
             contentView.addSubview(button)
@@ -277,64 +284,56 @@ final class UKSongRowCell: UICollectionViewCell {
     /// button and the profile cards.
     private func rebuildAccessibility() {
         guard row.input != nil else { return }
-        let element = rowElement ?? UKSongRowElement(accessibilityContainer: self)
-        rowElement = element
-        element.accessibilityLabel = row.spokenParts.joined(separator: ", ")
-        element.accessibilityIdentifier = rowIdentifierOverride
-            ?? (row.input?.shopOffer == nil ? "fst.songs.row.\(songId)" : "fst.shop.row.\(songId)")
-        element.accessibilityTraits = rowOpens ? .button : .staticText
-        element.accessibilityFrameInContainerSpace = card.frame
-        element.onActivate = { [weak self] in self?.onOpen?() }
-        var elements: [Any] = [element]
-        var next: [UKSongRowStop] = []
-        func stop(_ id: String, _ label: String, _ frame: CGRect, _ traits: UIAccessibilityTraits) -> UKSongRowStop {
-            let stop = UKSongRowStop(accessibilityContainer: self)
-            stop.accessibilityIdentifier = id
-            stop.accessibilityLabel = label
-            stop.accessibilityTraits = traits
-            stop.frameInCell = frame
-            next.append(stop)
-            return stop
-        }
-        if !UIAccessibility.isVoiceOverRunning {
+        let voiceOver = UIAccessibility.isVoiceOverRunning
+        rowProxy.set(
+            identifier: rowIdentifierOverride ?? (row.input?.shopOffer == nil ? "fst.songs.row.\(songId)" : "fst.shop.row.\(songId)"),
+            label: row.spokenParts.joined(separator: ", "), traits: rowOpens ? .button : .staticText, frame: card.frame
+        )
+        rowProxy.onActivate = { [weak self] in self?.onOpen?() }
+        var specs: [(String, String, CGRect, UIAccessibilityTraits)] = []
+        if !voiceOver {
             for child in row.childElements(songId: songId) {
-                elements.append(stop(child.id, child.label, row.convert(child.frame, to: self), child.traits))
+                specs.append((child.id, child.label, row.convert(child.frame, to: contentView), child.traits))
             }
         }
-        if let warning = row.invalidWarning, let glyph = row.invalidGlyphFrame {
-            let center = row.convert(CGPoint(x: glyph.midX, y: glyph.midY), to: self)
-            let frame = CGRect(x: center.x - 22, y: center.y - 22, width: 44, height: 44)
-            let button = stop("fst.songs.invalid-score.\(songId)", InvalidScoreWarning.accessibilityLabel, frame, .button)
-            button.accessibilityHint = "Explains the filtered score"
-            button.onActivate = { [weak self] in self?.onInvalidScore?(warning) }
-            elements.append(button)
+        for card in row.panelCards {
+            specs.append(("fst.songs.profile-panel.\(songId).\(card.id)", card.label, row.convert(card.frame, to: contentView), .staticText))
+        }
+        while childProxies.count < specs.count {
+            let proxy = UKRowAccessibilityView()
+            contentView.addSubview(proxy)
+            childProxies.append(proxy)
+        }
+        for (index, proxy) in childProxies.enumerated() {
+            if index < specs.count {
+                proxy.isHidden = false
+                proxy.set(identifier: specs[index].0, label: specs[index].1, traits: specs[index].3, frame: specs[index].2)
+            } else {
+                proxy.isHidden = true
+                proxy.isAccessibilityElement = false
+            }
+        }
+        invalidWarning = row.invalidWarning
+        if let glyph = row.invalidGlyphFrame {
+            let center = row.convert(CGPoint(x: glyph.midX, y: glyph.midY), to: contentView)
+            invalidButton.frame = CGRect(x: center.x - 22, y: center.y - 22, width: 44, height: 44)
+            invalidButton.isHidden = false
+            invalidButton.isAccessibilityElement = true
+            invalidButton.accessibilityIdentifier = "fst.songs.invalid-score.\(songId)"
+            invalidButton.accessibilityLabel = InvalidScoreWarning.accessibilityLabel
+            invalidButton.accessibilityHint = "Explains the filtered score"
+            invalidButton.accessibilityTraits = .button
+        } else {
+            invalidButton.isHidden = true
+            invalidButton.isAccessibilityElement = false
         }
         if let link = shopLink {
-            let frame = link.below ? linkButton.frame : bagButton.frame
-            let bag = stop(link.identifier, link.label, frame, .button)
-            bag.onActivate = link.action
-            elements.append(bag)
+            let button = link.below ? linkButton : bagButton
+            button.isAccessibilityElement = true
+            button.accessibilityIdentifier = link.identifier
+            button.accessibilityLabel = link.label
+            button.accessibilityTraits = .button
         }
-        let cards = row.panelCards
-        if !cards.isEmpty {
-            for card in cards {
-                elements.append(stop("fst.songs.profile-panel.\(songId).\(card.id)", card.label, row.convert(card.frame, to: self), .staticText))
-            }
-        }
-        stops = next
-        exposedElements = elements
-    }
-
-    // MARK: Accessibility container
-
-    override func accessibilityElementCount() -> Int { exposedElements.count }
-
-    override func accessibilityElement(at index: Int) -> Any? {
-        exposedElements.indices.contains(index) ? exposedElements[index] : nil
-    }
-
-    override func index(ofAccessibilityElement element: Any) -> Int {
-        exposedElements.firstIndex { ($0 as AnyObject) === (element as AnyObject) } ?? NSNotFound
     }
 
     // MARK: Taps
@@ -344,11 +343,5 @@ final class UKSongRowCell: UICollectionViewCell {
         super.point(inside: point, with: event)
     }
 
-    /// Whether `point` (cell coordinates) is on the invalid-score glyph's target.
-    func invalidScore(at point: CGPoint) -> InvalidScoreWarning? {
-        guard let warning = row.invalidWarning, let glyph = row.invalidGlyphFrame else { return nil }
-        let center = row.convert(CGPoint(x: glyph.midX, y: glyph.midY), to: self)
-        return CGRect(x: center.x - 22, y: center.y - 22, width: 44, height: 44).contains(point) ? warning : nil
-    }
 }
 #endif

@@ -18,9 +18,8 @@ final class UKShopGridCell: UICollectionViewCell {
     private var task: Task<Void, Never>?
     private var offer: ShopSong?
     private var highlight: ShopHighlight?
-    private var element: UIAccessibilityElement?
-    private var badgeStop: UIAccessibilityElement?
-    private var exposedElements: [Any] = []
+    private let mainProxy = UKRowAccessibilityView()
+    private let badgeProxy = UKRowAccessibilityView()
     /// Opens the official Shop page.
     var onOpen: (() -> Void)?
 
@@ -49,6 +48,8 @@ final class UKShopGridCell: UICollectionViewCell {
         border.cornerCurve = .continuous
         contentView.layer.addSublayer(border)
         contentView.addSubview(badge)
+        contentView.addSubview(mainProxy)
+        contentView.addSubview(badgeProxy)
         isAccessibilityElement = false
     }
 
@@ -140,38 +141,22 @@ final class UKShopGridCell: UICollectionViewCell {
 
     private func rebuildAccessibility() {
         guard let offer else { return }
-        let main = element ?? UIAccessibilityElement(accessibilityContainer: self)
-        element = main
         let state = highlight.map { "\($0.label), " } ?? ""
-        main.accessibilityLabel = "\(offer.title), \(offer.artist), \(state)Open Official Item Shop"
-        main.accessibilityIdentifier = "fst.shop.external.\(offer.songId)"
-        main.accessibilityTraits = .button
-        main.accessibilityFrameInContainerSpace = bounds
-        var elements: [Any] = [main]
+        mainProxy.set(
+            identifier: "fst.shop.external.\(offer.songId)",
+            label: "\(offer.title), \(offer.artist), \(state)Open Official Item Shop", traits: .button, frame: contentView.bounds
+        )
+        mainProxy.onActivate = { [weak self] in self?.onOpen?() }
         if let highlight, !UIAccessibility.isVoiceOverRunning {
-            let stop = badgeStop ?? UIAccessibilityElement(accessibilityContainer: self)
-            badgeStop = stop
-            stop.accessibilityLabel = highlight.label
-            stop.accessibilityIdentifier = highlight == .new ? "fst.shop.badge.new.\(offer.songId)" : "fst.shop.badge.leaving.\(offer.songId)"
-            stop.accessibilityFrameInContainerSpace = badge.frame
-            elements.append(stop)
+            badgeProxy.isHidden = false
+            badgeProxy.set(
+                identifier: highlight == .new ? "fst.shop.badge.new.\(offer.songId)" : "fst.shop.badge.leaving.\(offer.songId)",
+                label: highlight.label, traits: .staticText, frame: badge.frame
+            )
+        } else {
+            badgeProxy.isHidden = true
+            badgeProxy.isAccessibilityElement = false
         }
-        exposedElements = elements
-    }
-
-    override func accessibilityElementCount() -> Int { exposedElements.count }
-
-    override func accessibilityElement(at index: Int) -> Any? {
-        exposedElements.indices.contains(index) ? exposedElements[index] : nil
-    }
-
-    override func index(ofAccessibilityElement element: Any) -> Int {
-        exposedElements.firstIndex { ($0 as AnyObject) === (element as AnyObject) } ?? NSNotFound
-    }
-
-    override func accessibilityActivate() -> Bool {
-        onOpen?()
-        return onOpen != nil
     }
 }
 

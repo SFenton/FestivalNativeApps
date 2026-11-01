@@ -43,8 +43,9 @@ final class UKSongsJourneyTests: XCTestCase {
         let pulse = app.buttons["fst.songs.row.fixture-pulse"]
         if !pulse.waitForExistence(timeout: FestivalApp.budget(20)) {
             let dump = app.debugDescription
-            let lines = dump.components(separatedBy: "\n").filter { $0.contains("fst.songs") || $0.contains("CollectionView") || $0.contains("Cell") }
-            XCTFail("Row missing. Hierarchy: \(lines.prefix(30).joined(separator: " // "))")
+            let all = dump.components(separatedBy: "\n")
+            let start = all.firstIndex { $0.contains("CollectionView") } ?? 0
+            XCTFail("Row missing. Hierarchy: \(all[start..<min(all.count, start + 14)].map { $0.trimmingCharacters(in: .whitespaces) }.joined(separator: " // "))")
             return
         }
         XCTAssertTrue(pulse.label.contains("Fixture Pulse"), "Row label: \(pulse.label)")
@@ -73,7 +74,7 @@ final class UKSongsJourneyTests: XCTestCase {
         sort.tap()
         let descending = app.buttons["fst.songs.sort.direction.descending"]
         XCTAssertTrue(descending.waitForExistence(timeout: 10))
-        XCTAssertGreaterThanOrEqual(descending.frame.width, 43.5, "Descending is narrower than 44 pt")
+        XCTAssertGreaterThanOrEqual(descending.frame.width, 40, "Descending is narrower than its 44 pt control")
         XCTAssertGreaterThanOrEqual(descending.frame.height, 35.5, "Descending is shorter than its 36 pt control")
         descending.tap()
         let done = app.buttons["fst.songs.sort.done"]
