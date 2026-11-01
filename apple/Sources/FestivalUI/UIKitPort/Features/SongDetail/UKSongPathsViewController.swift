@@ -218,7 +218,7 @@ final class UKSongPathsViewController: UIViewController, UKModalScrollProviding 
         NSLayoutConstraint.activate([
             panesHolder.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 16),
             panesHolder.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
-            panesHolder.topAnchor.constraint(equalTo: guide.topAnchor),
+            panesHolder.topAnchor.constraint(equalTo: view.topAnchor),
             selectorHolder.topAnchor.constraint(equalTo: panesHolder.bottomAnchor, constant: 10),
             selectorHolder.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 16),
             selectorHolder.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
@@ -409,10 +409,9 @@ final class UKSongPathsViewController: UIViewController, UKModalScrollProviding 
             let stack = UIStackView()
             stack.axis = .vertical
             stack.spacing = 8
-            // Names the chart and difficulty shown. On the content, not the scroll view, so its
-            // frame moves as the table scrolls (the SwiftUI ScrollView's content does).
-            stack.accessibilityContainerType = .semanticGroup
-            stack.accessibilityIdentifier = "fst.paths.text.\(instrument.rawValue).\(difficulty.rawValue)"
+            // Names the chart and difficulty shown; the scroll view runs under the header
+            // (its inset keeps the first card clear), like the SwiftUI ScrollView.
+            scroll.accessibilityIdentifier = "fst.paths.text.\(instrument.rawValue).\(difficulty.rawValue)"
             stack.translatesAutoresizingMaskIntoConstraints = false
             scroll.addSubview(stack)
             NSLayoutConstraint.activate([
