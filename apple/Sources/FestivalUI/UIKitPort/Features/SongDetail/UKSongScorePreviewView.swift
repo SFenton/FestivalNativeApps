@@ -29,7 +29,7 @@ final class UKSongScorePreviewView: UIView {
     private let titleLabel: UKLabel
     private let subtitleLabel = UKLabel(style: .subheadline)
     private let header = UIView()
-    private let body = UIView()
+    private let body = UKLayoutProbeView()
     private let observations = UKObservationBag()
     private var state: LoadState
     private var loadedKey: RequestKey?
@@ -86,6 +86,7 @@ final class UKSongScorePreviewView: UIView {
             stack.leadingAnchor.constraint(equalTo: leadingAnchor), stack.trailingAnchor.constraint(equalTo: trailingAnchor),
             stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
+        body.onLayout = { [weak self] in self?.bodyLaidOut() }
         accessibilityContainerType = .semanticGroup
         accessibilityIdentifier = "fst.song-detail.card.\(instrument.rawValue)"
         observations.observe { [weak self] in self?.sessionChanged() }
@@ -183,11 +184,12 @@ final class UKSongScorePreviewView: UIView {
 
     // MARK: Rendering
 
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        let width = bodyWidth
-        if width != renderedWidth, case .loaded = state {
-            render()
+    /// The body's width arrives after this view's own layout pass: re-render the rows once it
+    /// changes (the season column and the rank and score columns depend on it).
+    private func bodyLaidOut() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.bodyWidth != self.renderedWidth, case .loaded = self.state else { return }
+            self.render()
         }
     }
 
