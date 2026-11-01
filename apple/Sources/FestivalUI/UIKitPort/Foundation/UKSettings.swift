@@ -20,7 +20,8 @@ enum UKSettings {
     ///   - fallback: The value when nothing is stored.
     /// - Returns: The stored or default value.
     static func bool(_ key: String, default fallback: Bool) -> Bool {
-        UserDefaults.standard.object(forKey: key) as? Bool ?? fallback
+        // `bool(forKey:)` like `@AppStorage`: a launch argument `-key YES` is stored as a string.
+        UserDefaults.standard.object(forKey: key) == nil ? fallback : UserDefaults.standard.bool(forKey: key)
     }
 
     /// Chart instruments Settings shows, as `FestivalRootView.visibleInstruments`.
