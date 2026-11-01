@@ -182,6 +182,25 @@ enum UKSongsButtons {
     }
 }
 
+// MARK: - Adjustable stop
+
+/// The A-Z rail's VoiceOver control: an invisible adjustable element over the rail.
+final class UKSongsAdjustableView: UIView {
+    var onIncrement: (() -> Void)?
+    var onDecrement: (() -> Void)?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func accessibilityIncrement() { onIncrement?() }
+    override func accessibilityDecrement() { onDecrement?() }
+}
+
 // MARK: - A–Z scrubber
 
 /// The trailing A–Z jump rail (``SongSectionIndexScrubber``): a capsule of letters that scrubs
@@ -196,7 +215,7 @@ final class UKSongSectionIndexView: UIView {
     private var touchIndex: Int?
     private let feedback = UISelectionFeedbackGenerator()
     private var labelHeight: CGFloat = SongSectionIndexScrubber.defaultLabelHeight
-    private let adjustable = UKRowAccessibilityView()
+    private let adjustable = UKSongsAdjustableView()
     /// Called with a section's id as the rail passes over it.
     var onSelect: ((Int) -> Void)?
 
