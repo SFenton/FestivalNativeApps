@@ -76,7 +76,15 @@ final class UKSongBarTitleView: UIView {
         translatesAutoresizingMaskIntoConstraints = false
         let art = UKArtworkTileView(size: 28)
         art.configure(raw: song.albumArt, session: session)
-        let title = UKMarqueeLabel(song.title, font: UKFont.font(.headline))
+        // The bar is a fixed height: UIKit caps its own title sizes, so the title and caption
+        // grow with Dynamic Type only up to a ceiling that keeps both lines inside it.
+        let titleFont = UIFontMetrics(forTextStyle: .headline).scaledFont(
+            for: UIFont.systemFont(ofSize: 17, weight: .semibold), maximumPointSize: 22
+        )
+        let captionFont = UIFontMetrics(forTextStyle: .caption1).scaledFont(
+            for: UIFont.systemFont(ofSize: 12), maximumPointSize: 18
+        )
+        let title = UKMarqueeLabel(song.title, font: titleFont)
         title.wrapsAtAccessibilitySizes = false
         let column = UIStackView(arrangedSubviews: [title])
         column.axis = .vertical
@@ -86,9 +94,11 @@ final class UKSongBarTitleView: UIView {
             line.spacing = 4
             line.alignment = .center
             if let captionInstrument {
-                line.addArrangedSubview(UKInstrumentIconView(captionInstrument, size: UKFont.scaled(14, relativeTo: .caption1), hidesFromAccessibility: true))
+                line.addArrangedSubview(UKInstrumentIconView(captionInstrument, size: 14 * captionFont.pointSize / 12, hidesFromAccessibility: true))
             }
-            line.addArrangedSubview(UKLabel(caption, style: .caption1, lines: 1))
+            let captionLabel = UKLabel(caption, style: .caption1, lines: 1)
+            captionLabel.font = captionFont
+            line.addArrangedSubview(captionLabel)
             column.addArrangedSubview(line)
         }
         let row = UIStackView(arrangedSubviews: [art, column])
