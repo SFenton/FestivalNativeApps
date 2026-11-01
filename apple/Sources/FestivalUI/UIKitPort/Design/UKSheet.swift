@@ -212,6 +212,10 @@ enum UKSheet {
         coverage: FestivalModalCoverage = .sheet, onClose: (() -> Void)? = nil, completion: (() -> Void)? = nil
     ) -> UKSheetNavigationController {
         let regular = presenter.traitCollection.horizontalSizeClass == .regular
+        // The sheet's glass chrome belongs to the window, not to the dark view controllers:
+        // SwiftUI's `preferredColorScheme(.dark)` darkens the window, so do the same here or
+        // the sheet draws light and its white text and dark capsules lose their contrast.
+        presenter.view.window?.overrideUserInterfaceStyle = .dark
         let sheet = make(
             content, title: title, closeIdentifier: closeIdentifier, size: size, sizing: sizing,
             regularWidth: regular, coverage: coverage, onClose: onClose

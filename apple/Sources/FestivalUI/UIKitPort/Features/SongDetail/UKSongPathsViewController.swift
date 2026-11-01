@@ -24,15 +24,23 @@ private final class UKPathPane: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
+    /// Fills the pane with Auto Layout (the loading and status views opt out of autoresizing).
+    private func pin(_ view: UIView) {
+        view.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            view.leadingAnchor.constraint(equalTo: leadingAnchor), view.trailingAnchor.constraint(equalTo: trailingAnchor),
+            view.topAnchor.constraint(equalTo: topAnchor), view.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+
     /// Shows or hides the spinner, fading over `fade` seconds.
     func setSpinner(visible: Bool, fade: TimeInterval) {
         if visible {
             guard spinner == nil else { return }
             let loading = UKLoadingView(accessibilityLabel: "Loading \(display.label.lowercased()) path", placement: .fill)
-            loading.frame = bounds
-            loading.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             loading.alpha = fade > 0 ? 0 : 1
             addSubview(loading)
+            pin(loading)
             spinner = loading
             if fade > 0 { UIView.animate(withDuration: fade) { loading.alpha = 1 } }
         } else if let loading = spinner {
@@ -50,10 +58,9 @@ private final class UKPathPane: UIView {
         let old = content
         content = view
         if let view {
-            view.frame = bounds
-            view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             view.alpha = fade > 0 ? 0 : 1
             insertSubview(view, at: 0)
+            pin(view)
             if fade > 0 { UIView.animate(withDuration: fade) { view.alpha = 1 } }
         }
         if let old {
@@ -211,7 +218,7 @@ final class UKSongPathsViewController: UIViewController, UKModalScrollProviding 
         NSLayoutConstraint.activate([
             panesHolder.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 16),
             panesHolder.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
-            panesHolder.topAnchor.constraint(equalTo: guide.topAnchor),
+            panesHolder.topAnchor.constraint(equalTo: view.topAnchor),
             selectorHolder.topAnchor.constraint(equalTo: panesHolder.bottomAnchor, constant: 10),
             selectorHolder.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 16),
             selectorHolder.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
@@ -277,9 +284,12 @@ final class UKSongPathsViewController: UIViewController, UKModalScrollProviding 
         columns.trailingContent.subviews.forEach { $0.removeFromSuperview() }
         func place(_ pane: UKPathPane, in host: UIView) {
             pane.removeFromSuperview()
-            pane.frame = host.bounds
-            pane.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             host.addSubview(pane)
+            pane.translatesAutoresizingMaskIntoConstraints = false
+            NSLayoutConstraint.activate([
+                pane.leadingAnchor.constraint(equalTo: host.leadingAnchor), pane.trailingAnchor.constraint(equalTo: host.trailingAnchor),
+                pane.topAnchor.constraint(equalTo: host.topAnchor), pane.bottomAnchor.constraint(equalTo: host.bottomAnchor),
+            ])
         }
         if mode == .sideBySide {
             columns.translatesAutoresizingMaskIntoConstraints = false
@@ -394,12 +404,14 @@ final class UKSongPathsViewController: UIViewController, UKModalScrollProviding 
             installPullDown(scroll)
             return container(freshness: payload.publicationId, content: scroll)
         case let .text(payload):
-            let scroll = UIScrollView()
+            let scroll = UKControlScrollView()
             scroll.alwaysBounceVertical = true
-            scroll.accessibilityIdentifier = "fst.paths.text.\(instrument.rawValue).\(difficulty.rawValue)"
             let stack = UIStackView()
             stack.axis = .vertical
             stack.spacing = 8
+            // Names the chart and difficulty shown; the scroll view runs under the header
+            // (its inset keeps the first card clear), like the SwiftUI ScrollView.
+            scroll.accessibilityIdentifier = "fst.paths.text.\(instrument.rawValue).\(difficulty.rawValue)"
             stack.translatesAutoresizingMaskIntoConstraints = false
             scroll.addSubview(stack)
             NSLayoutConstraint.activate([
