@@ -531,6 +531,10 @@
             "symbol": "SongsSectionBar"
           },
           {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsSupportViews.swift",
+            "symbol": "UKSongsSectionBar"
+          },
+          {
             "path": "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
             "symbol": "SongsSectionBarOverlay"
           },
@@ -590,10 +594,13 @@
           "glob": "apple/Sources/**/*.swift",
           "regex": "SongsSectionBar",
           "allow": [
-            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift"
+            "apple/Sources/FestivalUI/Features/Songs/SongsScreen.swift",
+            "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsSupportViews.swift",
+            "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsViewController.swift",
+            "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsViewController+Chrome.swift"
           ],
           "debt": [],
-          "message": "Pinned Songs header rendering belongs to SongsSectionBar (section-headers R4)."
+          "message": "Pinned Songs header rendering belongs to SongsSectionBar (UIKit port: UKSongsSectionBar, owned by UKSongsViewController) (section-headers R4)."
         },
         {
           "id": "android-sticky-header",
