@@ -173,10 +173,13 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(open.frame.width, 44, "Quick Links width at \(size)", file: file, line: line)
         XCTAssertGreaterThanOrEqual(open.frame.height, 44, "Quick Links height at \(size)", file: file, line: line)
         open.tap()
-        let rows = FestivalApp.quickLinkRows(Self.quickLinkSections, in: app)
-        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: FestivalApp.budget(10)), "Quick Links did not open",
-                      file: file, line: line)
-        let all = rows.allElementsBoundByIndex.map { row in
+        // One snapshot, retried if the runner times it out, rather than a query per row (#686).
+        let root = try FestivalApp.snapshot(of: app, within: FestivalApp.budget(10)) {
+            !FestivalApp.quickLinkRowNodes(Self.quickLinkSections, in: $0).isEmpty
+        }
+        let rows = FestivalApp.quickLinkRowNodes(Self.quickLinkSections, in: root)
+        XCTAssertFalse(rows.isEmpty, "Quick Links did not open", file: file, line: line)
+        let all = rows.map { row in
             (id: FestivalApp.quickLinkSectionID(identifier: row.identifier, label: row.label, in: Self.quickLinkSections),
              label: row.label, frame: row.frame)
         }
@@ -184,7 +187,7 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
             all.contains { row in Self.removedWords.contains { row.id.lowercased().contains($0) || row.label.lowercased().contains($0) } },
             "Quick Links offers the removed Diagnostics section at \(size): \(all.map(\.id))", file: file, line: line
         )
-        let screen = app.windows.firstMatch.frame
+        let screen = FestivalApp.nodes(in: root) { $0.elementType == .window }.first?.frame ?? root.frame
         let visible = all.filter { screen.contains($0.frame) }.sorted { $0.frame.minY < $1.frame.minY }
         XCTAssertEqual(
             Array(visible.prefix(3).map(\.id)), ["app-settings", "accessibility", "item-shop"],
@@ -387,7 +390,9 @@ final class SettingsAccessibilityJourneyTests: XCTestCase {
         let labels = Set(Self.region.map(\.title) + Self.descriptions)
         var issues: [String] = []
         var flagged: [(element: XCUIElement, leadingTextWidth: CGFloat?, name: String)] = []
-        try app.performAccessibilityAudit(for: .all) { issue in
+        try SongsUITestSupport.performAuditRetryingTimeout(
+            app, .all, name: "settings-region-\(size)", reset: { issues = []; flagged = [] }
+        ) { issue in
             let id = issue.element?.identifier ?? ""
             let label = issue.element?.label ?? ""
             let toggle = Self.region.first { $0.kind == .toggle && ($0.key == id || label.hasPrefix($0.title)) }

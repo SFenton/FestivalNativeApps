@@ -643,19 +643,25 @@ enum SongsUITestSupport {
             && (issue.detailedDescription + issue.compactDescription).contains("_UITextFieldClearButton")
     }
 
-    /// Run an accessibility audit, once more when it does not complete in time: the CI
-    /// runner's virtual machine (or a loaded shared Mac) sometimes exceeds XCTest's audit
-    /// deadline, reported either as `com.apple.xcode.xctest.accessibilityAudit` -56 (#388, the
-    /// Songs scroll-away list) or as an `XCTFuture` 1000 "Timed out while running accessibility
+    /// Run an accessibility audit, again when it does not complete in time: the CI runner's
+    /// virtual machine (or a loaded shared Mac) sometimes exceeds XCTest's audit deadline,
+    /// reported either as `com.apple.xcode.xctest.accessibilityAudit` -56 (#388, the Songs
+    /// scroll-away list) or as an `XCTFuture` 1000 "Timed out while running accessibility
     /// audit" (#429, the first-run guide over Songs at AX5).
+    ///
+    /// The first timeout retries the same audit once. A second timeout (the Song Row Visual
+    /// Order list at AX5 missed the deadline twice in a row, #686) settles the runner and runs
+    /// the same types again as smaller audits, one per type (``auditPasses(_:)``), so each
+    /// fits the deadline; together they check exactly what the single audit checks. What the
+    /// handler collected is cleared before each new attempt.
     ///
     /// - Parameters:
     ///   - app: The app to audit.
     ///   - types: The audit types.
     ///   - name: Names the retry activity.
-    ///   - reset: Clears what the handler collected before the retry.
+    ///   - reset: Clears what the handler collected before a retry.
     ///   - handler: The issue handler.
-    /// - Throws: The second timeout or any other audit error.
+    /// - Throws: A timeout of the last attempt or any other audit error.
     @MainActor
     static func performAuditRetryingTimeout(
         _ app: XCUIApplication,
@@ -666,11 +672,40 @@ enum SongsUITestSupport {
     ) throws {
         do {
             try app.performAccessibilityAudit(for: types, handler)
+            return
         } catch let error as NSError where isAuditTimeout(error) {
             XCTContext.runActivity(named: "Audit \(name) did not complete in time; retrying once") { _ in }
-            reset()
-            try app.performAccessibilityAudit(for: types, handler)
         }
+        reset()
+        do {
+            try app.performAccessibilityAudit(for: types, handler)
+            return
+        } catch let error as NSError where isAuditTimeout(error) {
+            XCTContext.runActivity(named: "Audit \(name) timed out again; running one audit per type") { _ in }
+        }
+        reset()
+        RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(1)))
+        for pass in auditPasses(types) {
+            try app.performAccessibilityAudit(for: pass, handler)
+        }
+    }
+
+    /// Every audit type XCTest defines on iOS, in its header's order.
+    static let knownAuditTypes: [XCUIAccessibilityAuditType] = [
+        .contrast, .elementDetection, .hitRegion, .sufficientElementDescription,
+        .dynamicType, .textClipped, .trait,
+    ]
+
+    /// The smaller audits that together check what one audit of `types` checks: one per
+    /// known type, or `types` whole when it has bits XCTest does not name (such as `.all`,
+    /// whose spare bits are not audits on their own).
+    ///
+    /// - Parameter types: The audit types.
+    /// - Returns: The audits to run, in a stable order.
+    static func auditPasses(_ types: XCUIAccessibilityAuditType) -> [XCUIAccessibilityAuditType] {
+        let known = knownAuditTypes.reduce(into: XCUIAccessibilityAuditType()) { $0.formUnion($1) }
+        guard known.isSuperset(of: types) else { return [types] }
+        return knownAuditTypes.filter { types.contains($0) }
     }
 
     /// True for the errors XCTest reports when an audit misses its deadline.

@@ -111,13 +111,65 @@ enum FestivalApp {
     static func snapshotNodes(
         in root: XCUIElement, where matches: (XCUIElementSnapshot) -> Bool
     ) throws -> [XCUIElementSnapshot] {
+        nodes(in: try root.snapshot(), where: matches)
+    }
+
+    /// The nodes of a snapshot already taken that match, in depth-first order.
+    ///
+    /// - Parameters:
+    ///   - root: The snapshot to walk.
+    ///   - matches: Selects the wanted nodes.
+    /// - Returns: Every matching node, `root` included when it matches.
+    @MainActor
+    static func nodes(
+        in root: XCUIElementSnapshot, where matches: (XCUIElementSnapshot) -> Bool
+    ) -> [XCUIElementSnapshot] {
         var found: [XCUIElementSnapshot] = []
         func walk(_ node: XCUIElementSnapshot) {
             if matches(node) { found.append(node) }
             node.children.forEach(walk)
         }
-        walk(try root.snapshot())
+        walk(root)
         return found
+    }
+
+    /// Most snapshots ``snapshot(of:within:until:)`` lets fail before it gives up.
+    static let snapshotAttempts = 3
+
+    /// One accessibility snapshot of `root` that satisfies `ready`, polled within `timeout`.
+    ///
+    /// Use this instead of `waitForExistence` followed by `allElementsBoundByIndex` where a
+    /// journey waits for something to appear and then reads many of its elements: the wait
+    /// and every bound element's identifier, label and frame each evaluate the query again,
+    /// and on a slow runner one of those evaluations can time out and fail the test outright
+    /// ("Failed to get matching snapshots: Timed out while evaluating UI query", the Settings
+    /// Quick Links menu just after a simulator reboot, #686). A snapshot that throws is
+    /// retried, at least once even past the deadline, up to ``snapshotAttempts``; nothing a
+    /// caller asserts on the result is relaxed.
+    ///
+    /// - Parameters:
+    ///   - root: The element to snapshot, usually the app.
+    ///   - timeout: How long to wait for `ready`; size it with ``budget(_:inVirtualMachine:)``.
+    ///   - ready: Whether a snapshot shows what the caller waits for.
+    /// - Returns: The first ready snapshot, or the last one taken when none was ready in time.
+    /// - Throws: The snapshot error once the attempts or the deadline (after one retry) run out.
+    @MainActor
+    static func snapshot(
+        of root: XCUIElement, within timeout: TimeInterval, until ready: (XCUIElementSnapshot) -> Bool
+    ) throws -> XCUIElementSnapshot {
+        let deadline = Date().addingTimeInterval(timeout)
+        var failures = 0
+        while true {
+            do {
+                let snapshot = try root.snapshot()
+                if ready(snapshot) || Date() >= deadline { return snapshot }
+            } catch {
+                failures += 1
+                if failures >= snapshotAttempts || (failures > 1 && Date() >= deadline) { throw error }
+                XCTContext.runActivity(named: "Snapshot \(failures) failed (\(error.localizedDescription)); retrying") { _ in }
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+        }
     }
 
     // MARK: - Notifications bell
@@ -225,6 +277,42 @@ enum FestivalApp {
             format: "identifier BEGINSWITH 'fst.quick-links.item.' OR (identifier == '' AND label IN %@)",
             sections.map(\.label)
         )
+    }
+
+    /// Every row of the open Quick Links chooser in one snapshot, matched as
+    /// ``quickLinkRowsPredicate(_:)`` matches them, in hierarchy order.
+    ///
+    /// Read the chooser's rows from ``snapshot(of:within:until:)`` with this rather than
+    /// walking ``quickLinkRows(_:in:)`` (#686): every identifier, label and frame then comes
+    /// from the same instant and no read can time out a query.
+    ///
+    /// - Parameters:
+    ///   - sections: The sections the journey may meet, including ones it must not see.
+    ///   - root: A snapshot of the app with the chooser open.
+    /// - Returns: The rows' button snapshots.
+    @MainActor
+    static func quickLinkRowNodes(_ sections: [QuickLinkSection], in root: XCUIElementSnapshot) -> [XCUIElementSnapshot] {
+        let labels = Set(sections.map(\.label))
+        return nodes(in: root) {
+            isQuickLinkRow(elementType: $0.elementType, identifier: $0.identifier, label: $0.label, labels: labels)
+        }
+    }
+
+    /// Whether an element is a Quick Links row: a button with an `fst.quick-links.item.`
+    /// identifier, or an unidentified button whose label is one of `labels` (R6), as
+    /// ``quickLinkRowsPredicate(_:)``.
+    ///
+    /// - Parameters:
+    ///   - elementType: The element's type.
+    ///   - identifier: Its accessibility identifier, possibly empty.
+    ///   - label: Its VoiceOver label.
+    ///   - labels: The spoken titles of the sections the journey may meet.
+    /// - Returns: True for a Quick Links row.
+    static func isQuickLinkRow(
+        elementType: XCUIElement.ElementType, identifier: String, label: String, labels: Set<String>
+    ) -> Bool {
+        guard elementType == .button else { return false }
+        return identifier.hasPrefix("fst.quick-links.item.") || (identifier.isEmpty && labels.contains(label))
     }
 
     /// The section ID of a row from ``quickLinkRows(_:in:)``: its identifier after
