@@ -93,6 +93,14 @@ final class UKFloatingPageToolsView: UIView {
                 }
             }
             if let scope, !tools.isEmpty { revealedScopes.insert(ObjectIdentifier(scope)) }
+        } else {
+            // The same items: carry their current spoken value and menu to the buttons (Quick
+            // Links' active section, a menu's checked choice).
+            for (view, tool) in zip(stack.arrangedSubviews, tools) {
+                guard let button = view as? UIButton else { continue }
+                button.accessibilityValue = tool.item.accessibilityValue
+                button.menu = tool.item.menu
+            }
         }
         isHidden = tools.isEmpty
         let target: CGFloat = covered ? 0 : 1

@@ -164,6 +164,12 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
             return card.convert(card.bounds, to: scroll)
         }, element: { [weak self] id in self?.cards[id] })
         quickLinks.onToolChange = { [weak self] in self?.ukPageToolsDidChange() }
+        // The bar button's spoken value follows the active section.
+        observations.observe { [weak self] in
+            guard let self else { return }
+            _ = quickLinks.controller.activeID
+            if isViewLoaded, view.window != nil { ukPageToolsDidChange() }
+        }
         settingsObserver = NotificationCenter.default.addObserver(forName: UKSettings.didChange, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.keyMayHaveChanged() }
         }
