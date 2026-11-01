@@ -35,6 +35,8 @@ public enum UKApp {
         let root = UKRootViewController(windowRoute: UKWindows.route(from: userActivity))
         #if DEBUG
         PerfNavigationHooks.register(push: { [weak root] in root?.push($0) }, pop: { [weak root] in root?.pop() })
+        // Song Detail lane: `FST_UIKIT_DEBUG_SONGDETAIL=<songId>` pushes a song's page.
+        UKSongDetailDebug.openIfRequested(on: root)
         #endif
         return root
     }

@@ -17,7 +17,20 @@ enum UKProfileRoutes {
     ///   - context: The pushing screen's context.
     /// - Returns: The ported screen, or nil while it is not ported.
     static func make(_ route: AppRoute, context: UKContext) -> UIViewController? {
-        nil
+        switch route {
+        case let .player(accountId, displayName):
+            UKPlayerProfileViewController(context: context, accountId: accountId, displayName: displayName)
+        case let .playerBands(accountId, displayName, group):
+            UKPlayerBandsViewController(context: context, accountId: accountId, displayName: displayName, group: group)
+        case .bands:
+            UKBandsViewController(context: context)
+        case let .band(bandId, name, bandType, teamKey):
+            UKBandDetailViewController(context: context, bandId: bandId, name: name, bandType: bandType, teamKey: teamKey)
+        case .statistics:
+            UKStatisticsViewController(context: context)
+        default:
+            nil
+        }
     }
 
     /// The root controller of a section this lane owns.
@@ -27,7 +40,7 @@ enum UKProfileRoutes {
     ///   - context: The section's context.
     /// - Returns: The ported root, or nil while it is not ported.
     static func root(for section: FestivalSection, context: UKContext) -> UIViewController? {
-        nil
+        section == .statistics ? UKStatisticsViewController(context: context) : nil
     }
 }
 #endif

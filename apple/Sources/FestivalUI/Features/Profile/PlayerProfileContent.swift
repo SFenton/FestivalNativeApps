@@ -204,10 +204,10 @@ struct PlayerProfileContent: View {
     /// Select, Switch or Deselect for the shown account; nil while loading or paused.
     private var identity: ProfileIdentityAction? {
         guard case let .available(payload) = shownPhase else { return nil }
-        if isSelected { return .deselect }
-        guard let publication = payload.publicationId, publication == session.publicationId
-        else { return nil }
-        return session.selectedPlayer == nil ? .select : .switchTo
+        return PlayerProfileTiles.identity(
+            isSelected: isSelected, payloadPublicationId: payload.publicationId,
+            sessionPublicationId: session.publicationId, hasSelectedPlayer: session.selectedPlayer != nil
+        )
     }
 
     /// The identity action this page will offer, known from the session alone, so the
@@ -215,10 +215,8 @@ struct PlayerProfileContent: View {
     /// proves it (``identity``), the button shows disabled: inserting it after the load
     /// re-laid out the navigation bar mid-push (Liquid Glass morphs every item).
     private var plannedIdentity: ProfileIdentityAction {
-        if isSelected { return .deselect }
-        return session.selectedPlayer == nil ? .select : .switchTo
+        PlayerProfileTiles.plannedIdentity(isSelected: isSelected, hasSelectedPlayer: session.selectedPlayer != nil)
     }
-
 
     /// `phase`, never showing another account's payload (see `PlayerProfilePhase.shown(for:)`).
     private var shownPhase: PlayerProfilePhase { phase.shown(for: accountId) }
@@ -313,12 +311,7 @@ struct PlayerProfileContent: View {
     /// Whether to hold the identity button's place (disabled) instead of hiding it:
     /// while loading, and while selection is paused. A failed or syncing read offers no
     /// action at all.
-    private var showsIdentityPlaceholder: Bool {
-        switch shownPhase {
-        case .loading, .available: true
-        case .syncing, .failed: false
-        }
-    }
+    private var showsIdentityPlaceholder: Bool { PlayerProfileTiles.showsIdentityPlaceholder(shownPhase) }
 
     @ViewBuilder private var content: some View {
         switch shownPhase {
@@ -481,9 +474,7 @@ struct PlayerProfileContent: View {
     /// - Parameter link: The web's target for the tile.
     /// - Returns: The link to attach, or nil.
     private func tileLink(_ link: PlayerStatLink?) -> PlayerStatLink? {
-        guard let link, navigator != nil else { return nil }
-        if link.requiresSelection, !isSelected, identity == nil { return nil }
-        return link
+        PlayerProfileTiles.tileLink(link, hasNavigator: navigator != nil, isSelected: isSelected, hasIdentity: identity != nil)
     }
 
     /// Follow a tapped tile, selecting a viewed player first (web `withProfileSwitch`):
@@ -492,20 +483,16 @@ struct PlayerProfileContent: View {
     ///
     /// - Parameter link: The tapped tile's link.
     private func open(_ link: PlayerStatLink) {
-        if isSelected {
+        switch PlayerProfileTiles.decision(for: link, isSelected: isSelected, identity: identity) {
+        case .navigate:
             navigate(link)
-            return
-        }
-        switch identity {
-        case .select:
+        case .selectThenNavigate:
             if select() { navigate(link) }
-        case .switchTo:
+        case .confirmSwitch:
             pendingLink = link
             switchPending = true
-        case .deselect:
-            navigate(link)
-        case nil:
-            if !link.requiresSelection { navigate(link) }
+        case .ignore:
+            break
         }
     }
 
@@ -513,17 +500,7 @@ struct PlayerProfileContent: View {
     ///
     /// - Parameter link: Link to follow.
     private func navigate(_ link: PlayerStatLink) {
-        guard let navigator else { return }
-        switch link {
-        case let .songs(preset):
-            navigator.showSongs(preset)
-        case let .fullRankings(instrument, rankBy):
-            navigator.push(.fullRankings(instrument: instrument, rankBy: rankBy))
-        case let .songDetail(songId, _), let .bandSongDetail(songId):
-            navigator.pushSongDetail(songId, session: session)
-        case let .bandRankings(bandType, rankBy, page):
-            navigator.push(.bandRankings(bandType: bandType.rawValue, rankBy: rankBy.rawValue, page: page))
-        }
+        navigator?.follow(link, session: session)
     }
 
     // MARK: Overview
@@ -538,27 +515,7 @@ struct PlayerProfileContent: View {
         VStack(alignment: .leading, spacing: 8) {
             FestivalSectionHeader("Global Statistics")
                 .padding(.horizontal, 4)
-            PlayerStatGrid(tiles: [
-                StatTile(
-                    id: "songs-played", label: "Songs Played", value: stats.songsPlayed.formatted(),
-                    link: tileLink(PlayerStatLinks.overallSongsPlayed(visible: visible))
-                ),
-                StatTile(
-                    id: "full-combos", label: "Full Combos",
-                    value: fullComboText(count: stats.fullComboCount, percent: stats.fullComboPercent),
-                    tint: stats.fullComboPercent >= 100 ? BrandTokens.gold : nil,
-                    link: tileLink(PlayerStatLinks.overallFullCombos(visible: visible))
-                ),
-                StatTile(
-                    id: "gold-stars", label: "Gold Stars", value: stats.goldStarCount.formatted(),
-                    tint: BrandTokens.gold
-                ),
-                StatTile(id: "avg-accuracy", label: "Avg Accuracy", value: accuracyText(stats.averageAccuracy)),
-                StatTile(
-                    id: "best-rank", label: "Best Rank", value: rankText(stats.bestRank),
-                    link: tileLink(PlayerStatLinks.overallBestRank(stats))
-                ),
-            ], scope: "overview", onSelect: open)
+            PlayerStatGrid(tiles: PlayerProfileTiles.overall(stats, visible: visible, link: tileLink), scope: "overview", onSelect: open)
         }
         // `.contain` first, or the identifier replaces every tile's own.
         .accessibilityElement(children: .contain)
@@ -619,38 +576,7 @@ struct PlayerProfileContent: View {
     ///   - stats: That instrument's aggregate.
     /// - Returns: Tiles; the card appends its global-rank tiles.
     private func instrumentTiles(_ payload: PlayerProfilePayload, stats: PlayerInstrumentStats) -> [StatTile] {
-        let instrument = stats.instrument
-        let stars = payload.profile.starBreakdown(instrument)
-        var tiles = [
-            StatTile(
-                id: "songs-played", label: "Songs Played", value: stats.songsPlayed.formatted(),
-                link: tileLink(PlayerStatLinks.instrumentSongsPlayed(instrument))
-            ),
-        ]
-        if stats.fullComboCount > 0 {
-            tiles.append(StatTile(
-                id: "full-combos", label: "Full Combos",
-                value: fullComboText(count: stats.fullComboCount, percent: stats.fullComboPercent),
-                tint: stats.fullComboPercent >= 100 ? BrandTokens.gold : nil,
-                link: tileLink(PlayerStatLinks.instrumentFullCombos(instrument))
-            ))
-        }
-        tiles += stars.countCards.map { card in
-            StatTile(
-                id: "stars-\(card.stars)", label: card.label, value: card.count.formatted(),
-                tint: card.stars == 6 ? BrandTokens.gold : nil,
-                link: tileLink(PlayerStatLinks.instrumentStars(instrument, starKey: card.stars))
-            )
-        }
-        tiles += [
-            StatTile(id: "avg-accuracy", label: "Avg Accuracy", value: accuracyText(stats.averageAccuracy)),
-            StatTile(id: "avg-stars", label: "Avg Stars", value: stars.averageText, goldStars: stars.isAllGold),
-            StatTile(
-                id: "best-rank", label: "Best Rank", value: rankText(stats.bestRank),
-                link: tileLink(PlayerStatLinks.instrumentBestRank(stats))
-            ),
-        ]
-        return tiles
+        PlayerProfileTiles.instrument(payload.profile, stats: stats, link: tileLink)
     }
 
     // MARK: Regular-width grid
@@ -670,32 +596,6 @@ struct PlayerProfileContent: View {
         instrumentSection(payload, instrument: instrument)
     }
 
-    // MARK: Formatting
-
-    /// One decimal only when the percent is not a whole number, matching `ScoreFormatting`.
-    private func percentText(_ value: Double) -> String {
-        let fractionDigits = value == value.rounded() ? 0 : 1
-        return value.formatted(.number.precision(.fractionLength(fractionDigits)))
-    }
-
-    /// Web FC value: the count alone at 0 or 100%, otherwise "count (pct%)".
-    private func fullComboText(count: Int, percent: Double) -> String {
-        count == 0 || percent >= 100 ? count.formatted() : "\(count.formatted()) (\(percentText(percent))%)"
-    }
-
-    /// "#rank", or an em dash with no ranked score.
-    private func rankText(_ rank: Int?) -> String {
-        rank.map { "#\($0.formatted())" } ?? "\u{2014}"
-    }
-
-    /// `PlayerScore.accuracy` already decodes into the same ten-thousandths-of-a-percent
-    /// scale `ScoreFormatting.accuracy(_:)` expects (compact wire `acc` multiplied by
-    /// 1,000; e.g. wire `979` becomes `979_000`, i.e. 97.9%) — no further rescale needed.
-    private func accuracyText(_ playerProfileAccuracy: Double?) -> String {
-        guard let playerProfileAccuracy else { return "—" }
-        return "\(ScoreFormatting.accuracy(playerProfileAccuracy))%"
-    }
-
     // MARK: Load
 
     /// Read the public profile without selecting or persisting it, with the catalogue
@@ -707,21 +607,16 @@ struct PlayerProfileContent: View {
     private func load() async {
         phase = .loading
         do {
-            async let catalogue = try? session.catalog()
-            let payload = try await session.viewPlayer(accountId: accountId)
-            if let songs = await catalogue?.catalog.songs {
-                songsById = Dictionary(songs.map { ($0.songId, $0) }, uniquingKeysWith: { first, _ in first })
-            }
-            try Task.checkCancellation()
-            guard payload.state != .syncing else {
+            let loaded = try await PlayerProfileLoader.load(
+                session: session, accountId: accountId, instruments: visibleInstruments
+            )
+            songsById = loaded.songsById
+            guard let payload = loaded.payload else {
                 phase = .syncing
                 return
             }
-            let played = visibleInstruments.filter { payload.profile.instrumentStats($0).songsPlayed > 0 }
-            let extras = await ProfileExtrasLoader.load(session: session, accountId: accountId, instruments: played)
-            try Task.checkCancellation()
-            rankPreloads = extras.ranks
-            historyPreloads = extras.histories
+            rankPreloads = loaded.extras.ranks
+            historyPreloads = loaded.extras.histories
             phase = .available(payload)
         } catch is CancellationError {
             return
@@ -733,4 +628,3 @@ struct PlayerProfileContent: View {
         }
     }
 }
-

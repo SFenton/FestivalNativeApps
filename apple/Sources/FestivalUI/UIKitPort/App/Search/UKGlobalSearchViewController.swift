@@ -43,7 +43,8 @@ final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdat
     private var dataSource: UICollectionViewDiffableDataSource<Int, Item>?
     private let hint = UILabel()
     private let spinner = UIActivityIndicatorView(style: .large)
-    private let emptyState = UIContentUnavailableView(configuration: .empty())
+    /// Holds the current ``UKEmptyStateView`` (`GlobalSearchEmptyStateView`), replaced per query.
+    private let emptyState = UIView()
     private let searchController = UISearchController(searchResultsController: nil)
     private var bottomField: UKBottomSearchField?
 
@@ -378,10 +379,10 @@ final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdat
             hint.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24),
             spinner.centerXAnchor.constraint(equalTo: collection.centerXAnchor),
             spinner.centerYAnchor.constraint(equalTo: collection.centerYAnchor),
-            emptyState.centerXAnchor.constraint(equalTo: collection.centerXAnchor),
-            emptyState.centerYAnchor.constraint(equalTo: collection.centerYAnchor),
-            emptyState.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            emptyState.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            emptyState.topAnchor.constraint(equalTo: collection.topAnchor),
+            emptyState.bottomAnchor.constraint(equalTo: collection.bottomAnchor),
+            emptyState.leadingAnchor.constraint(equalTo: collection.leadingAnchor),
+            emptyState.trailingAnchor.constraint(equalTo: collection.trailingAnchor),
         ])
         emptyState.backgroundColor = .clear
     }
@@ -417,17 +418,20 @@ final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdat
             spinner.isHidden = false
             spinner.startAnimating()
         } else if empty, let state = GlobalSearch.emptyState(scope: scope, query: query, targets: model.targets) {
-            var configuration = UIContentUnavailableConfiguration.empty()
-            configuration.image = UIImage(systemName: "magnifyingglass")
-            configuration.text = state.title
-            configuration.secondaryText = state.subtitle
-            configuration.textProperties.color = BrandUIColors.textPrimary
-            configuration.secondaryTextProperties.color = BrandUIColors.textPrimary
-            configuration.imageProperties.tintColor = BrandUIColors.textSecondary
-            emptyState.configuration = configuration
-            emptyState.isAccessibilityElement = true
-            emptyState.accessibilityLabel = state.accessibilityLabel
-            emptyState.accessibilityIdentifier = ids("hint")
+            // The shared empty state (empty-error-states R5/R8), read as one element (#299).
+            emptyState.subviews.forEach { $0.removeFromSuperview() }
+            let emptyView = UKEmptyStateView(
+                state.title, systemImage: "magnifyingglass", subtitle: state.subtitle,
+                reading: .combined, identifier: ids("hint")
+            )
+            emptyView.translatesAutoresizingMaskIntoConstraints = false
+            emptyState.addSubview(emptyView)
+            NSLayoutConstraint.activate([
+                emptyView.topAnchor.constraint(equalTo: emptyState.topAnchor),
+                emptyView.bottomAnchor.constraint(equalTo: emptyState.bottomAnchor),
+                emptyView.leadingAnchor.constraint(equalTo: emptyState.leadingAnchor),
+                emptyView.trailingAnchor.constraint(equalTo: emptyState.trailingAnchor),
+            ])
             emptyState.isHidden = false
         } else {
             for section in scope.sections(in: model.targets) {
