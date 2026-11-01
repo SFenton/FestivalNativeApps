@@ -451,19 +451,7 @@ final class UKRankHistoryChartView: UIView, UKWidthDependent {
     }
 
     private func axisTitle(_ text: String, degrees: CGFloat) -> UIView {
-        let holder = UIView()
-        holder.translatesAutoresizingMaskIntoConstraints = false
-        let label = UKLabel(text, style: .caption1, lines: 1)
-        label.transform = CGAffineTransform(rotationAngle: degrees * .pi / 180)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.accessibilityLabel = "\(text) axis"
-        holder.addSubview(label)
-        NSLayoutConstraint.activate([
-            holder.widthAnchor.constraint(equalToConstant: 16),
-            label.centerXAnchor.constraint(equalTo: holder.centerXAnchor),
-            label.centerYAnchor.constraint(equalTo: holder.centerYAnchor),
-        ])
-        return holder
+        UKRotatedAxisTitle(text: text, degrees: degrees)
     }
 
     private func makeLegend() -> UIView {
@@ -750,6 +738,58 @@ final class UKPlayerRankHistoryCardView: UIView, UKWidthDependent {
             self.render()
             if self.showsChart { UKFadeIn.fadeIn(self.host) }
         }
+    }
+}
+
+// MARK: - Rotated axis title
+
+/// A rotated axis title beside the plot, like the web's rotated Recharts labels. Drawn text
+/// in a plain view (a rotated `UILabel` reads as clipped to the Dynamic Type audit), one
+/// static-text element read as "<title> axis".
+final class UKRotatedAxisTitle: UIView {
+    private let text: String
+    private let degrees: CGFloat
+
+    /// Creates the title.
+    ///
+    /// - Parameters:
+    ///   - text: The axis name.
+    ///   - degrees: -90 reads bottom to top, 90 top to bottom.
+    init(text: String, degrees: CGFloat) {
+        self.text = text
+        self.degrees = degrees
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        backgroundColor = .clear
+        contentMode = .redraw
+        isAccessibilityElement = true
+        accessibilityLabel = "\(text) axis"
+        accessibilityTraits = .staticText
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKRotatedAxisTitle, _) in
+            self.invalidateIntrinsicContentSize()
+            self.setNeedsDisplay()
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    private var font: UIFont { UKFont.font(.caption1) }
+
+    override var intrinsicContentSize: CGSize {
+        let size = (text as NSString).size(withAttributes: [.font: font])
+        return CGSize(width: 16, height: ceil(size.width))
+    }
+
+    override func draw(_ rect: CGRect) {
+        guard let context = UIGraphicsGetCurrentContext() else { return }
+        let size = (text as NSString).size(withAttributes: [.font: font])
+        context.translateBy(x: bounds.midX, y: bounds.midY)
+        context.rotate(by: degrees * .pi / 180)
+        (text as NSString).draw(
+            at: CGPoint(x: -size.width / 2, y: -size.height / 2),
+            withAttributes: [.font: font, .foregroundColor: BrandUIColors.textPrimary]
+        )
     }
 }
 #endif

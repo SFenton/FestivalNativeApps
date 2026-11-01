@@ -29,7 +29,7 @@ class UKProfileScrollViewController: UIViewController, UIScrollViewDelegate, UKP
     private var stateView: UIView?
     private var centreOffset: NSLayoutConstraint?
     private var widthConstraint: NSLayoutConstraint?
-    private var readableConstraint: NSLayoutConstraint?
+    private var cappedConstraint: NSLayoutConstraint?
     /// Caps the column at this width, centred (``ReadableWidthContainer``), while the window is regular width.
     var readableWidth: CGFloat?
     private var preparedWidth: CGFloat = -1
@@ -79,13 +79,12 @@ class UKProfileScrollViewController: UIViewController, UIScrollViewDelegate, UKP
         let pad = UKProfileMetrics.pagePadding
         let centre = column.centerXAnchor.constraint(equalTo: frame.centerXAnchor)
         let width = column.widthAnchor.constraint(equalTo: frame.widthAnchor, constant: -2 * pad)
-        width.priority = .defaultHigh
-        let readable = column.widthAnchor.constraint(lessThanOrEqualToConstant: 10_000)
+        let capped = column.widthAnchor.constraint(equalToConstant: 680)
         centreOffset = centre
         widthConstraint = width
-        readableConstraint = readable
+        cappedConstraint = capped
         NSLayoutConstraint.activate([
-            centre, width, readable,
+            centre, width,
             column.topAnchor.constraint(equalTo: content.topAnchor, constant: pad),
             column.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -pad),
         ])
@@ -124,8 +123,15 @@ class UKProfileScrollViewController: UIViewController, UIScrollViewDelegate, UKP
         let pad = UKProfileMetrics.pagePadding
         centreOffset?.constant = (insets.left - insets.right) / 2
         widthConstraint?.constant = -(2 * pad + insets.left + insets.right)
-        let cap = layout.widthClass == .regular ? readableWidth : nil
-        readableConstraint?.constant = cap ?? 10_000
+        let available = view.bounds.width - (2 * pad + insets.left + insets.right)
+        if let cap = layout.widthClass == .regular ? readableWidth : nil, cap < available {
+            cappedConstraint?.constant = cap
+            widthConstraint?.isActive = false
+            cappedConstraint?.isActive = true
+        } else {
+            cappedConstraint?.isActive = false
+            widthConstraint?.isActive = true
+        }
     }
 
     private func prepareSections(width: CGFloat) {

@@ -46,7 +46,7 @@ final class UKBandDetailViewController: UKProfileScrollViewController {
     private let refresh = UIRefreshControl()
 
     private var experimentalRanks: Bool {
-        UKSettings.bool(ExperimentalRanks.storageKey, default: ExperimentalRanks.defaultValue)
+        UKProfileSettings.bool(ExperimentalRanks.storageKey, default: ExperimentalRanks.defaultValue)
     }
 
     // MARK: Init
@@ -138,7 +138,7 @@ final class UKBandDetailViewController: UKProfileScrollViewController {
     override var pageBarItems: [UIBarButtonItem] { [] }
 
     private func updateTitle() {
-        ukSetPageTitle(pageTitle, mode: .large, floatsPageTools: ukShell?.floatsPageTools ?? false)
+        ukSetPageTitle(pageTitle, mode: .large)
     }
 
     private func settingsChanged() {
@@ -406,8 +406,7 @@ final class UKBandDetailViewController: UKProfileScrollViewController {
         }
         let item = UIBarButtonItem(title: current.label, image: UIImage(systemName: "arrow.up.arrow.down"), menu: UIMenu(title: "Rank By", options: .singleSelection, children: actions))
         item.tintColor = BrandUIColors.textPrimary
-        item.accessibilityLabel = "Rank By"
-        item.accessibilityValue = current.label
+        item.accessibilityLabel = current.label
         item.accessibilityIdentifier = "fst.band-rankings.rank-by-menu"
         rankByItem = item
     }
