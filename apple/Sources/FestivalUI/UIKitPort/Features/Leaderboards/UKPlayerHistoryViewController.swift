@@ -202,12 +202,12 @@ final class UKPlayerHistoryViewController: UKSongBoardViewController {
             let seasonColumn = ScoreRowSeasonPolicy.showsColumn(.historyList, width: Double(boardView.bounds.width))
             let columns = LeaderboardRowColumns.scoreHistory(entries.map(\.newScore))
             for (index, entry) in sorted.enumerated() {
-                let model = UKScoreHistoryRowView.Model(
+                let model = UKBoardScoreHistoryRowView.Model(
                     entry: entry, isBest: index == best, seasonColumn: seasonColumn, currentSeason: session.catalogCurrentSeason,
                     columns: columns, identifier: "fst.history.row.\(index)"
                 )
                 rows.append(("row\(index)", UKLeaderboardRow(
-                    kind: .history, make: { UKScoreHistoryRowView() }, apply: { ($0 as? UKScoreHistoryRowView)?.apply(model) },
+                    kind: .history, make: { UKBoardScoreHistoryRowView() }, apply: { ($0 as? UKBoardScoreHistoryRowView)?.apply(model) },
                     isSelectedBand: index == best, onTap: nil
                 )))
             }

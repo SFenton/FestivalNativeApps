@@ -67,11 +67,11 @@ final class UKSongScoreRowView: UIView {
     private lazy var rankSlot = UKColumnSlot(content: rankLabel, minimumWidth: 0)
     private let nameMarquee = UKMarqueeLabel("")
     private lazy var nameHolder = ukNameHolder(nameMarquee)
-    private let seasonPill = UKSeasonPillView()
+    private let seasonPill = UKBoardSeasonPillView()
     private let scoreLabel = ukRowLabel(.body, monospaced: true, alignment: .right)
     private lazy var scoreSlot = UKColumnSlot(content: scoreLabel, bold: false)
     private var starsView: UKStarRatingView?
-    private let badge = UKAccuracyBadgeView()
+    private let badge = UKBoardAccuracyBadgeView()
     private let placeholder = UIView()
     private let chevron = ukRowChevron()
     private let outer = UIStackView()
@@ -235,7 +235,7 @@ final class UKSongBandCardView: UIView {
     private let footer = UIStackView()
     private let rankLabel = ukRowLabel(.body, monospaced: true)
     private let scoreLabel = ukRowLabel(.body, monospaced: true)
-    private let badge = UKAccuracyBadgeView(textWidth: 56, height: 24)
+    private let badge = UKBoardAccuracyBadgeView(textWidth: 56, height: 24)
     private let chevron = ukRowChevron()
     private var model: Model?
 
@@ -322,7 +322,7 @@ final class UKSongBandCardView: UIView {
 
 /// One score of Score History (``ScoreHistoryListRow``): date, optional season pill,
 /// score and accuracy; the best score purple and bold. Read-only static text.
-final class UKScoreHistoryRowView: UIView {
+final class UKBoardScoreHistoryRowView: UIView {
     /// What the row shows.
     struct Model {
         var entry: ScoreHistoryEntry
@@ -334,7 +334,7 @@ final class UKScoreHistoryRowView: UIView {
     }
 
     private let dateLabel = ukRowLabel(.body)
-    private let seasonPill = UKSeasonPillView()
+    private let seasonPill = UKBoardSeasonPillView()
     private let scoreLabel = ukRowLabel(.body, weight: .semibold, monospaced: true, alignment: .right)
     private lazy var scoreSlot = UKColumnSlot(content: scoreLabel, bold: false)
     private let badge = UKHistoryAccuracyBadge()
@@ -354,7 +354,7 @@ final class UKScoreHistoryRowView: UIView {
             line.topAnchor.constraint(equalTo: topAnchor), line.bottomAnchor.constraint(equalTo: bottomAnchor),
             heightAnchor.constraint(greaterThanOrEqualToConstant: 48),
         ])
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKScoreHistoryRowView, _) in
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKBoardScoreHistoryRowView, _) in
             if let model = self.model { self.apply(model) }
         }
     }
