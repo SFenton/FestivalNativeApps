@@ -163,9 +163,15 @@ final class UKBandRankingsViewController: UIViewController, UKPageToolsProviding
         startLoad()
     }
 
+    private var lastToolsKey = ""
+
     private func settingsChanged() {
         rankByChanged()
-        ukPageToolsDidChange()
+        let key = "\(experimental)"
+        if key != lastToolsKey {
+            lastToolsKey = key
+            ukPageToolsDidChange()
+        }
     }
 
     private func go(to destination: Int) {

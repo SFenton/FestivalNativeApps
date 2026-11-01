@@ -224,9 +224,15 @@ final class UKFullRankingsViewController: UIViewController, UKPageToolsProviding
         if combo != nil { startSpotlight() }
     }
 
+    private var lastToolsKey = ""
+
     private func settingsChanged() {
         rankByChanged()
-        ukPageToolsDidChange()
+        let key = "\(experimental)|\(visibleInstruments.map(\.rawValue))"
+        if key != lastToolsKey {
+            lastToolsKey = key
+            ukPageToolsDidChange()
+        }
     }
 
     private func resetBoard() {

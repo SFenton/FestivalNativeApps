@@ -223,9 +223,15 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
 
     // MARK: Loading
 
+    private var lastToolsKey = ""
+
     private func keyMayHaveChanged() {
-        quickLinks.controller.configure(title: "Leaderboards Quick Links", explicit: quickLinkSections)
-        ukPageToolsDidChange()
+        let toolsKey = "\(experimental)|\(rankBy.rawValue)|\(visibleInstruments.map(\.rawValue))"
+        if toolsKey != lastToolsKey {
+            lastToolsKey = toolsKey
+            quickLinks.controller.configure(title: "Leaderboards Quick Links", explicit: quickLinkSections)
+            ukPageToolsDidChange()
+        }
         let key = reloadKey
         guard key != lastGateKey else { return }
         lastGateKey = key

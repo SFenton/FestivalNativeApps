@@ -119,6 +119,8 @@ final class UKPagerBadge: UIView {
             label.topAnchor.constraint(equalTo: topAnchor), label.bottomAnchor.constraint(equalTo: bottomAnchor),
             heightAnchor.constraint(greaterThanOrEqualToConstant: 44), widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
         ])
+        label.setContentCompressionResistancePriority(UILayoutPriority(250), for: .horizontal)
+        setContentCompressionResistancePriority(UILayoutPriority(250), for: .horizontal)
         isAccessibilityElement = true
         accessibilityLabel = "Page"
         accessibilityTraits = .adjustable
