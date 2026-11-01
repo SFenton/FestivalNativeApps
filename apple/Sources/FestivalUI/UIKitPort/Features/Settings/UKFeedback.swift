@@ -255,9 +255,17 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
         view.accessibilityHint = detail
         view.accessibilityIdentifier = identifier
         view.heightAnchor.constraint(greaterThanOrEqualToConstant: 96).isActive = true
+        view.isEditable = true
+        view.isSelectable = true
+        view.isUserInteractionEnabled = true
         textViews.append((view, keyPath))
         view.delegate = self
-        return section(label, detail: detail, content: view)
+        let result = section(label, detail: detail, content: view)
+        // A tap anywhere in the box's card focuses it, as a SwiftUI `TextEditor` row does.
+        let focus = UITapGestureRecognizer(target: view, action: #selector(UIResponder.becomeFirstResponder))
+        focus.cancelsTouchesInView = false
+        result.addGestureRecognizer(focus)
+        return result
     }
 
     private func mediaSection() -> UIView {
