@@ -78,6 +78,7 @@ final class UKSongsViewController: UIViewController, UICollectionViewDelegate, U
     var lastSnapshotKey: [String] = []
     var lastLayoutKey: [String] = []
     var tools: [UKPageTool] = []
+    var sheetObserver: UKSongsSheetDismissObserver?
     var toolsToken: [String] = []
 
     // MARK: Views

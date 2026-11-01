@@ -16,7 +16,7 @@ extension UKSongsViewController {
             defaults.set(mode.rawValue, forKey: "fst.songs.sortMode")
             defaults.set(ascending, forKey: "fst.songs.sortAscending")
         }
-        UKSheet.present(sheet, from: self, title: "Sort By", closeIdentifier: "fst.songs.sort.done", size: .compact)
+        ukPresentSongsSheet(sheet, title: "Sort By", closeIdentifier: "fst.songs.sort.done", size: .compact) { sheetObserver = $0 }
     }
 
     /// Opens the Filter sheet (large detent).
@@ -45,7 +45,7 @@ extension UKSongsViewController {
             self?.normalizePlayerSort()
             self?.recompute()
         }
-        UKSheet.present(sheet, from: self, title: "Filter Songs", closeIdentifier: "fst.songs.filter.done", size: .large)
+        ukPresentSongsSheet(sheet, title: "Filter Songs", closeIdentifier: "fst.songs.filter.done", size: .large) { sheetObserver = $0 }
     }
 
     /// Player sorts need one instrument: without one the web resets to Title A–Z.

@@ -237,6 +237,7 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
     private var disclosureItems: [(String, String, String?)] = []
     private var statusView: UIView?
     private var tools: [UKPageTool] = []
+    private var sheetObserver: UKSongsSheetDismissObserver?
     private var toolsToken: [String] = []
     private var lastLayoutKey: [String] = []
     private var lastItems: [String] = []
@@ -686,7 +687,7 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
             self?.defaults.set(ascending, forKey: ShopSortChoice.ascendingKey)
             self?.recompute()
         }
-        UKSheet.present(sheet, from: self, title: "Sort By", closeIdentifier: "fst.shop.sort.done", size: .compact)
+        ukPresentSongsSheet(sheet, title: "Sort By", closeIdentifier: "fst.shop.sort.done", size: .compact) { sheetObserver = $0 }
     }
 
     private func presentFilter() {
@@ -698,7 +699,7 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
             self.defaults.set(false, forKey: ShopOfferFilter.legacyLeavingTomorrowKey)
             self.recompute()
         }
-        UKSheet.present(sheet, from: self, title: "Filter Shop", closeIdentifier: "fst.shop.filter.done", size: .compact)
+        ukPresentSongsSheet(sheet, title: "Filter Shop", closeIdentifier: "fst.shop.filter.done", size: .compact) { sheetObserver = $0 }
     }
 }
 #endif
