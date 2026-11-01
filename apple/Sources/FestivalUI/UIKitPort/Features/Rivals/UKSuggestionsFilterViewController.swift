@@ -3,23 +3,6 @@ import FestivalCore
 import FestivalDesign
 import UIKit
 
-// MARK: - Row switch
-
-/// A switch whose accessibility frame is its whole row, and that the row's tap flips.
-private final class UKRowSwitch: UISwitch {
-    weak var row: UIView?
-
-    override var accessibilityFrame: CGRect {
-        get { row.map { UIAccessibility.convertToScreenCoordinates($0.bounds, in: $0) } ?? super.accessibilityFrame }
-        set { super.accessibilityFrame = newValue }
-    }
-
-    @objc func flip() {
-        setOn(!isOn, animated: true)
-        sendActions(for: .valueChanged)
-    }
-}
-
 // MARK: - Filter sheet
 
 /// The live Suggestions filter (``SuggestionsFilterSheet``): per-instrument visibility, a

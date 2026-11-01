@@ -226,7 +226,7 @@ final class UKSettingLabel: UIStackView {
 /// that follows it.
 @MainActor
 final class UKSettingsToggleRow: UIView, UIGestureRecognizerDelegate {
-    private let switchView = UKSettingsRowSwitch()
+    private let switchView = UKRowSwitch()
     private let content = UKSettingLabel("")
     private let titleText: String
     private let detailText: String?
@@ -279,7 +279,7 @@ final class UKSettingsToggleRow: UIView, UIGestureRecognizerDelegate {
         row.translatesAutoresizingMaskIntoConstraints = false
         switchView.setContentHuggingPriority(.required, for: .horizontal)
         switchView.setContentCompressionResistancePriority(.required, for: .horizontal)
-        switchView.rowView = self
+        switchView.row = self
         switchView.addAction(UIAction { [weak self] _ in self?.switchFlipped() }, for: .valueChanged)
         addSubview(row)
         NSLayoutConstraint.activate([
@@ -327,21 +327,6 @@ final class UKSettingsToggleRow: UIView, UIGestureRecognizerDelegate {
 
     private func updateAccessibility() {
         switchView.accessibilityLabel = titleText
-    }
-}
-
-/// The system switch as the row's accessibility element: it keeps the switch role and the
-/// `1` / `0` value, and its frame is the whole row (the row is the touch target).
-@MainActor
-final class UKSettingsRowSwitch: UISwitch {
-    weak var rowView: UIView?
-
-    override var accessibilityFrame: CGRect {
-        get {
-            guard let rowView else { return super.accessibilityFrame }
-            return UIAccessibility.convertToScreenCoordinates(rowView.bounds, in: rowView)
-        }
-        set { super.accessibilityFrame = newValue }
     }
 }
 

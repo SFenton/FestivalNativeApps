@@ -318,9 +318,7 @@ final class UKLicenseDetailViewController: UIViewController, UKModalScrollProvid
         text.textContainerInset = UIEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
         text.adjustsFontForContentSizeCategory = true
         text.translatesAutoresizingMaskIntoConstraints = false
-        let mono = UIFontMetrics(forTextStyle: .footnote).scaledFont(
-            for: UIFont.monospacedSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize, weight: .regular)
-        )
+        let mono = UKFont.font(.footnote, monospaced: true)
         let result = NSMutableAttributedString()
         if let url = entry.url {
             result.append(NSAttributedString(string: url.absoluteString + "\n\n", attributes: [

@@ -205,9 +205,7 @@ final class UKDrawerViewController: UIViewController {
 
     private func buildStructure() {
         titleLabel.text = "Festival Score Tracker"
-        titleLabel.font = UIFontMetrics(forTextStyle: .title3).scaledFont(
-            for: .systemFont(ofSize: UIFont.preferredFont(forTextStyle: .title3).pointSize, weight: .bold)
-        )
+        titleLabel.font = UKFont.font(.title3, weight: .bold)
         titleLabel.adjustsFontForContentSizeCategory = true
         titleLabel.textColor = BrandUIColors.textPrimary
         titleLabel.numberOfLines = 0
@@ -266,6 +264,17 @@ final class UKDrawerViewController: UIViewController {
         height.priority = .defaultLow
         height.isActive = true
         scroll.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        // The header and footer keep their natural heights and the rows' scroll view takes the
+        // rest, as SwiftUI's flexible `ScrollView` does: otherwise the spare height went to the
+        // title (426 pt at AX5) or Settings, leaving the rows no room at all.
+        // Stack views have no intrinsic height to hug, so each pinned part asks to be as short as
+        // its content allows, just above the rows' own height request.
+        for fixed in [header, footer] as [UIView] {
+            let shrink = fixed.heightAnchor.constraint(equalToConstant: 0)
+            shrink.priority = UILayoutPriority(height.priority.rawValue + 1)
+            shrink.isActive = true
+        }
+        titleLabel.setContentHuggingPriority(.required, for: .vertical)
     }
 
     private var profile: FestivalProfileKind { session.selectedPlayer == nil ? .none : .player }
@@ -619,7 +628,16 @@ final class UKDrawerRow: UIControl {
         label.numberOfLines = avatar == nil ? 0 : 1
         label.lineBreakMode = .byTruncatingTail
         stack.addArrangedSubview(iconView)
-        stack.addArrangedSubview(label)
+        if avatar != nil {
+            // The selected player's name scrolls, and wraps at accessibility sizes, as SwiftUI's
+            // `MarqueeText` does: a truncating label is predicted to clip.
+            let name = UKMarqueeLabel(title, font: UKFont.font(.body))
+            name.textColor = BrandUIColors.textPrimary
+            name.isAccessibilityElement = false
+            stack.addArrangedSubview(name)
+        } else {
+            stack.addArrangedSubview(label)
+        }
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: topAnchor),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor),

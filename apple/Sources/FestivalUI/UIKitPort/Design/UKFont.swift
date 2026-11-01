@@ -16,20 +16,31 @@ enum UKFont {
     ///   - weight: A weight override (`.bold()` is `.bold`); nil keeps the style's weight.
     ///   - monospacedDigit: Fixed-width digits (`.monospacedDigit()`).
     ///   - italic: Italic (`.italic()`).
+    ///   - monospaced: The monospaced system design (`.monospaced()`).
     /// - Returns: The font, scaled for the current content size category.
     static func font(
-        _ style: UIFont.TextStyle, weight: UIFont.Weight? = nil, monospacedDigit: Bool = false, italic: Bool = false
+        _ style: UIFont.TextStyle, weight: UIFont.Weight? = nil, monospacedDigit: Bool = false, italic: Bool = false,
+        monospaced: Bool = false
     ) -> UIFont {
-        // The style's own font at the current content size category, with its text-style
-        // attribute kept through the weight, digit and italic changes: a font the Dynamic Type
-        // audit and `adjustsFontForContentSizeCategory` both recognise, at exactly the size
-        // SwiftUI's `.font(style)` draws (rescaling a `.large` base through `UIFontMetrics`
-        // came out about 20% smaller at AX5).
-        let base = UIFont.preferredFont(forTextStyle: style)
-        var descriptor = base.fontDescriptor
-        if let weight {
-            descriptor = descriptor.addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: weight]])
-        }
+        // A system font scaled by `UIFontMetrics`, landing on the style's own size at the current
+        // content size category (what SwiftUI's `.font(style)` draws). Two traps:
+        // - fonts not created through `UIFontMetrics` (or `preferredFont`) make the XCUITest
+        //   accessibility snapshot drop the subtree they sit in (the open drawer's rows);
+        // - the metrics alone run about 20% under the style's own size at AX5, so the base size
+        //   is corrected by that ratio for the current category.
+        let large = UIFont.preferredFont(
+            forTextStyle: style, compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)
+        )
+        let metrics = UIFontMetrics(forTextStyle: style)
+        let target = UIFont.preferredFont(forTextStyle: style).pointSize
+        let scaled = metrics.scaledValue(for: large.pointSize)
+        let baseSize = scaled > 0 ? large.pointSize * target / scaled : large.pointSize
+        let traits = large.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any]
+        let styleWeight = (traits?[.weight] as? CGFloat).map { UIFont.Weight($0) } ?? .regular
+        let system = monospaced
+            ? UIFont.monospacedSystemFont(ofSize: baseSize, weight: weight ?? styleWeight)
+            : UIFont.systemFont(ofSize: baseSize, weight: weight ?? styleWeight)
+        var descriptor = system.fontDescriptor
         if monospacedDigit {
             descriptor = descriptor.addingAttributes([
                 .featureSettings: [[
@@ -39,10 +50,7 @@ enum UKFont {
             ])
         }
         if italic, let slanted = descriptor.withSymbolicTraits(.traitItalic) { descriptor = slanted }
-        // Keep the text style explicit: weight and digit changes can drop it, and a font without
-        // one cannot follow the content size category.
-        descriptor = descriptor.addingAttributes([.textStyle: style.rawValue])
-        return UIFont(descriptor: descriptor, size: 0)
+        return metrics.scaledFont(for: UIFont(descriptor: descriptor, size: baseSize))
     }
 
     /// Whether the content size category is an accessibility size (`isAccessibilitySize`).
