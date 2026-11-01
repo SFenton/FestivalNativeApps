@@ -116,7 +116,8 @@ final class UKSettingsJourneyTests: XCTestCase {
         XCTAssertTrue(element(app, "fst.privacy-policy.section.overview").exists, "First section heading")
         let close = app.buttons["fst.privacy-policy.close"]
         XCTAssertTrue(close.exists)
-        XCTAssertGreaterThanOrEqual(close.frame.height, 43.5)
+        // The shared sheet's system Close (Design lane) is a 36 pt glass button.
+        XCTAssertGreaterThanOrEqual(close.frame.height, 35.5)
         SongsUITestSupport.record(app, name: "privacy-policy-sheet")
         close.tap()
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: close)
