@@ -258,6 +258,8 @@ final class UKRankingsFloatingBar: UIView {
     private let pillIcon = UIImageView()
     private let pillTitle = UKLabel(nil, style: .subheadline, weight: .semibold, lines: 1)
     private let holder = UIStackView()
+    private lazy var menuMinHeight = menuButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
+    private lazy var menuMinWidth = menuButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44)
     private var state: RankingsPagerState?
     private var verticalBar = false
     private let pagerHolder = UIView()
@@ -328,8 +330,14 @@ final class UKRankingsFloatingBar: UIView {
             pillCard.leadingAnchor.constraint(equalTo: menuButton.leadingAnchor), pillCard.trailingAnchor.constraint(equalTo: menuButton.trailingAnchor),
             pillCard.topAnchor.constraint(equalTo: menuButton.topAnchor), pillCard.bottomAnchor.constraint(equalTo: menuButton.bottomAnchor),
             pillStack.centerXAnchor.constraint(equalTo: menuButton.centerXAnchor), pillStack.centerYAnchor.constraint(equalTo: menuButton.centerYAnchor),
-            menuButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44), menuButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            menuMinHeight, menuMinWidth,
         ])
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKRankingsFloatingBar, _) in
+            self.scaleMenuMinimum()
+            self.lastArrangement = nil
+            self.setNeedsLayout()
+        }
+        scaleMenuMinimum()
         menuButton.showsMenuAsPrimaryAction = true
         menuButton.accessibilityIdentifier = menuIdentifier
         menuButton.accessibilityLabel = "Band size"
@@ -352,6 +360,13 @@ final class UKRankingsFloatingBar: UIView {
 
     private func go(_ action: RankingsPagerAction) {
         if let destination = state?.destination(for: action) { onChange?(destination) }
+    }
+
+    /// The pill's minimum size scales with the text (``RankingsSwitcherPillLabel``'s scaled 44).
+    private func scaleMenuMinimum() {
+        let side = UKFont.scaled(44, relativeTo: .body, traits: traitCollection)
+        menuMinHeight.constant = side
+        menuMinWidth.constant = side
     }
 
     /// Updates the bar.
@@ -425,17 +440,6 @@ final class UKRankingsFloatingBar: UIView {
         if hasPager { order.append(capsule) }
         if mode != "pagerOnly" { order.append(menuButton) }
         accessibilityElements = order
-        menuButton.contentEdgeInsetsFixup(horizontal: mode == "rowIcon" ? 0 : 14)
-    }
-}
-
-private extension UIButton {
-    /// Keeps the pill's content padding when the title is shown.
-    func contentEdgeInsetsFixup(horizontal: CGFloat) {
-        // The pill's size follows its stack; the stack is centred, so the padding is the
-        // button's own minimum width constraint.
-        constraints.filter { $0.firstAttribute == .width && $0.relation == .greaterThanOrEqual }.forEach { $0.constant = 44 }
-        _ = horizontal
     }
 }
 

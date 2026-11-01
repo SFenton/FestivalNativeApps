@@ -209,7 +209,7 @@ final class UKRivalRowView: UIControl {
         accessibilityLabel = copy.accessibilityLabel
         accessibilityTraits = .button
         accessibilityIdentifier = identifier
-        addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .primaryActionTriggered)
+        addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .touchUpInside)
         applyPillAxis()
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKRivalRowView, _) in self.applyPillAxis() }
     }
@@ -298,7 +298,7 @@ final class UKRivalSongRowView: UIControl {
         accessibilityLabel = RivalSongRowContent.accessibilityLabel(for: song, rivalName: rivalName)
         accessibilityTraits = opensSong ? .button : .staticText
         isEnabled = opensSong
-        addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .primaryActionTriggered)
+        addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .touchUpInside)
     }
 
     @available(*, unavailable)
