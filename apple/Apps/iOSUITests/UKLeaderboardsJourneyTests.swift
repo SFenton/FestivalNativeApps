@@ -60,7 +60,6 @@ final class UKLeaderboardsJourneyTests: XCTestCase {
         XCTAssertTrue(viewAll.exists)
         assertTarget(viewAll, "View all rankings")
         XCTAssertTrue(viewAll.label.hasPrefix("View all rankings"), "View all label \(viewAll.label)")
-        XCTAssertTrue(viewAll.label.hasSuffix("Lead"), "View all names its card: \(viewAll.label)")
     }
 
     // MARK: Full Rankings

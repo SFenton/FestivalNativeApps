@@ -35,7 +35,7 @@ final class UKCardRowControl: UIControl {
             ])
         }
         isUserInteractionEnabled = onTap != nil
-        addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .primaryActionTriggered)
+        addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .touchUpInside)
         accessibilityElements = [content]
     }
 
@@ -445,6 +445,7 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
                     title: RankingsCountText.viewAllRankings(totalAccounts: payload.rankings.totalAccounts), card: instrument.label,
                     identifier: "fst.leaderboards.card.\(instrument.rawValue).view-all"
                 )
+                button.accessibilityLabel = RankingsCountText.viewAllRankings(totalAccounts: payload.rankings.totalAccounts)
                 button.onTap = { [weak self] in self?.context.navigator?.selectDetail(route) }
                 action = button
             }
@@ -536,6 +537,7 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
                     title: RankingsCountText.viewAllBandRankings(totalTeams: payload.rankings.totalTeams), card: bandType.label,
                     identifier: "fst.leaderboards.band-card.\(bandType.rawValue).view-all"
                 )
+                button.accessibilityLabel = RankingsCountText.viewAllBandRankings(totalTeams: payload.rankings.totalTeams)
                 button.onTap = { [weak self] in self?.context.navigator?.selectDetail(.bandRankings(bandType: bandType.rawValue)) }
                 action = button
             }

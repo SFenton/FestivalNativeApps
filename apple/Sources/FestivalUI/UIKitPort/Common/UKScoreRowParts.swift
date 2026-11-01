@@ -238,7 +238,7 @@ final class UKPurpleActionButton: UIControl {
         accessibilityTraits = .button
         accessibilityLabel = PurpleActionName.spoken(title, card: card)
         accessibilityIdentifier = identifier
-        addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .primaryActionTriggered)
+        addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .touchUpInside)
     }
 
     @available(*, unavailable)
@@ -416,7 +416,7 @@ final class UKSongLeaderboardEntryRowView: UIControl {
             outer.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -vertical),
             heightAnchor.constraint(greaterThanOrEqualToConstant: LeaderboardRowMetrics.minHeight),
         ])
-        addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .primaryActionTriggered)
+        addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .touchUpInside)
         // A row with a destination is one button; an anonymous row's parts stay separate.
         if chevron == true, !separateParts {
             isAccessibilityElement = true

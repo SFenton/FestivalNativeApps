@@ -312,7 +312,7 @@ final class UKPlayerHistorySortViewController: UIViewController, UKModalScrollPr
             control.addAction(UIAction { [weak self] _ in
                 self?.mode = choice
                 self?.changed()
-            }, for: .primaryActionTriggered)
+            }, for: .touchUpInside)
             modeButtons[choice] = control
             checks[choice] = check
             return control

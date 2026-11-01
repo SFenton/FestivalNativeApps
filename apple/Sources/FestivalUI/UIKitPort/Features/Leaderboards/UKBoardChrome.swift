@@ -489,7 +489,7 @@ final class UKPinnedFooterView: UIView {
         layer.cornerRadius = 12
         layer.cornerCurve = .continuous
         layer.borderColor = UKLeaderboardMetrics.playerBorder.cgColor
-        control.addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .primaryActionTriggered)
+        control.addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .touchUpInside)
         control.addAction(UIAction { [weak self] _ in self?.alpha = 0.7 }, for: [.touchDown, .touchDragEnter])
         control.addAction(UIAction { [weak self] _ in self?.alpha = 1 }, for: [.touchUpInside, .touchUpOutside, .touchDragExit, .touchCancel])
         observer = UKAccessibilityObserver { [weak self] in self?.refreshBacking() }
