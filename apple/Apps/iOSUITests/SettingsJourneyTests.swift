@@ -445,8 +445,16 @@ final class SettingsJourneyTests: XCTestCase {
         let quickLinks = app.buttons["fst.quick-links.open"]
         quickLinks.tap()
         // At AX5 the Quick Links sheet scrolls; rows past its fold are absent until revealed.
-        let menuRows = FestivalApp.quickLinkRows(SettingsAccessibilityJourneyTests.quickLinkSections, in: app)
-        XCTAssertTrue(menuRows.firstMatch.waitForExistence(timeout: 10), file: file, line: line)
+        let sections = SettingsAccessibilityJourneyTests.quickLinkSections
+        let menuRows = FestivalApp.quickLinkRows(sections, in: app)
+        // One snapshot, retried if the runner times it out, rather than a query wait (#686).
+        let opened = try? FestivalApp.snapshot(of: app, within: FestivalApp.budget(10)) {
+            !FestivalApp.quickLinkRowNodes(sections, in: $0).isEmpty
+        }
+        XCTAssertFalse(
+            opened.map { FestivalApp.quickLinkRowNodes(sections, in: $0).isEmpty } ?? true,
+            "Quick Links did not open", file: file, line: line
+        )
         let row = FestivalApp.quickLinkRow(id, label: title, in: app)
         let window = app.windows.firstMatch
         for _ in 0..<8 where !(row.exists && row.isHittable && row.frame.maxY <= window.frame.maxY) {
