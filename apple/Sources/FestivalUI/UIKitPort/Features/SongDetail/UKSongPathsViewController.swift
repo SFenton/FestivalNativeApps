@@ -404,7 +404,7 @@ final class UKSongPathsViewController: UIViewController, UKModalScrollProviding 
             installPullDown(scroll)
             return container(freshness: payload.publicationId, content: scroll)
         case let .text(payload):
-            let scroll = UIScrollView()
+            let scroll = UKControlScrollView()
             scroll.alwaysBounceVertical = true
             let stack = UIStackView()
             stack.axis = .vertical
