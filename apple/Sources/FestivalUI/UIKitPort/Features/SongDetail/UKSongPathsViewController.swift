@@ -406,10 +406,13 @@ final class UKSongPathsViewController: UIViewController, UKModalScrollProviding 
         case let .text(payload):
             let scroll = UIScrollView()
             scroll.alwaysBounceVertical = true
-            scroll.accessibilityIdentifier = "fst.paths.text.\(instrument.rawValue).\(difficulty.rawValue)"
             let stack = UIStackView()
             stack.axis = .vertical
             stack.spacing = 8
+            // Names the chart and difficulty shown. On the content, not the scroll view, so its
+            // frame moves as the table scrolls (the SwiftUI ScrollView's content does).
+            stack.accessibilityContainerType = .semanticGroup
+            stack.accessibilityIdentifier = "fst.paths.text.\(instrument.rawValue).\(difficulty.rawValue)"
             stack.translatesAutoresizingMaskIntoConstraints = false
             scroll.addSubview(stack)
             NSLayoutConstraint.activate([
