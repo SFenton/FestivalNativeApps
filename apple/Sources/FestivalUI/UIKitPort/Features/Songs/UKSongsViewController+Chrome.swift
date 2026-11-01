@@ -411,7 +411,7 @@ extension UKSongsViewController {
         return width > 0 && width < SongsToolbarFold.minimumUnfoldedWidth
     }
 
-    func pageTools() -> [UKPageTool] { tools }
+    func pageTools() -> [UKPageTool] { tools + [quickLinks?.tool].compactMap { $0 } }
 
     func updateTools(pipeline: SongsPipeline) {
         let filterActive = pipeline.generalFilterActive || pipeline.appliedPlayerScoreFilter?.isActive == true
