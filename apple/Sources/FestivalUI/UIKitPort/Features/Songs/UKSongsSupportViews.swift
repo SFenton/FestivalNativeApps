@@ -22,7 +22,7 @@ final class UKSongsSectionHeaderView: UICollectionReusableView {
         label.numberOfLines = 0
         addSubview(label)
         isAccessibilityElement = true
-        accessibilityTraits = .header
+        accessibilityTraits = [.staticText, .header]
     }
 
     @available(*, unavailable)
@@ -76,7 +76,7 @@ final class UKSongsSectionBar: UIView {
         }
         for label in [outgoing, incoming] { label.isAccessibilityElement = false }
         current.isAccessibilityElement = true
-        current.accessibilityTraits = .header
+        current.accessibilityTraits = [.staticText, .header]
         current.accessibilityIdentifier = "fst.songs.section-bar"
         isAccessibilityElement = false
         isHidden = true

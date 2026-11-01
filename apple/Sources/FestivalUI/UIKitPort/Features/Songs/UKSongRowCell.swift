@@ -233,6 +233,7 @@ final class UKSongRowCell: UICollectionViewCell {
         let below = shopLink?.below == true ? Self.linkGap + Self.linkHeight : 0
         card.frame = CGRect(x: 0, y: 0, width: contentView.bounds.width, height: contentView.bounds.height - below)
         row.frame = card.bounds
+        row.layoutIfNeeded()
         if let slot = row.bagSlotFrame, shopLink?.below != true {
             let center = row.convert(CGPoint(x: slot.midX, y: slot.midY), to: contentView)
             bagButton.frame = CGRect(x: center.x - 22, y: center.y - 22, width: 44, height: 44)
@@ -242,7 +243,6 @@ final class UKSongRowCell: UICollectionViewCell {
         }
         contrastRim.frame = card.bounds
         pulse.frame = card.bounds
-        row.layoutIfNeeded()
         rebuildAccessibility()
     }
 
