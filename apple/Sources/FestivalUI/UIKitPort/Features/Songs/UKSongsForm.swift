@@ -158,11 +158,29 @@ class UKFormViewController: UIViewController, UKModalScrollProviding {
     static let destructive = UIColor(red: 1.0, green: 140.0 / 255, blue: 136.0 / 255, alpha: 1)
 }
 
+// MARK: - Row switch
+
+/// A switch whose accessibility frame is its whole row, so the control meets the 44 pt target
+/// the SwiftUI `Toggle` row gives (the row is the target, not the 31 pt thumb).
+final class UKRowSwitch: UISwitch {
+    weak var row: UIView?
+
+    override var accessibilityFrame: CGRect {
+        get {
+            guard let row, let window = row.window else { return super.accessibilityFrame }
+            let frame = row.convert(row.bounds, to: window)
+            let padded = frame.insetBy(dx: -16, dy: -6)
+            return window.convert(padded, to: nil)
+        }
+        set { super.accessibilityFrame = newValue }
+    }
+}
+
 // MARK: - Toggle row
 
 /// A switch row.
 final class UKToggleRow: UIView {
-    let toggle = UISwitch()
+    let toggle = UKRowSwitch()
 
     init(title: String, hint: String?, identifier: String, accessibilityHint: String?, visual: UIView? = nil) {
         super.init(frame: .zero)
@@ -178,6 +196,7 @@ final class UKToggleRow: UIView {
         toggle.accessibilityLabel = title
         toggle.accessibilityHint = accessibilityHint
         toggle.accessibilityIdentifier = identifier
+        toggle.row = self
         let row = UIStackView(arrangedSubviews: [texts, toggle])
         row.spacing = 12
         row.alignment = .center
