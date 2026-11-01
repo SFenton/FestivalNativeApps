@@ -251,7 +251,7 @@ final class UKLeaderboardRowCell: UKSelfSizingCell {
 /// The score row's accuracy pill: graded 25 % tint, or the web's skewed gold outline for a
 /// full combo (`goldOutlineSkew`). The outline is a ``CAShapeLayer`` sheared -8 degrees
 /// inside the view's frame, so the accessibility frame stays the column slot.
-final class UKAccuracyBadgeView: UIView {
+final class UKBoardAccuracyBadgeView: UIView {
     private let label = UKLabel(nil, style: .body, lines: 1, alignment: .center)
     private let shape = CAShapeLayer()
     private var skewed = false
@@ -287,7 +287,7 @@ final class UKAccuracyBadgeView: UIView {
         isAccessibilityElement = true
         setContentHuggingPriority(.required, for: .horizontal)
         setContentCompressionResistancePriority(.required, for: .horizontal)
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKAccuracyBadgeView, _) in
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKBoardAccuracyBadgeView, _) in
             self.updateSizing()
             self.setNeedsLayout()
         }
@@ -353,7 +353,7 @@ final class UKAccuracyBadgeView: UIView {
 
 /// The season a score was achieved in (``ScoreSeasonPill``): "S9" on a subtle chip with a
 /// 2 pt border, inverted for the current season; "Season 9" wrapping at accessibility sizes.
-final class UKSeasonPillView: UIView {
+final class UKBoardSeasonPillView: UIView {
     private let label = UKLabel(nil, style: .body, weight: .semibold, monospacedDigit: true, lines: 1, alignment: .center)
     private var widthConstraint: NSLayoutConstraint!
     private var heightConstraint: NSLayoutConstraint!
@@ -380,7 +380,7 @@ final class UKSeasonPillView: UIView {
         ])
         setContentHuggingPriority(.required, for: .horizontal)
         setContentCompressionResistancePriority(.required, for: .horizontal)
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKSeasonPillView, _) in self.refresh() }
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKBoardSeasonPillView, _) in self.refresh() }
     }
 
     @available(*, unavailable)

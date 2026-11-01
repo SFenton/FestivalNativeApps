@@ -8,7 +8,7 @@ import UIKit
 /// The shared "View All …" call to action (``PurpleActionLabel``): full width, 44 pt, white
 /// semibold text on a flat accent-purple fill (inside a group card, #382). Spoken as the
 /// label then the card it opens (view-all-cta R4).
-final class UKPurpleActionButton: UIControl {
+final class UKBoardPurpleActionButton: UIControl {
     private let label = UKLabel(nil, style: .body, weight: .semibold, lines: 0, alignment: .center)
     /// Called when tapped.
     var onTap: (() -> Void)?

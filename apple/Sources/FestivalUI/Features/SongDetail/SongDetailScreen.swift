@@ -72,7 +72,7 @@ struct SongDetailScreen: View {
         )
     }
 
-    private var previewInstruments: [Instrument] { charted.filter(visibleInstruments.contains) }
+    private var previewInstruments: [Instrument] { SongDetailPlan.previewInstruments(song, visible: visibleInstruments) }
 
     /// Whether the Score History section is drawn (a selected player with rows).
     private var showsScoreHistory: Bool { session.selectedPlayer != nil && !historyEntries.isEmpty }
@@ -83,15 +83,9 @@ struct SongDetailScreen: View {
         let contentShown: Bool
     }
 
-    private var charted: [Instrument] {
-        Instrument.allCases.filter(song.supports)
-    }
+    private var charted: [Instrument] { SongDetailPlan.charted(song) }
 
-    private var pathInstruments: [Instrument] {
-        Instrument.allCases.filter {
-            $0 != .karaoke && visibleInstruments.contains($0)
-        }
-    }
+    private var pathInstruments: [Instrument] { SongDetailPlan.pathInstruments(visible: visibleInstruments) }
 
     private var shopOffer: ShopSong? {
         hideShop ? nil : session.shopOffersById[song.songId]
@@ -115,17 +109,7 @@ struct SongDetailScreen: View {
     /// (`.agents/controls/quick-links/ios.md`). Uses the same predicates as the body so
     /// the menu cannot list a section the page does not draw.
     private var quickLinkSections: [QuickLinkSection] {
-        [QuickLinkSection(id: "intensity", title: "Intensity", icon: .system("chart.bar.fill"))]
-            + (showsScoreHistory ? [
-                QuickLinkSection(id: "score-history", title: "Score History", icon: .system("chart.line.uptrend.xyaxis")),
-            ] : [])
-            + previewInstruments.map { instrument in
-                QuickLinkSection(
-                    id: "instrument-\(instrument.rawValue)", title: instrument.label,
-                    icon: .instrument(instrument)
-                )
-            }
-            + BandType.allCases.map(Self.bandQuickLink)
+        SongDetailPlan.quickLinkSections(previewInstruments: previewInstruments, showsScoreHistory: showsScoreHistory)
     }
 
     /// Quick Links entry for one band-size preview section.
@@ -133,9 +117,7 @@ struct SongDetailScreen: View {
     /// - Parameter bandType: Band size.
     /// - Returns: The section's menu entry (web id `band-<bandType>`).
     private static func bandQuickLink(_ bandType: BandType) -> QuickLinkSection {
-        QuickLinkSection(
-            id: "band-\(bandType.rawValue)", title: bandType.label, icon: .system(bandType.symbolName)
-        )
+        SongDetailPlan.bandQuickLink(bandType)
     }
 
     /// Supply enabled chart links without hiding the PWA's full Intensity grid.
