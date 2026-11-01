@@ -391,17 +391,19 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
         let message = model.attachmentMessage
         let unsaved = model.hasUnsavedInput
         let filing = model.isFiling
-        submitItem.isEnabled = canSubmit
+        if submitItem.isEnabled != canSubmit { submitItem.isEnabled = canSubmit }
         closeItem.title = filing ? "Close" : "Cancel"
-        navigationController?.isModalInPresentation = (model.isSubmitting || (unsaved && !filing))
+        let modal = model.isSubmitting || (unsaved && !filing)
+        if navigationController?.isModalInPresentation != modal { navigationController?.isModalInPresentation = modal }
         validation.text = (!busyNow ? issue?.message : nil)
         validation.isHidden = validation.text == nil
         attachProgress.isHidden = importing == 0
         attachMessage.text = message
         attachMessage.isHidden = message == nil
-        attachMenuButton.isEnabled = attachments.count < FeedbackLimits.attachments && !busyNow
-        textViews.forEach { $0.0.isEditable = !busyNow }
-        titleField.isEnabled = !busyNow
+        let canAttach = attachments.count < FeedbackLimits.attachments && !busyNow
+        if attachMenuButton.isEnabled != canAttach { attachMenuButton.isEnabled = canAttach }
+        for (box, _) in textViews where box.isEditable == busyNow { box.isEditable = !busyNow }
+        if titleField.isEnabled == busyNow { titleField.isEnabled = !busyNow }
         updateStrip(attachments)
         var fraction = 0.0
         if case let .submitting(value) = phase { fraction = value }
