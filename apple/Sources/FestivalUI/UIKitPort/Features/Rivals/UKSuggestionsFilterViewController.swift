@@ -16,6 +16,8 @@ final class UKSuggestionsFilterViewController: UIViewController, UKModalScrollPr
     private let scrollView = UIScrollView()
     private let stack = UIStackView()
     private var switches: [() -> Void] = []
+    private let selectorHolder = UIView()
+    private var selector: UKInstrumentSelectorView?
 
     var ukModalScrollView: UIScrollView? { scrollView }
 
@@ -57,6 +59,36 @@ final class UKSuggestionsFilterViewController: UIViewController, UKModalScrollPr
         build()
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        installSelector()
+    }
+
+    /// Builds the instrument selector once the sheet has a width, choosing the arrow layout from it
+    /// (the shared selector measures its own width only after layout).
+    private func installSelector() {
+        guard selector == nil, !visibleInstruments.isEmpty, view.bounds.width > 0 else { return }
+        let width = view.bounds.width - 64
+        let compact = InstrumentSelection(instruments: visibleInstruments, required: false, deferSelection: true).needsCompact(
+            width: Double(width), buttonWidth: Double(InstrumentSelectorMetrics.buttonSize), gap: Double(InstrumentSelectorMetrics.gap)
+        )
+        let view = UKInstrumentSelectorView(
+            instruments: visibleInstruments, selected: nil, compact: compact, deferSelection: true,
+            identifier: "fst.suggestions.filter.instrument-picker",
+            panel: { [weak self] instrument in self?.perInstrumentToggles(instrument) ?? UIView() }
+        )
+        view.onSelect = { [weak view] choice in view?.selected = choice }
+        view.translatesAutoresizingMaskIntoConstraints = false
+        selectorHolder.addSubview(view)
+        NSLayoutConstraint.activate([
+            view.leadingAnchor.constraint(equalTo: selectorHolder.leadingAnchor, constant: 16),
+            view.trailingAnchor.constraint(equalTo: selectorHolder.trailingAnchor, constant: -16),
+            view.topAnchor.constraint(equalTo: selectorHolder.topAnchor, constant: 6),
+            view.bottomAnchor.constraint(equalTo: selectorHolder.bottomAnchor, constant: -6),
+        ])
+        selector = view
+    }
+
     // MARK: Draft
 
     private func update(_ change: (inout SuggestionFilterSettings) -> Void) {
@@ -90,22 +122,7 @@ final class UKSuggestionsFilterViewController: UIViewController, UKModalScrollPr
         }
         stack.addArrangedSubview(section("General", subtitle: "Turn whole suggestion categories on or off.", rows: generalRows))
         if !visibleInstruments.isEmpty {
-            let selector = UKInstrumentSelectorView(
-                instruments: visibleInstruments, selected: nil, deferSelection: true,
-                identifier: "fst.suggestions.filter.instrument-picker",
-                panel: { [weak self] instrument in self?.perInstrumentToggles(instrument) ?? UIView() }
-            )
-            selector.onSelect = { [weak selector] choice in selector?.selected = choice }
-            let holder = UIView()
-            selector.translatesAutoresizingMaskIntoConstraints = false
-            holder.addSubview(selector)
-            NSLayoutConstraint.activate([
-                selector.leadingAnchor.constraint(equalTo: holder.leadingAnchor, constant: 16),
-                selector.trailingAnchor.constraint(equalTo: holder.trailingAnchor, constant: -16),
-                selector.topAnchor.constraint(equalTo: holder.topAnchor, constant: 6),
-                selector.bottomAnchor.constraint(equalTo: holder.bottomAnchor, constant: -6),
-            ])
-            stack.addArrangedSubview(section("Instrument-Specific", subtitle: "Fine-tune one chart at a time.", rows: [holder]))
+            stack.addArrangedSubview(section("Instrument-Specific", subtitle: "Fine-tune one chart at a time.", rows: [selectorHolder]))
         }
         var reset = UIButton.Configuration.plain()
         reset.title = "Reset Filters"
