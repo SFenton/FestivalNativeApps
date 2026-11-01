@@ -19,6 +19,16 @@ final class HomeScreenNameJourneyTests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// The Home Screen name the app under test should show: "FST", or "FST UIKit" for the
+    /// side-by-side UIKit port, which must not be confused with the SwiftUI app.
+    private static let expectedName: String = {
+        #if FST_UIKIT_PORT
+        "FST UIKit"
+        #else
+        "FST"
+        #endif
+    }()
+
     /// The installed app's Home Screen name is "FST", never the full, truncating name.
     @MainActor
     func testHomeScreenLabelIsShortName() throws {
@@ -27,6 +37,6 @@ final class HomeScreenNameJourneyTests: XCTestCase {
             "FST_UI_TEST_CLEAR_PROFILE": "1",
         ])
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 20))
-        XCTAssertEqual(app.label, "FST", "the app's Home Screen name")
+        XCTAssertEqual(app.label, Self.expectedName, "the app's Home Screen name")
     }
 }

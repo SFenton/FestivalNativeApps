@@ -128,6 +128,8 @@ final class UKFloatingPageToolsView: UIView {
         if let menu = item.menu {
             button.menu = menu
             button.showsMenuAsPrimaryAction = true
+            // A menu opened from the bottom bar otherwise lists its rows bottom-up.
+            button.preferredMenuElementOrder = item.preferredMenuElementOrder
         } else if let action = item.primaryAction {
             button.addAction(UIAction(title: action.title, image: action.image) { _ in
                 action.performWithSender(item, target: nil)

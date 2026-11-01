@@ -82,6 +82,9 @@ extension UKRootViewController {
         } else if shellState.layout == nil {
             shellState.layout = next
         }
+        #if DEBUG
+        refreshDebugDuoWindowReadout()
+        #endif
     }
 
     /// The window's safe area including the system vertical bar, which the root's own

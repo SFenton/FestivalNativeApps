@@ -119,6 +119,8 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
         TEST_TARGET_NAME: FestivalMobileUIKit
+        # The few journeys that must tell the side-by-side port apart (its Home Screen name).
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) FST_UIKIT_PORT"
         CODE_SIGNING_ALLOWED: NO
   FestivalDesktop:
     type: application
@@ -261,6 +263,8 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
         TEST_TARGET_NAME: FestivalMobileUIKit
+        # The few journeys that must tell the side-by-side port apart (its Home Screen name).
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) FST_UIKIT_PORT"
         CODE_SIGNING_ALLOWED: NO
   FestivalDesktopUITests:
     type: bundle.ui-testing

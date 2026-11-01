@@ -54,6 +54,20 @@ extension UKRootViewController {
         }
     }
 
+    /// Keeps the floating tools in the tab controller's view, just beneath the tab bar's
+    /// branch, so VoiceOver reads navigation bar → page → tools → tab bar, as the SwiftUI
+    /// shell does. The row stays constrained to the root view (a common ancestor).
+    func placeFloatingToolsBeforeTabBar() {
+        guard let host = tabs.view,
+              let barBranch = host.subviews.first(where: { tabs.tabBar.isDescendant(of: $0) }) else { return }
+        if floatingTools.superview === host,
+           let mine = host.subviews.firstIndex(of: floatingTools),
+           let bar = host.subviews.firstIndex(of: barBranch), mine == bar - 1 { return }
+        let constraints = view.constraints.filter { $0.firstItem === floatingTools || $0.secondItem === floatingTools }
+        host.insertSubview(floatingTools, belowSubview: barBranch)
+        NSLayoutConstraint.activate(constraints.filter { !$0.isActive })
+    }
+
     /// Keeps the row above the tab bar, which is measured expanded so the buttons stay put
     /// while scrolling minimizes the bar.
     func positionFloatingTools() {

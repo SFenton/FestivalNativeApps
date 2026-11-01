@@ -53,6 +53,8 @@ final class UKRootViewController: UIViewController {
     var accessoryFocusToken = 0
     var pendingSheetRoute: AppRoute?
     var hingeInteractionInstalled = false
+    /// The simulated Duo window readout (`UKDebugDuoWindowReadout`), Debug only.
+    var duoReadout: UIView?
     var splitOpenSections: Set<FestivalSection> = []
     var refreshTask: Task<Void, Never>?
     var openingApplied = false
@@ -111,6 +113,7 @@ final class UKRootViewController: UIViewController {
         if #available(iOS 26.0, *) { tabs.tabBarMinimizeBehavior = .onScrollDown }
         floatingTools.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(floatingTools)
+        placeFloatingToolsBeforeTabBar()
         let bottom = floatingTools.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -90)
         floatingBottom = bottom
         NSLayoutConstraint.activate([
@@ -137,7 +140,7 @@ final class UKRootViewController: UIViewController {
         center.addObserver(self, selector: #selector(sceneForeground), name: UIScene.didActivateNotification, object: nil)
         session.acquireLiveUpdates(liveToken)
         #if DEBUG
-        DebugDuoWindowRemote.shared.start()
+        installDebugDuoWindow()
         #endif
     }
 
@@ -161,6 +164,7 @@ final class UKRootViewController: UIViewController {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        placeFloatingToolsBeforeTabBar()
         refreshLayout(initial: false)
         positionFloatingTools()
     }
