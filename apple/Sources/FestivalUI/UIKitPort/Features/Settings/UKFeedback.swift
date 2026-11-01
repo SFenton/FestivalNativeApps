@@ -321,8 +321,23 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
 
     private func buildStatus() {
         statusView.backgroundColor = .clear
-        busy.accessibilityIdentifier = "fst.settings.feedback.busy"
+        // The spinner is drawn by the shared arc; a system activity indicator laid over it carries the
+        // role, name and identifier assistive technology and UI tests read as the one busy indicator.
+        busy.accessibilityElementsHidden = true
         busy.translatesAutoresizingMaskIntoConstraints = false
+        let indicator = UIActivityIndicatorView(style: .large)
+        indicator.hidesWhenStopped = false
+        indicator.alpha = 0.02
+        indicator.startAnimating()
+        indicator.isAccessibilityElement = true
+        indicator.accessibilityLabel = FeedbackSendingStage.busyLabel(for: kind)
+        indicator.accessibilityIdentifier = "fst.settings.feedback.busy"
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        busy.addSubview(indicator)
+        NSLayoutConstraint.activate([
+            indicator.centerXAnchor.constraint(equalTo: busy.centerXAnchor), indicator.centerYAnchor.constraint(equalTo: busy.centerYAnchor),
+            busy.widthAnchor.constraint(greaterThanOrEqualToConstant: 44), busy.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+        ])
         statusTitle.accessibilityIdentifier = "fst.settings.feedback.status.title"
         statusSubtitle.accessibilityIdentifier = "fst.settings.feedback.status.subtitle"
         progressBar.accessibilityLabel = "Upload progress"
