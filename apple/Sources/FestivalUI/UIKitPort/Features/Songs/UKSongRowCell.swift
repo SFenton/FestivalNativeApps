@@ -137,6 +137,8 @@ final class UKSongRowCell: UICollectionViewCell {
         card.translatesAutoresizingMaskIntoConstraints = true
         contentView.addSubview(card)
         card.contentView.addSubview(row)
+        // The drawn row is decoration: the proxy stops beside the card are what is exposed.
+        card.accessibilityElementsHidden = true
         contrastRim.layer.cornerRadius = 12
         contrastRim.layer.cornerCurve = .continuous
         contrastRim.layer.borderWidth = 2

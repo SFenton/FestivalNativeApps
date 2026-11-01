@@ -417,12 +417,14 @@ final class UKSongsViewController: UIViewController, UICollectionViewDelegate, U
         let forced = ProcessInfo.processInfo.environment["FST_UI_TEST_PAGE_ANCHOR"] == "inside"
         let shows = hasRefreshed && (forced || UIAccessibility.isVoiceOverRunning)
         refreshAnchor.isAccessibilityElement = shows
-        refreshAnchor.accessibilityIdentifier = "fst.publication.page-anchor"
+        refreshAnchor.isHidden = !shows
+        refreshAnchor.accessibilityIdentifier = shows ? "fst.publication.page-anchor" : nil
         refreshAnchor.accessibilityLabel = "Songs"
         refreshAnchor.accessibilityTraits = .header
         refreshAnchor.accessibilityValue = refreshing ? "Loading new scores" : nil
         refreshMarker.isAccessibilityElement = refreshing
-        refreshMarker.accessibilityIdentifier = "fst.publication.refreshing"
+        refreshMarker.isHidden = !refreshing
+        refreshMarker.accessibilityIdentifier = refreshing ? "fst.publication.refreshing" : nil
         refreshMarker.accessibilityLabel = "Loading new scores"
     }
 
