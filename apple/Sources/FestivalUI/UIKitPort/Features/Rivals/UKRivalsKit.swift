@@ -153,6 +153,7 @@ final class UKFittingStack: UIStackView {
 /// chevron. One button element with the combined label.
 final class UKRivalRowView: UIControl {
     private let pills = UIStackView()
+    private let pillSpacer = UIView()
 
     /// Called when the row is pressed.
     var onSelect: (() -> Void)?
@@ -178,6 +179,7 @@ final class UKRivalRowView: UIControl {
         name.isUserInteractionEnabled = false
         pills.addArrangedSubview(UKRivalStatusPill(copy.aheadPill, tint: BrandUIColors.statusGreen))
         pills.addArrangedSubview(UKRivalStatusPill(copy.behindPill, tint: BrandUIColors.statusRed))
+        pills.addArrangedSubview(pillSpacer)
         pills.spacing = 6
         pills.alignment = .leading
         pills.isUserInteractionEnabled = false
@@ -218,7 +220,9 @@ final class UKRivalRowView: UIControl {
     override var isHighlighted: Bool { didSet { alpha = isHighlighted ? 0.6 : 1 } }
 
     private func applyPillAxis() {
-        pills.axis = UKFont.isAccessibilitySize(traitCollection) ? .vertical : .horizontal
+        let vertical = UKFont.isAccessibilitySize(traitCollection)
+        pills.axis = vertical ? .vertical : .horizontal
+        pillSpacer.isHidden = vertical
     }
 }
 

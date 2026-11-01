@@ -36,6 +36,8 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
     private var inListTitle: UIView?
     private var titleHidden = false
     private var hasInListTitle = false
+    /// Set when the column was rebuilt: the next layout scrolls to the top under the bars.
+    var needsInitialOffset = true
     private var shownSignature: AnyHashable?
     private nonisolated(unsafe) var settingsObserver: NSObjectProtocol?
 
@@ -120,6 +122,10 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        if needsInitialOffset, !scrollView.isHidden, scrollView.window != nil, scrollView.adjustedContentInset.top > 0 {
+            needsInitialOffset = false
+            scrollView.contentOffset.y = -scrollView.adjustedContentInset.top
+        }
         quickLinks?.scrollViewDidScroll()
         updateTitleHidden()
     }
@@ -152,6 +158,7 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
         tasks.forEach { $0.cancel() }
         tasks = []
         shownSignature = settingsSignature
+        needsInitialOffset = true
         column.arrangedSubviews.forEach { $0.removeFromSuperview() }
         quickLinkEntries = []
         quickLinks?.discover([])
@@ -166,7 +173,7 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
     /// Runs `work` for the page's current content; a rebuild cancels it.
     ///
     /// - Parameter work: The async work.
-    func runTask(_ work: @escaping @MainActor () async -> Void) {
+    final func runTask(_ work: @escaping @MainActor () async -> Void) {
         tasks.append(Task { @MainActor in await work() })
     }
 
@@ -175,7 +182,7 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
     /// Shows a state view over the whole page in place of the column.
     ///
     /// - Parameter state: The spinner, status or empty state.
-    func showFill(_ state: UIView) {
+    func showFill(_ state: UIView, edgeToEdge: Bool = false) {
         stateView?.removeFromSuperview()
         scrollView.isHidden = true
         if scrollView.superview !== view {
@@ -185,6 +192,13 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
         }
         state.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(state)
+        if edgeToEdge {
+            state.ukPin(to: view)
+            stateView = state
+            hasInListTitle = false
+            updatePinnedTitle()
+            return
+        }
         let guide = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
             state.leadingAnchor.constraint(equalTo: guide.leadingAnchor), state.trailingAnchor.constraint(equalTo: guide.trailingAnchor),

@@ -189,7 +189,7 @@ final class UKCompeteViewController: UKRivalsPageViewController {
         )
         self.gate = gate
         gate.onReveal = { [weak self] in self?.revealPage() }
-        showFill(gate)
+        showFill(gate, edgeToEdge: true)
         scrollView.isHidden = true
         gate.contentView.addSubview(scrollView)
         scrollView.ukPin(to: gate.contentView)
@@ -240,6 +240,7 @@ final class UKCompeteViewController: UKRivalsPageViewController {
             return
         }
         scrollView.isHidden = false
+        needsInitialOffset = true
         let leaderboards = leaderboardsSection(key)
         let rivals = rivalsSection(key)
         let wide = ukLayout.widthClass == .regular

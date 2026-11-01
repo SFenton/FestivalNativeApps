@@ -255,13 +255,14 @@ final class UKSuggestionsViewController: UKRivalsPageViewController, UICollectio
             key: key ?? "", isLoading: isFirstPageLoading, spinnerLabel: "Loading Suggestions", spinnerIdentifier: "fst.suggestions.loading"
         )
         self.gate = gate
-        showFill(gate)
+        showFill(gate, edgeToEdge: true)
         collection.backgroundColor = .clear
         collection.delegate = self
         collection.accessibilityIdentifier = "fst.suggestions.list"
         collection.alwaysBounceVertical = true
         collection.translatesAutoresizingMaskIntoConstraints = false
         gate.contentView.addSubview(collection)
+        setContentScrollView(collection)
         collection.ukPin(to: gate.contentView)
         collection.refreshControl = {
             let control = UIRefreshControl()
