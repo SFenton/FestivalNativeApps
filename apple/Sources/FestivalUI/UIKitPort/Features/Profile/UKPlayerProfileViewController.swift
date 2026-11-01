@@ -127,14 +127,14 @@ class UKPlayerProfileViewController: UKProfileScrollViewController {
 
     /// Settings-visible solo charts, in the Songs tab's order.
     private var visibleInstruments: [Instrument] {
-        Self.instrumentToggles.compactMap { UKProfileSettings.bool($0.1, default: true) ? $0.0 : nil }
+        Self.instrumentToggles.compactMap { UKSettings.bool($0.1, default: true) ? $0.0 : nil }
     }
 
     private var signature: Signature {
         let leeway = UserDefaults.standard.object(forKey: "fst.settings.leeway") as? Double ?? 1.0
         return Signature(
             instruments: visibleInstruments,
-            filterInvalid: UKProfileSettings.bool("fst.settings.filterInvalidScores", default: false), leeway: leeway
+            filterInvalid: UKSettings.bool("fst.settings.filterInvalidScores", default: false), leeway: leeway
         )
     }
 

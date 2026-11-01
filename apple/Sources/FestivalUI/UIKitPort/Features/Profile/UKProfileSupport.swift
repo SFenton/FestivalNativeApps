@@ -57,24 +57,6 @@ extension UIView {
     }
 }
 
-// MARK: - Settings
-
-/// Boolean settings read the way `@AppStorage` does: `UserDefaults.bool(forKey:)` once a value
-/// exists, so a launch argument (`-key YES`, stored as a string) counts, with the registered
-/// default otherwise (``UKSettings/bool(_:default:)`` only accepts a stored `Bool`).
-@MainActor
-enum UKProfileSettings {
-    /// A Boolean setting.
-    ///
-    /// - Parameters:
-    ///   - key: The `fst.*` key.
-    ///   - fallback: The value when nothing is stored.
-    /// - Returns: The stored or default value.
-    static func bool(_ key: String, default fallback: Bool) -> Bool {
-        UserDefaults.standard.object(forKey: key) == nil ? fallback : UserDefaults.standard.bool(forKey: key)
-    }
-}
-
 // MARK: - Metrics
 
 /// Page metrics shared by the lane's screens.

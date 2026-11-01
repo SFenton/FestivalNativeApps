@@ -13,14 +13,15 @@ enum UKSettings {
     /// Posted (on the main queue) whenever `UserDefaults.standard` changes.
     static let didChange = UserDefaults.didChangeNotification
 
-    /// A Boolean setting, falling back to its registered default (`@AppStorage`'s rule).
+    /// A Boolean setting read the way `@AppStorage` does: `UserDefaults.bool(forKey:)` once a
+    /// value exists, so a launch argument (`-key YES`, stored as a string) counts, else `fallback`.
     ///
     /// - Parameters:
     ///   - key: The `fst.*` key.
     ///   - fallback: The value when nothing is stored.
     /// - Returns: The stored or default value.
     static func bool(_ key: String, default fallback: Bool) -> Bool {
-        UserDefaults.standard.object(forKey: key) as? Bool ?? fallback
+        UserDefaults.standard.object(forKey: key) == nil ? fallback : UserDefaults.standard.bool(forKey: key)
     }
 
     /// Chart instruments Settings shows, as `FestivalRootView.visibleInstruments`.

@@ -46,7 +46,7 @@ final class UKBandDetailViewController: UKProfileScrollViewController {
     private let refresh = UIRefreshControl()
 
     private var experimentalRanks: Bool {
-        UKProfileSettings.bool(ExperimentalRanks.storageKey, default: ExperimentalRanks.defaultValue)
+        UKSettings.bool(ExperimentalRanks.storageKey, default: ExperimentalRanks.defaultValue)
     }
 
     // MARK: Init
