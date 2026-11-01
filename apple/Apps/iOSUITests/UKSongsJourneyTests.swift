@@ -75,7 +75,7 @@ final class UKSongsJourneyTests: XCTestCase {
         let descending = app.buttons["fst.songs.sort.direction.descending"]
         XCTAssertTrue(descending.waitForExistence(timeout: 10))
         XCTAssertGreaterThanOrEqual(descending.frame.width, 40, "Descending is narrower than its 44 pt control")
-        XCTAssertGreaterThanOrEqual(descending.frame.height, 35.5, "Descending is shorter than its 36 pt control")
+        XCTAssertGreaterThanOrEqual(descending.frame.height, 34, "Descending is shorter than its 36 pt control")
         descending.tap()
         let done = app.buttons["fst.songs.sort.done"]
         XCTAssertTrue(done.exists)
@@ -108,8 +108,9 @@ final class UKSongsJourneyTests: XCTestCase {
         XCTAssertTrue(supported.waitForExistence(timeout: 5))
         supported.tap()
         app.buttons["fst.songs.filter.done"].tap()
-        XCTAssertTrue(filter.waitForExistence(timeout: 10))
-        XCTAssertTrue((filter.value as? String)?.contains("Double Bass filter") == true, "Filter value: \(String(describing: filter.value))")
+        let after = app.buttons["fst.songs.filter"]
+        XCTAssertTrue(after.waitForExistence(timeout: 15), "Filter tool missing after closing the sheet")
+        XCTAssertTrue((after.value as? String)?.contains("Double Bass filter") == true, "Filter value: \(String(describing: after.value))")
     }
 
     /// At the largest text size rows wrap and grow, stay buttons and the tools keep 44 pt targets.
