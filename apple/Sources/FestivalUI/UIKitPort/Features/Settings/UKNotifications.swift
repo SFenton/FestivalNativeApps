@@ -288,6 +288,7 @@ final class UKNotificationCell: UKSelfSizingCell {
         row.alignment = .center
         row.spacing = 10
         row.translatesAutoresizingMaskIntoConstraints = false
+        row.accessibilityElementsHidden = true
         contentView.addSubview(row)
         rail.translatesAutoresizingMaskIntoConstraints = false
         trailing.translatesAutoresizingMaskIntoConstraints = false

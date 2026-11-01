@@ -5,6 +5,30 @@ import UIKit
 
 // MARK: - Privacy policy
 
+/// The policy column: routes a tap to the link under the finger. The labels themselves take no
+/// touches, so each paragraph stays plain static text.
+@MainActor
+final class UKPolicyColumn: UIStackView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped(_:))))
+    }
+
+    @available(*, unavailable)
+    required init(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
+        func walk(_ view: UIView) {
+            if let label = view as? UKLinkLabel, !label.links.isEmpty {
+                let point = recognizer.location(in: label)
+                if label.bounds.contains(point) { label.openLink(at: point) }
+            }
+            view.subviews.forEach(walk)
+        }
+        walk(self)
+    }
+}
+
 /// The policy's effective date and sections (``PrivacyPolicyContent``), shared by the Privacy
 /// Policy sheet and the list/detail Settings' inline pane. The caller scrolls and pads it.
 @MainActor
@@ -14,7 +38,7 @@ enum UKPrivacyPolicyContent {
     /// - Parameter policy: The policy to show.
     /// - Returns: A vertical stack of the date and sections.
     static func make(policy: PrivacyPolicy = .current) -> UIStackView {
-        let column = UIStackView()
+        let column = UKPolicyColumn()
         column.axis = .vertical
         column.spacing = 24
         column.alignment = .fill
@@ -92,14 +116,15 @@ final class UKLinkLabel: UILabel {
         numberOfLines = 0
         adjustsFontForContentSizeCategory = true
         translatesAutoresizingMaskIntoConstraints = false
-        isUserInteractionEnabled = true
-        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped(_:))))
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
+    /// Opens the link at a point of the label, if there is one.
+    ///
+    /// - Parameter point: In the label's coordinates.
+    func openLink(at point: CGPoint) {
         guard let attributed = attributedText, attributed.length > 0 else { return }
         let storage = NSTextStorage(attributedString: attributed)
         let layout = NSLayoutManager()
@@ -108,7 +133,6 @@ final class UKLinkLabel: UILabel {
         container.lineBreakMode = lineBreakMode
         layout.addTextContainer(container)
         storage.addLayoutManager(layout)
-        let point = recognizer.location(in: self)
         let index = layout.characterIndex(for: point, in: container, fractionOfDistanceBetweenInsertionPoints: nil)
         guard let link = links.first(where: { NSLocationInRange(index, $0.0) })?.1 else { return }
         UIApplication.shared.open(link)

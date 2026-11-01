@@ -333,7 +333,7 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
         indicator.accessibilityLabel = FeedbackSendingStage.busyLabel(for: kind)
         indicator.accessibilityIdentifier = "fst.settings.feedback.busy"
         indicator.translatesAutoresizingMaskIntoConstraints = false
-        busy.addSubview(indicator)
+        statusView.addSubview(indicator)
         NSLayoutConstraint.activate([
             indicator.centerXAnchor.constraint(equalTo: busy.centerXAnchor), indicator.centerYAnchor.constraint(equalTo: busy.centerYAnchor),
             busy.widthAnchor.constraint(greaterThanOrEqualToConstant: 44), busy.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
