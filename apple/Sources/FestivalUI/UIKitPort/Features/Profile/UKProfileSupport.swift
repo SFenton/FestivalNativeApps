@@ -154,6 +154,8 @@ final class UKProfileNoticeRow: UIView {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         let label = UKLabel(text, style: .footnote, color: BrandUIColors.gold)
+        // Break lines like `NSString.boundingRect` / SwiftUI `Text`, not with the UILabel default strategy.
+        label.lineBreakStrategy = []
         ukPin(label, insets: UIEdgeInsets(top: 6, left: 16, bottom: 6, right: 16))
         heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         isAccessibilityElement = true
