@@ -112,3 +112,14 @@ Rules for `UIKitPort/Features/Leaderboards` (Leaderboards, Full Rankings incl. c
 - **Paging updates the route**: a board that pages sets `ukRoute` (the shell rebuilds its path from it), the UIKit counterpart of rewriting the last `path` element.
 - **Page tools** (Instrument, Rank By, Band Size, Sort, Quick Links) are `UIBarButtonItem`s with menus returned from `ukPageTools`; the band board's switcher also appears in the floating bar's pill except on the Duo vertical bar, where it is a rail item.
 - **Gaps**: the Leaderboards "Your Rank History" dual-source pane for iPhone Duo (needs the Profile lane's rank-history page), the Mac-only menu commands, and the multi-row stacked card of a crowded trailing pane on song boards (#364) are not ported.
+
+## Profile lane
+
+Rules for `UIKitPort/Features/Profile` (Player profile, Statistics, Player Bands, Bands, Band Detail; 2026-10-31).
+
+- **Shared logic.** Tiles, formatting, link decisions, identity rules and the profile load sequence live in `Features/Profile/PlayerProfileTiles.swift` (`PlayerProfileTiles`, `PlayerProfileLoader`); both front ends call them. `PlayerStatNavigator.follow(_:session:)` is the one link switch.
+- **Width is passed down.** UIKit has no custom `Layout`, so width-dependent views conform to `UKWidthDependent` and the page (`UKProfileScrollViewController`) calls `prepare(width:)` before Auto Layout sizes them. `UKProfileColumnGrid` is the stat-grid / two-column / Duo-fold grid.
+- **Charts.** `UKRankHistoryChartView` draws the Rank History chart with Core Graphics from `RankHistoryChartScale` / `RankHistoryPaging`; the plot is an accessibility container with one adjustable chart element (Audio Graph through `AXChart`) and three axis elements.
+- **Statistics** is `UKPlayerProfileViewController` pointed at the selected player (root or pushed). The Profiles sheet is the Shell lane's `UKProfileSelection`. The dual-source graphs carousel is shelved (`DualSourcePolicy.isEnabled` is false) and not ported.
+- **Songs link seam.** A tile that filters Songs saves the preset (`SongsPresetStore`), posts `UKProfileLinks.songsPresetApplied` (instrument in `userInfo`) and selects Songs; the Songs lane may instead set `UKProfileLinks.showSongsHandler`.
+- **Service safety.** Calls are exactly the SwiftUI pages': `viewPlayer`, `playerInstrumentRanking`, `playerRankHistory`, `playerBandsPreview`, `playerBands`, `bandProfile`, `bandRankHistory`, `bandSongExtremes`, `catalog`. No band search, band detail by id, stats or sync-status.

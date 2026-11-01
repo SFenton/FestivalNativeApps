@@ -156,11 +156,13 @@ extension UKRootViewController {
         let searchRoot = makeSearchNavigation(asTab: !flyout)
         if #available(iOS 18.0, *) {
             var items: [UITab] = sections.map { section in
+                if let existing = sectionTabs[section] as? UITab { return existing }
                 let tab = UITab(
                     title: section.title, image: UIImage(systemName: section.symbol),
                     identifier: "fst.tab.\(section.rawValue)"
                 ) { [weak self] _ in self?.stacks[section] ?? UIViewController() }
                 tab.preferredPlacement = .fixed
+                sectionTabs[section] = tab
                 return tab
             }
             let search = UISearchTab { _ in searchRoot }
