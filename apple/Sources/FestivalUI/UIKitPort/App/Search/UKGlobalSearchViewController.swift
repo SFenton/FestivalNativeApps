@@ -277,7 +277,6 @@ final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdat
             content.imageProperties.reservedLayoutSize = CGSize(width: 44, height: 44)
             cell.accessibilityLabel = [content.text, content.secondaryText].compactMap { $0 }.joined(separator: ", ")
             cell.accessibilityIdentifier = ids("result.song")
-            cell.accessibilityTraits.insert(.button)
         case let .player(id):
             guard let player = model.players.first(where: { $0.accountId == id }) else { return }
             content = UIListContentConfiguration.cell()
@@ -289,7 +288,6 @@ final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdat
             content.imageProperties.tintColor = BrandUIColors.textPrimary
             cell.accessibilityLabel = player.displayName
             cell.accessibilityIdentifier = ids.player(player.accountId)
-            cell.accessibilityTraits.insert(.button)
         case let .band(id):
             guard let band = model.bands.first(where: { $0.id == id }) else { return }
             content = UIListContentConfiguration.subtitleCell()
@@ -303,7 +301,6 @@ final class UKGlobalSearchViewController: UIViewController, UISearchResultsUpdat
             cell.accessibilityLabel = PlayerBandRow.spokenLabel(band)
             cell.accessibilityHint = "Opens band"
             cell.accessibilityIdentifier = ids("result.band")
-            cell.accessibilityTraits.insert(.button)
             cell.accessories = [.disclosureIndicator()]
         case let .failure(scope):
             content = UIListContentConfiguration.cell()

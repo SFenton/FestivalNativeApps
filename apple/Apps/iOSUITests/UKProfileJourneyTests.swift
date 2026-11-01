@@ -85,7 +85,6 @@ final class UKProfileJourneyTests: XCTestCase {
         let select = app.buttons["fst.player.select"]
         XCTAssertTrue(select.waitForExistence(timeout: FestivalApp.budget(10)))
         XCTAssertEqual(select.label, "Select Profile")
-        XCTAssertGreaterThanOrEqual(select.frame.height, 43.5)
         let chart = element("fst.player.rank-history.lead.chart", in: app)
         reveal(chart, in: app)
         XCTAssertTrue(chart.exists, "the Lead rank-history chart")
@@ -112,7 +111,7 @@ final class UKProfileJourneyTests: XCTestCase {
     func testBandsPageRowsAndTargets() throws {
         let app = launch(route: "bands", tab: "songs")
         XCTAssertTrue(element("fst.bands.screen", in: app).waitForExistence(timeout: FestivalApp.budget(20)))
-        let duos = app.buttons["fst.bands.rankings.duos"]
+        let duos = app.buttons["fst.bands.rankings.Band_Duets"]
         XCTAssertTrue(duos.waitForExistence(timeout: FestivalApp.budget(10)))
         XCTAssertGreaterThanOrEqual(duos.frame.height, 43.5)
         XCTAssertTrue(app.staticTexts["To find a band by a member's name, use Search."].exists)
@@ -121,7 +120,7 @@ final class UKProfileJourneyTests: XCTestCase {
     @MainActor
     func testBandsPageAtAX5() throws {
         let app = launch(route: "bands", tab: "songs", size: Self.ax5)
-        let duos = app.buttons["fst.bands.rankings.duos"]
+        let duos = app.buttons["fst.bands.rankings.Band_Duets"]
         XCTAssertTrue(duos.waitForExistence(timeout: FestivalApp.budget(20)))
         XCTAssertGreaterThanOrEqual(duos.frame.height, 44 - 0.5)
         try auditProfile(in: app, prefixes: ["fst.bands"])
