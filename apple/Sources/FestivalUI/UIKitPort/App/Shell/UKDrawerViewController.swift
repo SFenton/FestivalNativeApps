@@ -185,7 +185,8 @@ final class UKDrawerViewController: UIViewController {
         let bottom = placement.contentBottom
         content.directionalLayoutMargins = NSDirectionalEdgeInsets(top: top, leading: inset, bottom: bottom, trailing: inset)
         focusAnchor.frame = content.bounds
-        updateFooterPlacement()
+        // Layout passes come often: move the footer only when its placement changed.
+        if footerPlacedScrolling != footerScrolls { updateFooterPlacement() }
     }
 
     override func viewWillTransition(to size: CGSize, with coordinator: any UIViewControllerTransitionCoordinator) {
@@ -276,16 +277,35 @@ final class UKDrawerViewController: UIViewController {
     /// Rebuilds the rows for the current selection, profile and text size.
     func reload() {
         guard isViewLoaded else { return }
-        rows.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        footer.arrangedSubviews.forEach { $0.removeFromSuperview() }
         let items = (showsSearch ? [DrawerMenu.search] : [])
             + DrawerMenu.browse(profile: profile, visibleSections: visibleSections, hideShop: hideShop)
+        // The shell reloads on every session, settings and path change; rebuild only when the
+        // rows would differ, or a refresh mid-tap swaps the touched control (Deselect lost taps).
+        let signature = items.map { "\($0.id):\(isCurrent($0))" }.joined(separator: ",")
+            + "|\(session.selectedPlayer?.accountId ?? "")/\(session.selectedPlayer?.displayName ?? "")|\(footerScrolls)|\(traitCollection.preferredContentSizeCategory.rawValue)"
+        guard signature != shownSignature else { return }
+        shownSignature = signature
+        rows.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        footer.arrangedSubviews.forEach { $0.removeFromSuperview() }
         for item in items { rows.addArrangedSubview(row(for: item)) }
         updateFooterPlacement()
     }
 
+    private var shownSignature: String?
+
+    /// Whether a row names the page on screen.
+    private func isCurrent(_ item: DrawerItem) -> Bool {
+        item.intent == .openSearch
+            ? searchActive
+            : !searchActive && DrawerMenu.isCurrent(item, selected: selected, topRoute: topRoute)
+    }
+
+    /// Whether the footer rows sit at the end of the scrolling rows, as last placed.
+    private var footerPlacedScrolling: Bool?
+
     private func updateFooterPlacement() {
         guard isViewLoaded else { return }
+        footerPlacedScrolling = footerScrolls
         footer.arrangedSubviews.forEach { $0.removeFromSuperview() }
         // Footer rows that scroll live at the end of the rows; otherwise pinned below.
         let scrolling = footerScrolls
@@ -318,10 +338,7 @@ final class UKDrawerViewController: UIViewController {
     }
 
     private func row(for item: DrawerItem) -> UKDrawerRow {
-        let current = item.intent == .openSearch
-            ? searchActive
-            : !searchActive && DrawerMenu.isCurrent(item, selected: selected, topRoute: topRoute)
-        let view = UKDrawerRow(title: item.title, symbol: item.symbol, isCurrent: current)
+        let view = UKDrawerRow(title: item.title, symbol: item.symbol, isCurrent: isCurrent(item))
         view.accessibilityIdentifier = "fst.shell.drawer.\(item.id)"
         view.addAction(UIAction { [weak self] _ in self?.onIntent(item.intent) }, for: .touchUpInside)
         return view
