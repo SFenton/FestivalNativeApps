@@ -70,6 +70,8 @@ final class UKNotificationsViewController: UIViewController, UICollectionViewDel
         list.separatorConfiguration.color = BrandUIColors.glassBorder
         collection = UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewCompositionalLayout.list(using: list))
         collection.backgroundColor = .clear
+        collection.showsHorizontalScrollIndicator = false
+        collection.alwaysBounceHorizontal = false
         collection.delegate = self
         collection.translatesAutoresizingMaskIntoConstraints = false
         collection.accessibilityIdentifier = "fst.notifications.list"
