@@ -51,7 +51,7 @@ final class UKRivalsRankingRow: UIControl {
         ))
         addSubview(row)
         row.ukPin(to: self)
-        addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .primaryActionTriggered)
+        addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .touchUpInside)
     }
 
     @available(*, unavailable)

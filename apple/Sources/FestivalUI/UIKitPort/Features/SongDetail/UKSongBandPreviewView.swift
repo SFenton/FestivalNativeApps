@@ -251,7 +251,7 @@ final class UKSongBandRowView: UIControl {
         accessibilityTraits = .button
         accessibilityLabel = SongBandPreviewText.spokenLabel(entry, selected: highlighted)
         accessibilityHint = SongBandRowNavigation.hint(for: self.route)
-        addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .primaryActionTriggered)
+        addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .touchUpInside)
     }
 
     @available(*, unavailable)
