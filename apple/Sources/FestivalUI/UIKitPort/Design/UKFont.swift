@@ -20,9 +20,12 @@ enum UKFont {
     static func font(
         _ style: UIFont.TextStyle, weight: UIFont.Weight? = nil, monospacedDigit: Bool = false, italic: Bool = false
     ) -> UIFont {
-        let base = UIFont.preferredFont(
-            forTextStyle: style, compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)
-        )
+        // The style's own font at the current content size category, with its text-style
+        // attribute kept through the weight, digit and italic changes: a font the Dynamic Type
+        // audit and `adjustsFontForContentSizeCategory` both recognise, at exactly the size
+        // SwiftUI's `.font(style)` draws (rescaling a `.large` base through `UIFontMetrics`
+        // came out about 20% smaller at AX5).
+        let base = UIFont.preferredFont(forTextStyle: style)
         var descriptor = base.fontDescriptor
         if let weight {
             descriptor = descriptor.addingAttributes([.traits: [UIFontDescriptor.TraitKey.weight: weight]])
@@ -36,7 +39,7 @@ enum UKFont {
             ])
         }
         if italic, let slanted = descriptor.withSymbolicTraits(.traitItalic) { descriptor = slanted }
-        return UIFontMetrics(forTextStyle: style).scaledFont(for: UIFont(descriptor: descriptor, size: 0))
+        return UIFont(descriptor: descriptor, size: 0)
     }
 
     /// Whether the content size category is an accessibility size (`isAccessibilitySize`).
