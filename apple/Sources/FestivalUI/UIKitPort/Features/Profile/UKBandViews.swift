@@ -74,7 +74,7 @@ final class UKPlayerBandRowView: UIControl {
         details.spacing = 8
         details.isUserInteractionEnabled = false
         for member in entry.members {
-            let name = UKLabel(member.resolvedName, style: .body, lines: 1)
+            let name = UKLabel(member.resolvedName, style: .body, lines: 0)
             let icons = UIStackView(arrangedSubviews: member.chartedInstruments.map {
                 UKInstrumentIconView($0, size: 22, hidesFromAccessibility: true)
             })
@@ -106,7 +106,7 @@ final class UKPlayerBandRowView: UIControl {
     private var nameLabels: [UKLabel] = []
 
     private func applyLineLimit() {
-        let lines = UKFont.isAccessibilitySize(traitCollection) ? 0 : 1
+        let lines = 0
         nameLabels.forEach { $0.numberOfLines = lines }
     }
 
@@ -126,7 +126,7 @@ final class UKProfilePagerView: UIView {
     var onChange: (Int) -> Void
     private var state: RankingsPagerState
     private let badge = UKProfilePagerBadge()
-    private let badgeLabel = UKLabel(style: .body, weight: .semibold, monospacedDigit: true, lines: 1, alignment: .center)
+    private let badgeLabel = UKLabel(style: .body, weight: .semibold, monospacedDigit: true, lines: 0, alignment: .center)
     private var arrows: [(RankingsPagerAction, UKProfileArrowButton)] = []
 
     /// Creates the pager.

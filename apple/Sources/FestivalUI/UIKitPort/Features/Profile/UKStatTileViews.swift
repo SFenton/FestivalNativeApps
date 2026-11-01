@@ -17,7 +17,7 @@ final class UKStatTileView: UIControl {
     private let identifierPrefix: String
     private let card = UKCardView(cornerRadius: UKStatTileView.cornerRadius)
     private let wash = UIView()
-    private let valueLabel = UKLabel(style: .title3, weight: .bold, monospacedDigit: true, color: UKAccentText.blue, lines: 1, alignment: .center)
+    private let valueLabel = UKLabel(style: .title3, weight: .bold, monospacedDigit: true, color: UKAccentText.blue, lines: 0, alignment: .center)
     private let captionLabel = UKLabel(style: .caption2, lines: 0, alignment: .center)
     private let starsHolder = UIView()
     private let chevron = UIImageView(image: UIImage(systemName: "chevron.forward"))

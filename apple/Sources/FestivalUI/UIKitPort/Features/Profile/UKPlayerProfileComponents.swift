@@ -45,7 +45,7 @@ final class UKPercentilePillView: UIView {
         let isTopOne = topPercent <= 1
         let isGold = topPercent <= 5
         let font = UKFont.font(.subheadline, weight: isGold ? .bold : .semibold, monospacedDigit: true, italic: isTopOne)
-        label = UKLabel("Top \(topPercent)%", style: .subheadline, color: isGold ? BrandUIColors.gold : BrandUIColors.textPrimary, lines: 1, alignment: .center)
+        label = UKLabel("Top \(topPercent)%", style: .subheadline, color: isGold ? BrandUIColors.gold : BrandUIColors.textPrimary, lines: 0, alignment: .center)
         label.font = font
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
@@ -158,7 +158,7 @@ final class UKPlayerPercentileTableCardView: UIView {
         let control = UIControl()
         control.translatesAutoresizingMaskIntoConstraints = false
         let pill = UKPercentilePillView(topPercent: bucket.topPercent)
-        let count = UKLabel(bucket.count.formatted(), style: .body, weight: .semibold, monospacedDigit: true, lines: 1)
+        let count = UKLabel(bucket.count.formatted(), style: .body, weight: .semibold, monospacedDigit: true, lines: 0)
         var arranged: [UIView] = [pill, UIView(), count]
         if link != nil {
             let chevron = UIImageView(image: UIImage(systemName: "chevron.forward"))

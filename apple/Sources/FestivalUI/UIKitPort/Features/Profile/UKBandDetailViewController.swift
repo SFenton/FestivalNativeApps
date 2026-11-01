@@ -549,7 +549,7 @@ final class UKBandMemberCardView: UIControl {
         let card = UKCardView(cornerRadius: UKProfileMetrics.rowCornerRadius)
         card.isUserInteractionEnabled = false
         ukPin(card)
-        let name = UKLabel(member.resolvedName, style: .body, weight: .bold, lines: 1)
+        let name = UKLabel(member.resolvedName, style: .body, weight: .bold, lines: 0)
         nameLabel = name
         var column: [UIView] = [name]
         if !member.chartedInstruments.isEmpty {
@@ -590,7 +590,7 @@ final class UKBandMemberCardView: UIControl {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     private func applyLineLimit() {
-        nameLabel?.numberOfLines = UKFont.isAccessibilitySize(traitCollection) ? 0 : 1
+        nameLabel?.numberOfLines = 0
     }
 
     override var isHighlighted: Bool {
