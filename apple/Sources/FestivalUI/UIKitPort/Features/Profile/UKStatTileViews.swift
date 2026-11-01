@@ -61,8 +61,6 @@ final class UKStatTileView: UIControl {
         wash.layer.cornerCurve = .continuous
         wash.isUserInteractionEnabled = false
         ukPin(wash)
-        valueLabel.adjustsFontSizeToFitWidth = true
-        valueLabel.baselineAdjustment = .alignCenters
         captionLabel.setContentCompressionResistancePriority(.required, for: .vertical)
         let stars = UKStarRatingView(stars: 6, gold: true, size: 16)
         stars.isUserInteractionEnabled = false
@@ -106,9 +104,9 @@ final class UKStatTileView: UIControl {
         let inset = UKFont.scaled(22, relativeTo: .footnote, traits: traitCollection)
         sideInsets[0].constant = inset
         sideInsets[1].constant = -inset
-        let accessible = UKFont.isAccessibilitySize(traitCollection)
-        valueLabel.numberOfLines = accessible ? 2 : 1
-        valueLabel.minimumScaleFactor = accessible ? 0.5 : 0.6
+        // Wraps instead of shrinking (a shrinking label reads as fixed-size to the Dynamic Type
+        // audit); the value still fits one line at ordinary sizes.
+        valueLabel.numberOfLines = 2
     }
 
     // MARK: Content
