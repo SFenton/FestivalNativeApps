@@ -51,6 +51,7 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
     private var alertedFailure = false
     private var previewURLs: [URL] = []
     private var stripKey = ""
+    private var busyIndicator: UIActivityIndicatorView?
 
     var ukModalScrollView: UIScrollView? { scroll }
 
@@ -333,11 +334,7 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
         indicator.accessibilityLabel = FeedbackSendingStage.busyLabel(for: kind)
         indicator.accessibilityIdentifier = "fst.settings.feedback.busy"
         indicator.translatesAutoresizingMaskIntoConstraints = false
-        statusView.addSubview(indicator)
-        NSLayoutConstraint.activate([
-            indicator.centerXAnchor.constraint(equalTo: busy.centerXAnchor), indicator.centerYAnchor.constraint(equalTo: busy.centerYAnchor),
-            busy.widthAnchor.constraint(greaterThanOrEqualToConstant: 44), busy.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-        ])
+        busyIndicator = indicator
         statusTitle.accessibilityIdentifier = "fst.settings.feedback.status.title"
         statusSubtitle.accessibilityIdentifier = "fst.settings.feedback.status.subtitle"
         progressBar.accessibilityLabel = "Upload progress"
@@ -365,7 +362,14 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
             stack.trailingAnchor.constraint(equalTo: statusView.trailingAnchor, constant: -24),
             progressBar.widthAnchor.constraint(lessThanOrEqualToConstant: 320),
             progressBar.widthAnchor.constraint(equalTo: stack.widthAnchor).withPriority(.defaultHigh),
+            busy.widthAnchor.constraint(greaterThanOrEqualToConstant: 44), busy.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
         ])
+        if let indicator = busyIndicator {
+            statusView.addSubview(indicator)
+            NSLayoutConstraint.activate([
+                indicator.centerXAnchor.constraint(equalTo: busy.centerXAnchor), indicator.centerYAnchor.constraint(equalTo: busy.centerYAnchor),
+            ])
+        }
     }
 
     private func setStatus(_ stage: FeedbackSendingStage?) {
