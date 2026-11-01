@@ -242,9 +242,7 @@ final class UKLoadingView: UIView {
             stack.accessibilityTraits = .updatesFrequently
         } else {
             addSubview(arc)
-            arc.isAccessibilityElement = true
-            arc.accessibilityLabel = accessibilityLabel
-            arc.accessibilityTraits = .updatesFrequently
+            arc.exposeAsActivityIndicator(label: accessibilityLabel)
             if placement == .inline {
                 pin(arc)
             }
@@ -307,6 +305,28 @@ final class UKArcView: UIView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// Speaks the arc as a busy indicator named `label`. XCUITest types an element by its
+    /// class, and only a `UIActivityIndicatorView` is an `activityIndicator` (SwiftUI's
+    /// `ProgressView` is one), so an invisible one carries the label over the drawn arc.
+    ///
+    /// - Parameter label: The spoken name ("Loading text path").
+    func exposeAsActivityIndicator(label: String) {
+        isAccessibilityElement = false
+        let indicator = UIActivityIndicatorView(style: .medium)
+        indicator.color = .clear
+        indicator.hidesWhenStopped = false
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        indicator.isAccessibilityElement = true
+        indicator.accessibilityLabel = label
+        indicator.accessibilityTraits = .updatesFrequently
+        addSubview(indicator)
+        NSLayoutConstraint.activate([
+            indicator.leadingAnchor.constraint(equalTo: leadingAnchor), indicator.trailingAnchor.constraint(equalTo: trailingAnchor),
+            indicator.topAnchor.constraint(equalTo: topAnchor), indicator.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+        if !DebugAnimationOverride.stillBackground { indicator.startAnimating() }
+    }
 
     private func applyTrack() {
         let opacity = FestivalArcMetrics.trackOpacity(increasedContrast: UKAccessibility.systemIncreasedContrast(traitCollection))
