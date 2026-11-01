@@ -8,10 +8,15 @@ import UIKit
 extension UKRootViewController: UITabBarControllerDelegate {
     @available(iOS 18.0, *)
     func tabBarController(_ tabBarController: UITabBarController, shouldSelectTab tab: UITab) -> Bool {
-        // A re-tap on the selected section's tab pops it to its root (web tab semantics).
-        if tab === tabBarController.selectedTab, !applyingTabSelection, !searchActive,
-           let section = sections.first(where: { "fst.tab.\($0.rawValue)" == tab.identifier }) {
+        // A re-tap on the selected section's tab pops it to its root (web tab semantics), and
+        // stops there: letting the selection through re-runs `selectSection`, whose second,
+        // unanimated pop lands mid-transition and leaves the old page on screen. Compare by
+        // section, not object: `selectedTab` need not be the instance passed here.
+        if !applyingTabSelection, !searchActive,
+           let section = sections.first(where: { "fst.tab.\($0.rawValue)" == tab.identifier }),
+           section == selected, tab.identifier == tabBarController.selectedTab?.identifier {
             stacks[section]?.popToRoot(animated: true)
+            return false
         }
         return true
     }

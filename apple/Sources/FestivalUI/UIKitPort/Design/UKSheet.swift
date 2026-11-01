@@ -212,6 +212,9 @@ enum UKSheet {
         coverage: FestivalModalCoverage = .sheet, onClose: (() -> Void)? = nil, completion: (() -> Void)? = nil
     ) -> UKSheetNavigationController {
         let regular = presenter.traitCollection.horizontalSizeClass == .regular
+        // The sheet's glass chrome takes its style from the window, which the app delegate
+        // makes dark at launch; this covers a window created elsewhere (the Design gallery).
+        presenter.view.window?.overrideUserInterfaceStyle = .dark
         let sheet = make(
             content, title: title, closeIdentifier: closeIdentifier, size: size, sizing: sizing,
             regularWidth: regular, coverage: coverage, onClose: onClose

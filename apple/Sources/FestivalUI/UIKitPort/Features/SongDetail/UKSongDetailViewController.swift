@@ -54,7 +54,7 @@ final class UKSongDetailViewController: UIViewController, UKPageToolsProviding, 
     }
 
     // Views
-    private let scrollView = UIScrollView()
+    private let scrollView = UKControlScrollView()
     private let contentStack = UIStackView()
     private var hero: UIView?
     private var heroTitle: UKMarqueeLabel?

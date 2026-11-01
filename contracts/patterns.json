@@ -3008,6 +3008,14 @@
           {
             "path": "apple/Sources/FestivalUI/Common/QuickLinks/QuickLinksToolbar.swift",
             "symbol": "QuickLinksMenu"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/App/QuickLinks/UKQuickLinks.swift",
+            "symbol": "UKQuickLinks"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/App/QuickLinks/UKPageToolMenu.swift",
+            "symbol": "UKPageToolMenuViewController"
           }
         ],
         "android": [
