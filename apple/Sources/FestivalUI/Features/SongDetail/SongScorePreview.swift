@@ -124,12 +124,7 @@ struct SongScorePreview: View {
     /// service asks for totals (`showLeaderboardEntryTotals`).
     private var entriesSubtitle: String? {
         guard case let .loaded(payload) = state else { return nil }
-        if payload.leaderboard.entries.isEmpty {
-            return "No scores recorded yet"
-        }
-        guard payload.leaderboard.showLeaderboardEntryTotals == true else { return nil }
-        let total = payload.leaderboard.totalEntries
-        return "\(total.formatted()) \(total == 1 ? "entry" : "entries")"
+        return SongDetailPlan.entriesSubtitle(payload)
     }
 
     /// Whether the card offers View full leaderboard: not while loading and not for a

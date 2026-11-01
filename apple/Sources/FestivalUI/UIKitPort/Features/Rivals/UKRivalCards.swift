@@ -155,7 +155,7 @@ enum UKRivalCards {
 
     /// "View All Rivals" for a preview card.
     static func viewAll(route: AppRoute, identifier: String, card: String, context: UKContext) -> UIView {
-        UKPurpleActionButton(title: "View All Rivals", identifier: identifier, card: card) { [weak navigator = context.navigator] in
+        UKPurpleActionButton(title: "View All Rivals", card: card, identifier: identifier) { [weak navigator = context.navigator] in
             navigator?.push(route)
         }
     }

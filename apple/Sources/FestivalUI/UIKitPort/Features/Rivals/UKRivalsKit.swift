@@ -333,52 +333,6 @@ final class UKRivalSongRowView: UIControl {
     }
 }
 
-// MARK: - Purple action button
-
-/// The shared purple "View All …" button that ends a card of preview rows
-/// (``PurpleActionLink``): full width, 44 pt, white semibold text on the accent purple,
-/// spoken as the label then the card it opens.
-final class UKPurpleActionButton: UIControl {
-    /// Called when pressed.
-    var onTap: (() -> Void)?
-
-    /// Creates the button.
-    ///
-    /// - Parameters:
-    ///   - title: Visible Title Case label.
-    ///   - identifier: Accessibility identifier.
-    ///   - card: The card or list it opens, spoken after the label.
-    ///   - onTap: Called when pressed.
-    init(title: String, identifier: String, card: String?, onTap: @escaping () -> Void) {
-        self.onTap = onTap
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-        backgroundColor = BrandUIColors.accentPurple
-        layer.cornerRadius = 12
-        layer.cornerCurve = .continuous
-        let label = UKLabel(title, style: .body, weight: .semibold, alignment: .center)
-        label.isUserInteractionEnabled = false
-        addSubview(label)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-            label.topAnchor.constraint(equalTo: topAnchor, constant: 2),
-            label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
-            heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-        ])
-        isAccessibilityElement = true
-        accessibilityLabel = PurpleActionName.spoken(title, card: card)
-        accessibilityTraits = .button
-        accessibilityIdentifier = identifier
-        addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .primaryActionTriggered)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override var isHighlighted: Bool { didSet { alpha = isHighlighted ? 0.7 : 1 } }
-}
-
 // MARK: - Instrument section header
 
 /// The instrument icon and name drawn above the card it titles (``InstrumentSectionHeader``,

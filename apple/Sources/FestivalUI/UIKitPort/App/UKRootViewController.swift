@@ -59,6 +59,10 @@ final class UKRootViewController: UIViewController {
     let focusAnchor = AccessibilityFocusAnchor.AnchorView()
     var tabsHidden = false
     var searchTabRef: AnyObject?
+    /// Each section's `UITab` (iOS 18+), kept across tab-set rebuilds: `UITab` caches the
+    /// controller its provider returned, and handing a section's live stack to a second tab
+    /// asserts in `-[UITab viewController]` (selecting a player rebuilt the set and crashed).
+    var sectionTabs: [FestivalSection: AnyObject] = [:]
     let floatingTools = UKFloatingPageToolsView()
     var floatingBottom: NSLayoutConstraint?
     var expandedBarInset: CGFloat = 0

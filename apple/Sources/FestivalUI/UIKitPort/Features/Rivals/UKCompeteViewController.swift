@@ -5,18 +5,15 @@ import UIKit
 
 // MARK: - Compete ranking row
 
-/// One row of a Compete leaderboard preview (``AccountRankingRow``, lane-local until it
-/// merges with the Leaderboards lane's shared row on `UKLeaderboardColumnSlot`): `#rank`, the
-/// name as a marquee, the songs played/total column when the card has room, the accent-blue
-/// rating and a chevron. The selected player's own row is bold on the purple band. At
-/// accessibility sizes the columns stack (rank and name, then songs and rating).
-final class UKCompeteRankingRow: UIControl {
+/// One row of a Compete leaderboard preview: the Leaderboards lane's shared
+/// ``UKRankingRowView`` (``AccountRankingRow``) in a tappable control, on the purple band when it
+/// is the selected player's own row.
+final class UKRivalsRankingRow: UIControl {
     /// Padding inside the row.
-    static let horizontalPadding: CGFloat = 14
+    static let horizontalPadding: CGFloat = UKLeaderboardMetrics.horizontalPadding
     /// Spacing between the columns.
-    static let columnSpacing: CGFloat = 10
+    static let columnSpacing: CGFloat = UKLeaderboardMetrics.columnSpacing
 
-    private let band = UIView()
     /// Called when the row is pressed.
     var onSelect: (() -> Void)?
 
@@ -26,7 +23,7 @@ final class UKCompeteRankingRow: UIControl {
     ///   - entry: The ranking row.
     ///   - columns: The card's shared columns.
     ///   - isSelected: The selected player's own row.
-    ///   - opensProfile: Whether the row opens the player's profile (the spotlight row's caller wires its own action).
+    ///   - opensProfile: Whether the row opens the player's profile.
     ///   - identifier: Accessibility identifier.
     init(entry: AccountRankingEntry, columns: LeaderboardRowColumns, isSelected: Bool, opensProfile: Bool, identifier: String) {
         super.init(frame: .zero)
@@ -35,88 +32,33 @@ final class UKCompeteRankingRow: UIControl {
         let rank = entry.rank(for: metric)
         let name = AccountRankingRow.displayName(entry)
         let songs = entry.songsLabel(for: metric)
-        let spokenSongs = RankingsCountText.spokenSongs(songs, fullCombos: false)
-        let rating = RankingFormatting.rating(entry.ratingValue(for: metric), metric: metric)
-        let accessibilitySize = UKFont.isAccessibilitySize(traitCollection)
         let links = opensProfile && entry.hasAccount
-
-        band.backgroundColor = UIColor(red: 75 / 255, green: 15 / 255, blue: 99 / 255, alpha: 0.75)
-        band.isHidden = !isSelected
-        band.isUserInteractionEnabled = false
-        band.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(band)
-        band.ukPin(to: self)
-
-        let rankLabel = UKLabel("#\(rank.formatted())", style: .body, monospacedDigit: true, lines: 1)
-        rankLabel.setContentHuggingPriority(.required, for: .horizontal)
-        rankLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
-        let nameView: UIView
-        if accessibilitySize {
-            nameView = UKLabel(name, style: .body, weight: isSelected ? .bold : nil)
-        } else {
-            nameView = UKMarqueeLabel(name, font: UKFont.font(.body, weight: isSelected ? .bold : nil))
+        if isSelected {
+            let band = UIView()
+            band.backgroundColor = UKLeaderboardMetrics.playerFill
+            band.isUserInteractionEnabled = false
+            addSubview(band)
+            band.ukPin(to: self)
         }
-        let songsLabel = UKLabel(songs, style: .subheadline, weight: isSelected ? .bold : .regular, monospacedDigit: true, lines: 1)
-        songsLabel.accessibilityLabel = spokenSongs
-        let ratingLabel = UKLabel(rating, style: .body, weight: isSelected ? .bold : .semibold, monospacedDigit: true, color: UKAccentText.blue, lines: 1)
-        for label in [songsLabel, ratingLabel] {
-            label.setContentHuggingPriority(.required, for: .horizontal)
-            label.setContentCompressionResistancePriority(.required, for: .horizontal)
-        }
-        let chevron = UIImageView(image: UIImage(systemName: "chevron.forward"))
-        chevron.preferredSymbolConfiguration = UIImage.SymbolConfiguration(font: UKFont.font(.footnote, weight: .semibold))
-        chevron.tintColor = BrandUIColors.textPrimary
-        chevron.setContentHuggingPriority(.required, for: .horizontal)
-        chevron.isHidden = !entry.hasAccount && !isSelected
-
-        let content: UIView
-        if accessibilitySize {
-            let top = UIStackView(arrangedSubviews: [rankLabel, nameView])
-            top.spacing = 8
-            top.alignment = .firstBaseline
-            let bottom = UIStackView(arrangedSubviews: [songsLabel, UIView(), ratingLabel])
-            bottom.spacing = 8
-            bottom.alignment = .firstBaseline
-            let column = UIStackView(arrangedSubviews: [top, bottom])
-            column.axis = .vertical
-            column.spacing = 4
-            content = column
-        } else {
-            let rankSlot = UKLeaderboardColumnSlot(template: columns.rankLabel, content: rankLabel)
-            let ratingSlot = UKLeaderboardColumnSlot(template: columns.ratingLabel, content: ratingLabel)
-            var views: [UIView] = [rankSlot, nameView]
-            if columns.showsSongs { views.append(UKLeaderboardColumnSlot(template: columns.songsLabel, style: .subheadline, content: songsLabel)) }
-            views.append(ratingSlot)
-            views.append(chevron)
-            let row = UIStackView(arrangedSubviews: views)
-            row.spacing = Self.columnSpacing
-            row.alignment = .center
-            content = row
-        }
-        content.isUserInteractionEnabled = false
-        content.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(content)
-        NSLayoutConstraint.activate([
-            content.leadingAnchor.constraint(equalTo: leadingAnchor, constant: Self.horizontalPadding),
-            content.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -Self.horizontalPadding),
-            content.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-            content.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
-            heightAnchor.constraint(greaterThanOrEqualToConstant: UKLeaderboardRowMetrics.minHeight),
-        ])
-
-        isAccessibilityElement = true
-        let hiddenSongs = !accessibilitySize && !columns.showsSongs
-        var label = "#\(rank.formatted()), \(name), \(hiddenSongs ? "\(spokenSongs), " : "")\(rating)"
-        if isSelected { label = "Your rank, \(RankingFormatting.ordinal(rank)). \(name)." }
-        accessibilityLabel = label
-        accessibilityTraits = links ? .button : .staticText
-        if !entry.hasAccount && opensProfile { accessibilityHint = "Profile unavailable" }
-        accessibilityIdentifier = identifier
+        let row = UKRankingRowView()
+        row.isUserInteractionEnabled = false
+        row.apply(UKRankingRowView.Model(
+            rank: rank, name: name, songs: songs, spokenSongs: RankingsCountText.spokenSongs(songs, fullCombos: false),
+            rating: RankingFormatting.rating(entry.ratingValue(for: metric), metric: metric), bayesian: nil,
+            emphasized: isSelected, showsChevron: entry.hasAccount || isSelected, columns: columns, identifier: identifier,
+            opensSomething: links, hint: !entry.hasAccount && opensProfile ? "Profile unavailable" : nil,
+            spokenOverride: isSelected ? "Your rank, \(RankingFormatting.ordinal(rank)). \(name)." : nil
+        ))
+        addSubview(row)
+        row.ukPin(to: self)
         addAction(UIAction { [weak self] _ in self?.onSelect?() }, for: .primaryActionTriggered)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// The inner row, to adjust its spoken label.
+    var spokenRow: UIView? { subviews.last }
 
     override var isHighlighted: Bool { didSet { alpha = isHighlighted ? 0.6 : 1 } }
 
@@ -359,14 +301,14 @@ final class UKCompeteViewController: UKRivalsPageViewController {
         let entries = payload.rankings.entries
         let cardRows = entries + (spotlight.map { [$0] } ?? [])
         let width = max(view.bounds.width - 32, 0)
-        let columns = UKCompeteRankingRow.fit(
+        let columns = UKRivalsRankingRow.fit(
             LeaderboardRowColumns.rankings(cardRows, metric: .totalscore),
             names: cardRows.map { (AccountRankingRow.displayName($0), isSelected($0.accountId)) },
             availableWidth: width
         )
-        let group = UKGroupSectionView(rows: .flush(separatorInset: UKCompeteRankingRow.horizontalPadding))
+        let group = UKGroupSectionView(rows: .flush(separatorInset: UKRivalsRankingRow.horizontalPadding))
         var rows: [UIView] = entries.map { entry in
-            let row = UKCompeteRankingRow(
+            let row = UKRivalsRankingRow(
                 entry: entry, columns: columns, isSelected: isSelected(entry.accountId), opensProfile: true,
                 identifier: "fst.rankings.row.\(entry.id)"
             )
@@ -377,22 +319,21 @@ final class UKCompeteViewController: UKRivalsPageViewController {
             return row
         }
         if let spotlight {
-            let row = UKCompeteRankingRow(
+            let row = UKRivalsRankingRow(
                 entry: spotlight, columns: columns, isSelected: true, opensProfile: false,
                 identifier: "fst.compete.leaderboard-card.\(scope.id).spotlight"
             )
             let rank = spotlight.rank(for: CompetePreviewSpotlight.metric)
-            row.accessibilityLabel = CompetePreviewSpotlight.action(for: spotlight).footerLabel(for: .player, rank: rank)
-            row.accessibilityTraits = .button
+            row.spokenRow?.accessibilityLabel = CompetePreviewSpotlight.action(for: spotlight).footerLabel(for: .player, rank: rank)
+            row.spokenRow?.accessibilityTraits = .button
             row.onSelect = { [weak navigator = context.navigator] in
                 navigator?.selectDetail(CompetePreviewSpotlight.route(for: spotlight, scope: scope))
             }
             rows.append(row)
         }
         group.setRows(rows)
-        group.setAction(UKPurpleActionButton(
-            title: "View Full Leaderboard", identifier: "fst.compete.leaderboard-card.\(scope.id).view-all", card: scope.label
-        ) { [weak navigator = context.navigator, route = fullBoardRoute(scope)] in navigator?.push(route) })
+        group.setAction(UKPurpleActionButton(title: "View Full Leaderboard", card: scope.label
+        , identifier: "fst.compete.leaderboard-card.\(scope.id).view-all") { [weak navigator = context.navigator, route = fullBoardRoute(scope)] in navigator?.push(route) })
         return group
     }
 }

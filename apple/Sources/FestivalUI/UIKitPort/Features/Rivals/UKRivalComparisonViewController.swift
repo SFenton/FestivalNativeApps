@@ -171,9 +171,8 @@ final class UKRivalDetailViewController: UKRivalComparisonViewController {
         for (index, category) in categories.enumerated() {
             let group = UKGroupSectionView(category.title, subtitle: category.subtitle)
             group.setRows(category.songs.prefix(5).map { songRow($0, rivalName: rivalName) })
-            group.setAction(UKPurpleActionButton(
-                title: "View All", identifier: "fst.rival-detail.category.\(category.key).view-all", card: category.title
-            ) { [weak self] in
+            group.setAction(UKPurpleActionButton(title: "View All", card: category.title
+            , identifier: "fst.rival-detail.category.\(category.key).view-all") { [weak self] in
                 guard let self else { return }
                 self.context.navigator?.push(.rivalry(rivalId: self.rivalId, mode: category.key, name: detail.rival.displayName ?? self.routeName, scope: scope))
             })
