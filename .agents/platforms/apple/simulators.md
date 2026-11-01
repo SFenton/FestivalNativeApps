@@ -12,6 +12,7 @@
 ## Rules
 
 - **One product simulator at a time per host**, only through `tools/ios_sim.py` (global `flock` on `~/.fst-sim.lock`, then a machine-wide `devcap` simulator slot shared with other repos: [capacity](capacity.md)). Never call `simctl` directly while lanes run.
+- Every FST simulator boot is slimmed with simslim inside its hold (`tools/simslim/ui.json`; `FST_SIM_SLIM=0` opts one run out): [capacity](capacity.md#slim-simulators).
 - Never stop, reset, erase or repurpose another project's devices (e.g. the Home Assistant simulators), booted or not. Never erase product simulators to fix a test; clean only the product's DerivedData build output.
 - Runtimes on this Mac (2026-09-24): iOS 26.5 / 27.0 / 27.1. **No iOS 17 or iOS 18 runtime**: iOS 17 is compile-checked only until Wave 4 ([PROGRESS.md](../../../PROGRESS.md)).
 - Unavailable runtimes and posture controls are gaps, not passes.

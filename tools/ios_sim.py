@@ -68,6 +68,7 @@ from typing import Iterable, Iterator
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import devcap  # noqa: E402  (machine-wide simulator/build capacity shared with other repos)
+import sim_slim  # noqa: E402  (simslim profile applied after every boot)
 
 # region Configuration
 
@@ -460,22 +461,31 @@ def write_driver_hash(derived: Path, value: str) -> None:
 
 
 
-def boot_exclusive(udid: str) -> None:
-    """Boot ``udid`` after shutting down every *other* FST product simulator.
+def boot_exclusive(udid: str) -> bool:
+    """Boot ``udid`` after shutting down every *other* FST product simulator, then slim it.
 
     The operator rule is one product simulator running at a time. Only devices in
     ``DEVICES`` are ever shut down; other projects' simulators are never touched.
-    Call this only while holding the simulator lock.
+    Waits for the boot to finish, then puts the device on the simslim profile
+    (``sim_slim.ensure_slim``) before anything is installed or launched. Call this
+    only while holding the simulator lock (``sim_lock``).
 
     Args:
         udid: Simulator to boot.
+
+    Returns:
+        True when the device came up fresh (booted now, or rebooted by a first slim), so
+        an iPhone Duo is folded in its default orientation; False when it stayed booted.
     """
     for other in set(DEVICES.values()) - {udid}:
         state = _run(["xcrun", "simctl", "list", "devices", other], check=False,
                      capture_output=True, text=True)
         if "(Booted)" in (state.stdout or ""):
             _run(["xcrun", "simctl", "shutdown", other], check=False, capture_output=True)
-    _run(["xcrun", "simctl", "boot", udid], check=False, capture_output=True)
+    # `simctl boot` fails (149) on a device that is already booted.
+    booted = _run(["xcrun", "simctl", "boot", udid], check=False, capture_output=True).returncode == 0
+    _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
+    return sim_slim.ensure_slim(udid, booted=booted, env=_env()) == "rebooted" or booted
 
 # endregion
 
@@ -1673,7 +1683,6 @@ def cmd_shot(args: argparse.Namespace) -> int:
         return code
     with sim_lock(udid, "shot"):
         boot_exclusive(udid)
-        _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
         if args.clean_status_bar:
             _run(["xcrun", "simctl", "status_bar", udid, "override", *CLEAN_STATUS_BAR], capture_output=True)
         problem = require_pose(udid, args.pose, args.set_pose)
@@ -1791,7 +1800,6 @@ def cmd_drive(args: argparse.Namespace) -> int:
     try:
         with sim_lock(udid, "drive"):
             boot_exclusive(udid)
-            _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
             if args.clean_status_bar:
                 _run(["xcrun", "simctl", "status_bar", udid, "override", *CLEAN_STATUS_BAR], capture_output=True)
             problem = require_pose(udid, args.pose, args.set_pose)
@@ -2267,10 +2275,8 @@ def _run_uitest_batch(
 
     start = time.time()
     with sim_lock(udid, "uitest batch"):
-        state = _run(["xcrun", "simctl", "list", "devices", udid], check=False, capture_output=True, text=True)
-        was_booted = "(Booted)" in (state.stdout or "")
-        boot_exclusive(udid)
-        _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
+        # A first slim can reboot the device, which drops the pose like a fresh boot.
+        was_booted = not boot_exclusive(udid)
         if pose:
             # Inside this batch's lock hold: another lane's run between batches shuts the
             # Duo down, and it boots closed in its default orientation.
@@ -2474,7 +2480,6 @@ def cmd_pose(args: argparse.Namespace) -> int:
 
     def action(udid: str) -> int:
         boot_exclusive(udid)
-        _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
         try:
             if args.list_controls:
                 for control in list_device_hub_controls(udid):
@@ -2508,6 +2513,28 @@ def cmd_shutdown(args: argparse.Namespace) -> int:
         _run(["xcrun", "simctl", "shutdown", udid], check=False, capture_output=True)
         return 0
     return _with_sim_lock(resolve_device(args.device), action)
+
+
+def cmd_slim(args: argparse.Namespace) -> int:
+    """Boot one product simulator under the lock and put it on the simslim profile.
+
+    Every boot through ``boot_exclusive`` already slims; this is for slimming a device
+    ahead of a run, or (``--measure``) printing ``simslim status`` and ``simslim measure``
+    for it as evidence.
+
+    Args:
+        args: Parsed CLI arguments (device, measure).
+
+    Returns:
+        Process exit code.
+    """
+    udid = resolve_device(args.device)
+    with sim_lock(udid, "slim"):
+        boot_exclusive(udid)
+        if args.measure and shutil.which("simslim"):
+            for command in (["simslim", "status", udid], ["simslim", "measure", udid]):
+                _run(command, check=False)
+    return 0
 
 # endregion
 
@@ -2664,6 +2691,11 @@ def main(argv: list[str] | None = None) -> int:
     shutdown = sub.add_parser("shutdown", help="shut down one product simulator (serialized)")
     shutdown.add_argument("--device", required=True, help=f"alias {sorted(DEVICES)} or UDID")
     shutdown.set_defaults(func=cmd_shutdown)
+
+    slim = sub.add_parser("slim", help="boot one product simulator and apply the simslim profile (serialized)")
+    slim.add_argument("--device", required=True, help=f"alias {sorted(DEVICES)} or UDID")
+    slim.add_argument("--measure", action="store_true", help="then print `simslim status` and `simslim measure`")
+    slim.set_defaults(func=cmd_slim)
 
     args = parser.parse_args(argv)
     select_product(getattr(args, "app", None), getattr(args, "device", None))
