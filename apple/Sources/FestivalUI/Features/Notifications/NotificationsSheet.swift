@@ -382,7 +382,19 @@ struct NotificationFlagChip: View {
     /// - Parameter kind: Flag kind.
     /// - Returns: The chip fill.
     static func color(_ kind: NotificationFlagKind) -> Color {
-        let hex: UInt32 = switch kind {
+        let hex = Self.hex(kind)
+        return Color(
+            .sRGB, red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255, blue: Double(hex & 0xFF) / 255
+        )
+    }
+
+    /// Web `FLAG_COLORS` as 0xRRGGBB, shared with the UIKit port.
+    ///
+    /// - Parameter kind: Flag kind.
+    /// - Returns: The chip fill.
+    nonisolated static func hex(_ kind: NotificationFlagKind) -> UInt32 {
+        switch kind {
         case .improvement: 0x4B5563
         case .firstPlay: 0x6D28D9
         case .newHighScore: 0x0F766E
@@ -393,10 +405,6 @@ struct NotificationFlagChip: View {
         case .difficultyUp: 0x047857
         case .progress: 0x4338CA
         }
-        return Color(
-            .sRGB, red: Double((hex >> 16) & 0xFF) / 255,
-            green: Double((hex >> 8) & 0xFF) / 255, blue: Double(hex & 0xFF) / 255
-        )
     }
 }
 

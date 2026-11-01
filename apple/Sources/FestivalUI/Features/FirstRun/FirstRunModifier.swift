@@ -49,11 +49,9 @@ struct FirstRunPageModifier: ViewModifier {
     /// identity synchronously from storage at session start (`FestivalSession.init`), so there
     /// is no async gap during which gates could be evaluated against stale data.
     private var context: FirstRunGateContext {
-        FirstRunGateContext(
-            hasPlayer: session.selectedPlayer != nil,
-            shopHighlightEnabled: !hideShop && !disableShopHighlighting,
-            experimentalRanksEnabled: experimentalRanks,
-            ready: true,
+        FirstRunPresentationPolicy.gateContext(
+            hasPlayer: session.selectedPlayer != nil, hideShop: hideShop,
+            disableShopHighlighting: disableShopHighlighting, experimentalRanks: experimentalRanks,
             alwaysShow: center.debugMode == .force
         )
     }
@@ -62,13 +60,9 @@ struct FirstRunPageModifier: ViewModifier {
     /// time" slot if so.
     private func evaluate() {
         guard center.debugMode != .off, presentation == nil else { return }
-        let catalog = FirstRunCatalog.slides(for: page)
-        let ctx = context
-        let slides = ctx.alwaysShow
-            ? FirstRunSlideEvaluator.gatePassingSlides(catalog, context: ctx)
-            : FirstRunSlideEvaluator.unseenSlides(
-                catalog, context: ctx, seen: center.store.load()
-            )
+        let slides = FirstRunPresentationPolicy.slides(
+            for: page, debugMode: center.debugMode, context: context, seen: center.store.load()
+        )
         guard !slides.isEmpty, center.claim(page.rawValue) else { return }
         shownSlides = slides
         viewing = FirstRunViewing(slides: slides)

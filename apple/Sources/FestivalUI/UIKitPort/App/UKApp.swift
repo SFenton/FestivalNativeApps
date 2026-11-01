@@ -9,6 +9,8 @@ import UIKit
 public enum UKApp {
     /// Process-wide launch work shared with the SwiftUI app (debug monitors and probes).
     public static func didFinishLaunching() {
+        // Settings lane: the Notifications and What's New sheets, first-run carousels, launch What's New.
+        UKSettingsRegistration.install()
         #if DEBUG
         MainThreadStallMonitor.startIfRequested()
         // A/B perf autorun (`tools/uikit_perf.py`): the same code the SwiftUI app starts in `FestivalMobileApp`.
