@@ -21,6 +21,10 @@ macOS is sidelined for the port (owner, 2026-10-31): `FestivalDesktop` keeps bui
 - **Element types match too.** A `UICollectionViewListCell` reads as `Cell`, not `Button`, even with the button trait: a tappable row puts its one stop on a `UKRowAccessibilityView` (`Common/UKRowAccessibilityView.swift`) over the card and sets `cell.accessibilityElements = [proxy]`, as Songs and search rows do.
 - **Custom controls fire on `.touchUpInside`.** UIKit sends `.primaryActionTriggered` only from `UIButton` and other system controls, never from a plain `UIControl` subclass, so a row control listening for it does nothing when tapped (the 2026-11-01 View All, ranking and rival row failures).
 - **Sheets dismiss from their presenter.** While a sheet's search field is active its page is presenting the `UISearchController`, so `page.dismiss(animated:)` closes only the search: dismiss through `navigationController?.presentingViewController`.
+- **Fonts come from `UKFont`.** It scales a system font through `UIFontMetrics` and sets the base so the result is the text style's own size at the current category. A font made outside `UIFontMetrics` makes the XCUITest snapshot drop the subtree it sits in, and `UIFontMetrics` alone runs about 20% under SwiftUI at AX5. Never feed `preferredFont(...).pointSize` into `UIFontMetrics`: that scales twice when the app launches at a large size.
+- **Pinned parts of a stack shrink to fit.** Stack views have no intrinsic height, so hugging cannot keep a header or footer compact: give each a zero-height constraint just above the flexible part's own height request, so the scroll view (as SwiftUI's flexible `ScrollView`) takes the spare room.
+- **Reload only on change.** A view the shell refreshes often (the drawer) rebuilds its controls only when their content changes; replacing a control between touch-down and touch-up loses the tap.
+- **Match tools by identifier.** Pages build fresh bar items on every request; the floating tools match them by identifier and update in place, and replace a menu only when its rows change (swapping one while it opens crashes the context menu).
 
 ## Seams (orchestrator-owned)
 
