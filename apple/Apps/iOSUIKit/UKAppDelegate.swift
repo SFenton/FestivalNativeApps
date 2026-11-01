@@ -48,6 +48,9 @@ final class UKSceneDelegate: UIResponder, UIWindowSceneDelegate {
     ) {
         guard let scene = scene as? UIWindowScene else { return }
         let window = UIWindow(windowScene: scene)
+        // The app is dark everywhere (SwiftUI's `preferredColorScheme(.dark)` darkens the
+        // window): system glass, sheets and bars take their style from the window.
+        window.overrideUserInterfaceStyle = .dark
         window.rootViewController = UKApp.makeRootViewController(
             userActivity: connectionOptions.userActivities.first ?? session.stateRestorationActivity
         )
