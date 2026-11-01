@@ -35,7 +35,7 @@ final class UKCardRowControl: UIControl {
             ])
         }
         isUserInteractionEnabled = onTap != nil
-        addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .primaryActionTriggered)
+        addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .touchUpInside)
         accessibilityElements = [content]
     }
 
@@ -223,9 +223,15 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
 
     // MARK: Loading
 
+    private var lastToolsKey = ""
+
     private func keyMayHaveChanged() {
-        quickLinks.controller.configure(title: "Leaderboards Quick Links", explicit: quickLinkSections)
-        ukPageToolsDidChange()
+        let toolsKey = "\(experimental)|\(rankBy.rawValue)|\(visibleInstruments.map(\.rawValue))"
+        if toolsKey != lastToolsKey {
+            lastToolsKey = toolsKey
+            quickLinks.controller.configure(title: "Leaderboards Quick Links", explicit: quickLinkSections)
+            ukPageToolsDidChange()
+        }
         let key = reloadKey
         guard key != lastGateKey else { return }
         lastGateKey = key
@@ -441,10 +447,11 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
                 }
                 rows += spotlightRows(instrument: instrument, placement: placement, columns: columns)
                 let route = AppRoute.fullRankings(instrument: instrument, rankBy: metric.rawValue)
-                let button = UKBoardPurpleActionButton(
+                let button = UKPurpleActionButton(
                     title: RankingsCountText.viewAllRankings(totalAccounts: payload.rankings.totalAccounts), card: instrument.label,
                     identifier: "fst.leaderboards.card.\(instrument.rawValue).view-all"
                 )
+                button.accessibilityLabel = RankingsCountText.viewAllRankings(totalAccounts: payload.rankings.totalAccounts)
                 button.onTap = { [weak self] in self?.context.navigator?.selectDetail(route) }
                 action = button
             }
@@ -532,10 +539,11 @@ final class UKLeaderboardsViewController: UIViewController, UKPageToolsProviding
                         self?.context.navigator?.selectDetail(route)
                     })
                 }
-                let button = UKBoardPurpleActionButton(
+                let button = UKPurpleActionButton(
                     title: RankingsCountText.viewAllBandRankings(totalTeams: payload.rankings.totalTeams), card: bandType.label,
                     identifier: "fst.leaderboards.band-card.\(bandType.rawValue).view-all"
                 )
+                button.accessibilityLabel = RankingsCountText.viewAllBandRankings(totalTeams: payload.rankings.totalTeams)
                 button.onTap = { [weak self] in self?.context.navigator?.selectDetail(.bandRankings(bandType: bandType.rawValue)) }
                 action = button
             }

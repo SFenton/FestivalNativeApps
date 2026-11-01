@@ -167,17 +167,19 @@ final class UKPlayerHistoryViewController: UKSongBoardViewController {
         case let .loaded(payload):
             switch payload.state {
             case .unregistered:
-                return UKEmptyStateView(
-                    "History Unavailable", systemImage: "clock.badge.xmark",
-                    subtitle: "Score history is only available for registered users.", identifier: "fst.history.unregistered",
-                    actions: [button("Retry", identifier: "fst.history.unregistered.retry") { [weak self] in self?.startLoad() }]
-                )
+                // Unavailable, not empty: keeps its failure title and Retry (R1, R8).
+                let status = UKServiceStatusView(
+                    .other(message: "Score history is only available for registered users."), title: "History Unavailable",
+                    systemImage: "clock.badge.xmark"
+                ) { [weak self] in self?.startLoad() }
+                status.accessibilityIdentifier = "fst.history.unregistered"
+                return status
             case .syncing:
-                return UKEmptyStateView(
-                    "History Is Syncing", subtitle: "Score history is still syncing for this player. Check back soon.",
-                    identifier: "fst.history.syncing",
-                    actions: [button("Retry", identifier: "fst.history.syncing.retry") { [weak self] in self?.startLoad() }]
-                )
+                let status = UKServiceStatusView(
+                    .other(message: "Score history is still syncing for this player. Check back soon."), title: "History Is Syncing"
+                ) { [weak self] in self?.startLoad() }
+                status.accessibilityIdentifier = "fst.history.syncing"
+                return status
             case .available:
                 return UKEmptyStateView(
                     "No Score History", systemImage: "clock.arrow.circlepath", subtitle: "No score history for this instrument.",
@@ -208,7 +210,7 @@ final class UKPlayerHistoryViewController: UKSongBoardViewController {
                 )
                 rows.append(("row\(index)", UKLeaderboardRow(
                     kind: .history, make: { UKBoardScoreHistoryRowView() }, apply: { ($0 as? UKBoardScoreHistoryRowView)?.apply(model) },
-                    isSelectedBand: index == best, onTap: nil
+                    isSelectedBand: false, bare: true, onTap: nil
                 )))
             }
         } else {
@@ -310,7 +312,7 @@ final class UKPlayerHistorySortViewController: UIViewController, UKModalScrollPr
             control.addAction(UIAction { [weak self] _ in
                 self?.mode = choice
                 self?.changed()
-            }, for: .primaryActionTriggered)
+            }, for: .touchUpInside)
             modeButtons[choice] = control
             checks[choice] = check
             return control

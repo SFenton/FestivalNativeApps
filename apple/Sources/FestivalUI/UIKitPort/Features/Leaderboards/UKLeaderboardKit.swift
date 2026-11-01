@@ -116,6 +116,36 @@ func ukRowLabel(
     return label
 }
 
+/// A row content view that hosts a shared, init-configured row view (rebuilt on every
+/// ``apply``), so the boards draw the shared Common row parts instead of a second copy.
+class UKRowHostView: UIView {
+    private var hosted: UIView?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// Replaces the hosted view.
+    ///
+    /// - Parameter view: The shared row view.
+    func host(_ view: UIView) {
+        hosted?.removeFromSuperview()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(view)
+        NSLayoutConstraint.activate([
+            view.leadingAnchor.constraint(equalTo: leadingAnchor), view.trailingAnchor.constraint(equalTo: trailingAnchor),
+            view.topAnchor.constraint(equalTo: topAnchor), view.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+        hosted = view
+        isAccessibilityElement = false
+        accessibilityElements = [view]
+    }
+}
+
 /// A flexible holder for a row's name column: it takes the row's slack (no intrinsic
 /// width of its own), and the marquee inside keeps its natural width up to the holder's
 /// width, scrolling when it does not fit.
@@ -158,6 +188,8 @@ struct UKLeaderboardRow {
     var apply: @MainActor (UIView) -> Void
     /// The selected player's row: a flat purple band inside the group card.
     var isSelectedBand = false
+    /// The content draws its own card (Score History's rows); the cell draws none.
+    var bare = false
     /// Runs when the row is tapped or activated; nil for a read-only row.
     var onTap: (() -> Void)?
 }
@@ -224,7 +256,8 @@ final class UKLeaderboardRowCell: UKSelfSizingCell {
     ///   - segment: This row's place in its column's group card.
     func configure(_ row: UKLeaderboardRow, segment: FestivalGroupSegment) {
         card.segment = segment
-        hairline.isHidden = segment.isFirst
+        card.isHidden = row.bare
+        hairline.isHidden = segment.isFirst || row.bare
         band.isHidden = !row.isSelectedBand
         if kind != row.kind || content == nil {
             content?.removeFromSuperview()
@@ -243,184 +276,6 @@ final class UKLeaderboardRowCell: UKSelfSizingCell {
         }
         if let content { row.apply(content) }
         content?.alpha = 1
-    }
-}
-
-// MARK: - Accuracy badge
-
-/// The score row's accuracy pill: graded 25 % tint, or the web's skewed gold outline for a
-/// full combo (`goldOutlineSkew`). The outline is a ``CAShapeLayer`` sheared -8 degrees
-/// inside the view's frame, so the accessibility frame stays the column slot.
-final class UKBoardAccuracyBadgeView: UIView {
-    private let label = UKLabel(nil, style: .body, lines: 1, alignment: .center)
-    private let shape = CAShapeLayer()
-    private var skewed = false
-    private var compact = true
-    private var widthConstraint: NSLayoutConstraint!
-    private var heightConstraint: NSLayoutConstraint!
-    private let textWidth: CGFloat
-    private let pillHeight: CGFloat
-
-    /// Width of the compact pill at the default size (`accuracyTextWidth + 16`).
-    static let baseWidth: CGFloat = 72
-
-    /// Creates a badge; call ``show(text:spoken:identifier:tint:fullCombo:)``.
-    init(textWidth: CGFloat = 56, height: CGFloat = 24) {
-        self.textWidth = textWidth
-        self.pillHeight = height
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-        layer.addSublayer(shape)
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.adjustsFontSizeToFitWidth = true
-        label.minimumScaleFactor = 0.8
-        addSubview(label)
-        widthConstraint = widthAnchor.constraint(equalToConstant: 72)
-        heightConstraint = heightAnchor.constraint(equalToConstant: 24)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor), label.trailingAnchor.constraint(equalTo: trailingAnchor),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            label.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 4),
-            label.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -4),
-            widthConstraint, heightConstraint,
-        ])
-        isAccessibilityElement = true
-        setContentHuggingPriority(.required, for: .horizontal)
-        setContentCompressionResistancePriority(.required, for: .horizontal)
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKBoardAccuracyBadgeView, _) in
-            self.updateSizing()
-            self.setNeedsLayout()
-        }
-        updateSizing()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    private func updateSizing() {
-        compact = !UKFont.isAccessibilitySize(traitCollection)
-        widthConstraint.isActive = compact
-        heightConstraint.isActive = compact
-        if compact {
-            widthConstraint.constant = UKFont.scaled(textWidth, relativeTo: .body, traits: traitCollection) + 16
-            heightConstraint.constant = UKFont.scaled(pillHeight, relativeTo: .body, traits: traitCollection)
-        }
-        label.numberOfLines = compact ? 1 : 0
-        label.adjustsFontSizeToFitWidth = compact
-    }
-
-    /// Shows a state.
-    ///
-    /// - Parameters:
-    ///   - text: Visible text.
-    ///   - spoken: VoiceOver label.
-    ///   - identifier: Accessibility identifier.
-    ///   - tint: Graded fill colour at full alpha (25 % is applied), or nil for a full combo.
-    ///   - fullCombo: Gold skewed outline.
-    func show(text: String, spoken: String, identifier: String?, tint: UIColor?, fullCombo: Bool) {
-        label.text = text
-        label.font = UKFont.font(.body, weight: fullCombo ? .bold : nil, italic: fullCombo)
-        label.textColor = fullCombo ? BrandUIColors.gold : BrandUIColors.textPrimary
-        shape.fillColor = fullCombo ? UIColor.clear.cgColor : (tint ?? .clear).withAlphaComponent(0.25).cgColor
-        shape.strokeColor = fullCombo ? BrandUIColors.gold.cgColor : nil
-        shape.lineWidth = fullCombo ? 2 : 0
-        skewed = fullCombo
-        accessibilityLabel = spoken
-        accessibilityIdentifier = identifier
-        accessibilityTraits = .staticText
-        updateSizing()
-        setNeedsLayout()
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        shape.frame = bounds
-        let box = bounds
-        guard box.width > 0, box.height > 0 else { return }
-        if skewed && compact {
-            let shift = tan(8 * CGFloat.pi / 180) * box.height / 2
-            let local = CGRect(x: shift, y: 0, width: max(0, box.width - 2 * shift), height: box.height)
-            var transform = CGAffineTransform(a: 1, b: 0, c: -tan(8 * CGFloat.pi / 180), d: 1, tx: shift, ty: 0)
-            let path = UIBezierPath(roundedRect: local, cornerRadius: 8).cgPath
-            shape.path = path.copy(using: &transform)
-        } else {
-            shape.path = UIBezierPath(roundedRect: box, cornerRadius: 8).cgPath
-        }
-    }
-}
-
-// MARK: - Season pill
-
-/// The season a score was achieved in (``ScoreSeasonPill``): "S9" on a subtle chip with a
-/// 2 pt border, inverted for the current season; "Season 9" wrapping at accessibility sizes.
-final class UKBoardSeasonPillView: UIView {
-    private let label = UKLabel(nil, style: .body, weight: .semibold, monospacedDigit: true, lines: 1, alignment: .center)
-    private var widthConstraint: NSLayoutConstraint!
-    private var heightConstraint: NSLayoutConstraint!
-    private var season: Int?
-    private var current = false
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        translatesAutoresizingMaskIntoConstraints = false
-        layer.cornerRadius = 6
-        layer.cornerCurve = .continuous
-        layer.borderWidth = 2
-        label.adjustsFontSizeToFitWidth = true
-        label.minimumScaleFactor = 0.8
-        addSubview(label)
-        widthConstraint = widthAnchor.constraint(equalToConstant: 44)
-        heightConstraint = heightAnchor.constraint(equalToConstant: 24)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 4), label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
-            label.centerYAnchor.constraint(equalTo: centerYAnchor),
-            label.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 4),
-            label.bottomAnchor.constraint(lessThanOrEqualTo: bottomAnchor, constant: -4),
-            widthConstraint, heightConstraint,
-        ])
-        setContentHuggingPriority(.required, for: .horizontal)
-        setContentCompressionResistancePriority(.required, for: .horizontal)
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKBoardSeasonPillView, _) in self.refresh() }
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    /// Shows a season, or an invisible placeholder that keeps the score column aligned.
-    ///
-    /// - Parameters:
-    ///   - season: Season number, nil for the placeholder.
-    ///   - current: Whether it is the catalogue's current season.
-    func show(season: Int?, current: Bool) {
-        self.season = season
-        self.current = current
-        refresh()
-    }
-
-    private func refresh() {
-        let compact = !UKFont.isAccessibilitySize(traitCollection)
-        widthConstraint.isActive = compact
-        heightConstraint.isActive = compact
-        widthConstraint.constant = UKFont.scaled(44, relativeTo: .body, traits: traitCollection)
-        heightConstraint.constant = UKFont.scaled(24, relativeTo: .body, traits: traitCollection)
-        label.numberOfLines = compact ? 1 : 0
-        label.adjustsFontSizeToFitWidth = compact
-        guard let season else {
-            label.text = nil
-            backgroundColor = .clear
-            layer.borderColor = UIColor.clear.cgColor
-            isAccessibilityElement = false
-            isHidden = !compact
-            return
-        }
-        isHidden = false
-        label.text = compact ? "S\(season)" : "Season \(season)"
-        label.textColor = current ? BrandUIColors.surfaceSubtle : BrandUIColors.textSecondary
-        backgroundColor = current ? BrandUIColors.textSecondary : BrandUIColors.surfaceSubtle
-        layer.borderColor = (current ? BrandUIColors.surfaceSubtle : BrandUIColors.borderSubtle).cgColor
-        isAccessibilityElement = true
-        accessibilityLabel = ScoreSeasonPill.spokenLabel(season: season, current: current)
-        accessibilityTraits = .staticText
     }
 }
 

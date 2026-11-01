@@ -3,51 +3,6 @@ import FestivalCore
 import FestivalDesign
 import UIKit
 
-// MARK: - Purple action
-
-/// The shared "View All …" call to action (``PurpleActionLabel``): full width, 44 pt, white
-/// semibold text on a flat accent-purple fill (inside a group card, #382). Spoken as the
-/// label then the card it opens (view-all-cta R4).
-final class UKBoardPurpleActionButton: UIControl {
-    private let label = UKLabel(nil, style: .body, weight: .semibold, lines: 0, alignment: .center)
-    /// Called when tapped.
-    var onTap: (() -> Void)?
-
-    /// Creates the button.
-    ///
-    /// - Parameters:
-    ///   - title: Visible title.
-    ///   - card: Card or list it opens, spoken after the title.
-    ///   - identifier: Accessibility identifier.
-    init(title: String, card: String?, identifier: String) {
-        super.init(frame: .zero)
-        translatesAutoresizingMaskIntoConstraints = false
-        backgroundColor = BrandUIColors.accentPurple
-        layer.cornerRadius = 12
-        layer.cornerCurve = .continuous
-        label.text = title
-        label.isUserInteractionEnabled = false
-        addSubview(label)
-        NSLayoutConstraint.activate([
-            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12), label.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-            label.topAnchor.constraint(equalTo: topAnchor, constant: 2), label.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
-            heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
-        ])
-        isAccessibilityElement = true
-        accessibilityTraits = .button
-        accessibilityLabel = PurpleActionName.spoken(title, card: card)
-        accessibilityIdentifier = identifier
-        addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .primaryActionTriggered)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override var isHighlighted: Bool {
-        didSet { alpha = isHighlighted ? 0.7 : 1 }
-    }
-}
-
 // MARK: - Count header
 
 /// The board's ranked count as the first line under the title (``RankingsCountHeader``).
@@ -164,6 +119,8 @@ final class UKPagerBadge: UIView {
             label.topAnchor.constraint(equalTo: topAnchor), label.bottomAnchor.constraint(equalTo: bottomAnchor),
             heightAnchor.constraint(greaterThanOrEqualToConstant: 44), widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
         ])
+        label.setContentCompressionResistancePriority(UILayoutPriority(250), for: .horizontal)
+        setContentCompressionResistancePriority(UILayoutPriority(250), for: .horizontal)
         isAccessibilityElement = true
         accessibilityLabel = "Page"
         accessibilityTraits = .adjustable
@@ -534,7 +491,7 @@ final class UKPinnedFooterView: UIView {
         layer.cornerRadius = 12
         layer.cornerCurve = .continuous
         layer.borderColor = UKLeaderboardMetrics.playerBorder.cgColor
-        control.addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .primaryActionTriggered)
+        control.addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .touchUpInside)
         control.addAction(UIAction { [weak self] _ in self?.alpha = 0.7 }, for: [.touchDown, .touchDragEnter])
         control.addAction(UIAction { [weak self] _ in self?.alpha = 1 }, for: [.touchUpInside, .touchUpOutside, .touchDragExit, .touchCancel])
         observer = UKAccessibilityObserver { [weak self] in self?.refreshBacking() }
