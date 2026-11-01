@@ -49,7 +49,9 @@ enum UKShellSheets {
     /// - Returns: The bar item.
     static func closeItem(identifier: String, _ controller: UIViewController) -> UIBarButtonItem {
         let item = UIBarButtonItem(systemItem: .close, primaryAction: UIAction { [weak controller] _ in
-            controller?.dismiss(animated: true)
+            // From the presenter, so an active search controller does not swallow the close.
+            let sheet = controller?.navigationController ?? controller
+            sheet?.presentingViewController?.dismiss(animated: true)
         })
         item.accessibilityIdentifier = identifier
         item.accessibilityLabel = "Close"
@@ -85,7 +87,10 @@ enum UKProfileSelection {
             model: model, session: session, asTab: false, layout: layout,
             open: { route in
                 open(route)
-                box.page?.dismiss(animated: true)
+                // Dismiss from the sheet's presenter: while the field is active the page is
+                // presenting its search controller, and `dismiss` on the page closes only that.
+                let sheet = box.page?.navigationController ?? box.page
+                sheet?.presentingViewController?.dismiss(animated: true)
             },
             dismiss: {}
         )
