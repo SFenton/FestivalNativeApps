@@ -581,6 +581,7 @@ final class UKSongPathsViewController: UIViewController, UKModalScrollProviding 
         let alert = UIAlertController(
             title: "Some Instruments Unavailable", message: "Karaoke is not available for path visualization yet.", preferredStyle: .alert
         )
+        alert.overrideUserInterfaceStyle = .dark
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         let never = UIAlertAction(title: "Don't show again", style: .default) { _ in
             UserDefaults.standard.set(true, forKey: "fst.settings.pathUnavailableWarningDismissed")
