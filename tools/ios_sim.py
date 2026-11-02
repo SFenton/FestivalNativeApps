@@ -140,6 +140,9 @@ PRODUCTS = {
     ),
 }
 
+#: The UIKit port's product for each SwiftUI product (``FST_SIM_PRODUCT_FAMILY=uikit``).
+UIKIT_FAMILY = {"phone": "uikit", "ipad": "uikit-ipad"}
+
 #: Device aliases that run the iPad UI-test bundle by default (``--app`` overrides).
 DEVICE_PRODUCTS = {"ipad": "ipad"}
 
@@ -160,7 +163,8 @@ def select_product(app: str | None, device: str | None) -> AppProduct:
     """Choose the app product for a command.
 
     Args:
-        app: Explicit ``--app`` value (``phone``/``ipad``), if given.
+        app: Explicit ``--app`` value (``phone``/``ipad``), if given; with
+            ``FST_SIM_PRODUCT_FAMILY=uikit`` the UIKit port's counterpart is used.
         device: ``--device`` alias or UDID, if the command takes one.
 
     Returns:
@@ -168,6 +172,10 @@ def select_product(app: str | None, device: str | None) -> AppProduct:
     """
     global _product
     key = app or DEVICE_PRODUCTS.get(device or "", "phone")
+    # `FST_SIM_PRODUCT_FAMILY=uikit` runs the same command against the UIKit port, so scripts
+    # written for the SwiftUI app (apple-ci's journey steps) run unchanged against it.
+    if os.environ.get("FST_SIM_PRODUCT_FAMILY") == "uikit":
+        key = UIKIT_FAMILY.get(key, key)
     _product = PRODUCTS[key]
     return _product
 
