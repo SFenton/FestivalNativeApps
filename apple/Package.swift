@@ -9,12 +9,24 @@ let package = Package(
         .library(name: "FestivalDesign", targets: ["FestivalDesign"]),
         .library(name: "FestivalUI", targets: ["FestivalUI"]),
     ],
+    dependencies: [
+        // Private internal foundation; keep the source revision immutable for builds.
+        .package(
+            url: "https://github.com/SFenton/FentonPlatform.git",
+            revision: "0b9592686a90a89181e442cdc0f5058bca9af001"
+        ),
+    ],
     targets: [
         .target(name: "FestivalCore"),
         .target(name: "FestivalDesign"),
         .target(
             name: "FestivalUI",
-            dependencies: ["FestivalCore", "FestivalDesign"],
+            dependencies: [
+                "FestivalCore",
+                "FestivalDesign",
+                .product(name: "FentonAppleCore", package: "FentonPlatform"),
+                .product(name: "FentonUIKit", package: "FentonPlatform"),
+            ],
             resources: [.process("Resources")]
         ),
         .testTarget(

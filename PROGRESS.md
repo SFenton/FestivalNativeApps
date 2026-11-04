@@ -52,6 +52,8 @@ tools/**                      → orchestrator
 
 ## 2. Priorities (from operator, 2026-09-27; updated 2026-09-28)
 
+- **FentonPlatform consumer pilot (local lane, 2026-11-04):** UIKit observation uses source-compatible adapters backed by shared `FentonAppleCore`, and the Privacy Policy page-sized sheet uses `FentonUIKit` native sheet mechanics while preserving its existing identifier and detent behavior. The private first-party package is pinned to `0b9592686a90a89181e442cdc0f5058bca9af001`.
+
 - **Android + Windows (2026-09-28):** same rules as Apple — platform-native design researched per platform, Fluent second, multiple form factors (Android: phone, book foldable, passport foldable, tri-fold, tablet; Windows: desktop/tablet across window-size configurations), and the same dev → unit → UX tests → accessibility → screen reader flow. The Windows host is far more powerful: run **many parallel lanes on both Android and Windows**, while this Mac continues Apple lanes and oversees. Both machines commit/push when work is ready: Windows lanes push directly to GitHub via `tools/git_integrate.py` (gh file-stored token, set up 2026-09-28); the Mac pulls/rebases as usual.
 
 

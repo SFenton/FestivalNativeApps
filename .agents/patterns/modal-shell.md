@@ -121,7 +121,7 @@ Chose **B**: the Fluent text-scaling *must* rules out C, and A would break this 
 
 | Debt | Breaks | Plan |
 |---|---|---|
-| None verified. | — | Keep the shared-shell guards enabled; the feedback form is the documented R6 exception. |
+| FentonPlatform adoption is bounded to the Privacy Policy page-sized UIKit sheet. | No current behavior; the Privacy Policy page now uses shared content containment, while automatic regular-width `formSheet`, app-owned dark appearance, top fade and coverage remain in `UKSheetNavigationController`. | Parent supplies the exact package commit and validates the iOS fixture. Extend adoption only when the shared configuration can express the app's custom sizing and appearance without a parallel shell. |
 
 UIKit: `UKSheet.present` / `UKSheet.make` build a `UKSheetNavigationController` (transparent bar, inline title, Close button, dark glass or frosted background, detents and grabber, top edge fade) in `UIKitPort/Design/UKSheet.swift`; `UKPullDownToDismiss` mirrors `PullDownToDismiss`.
 
