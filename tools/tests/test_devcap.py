@@ -6,6 +6,8 @@ process conflict exactly like two processes (``flock`` locks belong to the
 open file), which lets most cases run in-process.
 """
 
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -63,7 +65,9 @@ class DevcapTestCase(unittest.TestCase):
         # Never read or touch the real Mac's simulators from tests.
         self.booted = []
         os.environ["DEVCAP_HUB"] = "off"
-        for name, value in (("list_sims", lambda: [{**b, "booted": b.get("booted", True)} for b in self.booted]),
+        os.environ["DEVCAP_SIM_DEVICES"] = str(self.root / "Devices")  # never the real CoreSimulator directory
+        for name, value in (("simslim_version", lambda: None),  # no real simslim; lifecycle tests fake it
+                            ("list_sims", lambda: [{**b, "booted": b.get("booted", True)} for b in self.booted]),
                             ("debugged_sims", lambda: set()),
                             ("shutdown_sims", lambda udids: self.shutdowns.extend(udids))):
             patcher = unittest.mock.patch.object(devcap, name, value)
@@ -785,6 +789,254 @@ class SharedInstallTests(DevcapTestCase):
     def test_version_key(self):
         self.assertLess(devcap.version_key("1.2.9"), devcap.version_key("1.2.10"))
         self.assertIsNone(devcap.file_version(self.root / "missing.py"))
+
+
+class FakeTools:
+    """A fake ``simctl`` and ``simslim``: records every call, creates and deletes simulators in memory."""
+
+    def __init__(self, test, simslim="0.14.0"):
+        self.test = test
+        self.simslim = simslim
+        self.calls = []
+        self.count = 0
+
+    def version(self):
+        """Stands in for ``simslim_version`` (records the probe like the real call)."""
+        self.calls.append(["simslim", "--version"])
+        return tuple(int(p) for p in self.simslim.split(".")) if self.simslim else None
+
+    def run(self, argv, **kwargs):
+        self.calls.append(list(argv))
+        out = lambda text="", code=0: subprocess.CompletedProcess(argv, code, stdout=text, stderr="")
+        if argv[0] == "simslim":
+            return out()
+        assert argv[:2] == ["xcrun", "simctl"], argv
+        if argv[2] == "create":
+            self.count += 1
+            udid = f"00000000-0000-4000-8000-{self.count:012d}"
+            self.test.booted.append({"udid": udid, "name": argv[3], "booted": False, "type": argv[4],
+                                     "runtime": argv[5]})
+            return out(udid + "\n")
+        if argv[2] == "delete":
+            self.test.booted[:] = [s for s in self.test.booted if s["udid"] != argv[3]]
+            return out()
+        raise AssertionError(argv)
+
+    def named(self, *prefix):
+        return [c for c in self.calls if c[:len(prefix)] == list(prefix)]
+
+
+class LifecycleTests(DevcapTestCase):
+    DUO = {"udid": UDID, "name": "iPhone Duo", "booted": False,
+           "type": "com.apple.CoreSimulator.SimDeviceType.iPhone-Duo", "runtime": "iOS-27.1"}
+
+    def setUp(self):
+        super().setUp()
+        self.devices = self.root / "Devices"
+        self.booted = [dict(self.DUO)]
+        self.tools = FakeTools(self)
+        patcher = unittest.mock.patch.object(devcap, "simslim_version", self.tools.version)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        patcher = unittest.mock.patch.object(devcap.subprocess, "run", self.tools.run)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        for key in ("DEVCAP_SIM_TTL", "DEVCAP_POSTER_LIMIT_MB", "DEVCAP_SLIM_PROFILE"):
+            os.environ.pop(key, None)
+
+    def poster(self, udid, megabytes):
+        store = self.devices / udid / "data" / devcap.POSTER_STORE
+        store.mkdir(parents=True)
+        (store / "blob").write_bytes(b"x" * megabytes * 1024 * 1024)
+        return store
+
+    def test_new_pool_member_is_slimmed_before_its_first_boot_and_stays_a_duo(self):
+        member = devcap.pick_sim("iPhone Duo", 2, root=self.root)
+        self.assertEqual(member, UDID)
+        created = self.booted[-1]
+        self.assertEqual((created["name"], created["type"]), ("iPhone Duo (pool 2)", self.DUO["type"]))
+        steps = [c[0] if c[0] == "simslim" else c[2] for c in self.tools.calls if c[1:2] != ["--version"]]
+        self.assertEqual(steps, ["create", "simslim"])  # slimmed after create, and nothing booted it
+        self.assertEqual(self.tools.named("simslim", "on")[0], ["simslim", "on", created["udid"], "--preserve-boot-state"])
+        self.assertFalse(self.tools.named("xcrun", "simctl", "boot"))
+
+    def test_old_or_missing_simslim_keeps_the_stock_path(self):
+        for version in ("0.13.0", None):
+            self.tools.simslim = version
+            self.booted[:] = [dict(self.DUO)]
+            self.tools.calls.clear()
+            devcap.pick_sim("iPhone Duo", 2, root=self.root)
+            self.assertEqual(len(self.tools.named("xcrun", "simctl", "create")), 1)
+            self.assertFalse(self.tools.named("simslim", "on"))
+
+    def test_slim_profile_is_passed_through(self):
+        os.environ["DEVCAP_SLIM_PROFILE"] = "ui.json"
+        devcap.pick_sim("iPhone Duo", 2, root=self.root)
+        self.assertEqual(self.tools.named("simslim", "on")[0][-2:], ["--profile", "ui.json"])
+
+    def test_reset_deletes_an_oversized_poster_store_and_runs_disk_clean(self):
+        os.environ["DEVCAP_POSTER_LIMIT_MB"] = "4"
+        big = self.poster(UDID, 6)
+        devcap.reset_released([UDID], self.root)
+        self.assertFalse(big.exists())
+        self.assertEqual(self.tools.named("simslim", "disk-clean"), [["simslim", "disk-clean", UDID, "--confirm"]])
+
+    def test_reset_keeps_a_small_poster_store_and_skips_disk_clean_without_simslim(self):
+        os.environ["DEVCAP_POSTER_LIMIT_MB"] = "4"
+        self.tools.simslim = None
+        small = self.poster(UDID, 1)
+        devcap.reset_released([UDID], self.root)
+        self.assertTrue(small.exists())
+        self.assertFalse(self.tools.named("simslim", "disk-clean"))
+
+    def test_reset_never_touches_a_booted_simulator(self):
+        os.environ["DEVCAP_POSTER_LIMIT_MB"] = "1"
+        self.booted[0]["booted"] = True
+        big = self.poster(UDID, 3)
+        devcap.reset_released([UDID], self.root)
+        self.assertTrue(big.exists())
+        self.assertFalse(self.tools.named("simslim", "disk-clean"))
+
+    def test_run_with_shutdown_resets_while_the_gate_is_still_held(self):
+        os.environ["DEVCAP_POSTER_LIMIT_MB"] = "1"
+        big = self.poster(UDID, 3)
+        seen = []
+        original = devcap.reset_released
+        with unittest.mock.patch.object(devcap, "reset_released", lambda u, r=None: (
+                seen.append(bool(Gate(devcap.device_gate(UDID), self.root, 1).holders())), original(u, r))), \
+                unittest.mock.patch.object(devcap, "run_command", return_value=0):
+            code = devcap.main(["run", "--sim", UDID, "--shutdown", "--", "true"])
+        self.assertEqual(code, 0)
+        self.assertEqual(seen, [True])
+        self.assertFalse(big.exists())
+        self.assertEqual(self.shutdowns, [UDID])
+
+    def test_run_records_the_release_time(self):
+        with unittest.mock.patch.object(devcap, "run_command", return_value=0):
+            devcap.main(["run", "--sim", UDID, "--shutdown", "--", "true"])
+        self.assertAlmostEqual(devcap.load_sims_state(self.root)[UDID]["last_release_epoch"], time.time(), delta=60)
+
+    def add_pool(self, name="iPhone Duo (pool 2)", udid="11111111-2222-4333-8444-555555555555", booted=False, **extra):
+        self.booted.append({**self.DUO, "udid": udid, "name": name, "booted": booted, **extra})
+        return udid
+
+    def test_reap_deletes_only_idle_unbooted_unheld_pool_members(self):
+        now = 1_000_000.0
+        idle, young, running, held, other = (self.add_pool(f"iPhone Duo (pool {n})", f"{n:08d}-2222-4333-8444-555555555555",
+                                                          booted=(n == 4)) for n in (2, 3, 4, 5, 6))
+        self.booted[-1]["name"] = "Someone Else's iPhone"  # another project's device, even if idle
+        for udid, last in ((idle, now - 90_000), (young, now - 100), (running, now - 90_000), (held, now - 90_000),
+                           (other, now - 90_000), (UDID, now - 90_000)):
+            devcap.note_sim(udid, self.root, last_release_epoch=last)
+        with devcap.hold(sims=[held], hold_seconds=None, root=self.root):
+            gone = devcap.reap_idle_sims(self.root, ttl=86_400, now=now)
+        self.assertEqual([g["udid"] for g in gone], [idle])
+        self.assertEqual(self.tools.named("xcrun", "simctl", "delete"), [["xcrun", "simctl", "delete", idle]])
+        self.assertNotIn(idle, devcap.load_sims_state(self.root))
+        self.assertIn(UDID, [s["udid"] for s in self.booted])  # the base device is never a candidate
+
+    def test_reap_dry_run_deletes_nothing_and_unknown_idle_starts_its_clock(self):
+        old = self.add_pool()
+        self.assertEqual(devcap.reap_idle_sims(self.root, ttl=10, now=500.0), [])  # no record yet: clock starts
+        self.assertEqual(devcap.load_sims_state(self.root)[old]["last_release_epoch"], 500.0)
+        dry = devcap.reap_idle_sims(self.root, ttl=10, dry_run=True, now=600.0)
+        self.assertEqual([d["udid"] for d in dry], [old])
+        self.assertFalse(self.tools.named("xcrun", "simctl", "delete"))
+
+    def test_reap_ttl_can_be_turned_off(self):
+        os.environ["DEVCAP_SIM_TTL"] = "off"
+        self.add_pool()
+        self.assertIsNone(devcap.sim_ttl(self.root))
+        self.assertEqual(devcap.reap_idle_sims(self.root, now=1e12), [])
+
+    def test_reap_command_prints_deletions(self):
+        old = self.add_pool()
+        devcap.note_sim(old, self.root, last_release_epoch=time.time() - 200_000)
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            self.assertEqual(devcap.main(["reap"]), 0)
+        self.assertIn("deleted idle pool simulator iPhone Duo (pool 2)", buffer.getvalue())
+        self.assertEqual([s["udid"] for s in self.booted], [UDID])
+
+    def test_ephemeral_sim_is_created_like_the_base_held_exposed_and_deleted(self):
+        seen = {}
+
+        def fake_run_command(held, command):
+            udid = os.environ[devcap.EPHEMERAL_ENV]
+            seen.update(command=command, udid=udid, held=Gate(devcap.device_gate(udid), self.root, 1).holders(),
+                        sim=next(s for s in self.booted if s["udid"] == udid))
+            return 0
+        with unittest.mock.patch.object(devcap, "run_command", fake_run_command), \
+                unittest.mock.patch.dict(os.environ):
+            code = devcap.main(["run", "--ephemeral-sim", "iPhone Duo", "--", "echo", "{udid}"])
+        self.assertEqual(code, 0)
+        self.assertEqual(seen["command"], ["echo", seen["udid"]])
+        self.assertTrue(seen["held"])
+        self.assertEqual(seen["sim"]["type"], self.DUO["type"])  # a Duo stays a Duo
+        self.assertTrue(self.tools.named("simslim", "on"))
+        self.assertEqual([s["udid"] for s in self.booted], [UDID])  # deleted on release
+        self.assertIn(seen["udid"], self.shutdowns)
+
+    def test_ephemeral_sim_unknown_base_fails_without_creating(self):
+        self.assertEqual(devcap.main(["run", "--ephemeral-sim", "Nope", "--", "true"]), 1)
+        self.assertFalse(self.tools.named("xcrun", "simctl", "create"))
+
+    def test_ephemeral_sim_is_deleted_when_the_wait_times_out(self):
+        blocker = Gate("simulator", self.root, 1)
+        blocker.acquire("other", 1)
+        self.addCleanup(blocker.release)
+        with unittest.mock.patch.dict(os.environ, {"DEVCAP_SLOTS_SIMULATOR": "1"}):
+            code = devcap.main(["run", "--ephemeral-sim", "iPhone Duo", "--wait", "0.2", "--", "true"])
+        self.assertEqual(code, devcap.WAIT_TIMEOUT_EXIT)
+        self.assertEqual([s["udid"] for s in self.booted], [UDID])
+
+    def test_status_shows_pool_size_and_disk_use(self):
+        pool = self.add_pool()
+        self.poster(pool, 2)
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            devcap.main(["status"])
+        text = buffer.getvalue()
+        self.assertIn("simulator pool: 1 member(s), 2.0 MB", text)
+        self.assertIn(f"iPhone Duo (pool 2) ({pool})", text)
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            devcap.main(["status", "--json"])
+        report = json.loads(buffer.getvalue())["pool"]
+        self.assertEqual([m["udid"] for m in report["members"]], [pool])
+        self.assertGreaterEqual(report["total_bytes"], 2 * 1024 * 1024)
+
+    def test_helpers(self):
+        self.assertEqual(devcap.human_bytes(512), "512 B")
+        self.assertEqual(devcap.human_bytes(3 * 1024 ** 3), "3.0 GB")
+        self.assertIsNone(devcap.load_sims_state(self.root).get("x"))
+        devcap.sims_state_path(self.root).write_text("[1]")
+        self.assertEqual(devcap.load_sims_state(self.root), {})
+        self.assertEqual(devcap.dir_size(self.root / "missing"), 0)
+
+
+class VendoredCopyTests(unittest.TestCase):
+    """The same ``devcap.py`` is vendored byte for byte; two copies that differ are a bug."""
+
+    @staticmethod
+    def sha(path):
+        import hashlib
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+    def test_copies_match_detects_a_difference(self):
+        with TemporaryDirectory() as tmp:
+            other = Path(tmp) / "devcap.py"
+            other.write_bytes(TOOL.read_bytes())
+            self.assertEqual(self.sha(TOOL), self.sha(other))
+            other.write_bytes(TOOL.read_bytes() + b"# drift\n")
+            self.assertNotEqual(self.sha(TOOL), self.sha(other))
+
+    def test_a_vendored_copy_matches_this_one(self):
+        """Set ``DEVCAP_VENDORED_COPY`` to another repository's ``tools/devcap.py`` to check it."""
+        path = os.environ.get("DEVCAP_VENDORED_COPY")
+        if not path:
+            self.skipTest("DEVCAP_VENDORED_COPY not set")
+        self.assertEqual(self.sha(TOOL), self.sha(path), f"{path} differs from the canonical devcap.py")
 
 
 class AgeTests(unittest.TestCase):

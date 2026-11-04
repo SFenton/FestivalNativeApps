@@ -90,8 +90,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
+import shutil
 import signal
 import stat
 import subprocess
@@ -107,7 +109,7 @@ from typing import Callable, Iterable, Iterator, Sequence
 # region Configuration
 
 #: Bump when the on-disk layout or the CLI changes; vendored copies must match.
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 
 #: Exit code when a wait gives up (``EX_TEMPFAIL``).
 WAIT_TIMEOUT_EXIT = 75
@@ -117,6 +119,18 @@ HOLD_TIMEOUT_EXIT = 124
 
 #: Default seconds a waiter queues before giving up.
 DEFAULT_WAIT_SECONDS = 3600.0
+#: Environment default for ``run --max-wait`` when the flag is absent. The triage runner sets it to 1200 for headless agent
+#: sessions so a coder yields a slot queue after 20 minutes instead of 60.
+WAIT_ENV = "FENTON_DEVCAP_MAX_WAIT"
+
+
+def default_wait() -> float:
+    """``FENTON_DEVCAP_MAX_WAIT`` seconds when it is a positive number, else :data:`DEFAULT_WAIT_SECONDS`."""
+    try:
+        value = float(os.environ.get(WAIT_ENV, ""))
+    except ValueError:
+        return DEFAULT_WAIT_SECONDS
+    return value if math.isfinite(value) and value > 0 else DEFAULT_WAIT_SECONDS
 
 #: Default seconds ``run`` may hold its gates.
 DEFAULT_HOLD_SECONDS = 1800.0
@@ -126,6 +140,9 @@ MAX_HOLD_SECONDS = 7200.0
 
 #: Environment variable listing gates held by an ancestor process.
 HELD_ENV = "DEVCAP_HELD"
+
+#: Set for the command of ``run --ephemeral-sim`` to the job's simulator UDID.
+EPHEMERAL_ENV = "DEVCAP_EPHEMERAL_SIM"
 
 #: Log size that triggers rotation to ``devcap.log.1``.
 LOG_ROTATE_BYTES = 1_000_000
@@ -666,6 +683,9 @@ class Hold:
         """Release every held gate, newest first (safe from the watchdog and the caller at once)."""
         self._done.set()
         with self._release_lock:
+            if self.gates:
+                held = {g.name for g in self.gates}
+                note_released([u for u in self.sim_udids if device_gate(u) in held], self.root)
             for gate in reversed(self.gates):
                 gate.release()
             self.gates.clear()
@@ -887,15 +907,9 @@ def pick_sim(name: str, size: int, prefer: str | None = None, root: Path | None 
     for member in pool_names(name, size)[1:]:
         found = next((s for s in sims if s["name"] == member), None)
         if found is None and base.get("type") and base.get("runtime"):
-            try:
-                created = subprocess.run(["xcrun", "simctl", "create", member, base["type"], base["runtime"]],
-                                         capture_output=True, text=True, timeout=120)
-            except (OSError, subprocess.SubprocessError):
+            udid = create_sim(member, base["type"], base["runtime"], root, kind="pool")
+            if udid is None:
                 continue
-            udid = created.stdout.strip().upper()
-            if created.returncode != 0 or not SIM_UDID.fullmatch(udid):
-                continue
-            log_event(f"create pool simulator {member} ({udid})", root)
             found = {"udid": udid, "name": member}
         if found is not None:
             members.append(found["udid"])
@@ -1165,6 +1179,305 @@ def scan_unmanaged(root: Path | None = None, exclude: Sequence[str] = (), reap: 
 
 # endregion
 
+# region Simulator lifecycle
+
+#: Smallest simslim that can slim a simulator between ``create`` and its first boot (``on --preserve-boot-state``).
+SIMSLIM_PREBOOT = (0, 14)
+
+#: A pool simulator unused this long (and shut down, unheld) is deleted by ``reap``.
+DEFAULT_SIM_TTL_SECONDS = 24 * 3600.0
+
+#: ``PRBPosterExtensionDataStore`` larger than this is deleted when a simulator is released.
+DEFAULT_POSTER_LIMIT_BYTES = 4 * 1024 ** 3
+
+#: Where a poster store lives, relative to a simulator's ``data`` directory.
+POSTER_STORE = Path("Library/Application Support/PRBPosterExtensionDataStore")
+
+#: Names of pool members made by ``pick_sim``: ``"<base> (pool 2)"`` and up.
+POOL_MEMBER = re.compile(r".+ \(pool \d+\)$")
+
+
+def devices_dir() -> Path:
+    """CoreSimulator's device directory (``DEVCAP_SIM_DEVICES`` overrides it, for tests)."""
+    return Path(os.environ.get("DEVCAP_SIM_DEVICES") or Path.home() / "Library/Developer/CoreSimulator/Devices")
+
+
+def sims_state_path(root: Path | None = None) -> Path:
+    """The small state file of simulators devcap made: created time, last release, kind."""
+    return (root or lock_root()) / "sims.json"
+
+
+def load_sims_state(root: Path | None = None) -> dict[str, dict]:
+    """Read ``sims.json`` (UDID to record); a missing or unreadable file is empty."""
+    try:
+        data = json.loads(sims_state_path(root).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {k: v for k, v in data.items() if isinstance(v, dict)} if isinstance(data, dict) else {}
+
+
+def save_sims_state(state: dict[str, dict], root: Path | None = None) -> None:
+    """Write ``sims.json`` atomically (best effort)."""
+    path = sims_state_path(root)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(f".{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(state, indent=1, sort_keys=True), encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
+def note_sim(udid: str, root: Path | None = None, **fields) -> None:
+    """Merge ``fields`` into one simulator's record in ``sims.json``."""
+    state = load_sims_state(root)
+    state.setdefault(udid.upper(), {}).update(fields)
+    save_sims_state(state, root)
+
+
+def note_released(udids: Iterable[str], root: Path | None = None, now: float | None = None) -> None:
+    """Record the time a hold on these simulators ended (the idle TTL counts from it)."""
+    udids = [u.upper() for u in udids]
+    if not udids:
+        return
+    state = load_sims_state(root)
+    stamp = time.time() if now is None else now
+    for udid in udids:
+        state.setdefault(udid, {})["last_release_epoch"] = stamp
+    save_sims_state(state, root)
+
+
+def simslim_version() -> tuple[int, ...] | None:
+    """Installed simslim's version as a tuple, or None when it is missing or unreadable."""
+    try:
+        out = subprocess.run(["simslim", "--version"], capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    match = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", (out.stdout or "") + (out.stderr or ""))
+    if out.returncode != 0 or not match:
+        return None
+    return tuple(int(part) for part in match.groups(default="0"))
+
+
+def create_sim(name: str, device_type: str, runtime: str, root: Path | None = None, kind: str = "pool") -> str | None:
+    """Create a simulator of an exact device type and runtime, slimmed before its first boot.
+
+    The type comes from the base device, so an iPhone Duo pool member is a Duo
+    (never a plain iPhone). With simslim 0.14 or later the new device is slimmed
+    with ``on --preserve-boot-state`` while still shut down, so its first boot
+    is already slim; with an older or missing simslim the device is left stock
+    (``sim_slim.sh`` slims it after the boot, as before).
+
+    Args:
+        name: New simulator name.
+        device_type: ``com.apple.CoreSimulator.SimDeviceType...`` identifier.
+        runtime: Runtime identifier.
+        root: State directory.
+        kind: ``"pool"`` or ``"ephemeral"``, recorded for the reaper.
+
+    Returns:
+        The new UDID, or None when ``simctl create`` failed.
+    """
+    try:
+        created = subprocess.run(["xcrun", "simctl", "create", name, device_type, runtime],
+                                 capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    udid = created.stdout.strip().upper()
+    if created.returncode != 0 or not SIM_UDID.fullmatch(udid):
+        return None
+    log_event(f"create {kind} simulator {name} ({udid})", root)
+    note_sim(udid, root, name=name, kind=kind, type=device_type, runtime=runtime, created_epoch=time.time(),
+             last_release_epoch=time.time())
+    version = simslim_version()
+    if version is not None and version >= SIMSLIM_PREBOOT:
+        command = ["simslim", "on", udid, "--preserve-boot-state"]
+        if profile := os.environ.get("DEVCAP_SLIM_PROFILE"):
+            command += ["--profile", profile]
+        try:
+            slimmed = subprocess.run(command, capture_output=True, text=True, timeout=600)
+            log_event(f"slim {udid} before first boot: exit {slimmed.returncode}", root)
+        except (OSError, subprocess.SubprocessError):
+            log_event(f"slim {udid} before first boot: failed to run simslim", root)
+    return udid
+
+
+def dir_size(path: Path) -> int:
+    """Bytes under ``path`` (allocated blocks, symlinks not followed); 0 when it does not exist."""
+    total = 0
+    for base, dirs, files in os.walk(path, onerror=lambda _e: None):
+        for name in files:
+            try:
+                total += os.lstat(os.path.join(base, name)).st_blocks * 512
+            except OSError:
+                pass
+    return total
+
+
+def poster_limit(root: Path | None = None) -> float | None:
+    """Poster store size (bytes) past which a release deletes it (``DEVCAP_POSTER_LIMIT_MB``; ``off`` disables)."""
+    megabytes = _seconds_setting("DEVCAP_POSTER_LIMIT_MB", "poster_limit_mb", DEFAULT_POSTER_LIMIT_BYTES / 1024 ** 2, root)
+    return None if megabytes is None else megabytes * 1024 ** 2
+
+
+def reset_sim(udid: str, root: Path | None = None) -> None:
+    """Reset a shut-down simulator while the caller still holds its device gate.
+
+    Deletes ``PRBPosterExtensionDataStore`` when it exceeds ``poster_limit``
+    (it grows without bound on a used simulator), then runs ``simslim
+    disk-clean`` when simslim is installed. Never touches a booted simulator
+    (the caller guarantees it is shut down) and keeps the slim overrides,
+    which live outside ``data/Library``.
+    """
+    root = root or lock_root()
+    if not SIM_UDID.fullmatch(udid):
+        return
+    limit = poster_limit(root)
+    store = devices_dir() / udid.upper() / "data" / POSTER_STORE
+    if limit is not None and store.is_dir():
+        size = dir_size(store)
+        if size > limit:
+            shutil.rmtree(store, ignore_errors=True)
+            log_event(f"reset {udid}: deleted poster store ({size // 1024 ** 2} MB)", root)
+    if simslim_version() is not None:
+        try:
+            cleaned = subprocess.run(["simslim", "disk-clean", udid.upper(), "--confirm"], capture_output=True,
+                                     text=True, timeout=300)
+            log_event(f"reset {udid}: simslim disk-clean exit {cleaned.returncode}", root)
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+
+def reset_released(udids: Sequence[str], root: Path | None = None) -> None:
+    """Reset the ones of ``udids`` that are shut down now (a warm, booted simulator is left alone)."""
+    sims = {s["udid"]: s for s in list_sims() or []}
+    for udid in udids:
+        info = sims.get(udid.upper())
+        if info is not None and not info["booted"]:
+            reset_sim(udid, root)
+
+
+def delete_sim(udid: str, root: Path | None = None, why: str = "") -> bool:
+    """Delete a simulator and forget its record. The caller holds its device gate and has shut it down."""
+    if not SIM_UDID.fullmatch(udid):
+        return False
+    try:
+        out = subprocess.run(["xcrun", "simctl", "delete", udid.upper()], capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if out.returncode != 0:
+        return False
+    log_event(f"delete simulator {udid} {why}".strip(), root)
+    state = load_sims_state(root)
+    if state.pop(udid.upper(), None) is not None:
+        save_sims_state(state, root)
+    return True
+
+
+def sim_ttl(root: Path | None = None) -> float | None:
+    """Idle time after which ``reap`` deletes a pool simulator (``DEVCAP_SIM_TTL``; ``off`` disables)."""
+    return _seconds_setting("DEVCAP_SIM_TTL", "sim_ttl_seconds", DEFAULT_SIM_TTL_SECONDS, root)
+
+
+def is_pool_sim(info: dict, state: dict[str, dict]) -> bool:
+    """True for simulators devcap made (state record) or a ``"<name> (pool N)"`` member; never a base device."""
+    record = state.get(info["udid"], {})
+    return record.get("kind") in ("pool", "ephemeral") or bool(POOL_MEMBER.fullmatch(info["name"]))
+
+
+def reap_idle_sims(root: Path | None = None, ttl: float | None = None, dry_run: bool = False,
+                   now: float | None = None) -> list[dict]:
+    """Delete pool simulators idle longer than ``ttl`` that are shut down and unheld.
+
+    Another project's devices are never candidates: only simulators devcap
+    created or named ``"<base> (pool N)"``. A pool member with no recorded
+    release starts its idle clock at the first sweep that sees it. Each
+    deletion happens under the device gate, so a lane that takes the device
+    meanwhile keeps it.
+
+    Returns:
+        The simulators deleted (or that would be, with ``dry_run``), as ``{"udid", "name", "idle"}``.
+    """
+    root = root or lock_root()
+    ttl = sim_ttl(root) if ttl is None else ttl
+    sims = list_sims()
+    if ttl is None or sims is None:
+        return []
+    stamp = time.time() if now is None else now
+    state = load_sims_state(root)
+    seeded: dict[str, float] = {}
+    removed = []
+    for info in sims:
+        if info["booted"] or not is_pool_sim(info, state):
+            continue
+        last = state.get(info["udid"], {}).get("last_release_epoch")
+        if last is None:
+            seeded[info["udid"]] = stamp
+            continue
+        idle = stamp - float(last)
+        if idle <= ttl:
+            continue
+        entry = {"udid": info["udid"], "name": info["name"], "idle": idle}
+        if dry_run:
+            removed.append(entry)
+            continue
+        gate = Gate(device_gate(info["udid"]), root, 1)
+        if gate.waiting() or not gate._try_slots():
+            continue
+        try:
+            if delete_sim(info["udid"], root, f"({info['name']}) idle {describe_age(idle)}"):
+                removed.append(entry)
+        finally:
+            gate._unlock(gate._handle)
+            gate._handle = gate._slot = None
+    if seeded and not dry_run:
+        latest = load_sims_state(root)
+        for udid, when in seeded.items():
+            latest.setdefault(udid, {}).setdefault("last_release_epoch", when)
+        save_sims_state(latest, root)
+    return removed
+
+
+def pool_report(root: Path | None = None) -> dict:
+    """Pool simulators with their disk use, and the whole device directory's size, for ``status``."""
+    root = root or lock_root()
+    state = load_sims_state(root)
+    members = []
+    for info in list_sims() or []:
+        if not is_pool_sim(info, state):
+            continue
+        last = state.get(info["udid"], {}).get("last_release_epoch")
+        members.append({"udid": info["udid"], "name": info["name"], "booted": info["booted"],
+                        "size_bytes": dir_size(devices_dir() / info["udid"]),
+                        "idle_seconds": None if last is None else max(0.0, time.time() - float(last))})
+    return {"members": members, "total_bytes": dir_size(devices_dir())}
+
+
+def human_bytes(count: float) -> str:
+    """``count`` bytes as ``"1.5 GB"`` style text."""
+    for unit in ("B", "KB", "MB", "GB"):
+        if count < 1024 or unit == "GB":
+            return f"{count:.0f} {unit}" if unit == "B" else f"{count:.1f} {unit}"
+        count /= 1024
+    return f"{count:.1f} GB"
+
+
+def make_ephemeral(base_name: str, root: Path | None = None) -> str | None:
+    """Create a job-scoped simulator of the same type and runtime as the one named ``base_name``.
+
+    The type is read from the base device, so an iPhone Duo base gives a Duo.
+
+    Returns:
+        The new UDID, or None when the base does not exist or creation failed.
+    """
+    sims = [s for s in list_sims() or [] if s.get("available", True)]
+    base = next((s for s in sims if s["name"] == base_name), None)
+    if base is None or not base.get("type") or not base.get("runtime"):
+        return None
+    return create_sim(f"{base_name} (job {os.getpid()})", base["type"], base["runtime"], root, kind="ephemeral")
+
+# endregion
+
 # region CLI
 
 
@@ -1239,18 +1552,36 @@ def cmd_run(args: argparse.Namespace) -> int:
     if bad := [udid for udid in args.sim if not SIM_UDID.fullmatch(udid)]:
         print(f"devcap run: --sim takes a simulator UDID, not {', '.join(map(repr, bad))}", file=sys.stderr)
         return 2
+    ephemeral = None
+    if args.ephemeral_sim:
+        ephemeral = make_ephemeral(args.ephemeral_sim)
+        if ephemeral is None:
+            print(f"devcap run: could not create a simulator like {args.ephemeral_sim!r}", file=sys.stderr)
+            return 1
+        args.sim = [*args.sim, ephemeral]
+        command = [part.replace("{udid}", ephemeral) for part in command]
+        os.environ[EPHEMERAL_ENV] = ephemeral
     names = gate_names(args.pool, args.sim, args.device)
     if not names:
         print("devcap run: name at least one --pool, --sim or --device", file=sys.stderr)
         return 2
     hold_seconds = None if args.hold <= 0 else min(args.hold, MAX_HOLD_SECONDS)
     held = Hold(names, args.purpose or " ".join(command)[:120], args.wait, hold_seconds)
-    if (args.shutdown or args.shutdown_on_timeout) and args.sim:  # before acquire() starts the watchdog
-        held.cleanup = lambda: shutdown_sims(args.sim)
-        held.cleanup_on_finish = args.shutdown
+    if (args.shutdown or args.shutdown_on_timeout or ephemeral) and args.sim:  # before acquire() starts the watchdog
+        def cleanup() -> None:
+            shutdown_sims(args.sim)
+            if ephemeral:  # job-scoped: gone with the job, under its device gate
+                delete_sim(ephemeral, why="(ephemeral, job finished)")
+            elif not args.no_reset:
+                reset_released(args.sim)
+        held.cleanup = cleanup
+        held.cleanup_on_finish = args.shutdown or bool(ephemeral)
     try:
         held.acquire()
     except WaitTimeout as error:
+        if ephemeral:  # never gate-held: nothing else can be using it
+            shutdown_sims([ephemeral])
+            delete_sim(ephemeral, why="(ephemeral, wait timed out)")
         print(f"devcap: {error}", file=sys.stderr)
         return WAIT_TIMEOUT_EXIT
     try:
@@ -1283,8 +1614,9 @@ def cmd_status(args: argparse.Namespace) -> int:
         gate = Gate(name, root)
         report.append({"gate": name, "slots": gate.slots, "holders": gate.holders(),
                        "waiting": gate.waiting()})
+    pool = pool_report(root)
     if args.json:
-        print(json.dumps({"gates": report, "unmanaged": unmanaged}, indent=2))
+        print(json.dumps({"gates": report, "unmanaged": unmanaged, "pool": pool}, indent=2))
         return 0
     for entry in report:
         if entry["gate"].startswith("device-") and not entry["holders"] and not entry["waiting"]:
@@ -1296,6 +1628,11 @@ def cmd_status(args: argparse.Namespace) -> int:
             print(f"  slot {h['slot']}: pid {h.get('pid')} for {age}  {h.get('purpose', '')}  ({h.get('cwd', '?')})")
         for index, w in enumerate(entry["waiting"], 1):
             print(f"  queue {index}: pid {w['pid']}  {w['purpose']}")
+    print(f"simulator pool: {len(pool['members'])} member(s), "
+          f"{human_bytes(sum(m['size_bytes'] for m in pool['members']))}; all simulators {human_bytes(pool['total_bytes'])}")
+    for m in pool["members"]:
+        idle = "" if m["idle_seconds"] is None else f", idle {describe_age(m['idle_seconds'])}"
+        print(f"  {m['name']} ({m['udid']}) {human_bytes(m['size_bytes'])}{'  booted' if m['booted'] else ''}{idle}")
     if unmanaged:
         print(f"booted outside any hold (count against 'simulator'): {len(unmanaged)}")
         for u in unmanaged:
@@ -1319,6 +1656,9 @@ def cmd_reap(args: argparse.Namespace) -> int:
     for u in left:
         print(f"{u['name']} ({u['udid']}) booted outside any hold for {describe_age(u['unheld_for'])}"
               + (" (Xcode debugger)" if u["debugged"] else ""))
+    for gone in reap_idle_sims(lock_root(), ttl=args.sim_ttl, dry_run=args.dry_run):
+        print(f"{'would delete' if args.dry_run else 'deleted'} idle pool simulator {gone['name']} "
+              f"({gone['udid']}) idle {describe_age(gone['idle'])}")
     return 0
 
 
@@ -1353,9 +1693,16 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--shutdown-on-timeout", action="store_true",
                      help="keep the --sim simulators warm after the command, but shut them down if the hold "
                           "times out (a hung run)")
+    run.add_argument("--ephemeral-sim", metavar="NAME", default=None,
+                     help="create a job-scoped simulator like the one named NAME (same device type, so a Duo stays a "
+                          f"Duo), hold it, put its UDID in ${EPHEMERAL_ENV} and in '{{udid}}' arguments, and delete it "
+                          "when the job ends")
+    run.add_argument("--no-reset", action="store_true",
+                     help="skip the reset of a --sim simulator on release (poster store, simslim disk-clean)")
     run.add_argument("--purpose", default="", help="what this hold is for (shown to waiters)")
-    run.add_argument("--wait", type=float, default=DEFAULT_WAIT_SECONDS,
-                     help=f"seconds to queue before exiting {WAIT_TIMEOUT_EXIT} (default %(default)s)")
+    run.add_argument("--wait", "--max-wait", dest="wait", type=float, metavar="SECONDS", default=default_wait(),
+                     help=f"max seconds to queue for a slot; past it, exit {WAIT_TIMEOUT_EXIT} with a message "
+                          f"(--max-wait is the same option; default %(default)s: {WAIT_ENV} or {DEFAULT_WAIT_SECONDS:.0f})")
     run.add_argument("--hold", type=float, default=DEFAULT_HOLD_SECONDS,
                      help=f"max seconds to hold, ≤{MAX_HOLD_SECONDS:.0f}; 0 = no limit (default %(default)s)")
     run.add_argument("command", nargs=argparse.REMAINDER, help="-- command [args...]")
@@ -1368,6 +1715,9 @@ def build_parser() -> argparse.ArgumentParser:
     reap = sub.add_parser("reap", help="shut down simulators booted outside any hold past the grace period")
     reap.add_argument("--grace", type=float, default=None,
                       help=f"seconds unheld before reaping (default: config, else {DEFAULT_REAP_GRACE_SECONDS:.0f})")
+    reap.add_argument("--sim-ttl", type=float, default=None, metavar="SECONDS",
+                      help="delete pool simulators idle this long that are shut down and unheld "
+                           f"(default: DEVCAP_SIM_TTL or config, else {DEFAULT_SIM_TTL_SECONDS:.0f}; 'off' there disables)")
     reap.add_argument("--dry-run", action="store_true", help="only list them")
     reap.set_defaults(func=cmd_reap)
 

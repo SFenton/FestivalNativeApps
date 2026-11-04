@@ -66,6 +66,18 @@ Rules:
 - **Perf baselines.** Slim simulators have less background noise than the stock ones earlier `apple_perf.py ipad` numbers were taken on: compare a run against a baseline taken the same way.
 - A missing `simslim` or a failed `simslim on` is a warning (`sim_slim: leaving … as it is`); the run goes ahead on the simulator as it is. `simslim list --booted` shows a booted simulator's slim count (`0/N slim` is stock), `simslim measure <UDID>` its memory.
 
+## Simulator lifecycle (devcap 1.5.0)
+
+devcap also creates, resets and deletes the simulators it pools, so disk does not grow without bound (owner approved, 2026-11-04):
+
+- **Create:** `pick-sim` and `--ephemeral-sim` make a member with the base device's exact type and runtime (an iPhone Duo stays a Duo). With simslim 0.14 or later it is slimmed before its first boot (`simslim on --preserve-boot-state`); older or no simslim keeps the stock path (`sim_slim.sh` slims after the boot). `DEVCAP_SLIM_PROFILE` passes `--profile`.
+- **Reset on release:** `run --sim … --shutdown` (or a hold timeout) deletes `PRBPosterExtensionDataStore` under the device's data when it exceeds 4 GB (`DEVCAP_POSTER_LIMIT_MB`, `off` disables) and runs `simslim disk-clean`, while the device gate is still held and only if the simulator is shut down. `--no-reset` skips it.
+- **Idle TTL:** `~/.devcap/sims.json` records each simulator's last release. `devcap reap` also deletes pool simulators idle more than 24 h (`DEVCAP_SIM_TTL`, `--sim-ttl`, `off`) that are shut down, unheld and either made by devcap or named `<name> (pool N)`. A base device or another project's device is never a candidate. `--dry-run` lists.
+- **Ephemeral:** `run --ephemeral-sim "<base name>" -- cmd … {udid}` creates a job-scoped simulator, holds it, exports `DEVCAP_EPHEMERAL_SIM` (and replaces `{udid}` in arguments), shuts it down and deletes it when the job ends or the wait times out.
+- **Status:** `devcap status` prints pool size and disk use; `--json` has a `pool` object.
+
+`tools/tests/test_devcap.py` also has `DEVCAP_VENDORED_COPY=<other repo>/tools/devcap.py`, which fails when a vendored copy differs from this one.
+
 ## Commands
 
 ```bash
