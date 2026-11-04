@@ -1248,7 +1248,8 @@ final class FestivalMobileUITests: XCTestCase {
         )
     }
 
-    /// Select native sidebar buttons on iPad, system tab buttons on iPhone.
+    /// Select native sidebar buttons on iPad, system tab buttons on iPhone, expanding a
+    /// tab bar that scrolling collapsed (`SongsUITestSupport.rootControl`).
     ///
     /// - Parameters:
     ///   - name: Root section's visible label.
@@ -1256,11 +1257,7 @@ final class FestivalMobileUITests: XCTestCase {
     /// - Returns: Accessible native destination control for the current idiom.
     @MainActor
     private func rootControl(_ name: String, app: XCUIApplication) -> XCUIElement {
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            return app.descendants(matching: .any)
-                .matching(identifier: "fst.nav.\(name.lowercased())").firstMatch
-        }
-        return app.tabBars.buttons[name]
+        SongsUITestSupport.rootControl(name, app: app)
     }
 
     /// Scroll a large-type error until Retry is both tappable and above native navigation.
@@ -1771,7 +1768,8 @@ final class FestivalMobileUITests: XCTestCase {
         return try XCTUnwrap(JSONDecoder().decode(FixtureScoreQuery.self, from: data).last)
     }
 
-    /// Scroll the lazily created native Settings Form to a visible control.
+    /// Scroll the lazily created native Settings Form to a visible control clear of the
+    /// tab bar and floating page tools (`SongsUITestSupport.reveal`).
     ///
     /// - Parameters:
     ///   - element: Settings action to reveal before tapping or asserting.
@@ -1779,21 +1777,7 @@ final class FestivalMobileUITests: XCTestCase {
     ///   - scrollingUp: Preferred direction, reversed if Settings retained its scroll position.
     @MainActor
     private func reveal(_ element: XCUIElement, in app: XCUIApplication, scrollingUp: Bool) {
-        for direction in [scrollingUp, !scrollingUp] {
-            for _ in 0..<8 {
-                if element.isHittable { return }
-                if direction {
-                    app.swipeUp()
-                } else {
-                    app.swipeDown()
-                }
-            }
-        }
-        XCTAssertTrue(
-            element.isHittable,
-            "Settings control not reachable: \(element.identifier); visible controls: "
-                + "\(app.buttons.allElementsBoundByIndex.prefix(16).map(\.label))"
-        )
+        SongsUITestSupport.reveal(element, in: app, scrollingUp: scrollingUp)
     }
 
     /// Toggle the trailing native switch only when its current value differs.

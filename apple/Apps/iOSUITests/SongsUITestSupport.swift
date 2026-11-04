@@ -1176,7 +1176,7 @@ enum SongsUITestSupport {
                 if element.isHittable {
                     if clearsBottomChrome(element, in: app) { return }
                     // Hittable but under bottom chrome: XCUITest reports it hittable
-                    // while a tap can hit the tab bar instead.
+                    // while a tap can hit the tab bar or a floating page tool instead.
                     window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.6))
                         .press(
                             forDuration: 0.05,
@@ -1200,7 +1200,11 @@ enum SongsUITestSupport {
         )
     }
 
-    /// Whether a control sits wholly above the tab bar.
+    /// Whether a control sits wholly above the floating page tools and the tab bar.
+    ///
+    /// The iPhone's floating page-tool row (`fst.page-tools`, e.g. Settings' Quick Links
+    /// button) sits above the tab bar at the trailing edge, over the end of a low switch
+    /// row's track: a tap there opened Quick Links instead of flipping the switch (#687).
     ///
     /// - Parameters:
     ///   - element: Hittable control to check.
@@ -1210,6 +1214,10 @@ enum SongsUITestSupport {
     private static func clearsBottomChrome(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
         let window = app.windows.firstMatch.frame
         var limit = window.maxY
+        let tools = app.descendants(matching: .any).matching(identifier: "fst.page-tools").firstMatch
+        if tools.exists, !tools.frame.isEmpty, tools.frame.minY > window.midY {
+            limit = min(limit, tools.frame.minY)
+        }
         let tabs = app.tabBars.firstMatch
         if tabs.exists { limit = min(limit, tabs.frame.minY) }
         return element.frame.maxY <= limit
