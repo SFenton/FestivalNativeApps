@@ -914,6 +914,22 @@ class LifecycleTests(DevcapTestCase):
             self.assertEqual(len(self.tools.named("xcrun", "simctl", "create")), 1)
             self.assertFalse(self.tools.named("simslim", "on"))
 
+    def test_a_failed_slim_is_retried_at_most_once_a_day(self):
+        devcap.pick_sim("iPhone Duo", 2, root=self.root)
+        member = self.booted[-1]["udid"]
+        real = self.tools.run
+        self.tools.run = lambda argv, **kw: (real(argv, **kw) if argv[1] != "on" else (
+            self.tools.calls.append(list(argv)), subprocess.CompletedProcess(argv, 1, stdout="", stderr=""))[1])
+        with unittest.mock.patch.object(devcap.subprocess, "run", self.tools.run):
+            for _ in range(3):
+                with devcap.hold(sims=[member], hold_seconds=None, root=self.root):
+                    pass
+            self.assertEqual(len(self.tools.named("simslim", "on")), 1)
+            devcap.note_sim(member, self.root, slim_failed_epoch=time.time() - 90_000)
+            with devcap.hold(sims=[member], hold_seconds=None, root=self.root):
+                pass
+        self.assertEqual(len(self.tools.named("simslim", "on")), 2)
+
     def test_slim_profile_is_passed_through(self):
         os.environ["DEVCAP_SLIM_PROFILE"] = "ui.json"
         devcap.pick_sim("iPhone Duo", 2, root=self.root)
@@ -1180,6 +1196,59 @@ class LifecycleTests(DevcapTestCase):
         devcap.sims_state_path(self.root).write_text("[1]")
         self.assertEqual(devcap.load_sims_state(self.root), {})
         self.assertEqual(devcap.dir_size(self.root / "missing"), 0)
+
+
+class ProjectTagTests(DevcapTestCase):
+    """Pool members are tagged with the repository of the copy that was run, even through a shared install."""
+
+    cli = SharedInstallTests.cli
+    install_newer = SharedInstallTests.install_newer
+
+    def stub_repo(self, name, worktree=False):
+        repo = self.root / "repos" / name
+        (repo / "tools").mkdir(parents=True)
+        (repo / ".git").mkdir()
+        stub = repo / "tools" / "devcap.py"
+        stub.write_bytes(TOOL.read_bytes())
+        if worktree:
+            tree = self.root / "trees" / "lane"
+            (tree / "tools").mkdir(parents=True)
+            (repo / ".git" / "worktrees" / "lane").mkdir(parents=True)
+            (tree / ".git").write_text(f"gitdir: {repo / '.git' / 'worktrees' / 'lane'}\n")
+            stub = tree / "tools" / "devcap.py"
+            stub.write_bytes(TOOL.read_bytes())
+        return stub
+
+    def tag_from(self, stub):
+        fake = self.root / "bin"
+        fake.mkdir(exist_ok=True)
+        (fake / "xcrun").write_text('#!/bin/sh\necho \'{"devices": {}}\'\n')
+        (fake / "xcrun").chmod(0o755)
+        environment = {k: v for k, v in os.environ.items() if k not in (devcap.NO_DEFER_ENV, "DEVCAP_PROJECT")}
+        out = subprocess.run([sys.executable, str(stub), "status", "--json"], capture_output=True, text=True,
+                             env={**environment, "PATH": f"{fake}:{os.environ['PATH']}"}, timeout=60)
+        return json.loads(out.stdout)["pool"]["project"]
+
+    def test_tag_survives_a_newer_shared_install(self):
+        alpha, beta, tree = self.stub_repo("alpha"), self.stub_repo("beta"), self.stub_repo("gamma", worktree=True)
+        self.assertEqual([self.tag_from(p) for p in (alpha, beta, tree)], ["alpha", "beta", "gamma"])
+        self.install_newer()
+        self.assertEqual([self.tag_from(p) for p in (alpha, beta, tree)], ["alpha", "beta", "gamma"])
+
+    def test_unresolvable_project_claims_nothing_and_reap_leaves_other_projects(self):
+        for udid, project in (("11111111-2222-4333-8444-555555555551", "alpha"),
+                              ("11111111-2222-4333-8444-555555555552", "beta")):
+            self.booted.append({"udid": udid, "name": f"iPad (pool {project})", "booted": False})
+            devcap.note_sim(udid, self.root, kind="pool", project=project, last_release_epoch=1.0)
+        deleted = []
+        with unittest.mock.patch.object(devcap, "delete_sim", lambda udid, root=None, why="": deleted.append(udid) or True):
+            with unittest.mock.patch.dict(os.environ, {"DEVCAP_PROJECT": "alpha"}):
+                self.assertEqual([g["name"] for g in devcap.reap_idle_sims(self.root, ttl=10, now=1000.0)],
+                                 ["iPad (pool alpha)"])
+            with unittest.mock.patch.dict(os.environ, {"DEVCAP_PROJECT": devcap.UNKNOWN_PROJECT}):
+                self.assertEqual(devcap.reap_idle_sims(self.root, ttl=10, now=1000.0), [])
+                self.assertEqual(devcap.pool_report(self.root)["members"], [])
+        self.assertEqual(deleted, ["11111111-2222-4333-8444-555555555551"])
 
 
 class VendoredCopyTests(unittest.TestCase):

@@ -1239,6 +1239,13 @@ def save_sims_state(state: dict[str, dict], root: Path | None = None) -> None:
         pass
 
 
+#: Tag of an unresolvable project; fails closed (``reap`` and ``status`` skip every member).
+UNKNOWN_PROJECT = "unknown"
+
+#: One retry per member per day for a failed pre-use slim (``simslim on`` can boot for minutes).
+SLIM_RETRY_SECONDS = 24 * 3600.0
+
+
 @contextmanager
 def sims_state_lock(root: Path | None = None) -> Iterator[None]:
     """Serialize read-modify-write of ``sims.json`` across processes (same OS lock as the gates).
@@ -1268,10 +1275,12 @@ def project_tag() -> str:
 
     Both repositories share ``~/.devcap``, so each simulator devcap creates is tagged with its
     project and ``reap`` deletes only its own project's. Worktrees resolve to their main repository.
+    The path is the copy that was run (``CALLER_FILE``), not the shared install that may have taken
+    over. ``UNKNOWN_PROJECT`` means it could not be resolved: ``is_pool_sim`` then claims nothing.
     """
     if env := os.environ.get("DEVCAP_PROJECT"):
         return env
-    here = Path(__file__).resolve().parent
+    here = Path(CALLER_FILE or __file__).resolve().parent
     for folder in (here, *here.parents):
         marker = folder / ".git"
         if marker.is_dir():
@@ -1282,7 +1291,7 @@ def project_tag() -> str:
                 return gitdir.parents[1].parent.name if gitdir.parent.name == "worktrees" else folder.name
             except (OSError, IndexError):
                 return folder.name
-    return "unknown"
+    return UNKNOWN_PROJECT
 
 
 def note_sim(udid: str, root: Path | None = None, **fields) -> None:
@@ -1357,7 +1366,7 @@ def slim_new_sim(udid: str, root: Path | None = None) -> None:
     (it reboots to apply them, then returns an initially shut-down device to shutdown), so it
     must run inside the hold: ``Hold.acquire`` calls this right after the device and
     ``simulator`` gates are taken. Needs simslim 0.14 or later; older or missing simslim leaves
-    the device stock for ``sim_slim.sh``. A failed run is logged and retried by the next hold.
+    the device stock for ``sim_slim.sh``. A failed run is logged and retried at most once a day.
     """
     root = root or lock_root()
     record = load_sims_state(root).get(udid.upper())
@@ -1366,6 +1375,8 @@ def slim_new_sim(udid: str, root: Path | None = None) -> None:
     version = simslim_version()
     if version is None or version < SIMSLIM_PREBOOT:
         return
+    if time.time() - float(record.get("slim_failed_epoch", 0)) < SLIM_RETRY_SECONDS:
+        return  # failed recently: at most one retry per member per day
     command = ["simslim", "on", udid.upper(), "--preserve-boot-state"]
     if profile := os.environ.get("DEVCAP_SLIM_PROFILE"):
         command += ["--profile", profile]
@@ -1378,6 +1389,8 @@ def slim_new_sim(udid: str, root: Path | None = None) -> None:
         log_event(f"slim {udid} before first use (held): failed to run simslim", root)
     if ok:
         note_sim(udid, root, slim="done")
+    else:
+        note_sim(udid, root, slim_failed_epoch=time.time())
 
 
 def dir_size(path: Path) -> int:
@@ -1470,7 +1483,9 @@ def is_pool_sim(info: dict, state: dict[str, dict]) -> bool:
     untagged legacy ``(pool N)`` simulator (``ci_hygiene`` handles those) are not candidates.
     """
     record = state.get(info["udid"], {})
-    return record.get("kind") in ("pool", "ephemeral") and record.get("project") == project_tag()
+    mine = project_tag()
+    return (mine != UNKNOWN_PROJECT and record.get("kind") in ("pool", "ephemeral")
+            and record.get("project") == mine)
 
 
 def sim_state(info: dict) -> str:
