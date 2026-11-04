@@ -34,7 +34,9 @@ import XCTest
 ///   there passes only once Vision reads its value whole in the same run. A Large Dynamic
 ///   Type flag on the Difficulty value or an activation-table text (iOS 27.0 intermittently
 ///   flags every text on the folded Duo's sheet, #626) passes only once the same text reads
-///   whole and over 1.35× as tall in an AX5 launch of the same form (`dynamic-type-grows`).
+///   whole and over 1.35× as tall in an AX5 launch of the same form (`dynamic-type-grows`); an
+///   AX5 "partially unsupported" flag on the same texts (#688) passes only once it reads whole
+///   there and over 1.35× as tall as in a Large launch of the same form.
 /// - **Text scaling:** the Difficulty value ("Expert", named in every form) and the first
 ///   activation's time ("00:02:750") draw whole (Vision) and, at AX5, are over 1.35× as tall
 ///   as in a paired Large launch of the same form (glyphs by
@@ -103,21 +105,22 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         let time: CGFloat
     }
 
-    /// A Large-size "partially unsupported" flag on the Difficulty selector or a text in the
-    /// activation table, accepted only once the same text draws whole and ≥ 1.35× taller in
-    /// the same form's AX5 launch (`dynamic-type-grows`, `testing/apple/accessibility.md`).
+    /// A Dynamic Type flag on the Difficulty selector or a text in the activation table,
+    /// accepted only once the same text draws whole at both sizes and is ≥ 1.35× taller at AX5
+    /// than at Large in the same form (`dynamic-type-grows`, `testing/apple/accessibility.md`):
+    /// a Large flag is proven by an AX5 launch (#626), an AX5 flag by a Large one (#688).
     private struct Growth {
         /// The flagged text.
         let label: String
         /// Whether it sits in the activation table (else it is the Difficulty value).
         let inTable: Bool
-        /// Its recognized line height at Large, in points.
+        /// Its recognized line height at the audited size, in points.
         let height: CGFloat
         /// The audit line, for evidence.
         let summary: String
     }
 
-    /// Large-size flags awaiting the AX5 proof, gathered by ``audit(_:run:_:)``.
+    /// Flags awaiting the other size's proof, gathered by ``audit(_:run:_:)``.
     private var pendingGrowth: [Growth] = []
 
     // MARK: - Journeys
@@ -586,15 +589,20 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
             // run). Accept that only for the Difficulty value or a text in the activation
             // table, only when Vision reads it whole here, and only once the same text draws
             // whole and ≥ 1.35× taller in this form's AX5 launch (``resolveGrowth(_:)``).
-            if issue.auditType == .dynamicType, !run.isAX5, let node, !node.frame.isEmpty,
-               !node.label.isEmpty {
+            // At AX5 the same audit flags those texts "partially unsupported" too (#688:
+            // "Expert" and the first activation's labels and values, drawn 51–63 pt tall);
+            // that flag passes only when Vision reads the text whole here and in this form's
+            // Large launch, and the AX5 line is ≥ 1.35× its height there.
+            if issue.auditType == .dynamicType, let node, !node.frame.isEmpty, !node.label.isEmpty,
+               !run.isAX5 || issue.compactDescription.contains("partially unsupported") {
                 let centre = CGPoint(x: node.frame.midX, y: node.frame.midY)
                 let inTable = node.elementType == .staticText && table.exists && table.frame.contains(centre)
                 if inTable || selector?.identifier == "fst.paths.difficulty" {
                     let reading = RecognizedText.recognizeLine(node.label, in: node)
                     if let height = reading.lineHeight {
                         pending.append(Growth(label: node.label, inTable: inTable, height: height, summary: line))
-                        accepted.append("dynamic-type-grows pending AX5, '\(reading.text ?? "")' \(height) pt: \(line)")
+                        accepted.append("dynamic-type-grows pending \(run.isAX5 ? "Large" : "AX5"), "
+                            + "'\(reading.text ?? "")' \(height) pt: \(line)")
                         return true
                     }
                     issues.append("\(line); Vision did not read '\(node.label)' whole")
@@ -610,13 +618,14 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         XCTAssertEqual(issues, [], "Audit issues, \(state) (\(run.name))")
     }
 
-    /// Resolve the Large audits' pending Dynamic Type flags (``pendingGrowth``) on an AX5
-    /// launch of the same form: the Difficulty value and each flagged table text must draw
-    /// whole and ≥ 1.35× taller (`RecognizedText.minimumGrowth`) than they read at Large.
-    /// Table texts are read from the activation table, scrolling it up to find one below
-    /// the fold. Does nothing when nothing is pending.
+    /// Resolve the audits' pending Dynamic Type flags (``pendingGrowth``) on a launch of the
+    /// same form at the other size: AX5 for a Large run's flags, Large for an AX5 run's. The
+    /// Difficulty value and each flagged table text must draw whole there too and be ≥ 1.35×
+    /// taller (`RecognizedText.minimumGrowth`) at AX5 than at Large. Table texts are read from
+    /// the activation table, scrolling it up to find one below the fold. Does nothing when
+    /// nothing is pending.
     ///
-    /// - Parameter run: The Large run whose audits gathered the flags.
+    /// - Parameter run: The run whose audits gathered the flags.
     /// - Throws: A skip without the fixture.
     @MainActor
     private func resolveGrowth(_ run: Run) throws {
@@ -624,18 +633,23 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
         let pending = pendingGrowth.filter { seen.insert("\($0.inTable) \($0.label)").inserted }
         pendingGrowth.removeAll()
         guard !pending.isEmpty else { return }
-        let twin = Run.ax5(name: "\(run.name)-ax5-growth", duoWindow: run.duoWindow)
+        let twin = run.isAX5
+            ? Run(name: "\(run.name)-large-growth", duoWindow: run.duoWindow)
+            : Run.ax5(name: "\(run.name)-ax5-growth", duoWindow: run.duoWindow)
         let app = try launchOnPaths(twin)
         defer { app.terminate() }
         var evidence: [String] = []
         var open: [String] = []
         func check(_ flag: Growth, _ reading: RecognizedText.Reading) {
-            guard let height = reading.lineHeight, height >= flag.height * RecognizedText.minimumGrowth else {
-                open.append("\(flag.summary); AX5 read '\(reading.text ?? "")', "
-                    + "\(reading.lineHeight.map { "\($0)" } ?? "unread") pt vs \(flag.height) pt at Large")
+            let large = run.isAX5 ? reading.lineHeight : flag.height
+            let ax5 = run.isAX5 ? flag.height : reading.lineHeight
+            guard let large, let ax5, ax5 >= large * RecognizedText.minimumGrowth else {
+                open.append("\(flag.summary); \(twin.isAX5 ? "AX5" : "Large") read '\(reading.text ?? "")', "
+                    + "\(reading.lineHeight.map { "\($0)" } ?? "unread") pt vs \(flag.height) pt "
+                    + "at \(run.isAX5 ? "AX5" : "Large")")
                 return
             }
-            evidence.append("dynamic-type-grows: \(flag.summary) → '\(reading.text ?? "")' \(flag.height) → \(height) pt")
+            evidence.append("dynamic-type-grows: \(flag.summary) → '\(reading.text ?? "")' \(large) → \(ax5) pt")
         }
         let display = element("fst.paths.display", in: app)
         for flag in pending where !flag.inTable {
@@ -656,8 +670,8 @@ final class PathsDismissAccessibilityJourneyTests: XCTestCase {
             }
         }
         record(app, name: "paths-dismiss-\(twin.name)")
-        attach("paths-dismiss-\(run.name)-audit-ax5-growth", evidence.joined(separator: "\n"))
-        XCTAssertEqual(open, [], "Large-size Dynamic Type flags that do not grow whole at AX5 (\(run.name))")
+        attach("paths-dismiss-\(run.name)-audit-\(twin.isAX5 ? "ax5" : "large")-growth", evidence.joined(separator: "\n"))
+        XCTAssertEqual(open, [], "Dynamic Type flags not proven whole and ≥ 1.35× taller at AX5 than at Large (\(run.name))")
     }
 
     // MARK: - App helpers
