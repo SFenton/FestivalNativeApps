@@ -1,6 +1,7 @@
 #if os(iOS)
 import FestivalCore
 import FestivalDesign
+import FentonUIKit
 import UIKit
 
 // MARK: - Privacy policy
@@ -143,6 +144,7 @@ final class UKLinkLabel: UILabel {
 /// 680 pt column with 20 pt side padding.
 @MainActor
 final class UKPrivacyPolicyViewController: UIViewController, UKModalScrollProviding {
+    private let containment = FentonContentContainmentView()
     private let scrollView = UIScrollView()
     private let policy: PrivacyPolicy
     var ukModalScrollView: UIScrollView? { scrollView }
@@ -161,14 +163,18 @@ final class UKPrivacyPolicyViewController: UIViewController, UKModalScrollProvid
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.accessibilityIdentifier = "fst.privacy-policy.content"
-        view.addSubview(scrollView)
+        containment.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(containment)
         let content = UKPrivacyPolicyContent.make(policy: policy)
         NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor), scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor), scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            containment.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            containment.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            containment.topAnchor.constraint(equalTo: view.topAnchor),
+            containment.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+        containment.installContentView(scrollView)
+        containment.registerMainScrollView(scrollView)
         UKSettingsScrollPage.install(content, in: scrollView, side: 20, top: 8, bottom: 32)
     }
 

@@ -1,6 +1,7 @@
 #if os(iOS)
 import FestivalCore
 import FestivalDesign
+import FentonUIKit
 import UIKit
 
 // MARK: - Scroll provider
@@ -182,10 +183,23 @@ enum UKSheet {
             navigation.modalPresentationStyle = .fullScreen
             navigation.view.backgroundColor = BrandUIColors.cardBackground
         case .sheet:
-            navigation.modalPresentationStyle = presentationStyle(sizing: sizing, regularWidth: regularWidth)
+            let usesSharedNativeSizing = sizing == .page || sizing == .regularPage
+            if usesSharedNativeSizing {
+                FentonSheetPresenter.configure(
+                    navigation,
+                    configuration: .init(
+                        heightPolicy: size == .compact ? .mediumAndLarge : .large,
+                        showsGrabber: size == .compact
+                    )
+                )
+            } else {
+                navigation.modalPresentationStyle = presentationStyle(sizing: sizing, regularWidth: regularWidth)
+                if let sheet = navigation.sheetPresentationController {
+                    sheet.detents = size == .compact ? [.medium(), .large()] : [.large()]
+                    sheet.prefersGrabberVisible = size == .compact
+                }
+            }
             if let sheet = navigation.sheetPresentationController {
-                sheet.detents = size == .compact ? [.medium(), .large()] : [.large()]
-                sheet.prefersGrabberVisible = size == .compact
                 sheet.prefersScrollingExpandsWhenScrolledToEdge = true
             }
         }
