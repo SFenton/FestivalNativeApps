@@ -79,6 +79,29 @@ class DevcapTestCase(unittest.TestCase):
         return Gate(name, self.root, slots)
 
 
+class MaxWaitDefaultTests(unittest.TestCase):
+    """``run --max-wait`` defaults to ``FENTON_DEVCAP_MAX_WAIT`` (the runner sets 1200 for agent sessions), else 3600."""
+
+    def parsed(self, env, *extra):
+        with unittest.mock.patch.dict(os.environ, env, clear=False):
+            if "FENTON_DEVCAP_MAX_WAIT" not in env:
+                os.environ.pop("FENTON_DEVCAP_MAX_WAIT", None)
+            return devcap.build_parser().parse_args(["run", *extra, "--", "true"]).wait
+
+    def test_the_default_is_an_hour(self):
+        self.assertEqual(self.parsed({}), 3600.0)
+
+    def test_the_environment_sets_the_default(self):
+        self.assertEqual(self.parsed({"FENTON_DEVCAP_MAX_WAIT": "1200"}), 1200.0)
+
+    def test_the_flag_beats_the_environment(self):
+        self.assertEqual(self.parsed({"FENTON_DEVCAP_MAX_WAIT": "1200"}, "--max-wait", "30"), 30.0)
+
+    def test_a_bad_value_falls_back(self):
+        for bad in ("", "abc", "0", "-5", "inf", "-inf", "nan", "1e999"):
+            self.assertEqual(self.parsed({"FENTON_DEVCAP_MAX_WAIT": bad}), 3600.0)
+
+
 class TicketTests(unittest.TestCase):
     def test_parse_ticket(self):
         self.assertEqual(parse_ticket("00000000000000000012-345.ticket"), (12, 345))
@@ -280,6 +303,15 @@ class CliTests(DevcapTestCase):
             os.environ["DEVCAP_SLOTS_BUILD"] = "1"
             result = self.cli("run", "--pool", "build", "--wait", "0.5", "--", "true")
         self.assertEqual(result.returncode, devcap.WAIT_TIMEOUT_EXIT)
+        self.assertIn("'holder'", result.stderr)
+
+    def test_max_wait_is_the_wait_option_and_exits_with_the_wait_code(self):
+        with devcap.hold(pools=["build"], purpose="holder", hold_seconds=None, root=self.root):
+            os.environ.pop(devcap.HELD_ENV)
+            os.environ["DEVCAP_SLOTS_BUILD"] = "1"
+            result = self.cli("run", "--pool", "build", "--max-wait", "0.5", "--", "true")
+        self.assertEqual(result.returncode, devcap.WAIT_TIMEOUT_EXIT)
+        self.assertIn("gave up waiting", result.stderr)
         self.assertIn("'holder'", result.stderr)
 
     def test_second_process_runs_after_first_releases(self):
