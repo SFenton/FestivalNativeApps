@@ -125,6 +125,18 @@ enum FestivalArcMetrics {
         let phase = time.truncatingRemainder(dividingBy: period) / period
         return (phase < 0 ? phase + 1 : phase) * 360
     }
+
+    /// Whether the arc turns. It keeps turning under Reduce Motion, like the system
+    /// indicator (#635), and holds still only under the Debug UI-test still override:
+    /// a per-frame timeline keeps the app from idling, and an XCUITest query that starts
+    /// during a slow load on a cold simulator then stalls ("Timed out while evaluating UI
+    /// query", #690).
+    ///
+    /// - Parameter still: `DebugAnimationOverride.stillBackground`.
+    /// - Returns: False only when the still override is on.
+    static func turns(still: Bool) -> Bool {
+        !still
+    }
 }
 
 // MARK: - FestivalArcProgressStyle
@@ -160,7 +172,10 @@ private struct FestivalArc: View {
 
     var body: some View {
         let size = FestivalArcMetrics.size(for: controlSize)
-        TimelineView(.animation) { context in
+        TimelineView(.animation(
+            minimumInterval: nil,
+            paused: !FestivalArcMetrics.turns(still: DebugAnimationOverride.stillBackground)
+        )) { context in
             let inset = size.lineWidth / 2
             ZStack {
                 Circle()

@@ -172,6 +172,40 @@ enum FestivalApp {
         }
     }
 
+    /// Whether a snapshot holds a node with `identifier`.
+    ///
+    /// - Parameters:
+    ///   - identifier: The accessibility identifier to find.
+    ///   - root: The snapshot to walk.
+    /// - Returns: True when `root` or a descendant has that identifier.
+    @MainActor
+    static func contains(_ identifier: String, in root: XCUIElementSnapshot) -> Bool {
+        !nodes(in: root) { $0.identifier == identifier }.isEmpty
+    }
+
+    /// Wait for any element with `identifier` to appear, through
+    /// ``snapshot(of:within:until:)`` rather than `waitForExistence`.
+    ///
+    /// Use it for the first wait after a launch or a page push: on a cold runner one live
+    /// query evaluation there can hang for the wait's whole budget and fail the test
+    /// ("Timed out while evaluating UI query", the iPad Score History and song-board
+    /// journeys after a reboot, #690), while a fresh snapshot seconds later succeeds. A
+    /// snapshot that throws is retried; the wait and its timeout are otherwise unchanged.
+    ///
+    /// - Parameters:
+    ///   - identifier: The accessibility identifier to wait for.
+    ///   - app: The running app.
+    ///   - timeout: How long to wait; size it with ``budget(_:inVirtualMachine:)``.
+    /// - Returns: True once a snapshot shows the element; false when none did in time or
+    ///   every snapshot attempt failed.
+    @MainActor
+    static func waitForElement(_ identifier: String, in app: XCUIApplication, timeout: TimeInterval) -> Bool {
+        guard let root = try? snapshot(of: app, within: timeout, until: { contains(identifier, in: $0) }) else {
+            return false
+        }
+        return contains(identifier, in: root)
+    }
+
     // MARK: - Notifications bell
 
     /// Whether the bell's accessibility value is acceptable: empty, or on iOS 27+ exactly

@@ -67,4 +67,44 @@ final class UITestHarnessTests: XCTestCase {
         XCTAssertFalse(isRow(.staticText, "fst.quick-links.item.accessibility", "Accessibility"), "not a button")
         XCTAssertFalse(isRow(.staticText, "", "Accessibility"), "a heading reading a section's title")
     }
+
+    // MARK: - Snapshot waits
+
+    /// The element wait finds an identifier anywhere in a snapshot, the root included, and
+    /// nothing else (#690).
+    @MainActor
+    func testSnapshotContainsMatchesAnyNodeByIdentifier() {
+        let tree = FakeSnapshot("app", [
+            FakeSnapshot("fst.songs.list", [FakeSnapshot("fst.songs.row.fixture-pulse")]),
+            FakeSnapshot(""),
+        ])
+        XCTAssertTrue(FestivalApp.contains("app", in: tree))
+        XCTAssertTrue(FestivalApp.contains("fst.songs.list", in: tree))
+        XCTAssertTrue(FestivalApp.contains("fst.songs.row.fixture-pulse", in: tree))
+        XCTAssertFalse(FestivalApp.contains("fst.song-detail.intensity", in: tree))
+        XCTAssertFalse(FestivalApp.contains("fst.songs", in: tree), "a prefix is not a match")
+    }
+}
+
+/// A hand-built accessibility snapshot node: only its identifier and children matter.
+private final class FakeSnapshot: NSObject, XCUIElementSnapshot {
+    let identifier: String
+    let children: [any XCUIElementSnapshot]
+    let frame: CGRect = .zero
+    let value: Any? = nil
+    let title = ""
+    let label = ""
+    let elementType: XCUIElement.ElementType = .other
+    let isEnabled = true
+    let horizontalSizeClass: XCUIElement.SizeClass = .unspecified
+    let verticalSizeClass: XCUIElement.SizeClass = .unspecified
+    let placeholderValue: String? = nil
+    let isSelected = false
+    let hasFocus = false
+    var dictionaryRepresentation: [XCUIElement.AttributeName: Any] { [:] }
+
+    init(_ identifier: String, _ children: [FakeSnapshot] = []) {
+        self.identifier = identifier
+        self.children = children
+    }
 }
