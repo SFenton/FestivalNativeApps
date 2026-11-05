@@ -78,7 +78,7 @@ final class SongBoardSplitAccessibilityJourneyTests: XCTestCase {
         app.launch()
         defer { app.terminate() }
         if !Audit.runningOnDuo { WindowResize.fill(app) }
-        XCTAssertTrue(Audit.anyElement(app, "fst.songs.list").waitForExistence(timeout: FestivalApp.budget(25)), "\(name): Songs")
+        XCTAssertTrue(FestivalApp.waitForElement("fst.songs.list", in: app, timeout: FestivalApp.budget(25)), "\(name): Songs")
         guard Audit.openSong(app, "fixture-pulse") else {
             XCTFail("\(name): Song Detail did not open")
             return nil
