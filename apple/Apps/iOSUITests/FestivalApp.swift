@@ -251,6 +251,50 @@ enum FestivalApp {
         app.buttons.matching(quickLinkRowPredicate(id: "fst.quick-links.item.\(section)", label: label)).firstMatch
     }
 
+    /// The open Quick Links chooser's row for `section`, scrolled into view.
+    ///
+    /// At AX5 the sheet's rows outgrow it, and a lazy list leaves rows past its fold out of
+    /// the hierarchy until they scroll in: Song Detail's Duos row sits below Intensity,
+    /// Score History and the instruments, so waiting for it never ends (#689). This waits
+    /// for the sheet or the row (one retried snapshot, not a query wait, #686), then
+    /// moves the sheet's list up in short, momentum-free drags until the row exists, is
+    /// hittable and ends inside the window, as a reader would scroll. Only the iPhone sheet
+    /// (``PageToolInlineMenuSheet``, found by its `fst.page-tools.menu.close` button) is
+    /// dragged: a drag over an iPad or Duo native menu lands outside it and closes it, and
+    /// `tap()` scrolls a menu row into view itself. A row already in view is returned
+    /// without a drag.
+    ///
+    /// - Parameters:
+    ///   - section: The section ID after `fst.quick-links.item.`, e.g. `band-Band_Duets`.
+    ///   - label: The row's VoiceOver label, e.g. `Duos`.
+    ///   - app: The app with the chooser open (or opening).
+    ///   - drags: The most drags to try.
+    /// - Returns: The row's button; check `exists` before tapping it.
+    @MainActor
+    @discardableResult
+    static func revealQuickLinkRow(
+        _ section: String, label: String, in app: XCUIApplication, drags: Int = 8
+    ) -> XCUIElement {
+        let isSheet: (XCUIElementSnapshot) -> Bool = { root in
+            !nodes(in: root) { $0.identifier == "fst.page-tools.menu.close" }.isEmpty
+        }
+        let opened = try? snapshot(of: app, within: budget(10)) { root in
+            isSheet(root) || !quickLinkRowNodes([(section, label)], in: root).isEmpty
+        }
+        let row = quickLinkRow(section, label: label, in: app)
+        guard let opened, isSheet(opened) else { return row }
+        let window = app.windows.firstMatch
+        var dragged = 0
+        while dragged < drags, !(row.exists && row.isHittable && row.frame.maxY <= window.frame.maxY) {
+            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).press(
+                forDuration: 0.05,
+                thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
+            )
+            dragged += 1
+        }
+        return row
+    }
+
     /// One Quick Links section a journey expects: its ID after `fst.quick-links.item.` and
     /// its spoken title, which finds the row when an iOS 27 menu drops the identifier.
     typealias QuickLinkSection = (id: String, label: String)

@@ -171,8 +171,9 @@ final class SongDetailBandColumnsJourneyTests: XCTestCase {
     @MainActor
     private func openDuos(in app: XCUIApplication) throws {
         app.buttons["fst.quick-links.open"].tap()
-        let item = FestivalApp.quickLinkRow("band-Band_Duets", label: "Duos", in: app)
-        XCTAssertTrue(item.waitForExistence(timeout: FestivalApp.budget(10)), "Quick Links has no Duos section")
+        // At AX5 the Duos row can start below the Quick Links sheet's fold.
+        let item = FestivalApp.revealQuickLinkRow("band-Band_Duets", label: "Duos", in: app)
+        XCTAssertTrue(item.exists, "Quick Links has no Duos section")
         item.tap()
         let heading = any("band-header.Band_Duets", in: app)
         let shown = NSPredicate(format: "exists == true AND isHittable == true")

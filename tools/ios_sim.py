@@ -1942,6 +1942,13 @@ def cmd_uitest(args: argparse.Namespace) -> int:
                       f"running the batch again; result bundle (kept): {result_bundle}", file=sys.stderr)
                 _with_sim_lock(udid, _shutdown_simulator)
                 continue
+            if (returncode == EXIT_TEST_FAILED and getattr(args, "reboot_wedged", False)
+                    and (stall := accessibility_stalled(_result_summary(result_bundle)))):
+                # A verdict, but the accessibility server may now hang: reboot so the retry and the
+                # next batch start on a fresh simulator (#689). This adds no attempt.
+                print(f"uitest {label}: accessibility stalled ({stall}); rebooting the simulator before the "
+                      f"next run; result bundle (kept): {result_bundle}", file=sys.stderr)
+                _with_sim_lock(udid, _shutdown_simulator)
             if not should_retry_batch(returncode, attempt, retries):
                 break
             attempt += 1
@@ -2202,6 +2209,32 @@ def simulator_wedged(log_text: str) -> str | None:
     if signature := next((s for s in WEDGED_SIMULATOR_SIGNATURES if s in log_text), None):
         return signature
     return TIMED_OUT if TIMEOUT_MARKER in log_text else None
+
+
+#: Failure texts that mean the simulator's accessibility server stalled during a test. The test
+#: failed (a verdict), but the server can stay hung: in release 2611.02 (#689) an iPad audit timed
+#: out, then the batch's retry and the next batch on the same simulator timed out every UI query
+#: (20-200 s each) until a later batch hit its timeout and ``--reboot-wedged`` rebooted it.
+ACCESSIBILITY_STALL_SIGNATURES = (
+    "Audit failed to complete in time",
+    "Timed out while running accessibility audit",
+    "Timed out while evaluating UI query",
+)
+
+
+def accessibility_stalled(summary: dict | None) -> str | None:
+    """Find an accessibility-stall failure in a failed batch's result summary.
+
+    Args:
+        summary: The batch's ``_result_summary``, or ``None`` when unreadable.
+
+    Returns:
+        The first ``ACCESSIBILITY_STALL_SIGNATURES`` entry a failure's text contains, or ``None``
+        (an unreadable summary or ordinary assertion failures).
+    """
+    failures = (summary or {}).get("testFailures") or []
+    texts = [str(failure.get("failureText", "")) for failure in failures if isinstance(failure, dict)]
+    return next((s for s in ACCESSIBILITY_STALL_SIGNATURES if any(s in text for text in texts)), None)
 
 
 def _shutdown_simulator(udid: str) -> int:
@@ -2663,7 +2696,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="CI: when a batch reached no verdict (its test runner failed to initialize, or it "
                              "was killed at --timeout: the simulator hung), reboot the simulator and run that "
                              "batch once more; "
-                             "test failures are never rerun (default on when FST_UITEST_REBOOT_WEDGED=1, as "
+                             "test failures are never rerun, but one whose failure shows an accessibility stall "
+                             "(an audit or UI query timed out) reboots the simulator before the next run "
+                             "(default on when FST_UITEST_REBOOT_WEDGED=1, as "
                              "apple-ci sets it)")
     uitest.add_argument("--retries", type=int, default=0,
                         help="CI: run a batch whose test failed (exit 65) up to N more times, keeping each "
