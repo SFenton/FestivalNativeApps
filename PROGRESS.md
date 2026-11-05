@@ -52,7 +52,7 @@ tools/**                      → orchestrator
 
 ## 2. Priorities (from operator, 2026-09-27; updated 2026-09-28)
 
-- **UIKit consumer architecture (owner, 2026-11-05; in progress):** `lane/uikit-shared-architecture` consolidates page/state ownership, modal lifecycle and split-controller continuity on the existing immutable FentonPlatform pin. The shared core stays unchanged; package opportunities are recorded separately. iPhone, Duo and iPad are the scope; macOS is sidelined for its own UI/framework. See [uikit-architecture.md](.agents/platforms/apple/uikit-architecture.md).
+- **UIKit consumer architecture (owner, 2026-11-05; scoped pass qualified):** [UIKit-only proposal #850](https://github.com/SFenton/FestivalNativeApps/pull/850), `lane/uikit-shared-architecture`, consolidates page/state ownership, modal lifecycle and split-controller continuity on the existing immutable FentonPlatform pin. Sixteen hosted regressions and four fixture UI/accessibility journeys per phone/Duo/iPad passed; this is not full-app or performance parity. The shared core stays unchanged; package opportunities are recorded separately. macOS is sidelined for its own UI/framework. The proposal remains unmerged; see [uikit-architecture.md](.agents/platforms/apple/uikit-architecture.md).
 
 - **FentonPlatform consumer pilot (local lane, 2026-11-04):** UIKit observation uses source-compatible adapters backed by shared `FentonAppleCore`, and the Privacy Policy page-sized sheet uses `FentonUIKit` native sheet mechanics while preserving its existing identifier and detent behavior. The private first-party package is pinned to `0b9592686a90a89181e442cdc0f5058bca9af001`.
 

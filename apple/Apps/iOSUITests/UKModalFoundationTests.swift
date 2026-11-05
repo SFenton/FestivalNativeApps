@@ -98,9 +98,10 @@ final class UKModalFoundationTests: XCTestCase {
         }
         XCTAssertEqual(issues, [])
         SongsUITestSupport.record(application, name: "profiles-modal-ax5")
+        // Stay one 2x-display pixel inside the target's exclusive maximum edges.
         let probes = [
-            CGVector(dx: -21.75, dy: 0), CGVector(dx: 21.75, dy: 0),
-            CGVector(dx: 0, dy: -21.75), CGVector(dx: 0, dy: 21.75),
+            CGVector(dx: -21.5, dy: 0), CGVector(dx: 21.5, dy: 0),
+            CGVector(dx: 0, dy: -21.5), CGVector(dx: 0, dy: 21.5),
         ]
         for (index, offset) in probes.enumerated() {
             if index > 0 {

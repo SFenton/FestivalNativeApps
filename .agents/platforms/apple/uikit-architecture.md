@@ -43,6 +43,23 @@ HIG Designing for iPhone Duo: "Preserve functionality, element state, hierarchy,
 
 The separate `Apps/iOSUITests/UKModalFoundationTests.swift` exercises Profiles/search dismissal, compact Sort actions, a scoped AX5 Close audit, and Songs -> Detail -> paged Leaderboard. Run it against an explicitly selected loopback fixture with `TEST_RUNNER_FST_MODAL_FIXTURE_URL=<loopback-origin> python3 tools/ios_sim.py uitest --app uikit --device <owned-device> --only UKModalFoundationTests --fail-on-skip`. A UI screenshot or successful build alone does not pass its assertions.
 
+Native Close's visual frame is not its activation region. Probe inside the standard 44 pt target, aligned to the display's pixel grid rather than its exclusive maximum edge; do not replace native chrome because an edge probe rounds outside its target.
+
+## Scoped qualification
+
+The 2026-11-05 consumer pass is published in [the UIKit-only proposal](https://github.com/SFenton/FestivalNativeApps/pull/850), not merged or released. Actual app-hosted and fixture results qualify this infrastructure slice:
+
+| Scope | Runtime | Result |
+|---|---|---|
+| App-hosted page/modal/navigation regressions | iOS 27.0 | 16 passed, 0 failed, 0 skipped |
+| Four phone UI/accessibility journeys | iOS 27.0 | 4 passed, 0 failed, 0 skipped |
+| Four Duo UI/accessibility journeys | iOS 27.1 | 4 passed, 0 failed, 0 skipped |
+| Four iPad UI/accessibility journeys | iPadOS 27.0 | 4 passed, 0 failed, 0 skipped |
+
+Bounded batches supplied separate valid result bundles where a long batch timed out; incomplete/zero-test runs are not acceptance evidence. The final AX5 probes passed with the original system bar item, without a custom Close control or a reduced target requirement. App, hosted/UI bundles and shared Swift test compilation passed; shared compilation does not certify macOS UI. Repository inventory, pattern/docs checks and the proposal's Windows/Android unit CI passed.
+
+These are default-simulator-window and logical reshape checks, not physical-hinge, full pose/multitasking, full-app accessibility/coverage or matched performance certification. They do not promote the existing pending page/control parity records.
+
 ## Shared-core opportunities, not changes in this pass
 
 | Candidate | Why multiple consumers could benefit |
