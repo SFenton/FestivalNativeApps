@@ -455,14 +455,7 @@ final class SettingsJourneyTests: XCTestCase {
             opened.map { FestivalApp.quickLinkRowNodes(sections, in: $0).isEmpty } ?? true,
             "Quick Links did not open", file: file, line: line
         )
-        let row = FestivalApp.quickLinkRow(id, label: title, in: app)
-        let window = app.windows.firstMatch
-        for _ in 0..<8 where !(row.exists && row.isHittable && row.frame.maxY <= window.frame.maxY) {
-            window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)).press(
-                forDuration: 0.05,
-                thenDragTo: window.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35))
-            )
-        }
+        let row = FestivalApp.revealQuickLinkRow(id, label: title, in: app)
         XCTAssertTrue(
             row.exists && row.isHittable,
             "The \(id) row cannot be reached in the Quick Links sheet: "

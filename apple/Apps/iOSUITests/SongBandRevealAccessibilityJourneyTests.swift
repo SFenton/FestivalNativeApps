@@ -200,8 +200,9 @@ final class SongBandRevealAccessibilityJourneyTests: XCTestCase {
         let quickLinks = app.buttons["fst.quick-links.open"]
         XCTAssertTrue(quickLinks.waitForExistence(timeout: FestivalApp.budget(15)))
         quickLinks.tap()
-        let duos = FestivalApp.quickLinkRow("band-Band_Duets", label: "Duos", in: app)
-        XCTAssertTrue(duos.waitForExistence(timeout: FestivalApp.budget(10)), "Quick Links has no Duos section")
+        // At AX5 the Duos row starts below the sheet's fold.
+        let duos = FestivalApp.revealQuickLinkRow("band-Band_Duets", label: "Duos", in: app)
+        XCTAssertTrue(duos.exists, "Quick Links has no Duos section")
         duos.tap()
         let selected = app.buttons["fst.song-detail.band-selected.Band_Duets"]
         // Quick Links lands on the Duos header; at AX5 the ten preview rows push the
