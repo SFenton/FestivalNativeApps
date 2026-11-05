@@ -39,6 +39,13 @@ struct ArcSpinnerMetricsTests {
         #expect(abs(FestivalArcMetrics.angle(at: now) - FestivalArcMetrics.angle(at: now + FestivalArcMetrics.period * 1_000)) < 1e-3)
         #expect((0..<360).contains(FestivalArcMetrics.angle(at: now)))
     }
+
+    /// The arc holds still only under the Debug UI-test still override, so XCUITest can
+    /// idle during a slow load (#690); otherwise it turns, Reduce Motion included (#635).
+    @Test func turnsUnlessTheUITestStillOverrideIsOn() {
+        #expect(FestivalArcMetrics.turns(still: false))
+        #expect(!FestivalArcMetrics.turns(still: true))
+    }
 }
 
 #if os(macOS)
