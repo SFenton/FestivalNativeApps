@@ -282,8 +282,8 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
         let open = app.buttons["fst.quick-links.open"]
         guard open.waitForExistence(timeout: FestivalApp.budget(2)), open.isHittable else { return false }
         open.tap()
-        let item = FestivalApp.quickLinkRow(link.section, label: link.label, in: app)
-        guard item.waitForExistence(timeout: FestivalApp.budget(10)) else {
+        let item = FestivalApp.revealQuickLinkRow(link.section, label: link.label, in: app)
+        guard item.exists else {
             XCTFail("\(card.name): Quick Links has no \(link.section)")
             return false
         }
