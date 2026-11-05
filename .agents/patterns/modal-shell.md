@@ -121,9 +121,15 @@ Chose **B**: the Fluent text-scaling *must* rules out C, and A would break this 
 
 | Debt | Breaks | Plan |
 |---|---|---|
-| None verified. | — | Keep the shared-shell guards enabled; the feedback form is the documented R6 exception. |
+| Shared configuration does not express every fitted/form-sheet policy. | Shared content containment now backs the UIKit page adapter; compatible page sheets use shared configuration, while form sizing, app-owned appearance and dismissal policy remain local. | Keep one Festival adapter and flag package seams separately; do not force custom sizing into a competing shell. |
 
 UIKit: `UKSheet.present` / `UKSheet.make` build a `UKSheetNavigationController` (transparent bar, inline title, Close button, dark glass or frosted background, detents and grabber, top edge fade) in `UIKitPort/Design/UKSheet.swift`; `UKPullDownToDismiss` mirrors `PullDownToDismiss`.
+
+The UIKit shell preserves feature bar actions and puts Close in its existing trailing slot. Escape pops a pushed modal page before invoking the root's app-owned Close callback; an active search controller must not swallow outer-modal dismissal. Popped pages release their fade ownership. Existing medium/large detents and native initial sizing remain unchanged. These mechanics do not authorize discarding unsaved feedback or claim that every independent presentation is queued. Consumer boundaries and package opportunities: [UIKit architecture](../platforms/apple/uikit-architecture.md).
+
+Root Profiles and Notifications use that same shell. Root presentation preserves its configured style unless explicit detents require a page sheet, refuses an independent presentation while another modal or transition owns the root, and follows a selected route once after actual outer dismissal. It does not queue payloads or force-close input. An app-owned Close callback that keeps its task open must call `ukRearmClose()` after its confirmation resolves, as Feedback does for Keep Editing; repeated Close/Escape during the outstanding confirmation must not create another one.
+
+Songs-family presenters subscribe to the shell's one-shot dismissal notification instead of storing a Close closure that captures its own sheet. Closing deactivates native search and ends editing before dismissing the outer task; final teardown releases app-owned Close captures, and retained observers must not retain a dismissed navigation controller.
 
 ## Guards (tools/pattern_guard.py)
 

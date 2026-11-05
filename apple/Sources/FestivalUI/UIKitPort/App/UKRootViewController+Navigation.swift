@@ -208,18 +208,14 @@ extension UKRootViewController: UKNavigating {
         detents: [UISheetPresentationController.Detent]?,
         make: (@escaping (AppRoute) -> Void) -> UIViewController
     ) {
-        var hook: SheetDismissHook?
-        var sheet: UIViewController?
         let page = make { [weak self] route in
             self?.pendingSheetRoute = route
-            if let hook, let sheet { hook.followProgrammaticDismissal(of: sheet) }
         }
-        hook = presentSheet(page, detents: detents, onDismiss: { [weak self] in
+        _ = presentSheet(page, detents: detents, onDismiss: { [weak self] in
             guard let self, let route = self.pendingSheetRoute else { return }
             self.pendingSheetRoute = nil
             self.stacks[self.selected]?.push(route)
         })
-        sheet = page.navigationController ?? page
     }
 
     /// Presents a sheet over the window.
@@ -232,20 +228,35 @@ extension UKRootViewController: UKNavigating {
     func presentSheet(
         _ controller: UIViewController, detents: [UISheetPresentationController.Detent]?, onDismiss: (() -> Void)?
     ) -> SheetDismissHook? {
-        let top = presentedViewController ?? self
-        if top is UIAlertController { return nil }
+        guard isViewLoaded, view.window != nil, presentedViewController == nil, transitionCoordinator == nil else {
+            return nil
+        }
         let navigation = controller as? UINavigationController ?? UINavigationController(rootViewController: controller)
-        navigation.modalPresentationStyle = .pageSheet
+        if let sheet = navigation as? UKSheetNavigationController {
+            sheet.ukAdaptPresentationStyle(regularWidth: traitCollection.horizontalSizeClass == .regular)
+            if detents != nil {
+                navigation.modalPresentationStyle = .pageSheet
+            }
+        } else {
+            navigation.modalPresentationStyle = .pageSheet
+        }
         navigation.overrideUserInterfaceStyle = .dark
-        if let sheet = navigation.sheetPresentationController {
-            sheet.detents = detents ?? [.large()]
+        if let detents, let sheet = navigation.sheetPresentationController {
+            sheet.detents = detents
+            sheet.prefersGrabberVisible = false
+        } else if !(navigation is UKSheetNavigationController), let sheet = navigation.sheetPresentationController {
+            sheet.detents = [.large()]
             sheet.prefersGrabberVisible = false
         }
         let delegate = SheetDismissHook(onDismiss: onDismiss)
-        navigation.presentationController?.delegate = delegate
+        if let sheet = navigation as? UKSheetNavigationController {
+            sheet.ukOnDismiss = { [weak delegate] in delegate?.fire() }
+        } else {
+            navigation.presentationController?.delegate = delegate
+        }
         objc_setAssociatedObject(navigation, &sheetHookKey, delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         shellState.drawerPresented = shellState.drawerPresented
-        top.present(navigation, animated: true)
+        present(navigation, animated: true)
         return delegate
     }
 }
@@ -261,22 +272,7 @@ final class SheetDismissHook: NSObject, UIAdaptivePresentationControllerDelegate
 
     func presentationControllerDidDismiss(_ presentationController: UIPresentationController) { fire() }
 
-    /// Follow a dismissal the sheet starts itself (after choosing a route), which never reaches
-    /// `presentationControllerDidDismiss`: runs once its transition completes.
-    ///
-    /// - Parameter sheet: The presented controller, about to call `dismiss(animated:)`.
-    func followProgrammaticDismissal(of sheet: UIViewController) {
-        // The sheet calls dismiss right after choosing: look on the next turn.
-        DispatchQueue.main.async { [weak self, weak sheet] in
-            guard let self else { return }
-            guard let sheet, sheet.presentingViewController != nil else { return fire() }
-            sheet.transitionCoordinator?.animate(alongsideTransition: nil) { [weak self] context in
-                if !context.isCancelled { self?.fire() }
-            }
-        }
-    }
-
-    private func fire() {
+    func fire() {
         guard !fired else { return }
         fired = true
         onDismiss?()

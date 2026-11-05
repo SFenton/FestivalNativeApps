@@ -1,41 +1,42 @@
 # iPhone Duo redesign notes
-Journey: (1) Songs → Song Detail → Song Leaderboard + shell; (2) Leaderboards → Full Rankings → Player; (3) Statistics → Rivals → Rival Detail/Rivalry; (4) Item Shop, Suggestions, Compete, Settings, sheets/modals; (5) sweep: Bands, Notifications, What's New, first run, Settings sub-pages, Paths.
-Stack: SwiftUI (TabView + NavigationStack/NavigationSplitView, system toolbars); package iOS 17; Xcode 27.1 / iOS 27.1 SDK (App Store archive too since 2026-10-31; before that the 27.0 SDK left TestFlight builds in Duo compatibility mode). Evidence: live iOS 27.1 sim, SFentonX, every pose scripted through Device Hub (`ios_sim.py pose`, drive `host:` steps); shots `~/FestivalShowcase/native-duo/{poses,final}/`.
-Stage: 5 (journeys 1–5)  Next: operator/device only — the split redesign lane owns all list/detail layout; App Resizability skill in Xcode chat; hardware keyboard on a physical iPhone Duo; review the delegated decisions.
+Journey: UIKit Songs -> Song Detail -> Song Leaderboard; shared page and modal infrastructure.
+Stack: UIKit, iOS 17 minimum, Xcode 27.1; FentonPlatform immutable pilot pin.
+Stage: 5  Next: Separate full pose/multitasking and matched performance qualification.
 
-## Decisions (operator, 2026-10-02 unless noted)
-- **Superseded by the operator's split redesign (2026-10-04):** D1 (inner-portrait two columns), J3 (split-column width class), P4 (narrow detail-column rows) and Split View; all list/detail and split layout moved to the redesign lane.
-- Journey 1: ~~D1 inner portrait = two populated columns~~ (superseded); D2 size classes (regular × regular) gate list/detail; D3 Search `.high` with Bell/Profile; D4 Song Detail Item Shop/Paths before Quick Links; D5 paged boards keep the tab bar (~~Next `.high` in the rail~~ superseded by #345: the pager stays in content); D6 keep stack↔split swap, restore list scroll; D7 default bar for single-Close sheets; D8 no table pose; D9 system bar side. Standing (2026-09-28): dual-source shelved; modal Close in the sheet toolbar; rail keeps Bell + Profile.
-- Journey 2: J1 instrument/band size and Rank By are separate titled rail items; J2 narrow rows drop songs played/total; ~~J3 Duo split columns get their own width class~~ (superseded). Journey 3: R1 Find Rival `.high`; R2 Rivals Rank By in content, 44 pt; R4 inline Find Rival field. Journey 4: S1 even Shop columns inside (4 landscape, 2 portrait); G1 Suggestions two columns at regular width; M1 What's New drops Dismiss beside the vertical bar. O1 (b): hinged devices allow every orientation.
-- Observed exceptions: J1 target (system rail 38×38, overflow row 42 pt); full-width `List` row frames under the rail.
+## Findings
+- Songs: native section navigation, custom list chrome and retained filtering/scroll state.
+- Song Detail -> leaderboard: app-owned on-demand split, moving existing controllers between native navigation stacks.
+- Modal shell: one native Close/Escape/search dismissal path with balanced one-shot lifetime.
+- Profile/Rivals/forms: shared app-owned page adapter; native inset, state and gate-handoff regressions passed.
+- Split reshape: unchanged controllers/scroll remain in place; feature Back/Close state is restored after role changes.
+- Bars: native tab/navigation containers already exist; preserve the owner's floating phone tools and Duo/iPad bar items.
+- Prior SwiftUI-only pose evidence is not UIKit evidence. Existing owner choices remain in the canonical Duo and pattern docs.
+- Camera, hinge effects and scene accessories: N/A; this pass has no such features.
 
-## Delegated decisions for later review (orchestrator default, operator delegated 2026-10-04)
-- **P1** keep 2 Statistics columns in inner portrait (closes R3): ~300 pt tiles keep Rank History legible.
-- **P2** ~~accept Shop cards scrolling under the fold in book pose~~ — overridden by the owner (#343): every grid's centre gutter sits on the fold and titles wrap on their side ([hinge-columns](.agents/patterns/hinge-columns.md)).
-- **P3** fix Songs in outer landscape by insetting the list in compact height: built as a measured top padding (`SongsDrawerOverlap`), not a search-placement change. Superseded by #336 (2026-10-07): removed once #333 took the drawer off Duo; the real overflow was the rigid A–Z index (see [duo.md](.agents/design/apple/duo.md)).
-- ~~P4~~ superseded by the split redesign (2026-10-04); stopped unbuilt (note: the shared row is already one line since #292).
-- ~~**S5** Songs list-column title truncates to "S…" in inner portrait~~: resolved by #341 (2026-10-07). It was the superseded always-on split column; inner portrait now pushes full-width pages, and every page keeps its system title in every pose ([page-tools-and-nav-chrome](.agents/patterns/page-tools-and-nav-chrome.md) R14).
-- **S6** Bands capped at the readable width (680 pt) at regular width, like Settings and Licenses.
-- **S7** What's New opens as a centered sheet on the inner display (cover stays on iPhone, folded Duo, iPad) [T462/T466: inner sheets centered; don't stretch the iPhone page].
-- **S8** rail overflow of Bell/Profile on inner-landscape pushed pages (Bands: Back + `…`) accepted as system compression with six tabs.
-- **K1** hardware keyboard left pending (see checks); Split View superseded.
-- **S9** first-run slides scroll with a 120 pt demo in compact height (outer landscape hid the title and text under Next). Verified: no overlap, but the ~128 pt page shows the demo first and the text after a scroll; option kept: text above the demo in compact height.
-- **S10** Paths instrument name wraps only between words (folded "Lea/d").
+## Checklist match
+- 1 Build/resizability: Verified SDK 27.1 build; explicit native/contained inset ownership [HIG, T461].
+- 2 Containers/bars: Ready native navigation/tab containers; Decision preserve owner-approved on-demand split [HIG, T462].
+- 3 Bar audit: Hosted split-chrome restoration and scoped native Close/AX5 journeys passed [HIG, T462].
+- 4 Outer display: Phone search/sheet dismissal passed; separate Duo outer-display pose not qualified [HIG, T466].
+- 5 Inner display: Default Duo journeys and hosted controller/scroll continuity passed; pose transitions not qualified [HIG, T466].
+- 6 Reserved regions: Ready existing DeviceLayout/OnDemandSplitPolicy; no new width or hinge heuristics [HIG, T463].
+- 7 Multitasking/PiP: Hosted reshape passed; native multitasking not certified; PiP N/A, no video [HIG, T464].
+- 8 Table pose: N/A, no pose-specific functionality [HIG, T466].
+- 9 Extras: N/A, no camera, hinge effects or scene accessories [T464, T465].
+- Continuity: Hosted route/controller/scroll checks passed; no physical-hinge claim [HIG, T466].
 
-## Done / verified (live unless noted)
-- J1–J4 built and pose-checked (2026-10-02/04); inner portrait two columns and fold crash fixed (2026-10-04).
-- P3 fixed (first row y 136 in both landscapes, scrolled and back; portrait unchanged). Paths instrument selector no longer splits "Lead" mid-word folded. Inner portrait page tools restored (the #92/#300 tab-bar accessory hid Item Shop/Paths/Sort/Filter there; now compact width only). Bands readable width (S6), What's New sheet inside (S7), first-run compact height (S9): see checks.
+## Decisions
+- Preserve current routes, tab policy, visual identity and on-demand split geometry.
+- macOS is sidelined for its own framework/UI; no macOS implementation in this pass.
+- Do not modify the shared core package; flag multiproduct gaps separately.
+- Agent choice (2026-11-05, automated decision policy): compose the existing core host in a Festival page adapter rather than duplicate geometry or change the package.
+- Page viewport: retain native scrolling by default; opt into explicit containment only where the app owns insets [HIG Layout].
+- Modal lifecycle: improve the existing UKSheet path instead of adding a competing presenter or changing task semantics [HIG Sheets/Modality].
+- Navigation: preserve the owner's split geometry; update only changed stacks and restore owned chrome instead of replacing all containers [HIG continuity].
+- Proceed directly with native implementation; existing visual/product choices are preserved, not re-designed. Owner may override these architecture choices.
 
-## Stage 5 pose checks (`~/FestivalShowcase/native-duo/{poses,final}/`)
-| Check | Result | Evidence |
-|---|---|---|
-| Inner landscape flat/book, inner portrait, fold/unfold + D6, O1 outer landscape | pass (DUO4); P3 fixed | `poses/`, `final/p3-*` |
-| Sweep: Song Detail, Paths, Notifications | pass all four poses; Paths "Lea/d" fixed folded; inner sheets centered, horizontal bars | `final/sw-*-paths`, `sw-*-notifications` |
-| Sweep: Bands | pass four poses; S6 readable width (verified); S8 overflow | `final/sw-*-bands*` |
-| Sweep: What's New | pass four poses (M1 holds); S7 sheet inside (verified) | `final/sw-*-whatsnew*` |
-| Sweep: first run | folded, inner portrait/landscape pass; outer landscape hid title/text under Next → S9 fixed (verified) | `final/sw-*-firstrun*` |
-| Sweep: Licenses, Privacy Policy | not run: the inner-display drive cannot scroll (XCUITest swipes miss the inner panel; `scrollTo` fails), stopped at wrap-up | — |
-| Hardware keyboard | pending: Device Hub has no Connect Hardware Keyboard; its Toggle Software Keyboard reads disabled (AX state is stale until the menu opens in the active app; `host:control Capture Keyboard` first is the next try); phone shortcuts (⌘F/⌘K, ⌘1–9, ⌘[, ⌘R) exist in code, not verified | — |
-| Split View (both sides) | superseded by the split redesign (2026-10-04); `systemDrag` driver step added for the Multitasking Dock drag, not run | — |
-| PiP from another app | N/A: no PiP video app on the simulator; our app has no video | — |
-| Earlier (2026-10-02): Reduce Transparency, Increase Contrast, RTL, AX5, software keyboard | pass/fixed | `checks/` |
+## Done / verified
+- Published UIKit base and prior shared pilot inspected; active user worktrees preserved.
+- App/hosted/UI builds and 16 hosted regressions passed; no skipped tests.
+- Four fixture UI/accessibility journeys passed per phone, Duo and iPad, including native Close hit-region probes at AX5.
+- Scope and remaining qualification: `.agents/platforms/apple/uikit-architecture.md`; no full-app or performance claim.

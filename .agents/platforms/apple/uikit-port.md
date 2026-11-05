@@ -4,6 +4,8 @@
 
 macOS is sidelined for the port (owner, 2026-10-31): `FestivalDesktop` keeps building from the SwiftUI code, unchanged, and gets no port work.
 
+The shared-core consumer pass is documented in [UIKit architecture](uikit-architecture.md) and [UIKit page foundation](../../patterns/uikit-page-foundation.md). macOS remains sidelined for its own Mac-specific UI/framework (owner, 2026-11-05); these UIKit parents do not become a universal Apple UI.
+
 ## Shape
 
 - **One universal app, two front ends.** `FestivalMobile` (SwiftUI, `…native`) was already one universal iPhone + iPad target and is unchanged. `FestivalMobileUIKit` (`…native.uikit`, Home Screen name "FST UIKit") is the same universal app drawn with UIKit and installs beside it. Both run the same `FestivalSession`, `FestivalAPI`, routes, policies, fixtures and launch environment (`FST_*`).

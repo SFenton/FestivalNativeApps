@@ -25,11 +25,13 @@ struct SoftwareLicense: Identifiable, Hashable {
 /// Licenses lists third-party software only: no bundled-asset section and no first-party
 /// artwork entries (operator, 2026-09-28, batch 6 — `.agents/pages/licenses/spec.md`).
 ///
-/// Source of truth for "actual dependencies": `apple/Package.swift` declares **zero**
-/// external SwiftPM packages (checked 2026-09-27) — `FestivalCore`, `FestivalDesign` and
-/// `FestivalUI` are all first-party targets. Add an entry here the same day a package
-/// dependency lands so this screen never drifts from `Package.swift`/`Package.resolved`.
+/// Source of truth for "actual dependencies": `apple/Package.swift` now references
+/// the private, first-party `SFenton/FentonPlatform` foundation at commit
+/// `0b9592686a90a89181e442cdc0f5058bca9af001`. It is not a third-party package and
+/// has no redistribution license, so it does not become a row in this third-party
+/// acknowledgements list. Add an entry here for any external package the same day it
+/// lands so this screen never drifts from `Package.swift`/`Package.resolved`.
 enum LicenseManifest {
-    /// External SwiftPM packages. Empty until the app takes its first dependency.
+    /// External SwiftPM packages. The private FentonPlatform foundation is first-party.
     static let thirdPartySoftware: [SoftwareLicense] = []
 }

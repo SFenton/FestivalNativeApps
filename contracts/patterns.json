@@ -4,6 +4,28 @@
   "webRoot": "FortniteFestivalWeb/src",
   "patterns": [
     {
+      "id": "uikit-page-foundation",
+      "title": "UIKit page foundation",
+      "status": "current",
+      "doc": ".agents/patterns/uikit-page-foundation.md",
+      "summary": "Festival-owned UIKit page adapter composes the pinned shared host, preserves native scrolling by default, opts into explicit containment deliberately and reclaims persistent content before removing loading-gate state. Feature routes, branding and loading policy stay app-owned; macOS is separate.",
+      "keywords": ["UIKit", "page", "viewport", "safe area", "state overlay", "loading gate"],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {"path": "apple/Sources/FestivalUI/UIKitPort/Common/UKPageFoundation.swift", "symbol": "UKPageViewController"},
+          {"path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKProfilePage.swift", "symbol": "UKProfileScrollViewController"},
+          {"path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalsPage.swift", "symbol": "UKRivalsPageViewController"},
+          {"path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsForm.swift", "symbol": "UKFormViewController"}
+        ]
+      },
+      "guards": [],
+      "related": {"patterns": ["modal-shell", "back-keeps-place", "split-panes", "scroll-edge"], "controls": [], "pages": []},
+      "supersedes": [],
+      "supersededBy": null,
+      "issues": []
+    },
+    {
       "id": "artwork-background",
       "title": "Artwork background",
       "status": "current",
@@ -4649,6 +4671,10 @@
           {
             "path": "apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift",
             "symbol": "trailingContent"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/App/Layout/UKSectionStack.swift",
+            "symbol": "UKSectionStack"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/Settings/SettingsTopic.swift",
