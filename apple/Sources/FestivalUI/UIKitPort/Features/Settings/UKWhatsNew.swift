@@ -192,14 +192,15 @@ enum UKWhatsNew {
     ///
     /// - Parameter session: The shared session.
     /// - Returns: The sheet to present; Dismiss and Close dismiss it.
-    static func shellSheet(_ session: FestivalSession) -> UIViewController {
+    static func shellSheet(_ session: FestivalSession) -> UKSheetNavigationController {
         var sheet: UKSheetNavigationController?
         let layout = UIApplication.shared.ukKeyShell?.layout ?? .standardPhone
         sheet = make(layout: layout) {
             ChangelogSeenStore().markSeen(version: WhatsNewGate.appVersion())
             sheet?.dismiss(animated: true)
         }
-        return sheet ?? UIViewController()
+        guard let sheet else { fatalError("What's New sheet was not constructed") }
+        return sheet
     }
 }
 

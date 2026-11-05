@@ -90,12 +90,14 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
             form, title: kind.formTitle, closeIdentifier: "fst.settings.feedback.close", size: .large, sizing: .regularPage,
             regularWidth: presenter.traitCollection.horizontalSizeClass == .regular, onClose: { form.requestClose() }
         )
+        form.rearmClose = { [weak sheet] in sheet?.ukRearmClose() }
         sheet.presentationController?.delegate = form
         form.onDismiss = onDismiss
         presenter.present(sheet, animated: true)
     }
 
     private var onDismiss: (() -> Void)?
+    private var rearmClose: (() -> Void)?
 
     // MARK: Lifecycle
 
@@ -543,7 +545,9 @@ final class UKFeedbackFormViewController: UIViewController, UKModalScrollProvidi
             message: "Your text and attached media will be lost.", preferredStyle: .actionSheet
         )
         let discard = UIAlertAction(title: "Discard Changes", style: .destructive) { [weak self] _ in self?.closeNow() }
-        let keep = UIAlertAction(title: "Keep Editing", style: .cancel)
+        let keep = UIAlertAction(title: "Keep Editing", style: .cancel) { [weak self] _ in
+            self?.rearmClose?()
+        }
         alert.addAction(discard)
         alert.addAction(keep)
         alert.popoverPresentationController?.barButtonItem = closeItem

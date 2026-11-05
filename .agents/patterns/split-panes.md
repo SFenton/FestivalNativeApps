@@ -75,6 +75,10 @@ Agent decision (#344, 2026-10-07; owner may override with `/choose`): options we
 
 ## Canonical implementation
 
+- **R8. UIKit geometry updates preserve navigation ownership.** `UKSectionStack` keeps an unchanged leading/trailing controller array in place instead of clearing it during a resize. A controller moved between pane and ordinary-stack roles regains its feature-owned leading items and Back behavior; only split-owned chrome is restored. Reduce Motion applies the final pane frame without animation. This preserves R1-R7 and the [back-keeps-place](back-keeps-place.md) state contract; it does not introduce another split policy.
+
+UIKit continuity implementation: `apple/Sources/FestivalUI/UIKitPort/App/Layout/UKSectionStack.swift`, `UKSectionStack`.
+
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
 | Line rule (R1, R2) | `apple/Sources/FestivalUI/App/Layout/OnDemandSplitPolicy.swift` `OnDemandSplitPolicy.drawsDividerLine` | `android/app/src/main/java/com/festivalscoretracker/android/ui/common/OnDemandSplit.kt` `OnDemandSplit` (hairline under Increase Contrast at a midpoint only) | `windows/Festival.App/Controls/OnDemandSplitHost.cs` `OnDemandSplitHost` (hairline under Increase Contrast only) |

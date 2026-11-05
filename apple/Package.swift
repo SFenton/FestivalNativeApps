@@ -37,7 +37,10 @@ let package = Package(
         .testTarget(name: "FestivalDesignTests", dependencies: ["FestivalDesign"]),
         .testTarget(
             name: "FestivalUITests",
-            dependencies: ["FestivalUI", "FestivalCore"],
+            dependencies: [
+                "FestivalUI", "FestivalCore",
+                .product(name: "FentonUIKit", package: "FentonPlatform"),
+            ],
             resources: [.process("Fixtures")]
         ),
     ],

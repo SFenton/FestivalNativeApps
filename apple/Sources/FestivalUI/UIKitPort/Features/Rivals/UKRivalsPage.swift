@@ -1,6 +1,7 @@
 #if os(iOS)
 import FestivalCore
 import FestivalDesign
+import FentonUIKit
 import UIKit
 
 // MARK: - Rivals page base
@@ -13,7 +14,7 @@ import UIKit
 /// their state by account).
 ///
 /// Subclasses build their content in ``build()`` and call ``reloadPage()`` to start over.
-class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScrollViewDelegate {
+class UKRivalsPageViewController: UKPageViewController, UKPageToolsProviding, UIScrollViewDelegate {
     /// The context the page was created in.
     let context: UKContext
     /// The page's scroll view; hidden while a full-page state shows.
@@ -28,7 +29,6 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
     var tasks: [Task<Void, Never>] = []
 
     private lazy var background = UKBackgroundRegistration(session: context.session, mode: .carousel)
-    private var stateView: UIView?
     private var shownAccountId: String??
     private var accountChromeInstalled = false
     private var quickLinkEntries: [(section: QuickLinkSection, view: UIView)] = []
@@ -68,14 +68,11 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
         scrollView.backgroundColor = .clear
         scrollView.alwaysBounceVertical = true
         scrollView.delegate = self
-        scrollView.contentInsetAdjustmentBehavior = .automatic
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
         column.axis = .vertical
         column.spacing = columnSpacing
         column.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(column)
-        view.addSubview(scrollView)
-        scrollView.ukPin(to: view)
+        installPageContent(scrollView, scrollView: scrollView)
         let content = scrollView.contentLayoutGuide
         NSLayoutConstraint.activate([
             column.leadingAnchor.constraint(equalTo: content.leadingAnchor), column.trailingAnchor.constraint(equalTo: content.trailingAnchor),
@@ -194,40 +191,15 @@ class UKRivalsPageViewController: UIViewController, UKPageToolsProviding, UIScro
     ///
     /// - Parameter state: The spinner, status or empty state.
     func showFill(_ state: UIView, edgeToEdge: Bool = false) {
-        stateView?.removeFromSuperview()
         scrollView.isHidden = true
-        if scrollView.superview !== view {
-            // A gate that held the scroll view is going away with its state.
-            view.insertSubview(scrollView, at: 0)
-            scrollView.ukPin(to: view)
-        }
-        state.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(state)
-        if edgeToEdge {
-            state.ukPin(to: view)
-            stateView = state
-            hasInListTitle = false
-            updatePinnedTitle()
-            return
-        }
-        let guide = view.safeAreaLayoutGuide
-        NSLayoutConstraint.activate([
-            state.leadingAnchor.constraint(equalTo: guide.leadingAnchor), state.trailingAnchor.constraint(equalTo: guide.trailingAnchor),
-            state.topAnchor.constraint(equalTo: guide.topAnchor), state.bottomAnchor.constraint(equalTo: guide.bottomAnchor),
-        ])
-        stateView = state
+        showPageState(state, edgeToEdge: edgeToEdge)
         hasInListTitle = false
         updatePinnedTitle()
     }
 
     /// Shows the column again.
     func showScroll() {
-        if scrollView.superview !== view {
-            view.insertSubview(scrollView, at: 0)
-            scrollView.ukPin(to: view)
-        }
-        stateView?.removeFromSuperview()
-        stateView = nil
+        clearPageState()
         scrollView.isHidden = false
     }
 

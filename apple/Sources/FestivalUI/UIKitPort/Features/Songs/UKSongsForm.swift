@@ -1,13 +1,14 @@
 #if os(iOS)
 import FestivalCore
 import FestivalDesign
+import FentonUIKit
 import UIKit
 
 // MARK: - Form page
 
 /// A sheet page of grouped rows (the SwiftUI `Form` in `FestivalModal`): a scrolling stack of
 /// ``UKGroupSectionView`` cards with the sheet's top edge fade driven by its scroll view.
-class UKFormViewController: UIViewController, UKModalScrollProviding {
+class UKFormViewController: UKPageViewController, UKModalScrollProviding {
     /// A collection view with no items, so the scrolling form is addressable as the list the
     /// SwiftUI `Form` is (XCUITest finds `Form` content in a table or collection view).
     let scroll: UIScrollView = {
@@ -24,17 +25,14 @@ class UKFormViewController: UIViewController, UKModalScrollProviding {
         super.viewDidLoad()
         overrideUserInterfaceStyle = .dark
         view.backgroundColor = .clear
-        scroll.translatesAutoresizingMaskIntoConstraints = false
         scroll.alwaysBounceVertical = true
         scroll.keyboardDismissMode = .onDrag
         stack.axis = .vertical
         stack.spacing = 24
         stack.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(scroll)
         scroll.addSubview(stack)
+        installPageContent(scroll, scrollView: scroll)
         NSLayoutConstraint.activate([
-            scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scroll.topAnchor.constraint(equalTo: view.topAnchor), scroll.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 16),
             stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -16),
             stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 12),

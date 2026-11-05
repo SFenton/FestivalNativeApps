@@ -49,6 +49,7 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
     /// Called when the trailing pane opens or closes (Escape and the menu bar's Close).
     var onSplitOpenChanged: ((Bool) -> Void)?
     private var reportedOpen = false
+    private var splitChrome: [ObjectIdentifier: UKSplitChromeSnapshot] = [:]
 
     /// Creates a stack.
     ///
@@ -214,14 +215,25 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
             leadingRoutes = target
             trailingRoutes = []
         }
-        // Detach the pooled pages first: a controller has one parent.
         let leadingScreens = leadingRoutes.map(screen)
         let trailingScreens = trailingRoutes.map(screen)
         let rootScreen = leading.viewControllers.first
         let oldTrailing = trailing
-        oldTrailing?.setViewControllers([], animated: false)
+        cut = split ? candidate : nil
+        geometry = split ? windowShape : nil
+        let nextLeading = ([rootScreen].compactMap { $0 }) + leadingScreens
+        if let oldTrailing {
+            let remaining = oldTrailing.viewControllers.filter { old in
+                !nextLeading.contains { $0 === old }
+            }
+            if !sameControllers(oldTrailing.viewControllers, remaining) {
+                oldTrailing.setViewControllers(remaining, animated: false)
+            }
+        }
         let animateLeading = animated && !split && !wasSplit && leadingScreens.count != leading.viewControllers.count - 1
-        leading.setViewControllers(([rootScreen].compactMap { $0 }) + leadingScreens, animated: animateLeading)
+        if !sameControllers(leading.viewControllers, nextLeading) {
+            leading.setViewControllers(nextLeading, animated: animateLeading)
+        }
         var pane: UINavigationController?
         if split, content != .none {
             let navigation = oldTrailing ?? UINavigationController()
@@ -235,14 +247,24 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
             default:
                 placeholder = nil
             }
-            navigation.setViewControllers(screens, animated: false)
+            if !sameControllers(navigation.viewControllers, screens) {
+                navigation.setViewControllers(screens, animated: false)
+            }
             pane = navigation
         } else {
             placeholder = nil
         }
-        cut = split ? candidate : nil
-        geometry = split ? windowShape : nil
         attach(pane)
+        leading.viewControllers.forEach { installLeadingChrome(on: $0, navigation: leading) }
+        if let pane {
+            pane.viewControllers.forEach { installTrailingChrome(on: $0, navigation: pane) }
+        }
+        let retained = leading.viewControllers + (pane?.viewControllers ?? [])
+        for snapshot in Array(splitChrome.values) {
+            guard let controller = snapshot.controller else { continue }
+            if !retained.contains(where: { $0 === controller }) { restoreSplitChrome(on: controller) }
+        }
+        splitChrome = splitChrome.filter { $0.value.controller != nil }
         applyFrames(animated: animated && (split != wasSplit || (cut?.cover != nil)))
         let open = isDetailOpen
         if open != reportedOpen {
@@ -250,6 +272,10 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
             onSplitOpenChanged?(open)
         }
         host.stackDidChangePath(self)
+    }
+
+    private func sameControllers(_ lhs: [UIViewController], _ rhs: [UIViewController]) -> Bool {
+        lhs.count == rhs.count && zip(lhs, rhs).allSatisfy { $0 === $1 }
     }
 
     private func attach(_ pane: UINavigationController?) {
@@ -299,7 +325,7 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
         if animated {
             let reduce = UIAccessibility.isReduceMotionEnabled || UKSettings.bool("fst.accessibility.reduceMotion", default: false)
             if reduce {
-                UIView.animate(withDuration: 0.2, delay: 0, options: [.curveEaseInOut], animations: apply)
+                apply()
             } else {
                 UIView.animate(
                     withDuration: 0.42, delay: 0, usingSpringWithDamping: 0.88, initialSpringVelocity: 0,
@@ -379,7 +405,13 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
 
     /// The split's Close button on the open item's root.
     private func installTrailingChrome(on controller: UIViewController, navigation: UINavigationController) {
-        guard controller === navigation.viewControllers.first, controller.ukRoute != nil, cut?.cover != .overSplit else { return }
+        guard geometry != nil, controller === navigation.viewControllers.first,
+              controller.ukRoute != nil, cut?.cover != .overSplit else {
+            restoreSplitChrome(on: controller)
+            return
+        }
+        preserveSplitChrome(on: controller)
+        if controller.navigationItem.leftBarButtonItem?.accessibilityIdentifier == "fst.split.close" { return }
         let close = UIBarButtonItem(image: UIImage(systemName: "xmark"), style: .plain, target: self, action: #selector(closePressed))
         close.accessibilityLabel = "Close"
         close.accessibilityIdentifier = "fst.split.close"
@@ -392,18 +424,57 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
     /// Back on the leading pane's list page closes the open item first (issue #347).
     private func installLeadingChrome(on controller: UIViewController, navigation: UINavigationController) {
         guard geometry != nil, cut?.selection != nil, controller === navigation.viewControllers.last,
-              controller.ukRoute != nil else { return }
+              controller.ukRoute != nil else {
+            restoreSplitChrome(on: controller)
+            return
+        }
+        preserveSplitChrome(on: controller)
+        if controller.navigationItem.leftBarButtonItem?.accessibilityIdentifier == "fst.split.list-back" { return }
         let back = UIBarButtonItem(image: UIImage(systemName: "chevron.backward"), style: .plain, target: self, action: #selector(listBackPressed))
         back.accessibilityLabel = "Back"
         back.accessibilityIdentifier = "fst.split.list-back"
         controller.navigationItem.leftBarButtonItem = back
         controller.navigationItem.hidesBackButton = true
+        controller.navigationItem.leftItemsSupplementBackButton = false
+    }
+
+    private func preserveSplitChrome(on controller: UIViewController) {
+        controller.loadViewIfNeeded()
+        let key = ObjectIdentifier(controller)
+        if splitChrome[key] == nil { splitChrome[key] = UKSplitChromeSnapshot(controller) }
+    }
+
+    private func restoreSplitChrome(on controller: UIViewController) {
+        guard let snapshot = splitChrome.removeValue(forKey: ObjectIdentifier(controller)) else { return }
+        let identifiers = Set(["fst.split.close", "fst.split.list-back"])
+        if (controller.navigationItem.leftBarButtonItems ?? []).contains(where: {
+            $0.accessibilityIdentifier.map(identifiers.contains) ?? false
+        }) {
+            controller.navigationItem.leftBarButtonItems = snapshot.items
+            controller.navigationItem.hidesBackButton = snapshot.hidesBack
+            controller.navigationItem.leftItemsSupplementBackButton = snapshot.supplementsBack
+        }
     }
 
     @objc private func closePressed() { closeDetail() }
 
     @objc private func listBackPressed() {
         if let next = OnDemandSplitPolicy.pathAfterListBack(path, section: section) { reshape(path: next, animated: true) }
+    }
+}
+
+@MainActor
+private final class UKSplitChromeSnapshot {
+    weak var controller: UIViewController?
+    let items: [UIBarButtonItem]?
+    let hidesBack: Bool
+    let supplementsBack: Bool
+
+    init(_ controller: UIViewController) {
+        self.controller = controller
+        items = controller.navigationItem.leftBarButtonItems
+        hidesBack = controller.navigationItem.hidesBackButton
+        supplementsBack = controller.navigationItem.leftItemsSupplementBackButton
     }
 }
 

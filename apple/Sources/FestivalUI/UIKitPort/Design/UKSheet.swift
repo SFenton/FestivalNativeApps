@@ -24,12 +24,17 @@ protocol UKModalScrollProviding: UIViewController {
 /// Transparency or the in-app toggles) and the top edge fade under the header.
 final class UKSheetNavigationController: UINavigationController, UINavigationControllerDelegate {
     private let closeIdentifier: String
-    private let closeAction: (() -> Void)?
+    private var closeAction: (() -> Void)?
     private let sheetTitle: String?
+    private let sizing: FestivalSheetSizing
     private var fades: [ObjectIdentifier: UKModalTopEdgeFade] = [:]
     private var backdrop: UIView?
     private var observer: UKAccessibilityObserver?
     private var registeredCoverage = false
+    private var isPopping = false
+    private var isClosing = false
+    private var didNotifyDismissal = false
+    var ukOnDismiss: (() -> Void)?
 
     /// Creates the sheet's stack.
     ///
@@ -38,10 +43,14 @@ final class UKSheetNavigationController: UINavigationController, UINavigationCon
     ///   - title: Inline title, or nil for none.
     ///   - closeIdentifier: Accessibility identifier of the Close button.
     ///   - onClose: Replaces the default dismissal.
-    init(root: UIViewController, title: String?, closeIdentifier: String, onClose: (() -> Void)? = nil) {
+    init(
+        root: UIViewController, title: String?, closeIdentifier: String,
+        sizing: FestivalSheetSizing = .automatic, onClose: (() -> Void)? = nil
+    ) {
         self.closeIdentifier = closeIdentifier
         self.closeAction = onClose
         self.sheetTitle = title
+        self.sizing = sizing
         super.init(rootViewController: root)
         delegate = self
         overrideUserInterfaceStyle = .dark
@@ -72,8 +81,13 @@ final class UKSheetNavigationController: UINavigationController, UINavigationCon
         controller.navigationItem.largeTitleDisplayMode = .never
         guard controller === viewControllers.first else { return }
         if let sheetTitle { controller.navigationItem.title = sheetTitle }
+        let alreadyHasClose = (controller.navigationItem.leftBarButtonItems ?? [])
+            .contains { $0.accessibilityIdentifier == closeIdentifier }
+            || (controller.navigationItem.rightBarButtonItems ?? [])
+            .contains { $0.accessibilityIdentifier == closeIdentifier }
+        guard !alreadyHasClose else { return }
         let close: UIBarButtonItem
-        let action = UIAction { [weak self] _ in self?.close() }
+        let action = UIAction { [weak self] _ in self?.ukCloseFromChrome() }
         if #available(iOS 26.0, *) {
             close = UIBarButtonItem(systemItem: .close, primaryAction: action)
         } else {
@@ -82,11 +96,69 @@ final class UKSheetNavigationController: UINavigationController, UINavigationCon
         }
         close.accessibilityLabel = "Close"
         close.accessibilityIdentifier = closeIdentifier
-        controller.navigationItem.rightBarButtonItem = close
+        // UIKit lays out rightBarButtonItems from index zero at the trailing edge.
+        // Keep Close there while preserving feature-owned actions beside it.
+        let featureItems = (controller.navigationItem.rightBarButtonItems ?? [])
+            .filter { $0.accessibilityIdentifier != closeIdentifier }
+        controller.navigationItem.rightBarButtonItems = [close] + featureItems
     }
 
-    private func close() {
-        if let closeAction { closeAction() } else { dismiss(animated: true) }
+    /// Performs the shell's Close action, including stack-pop and app-owned close callbacks.
+    func ukCloseFromChrome() {
+        guard !isPopping, !isClosing else { return }
+        if viewControllers.count > 1 {
+            guard !isBeingPresented, !isBeingDismissed, transitionCoordinator == nil else { return }
+            isPopping = true
+            if popViewController(animated: true) == nil {
+                isPopping = false
+            }
+            return
+        }
+        guard !isBeingPresented, !isBeingDismissed,
+              !(presentedViewController is UIAlertController) else { return }
+        if let closeAction {
+            isClosing = true
+            closeAction()
+        } else {
+            isClosing = true
+            dismissFromPresenter(animated: true)
+        }
+    }
+
+    /// Rearms an app-owned Close callback after it keeps an in-progress task open.
+    func ukRearmClose() {
+        isClosing = false
+    }
+
+    override var keyCommands: [UIKeyCommand]? {
+        [UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(handleEscape))]
+    }
+
+    @objc private func handleEscape(_ command: UIKeyCommand) {
+        ukCloseFromChrome()
+    }
+
+    override func accessibilityPerformEscape() -> Bool {
+        ukCloseFromChrome()
+        return true
+    }
+
+    /// Dismisses the complete modal presentation, including a feature-owned controller such as
+    /// an active `UISearchController`.
+    func dismissFromPresenter(animated: Bool, completion: (() -> Void)? = nil) {
+        for controller in viewControllers {
+            controller.navigationItem.searchController?.isActive = false
+        }
+        view.endEditing(true)
+        let finish: () -> Void = { [weak self] in
+            self?.finishDismissalIfNeeded()
+            completion?()
+        }
+        if let presenter = presentingViewController {
+            presenter.dismiss(animated: animated, completion: finish)
+        } else {
+            dismiss(animated: animated, completion: finish)
+        }
     }
 
     // MARK: Background
@@ -116,6 +188,10 @@ final class UKSheetNavigationController: UINavigationController, UINavigationCon
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        if let root = viewControllers.first {
+            root.loadViewIfNeeded()
+            decorate(root)
+        }
         if !registeredCoverage {
             registeredCoverage = true
             FestivalSheetCoverage.shared.begin()
@@ -126,9 +202,27 @@ final class UKSheetNavigationController: UINavigationController, UINavigationCon
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         if registeredCoverage && (isBeingDismissed || presentingViewController == nil) {
+            finishDismissalIfNeeded()
+        }
+        pruneFades()
+    }
+
+    private func finishDismissalIfNeeded() {
+        if registeredCoverage {
             registeredCoverage = false
             FestivalSheetCoverage.shared.end()
         }
+        guard !didNotifyDismissal else { return }
+        didNotifyDismissal = true
+        closeAction = nil
+        ukOnDismiss?()
+        ukOnDismiss = nil
+    }
+
+    /// Adapts only an automatic sheet to the presenter that owns its window.
+    func ukAdaptPresentationStyle(regularWidth: Bool) {
+        guard sizing == .automatic, presentingViewController == nil else { return }
+        modalPresentationStyle = regularWidth ? .formSheet : .pageSheet
     }
 
     override func viewDidLayoutSubviews() {
@@ -139,10 +233,16 @@ final class UKSheetNavigationController: UINavigationController, UINavigationCon
     func navigationController(_ navigationController: UINavigationController, willShow viewController: UIViewController, animated: Bool) {
         if viewController !== viewControllers.first { viewController.navigationItem.largeTitleDisplayMode = .never }
         viewController.view.backgroundColor = viewController.view.backgroundColor ?? .clear
+        if viewController === viewControllers.first {
+            viewController.loadViewIfNeeded()
+            decorate(viewController)
+        }
     }
 
     func navigationController(_ navigationController: UINavigationController, didShow viewController: UIViewController, animated: Bool) {
+        isPopping = false
         installFade(for: viewController)
+        pruneFades()
     }
 
     private func installFade(for controller: UIViewController?) {
@@ -151,6 +251,15 @@ final class UKSheetNavigationController: UINavigationController, UINavigationCon
         let fade = UKModalTopEdgeFade(maskedView: provider.view, scrollView: scroll)
         fades[ObjectIdentifier(provider)] = fade
         fade.layout()
+    }
+
+    private func pruneFades() {
+        let liveControllers = Set(viewControllers.map { ObjectIdentifier($0) })
+        let staleIdentifiers = fades.keys.filter { !liveControllers.contains($0) }
+        for identifier in staleIdentifiers {
+            fades[identifier]?.remove()
+            fades.removeValue(forKey: identifier)
+        }
     }
 }
 
@@ -177,7 +286,9 @@ enum UKSheet {
         sizing: FestivalSheetSizing = .automatic, regularWidth: Bool = false,
         coverage: FestivalModalCoverage = .sheet, onClose: (() -> Void)? = nil
     ) -> UKSheetNavigationController {
-        let navigation = UKSheetNavigationController(root: content, title: title, closeIdentifier: closeIdentifier, onClose: onClose)
+        let navigation = UKSheetNavigationController(
+            root: content, title: title, closeIdentifier: closeIdentifier, sizing: sizing, onClose: onClose
+        )
         switch coverage {
         case .fullScreen:
             navigation.modalPresentationStyle = .fullScreen

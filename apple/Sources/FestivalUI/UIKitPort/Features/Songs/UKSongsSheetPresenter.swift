@@ -10,10 +10,18 @@ import UIKit
 @MainActor
 final class UKSongsSheetDismissObserver: NSObject, UIAdaptivePresentationControllerDelegate {
     private let onDismiss: () -> Void
+    private var didNotify = false
 
     init(onDismiss: @escaping () -> Void) { self.onDismiss = onDismiss }
 
-    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) { onDismiss() }
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) { notifyDismissal() }
+
+    /// Delivers the shared shell's dismissal notification once.
+    func notifyDismissal() {
+        guard !didNotify else { return }
+        didNotify = true
+        onDismiss()
+    }
 }
 
 extension UIViewController {
@@ -30,12 +38,12 @@ extension UIViewController {
     ) {
         let observer = UKSongsSheetDismissObserver { [weak self] in self?.ukPageToolsDidChange() }
         keep(observer)
-        var sheet: UKSheetNavigationController?
-        sheet = UKSheet.make(content, title: title, closeIdentifier: closeIdentifier, size: size, regularWidth: traitCollection.horizontalSizeClass == .regular) { [weak self] in
-            sheet?.dismiss(animated: true) { self?.ukPageToolsDidChange() }
-        }
-        sheet?.presentationController?.delegate = observer
-        if let sheet { present(sheet, animated: true) }
+        let sheet = UKSheet.make(
+            content, title: title, closeIdentifier: closeIdentifier, size: size,
+            regularWidth: traitCollection.horizontalSizeClass == .regular
+        )
+        sheet.ukOnDismiss = { observer.notifyDismissal() }
+        present(sheet, animated: true)
     }
 }
 #endif
