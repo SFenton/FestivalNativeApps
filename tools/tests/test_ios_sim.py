@@ -422,8 +422,10 @@ class RebootWedgedTests(unittest.TestCase):
             self.assertEqual(ios_sim._shutdown_simulator("UDID"), 0)
         self.assertEqual(bounded.call_args.args, (["xcrun", "simctl", "shutdown", "UDID"], ios_sim.SHUTDOWN_TIMEOUT))
 
-    def _run(self, logs: list[str], codes: list[int], *, reboot: bool = True):
-        """Run `cmd_uitest` over one batch whose attempts log `logs` and exit with `codes`."""
+    def _run(self, logs: list[str], codes: list[int], *, reboot: bool = True, retries: int = 0,
+             summaries=None):
+        """Run `cmd_uitest` over one batch whose attempts log `logs`, exit with `codes` and, when
+        given, read `summaries` (one per summary read; otherwise every read is one passed test)."""
         import argparse
         from unittest import mock
 
@@ -435,14 +437,16 @@ class RebootWedgedTests(unittest.TestCase):
                 attempts.append((code, 1.0, path, Path(tmp) / f"r{index}.xcresult"))
             args = argparse.Namespace(
                 only=["SongsChromeJourneyTests/testA"], device="UDID", rebuild=False, batch_size=1, timeout=10,
-                retries=0, reboot_wedged=reboot, fail_on_skip=False,
+                retries=retries, reboot_wedged=reboot, fail_on_skip=False,
             )
             with mock.patch.object(ios_sim, "scripting_preflight", return_value=0), \
                     mock.patch.object(ios_sim, "resolve_device", return_value="UDID"), \
                     mock.patch.object(ios_sim, "driver_derived_data", return_value=Path(tmp)), \
                     mock.patch.object(ios_sim, "source_hash", return_value="h"), \
                     mock.patch.object(ios_sim, "driver_build_stale", return_value=False), \
-                    mock.patch.object(ios_sim, "_result_summary", return_value={"passedTests": 1}), \
+                    mock.patch.object(ios_sim, "_result_summary",
+                                      **({"side_effect": summaries} if summaries is not None
+                                         else {"return_value": {"passedTests": 1}})), \
                     mock.patch.object(ios_sim, "_run_uitest_batch", side_effect=attempts) as batch, \
                     mock.patch.object(ios_sim, "_with_sim_lock", return_value=0) as lock, \
                     contextlib.redirect_stderr(io.StringIO()):
@@ -461,6 +465,47 @@ class RebootWedgedTests(unittest.TestCase):
     def test_an_ordinary_failure_is_not_rerun(self):
         code, runs, locks = self._run(["XCTAssertTrue failed"], [65])
         self.assertEqual((code, runs, locks), (65, 1, []))
+
+    AUDIT_TIMEOUT = {"failedTests": 1, "testFailures": [{"failureText": (
+        'failed: caught error: "Error Domain=com.apple.xcode.xctest.accessibilityAudit Code=-56 '
+        '"Audit failed to complete in time""')}]}
+    QUERY_TIMEOUT = {"failedTests": 1, "testFailures": [
+        {"failureText": "Failed to get matching snapshots: Timed out while evaluating UI query."}]}
+
+    def test_an_accessibility_stall_is_found_in_the_failures(self):
+        self.assertEqual(ios_sim.accessibility_stalled(self.AUDIT_TIMEOUT), "Audit failed to complete in time")
+        self.assertEqual(ios_sim.accessibility_stalled(self.QUERY_TIMEOUT), "Timed out while evaluating UI query")
+        future = {"testFailures": [{"failureText": "XCTFuture 1000: Timed out while running accessibility audit"}]}
+        self.assertEqual(ios_sim.accessibility_stalled(future), "Timed out while running accessibility audit")
+
+    def test_an_assertion_failure_or_no_summary_is_no_stall(self):
+        assertion = {"testFailures": [{"failureText": "XCTAssertTrue failed - Quick Links has no Duos section"}]}
+        self.assertIsNone(ios_sim.accessibility_stalled(assertion))
+        self.assertIsNone(ios_sim.accessibility_stalled({"failedTests": 1}))
+        self.assertIsNone(ios_sim.accessibility_stalled(None))
+
+    def test_a_stalled_failure_reboots_before_its_retry_without_another_attempt(self):
+        # The release 2611.02 iPad cascade (#689): the audit timed out, and the retry ran on the
+        # hung simulator. Now the retry starts on a fresh one; the attempt count is unchanged.
+        code, runs, locks = self._run(["", "ok"], [65, 0], retries=1,
+                                      summaries=[self.AUDIT_TIMEOUT, {"passedTests": 1}])
+        self.assertEqual((code, runs), (0, 2))
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._shutdown_simulator)])
+
+    def test_a_last_stalled_failure_still_fails_but_leaves_a_fresh_simulator(self):
+        code, runs, locks = self._run(["", ""], [65, 65], retries=1,
+                                      summaries=[self.AUDIT_TIMEOUT, self.QUERY_TIMEOUT])
+        self.assertEqual((code, runs), (65, 2))
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._shutdown_simulator)] * 2)
+
+    def test_a_stalled_failure_is_never_rerun_without_retries(self):
+        code, runs, locks = self._run([""], [65], summaries=[self.AUDIT_TIMEOUT])
+        self.assertEqual((code, runs, len(locks)), (65, 1, 1))
+
+    def test_without_the_flag_a_stall_leaves_the_simulator_alone(self):
+        code, runs, locks = self._run(["", ""], [65, 65], reboot=False, retries=1,
+                                      summaries=[self.AUDIT_TIMEOUT, self.AUDIT_TIMEOUT])
+        self.assertEqual((code, runs, locks), (65, 2, []))
 
     def test_the_ci_environment_turns_the_flag_on(self):
         from unittest import mock
