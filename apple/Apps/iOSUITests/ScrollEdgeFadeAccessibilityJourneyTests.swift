@@ -565,7 +565,12 @@ final class ScrollEdgeFadeAccessibilityJourneyTests: XCTestCase {
             }
         }
 
-        // Rows scroll under the pinned title; it stays whole below the header.
+        // Rows scroll under the pinned title; it stays whole below the header. An incoming
+        // title pushes the pinned one out 1:1 (scroll-edge R5), so a drag can rest mid-push:
+        // then the outgoing title crosses the header's edge (the modal mask cuts it there),
+        // but only with its bottom on the incoming title's top, and the incoming title, the
+        // one pinning, stays whole below the header. iOS 27.2 keeps the outgoing title
+        // through the push; iOS 27.0 dropped it as the push began (#691).
         let row1 = app.buttons["fst.notifications.row.fixture-notif-1"]
         let before = row1.exists ? row1.frame : .null
         let startY = min(min(sheetFrame.maxY, window.maxY) - 80, header.maxY + 280)
@@ -573,12 +578,19 @@ final class ScrollEdgeFadeAccessibilityJourneyTests: XCTestCase {
             .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: sheetFrame.midX, dy: header.maxY + 60)),
                    withVelocity: .slow, thenHoldForDuration: FestivalApp.budget(0.5))
         settle(0.8)
-        let pinned = app.staticTexts.matching(NSPredicate(format: "label IN %@", ["New", "Older"]))
-            .allElementsBoundByIndex.filter { $0.exists && $0.frame.minY < window.maxY && $0.frame.maxY > header.maxY }
-            .min { $0.frame.minY < $1.frame.minY }
-        if let pinned {
-            XCTAssertGreaterThanOrEqual(pinned.frame.minY, header.maxY - 0.5,
-                                        "\(context): the pinned '\(pinned.label)' stays below the sheet header (\(pinned.frame) vs \(header))")
+        let titles = app.staticTexts.matching(NSPredicate(format: "label IN %@", ["New", "Older"]))
+            .allElementsBoundByIndex.filter(\.exists).map { (label: $0.label, frame: $0.frame) }
+            .filter { $0.frame.minY < window.maxY && $0.frame.maxY > header.maxY }
+            .sorted { $0.frame.minY < $1.frame.minY }
+        if let top = titles.first {
+            let incoming = titles.dropFirst().first
+            if top.frame.minY < header.maxY - 0.5, let incoming, abs(top.frame.maxY - incoming.frame.minY) <= 1 {
+                XCTAssertGreaterThanOrEqual(incoming.frame.minY, header.maxY - 0.5,
+                                            "\(context): the incoming '\(incoming.label)' pushing '\(top.label)' out stays below the sheet header (\(incoming.frame) vs \(header))")
+            } else {
+                XCTAssertGreaterThanOrEqual(top.frame.minY, header.maxY - 0.5,
+                                            "\(context): the pinned '\(top.label)' stays below the sheet header (\(top.frame) vs \(header); titles \(titles.map { "\($0.label) \($0.frame)" }))")
+            }
         } else if row1.exists, !before.isNull, row1.frame.minY < before.minY - 1 {
             XCTFail("\(context): no section title visible after scrolling rows under it")
         }
