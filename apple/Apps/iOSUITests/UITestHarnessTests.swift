@@ -84,6 +84,22 @@ final class UITestHarnessTests: XCTestCase {
         XCTAssertFalse(FestivalApp.contains("fst.song-detail.intensity", in: tree))
         XCTAssertFalse(FestivalApp.contains("fst.songs", in: tree), "a prefix is not a match")
     }
+
+    /// The node lookup returns the first depth-first match, so a row read from a snapshot
+    /// is the same row a live `firstMatch` would find (#693).
+    @MainActor
+    func testSnapshotNodeReturnsTheFirstDepthFirstMatch() {
+        let first = FakeSnapshot("fst.history.row.0")
+        let later = FakeSnapshot("fst.history.row.0")
+        let tree = FakeSnapshot("app", [
+            FakeSnapshot("fst.history.list", [FakeSnapshot("fst.history.header"), first]),
+            later,
+        ])
+        XCTAssertTrue(FestivalApp.node("fst.history.row.0", in: tree) === first)
+        XCTAssertTrue(FestivalApp.node("app", in: tree) === tree)
+        XCTAssertNil(FestivalApp.node("fst.history.row", in: tree), "a prefix is not a match")
+        XCTAssertNil(FestivalApp.node("fst.history.row.1", in: tree))
+    }
 }
 
 /// A hand-built accessibility snapshot node: only its identifier and children matter.
