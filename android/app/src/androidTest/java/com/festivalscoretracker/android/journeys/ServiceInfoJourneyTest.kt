@@ -218,7 +218,7 @@ class ServiceInfoJourneyTest {
             if (n.isVisibleToUser && n.className?.toString() == "android.widget.ProgressBar" && android.graphics.Rect.intersects(area, r)) progressBars += n
             for (i in 0 until n.childCount) walk(n.getChild(i))
         }
-        walk(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow)
+        walk(ActiveWindow.root())
         assertTrue("$config: the capsule bar has no accessibility node of its own", barNodes.isEmpty())
         assertEquals("$config: the phase row is the sole progress bar over its region", listOf(phaseTag), progressBars.map { it.viewIdResourceName })
         val region = h.accessibilityFindings.filter { finding ->
@@ -290,7 +290,7 @@ class ServiceInfoJourneyTest {
         }
         rule.onNodeWithTag(tag).performScrollTo()
         refreshAccessibilityTree()
-        return find(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow)
+        return find(ActiveWindow.root())
     }
 
     // endregion

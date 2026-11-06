@@ -28,10 +28,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.festivalscoretracker.android.core.model.Instrument
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
+import com.festivalscoretracker.android.journeys.ActiveWindow
 import com.festivalscoretracker.android.journeys.JourneyHarness
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
@@ -172,7 +172,7 @@ class InstrumentSelectorDeviceTest {
             if (predicate(n)) out += n
             for (i in 0 until n.childCount) n.getChild(i)?.let(::walk)
         }
-        InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow?.let(::walk)
+        ActiveWindow.root()?.let(::walk)
         return out
     }
 }

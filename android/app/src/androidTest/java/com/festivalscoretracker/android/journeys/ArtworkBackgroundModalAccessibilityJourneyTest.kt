@@ -288,7 +288,8 @@ class ArtworkBackgroundModalAccessibilityJourneyTest {
             for (i in 0 until node.childCount) backdrops(node.getChild(i), into)
             return into
         }
-        val roots = automation.windows.mapNotNull { it.root } + listOfNotNull(automation.rootInActiveWindow)
+        val active = ActiveWindow.root()
+        val roots = automation.windows.mapNotNull { it.root } + listOfNotNull(active)
         roots.flatMap { backdrops(it) }.forEach { node ->
             assertTrue("$where: backdrop is focusable", !node.isFocusable && !node.isScreenReaderFocusable && !node.isClickable && !node.isLongClickable)
             assertTrue("$where: backdrop has a label", node.text.isNullOrEmpty() && node.contentDescription.isNullOrEmpty() && node.stateDescription.isNullOrEmpty())

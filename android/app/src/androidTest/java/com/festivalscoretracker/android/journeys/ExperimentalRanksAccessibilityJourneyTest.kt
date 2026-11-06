@@ -142,7 +142,7 @@ class ExperimentalRanksAccessibilityJourneyTest {
             for (i in 0 until n.childCount) find(n.getChild(i))?.let { return it }
             return null
         }
-        return find(automation.rootInActiveWindow)
+        return find(ActiveWindow.root())
     }
 
     // endregion

@@ -22,10 +22,10 @@ import androidx.compose.ui.unit.dp
 import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.settings.SettingsRegistry
+import com.festivalscoretracker.android.journeys.ActiveWindow
 import com.festivalscoretracker.android.journeys.JourneyHarness
 import com.festivalscoretracker.android.journeys.MemoryPreferences
 import com.festivalscoretracker.android.testing.FakeTransport
@@ -130,7 +130,7 @@ class DifficultyMeterDeviceTest {
             out += n
             for (i in 0 until n.childCount) n.getChild(i)?.let(::walk)
         }
-        InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow?.let(::walk)
+        ActiveWindow.root()?.let(::walk)
         return out
     }
 }

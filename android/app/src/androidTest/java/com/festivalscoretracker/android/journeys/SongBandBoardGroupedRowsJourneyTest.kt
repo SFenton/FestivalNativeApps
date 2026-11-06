@@ -8,7 +8,6 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.testing.BandFixtures
 import com.festivalscoretracker.android.testing.FakeTransport
@@ -44,7 +43,7 @@ class SongBandBoardGroupedRowsJourneyTest {
             for (i in 0 until n.childCount) find(n.getChild(i))?.let { return it }
             return null
         }
-        return find(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow)
+        return find(ActiveWindow.root())
     }
 
     /** Whether any descendant of [n] is a separate TalkBack stop. */

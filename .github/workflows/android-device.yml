@@ -51,14 +51,12 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none
           # The runner execs each line on its own (a `trap` doesn't survive), so the logcat dump rides
-          # on the test command. Wake, unlock and clear system dialogs so the first test owns a resumed,
+          # on the test command. ci_settle_emulator.sh wakes and unlocks without injecting keys, closes
+          # a foreign ANR dialog (#692: a boot-time "Pixel Launcher isn't responding" returned over every
+          # test) and waits until a window has held focus for 20 s, so the first test owns a resumed,
           # focused window.
           script: |
-            adb shell svc power stayon true
-            adb shell wm dismiss-keyguard
-            adb shell input keyevent 82
-            adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS || true
-            sleep 20
+            bash tools/android/ci_settle_emulator.sh
             bash android/gradlew -p android :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.timeout_msec=180000 || (adb logcat -d -v threadtime > "$GITHUB_WORKSPACE/android-device-logcat.txt"; exit 1)
       - name: Upload Android device test reports
         if: failure()

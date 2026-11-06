@@ -134,7 +134,7 @@ class BoardFooterFadeAccessibilityJourneyTest {
             if (n.viewIdResourceName?.let(matches) == true && n.isVisibleToUser) out += n
             for (i in 0 until n.childCount) walk(n.getChild(i))
         }
-        walk(automation.rootInActiveWindow)
+        walk(ActiveWindow.root())
         return out
     }
 

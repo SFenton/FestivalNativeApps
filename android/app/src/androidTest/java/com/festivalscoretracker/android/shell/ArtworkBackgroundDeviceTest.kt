@@ -17,6 +17,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.nav.FestivalSection
+import com.festivalscoretracker.android.journeys.ActiveWindow
 import com.festivalscoretracker.android.journeys.JourneyHarness
 import com.festivalscoretracker.android.testing.FakeTransport
 import com.festivalscoretracker.android.testing.Fixtures
@@ -107,7 +108,7 @@ class ArtworkBackgroundDeviceTest {
 
     /** No node TalkBack can reach carries the backdrop's resource ID, label or role. */
     private fun assertHiddenFromTalkBack() {
-        val root = InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow ?: return
+        val root = ActiveWindow.root() ?: return
         val found = mutableListOf<AccessibilityNodeInfo>()
         fun walk(node: AccessibilityNodeInfo) {
             if (node.viewIdResourceName?.endsWith(ARTWORK_BACKGROUND_TAG) == true) found += node

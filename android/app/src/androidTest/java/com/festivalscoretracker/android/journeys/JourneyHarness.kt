@@ -1,10 +1,8 @@
 package com.festivalscoretracker.android.journeys
 
-import android.app.ActivityManager
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.os.Build
-import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
@@ -545,7 +543,7 @@ class JourneyHarness(private val rule: JourneyRule) {
                         "${hidden.takeIf { it.isNotEmpty() }?.let { " with $it visible to the user" }.orEmpty()} in $timeoutMs ms " +
                         "(composed: ${exists(present)}${absent?.let { ", $it composed: ${exists(it)}" }.orEmpty()}; " +
                         "${seen.size} ids, hidden: ${hidden.filter { it in seen }}" +
-                        "${answeredSystemDialogs.takeIf { it.isNotEmpty() }?.let { "; answered Wait on: $it" }.orEmpty()}): " +
+                        "${ActiveWindow.closedDialogs.takeIf { it.isNotEmpty() }?.let { "; closed system dialogs: $it" }.orEmpty()}): " +
                         "${readingOrder("await-tree-timeout", fresh = true)}",
                 )
             }
@@ -871,56 +869,17 @@ class JourneyHarness(private val rule: JourneyRule) {
 
     // endregion
 
-    // region System ANR dialogs (issue #679)
-
-    /** Titles of other apps' "isn't responding" dialogs [activeWindowRoot] answered with Wait. */
-    private val answeredSystemDialogs = mutableListOf<String>()
+    // region System ANR dialogs (issues #679, #692)
 
     /**
-     * The active window's accessibility root, which every tree read in this harness uses. A
-     * freshly booted CI emulator can raise another app's ANR dialog ("Pixel Launcher isn't
-     * responding") over the journey; as the active window it hid the app from every read, and
-     * all 13 half-open fold journeys failed (#679). Such a dialog is answered with Wait, which
-     * leaves that app running, and the active window is read again. The app's own ANR is never
-     * answered: it is a real failure, and [awaitAccessibilityTree]'s timeout still names the
-     * active window's package and lists the dialogs answered.
-     *
-     * Call from the test thread only (it polls for the dialog to close).
+     * The active window's accessibility root, which every tree read in this harness uses: the
+     * shared [ActiveWindow.root], which closes another app's ANR dialog over the journey and
+     * never answers the app's own. [awaitAccessibilityTree]'s timeout names the active window's
+     * package and lists the dialogs closed.
      *
      * @return The active window's root, or null when there is none.
      */
-    private fun activeWindowRoot(): AccessibilityNodeInfo? {
-        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
-        val root = automation.rootInActiveWindow ?: return null
-        if (root.packageName != SYSTEM_PACKAGE) return root
-        val wait = root.findAccessibilityNodeInfosByViewId(ANR_WAIT_ID).firstOrNull() ?: return root
-        if (ownProcessNotResponding()) return root
-        val title = root.findAccessibilityNodeInfosByViewId(ALERT_TITLE_ID).firstOrNull()?.text?.toString() ?: "system ANR dialog"
-        if (!wait.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return root
-        answeredSystemDialogs += title
-        Log.w(READING_ORDER_TAG, "answered \"$title\" with Wait (#679)")
-        val deadline = SystemClock.uptimeMillis() + ANR_DISMISS_MILLIS
-        while (SystemClock.uptimeMillis() < deadline) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) automation.clearCache()
-            val next = automation.rootInActiveWindow
-            if (next == null || next.findAccessibilityNodeInfosByViewId(ANR_WAIT_ID).isEmpty()) return next
-            SystemClock.sleep(TREE_POLL_MILLIS)
-        }
-        return automation.rootInActiveWindow
-    }
-
-    /**
-     * Whether the app under test is itself in the platform's not-responding state, so a system
-     * ANR dialog may be about it (a real failure the harness must not answer).
-     *
-     * @return True when this app's uid has a not-responding process.
-     */
-    private fun ownProcessNotResponding(): Boolean {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        return context.getSystemService(ActivityManager::class.java)?.processesInErrorState.orEmpty().any {
-            it.uid == Process.myUid() && it.condition == ActivityManager.ProcessErrorStateInfo.NOT_RESPONDING
-        }
-    }
+    private fun activeWindowRoot(): AccessibilityNodeInfo? = ActiveWindow.root()
 
     // endregion
 
@@ -936,18 +895,6 @@ class JourneyHarness(private val rule: JourneyRule) {
 
         /** Pause between [awaitAccessibilityTree] polls, so walking the tree leaves the UI thread room to publish. */
         private const val TREE_POLL_MILLIS = 100L
-
-        /** Package of the platform's own windows, including app-not-responding dialogs. */
-        private const val SYSTEM_PACKAGE = "android"
-
-        /** The app-not-responding dialog's Wait button (`app_anr_dialog.xml`). */
-        private const val ANR_WAIT_ID = "android:id/aerr_wait"
-
-        /** An `AlertDialog`'s title: "<app> isn't responding" on the ANR dialog. */
-        private const val ALERT_TITLE_ID = "android:id/alertTitle"
-
-        /** How long [activeWindowRoot] waits for an answered ANR dialog to close. */
-        private const val ANR_DISMISS_MILLIS = 5_000L
     }
 }
 

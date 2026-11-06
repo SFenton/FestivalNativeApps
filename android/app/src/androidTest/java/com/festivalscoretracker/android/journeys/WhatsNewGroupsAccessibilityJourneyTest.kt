@@ -164,7 +164,7 @@ class WhatsNewGroupsAccessibilityJourneyTest {
         }
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) automation.clearCache()
-        walk(automation.rootInActiveWindow)
+        walk(ActiveWindow.root())
         return out
     }
 

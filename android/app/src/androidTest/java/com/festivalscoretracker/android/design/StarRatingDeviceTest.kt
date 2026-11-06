@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
+import com.festivalscoretracker.android.journeys.ActiveWindow
 import com.festivalscoretracker.android.journeys.JourneyHarness
 import com.festivalscoretracker.android.ui.design.StarRating
 import com.festivalscoretracker.android.ui.design.StarRatingStyle
@@ -136,7 +136,7 @@ class StarRatingDeviceTest {
             out += n
             for (i in 0 until n.childCount) n.getChild(i)?.let(::walk)
         }
-        InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow?.let(::walk)
+        ActiveWindow.root()?.let(::walk)
         return out
     }
 }
