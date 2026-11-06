@@ -1,4 +1,4 @@
-package com.festivalscoretracker.android.testing
+package com.festivalscoretracker.android.harness
 
 import java.io.File
 import org.junit.Assert.assertEquals
@@ -9,6 +9,7 @@ import org.junit.Test
  * Instrumented tests read the active window only through `journeys/ActiveWindow.kt`, which
  * closes another app's ANR dialog over the app (issues #679, #692). A raw
  * `UiAutomation.rootInActiveWindow` read sees that dialog instead and returns an empty tree.
+ * JVM-only: it lives outside the `testing` package, which the androidTest source set also compiles.
  */
 class ActiveWindowReadsTest {
     /** The androidTest sources, from the module directory Gradle runs unit tests in. */
