@@ -183,7 +183,8 @@ final class ScoreHistoryAccessibilityJourneyTests: XCTestCase {
         }
         attach(capture, name: name)
         let frame = row.frame
-        let lines = IPadAuditPageEvidence.recognizedLines(in: capture).filter {
+        // The row's own region: a whole-screen pass read its figures as rotated text (#693).
+        let lines = IPadAuditPageEvidence.recognizedLines(in: capture, within: frame.insetBy(dx: -8, dy: -8)).filter {
             frame.insetBy(dx: -4, dy: -4).contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY))
         }
         let texts = lines.map(\.text)

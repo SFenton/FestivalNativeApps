@@ -402,6 +402,38 @@ enum IPadAuditPageEvidence {
         return []
     }
 
+    /// Recognized text lines inside `region` (screen points), read from a crop of the
+    /// capture, with frames in screen points.
+    ///
+    /// A whole-screen pass can read a row's figures as rotated text: on the iPad Pro 11 (M5)
+    /// iOS 27.2 simulator, and on macOS Vision from the same capture, Score History's
+    /// selected row "S40 850,000 99.1%" came back "Ots 000'098 %L'66" in landscape, while
+    /// the row alone reads upright (#693).
+    ///
+    /// - Parameters:
+    ///   - capture: The screen capture.
+    ///   - region: The area to read, in screen points; clipped to the screen.
+    /// - Returns: The lines, or none when the region is empty or nothing was read.
+    static func recognizedLines(in capture: IPadAuditRenderedContrast.Capture, within region: CGRect) -> [Line] {
+        let scale = CGFloat(capture.width) / max(1, capture.screen.width)
+        let clipped = region.intersection(CGRect(origin: .zero, size: capture.screen))
+        guard !clipped.isNull, clipped.width >= 1, clipped.height >= 1 else { return [] }
+        let pixels = CGRect(x: clipped.minX * scale, y: clipped.minY * scale,
+                            width: clipped.width * scale, height: clipped.height * scale).integral
+        guard let image = capture.image.cropping(to: pixels),
+              let bytes = try? IPadAuditRenderedContrast.bitmapPixels(image) else { return [] }
+        let crop = IPadAuditRenderedContrast.Capture(
+            pixels: bytes, width: image.width, height: image.height,
+            screen: CGSize(width: CGFloat(image.width) / scale, height: CGFloat(image.height) / scale),
+            image: image, rotated: capture.rotated
+        )
+        let dx = pixels.minX / scale, dy = pixels.minY / scale
+        return recognizedLines(in: crop).map { line in
+            Line(text: line.text, frame: line.frame.offsetBy(dx: dx, dy: dy),
+                 words: line.words.map { ($0.text, $0.frame.offsetBy(dx: dx, dy: dy)) })
+        }
+    }
+
     /// Recognized text lines one way (see ``recognizedLines(in:)``).
     ///
     /// - Parameters:
