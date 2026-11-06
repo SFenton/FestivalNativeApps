@@ -128,22 +128,24 @@ final class ScoreHistoryAccessibilityJourneyTests: XCTestCase {
             column = window
             heading = "fst.history.header"
         }
-        let firstRow = Audit.anyElement(app, "fst.history.row.0")
-        XCTAssertTrue(firstRow.waitForExistence(timeout: FestivalApp.budget(15)), "\(name): no score rows")
+        let firstRow = "fst.history.row.0"
+        XCTAssertTrue(FestivalApp.waitForElement(firstRow, in: app, timeout: FestivalApp.budget(15)), "\(name): no score rows")
         Thread.sleep(forTimeInterval: FestivalApp.budget(2.5)) // staggered row fade-in
 
         if split {
             // VoiceOver focus moves to the pane's heading (`AccessibilityFocusMove`).
-            let focus = waitForFocus(app) { $0.hasPrefix("heading: ") }
-            let title = Audit.anyElement(app, heading)
+            let (focus, root) = waitForFocus(app) { $0.hasPrefix("heading: ") }
+            let title = root.flatMap { FestivalApp.node(heading, in: $0) }
             XCTAssertTrue(
-                focus.hasPrefix("heading: ") && title.exists && focus.dropFirst("heading: ".count) == title.label,
-                "\(name): focus moves to the pane's heading '\(title.label)' (\(focus))"
+                focus.hasPrefix("heading: ") && title != nil && focus.dropFirst("heading: ".count) == title?.label,
+                "\(name): focus moves to the pane's heading '\(title?.label ?? "")' (\(focus))"
             )
         }
 
         // Reading order: the heading, then the rows in order, all inside the column.
-        let nodes = IPadAuditPageEvidence.flatten(try app.snapshot())
+        let nodes = IPadAuditPageEvidence.flatten(try FestivalApp.snapshot(
+            of: app, within: FestivalApp.budget(5), until: { FestivalApp.contains(heading, in: $0) }
+        ))
         let headingIndex = nodes.firstIndex { $0.identifier == heading }
         let rowIndices = (0..<8).compactMap { index in nodes.firstIndex { $0.identifier == "fst.history.row.\(index)" } }
         XCTAssertNotNil(headingIndex, "\(name): no heading \(heading)")
@@ -166,8 +168,9 @@ final class ScoreHistoryAccessibilityJourneyTests: XCTestCase {
         }
 
         // Drawn text of the best row, brought wholly into the measurable area.
-        guard let row = reveal(firstRow, in: app, column: column) else {
-            XCTFail("\(name): row 0 never came wholly on screen (\(firstRow.frame))")
+        var lastFrame: CGRect?
+        guard let row = reveal(firstRow, in: app, column: column, lastFrame: &lastFrame) else {
+            XCTFail("\(name): row 0 never came wholly on screen (\(lastFrame.map { "\($0)" } ?? "not in the tree"))")
             return Measure()
         }
         let numbers = Self.drawnNumbers(row.label)
@@ -210,7 +213,7 @@ final class ScoreHistoryAccessibilityJourneyTests: XCTestCase {
             if viewAll.exists, viewAll.isHittable,
                window.insetBy(dx: 0, dy: 100).contains(CGPoint(x: viewAll.frame.midX, y: viewAll.frame.midY)) {
                 viewAll.tap()
-                return Audit.anyElement(app, "fst.history.row.0").waitForExistence(timeout: FestivalApp.budget(15))
+                return FestivalApp.waitForElement("fst.history.row.0", in: app, timeout: FestivalApp.budget(15))
             }
             // The trailing margin: a drag that starts on the chart selects a bar.
             Audit.slowDrag(app, x: window.maxX - 12, fromY: window.minY + window.height * 0.75,
@@ -219,38 +222,54 @@ final class ScoreHistoryAccessibilityJourneyTests: XCTestCase {
         return false
     }
 
-    /// Bring `row` wholly into the column's measurable area (below its top bar, above the
-    /// tab bar and page tools) with slow drags.
+    /// Bring the row with `identifier` wholly into the column's measurable area (below its
+    /// top bar, above the tab bar and page tools) with slow drags.
     ///
+    /// The row is read from one retried app snapshot per step, not a live query: after the
+    /// page push a live `exists`/`frame` evaluation hung past XCTest's retries on the CI
+    /// runner (#693).
+    ///
+    /// - Parameters:
+    ///   - identifier: The row's accessibility identifier.
+    ///   - app: The running app.
+    ///   - column: The page's or pane's column, where the drags start.
+    ///   - lastFrame: Set to the row's last read frame, for the failure message.
     /// - Returns: The row's snapshot once it is there, else nil.
     @MainActor
-    private func reveal(_ row: XCUIElement, in app: XCUIApplication, column: CGRect) -> XCUIElementSnapshot? {
+    private func reveal(
+        _ identifier: String, in app: XCUIApplication, column: CGRect, lastFrame: inout CGRect?
+    ) -> XCUIElementSnapshot? {
         for _ in 0..<8 {
             let area = IPadAuditPageEvidence.contentRect(app)
-            if row.exists, area.contains(row.frame), let snapshot = try? row.snapshot() {
-                return snapshot
-            }
-            let top = area.top(for: row.frame), bottom = area.bottom(for: row.frame)
-            let distance = row.frame.minY < top ? -min(400, top - row.frame.minY + 40)
-                : min(400, row.frame.maxY - bottom + 40)
+            guard let root = try? FestivalApp.snapshot(
+                of: app, within: FestivalApp.budget(5), until: { FestivalApp.contains(identifier, in: $0) }
+            ), let row = FestivalApp.node(identifier, in: root) else { return nil }
+            let frame = row.frame
+            lastFrame = frame
+            if area.contains(frame) { return row }
+            let top = area.top(for: frame), bottom = area.bottom(for: frame)
+            let distance = frame.minY < top ? -min(400, top - frame.minY + 40) : min(400, frame.maxY - bottom + 40)
             let x = column.maxX - 12, midY = column.midY
             Audit.slowDrag(app, x: x, fromY: midY + distance / 2, toY: midY - distance / 2)
         }
         return nil
     }
 
-    /// The app's last traced VoiceOver focus move once it satisfies `predicate`.
+    /// The app's last traced VoiceOver focus move once it satisfies `predicate`, read from
+    /// retried app snapshots (#693).
+    ///
+    /// - Returns: The focus trace's label ("" when absent) and the snapshot it was read from.
     @MainActor
-    private func waitForFocus(_ app: XCUIApplication, timeout: TimeInterval = 6, _ predicate: (String) -> Bool) -> String {
-        let deadline = Date.now.addingTimeInterval(FestivalApp.budget(timeout))
-        var last = ""
-        repeat {
-            let node = Audit.anyElement(app, "fst.nav.a11y-focus")
-            last = node.exists ? node.label : ""
-            if predicate(last) { return last }
-            Thread.sleep(forTimeInterval: 0.3)
-        } while Date.now < deadline
-        return last
+    private func waitForFocus(
+        _ app: XCUIApplication, timeout: TimeInterval = 6, _ predicate: (String) -> Bool
+    ) -> (String, XCUIElementSnapshot?) {
+        func focus(_ root: XCUIElementSnapshot) -> String {
+            FestivalApp.node("fst.nav.a11y-focus", in: root)?.label ?? ""
+        }
+        guard let root = try? FestivalApp.snapshot(
+            of: app, within: FestivalApp.budget(timeout), until: { predicate(focus($0)) }
+        ) else { return ("", nil) }
+        return (focus(root), root)
     }
 
     /// Keep the capture with the run's results.
