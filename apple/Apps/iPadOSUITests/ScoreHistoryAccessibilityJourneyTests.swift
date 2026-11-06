@@ -136,9 +136,10 @@ final class ScoreHistoryAccessibilityJourneyTests: XCTestCase {
             // VoiceOver focus moves to the pane's heading (`AccessibilityFocusMove`).
             let (focus, root) = waitForFocus(app) { $0.hasPrefix("heading: ") }
             let title = root.flatMap { FestivalApp.node(heading, in: $0) }
+            let titleLabel = title?.label ?? ""
             XCTAssertTrue(
-                focus.hasPrefix("heading: ") && title != nil && focus.dropFirst("heading: ".count) == title?.label,
-                "\(name): focus moves to the pane's heading '\(title?.label ?? "")' (\(focus))"
+                focus.hasPrefix("heading: ") && title != nil && focus.dropFirst("heading: ".count) == titleLabel,
+                "\(name): focus moves to the pane's heading '\(titleLabel)' (\(focus))"
             )
         }
 
