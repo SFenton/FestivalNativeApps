@@ -286,7 +286,7 @@ class SongsBucketHeaderAccessibilityJourneyTest {
         runCatching {
             rule.waitUntil(5_000) {
                 if (Build.VERSION.SDK_INT >= 34) automation.clearCache()
-                val seen = visible(automation.rootInActiveWindow)
+                val seen = visible(ActiveWindow.root())
                 seen.containsAll(shown) && onScreen.containsAll(seen)
             }
         }

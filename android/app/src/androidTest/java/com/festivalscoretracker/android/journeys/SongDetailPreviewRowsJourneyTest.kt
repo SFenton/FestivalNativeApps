@@ -9,7 +9,6 @@ import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.festivalscoretracker.android.core.model.SelectedPlayer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.testing.FakeTransport
@@ -63,7 +62,7 @@ class SongDetailPreviewRowsJourneyTest {
             for (i in 0 until n.childCount) find(n.getChild(i))?.let { return it }
             return null
         }
-        return find(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow)
+        return find(ActiveWindow.root())
     }
 
     /** The clickable node at or directly inside [tag] (the your-rank row wraps its clickable row). */

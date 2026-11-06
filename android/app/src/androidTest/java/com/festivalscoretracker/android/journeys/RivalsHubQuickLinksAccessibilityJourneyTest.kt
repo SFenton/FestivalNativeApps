@@ -55,7 +55,7 @@ class RivalsHubQuickLinksAccessibilityJourneyTest {
             if (n.isVisibleToUser && n.viewIdResourceName == id) out += n
             for (i in 0 until n.childCount) walk(n.getChild(i))
         }
-        walk(automation.rootInActiveWindow)
+        walk(ActiveWindow.root())
         return out
     }
 

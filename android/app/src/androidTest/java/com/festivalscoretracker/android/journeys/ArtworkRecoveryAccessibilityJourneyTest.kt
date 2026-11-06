@@ -203,7 +203,7 @@ class ArtworkRecoveryAccessibilityJourneyTest {
             }
             for (i in 0 until node.childCount) node.getChild(i)?.let(::walk)
         }
-        InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow?.let(::walk)
+        ActiveWindow.root()?.let(::walk)
     }
 
     // endregion

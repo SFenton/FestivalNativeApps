@@ -256,7 +256,7 @@ class SettingsVersionAccessibilityJourneyTest {
             for (i in 0 until n.childCount) find(n.getChild(i))?.let { return it }
             return null
         }
-        return find(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow)
+        return find(ActiveWindow.root())
     }
 
     // endregion

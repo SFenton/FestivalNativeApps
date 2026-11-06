@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.festivalscoretracker.android.core.service.ServiceIssue
+import com.festivalscoretracker.android.journeys.ActiveWindow
 import com.festivalscoretracker.android.journeys.JourneyHarness
 import com.festivalscoretracker.android.ui.common.ServiceStatusInline
 import com.festivalscoretracker.android.ui.common.ServiceStatusView
@@ -310,7 +311,7 @@ class ServiceStatusDeviceTest {
             out += n
             for (i in 0 until n.childCount) n.getChild(i)?.let(::walk)
         }
-        InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow?.let(::walk)
+        ActiveWindow.root()?.let(::walk)
         return out
     }
 }
