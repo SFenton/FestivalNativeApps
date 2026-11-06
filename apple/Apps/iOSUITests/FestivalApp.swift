@@ -180,7 +180,28 @@ enum FestivalApp {
     /// - Returns: True when `root` or a descendant has that identifier.
     @MainActor
     static func contains(_ identifier: String, in root: XCUIElementSnapshot) -> Bool {
-        !nodes(in: root) { $0.identifier == identifier }.isEmpty
+        node(identifier, in: root) != nil
+    }
+
+    /// The first node of a snapshot, in depth-first order, with `identifier`.
+    ///
+    /// Read an element's frame and label from here, in a snapshot taken through
+    /// ``snapshot(of:within:until:)``, rather than from a live `XCUIElement` after a page
+    /// push: each live `exists`, `frame` or `snapshot()` evaluates its query again, and on a
+    /// starved runner one evaluation can hang past XCTest's retries and fail the test
+    /// outright (the iPad Score History page's row 0 at AX5, #693).
+    ///
+    /// - Parameters:
+    ///   - identifier: The accessibility identifier to find.
+    ///   - root: The snapshot to walk.
+    /// - Returns: The first matching node, `root` included, or nil.
+    @MainActor
+    static func node(_ identifier: String, in root: XCUIElementSnapshot) -> XCUIElementSnapshot? {
+        if root.identifier == identifier { return root }
+        for child in root.children {
+            if let found = node(identifier, in: child) { return found }
+        }
+        return nil
     }
 
     /// Wait for any element with `identifier` to appear, through
