@@ -89,7 +89,7 @@ class SongBandLeaderboardJourneyTest {
             if (n.viewIdResourceName?.startsWith(prefix) == true && n.isVisibleToUser) out += n
             for (i in 0 until n.childCount) walk(n.getChild(i))
         }
-        walk(automation.rootInActiveWindow)
+        walk(ActiveWindow.root())
         return out
     }
 

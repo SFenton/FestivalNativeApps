@@ -63,7 +63,7 @@ class PathDefaultViewDeviceTest {
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
         // Compose sends UiAutomation no invalidation for a semantics click, so cached nodes keep the old state.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) automation.clearCache()
-        return find(automation.rootInActiveWindow)
+        return find(ActiveWindow.root())
     }
 
     private fun assertRadio(tag: String, checked: Boolean) {

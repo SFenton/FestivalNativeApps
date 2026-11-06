@@ -15,10 +15,10 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.mutablePreferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import com.festivalscoretracker.android.AppContainer
 import com.festivalscoretracker.android.core.nav.DebugLaunch
 import com.festivalscoretracker.android.core.settings.SettingsRegistry
+import com.festivalscoretracker.android.journeys.ActiveWindow
 import com.festivalscoretracker.android.journeys.JourneyHarness
 import com.festivalscoretracker.android.journeys.MemoryPreferences
 import com.festivalscoretracker.android.testing.SectionIndexFixtures
@@ -88,7 +88,7 @@ class SongsSectionIndexDeviceTest {
             for (i in 0 until node.childCount) find(node.getChild(i))?.let { return it }
             return null
         }
-        return find(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow)?.also { it.refresh() }
+        return find(ActiveWindow.root())?.also { it.refresh() }
     }
 
     /** What TalkBack reads on the rail now: "Section index, <section>". */
