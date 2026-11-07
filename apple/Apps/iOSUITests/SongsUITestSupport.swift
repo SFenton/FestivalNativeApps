@@ -1249,19 +1249,30 @@ enum SongsUITestSupport {
     static func switchBareTrack(of element: XCUIElement) -> XCUICoordinate {
         let isOn = element.value as? String == "1"
         let inner = element.switches.firstMatch
-        if inner.exists {
-            let frame = inner.frame
-            if !frame.isEmpty, frame != element.frame {
-                let inset = min(switchBareTrackInset, frame.width / 2)
-                let dx = isOn ? inset / frame.width : (frame.width - inset) / frame.width
-                return inner.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: 0.5))
-            }
+        let row = element.frame
+        let point = bareTrackPoint(row: row, inner: inner.exists ? inner.frame : nil, isOn: isOn)
+        return element.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: point.x - row.minX, dy: point.y - row.minY))
+    }
+
+    /// The screen point ``switchBareTrack(of:)`` taps, from frames already read.
+    ///
+    /// - Parameters:
+    ///   - row: The toggle's switch element's frame (row or bare switch).
+    ///   - inner: The row's inner system switch's frame, or nil when it has none.
+    ///   - isOn: Whether the switch is on now.
+    /// - Returns: `switchBareTrackInset` in from the bare end of the inner switch's track,
+    ///   at its vertical middle; without a distinct inner switch, the same point of a
+    ///   `switchTrackWidth` track ending at the row's trailing edge (never left of the
+    ///   row's middle).
+    static func bareTrackPoint(row: CGRect, inner: CGRect?, isOn: Bool) -> CGPoint {
+        if let inner, !inner.isEmpty, inner != row {
+            let inset = min(switchBareTrackInset, inner.width / 2)
+            return CGPoint(x: isOn ? inner.minX + inset : inner.maxX - inset, y: inner.midY)
         }
-        let width = max(element.frame.width, 1)
+        let width = max(row.width, 1)
         let fromTrailing = isOn ? switchTrackWidth - switchBareTrackInset : switchBareTrackInset
-        return element.coordinate(
-            withNormalizedOffset: CGVector(dx: max(0.5, (width - fromTrailing) / width), dy: 0.5)
-        )
+        return CGPoint(x: row.minX + width * max(0.5, (width - fromTrailing) / width), y: row.midY)
     }
 
     /// How long one switch tap holds its touch down: about a person's tap.
@@ -1326,6 +1337,61 @@ enum SongsUITestSupport {
             "Settings control \(element.identifier), frame \(element.frame), "
                 + "hittable \(element.isHittable)"
         )
+    }
+
+    /// ``setSwitch(_:to:)`` read from retried app snapshots and pressed at a point rooted
+    /// at the app, for a switch a journey reaches late on a starved runner.
+    ///
+    /// The live version re-resolves the switch for every `value` and `frame` read and while
+    /// XCTest synthesizes the press; on the folded iPhone Duo after a long sheet audit one of
+    /// those evaluations hung past XCTest's retries ("Find the '1' Switch", "Timed out while
+    /// evaluating UI query") and failed the test (#694). A snapshot that throws is retried
+    /// (``FestivalApp/snapshot(of:within:until:)``). The rules are unchanged: one press on
+    /// the bare track (``bareTrackPoint(row:inner:isOn:)``) after the row stops moving,
+    /// held for ``switchTapHold``, must reach `value`, and the value must still be `value`
+    /// 0.5 s later.
+    ///
+    /// - Parameters:
+    ///   - identifier: The toggle's switch identifier (row or bare switch), revealed first.
+    ///   - value: Expected accessibility value, `0` or `1`.
+    ///   - app: The running app.
+    /// - Throws: A snapshot XCTest could not take after its retries.
+    @MainActor
+    static func setSwitch(_ identifier: String, to value: String, in app: XCUIApplication) throws {
+        func read(until ready: (XCUIElementSnapshot) -> Bool = { _ in true }) throws -> XCUIElementSnapshot? {
+            let root = try FestivalApp.snapshot(of: app, within: FestivalApp.budget(3)) { root in
+                FestivalApp.node(identifier, in: root).map(ready) ?? false
+            }
+            return FestivalApp.node(identifier, in: root)
+        }
+        guard var row = try read() else {
+            XCTFail("Switch \(identifier) not found")
+            return
+        }
+        if row.value as? String != value {
+            let settle = Date().addingTimeInterval(FestivalApp.budget(3))
+            while Date() < settle {
+                RunLoop.current.run(until: Date().addingTimeInterval(FestivalApp.budget(0.25)))
+                guard let next = try read() else { break }
+                let still = next.frame == row.frame
+                row = next
+                if still { break }
+            }
+            let inner = FestivalApp.nodes(in: row) { $0.elementType == .switch && $0 !== row }.first
+            let point = bareTrackPoint(row: row.frame, inner: inner?.frame, isOn: row.value as? String == "1")
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: point.x, dy: point.y))
+                .press(forDuration: switchTapHold)
+            let changed = try read { $0.value as? String == value }
+            XCTAssertEqual(
+                changed?.value as? String, value,
+                "Switch \(identifier) did not settle after one tap at \(point); frame \(row.frame)"
+            )
+            // Exactly once: a late second flip (a row tap doubling the switch's) fails too.
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        let final = try read()
+        XCTAssertEqual(final?.value as? String, value, "Switch \(identifier), frame \(String(describing: final?.frame))")
     }
 
     /// Attach only the app's current display to the Xcode result bundle.
