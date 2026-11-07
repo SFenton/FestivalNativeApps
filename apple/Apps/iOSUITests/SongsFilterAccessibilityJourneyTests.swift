@@ -69,14 +69,14 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
 
     // MARK: - Snapshot reads
 
-    /// An element ``reveal(_:in:hittable:file:line:)`` scrolls to: the live element a caller
-    /// acts on afterwards, and the same element found in an app snapshot.
+    /// An element ``revealNode(_:in:hittable:file:line:)`` scrolls to, found in an app
+    /// snapshot. It carries no live element: after a reveal the caller reads the revealed
+    /// node and taps at a point rooted at the app, never a live query (#695).
     ///
-    /// `find` mirrors the live query (element type, `identifier` or `label` key, scope) and
-    /// returns its first match in depth-first order, the node `firstMatch` binds.
+    /// `find` mirrors the element type, `identifier` or `label` key and scope of the query
+    /// it replaces and returns the first match in depth-first order, the node `firstMatch`
+    /// would bind.
     private struct Target {
-        /// The live element, for the caller's tap or read after the reveal.
-        let element: XCUIElement
         /// Names the element in a failure.
         let name: String
         /// The element's node in an app snapshot, or nil when it is not in the tree.
@@ -108,38 +108,31 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     /// A General element by identifier suffix, as ``element(_:in:)``.
     @MainActor
     private func target(_ id: String, in app: XCUIApplication) -> Target {
-        Target(element: element(id, in: app), name: Self.prefix + id) { Self.first(nil, keyed: Self.prefix + id, in: $0) }
+        Target(name: Self.prefix + id) { Self.first(nil, keyed: Self.prefix + id, in: $0) }
     }
 
     /// A sheet button by identifier suffix (`app.buttons[…]`).
     @MainActor
     private func button(_ id: String, in app: XCUIApplication) -> Target {
-        Target(element: app.buttons[Self.prefix + id], name: Self.prefix + id) {
-            Self.first(.button, keyed: Self.prefix + id, in: $0)
-        }
+        Target(name: Self.prefix + id) { Self.first(.button, keyed: Self.prefix + id, in: $0) }
     }
 
     /// A switch by identifier or label (`app.switches[…].firstMatch`).
     @MainActor
     private func toggle(_ key: String, in app: XCUIApplication) -> Target {
-        Target(element: app.switches[key].firstMatch, name: "switch \(key)") { Self.first(.switch, keyed: key, in: $0) }
+        Target(name: "switch \(key)") { Self.first(.switch, keyed: key, in: $0) }
     }
 
     /// A static text by identifier or label (`app.staticTexts[…].firstMatch`).
     @MainActor
     private func text(_ key: String, in app: XCUIApplication) -> Target {
-        Target(element: app.staticTexts[key].firstMatch, name: "text \(key)") { Self.first(.staticText, keyed: key, in: $0) }
+        Target(name: "text \(key)") { Self.first(.staticText, keyed: key, in: $0) }
     }
 
     /// Year's first decade switch, or the one labelled `label`.
     @MainActor
     private func decade(_ label: String? = nil, in app: XCUIApplication) -> Target {
-        let format = label == nil ? "identifier BEGINSWITH %@" : "identifier BEGINSWITH %@ AND label == %@"
-        let arguments: [Any] = [Self.prefix + "year."] + (label.map { [$0] } ?? [])
-        return Target(
-            element: app.switches.matching(NSPredicate(format: format, argumentArray: arguments)).firstMatch,
-            name: "decade \(label ?? "first")"
-        ) { root in
+        Target(name: "decade \(label ?? "first")") { root in
             FestivalApp.nodes(in: root) { Self.isDecade($0) && (label == nil || $0.label == label) }.first
         }
     }
@@ -186,34 +179,22 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     /// Scroll the sheet's Form either way until an element is wholly between the sheet's
     /// top bar and the screen bottom (at AX5 Year sits far above Reset).
     ///
+    /// Each step reads the target, the Form, the bar, Close and the window from one app
+    /// snapshot, retried when it throws, and drags and swipes at points rooted at the app:
+    /// on the folded iPhone Duo's starved runner a live `exists`, `isHittable` or `frame`
+    /// read here, after the sheet's first audit, hung past XCTest's retries and failed the
+    /// test outright (#695, the stall class of #693/#694). Hittable is read from the
+    /// snapshots too: wholly in the sheet's content, as below, and at rest (the same frame
+    /// in two snapshots in a row), since a settling bounce is what kept the hit test off a
+    /// row already in place. A snapshot has no `isHittable`, so a caller that must prove
+    /// the hit test taps the revealed node (``tap(_:in:)``) and asserts the tap's outcome;
+    /// no live element is returned to read afterwards.
+    ///
     /// - Parameters:
     ///   - target: Element inside the Filter Form.
     ///   - app: Launched fixture Songs with the sheet open.
-    ///   - hittable: Also require it to be hittable; pass false only where the caller proves
-    ///     it with a real tap instead (``assertYearGroup(_:file:line:)``).
-    /// - Returns: The revealed element.
-    @MainActor
-    @discardableResult
-    private func reveal(
-        _ target: Target, in app: XCUIApplication, hittable: Bool = true,
-        file: StaticString = #filePath, line: UInt = #line
-    ) -> XCUIElement {
-        revealNode(target, in: app, hittable: hittable, file: file, line: line)
-        return target.element
-    }
-
-    /// ``reveal(_:in:hittable:file:line:)``, returning the revealed node.
-    ///
-    /// Each step reads the target, the Form, the bar, Close and the window from one app
-    /// snapshot, retried when it throws, and drags at points rooted at the app: on the
-    /// folded iPhone Duo's starved runner a live `exists`, `isHittable` or `frame` read here,
-    /// after the sheet's first audit, hung past XCTest's retries and failed the test
-    /// outright (#695, the stall class of #693/#694). Hittable is read from the snapshots
-    /// too: wholly in the sheet's content, as below, and at rest (the same frame in two
-    /// snapshots in a row), since a settling bounce is what kept the hit test off a row
-    /// already in place; the caller's tap then proves the hit test itself.
-    ///
-    /// - Parameters: As ``reveal(_:in:hittable:file:line:)``.
+    ///   - hittable: Also require it at rest; pass false only where the caller proves it
+    ///     with a real tap instead (``assertYearGroup(_:file:line:)``).
     /// - Returns: The revealed node and the snapshot it was read from, or nil when no
     ///   snapshot showed it (the failure is recorded).
     @MainActor
@@ -270,6 +251,16 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
                        thenDragTo: origin.withOffset(CGVector(dx: x, dy: startY + (distance < 0 ? -step : step))),
                        withVelocity: .slow, thenHoldForDuration: 0.3)
         }
+        // Back up with momentum (a slow swipe), which bounces at the Form's top where a held
+        // drag would pull the sheet and dismiss it.
+        func swipeDown() {
+            let top = sheetContentTop(for: node, in: root)
+            let x = form.minX + 32
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            origin.withOffset(CGVector(dx: x, dy: top + 24))
+                .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: x, dy: (top + bottom) / 2)),
+                       withVelocity: .slow, thenHoldForDuration: 0)
+        }
         var attempt = 0
         var moved = false
         while !visible() && attempt < 30 {
@@ -281,7 +272,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
                 if attempt < 12 {
                     drag(by: -(bottom - sheetContentTop(for: nil, in: root)) / 2)
                 } else {
-                    element("form", in: app).swipeDown(velocity: .slow)
+                    swipeDown()
                 }
                 moved = true
                 guard refresh() else { return nil }
@@ -308,7 +299,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
             if distance > (bottom - top) / 2 {
                 // Far above: an offscreen row's frame can be stale, and a held drag past the
                 // top would pull the sheet down; a slow swipe's momentum bounces there instead.
-                element("form", in: app).swipeDown(velocity: .slow)
+                swipeDown()
                 guard refresh() else { return nil }
                 continue
             }
@@ -615,8 +606,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
             return deferred || behindSheet || edgeCut
         }
         for label in cut {
-            let text = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", label)).firstMatch
-            reveal(Target(element: text, name: "label \(label)") { root in
+            revealNode(Target(name: "label \(label)") { root in
                 FestivalApp.nodes(in: root) { $0.label == label }.first
             }, in: app)
             // Everything else was judged whole in the first pass.
@@ -668,7 +658,6 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     ) throws {
         let general = target("general", in: app)
         revealNode(general, in: app)
-        let form = element("form", in: app)
         // Short held drags down until General stops moving: the Form rests at its very top
         // (a pull this small springs back rather than dismissing the sheet).
         for _ in 0..<4 {
@@ -689,18 +678,56 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
             }
             if abs(after.frame.minY - before.frame.minY) < 1 { break }
         }
-        XCTAssertTrue(app.navigationBars["Filter Songs"].exists, "Filter sheet dismissed while resting at its top")
+        XCTAssertNotNil(appSnapshot(app).flatMap { Self.first(.navigationBar, keyed: "Filter Songs", in: $0) },
+                        "Filter sheet dismissed while resting at its top")
         if try audit(app, for: types, deferring: proof) { deferredAt?() }
-        let reset = app.buttons[Self.prefix + "reset"]
-        // Swiping up past the end only bounces; down at the top would dismiss the sheet.
+        // Past an audit: swipe and read from snapshots, not live queries (#695). Swiping up
+        // past the end only bounces; down at the top would dismiss the sheet.
+        let reset = button("reset", in: app)
         var swipes = 0
-        while !(reset.exists && reset.isHittable) && swipes < 12 {
-            form.swipeUp()
+        while swipes < 12, let root = appSnapshot(app), !isInForm(reset.find(root), root) {
+            swipeFormUp(app, root)
             swipes += 1
         }
-        form.swipeUp()
-        XCTAssertTrue(reset.isHittable, "Reset Filters not reached at the end of the sheet")
+        if let root = appSnapshot(app) { swipeFormUp(app, root) }
+        // At rest at the end, wholly in the sheet's content (the reveal's assertion).
+        XCTAssertNotNil(revealNode(reset, in: app), "Reset Filters not reached at the end of the sheet")
         if try audit(app, for: types, deferring: proof) { deferredAt?() }
+    }
+
+    /// Whether a node lies wholly inside the Filter Form's visible part.
+    ///
+    /// - Parameters:
+    ///   - node: A node of `root`, or nil when it is not in the tree.
+    ///   - root: An app snapshot with the sheet open.
+    /// - Returns: True when the node is between the Form's top and its visible bottom.
+    @MainActor
+    private func isInForm(_ node: XCUIElementSnapshot?, _ root: XCUIElementSnapshot) -> Bool {
+        guard let frame = node?.frame, !frame.isEmpty,
+              let form = FestivalApp.node(Self.prefix + "form", in: root)?.frame else { return false }
+        let bottom = min(SongsUITestSupport.sheetVisibleBottom(in: root) ?? form.maxY, form.maxY)
+        return frame.minY >= form.minY && frame.maxY <= bottom
+    }
+
+    /// Swipe the Filter Form up with momentum, as `XCUIElement.swipeUp()`, at points rooted
+    /// at the app and placed from a snapshot rather than through a live query (#695).
+    ///
+    /// - Parameters:
+    ///   - app: Launched fixture Songs with the sheet open.
+    ///   - root: A current app snapshot.
+    @MainActor
+    private func swipeFormUp(_ app: XCUIApplication, _ root: XCUIElementSnapshot) {
+        guard let form = FestivalApp.node(Self.prefix + "form", in: root)?.frame else {
+            XCTFail("No Filter Form to swipe")
+            return
+        }
+        let bottom = min(SongsUITestSupport.sheetVisibleBottom(in: root) ?? form.maxY, form.maxY)
+        let x = form.minX + 32
+        let startY = bottom - 24
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        origin.withOffset(CGVector(dx: x, dy: startY))
+            .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: x, dy: startY - (bottom - form.minY) / 2)),
+                   withVelocity: .default, thenHoldForDuration: 0)
     }
 
     /// At the largest text size every group's hint wraps onto several lines (at least 1.5x
@@ -800,7 +827,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
             let text = form.staticTexts.matching(NSPredicate(format: "label == %@", label)).firstMatch
             // A switch recorded by its own frame (no text of its label) is measured the same way.
             let isSwitch = !text.waitForExistence(timeout: 2) && app.switches[label].exists
-            let formText = Target(element: text, name: "form text \(label)") { root in
+            let formText = Target(name: "form text \(label)") { root in
                 FestivalApp.node(Self.prefix + "form", in: root).flatMap { form in
                     FestivalApp.nodes(in: form) { $0.elementType == .staticText && $0.label == label }.first
                 }
@@ -846,7 +873,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         // Past two sheet audits the runner is at its slowest: flip and wait through retried
         // snapshots, not live queries (#694).
         let decadeID = decades.first?.identifier ?? ""
-        reveal(toggle(decadeID, in: app), in: app)
+        revealNode(toggle(decadeID, in: app), in: app)
         try SongsUITestSupport.setSwitch(decadeID, to: "0", in: app)
         revealAndTap(button("year.select-all", in: app), in: app)
         let reselected = try FestivalApp.snapshot(of: app, within: FestivalApp.budget(5)) {
@@ -924,8 +951,8 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     /// Largest accessibility text size: General's groups stay in order, the group labels and
     /// the Item Shop texts grow at least 1.35x, every hint wraps instead of truncating, Year's
     /// switches and header actions keep 44 pt targets (Hit region audit) and Reset Filters
-    /// stays reachable. Dynamic Type is audited with the Shop hidden (the Item Shop texts are
-    /// measured instead); an element-less Dynamic Type issue there (iOS 27) passes only on
+    /// stays reachable (a tap on it turns a Double Bass choice back on). Dynamic Type is
+    /// audited with the Shop hidden (the Item Shop texts are measured instead); an element-less Dynamic Type issue there (iOS 27) passes only on
     /// page-level growth: every text on screen at that end is at least 1.35x taller than in a
     /// default-size launch (``assertGrowthFromDefault(_:showShop:)``). Text clipped is audited
     /// at the default size only: at AX5 iOS 26.5
@@ -958,7 +985,22 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         _ = assertYearGroup(app)
         SongsUITestSupport.record(app, name: "songs-filter-no-profile-year-a11y-ax5")
         try auditAtEnds(app, for: .hitRegion)
-        XCTAssertTrue(reveal(button("reset", in: app), in: app).isHittable)
+        // Reset Filters stays reachable: revealed from snapshots, and a real tap at the
+        // revealed point proves the hit test by restoring Double Bass (just above Reset)
+        // turned off. A live `isHittable` here, past four audits, is the folded Duo's
+        // stall (#695).
+        revealAndTap(target("double-bass", in: app), in: app)
+        let noDoubleBassID = Self.prefix + "double-bass.unsupported"
+        _ = appSnapshot(app, until: { Self.first(.switch, keyed: noDoubleBassID, in: $0) != nil })
+        revealNode(toggle(noDoubleBassID, in: app), in: app)
+        try SongsUITestSupport.setSwitch(noDoubleBassID, to: "0", in: app)
+        revealAndTap(button("reset", in: app), in: app)
+        revealNode(toggle(noDoubleBassID, in: app), in: app)
+        let restored = appSnapshot(app, within: 5, until: {
+            FestivalApp.node(noDoubleBassID, in: $0)?.value as? String == "1"
+        })
+        XCTAssertEqual(restored.flatMap { FestivalApp.node(noDoubleBassID, in: $0)?.value as? String }, "1",
+                       "Reset Filters turns No Double Bass Support back on")
         app.terminate()
 
         let hidden = launchSongs(contentSize: largest, showShop: false)
