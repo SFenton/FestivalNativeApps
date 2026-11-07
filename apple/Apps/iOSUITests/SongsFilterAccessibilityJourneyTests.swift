@@ -380,10 +380,15 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         deferring proof: ((XCUIAccessibilityAuditIssue) -> Bool)? = nil
     ) throws -> Bool {
         let pad = UIDevice.current.userInterfaceIdiom == .pad
-        let form = element("form", in: app)
-        let edge = form.exists
-            ? (top: form.frame.minY, bottom: min(form.frame.maxY, app.windows.firstMatch.frame.maxY))
-            : nil
+        // Read from one retried snapshot: a live `exists`/`frame` here hung on the folded
+        // Duo's starved runner and failed the test outright (#694).
+        let root = try FestivalApp.snapshot(of: app, within: FestivalApp.budget(5)) {
+            FestivalApp.node(Self.prefix + "form", in: $0) != nil
+        }
+        let window = root.children.first { $0.elementType == .window }?.frame
+        let edge = FestivalApp.node(Self.prefix + "form", in: root).map { form in
+            (top: form.frame.minY, bottom: min(form.frame.maxY, window?.maxY ?? form.frame.maxY))
+        }
         var cut: [String] = []
         var anyDeferred = false
         // The runner's simulator can miss XCTest's audit deadline (#636, the folded Duo):
@@ -629,11 +634,16 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         SongsUITestSupport.record(app, name: "songs-filter-no-profile-year-a11y-default")
         try audit(app, for: Self.auditWithoutDynamicType)
 
+        // Past two sheet audits the runner is at its slowest: flip and wait through retried
+        // snapshots, not live queries (#694).
         let decade = reveal(decades[0], in: app)
-        SongsUITestSupport.setSwitch(decade, to: "0")
+        let decadeID = decade.identifier
+        try SongsUITestSupport.setSwitch(decadeID, to: "0", in: app)
         reveal(app.buttons[Self.prefix + "year.select-all"], in: app).tap()
-        let reselected = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '1'"), object: decade)
-        XCTAssertEqual(XCTWaiter.wait(for: [reselected], timeout: 5), .completed, "Select All, Year reselects")
+        let reselected = try FestivalApp.snapshot(of: app, within: FestivalApp.budget(5)) {
+            FestivalApp.node(decadeID, in: $0)?.value as? String == "1"
+        }
+        XCTAssertEqual(FestivalApp.node(decadeID, in: reselected)?.value as? String, "1", "Select All, Year reselects")
 
         reveal(element("double-bass", in: app), in: app).tap()
         let noDoubleBass = app.switches[Self.prefix + "double-bass.unsupported"]
@@ -641,7 +651,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         _ = noDoubleBass.waitForExistence(timeout: 3)
         reveal(noDoubleBass, in: app)
         XCTAssertEqual(noDoubleBass.label, "No Double Bass Support")
-        SongsUITestSupport.setSwitch(noDoubleBass, to: "0")
+        try SongsUITestSupport.setSwitch(Self.prefix + "double-bass.unsupported", to: "0", in: app)
         app.buttons[Self.prefix + "done"].tap()
         let named = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@",

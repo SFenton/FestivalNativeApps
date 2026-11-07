@@ -100,6 +100,27 @@ final class UITestHarnessTests: XCTestCase {
         XCTAssertNil(FestivalApp.node("fst.history.row", in: tree), "a prefix is not a match")
         XCTAssertNil(FestivalApp.node("fst.history.row.1", in: tree))
     }
+
+    // MARK: - Switch taps
+
+    /// The bare-track point sits `switchBareTrackInset` in from the end the thumb has left,
+    /// on the inner switch when there is one, else on a track ending at the row's trailing
+    /// edge; live and snapshot switch taps share it (#659, #694).
+    func testBareTrackPointAvoidsTheThumb() {
+        let row = CGRect(x: 24, y: 324, width: 358, height: 52)
+        let inner = CGRect(x: 301, y: 336, width: 63, height: 28)
+        func point(_ inner: CGRect?, on: Bool, in row: CGRect = row) -> [CGFloat] {
+            let point = SongsUITestSupport.bareTrackPoint(row: row, inner: inner, isOn: on)
+            return [point.x, point.y].map { ($0 * 100).rounded() / 100 }
+        }
+        XCTAssertEqual(point(inner, on: true), [313, 350])
+        XCTAssertEqual(point(inner, on: false), [352, 350])
+        XCTAssertEqual(point(nil, on: true), [331, 350])
+        XCTAssertEqual(point(nil, on: false), [370, 350])
+        XCTAssertEqual(point(row, on: false), [370, 350], "a switch reporting itself as its inner switch uses the row")
+        XCTAssertEqual(point(nil, on: true, in: CGRect(x: 0, y: 0, width: 63, height: 28)), [31.5, 14],
+                       "never left of a narrow switch's middle")
+    }
 }
 
 /// A hand-built accessibility snapshot node: only its identifier and children matter.
