@@ -67,20 +67,119 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: Self.prefix + id).firstMatch
     }
 
+    // MARK: - Snapshot reads
+
+    /// An element ``reveal(_:in:hittable:file:line:)`` scrolls to: the live element a caller
+    /// acts on afterwards, and the same element found in an app snapshot.
+    ///
+    /// `find` mirrors the live query (element type, `identifier` or `label` key, scope) and
+    /// returns its first match in depth-first order, the node `firstMatch` binds.
+    private struct Target {
+        /// The live element, for the caller's tap or read after the reveal.
+        let element: XCUIElement
+        /// Names the element in a failure.
+        let name: String
+        /// The element's node in an app snapshot, or nil when it is not in the tree.
+        let find: (XCUIElementSnapshot) -> XCUIElementSnapshot?
+    }
+
+    /// The first node of `root`, depth first, of `type` (any type when nil) whose identifier
+    /// or label is `key`: the node `query[key].firstMatch` binds.
+    ///
+    /// - Parameters:
+    ///   - type: Element type to match, or nil for any.
+    ///   - key: Identifier or label.
+    ///   - root: The snapshot to walk.
+    /// - Returns: The first matching node, or nil.
+    @MainActor
+    private static func first(
+        _ type: XCUIElement.ElementType?, keyed key: String, in root: XCUIElementSnapshot
+    ) -> XCUIElementSnapshot? {
+        FestivalApp.nodes(in: root) { node in
+            (type == nil || node.elementType == type) && (node.identifier == key || node.label == key)
+        }.first
+    }
+
+    /// Whether a node is one of Year's decade switches.
+    private static func isDecade(_ node: XCUIElementSnapshot) -> Bool {
+        node.elementType == .switch && node.identifier.hasPrefix(prefix + "year.")
+    }
+
+    /// A General element by identifier suffix, as ``element(_:in:)``.
+    @MainActor
+    private func target(_ id: String, in app: XCUIApplication) -> Target {
+        Target(element: element(id, in: app), name: Self.prefix + id) { Self.first(nil, keyed: Self.prefix + id, in: $0) }
+    }
+
+    /// A sheet button by identifier suffix (`app.buttons[…]`).
+    @MainActor
+    private func button(_ id: String, in app: XCUIApplication) -> Target {
+        Target(element: app.buttons[Self.prefix + id], name: Self.prefix + id) {
+            Self.first(.button, keyed: Self.prefix + id, in: $0)
+        }
+    }
+
+    /// A switch by identifier or label (`app.switches[…].firstMatch`).
+    @MainActor
+    private func toggle(_ key: String, in app: XCUIApplication) -> Target {
+        Target(element: app.switches[key].firstMatch, name: "switch \(key)") { Self.first(.switch, keyed: key, in: $0) }
+    }
+
+    /// A static text by identifier or label (`app.staticTexts[…].firstMatch`).
+    @MainActor
+    private func text(_ key: String, in app: XCUIApplication) -> Target {
+        Target(element: app.staticTexts[key].firstMatch, name: "text \(key)") { Self.first(.staticText, keyed: key, in: $0) }
+    }
+
+    /// Year's first decade switch, or the one labelled `label`.
+    @MainActor
+    private func decade(_ label: String? = nil, in app: XCUIApplication) -> Target {
+        let format = label == nil ? "identifier BEGINSWITH %@" : "identifier BEGINSWITH %@ AND label == %@"
+        let arguments: [Any] = [Self.prefix + "year."] + (label.map { [$0] } ?? [])
+        return Target(
+            element: app.switches.matching(NSPredicate(format: format, argumentArray: arguments)).firstMatch,
+            name: "decade \(label ?? "first")"
+        ) { root in
+            FestivalApp.nodes(in: root) { Self.isDecade($0) && (label == nil || $0.label == label) }.first
+        }
+    }
+
+    /// One app snapshot, retried when it throws (``FestivalApp/snapshot(of:within:until:)``).
+    /// A snapshot that still fails fails the test, as the live query it replaces did.
+    ///
+    /// - Parameters:
+    ///   - app: Launched fixture Songs.
+    ///   - timeout: How long to wait for `ready`, before ``FestivalApp/budget(_:inVirtualMachine:)``.
+    ///   - ready: Whether a snapshot shows what the caller waits for.
+    /// - Returns: The first ready snapshot (the last one taken when none was ready in time),
+    ///   or nil when every attempt threw.
+    @MainActor
+    private func appSnapshot(
+        _ app: XCUIApplication, within timeout: TimeInterval = 3,
+        until ready: (XCUIElementSnapshot) -> Bool = { _ in true },
+        file: StaticString = #filePath, line: UInt = #line
+    ) -> XCUIElementSnapshot? {
+        do {
+            return try FestivalApp.snapshot(of: app, within: FestivalApp.budget(timeout), until: ready)
+        } catch {
+            XCTFail("No snapshot of the Filter sheet: \(error.localizedDescription)", file: file, line: line)
+            return nil
+        }
+    }
+
     /// Where the sheet's content starts: below its title bar, and below Close (✕) when
     /// Close sits above the Form. On the folded iPhone Duo Close is in the sheet's
     /// vertical bar beside the Form, so only the title bar counts.
     ///
     /// - Parameters:
-    ///   - target: Row being revealed.
-    ///   - app: Launched fixture Songs with the sheet open.
+    ///   - target: Row being revealed, or nil when it is not in the tree.
+    ///   - root: An app snapshot with the sheet open.
     /// - Returns: The y coordinate the row must start at to be fully visible.
     @MainActor
-    private func sheetContentTop(for target: XCUIElement, in app: XCUIApplication) -> CGFloat {
-        let done = app.buttons[Self.prefix + "done"].frame
-        let bar = app.navigationBars["Filter Songs"]
-        let barBottom = bar.exists ? bar.frame.maxY : 0
-        let besideRows = target.exists && done.minX >= target.frame.maxX
+    private func sheetContentTop(for target: XCUIElementSnapshot?, in root: XCUIElementSnapshot) -> CGFloat {
+        let done = Self.first(.button, keyed: Self.prefix + "done", in: root)?.frame ?? .zero
+        let barBottom = Self.first(.navigationBar, keyed: "Filter Songs", in: root)?.frame.maxY ?? 0
+        let besideRows = target.map { done.minX >= $0.frame.maxX } ?? false
         return besideRows ? barBottom : max(barBottom, done.maxY)
     }
 
@@ -90,68 +189,110 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     /// - Parameters:
     ///   - target: Element inside the Filter Form.
     ///   - app: Launched fixture Songs with the sheet open.
-    ///   - hittable: Also require the accessibility hit test to land on it; pass false only
-    ///     where the caller proves it with a real tap instead (``assertYearGroup(_:file:line:)``).
+    ///   - hittable: Also require it to be hittable; pass false only where the caller proves
+    ///     it with a real tap instead (``assertYearGroup(_:file:line:)``).
     /// - Returns: The revealed element.
     @MainActor
     @discardableResult
     private func reveal(
-        _ target: XCUIElement, in app: XCUIApplication, hittable: Bool = true,
+        _ target: Target, in app: XCUIApplication, hittable: Bool = true,
         file: StaticString = #filePath, line: UInt = #line
     ) -> XCUIElement {
-        let form = element("form", in: app)
+        revealNode(target, in: app, hittable: hittable, file: file, line: line)
+        return target.element
+    }
+
+    /// ``reveal(_:in:hittable:file:line:)``, returning the revealed node.
+    ///
+    /// Each step reads the target, the Form, the bar, Close and the window from one app
+    /// snapshot, retried when it throws, and drags at points rooted at the app: on the
+    /// folded iPhone Duo's starved runner a live `exists`, `isHittable` or `frame` read here,
+    /// after the sheet's first audit, hung past XCTest's retries and failed the test
+    /// outright (#695, the stall class of #693/#694). Hittable is read from the snapshots
+    /// too: wholly in the sheet's content, as below, and at rest (the same frame in two
+    /// snapshots in a row), since a settling bounce is what kept the hit test off a row
+    /// already in place; the caller's tap then proves the hit test itself.
+    ///
+    /// - Parameters: As ``reveal(_:in:hittable:file:line:)``.
+    /// - Returns: The revealed node and the snapshot it was read from, or nil when no
+    ///   snapshot showed it (the failure is recorded).
+    @MainActor
+    @discardableResult
+    private func revealNode(
+        _ target: Target, in app: XCUIApplication, hittable: Bool = true,
+        file: StaticString = #filePath, line: UInt = #line
+    ) -> (node: XCUIElementSnapshot, root: XCUIElementSnapshot)? {
+        guard var root = appSnapshot(app, file: file, line: line) else { return nil }
+        guard var form = FestivalApp.node(Self.prefix + "form", in: root)?.frame,
+              let windowBottom = SongsUITestSupport.sheetVisibleBottom(in: root) else {
+            XCTFail("No Filter Form or window to reveal \(target.name) in", file: file, line: line)
+            return nil
+        }
         // The iPad form sheet ends above the window's bottom.
-        let bottom = min(SongsUITestSupport.sheetVisibleBottom(in: app), form.frame.maxY - 8)
+        let bottom = min(windowBottom, form.maxY - 8)
+        var node = target.find(root)
+        // Whether the target's frame matched the previous snapshot's: at rest.
+        var still = false
+        func refresh() -> Bool {
+            let previous = node?.frame
+            guard let next = appSnapshot(app, file: file, line: line) else { return false }
+            root = next
+            node = target.find(next)
+            form = FestivalApp.node(Self.prefix + "form", in: next)?.frame ?? form
+            still = node != nil && node?.frame == previous
+            return true
+        }
         // A row taller than the space (Item Shop at AX5 on the folded Duo) only has to
         // start below the bar; the last rows, where the Form ends at the window edge (the
         // folded Duo), only have to end inside the Form once dragging no longer moves them.
         var atEnd = false
         func visible() -> Bool {
-            guard target.exists, !hittable || target.isHittable else { return false }
-            let top = sheetContentTop(for: target, in: app)
-            let fits = target.frame.height <= bottom - top
-            let inForm = atEnd && target.frame.maxY <= form.frame.maxY
-            return target.frame.minY >= top && (target.frame.maxY <= bottom || !fits || inForm)
+            guard let frame = node?.frame else { return false }
+            let top = sheetContentTop(for: node, in: root)
+            let fits = frame.height <= bottom - top
+            let inForm = atEnd && frame.maxY <= form.maxY
+            let placed = frame.minY >= top && (frame.maxY <= bottom || !fits || inForm)
+            return placed && (!hittable || (still && !frame.isEmpty))
         }
         // Drag by the measured distance (fixed swipes overshot a tall row both ways);
         // down only as far as the row is hidden, since dragging the Form down past its
         // top would dismiss the sheet.
         func drag(by distance: CGFloat) {
-            let top = sheetContentTop(for: target, in: app)
+            let top = sheetContentTop(for: node, in: root)
             let span = max(bottom - top - 48, 40)
             // The scroll view's touch slop eats the first ≈ 10 pt of a drag.
             let step = min(abs(distance) + 12, span)
-            let x = form.frame.minX + 32
+            let x = form.minX + 32
             let startY = distance < 0 ? bottom - 24 : top + 24
-            let origin = form.coordinate(withNormalizedOffset: .zero)
-            origin.withOffset(CGVector(dx: x - form.frame.minX, dy: startY - form.frame.minY))
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            origin.withOffset(CGVector(dx: x, dy: startY))
                 .press(forDuration: 0.05,
-                       thenDragTo: origin.withOffset(CGVector(
-                           dx: x - form.frame.minX,
-                           dy: startY + (distance < 0 ? -step : step) - form.frame.minY
-                       )),
+                       thenDragTo: origin.withOffset(CGVector(dx: x, dy: startY + (distance < 0 ? -step : step))),
                        withVelocity: .slow, thenHoldForDuration: 0.3)
         }
         var attempt = 0
+        var moved = false
         while !visible() && attempt < 30 {
             defer { attempt += 1 }
-            guard target.exists else {
+            guard let frame = node?.frame else {
                 // Not loaded: the Form is lazy. Page down without momentum (a swipe carried
                 // past a single row); back up with a slow swipe, whose momentum bounces at the
                 // top, where a held drag would pull the sheet and dismiss it.
                 if attempt < 12 {
-                    drag(by: -(bottom - sheetContentTop(for: target, in: app)) / 2)
+                    drag(by: -(bottom - sheetContentTop(for: nil, in: root)) / 2)
                 } else {
-                    form.swipeDown(velocity: .slow)
+                    element("form", in: app).swipeDown(velocity: .slow)
                 }
+                moved = true
+                guard refresh() else { return nil }
                 continue
             }
-            let top = sheetContentTop(for: target, in: app)
-            let frame = target.frame
+            let top = sheetContentTop(for: node, in: root)
             if frame.minY >= top, frame.maxY <= bottom {
-                // In place but not yet hittable (a bounce settling): wait rather than drag,
+                // In place but still moving (a bounce settling): wait rather than drag,
                 // since a drag at the Form's top pulls the sheet and keeps it unsettled.
                 Thread.sleep(forTimeInterval: 0.5)
+                guard refresh() else { return nil }
                 continue
             }
             let distance: CGFloat
@@ -163,31 +304,33 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
                 distance = -(frame.maxY - bottom + 8)
             }
             guard abs(distance) >= 4 else { break }
+            moved = true
             if distance > (bottom - top) / 2 {
                 // Far above: an offscreen row's frame can be stale, and a held drag past the
                 // top would pull the sheet down; a slow swipe's momentum bounces there instead.
-                form.swipeDown(velocity: .slow)
+                element("form", in: app).swipeDown(velocity: .slow)
+                guard refresh() else { return nil }
                 continue
             }
             drag(by: distance)
-            atEnd = distance < 0 && target.exists && abs(target.frame.minY - frame.minY) < 1
+            guard refresh() else { return nil }
+            atEnd = distance < 0 && node.map { abs($0.frame.minY - frame.minY) < 1 } ?? false
         }
         // Let a drag that met the Form's top or end bounce back before anything is audited.
-        if attempt > 0 {
-            var last = target.frame
+        if moved {
             for _ in 0..<10 {
                 Thread.sleep(forTimeInterval: 0.2)
-                guard target.exists, target.frame != last else { break }
-                last = target.frame
+                guard refresh(), node != nil, !still else { break }
             }
         }
         XCTAssertTrue(
             visible(),
-            "\(target) not reachable in the sheet: frame \(target.exists ? "\(target.frame)" : "none"), "
-                + "top \(sheetContentTop(for: target, in: app)), bottom \(bottom)",
+            "\(target.name) not reachable in the sheet: frame \(node.map { "\($0.frame)" } ?? "none"), "
+                + "top \(sheetContentTop(for: node, in: root)), bottom \(bottom)"
+                + (hittable && !still ? ", still moving" : ""),
             file: file, line: line
         )
-        return target
+        return node.map { ($0, root) }
     }
 
     /// Open Filter from the floating tools: the Filter Songs button, or at large text the
@@ -229,7 +372,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         openSheet(app, file: file, line: line)
         let filter = app.buttons["fst.songs.filter"]
         if filter.exists, Self.spoken(filter) == "Filter Songs, No filters" { return }
-        reveal(app.buttons[Self.prefix + "reset"], in: app).tap()
+        revealAndTap(button("reset", in: app), in: app, file: file, line: line)
         app.buttons[Self.prefix + "done"].tap()
         openSheet(app, file: file, line: line)
     }
@@ -278,10 +421,46 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     private func assertTarget(
         _ element: XCUIElement, _ name: String, file: StaticString = #filePath, line: UInt = #line
     ) {
-        XCTAssertGreaterThanOrEqual(element.frame.height, 44, "\(name) target height \(element.frame)",
-                                    file: file, line: line)
-        XCTAssertGreaterThanOrEqual(element.frame.width, 44, "\(name) target width \(element.frame)",
-                                    file: file, line: line)
+        assertTarget(element.frame, name, file: file, line: line)
+    }
+
+    /// Assert a frame, read from a snapshot, is a target of at least 44x44 pt.
+    private func assertTarget(
+        _ frame: CGRect, _ name: String, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        XCTAssertGreaterThanOrEqual(frame.height, 44, "\(name) target height \(frame)", file: file, line: line)
+        XCTAssertGreaterThanOrEqual(frame.width, 44, "\(name) target width \(frame)", file: file, line: line)
+    }
+
+    /// Tap a revealed node where `XCUIElement.tap()` would, the middle of its part inside
+    /// the sheet's content, at a point rooted at the app rather than through a live query
+    /// (#695).
+    ///
+    /// - Parameters:
+    ///   - revealed: A node and its snapshot, from ``revealNode(_:in:hittable:file:line:)``.
+    ///   - app: Launched fixture Songs with the sheet open.
+    @MainActor
+    private func tap(_ revealed: (node: XCUIElementSnapshot, root: XCUIElementSnapshot), in app: XCUIApplication) {
+        let frame = revealed.node.frame
+        let top = sheetContentTop(for: revealed.node, in: revealed.root)
+        let bottom = SongsUITestSupport.sheetVisibleBottom(in: revealed.root) ?? frame.maxY
+        let shown = frame.intersection(CGRect(x: frame.minX, y: top, width: frame.width, height: max(bottom - top, 0)))
+        let point = shown.isNull || shown.isEmpty
+            ? CGPoint(x: frame.midX, y: frame.midY) : CGPoint(x: shown.midX, y: shown.midY)
+        app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: point.x, dy: point.y)).tap()
+    }
+
+    /// Reveal an element and tap it from the reveal's snapshot (``tap(_:in:)``).
+    ///
+    /// - Parameters:
+    ///   - target: Element inside the Filter Form.
+    ///   - app: Launched fixture Songs with the sheet open.
+    @MainActor
+    private func revealAndTap(
+        _ target: Target, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        guard let shown = revealNode(target, in: app, file: file, line: line) else { return }
+        tap(shown, in: app)
     }
 
     /// The sheet shows General only: its heading, then each group in web order, named by
@@ -295,18 +474,19 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         XCTAssertFalse(element("score-sections", in: app).exists, "Player sections without a profile",
                        file: file, line: line)
         XCTAssertFalse(element("instrument", in: app).exists, "Instrument without a profile", file: file, line: line)
-        var previous = element("general", in: app)
+        var previous = Self.prefix + "general"
         for group in Self.groups {
-            let label = reveal(element(group.id, in: app), in: app, file: file, line: line)
+            guard let shown = revealNode(target(group.id, in: app), in: app, file: file, line: line) else { return }
+            let label = shown.node
             XCTAssertTrue(label.label.hasPrefix(group.title), "\(group.id) named \(label.label)", file: file, line: line)
             XCTAssertGreaterThan(label.label.count, group.title.count + 10, "\(group.id) reads its hint",
                                  file: file, line: line)
-            // Compared at one scroll offset; a group scrolled out of the tree is above.
-            if previous.exists {
-                XCTAssertLessThan(previous.frame.minY, label.frame.minY, "\(group.id) follows \(previous.identifier)",
+            // Compared in one snapshot; a group scrolled out of the tree is above.
+            if let above = FestivalApp.node(previous, in: shown.root) {
+                XCTAssertLessThan(above.frame.minY, label.frame.minY, "\(group.id) follows \(previous)",
                                   file: file, line: line)
             }
-            previous = label
+            previous = label.identifier
         }
     }
 
@@ -320,42 +500,56 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     /// `.agents/patterns/accordion.md`), so they are revealed without that check and proved
     /// by a coordinate tap.
     ///
-    /// - Returns: The decade switches.
+    /// It follows the sheet's first audit, where the folded iPhone Duo's runner is slow
+    /// enough that a live query stalls past XCTest's retries, so everything is read from
+    /// retried snapshots and tapped at points rooted at the app (#695).
+    ///
+    /// - Returns: The decade switches, as first read (all on).
     @MainActor
     private func assertYearGroup(
         _ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line
-    ) -> [XCUIElement] {
-        let selectAll = app.buttons[Self.prefix + "year.select-all"]
-        if !selectAll.exists {
-            reveal(element("year", in: app), in: app).tap()
+    ) -> [XCUIElementSnapshot] {
+        let selectAllID = Self.prefix + "year.select-all"
+        let isSelectAll: (XCUIElementSnapshot) -> Bool = { Self.first(.button, keyed: selectAllID, in: $0) != nil }
+        guard let before = appSnapshot(app, file: file, line: line) else { return [] }
+        if !isSelectAll(before) {
+            guard let year = revealNode(target("year", in: app), in: app, file: file, line: line) else { return [] }
+            tap(year, in: app)
         }
-        XCTAssertTrue(selectAll.waitForExistence(timeout: 10), "Year did not expand", file: file, line: line)
-        let clearAll = app.buttons[Self.prefix + "year.clear-all"]
-        XCTAssertEqual(selectAll.label, "Select All, Year", file: file, line: line)
-        XCTAssertEqual(clearAll.label, "Clear All, Year", file: file, line: line)
-        let decadeQuery = app.switches.matching(NSPredicate(
-            format: "identifier BEGINSWITH %@", Self.prefix + "year."
-        ))
+        guard let expanded = appSnapshot(app, within: 10, until: isSelectAll, file: file, line: line) else { return [] }
+        XCTAssertTrue(isSelectAll(expanded), "Year did not expand", file: file, line: line)
+        XCTAssertEqual(Self.first(.button, keyed: selectAllID, in: expanded)?.label, "Select All, Year",
+                       file: file, line: line)
+        XCTAssertEqual(Self.first(.button, keyed: Self.prefix + "year.clear-all", in: expanded)?.label,
+                       "Clear All, Year", file: file, line: line)
+        let hasDecades: (XCUIElementSnapshot) -> Bool = { !FestivalApp.nodes(in: $0, where: Self.isDecade).isEmpty }
+        guard var listed = appSnapshot(app, until: hasDecades, file: file, line: line) else { return [] }
         // The Form is lazy: rows below its end load once scrolled to.
-        if !decadeQuery.firstMatch.waitForExistence(timeout: 3) {
-            reveal(decadeQuery.firstMatch, in: app, file: file, line: line)
+        if !hasDecades(listed) {
+            guard let shown = revealNode(decade(in: app), in: app, file: file, line: line) else { return [] }
+            listed = shown.root
         }
-        let decades = decadeQuery.allElementsBoundByIndex
+        let decades = FestivalApp.nodes(in: listed, where: Self.isDecade)
         XCTAssertFalse(decades.isEmpty, "No decades", file: file, line: line)
         for decade in decades {
             XCTAssertTrue(decade.label.hasSuffix("s"), "\(decade.identifier) named \(decade.label)",
                           file: file, line: line)
             XCTAssertEqual(decade.value as? String, "1", "\(decade.identifier) starts on", file: file, line: line)
         }
-        let first = reveal(decades[0], in: app, file: file, line: line)
-        assertTarget(first, first.identifier, file: file, line: line)
-        for (action, name, value) in [(clearAll, "Clear All, Year", "0"), (selectAll, "Select All, Year", "1")] {
-            let button = reveal(action, in: app, hittable: false, file: file, line: line)
-            assertTarget(button, name, file: file, line: line)
-            button.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-            let applied = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == %@", value), object: decades[0])
-            XCTAssertEqual(XCTWaiter.wait(for: [applied], timeout: 5), .completed,
-                           "\(name) sets \(decades[0].identifier) to \(value)", file: file, line: line)
+        guard let firstID = decades.first?.identifier,
+              let first = revealNode(toggle(firstID, in: app), in: app, file: file, line: line) else { return decades }
+        assertTarget(first.node.frame, firstID, file: file, line: line)
+        for (id, name, value) in [("year.clear-all", "Clear All, Year", "0"), ("year.select-all", "Select All, Year", "1")] {
+            guard let shown = revealNode(button(id, in: app), in: app, hittable: false, file: file, line: line) else {
+                return decades
+            }
+            let frame = shown.node.frame
+            assertTarget(frame, name, file: file, line: line)
+            app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
+            let applied = appSnapshot(app, within: 5, until: { FestivalApp.node(firstID, in: $0)?.value as? String == value },
+                                      file: file, line: line)
+            XCTAssertEqual(applied.flatMap { FestivalApp.node(firstID, in: $0)?.value as? String }, value,
+                           "\(name) sets \(firstID) to \(value)", file: file, line: line)
         }
         return decades
     }
@@ -422,7 +616,9 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         }
         for label in cut {
             let text = app.descendants(matching: .any).matching(NSPredicate(format: "label == %@", label)).firstMatch
-            reveal(text, in: app)
+            reveal(Target(element: text, name: "label \(label)") { root in
+                FestivalApp.nodes(in: root) { $0.label == label }.first
+            }, in: app)
             // Everything else was judged whole in the first pass.
             try SongsUITestSupport.performAuditRetryingTimeout(
                 app, .contrast, name: "songs-filter-revealed", reset: {}
@@ -470,19 +666,28 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         deferring proof: ((XCUIAccessibilityAuditIssue) -> Bool)? = nil,
         deferredAt: (() -> Void)? = nil
     ) throws {
-        let general = reveal(element("general", in: app), in: app)
+        let general = target("general", in: app)
+        revealNode(general, in: app)
         let form = element("form", in: app)
         // Short held drags down until General stops moving: the Form rests at its very top
         // (a pull this small springs back rather than dismissing the sheet).
         for _ in 0..<4 {
-            let before = general.frame.minY
-            let start = form.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
-                dx: 32, dy: sheetContentTop(for: general, in: app) + 24 - form.frame.minY
+            guard let root = appSnapshot(app), let before = general.find(root),
+                  let formFrame = FestivalApp.node(Self.prefix + "form", in: root)?.frame else {
+                XCTFail("General or the Form left the sheet while resting at its top")
+                break
+            }
+            let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
+                dx: formFrame.minX + 32, dy: sheetContentTop(for: before, in: root) + 24
             ))
             start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: 40)),
                         withVelocity: .slow, thenHoldForDuration: 0.3)
             Thread.sleep(forTimeInterval: 0.8)
-            if abs(general.frame.minY - before) < 1 { break }
+            guard let after = appSnapshot(app).flatMap(general.find) else {
+                XCTFail("General left the sheet while resting at its top")
+                break
+            }
+            if abs(after.frame.minY - before.frame.minY) < 1 { break }
         }
         XCTAssertTrue(app.navigationBars["Filter Songs"].exists, "Filter sheet dismissed while resting at its top")
         if try audit(app, for: types, deferring: proof) { deferredAt?() }
@@ -503,8 +708,8 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     @MainActor
     private func assertHintsWrap(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         for group in Self.hints {
-            let title = reveal(app.staticTexts[group.title].firstMatch, in: app, file: file, line: line).frame.height
-            let hint = reveal(app.staticTexts[group.hint].firstMatch, in: app, file: file, line: line).frame.height
+            let title = revealNode(text(group.title, in: app), in: app, file: file, line: line)?.node.frame.height ?? 0
+            let hint = revealNode(text(group.hint, in: app), in: app, file: file, line: line)?.node.frame.height ?? 0
             XCTAssertGreaterThanOrEqual(hint, title * 1.5, "\(group.title) hint wraps: title \(title), hint \(hint)",
                                         file: file, line: line)
         }
@@ -515,26 +720,25 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
     /// - Returns: Frame heights in ``shopTexts`` order.
     @MainActor
     private func shopTextHeights(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) -> [CGFloat] {
-        Self.shopTexts.map { text in
-            reveal(app.staticTexts[text].firstMatch, in: app, file: file, line: line).frame.height
+        Self.shopTexts.map { shopText in
+            revealNode(text(shopText, in: app), in: app, file: file, line: line)?.node.frame.height ?? 0
         }
     }
 
     /// The height of a Year decade switch's label text (the switch's own frame when it
-    /// has no text child), revealed first.
+    /// has no text child), revealed first and read from the reveal's snapshot (#695).
     ///
     /// - Parameters:
     ///   - label: Decade label, e.g. "2020s".
     ///   - app: Launched fixture Songs with Year open.
-    /// - Returns: Height in points.
+    /// - Returns: Height in points (0 when the decade was not revealed, a recorded failure).
     @MainActor
     private func decadeTextHeight(_ label: String, in app: XCUIApplication) -> CGFloat {
-        let decade = app.switches.matching(NSPredicate(
-            format: "identifier BEGINSWITH %@ AND label == %@", Self.prefix + "year.", label
-        )).firstMatch
-        reveal(decade, in: app)
-        let text = decade.staticTexts[label].firstMatch
-        return text.exists ? text.frame.height : decade.frame.height
+        guard let row = revealNode(decade(label, in: app), in: app)?.node else { return 0 }
+        let text = FestivalApp.nodes(in: row) { node in
+            node.elementType == .staticText && (node.identifier == label || node.label == label)
+        }.first
+        return (text ?? row).frame.height
     }
 
     /// The texts wholly visible in the sheet's Form now, by label, with their heights: each
@@ -596,7 +800,12 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
             let text = form.staticTexts.matching(NSPredicate(format: "label == %@", label)).firstMatch
             // A switch recorded by its own frame (no text of its label) is measured the same way.
             let isSwitch = !text.waitForExistence(timeout: 2) && app.switches[label].exists
-            let regular = reveal(isSwitch ? app.switches[label].firstMatch : text, in: app).frame.height
+            let formText = Target(element: text, name: "form text \(label)") { root in
+                FestivalApp.node(Self.prefix + "form", in: root).flatMap { form in
+                    FestivalApp.nodes(in: form) { $0.elementType == .staticText && $0.label == label }.first
+                }
+            }
+            let regular = revealNode(isSwitch ? toggle(label, in: app) : formText, in: app)?.node.frame.height ?? 0
             evidence.append("\(label): \(regular) → \(large)")
             XCTAssertGreaterThanOrEqual(large, regular * 1.35, "\(label) grows at AX5: \(regular) → \(large)")
         }
@@ -636,22 +845,22 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
 
         // Past two sheet audits the runner is at its slowest: flip and wait through retried
         // snapshots, not live queries (#694).
-        let decade = reveal(decades[0], in: app)
-        let decadeID = decade.identifier
+        let decadeID = decades.first?.identifier ?? ""
+        reveal(toggle(decadeID, in: app), in: app)
         try SongsUITestSupport.setSwitch(decadeID, to: "0", in: app)
-        reveal(app.buttons[Self.prefix + "year.select-all"], in: app).tap()
+        revealAndTap(button("year.select-all", in: app), in: app)
         let reselected = try FestivalApp.snapshot(of: app, within: FestivalApp.budget(5)) {
             FestivalApp.node(decadeID, in: $0)?.value as? String == "1"
         }
         XCTAssertEqual(FestivalApp.node(decadeID, in: reselected)?.value as? String, "1", "Select All, Year reselects")
 
-        reveal(element("double-bass", in: app), in: app).tap()
-        let noDoubleBass = app.switches[Self.prefix + "double-bass.unsupported"]
+        revealAndTap(target("double-bass", in: app), in: app)
+        let noDoubleBassID = Self.prefix + "double-bass.unsupported"
         // Expanded at the Form's end (the folded Duo), its choices load once scrolled to.
-        _ = noDoubleBass.waitForExistence(timeout: 3)
-        reveal(noDoubleBass, in: app)
-        XCTAssertEqual(noDoubleBass.label, "No Double Bass Support")
-        try SongsUITestSupport.setSwitch(Self.prefix + "double-bass.unsupported", to: "0", in: app)
+        _ = appSnapshot(app, until: { Self.first(.switch, keyed: noDoubleBassID, in: $0) != nil })
+        let noDoubleBass = revealNode(toggle(noDoubleBassID, in: app), in: app)?.node
+        XCTAssertEqual(noDoubleBass?.label, "No Double Bass Support")
+        try SongsUITestSupport.setSwitch(noDoubleBassID, to: "0", in: app)
         app.buttons[Self.prefix + "done"].tap()
         let named = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value CONTAINS %@ OR label CONTAINS %@",
@@ -661,7 +870,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
                        "Filter Songs names the active filter: \(Self.spoken(filter))")
 
         openSheet(app)
-        reveal(app.buttons[Self.prefix + "reset"], in: app).tap()
+        revealAndTap(button("reset", in: app), in: app)
         app.buttons[Self.prefix + "done"].tap()
         let cleared = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value == %@ OR label == %@", "No filters", "Filter Songs, No filters"),
@@ -728,16 +937,14 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         let largest = UIContentSizeCategory.accessibilityExtraExtraExtraLarge.rawValue
         let regular = launchSongs()
         openCleanSheet(regular)
-        let regularHeight = reveal(element("double-bass", in: regular), in: regular)
-            .frame.height
+        let regularHeight = revealNode(target("double-bass", in: regular), in: regular)?.node.frame.height ?? 0
         let regularShop = shopTextHeights(regular)
         regular.terminate()
 
         let app = launchSongs(contentSize: largest)
         openCleanSheet(app)
         assertGeneralOnly(app)
-        let largeHeight = reveal(element("double-bass", in: app), in: app)
-            .frame.height
+        let largeHeight = revealNode(target("double-bass", in: app), in: app)?.node.frame.height ?? 0
         XCTAssertGreaterThan(largeHeight, regularHeight * 1.35, "Group labels grow: \(regularHeight) → \(largeHeight)")
         let largeShop = shopTextHeights(app)
         for (index, text) in Self.shopTexts.enumerated() {
@@ -751,7 +958,7 @@ final class SongsFilterAccessibilityJourneyTests: XCTestCase {
         _ = assertYearGroup(app)
         SongsUITestSupport.record(app, name: "songs-filter-no-profile-year-a11y-ax5")
         try auditAtEnds(app, for: .hitRegion)
-        XCTAssertTrue(reveal(app.buttons[Self.prefix + "reset"], in: app).isHittable)
+        XCTAssertTrue(reveal(button("reset", in: app), in: app).isHittable)
         app.terminate()
 
         let hidden = launchSongs(contentSize: largest, showShop: false)

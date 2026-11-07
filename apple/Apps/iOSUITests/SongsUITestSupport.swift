@@ -408,6 +408,16 @@ enum SongsUITestSupport {
         app.windows.firstMatch.frame.maxY - 8
     }
 
+    /// The live `sheetVisibleBottom(in:)` read from an app snapshot already
+    /// taken, for a journey that must not re-query the window on a starved runner (#695).
+    ///
+    /// - Parameter root: An app snapshot, from ``FestivalApp/snapshot(of:within:until:)``.
+    /// - Returns: The lowest y at which a control is fully visible, or nil without a window.
+    @MainActor
+    static func sheetVisibleBottom(in root: XCUIElementSnapshot) -> CGFloat? {
+        root.children.first { $0.elementType == .window }.map { $0.frame.maxY - 8 }
+    }
+
     /// Scroll the modal Form until Reset is fully visible.
     ///
     /// - Parameter app: Foreground Songs Sort sheet on phone or tablet.
