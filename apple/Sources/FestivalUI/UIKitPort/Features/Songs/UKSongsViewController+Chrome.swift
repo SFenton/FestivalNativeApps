@@ -238,7 +238,7 @@ extension UKSongsViewController {
     func layoutChrome() {
         let top = barTop
         let barHeight = UKSongsSectionBar.height()
-        sectionBar.frame = CGRect(x: 0, y: top, width: view.bounds.width, height: max(0, view.bounds.height - top))
+        sectionBar.frame = CGRect(x: 0, y: top, width: max(0, view.bounds.width - scrubberExtraInset), height: max(0, view.bounds.height - top))
         barBlocker.frame = CGRect(x: 0, y: top, width: view.bounds.width, height: barHeight)
         if let field = bottomField, !field.isHidden {
             let inset = max(0, view.bounds.maxY - view.convert(field.bounds, from: field).minY - view.safeAreaInsets.bottom)
@@ -368,7 +368,7 @@ extension UKSongsViewController {
 
     func layoutIndex() {
         guard showsIndex, !indexView.isHidden else { return }
-        let top = ukLayout.overlayInsets.top + 52
+        let top = barTop + UKSongsSectionBar.height()
         let bottom = view.bounds.height - view.safeAreaInsets.bottom - 8
         let available = max(0, bottom - top)
         let size = indexView.configure(sections: indexSections, availableHeight: available)

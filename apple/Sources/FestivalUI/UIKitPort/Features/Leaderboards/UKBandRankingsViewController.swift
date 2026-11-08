@@ -9,7 +9,7 @@ import UIKit
 /// for one band size, the floating pager bar with the band-size switcher below the rows,
 /// and Rank By as a page tool.
 @MainActor
-final class UKBandRankingsViewController: UIViewController, UKPageToolsProviding {
+final class UKBandRankingsViewController: UKPageViewController, UKPageToolsProviding {
     private struct BoardSummary: Equatable {
         let totalTeams: Int
         let totalPages: Int
@@ -70,10 +70,9 @@ final class UKBandRankingsViewController: UIViewController, UKPageToolsProviding
 
     // MARK: Lifecycle
 
-    override func loadView() { view = boardView }
-
     override func viewDidLoad() {
         super.viewDidLoad()
+        installPageContent(boardView, scrollView: boardView.collectionView)
         view.backgroundColor = .clear
         ukInstallAccountItems()
         ukSetPageTitle("\(bandType.label) Rankings")
@@ -248,7 +247,7 @@ final class UKBandRankingsViewController: UIViewController, UKPageToolsProviding
             for entry in entries {
                 let route = BandRankingRow.route(entry, bandType: bandType)
                 let model = UKRankingRowModels.band(entry: entry, metric: rankBy, columns: columns)
-                rows.append((entry.teamKey, UKRankingRowModels.row(model, selectedBand: false) { [weak self] in
+                rows.append((entry.teamKey, UKRankingRowModels.row(model, selectedBand: false, detailSelection: (route, context)) { [weak self] in
                     self?.context.navigator?.selectDetail(route)
                 }))
             }

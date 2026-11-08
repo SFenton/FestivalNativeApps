@@ -13,6 +13,7 @@
       "web": [],
       "canonical": {
         "apple": [
+          {"path": "apple/Sources/FestivalUI/UIKitPort/Common/UKScreenFoundation.swift", "symbol": "UKScreenViewController"},
           {"path": "apple/Sources/FestivalUI/UIKitPort/Common/UKPageFoundation.swift", "symbol": "UKPageViewController"},
           {"path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKProfilePage.swift", "symbol": "UKProfileScrollViewController"},
           {"path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalsPage.swift", "symbol": "UKRivalsPageViewController"},
@@ -1475,6 +1476,14 @@
           {
             "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKSheet.swift",
             "symbol": "UKSheet"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/App/Presentation/UKPresentationCoordinator.swift",
+            "symbol": "UKPresentationCoordinator"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKAlertActions.swift",
+            "symbol": "ukAction"
           }
         ],
         "android": [
@@ -2242,6 +2251,10 @@
           {
             "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKStates.swift",
             "symbol": "UKLoadingView"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKMotionVisibility.swift",
+            "symbol": "UKMotionVisibility"
           }
         ],
         "android": [
@@ -3930,6 +3943,14 @@
           {
             "path": "apple/Sources/FestivalUI/Features/Settings/SettingsRowToggleStyle.swift",
             "symbol": "SettingsRowToggleStyle"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKRowSwitch.swift",
+            "symbol": "UKRowSwitch"
+          },
+          {
+            "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKSettingsSupport.swift",
+            "symbol": "UKSettingsToggleRow"
           },
           {
             "path": "apple/Sources/FestivalUI/Features/Settings/SettingsRowToggleStyle.swift",

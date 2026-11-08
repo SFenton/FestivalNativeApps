@@ -61,8 +61,8 @@ enum UKShellSheets {
         let navigation = controller?.navigationController ?? controller
         if let sheet = navigation as? UKSheetNavigationController {
             sheet.dismissFromPresenter(animated: true)
-        } else {
-            navigation?.presentingViewController?.dismiss(animated: true)
+        } else if let navigation {
+            UKPresentationCoordinator.shared(for: navigation).dismiss(navigation)
         }
     }
 }

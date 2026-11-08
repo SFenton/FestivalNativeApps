@@ -35,6 +35,7 @@ final class UKSheetNavigationController: UINavigationController, UINavigationCon
     private var isClosing = false
     private var didNotifyDismissal = false
     var ukOnDismiss: (() -> Void)?
+    private var ukDismissObservers: [() -> Void] = []
 
     /// Creates the sheet's stack.
     ///
@@ -128,10 +129,19 @@ final class UKSheetNavigationController: UINavigationController, UINavigationCon
     /// Rearms an app-owned Close callback after it keeps an in-progress task open.
     func ukRearmClose() {
         isClosing = false
+        UKMotionVisibility.changed()
+    }
+
+    /// Adds an observer for the sheet's actual native dismissal.
+    func ukObserveDismissal(_ observer: @escaping () -> Void) {
+        ukDismissObservers.append(observer)
     }
 
     override var keyCommands: [UIKeyCommand]? {
-        [UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(handleEscape))]
+        [
+            UIKeyCommand(input: UIKeyCommand.inputEscape, modifierFlags: [], action: #selector(handleEscape)),
+            UIKeyCommand(input: ".", modifierFlags: .command, action: #selector(handleEscape)),
+        ]
     }
 
     @objc private func handleEscape(_ command: UIKeyCommand) {
@@ -217,6 +227,9 @@ final class UKSheetNavigationController: UINavigationController, UINavigationCon
         closeAction = nil
         ukOnDismiss?()
         ukOnDismiss = nil
+        let observers = ukDismissObservers
+        ukDismissObservers.removeAll()
+        observers.forEach { $0() }
     }
 
     /// Adapts only an automatic sheet to the presenter that owns its window.
@@ -344,7 +357,9 @@ enum UKSheet {
             content, title: title, closeIdentifier: closeIdentifier, size: size, sizing: sizing,
             regularWidth: regular, coverage: coverage, onClose: onClose
         )
-        presenter.present(sheet, animated: true, completion: completion)
+        _ = UKPresentationCoordinator.shared(for: presenter).presentIndependent(
+            sheet, from: presenter, animated: true, completion: completion
+        )
         return sheet
     }
 

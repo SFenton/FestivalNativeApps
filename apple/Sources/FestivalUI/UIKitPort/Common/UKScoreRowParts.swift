@@ -324,12 +324,13 @@ final class UKSongLeaderboardEntryRowView: UIButton {
     ///   - horizontalPadding: Side padding (12 in Song Detail's cards, 14 on the song boards).
     init(
         entry: LeaderboardEntry, isPlayer: Bool, columns: LeaderboardRowColumns?, currentSeason: Int?,
-        chevron: Bool?, hint: String? = nil, separateParts: Bool = false, horizontalPadding: CGFloat = 12
+        chevron: Bool?, hint: String? = nil, separateParts: Bool = false, horizontalPadding: CGFloat = 12,
+        traits: UITraitCollection? = nil
     ) {
         isPlayerRow = isPlayer
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
-        let accessibilitySize = UKFont.isAccessibilitySize(UITraitCollection.current)
+        let accessibilitySize = UKFont.isAccessibilitySize(traits ?? traitCollection)
         backgroundColor = isPlayer ? UIColor(red: 75 / 255, green: 15 / 255, blue: 99 / 255, alpha: 0.75) : .clear
         let name = SongLeaderboardEntryRow.displayName(entry)
         let rankText = SongLeaderboardEntryRow.spokenRank(entry.rank, isPlayer: isPlayer)
@@ -435,7 +436,8 @@ final class UKSongLeaderboardEntryRowView: UIButton {
             accessibilityHint = hint
         } else {
             isAccessibilityElement = false
-            isUserInteractionEnabled = false
+            isEnabled = true
+            isUserInteractionEnabled = true
             line.isUserInteractionEnabled = false
         }
     }
@@ -448,6 +450,11 @@ final class UKSongLeaderboardEntryRowView: UIButton {
             guard !isPlayerRow else { alpha = isHighlighted ? 0.8 : 1; return }
             backgroundColor = isHighlighted ? UIColor.white.withAlphaComponent(0.1) : .clear
         }
+    }
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        guard onTap != nil else { return false }
+        return super.point(inside: point, with: event)
     }
 
     private let isPlayerRow: Bool

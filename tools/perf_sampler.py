@@ -33,13 +33,19 @@ def gpu_values(text: str) -> list:
     """
     values = []
     for key in GPU_KEYS:
-        match = re.search(r'"%s"=(\d+)' % re.escape(key), text)
-        values.append(int(match.group(1)) if match else -1)
+        match = re.search(r'"%s"=(\d+(?:\.\d+)?)' % re.escape(key), text)
+        values.append(float(match.group(1)) if match else -1)
     return values
 
 
 def gpu() -> list:
-    out = subprocess.run(["ioreg", "-r", "-d", "1", "-w", "0", "-c", "IOAccelerator"], capture_output=True, text=True).stdout
+    try:
+        out = subprocess.run(
+            ["ioreg", "-r", "-d", "1", "-w", "0", "-c", "IOAccelerator"],
+            capture_output=True, text=True, check=False,
+        ).stdout
+    except OSError:
+        return [-1, -1, -1]
     return gpu_values(out)
 
 
@@ -62,7 +68,13 @@ def find_rows(rows: list, udid: str, executable: str):
 
 
 def processes() -> list:
-    out = subprocess.run(["ps", "-axo", "pid=,ppid=,time=,rss=,command="], capture_output=True, text=True).stdout
+    try:
+        out = subprocess.run(
+            ["ps", "-axo", "pid=,ppid=,time=,rss=,command="],
+            capture_output=True, text=True, check=False,
+        ).stdout
+    except OSError:
+        return []
     rows = []
     for line in out.splitlines():
         parts = line.split(None, 4)
@@ -94,6 +106,8 @@ def main() -> int:
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     with open(args.out, "w") as handle:
+        initial_gpu = gpu()
+        handle.write("# gpu_supported=%s\n" % str(any(value >= 0 for value in initial_gpu)).lower())
         handle.write("t\tgpu_device\tgpu_renderer\tgpu_tiler\tbackboardd_cpu_s\tapp_cpu_s\tapp_rss_mb\n")
         while running:
             rows = processes()

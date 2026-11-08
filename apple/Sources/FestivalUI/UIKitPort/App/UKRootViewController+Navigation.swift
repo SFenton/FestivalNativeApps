@@ -95,6 +95,7 @@ extension UKRootViewController {
         selected = next
         shellState.selectedSection = next
         shellState.splitOpen = splitOpenSections.contains(next)
+        shellState.detailSelection = stacks[next]?.selectedDetailRoute
     }
 
     /// The profile button: the selected player's Statistics, or profile search.
@@ -249,15 +250,12 @@ extension UKRootViewController: UKNavigating {
             sheet.prefersGrabberVisible = false
         }
         let delegate = SheetDismissHook(onDismiss: onDismiss)
-        if let sheet = navigation as? UKSheetNavigationController {
-            sheet.ukOnDismiss = { [weak delegate] in delegate?.fire() }
-        } else {
-            navigation.presentationController?.delegate = delegate
-        }
         objc_setAssociatedObject(navigation, &sheetHookKey, delegate, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         shellState.drawerPresented = shellState.drawerPresented
-        present(navigation, animated: true)
-        return delegate
+        let result = UKPresentationCoordinator.shared(for: self).presentIndependent(
+            navigation, from: self, animated: true, onDismiss: { [weak delegate] in delegate?.fire() }
+        )
+        return result == .presented ? delegate : nil
     }
 }
 
@@ -300,6 +298,7 @@ extension UKRootViewController: UKSectionStackHost {
     func stackDidChangePath(_ stack: UKSectionStack) {
         if stack.section == selected {
             shellState.splitOpen = stack.isDetailOpen
+            shellState.detailSelection = stack.selectedDetailRoute
             updateEdgeSwipe()
             drawerReload()
         }

@@ -9,7 +9,7 @@ import UIKit
 /// instrument (or a within-group combo) and metric, 25 rows a page, the selected player's
 /// row pinned above the pager on every page, instrument and Rank By page tools.
 @MainActor
-final class UKFullRankingsViewController: UIViewController, UKPageToolsProviding {
+final class UKFullRankingsViewController: UKPageViewController, UKPageToolsProviding {
     private struct BoardSummary: Equatable {
         let totalAccounts: Int
         let totalPages: Int
@@ -133,10 +133,9 @@ final class UKFullRankingsViewController: UIViewController, UKPageToolsProviding
 
     // MARK: Lifecycle
 
-    override func loadView() { view = boardView }
-
     override func viewDidLoad() {
         super.viewDidLoad()
+        installPageContent(boardView, scrollView: boardView.collectionView)
         view.backgroundColor = .clear
         ukInstallAccountItems()
         ukSetPageTitle(pageTitle, mode: .inline)
@@ -450,6 +449,7 @@ final class UKFullRankingsViewController: UIViewController, UKPageToolsProviding
                 let route = AccountRankingRow.route(entry)
                 rows.append((entry.id, UKRankingRowModels.row(
                     model, selectedBand: isSelectedAccount(entry.accountId),
+                    detailSelection: entry.hasAccount ? (route, context) : nil,
                     onTap: entry.hasAccount ? { [weak self] in self?.context.navigator?.selectDetail(route) } : nil
                 )))
             }

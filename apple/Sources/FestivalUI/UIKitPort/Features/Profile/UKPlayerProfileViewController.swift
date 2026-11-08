@@ -621,8 +621,8 @@ class UKPlayerProfileViewController: UKProfileScrollViewController {
     /// A destructive confirmation dialog (`.confirmationDialog` with a visible title).
     private func present(title: String, message: String, confirm: String, onConfirm: @escaping () -> Void, onCancel: (() -> Void)?) {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .actionSheet)
-        alert.addAction(UIAlertAction(title: confirm, style: .destructive) { _ in onConfirm() })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in onCancel?() })
+        alert.addAction(alert.ukAction(title: confirm, style: .destructive) { onConfirm() })
+        alert.addAction(alert.ukAction(title: "Cancel", style: .cancel) { onCancel?() })
         if let popover = alert.popoverPresentationController {
             if let item = identityBarItem {
                 popover.barButtonItem = item
@@ -632,7 +632,7 @@ class UKPlayerProfileViewController: UKProfileScrollViewController {
                 popover.permittedArrowDirections = []
             }
         }
-        present(alert, animated: true)
+        UKPresentationCoordinator.shared(for: self).presentRelated(alert, from: self)
     }
 
     // MARK: Bar

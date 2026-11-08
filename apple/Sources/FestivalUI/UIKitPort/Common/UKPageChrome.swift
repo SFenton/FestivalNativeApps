@@ -96,6 +96,15 @@ final class UKInstrumentPageTitleView: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard window != nil, bounds.width > 0, bounds.height > 0 else { return }
+        let controller = nearestViewController()
+        let screen = (controller as? UKScreenViewController)
+            ?? (controller as? UINavigationController)?.visibleViewController as? UKScreenViewController
+        screen?.movePendingPaneFocus()
+    }
+
     private func rebuild() {
         content?.removeFromSuperview()
         let header = style == .header

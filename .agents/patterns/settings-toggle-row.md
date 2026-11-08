@@ -30,6 +30,13 @@ The web also uses `ToggleRow` in the Songs and Suggestions filter sheets; those 
 
 ## Canonical implementation
 
+UIKit rows use `UKRowSwitch.installRowTap`: row-label taps share one flip action,
+while touches anywhere inside the native switch's descendant hierarchy remain native.
+Settings, Songs and Suggestions use this same exclusion policy, preventing double flips.
+Programmatic synchronization honors system/in-app Reduce Motion (`UKFeatureComponentTests`).
+Padded form switch rows also extend native hit testing to those same accessibility
+outsets; a larger spoken frame must not leave its trailing track tap outside the real row.
+
 | Sub-behavior | Apple | Android | Windows |
 |---|---|---|---|
 | Row (R1–R5) | `apple/Sources/FestivalUI/Features/Settings/SettingsRowToggleStyle.swift` `SettingsRowToggleStyle`: keeps the system `.switch`, makes the label a ≥ 44 pt (`minimumHeight`) full-width `contentShape` whose tap flips the value only while `isEnabled`; the switch keeps its own tap | `android/app/src/main/java/com/festivalscoretracker/android/ui/settings/SettingsScreen.kt` `ToggleRow`: `Row` with `heightIn(min = 56.dp)` + `toggleable(role = Role.Switch)`, `Switch(onCheckedChange = null)`, `disabledReason` appended | `windows/Festival.App/Pages/SettingsPage.xaml` `SettingSwitchStyle` on each `ToggleSwitch` (debt: R1, R6) |

@@ -411,7 +411,12 @@ final class UKPlayerBandsPreviewSectionView: UIView, UKWidthDependent {
             }
             section.ukContain(identifier: "fst.player.bands.card.\(group.group.rawValue)")
             content = section
-            UKFadeIn.fadeIn(section)
+            if UKMotionVisibility.permitsAnimation(in: section) {
+                UKFadeIn.fadeIn(section)
+            } else {
+                section.alpha = 1
+                section.transform = .identity
+            }
         }
         let stack = UKProfileSection([heading, content], spacing: 8)
         stack.ukContain(identifier: "fst.player.bands.group-container.\(group.group.rawValue)")
@@ -433,7 +438,12 @@ final class UKPlayerBandsPreviewSectionView: UIView, UKWidthDependent {
         card.isAccessibilityElement = true
         card.accessibilityLabel = "No Bands Yet, Band lineups will appear here once this player posts band scores."
         card.accessibilityIdentifier = "fst.player.bands.empty.\(group.rawValue)"
-        UKFadeIn.fadeIn(card)
+        if UKMotionVisibility.permitsAnimation(in: card) {
+            UKFadeIn.fadeIn(card)
+        } else {
+            card.alpha = 1
+            card.transform = .identity
+        }
         return card
     }
 

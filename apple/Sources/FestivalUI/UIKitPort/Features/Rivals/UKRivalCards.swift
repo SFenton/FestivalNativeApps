@@ -70,7 +70,12 @@ final class UKRivalLoadingSection<Value>: UIView {
         addSubview(card)
         card.ukPin(to: self)
         current = card
-        if animated { UKFadeIn.fadeIn(card) }
+        if animated, UKMotionVisibility.permitsAnimation(in: card) {
+            UKFadeIn.fadeIn(card)
+        } else {
+            card.alpha = 1
+            card.transform = .identity
+        }
     }
 }
 
@@ -150,6 +155,7 @@ enum UKRivalCards {
         )
         let route = AppRoute.rivalDetail(rivalId: rival.accountId, name: rival.displayName, scope: scope)
         row.onSelect = { [weak navigator = context.navigator] in navigator?.selectDetail(route) }
+        row.ukBindDetailSelection(route, context: context)
         return row
     }
 

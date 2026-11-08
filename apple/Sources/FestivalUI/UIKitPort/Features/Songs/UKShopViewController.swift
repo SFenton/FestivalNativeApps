@@ -206,7 +206,7 @@ final class UKShopFilterSheetController: UKFormViewController {
 /// The Item Shop page (``ShopScreen``): public Shop offers as song rows or a cover grid, with
 /// Sort, Filter and the List/Grid switch, the loading, failed, empty and paused states, and the
 /// official bag link on every offer.
-final class UKShopViewController: UIViewController, UICollectionViewDelegate, UKPageToolsProviding {
+final class UKShopViewController: UKPageViewController, UICollectionViewDelegate, UKPageToolsProviding {
     private let context: UKContext
     private let pushed: Bool
     private var session: FestivalSession { context.session }
@@ -315,11 +315,7 @@ final class UKShopViewController: UIViewController, UICollectionViewDelegate, UK
         configureDataSource()
         gate = UKReloadGate(key: viewMode, isLoading: true, spinnerLabel: "Loading Item Shop")
         gate.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(gate)
-        NSLayoutConstraint.activate([
-            gate.leadingAnchor.constraint(equalTo: view.leadingAnchor), gate.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            gate.topAnchor.constraint(equalTo: view.topAnchor), gate.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-        ])
+        installPageContent(gate, scrollView: collectionView)
         gate.contentView.addSubview(collectionView)
         collectionView.frame = gate.contentView.bounds
         collectionView.autoresizingMask = [.flexibleWidth, .flexibleHeight]

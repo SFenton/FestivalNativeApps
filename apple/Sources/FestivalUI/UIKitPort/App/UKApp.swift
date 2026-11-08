@@ -1,6 +1,11 @@
 #if os(iOS)
 import UIKit
 
+private final class UKWeakRootBox {
+    weak var value: UKRootViewController?
+    init(_ value: UKRootViewController) { self.value = value }
+}
+
 // MARK: - Entry point
 
 /// The UIKit app's entry point: the `FestivalMobileUIKit` target's scene delegate asks
@@ -34,7 +39,111 @@ public enum UKApp {
         #endif
         let root = UKRootViewController(windowRoute: UKWindows.route(from: userActivity))
         #if DEBUG
-        PerfNavigationHooks.register(push: { [weak root] in root?.push($0) }, pop: { [weak root] in root?.pop() })
+        let rootBox = UKWeakRootBox(root)
+        PerfNavigationHooks.register(push: { rootBox.value?.push($0) }, pop: { rootBox.value?.pop() })
+        PerfNavigationHooks.registerModal(
+            "profile",
+            present: { rootBox.value?.presentProfile() },
+            dismiss: { rootBox.value?.dismiss(animated: true) },
+            isPresented: { rootBox.value?.presentedViewController != nil }
+        )
+        PerfNavigationHooks.registerModal(
+            "global-search",
+            present: { rootBox.value?.openSearch() },
+            dismiss: { rootBox.value?.perform(.closeSearch) },
+            isPresented: { rootBox.value?.searchActive == true }
+        )
+        PerfNavigationHooks.registerModal(
+            "notifications",
+            present: { rootBox.value?.presentNotifications() },
+            dismiss: { rootBox.value?.dismiss(animated: true) },
+            isPresented: { rootBox.value?.presentedViewController != nil }
+        )
+        PerfNavigationHooks.registerModal(
+            "whats-new",
+            present: { rootBox.value?.ukWhatsNew() },
+            dismiss: { rootBox.value?.dismiss(animated: true) },
+            isPresented: { rootBox.value?.presentedViewController != nil }
+        )
+        PerfNavigationHooks.registerModal(
+            "songs-filter",
+            present: { rootBox.value?.perfPresentSongsFilter() },
+            dismiss: { rootBox.value?.dismiss(animated: true) },
+            isPresented: { rootBox.value?.presentedViewController != nil }
+        )
+        PerfNavigationHooks.registerModal(
+            "song-paths",
+            present: { rootBox.value?.perfPresentSongPaths() },
+            dismiss: { rootBox.value?.dismiss(animated: true) },
+            isPresented: { rootBox.value?.presentedViewController != nil }
+        )
+        PerfNavigationHooks.registerModal(
+            "suggestions-filter",
+            present: { rootBox.value?.perfPresentSuggestionsFilter() },
+            dismiss: { rootBox.value?.dismiss(animated: true) },
+            isPresented: { rootBox.value?.presentedViewController != nil }
+        )
+        PerfNavigationHooks.registerModal(
+            "feedback",
+            present: { rootBox.value?.perfPresentFeedback() },
+            dismiss: { rootBox.value?.dismiss(animated: true) },
+            isPresented: { rootBox.value?.presentedViewController != nil }
+        )
+        PerfNavigationHooks.registerModal(
+            "privacy-policy",
+            present: { rootBox.value?.perfPresentPrivacyPolicy() },
+            dismiss: { rootBox.value?.dismiss(animated: true) },
+            isPresented: { rootBox.value?.presentedViewController != nil }
+        )
+        PerfNavigationHooks.registerComponent(
+            "drawer",
+            start: { rootBox.value?.openDrawer() },
+            stop: { rootBox.value?.dismissDrawer() },
+            isReady: { rootBox.value?.drawer != nil }
+        )
+        PerfNavigationHooks.registerComponent(
+            "sheet",
+            start: { rootBox.value?.presentProfile() },
+            stop: { rootBox.value?.dismiss(animated: true) },
+            isReady: { rootBox.value?.presentedViewController != nil }
+        )
+        let priorSection = root.selected
+        PerfNavigationHooks.registerComponent(
+            "section-stack",
+            start: { rootBox.value?.select(.settings) },
+            stop: { rootBox.value?.select(priorSection) },
+            isReady: { rootBox.value?.selected == .settings }
+        )
+        let perfDebug = PerfComponentDebugState.shared
+        PerfNavigationHooks.registerComponent(
+            "row-press",
+            start: { rootBox.value?.openDrawer(); PerfComponentDebugState.shared.rowPressed = true; UKDrawerRow.setDebugPressed(true) },
+            stop: { PerfComponentDebugState.shared.rowPressed = false; UKDrawerRow.setDebugPressed(false); rootBox.value?.dismissDrawer() },
+            isReady: { rootBox.value?.drawer != nil && UKDrawerRow.debugIsPressed }
+        )
+        PerfNavigationHooks.registerComponent(
+            "edge-fade",
+            start: { PerfComponentBuiltins.startEdgeFade() },
+            stop: { PerfComponentBuiltins.stopEdgeFade() },
+            isReady: { PerfComponentBuiltins.edgeFadeReady },
+            isRestored: { PerfComponentBuiltins.edgeFadeRestored }
+        )
+        PerfNavigationHooks.registerComponent(
+            "marquee",
+            start: {
+                rootBox.value?.select(.songs)
+                perfDebug.marqueeRequested = true
+            },
+            stop: { perfDebug.marqueeRequested = false; perfDebug.clearMarquees() },
+            isReady: { perfDebug.marqueeAnimating }
+        )
+        PerfNavigationHooks.registerComponent(
+            "accordion",
+            start: { rootBox.value?.perfToggleAccordion() },
+            stop: { rootBox.value?.perfRestoreAccordion() },
+            isReady: { rootBox.value?.perfAccordionIsOpen == true },
+            isRestored: { rootBox.value?.perfAccordionIsOpen == false }
+        )
         // Song Detail lane: `FST_UIKIT_DEBUG_SONGDETAIL=<songId>` pushes a song's page.
         UKSongDetailDebug.openIfRequested(on: root)
         #endif

@@ -32,7 +32,8 @@ final class UKSongScoreRowView: UKRowHostView {
         if model.seasonColumn { columns?.showsSeason = true }
         let row = UKSongLeaderboardEntryRowView(
             entry: model.entry, isPlayer: model.isPlayer, columns: columns, currentSeason: model.currentSeason,
-            chevron: true, hint: model.hint, separateParts: true, horizontalPadding: UKLeaderboardMetrics.horizontalPadding
+            chevron: true, hint: model.hint, separateParts: true, horizontalPadding: UKLeaderboardMetrics.horizontalPadding,
+            traits: traitCollection
         )
         host(row)
         row.accessibilityContainerType = .semanticGroup
@@ -43,6 +44,11 @@ final class UKSongScoreRowView: UKRowHostView {
     override func traitCollectionDidChange(_ previous: UITraitCollection?) {
         super.traitCollectionDidChange(previous)
         if previous?.preferredContentSizeCategory != traitCollection.preferredContentSizeCategory, let model { apply(model) }
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil, let model { apply(model) }
     }
 }
 

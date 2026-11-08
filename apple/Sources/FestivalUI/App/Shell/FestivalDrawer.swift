@@ -830,10 +830,19 @@ struct DrawerRow: View {
 
 /// Rounded press highlight matching iOS 26 sidebar rows.
 struct DrawerRowStyle: ButtonStyle {
+    #if DEBUG && os(iOS)
+    @Environment(\.perfComponentDebugState) private var perfDebug
+    #endif
+
     func makeBody(configuration: Configuration) -> some View {
+        #if DEBUG && os(iOS)
+        let pressed = configuration.isPressed || perfDebug.rowPressed
+        #else
+        let pressed = configuration.isPressed
+        #endif
         configuration.label
             .background(
-                Color.white.opacity(configuration.isPressed ? 0.12 : 0),
+                Color.white.opacity(pressed ? 0.12 : 0),
                 in: RoundedRectangle(cornerRadius: DrawerCorners.rowRadius, style: .continuous)
             )
     }

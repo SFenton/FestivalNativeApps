@@ -133,7 +133,10 @@ class UKFormViewController: UKPageViewController, UKModalScrollProviding {
         })
         button.contentHorizontalAlignment = .leading
         button.accessibilityIdentifier = identifier
-        button.heightAnchor.constraint(greaterThanOrEqualToConstant: 32).isActive = true
+        NSLayoutConstraint.activate([
+            button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            button.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
+        ])
         return button
     }
 
@@ -188,13 +191,17 @@ final class UKToggleRow: UIView {
             row.topAnchor.constraint(equalTo: topAnchor), row.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
         isAccessibilityElement = false
-        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped)))
+        toggle.installRowTap(on: self)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    @objc private func tapped() { toggle.flip() }
+    /// Matches touch handling to the row's expanded accessibility bounds.
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        bounds.inset(by: toggle.framePadding).contains(point)
+    }
+
 }
 
 // MARK: - Radio row

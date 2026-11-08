@@ -156,7 +156,14 @@ final class UKPinnedTitleSlot {
         if animated, let host = item.titleView {
             target.alpha = 0
             item.titleView = target
-            UIView.animate(withDuration: 0.2) { target.alpha = 1 }
+            if UKMotionVisibility.permitsAnimation(in: target) {
+                UIView.animate(
+                    withDuration: 0.2, delay: 0,
+                    options: [.curveEaseInOut, .beginFromCurrentState]
+                ) { target.alpha = 1 }
+            } else {
+                target.alpha = 1
+            }
             _ = host
         } else {
             item.titleView = target

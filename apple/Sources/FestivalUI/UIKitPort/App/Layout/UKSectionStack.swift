@@ -168,6 +168,8 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
 
     /// Whether the trailing pane shows an open item.
     var isDetailOpen: Bool { geometry != nil && (cut?.selection != nil) }
+    /// The route represented by the current trailing selection, if one is open.
+    var selectedDetailRoute: AppRoute? { isDetailOpen ? cut?.detail.first : nil }
 
     // MARK: Shape
 
@@ -206,6 +208,7 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
         let split = candidate != nil && windowShape != nil
         let content = OnDemandSplitPolicy.trailingContent(cut: candidate, allowsSplit: split)
         let wasSplit = geometry != nil
+        let previousDetail = cut?.detail.first
         let leadingRoutes: [AppRoute]
         let trailingRoutes: [AppRoute]
         if split, let candidate {
@@ -255,6 +258,7 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
             placeholder = nil
         }
         attach(pane)
+        pane?.view.accessibilityIdentifier = isDetailOpen ? "fst.split.trailing" : nil
         leading.viewControllers.forEach { installLeadingChrome(on: $0, navigation: leading) }
         if let pane {
             pane.viewControllers.forEach { installTrailingChrome(on: $0, navigation: pane) }
@@ -272,6 +276,9 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
             onSplitOpenChanged?(open)
         }
         host.stackDidChangePath(self)
+        if animated, split, cut?.selection != nil, cut?.detail.first != previousDetail {
+            (pane?.viewControllers.first as? UKScreenViewController)?.requestPaneFocus()
+        }
     }
 
     private func sameControllers(_ lhs: [UIViewController], _ rhs: [UIViewController]) -> Bool {
@@ -329,7 +336,7 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
             } else {
                 UIView.animate(
                     withDuration: 0.42, delay: 0, usingSpringWithDamping: 0.88, initialSpringVelocity: 0,
-                    options: [], animations: apply
+                    options: [.beginFromCurrentState, .allowUserInteraction], animations: apply
                 )
             }
         } else {
@@ -338,7 +345,7 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
     }
 
     private func updateDivider() {
-        guard let geometry else {
+        guard isDetailOpen, let geometry else {
             divider.isHidden = true
             return
         }
@@ -482,7 +489,7 @@ private final class UKSplitChromeSnapshot {
 
 /// The trailing pane's centred placeholder while a list page has nothing open (Settings,
 /// issue #371).
-final class UKSplitPlaceholderViewController: UIViewController {
+final class UKSplitPlaceholderViewController: UKScreenViewController {
     private let info: OnDemandSplitPolicy.Placeholder
 
     /// Creates the placeholder.

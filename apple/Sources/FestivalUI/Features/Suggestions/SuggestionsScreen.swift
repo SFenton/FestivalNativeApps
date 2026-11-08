@@ -134,6 +134,19 @@ struct SuggestionsScreen: View {
                 if let data = try? updated.encoded() { filterData = data }
             }
         }
+        #if DEBUG && os(iOS)
+        .onAppear {
+            PerfNavigationHooks.registerModal(
+                "suggestions-filter",
+                present: { filterPresented = true },
+                dismiss: { filterPresented = false },
+                isPresented: { filterPresented }
+            )
+        }
+        .onDisappear {
+            PerfNavigationHooks.unregisterModal("suggestions-filter")
+        }
+        #endif
         .task { viewModel.filter = SuggestionFilterSettings.decodeSaved(filterData) }
         .task(id: session.selectionRevision) {
             guard handledSelectionRevision != session.selectionRevision else { return }

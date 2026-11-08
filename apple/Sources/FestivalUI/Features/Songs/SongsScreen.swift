@@ -463,6 +463,19 @@ struct SongsScreen: View, Equatable {
                 Text("Saved song filters are invalid. Reset them from Songs to continue.")
             }
         }
+        #if DEBUG && os(iOS)
+        .onAppear {
+            PerfNavigationHooks.registerModal(
+                "songs-filter",
+                present: { filterPresented = true },
+                dismiss: { filterPresented = false },
+                isPresented: { filterPresented }
+            )
+        }
+        .onDisappear {
+            PerfNavigationHooks.unregisterModal("songs-filter")
+        }
+        #endif
         #if DEBUG
         .navigationDestination(item: $debugPushedSong) { song in
             // Same pushed-page chrome (Search + avatar, floating page tools) as

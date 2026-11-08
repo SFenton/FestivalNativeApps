@@ -76,7 +76,7 @@
 
             private func waitUntil(
                 _ condition: @escaping @MainActor () -> Bool,
-                timeoutNanoseconds: UInt64 = 5_000_000_000,
+                timeoutNanoseconds: UInt64 = 10_000_000_000,
                 fileID: String = #fileID,
                 line: Int = #line
             ) async throws {

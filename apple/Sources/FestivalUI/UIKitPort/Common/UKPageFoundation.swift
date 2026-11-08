@@ -18,9 +18,12 @@ enum UKPageViewportPolicy: Equatable {
 /// visual policy. ``FentonContentContainmentView`` owns only the page content
 /// rectangle and the registered primary scroll view's inset lifecycle.
 @MainActor
-class UKPageViewController: UIViewController {
+class UKPageViewController: UKScreenViewController {
     /// The app-owned content host.
     let pageContainment = FentonContentContainmentView()
+
+    /// Persistent app-owned composition surface for pages with independent controls and results.
+    private(set) lazy var pageBodyView = UIView()
 
     private(set) var registeredPageScrollView: UIScrollView?
     private(set) var pageViewportPolicy: UKPageViewportPolicy = .native
@@ -59,7 +62,15 @@ class UKPageViewController: UIViewController {
         pageContainment.contentInsetsOverride = contentInsetsOverride ?? (viewport == .native ? .zero : nil)
         pageContainment.installContentView(content)
         installedPageContent = content
+        setContentScrollView(scrollView)
         registerPageScrollView(viewport == .contained ? scrollView : nil)
+    }
+
+    /// Installs a persistent native canvas for controls, results and pinned page chrome.
+    ///
+    /// - Parameter scrollView: The primary scroller; UIKit retains automatic inset ownership.
+    func installPageBody(scrollView: UIScrollView? = nil) {
+        installPageContent(pageBodyView, scrollView: scrollView)
     }
 
     /// Registers the primary scroll view without replacing the page content.
@@ -87,6 +98,7 @@ class UKPageViewController: UIViewController {
     func showPageState(_ state: UIView, edgeToEdge: Bool = false) {
         restorePageContentHierarchy()
         pageStateView?.removeFromSuperview()
+        pageContainment.isHidden = true
         state.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(state)
         if edgeToEdge {
@@ -113,6 +125,7 @@ class UKPageViewController: UIViewController {
         restorePageContentHierarchy()
         pageStateView?.removeFromSuperview()
         pageStateView = nil
+        pageContainment.isHidden = false
     }
 
     /// Reclaims the installed page content only when a consumer moved it into another host.

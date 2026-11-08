@@ -73,6 +73,7 @@ final class UKBackgroundHost {
         for name in names {
             observations.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
                 let name = note.name
+                let changedScene = (note.object as? UIScene).map(ObjectIdentifier.init)
                 MainActor.assumeIsolated {
                     switch name {
                     case .NSProcessInfoPowerStateDidChange:
@@ -80,8 +81,7 @@ final class UKBackgroundHost {
                     case UIScene.didActivateNotification:
                         self?.sceneActive = true
                     case UIScene.willDeactivateNotification, UIScene.didEnterBackgroundNotification:
-                        // `willDeactivate` fires before the state flips: ScenePhase.inactive.
-                        self?.sceneActive = false
+                        self?.sceneActive = UKBackgroundHost.anySceneActive(excluding: changedScene)
                     default:
                         break
                     }
@@ -131,8 +131,10 @@ final class UKBackgroundHost {
     private var sceneActive = UKBackgroundHost.anySceneActive()
 
     /// Whether any window scene is foreground-active right now.
-    private static func anySceneActive() -> Bool {
-        UIApplication.shared.connectedScenes.contains { $0.activationState == .foregroundActive }
+    private static func anySceneActive(excluding changed: ObjectIdentifier? = nil) -> Bool {
+        UIApplication.shared.connectedScenes.contains {
+            $0.activationState == .foregroundActive && ObjectIdentifier($0) != changed
+        }
     }
 
     /// Combine system and in-app preferences into one artwork policy.

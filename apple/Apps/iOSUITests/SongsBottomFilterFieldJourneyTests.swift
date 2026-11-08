@@ -42,11 +42,29 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
     /// Typed into the field: matches fixture titles, so the list stays populated.
     private static let query = "Fixture"
 
+    private struct FieldEvidence {
+        let frame: CGRect
+        let placeholderHeight: CGFloat
+        let queryHeight: CGFloat
+        let predictsClipping: Bool
+    }
+
     /// The field at the standard text size on the folded Duo.
     @MainActor
     func testBottomFilterFieldIsAccessibleDuoFolded() throws {
         continueAfterFailure = false
-        _ = try checkField(typeSize: Self.standard, name: "standard")
+        let standard = try checkField(typeSize: Self.standard, name: "standard")
+        if standard.predictsClipping {
+            let largest = try checkField(typeSize: Self.ax5, name: "ax5")
+            assertTextGrowth(standard, largest)
+        }
+    }
+
+    /// The largest-text form runs independently of the standard-size audit.
+    @MainActor
+    func testBottomFilterFieldIsAccessibleAtAX5DuoFolded() throws {
+        continueAfterFailure = false
+        _ = try checkField(typeSize: Self.ax5, name: "ax5")
     }
 
     /// The field at AX5 on the folded Duo: it grows past its standard-size height and
@@ -56,8 +74,9 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
         continueAfterFailure = false
         let standard = try checkField(typeSize: Self.standard, name: "standard")
         let largest = try checkField(typeSize: Self.ax5, name: "ax5")
-        XCTAssertGreaterThan(largest.height, standard.height + 4,
-                             "the AX5 field \(largest) did not grow past the standard field \(standard)")
+        XCTAssertGreaterThan(largest.frame.height, standard.frame.height + 4,
+                             "the AX5 field \(largest.frame) did not grow past the standard field \(standard.frame)")
+        assertTextGrowth(standard, largest)
     }
 
     // MARK: - Checks
@@ -67,9 +86,9 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
     /// - Parameters:
     ///   - typeSize: A `UIContentSizeCategory` raw value.
     ///   - name: Attachment suffix.
-    /// - Returns: The empty field's frame.
+    /// - Returns: The native frame, rendered glyph heights and any larger-size prediction.
     @MainActor
-    private func checkField(typeSize: String, name: String) throws -> CGRect {
+    private func checkField(typeSize: String, name: String) throws -> FieldEvidence {
         let app = try launchSongs(typeSize: typeSize)
         defer { app.terminate() }
         let window = app.windows.firstMatch.frame
@@ -86,6 +105,10 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
         XCTAssertEqual(entries.filter { $0.elementType == .searchField }.count, 1,
                        "a second search field (the system drawer?)\n\(dump)")
         XCTAssertFalse(entries.contains { $0.identifier == Self.clearID }, "Clear shown while empty\n\(dump)")
+        let placeholder = RecognizedText.recognize(fieldElement, label: "Filter Songs", frame: field.frame)
+        XCTAssertTrue(RecognizedText.showsWhole("Filter Songs", in: placeholder.text),
+                      "\(name): placeholder is clipped: \(placeholder.text ?? "nil")")
+        let placeholderHeight = try XCTUnwrap(placeholder.lineHeight, "\(name): placeholder has no measurable glyphs")
 
         // At the bottom, inside the window, read after the bar and the rows above it.
         let frame = field.frame
@@ -147,8 +170,12 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
         XCTAssertTrue(between.isEmpty, "between the field and Clear Search:\n\(betweenDump)")
         XCTAssertEqual(typed[typedField].value as? String, Self.query, "the field's value")
         XCTAssertTrue(clear.isHittable, "Clear Search is not hittable")
+        let reading = RecognizedText.recognize(fieldElement, label: Self.query, frame: typed[typedField].frame)
+        XCTAssertTrue(RecognizedText.showsWhole(Self.query, in: reading.text),
+                      "\(name): typed query is clipped: \(reading.text ?? "nil")")
+        let queryHeight = try XCTUnwrap(reading.lineHeight, "\(name): query has no measurable glyphs")
 
-        try audit(app, name: name)
+        let prediction = try audit(app, name: name)
 
         clear.tap()
         let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: clear)
@@ -156,22 +183,56 @@ final class SongsBottomFilterFieldJourneyTests: XCTestCase {
                        "Clear Search stayed after clearing")
         let value = (fieldElement.value as? String) ?? ""
         XCTAssertTrue(value.isEmpty || value == "Filter Songs", "the field kept '\(value)'")
-        return frame
+        return FieldEvidence(
+            frame: frame, placeholderHeight: placeholderHeight, queryHeight: queryHeight,
+            predictsClipping: prediction
+        )
+    }
+
+    @MainActor
+    private func assertTextGrowth(_ standard: FieldEvidence, _ largest: FieldEvidence) {
+        XCTAssertGreaterThanOrEqual(largest.placeholderHeight / standard.placeholderHeight,
+                                    RecognizedText.minimumGrowth, "The placeholder must actually grow at AX5")
+        XCTAssertGreaterThanOrEqual(largest.queryHeight / standard.queryHeight,
+                                    RecognizedText.minimumGrowth, "The editable query must actually grow at AX5")
+        let proof = XCTAttachment(string: "Native placeholder and query both read back whole at Large and AX5. "
+            + "Placeholder glyphs \(standard.placeholderHeight) -> \(largest.placeholderHeight) pt; "
+            + "query glyphs \(standard.queryHeight) -> \(largest.queryHeight) pt. "
+            + "Any larger-size UITextField clipping prediction is disproved in the maximum-size launch.")
+        proof.name = "songs-duo-filter-maximum-text-size-proof"
+        proof.lifetime = .keepAlways
+        add(proof)
     }
 
     /// The scoped audit: only the field and Clear Search (other regions have their own
     /// journeys).
     @MainActor
-    private func audit(_ app: XCUIApplication, name: String) throws {
+    private func audit(_ app: XCUIApplication, name: String) throws -> Bool {
         let types: XCUIAccessibilityAuditType = [.hitRegion, .sufficientElementDescription, .dynamicType, .textClipped]
         var issues: [String] = []
-        try SongsUITestSupport.performAuditRetryingTimeout(app, types, name: name, reset: { issues = [] }) { issue in
+        var prediction = false
+        try SongsUITestSupport.performAuditRetryingTimeout(app, types, name: name, reset: {
+            issues = []
+            prediction = false
+        }) { issue in
             guard let element = issue.element,
                   [Self.fieldID, Self.clearID].contains(element.identifier) else { return true }
-            issues.append("\(element.identifier): \(issue.compactDescription)")
+            let predictsLargerSize = issue.auditType == .textClipped && element.identifier == Self.fieldID
+                && issue.detailedDescription == "Text of this UITextField may be clipped at larger Dynamic Type sizes."
+            if predictsLargerSize { prediction = true }
+            else { issues.append("\(element.identifier): \(issue.compactDescription)") }
+            let detail = XCTAttachment(string: "\(issue.detailedDescription)\n\(element.debugDescription)")
+            detail.name = "songs-duo-filter-\(name)-audit-detail"
+            detail.lifetime = .keepAlways
+            self.add(detail)
+            let shot = XCTAttachment(screenshot: app.screenshot())
+            shot.name = "songs-duo-filter-\(name)-audit-rendering"
+            shot.lifetime = .keepAlways
+            self.add(shot)
             return true
         }
         XCTAssertTrue(issues.isEmpty, "audit \(name):\n\(issues.joined(separator: "\n"))")
+        return prediction
     }
 
     // MARK: - Launch and walk

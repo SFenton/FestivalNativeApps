@@ -73,6 +73,25 @@ Page spinner placement extends [empty-error-states](empty-error-states.md) R2/R7
 | Accordion reveal (R10; #561) | — (Apple #561 session) | `ui/common/AccordionReveal.kt` `AccordionReveal`, `AccordionRevealOf`; `core/shell/AccordionMotion.kt` `AccordionMotion` | `Festival.App/Controls/Accordion.cs` `Accordion.Sequenced` (set on every `Expander` by the implicit style in `Themes/Styles.xaml`: it clears the template's `ExpandStates` storyboards in place and drives `ExpanderContentClip`/`ExpanderContent`) `Accordion.Open` (a `Border` bound to the switch that reveals it: Settings Song Row Visual Order and Maximum Score Leeway) and `AccordionMover` (custom panels: `InstrumentSelector` `DetailsClip`); timing `Festival.Core/Domain/MotionPolicy.cs` `AccordionMotion` (`Plan`, `Progress`; instant when `Motion.Allowed` is false) |
 | Graph card paging slide (R12; #593) | `Features/Profile/PlayerProfileCharts.swift` `move(to:)` | `core/shell/ChartPageMotion.kt` `ChartPageMotion`; `ui/common/ChartPageSlide.kt` `rememberChartPageSlide`; dates `ui/common/ChartBandLabels.kt` (`shift`) | Not mirrored yet (see debt) |
 
+### UIKit lifecycle and native loading
+
+`UIKitPort/Common/UKLoadTransitions.swift` owns reload gates, row entrances and list jumps.
+Entrances cancel on reuse and page disappearance; superseded gate completions cannot commit.
+List jumps await native animator completion, and Reduce Motion settles fades/choreography
+immediately while preserving R3's required spinner holds. `UKMotionVisibility` is the
+shared foreground/hidden/presentation policy for decorative loops, not a per-frame poll.
+
+Agent decision (full UIKit architecture pass): `UKLoadingView` uses one actual
+`UIActivityIndicatorView`, not a custom spinning layer plus an invisible accessibility
+proxy. Keep Festival's white treatment, shared loading slots, named busy element and
+fold-avoiding placement. Native indicator appearance replaces the custom quarter arc;
+SwiftUI and other platforms are unchanged. This follows the requested standard-API
+direction and HIG `progress-indicators.md` ("Display progress indicators in a consistent
+location"). Pass window coordinates into `FoldAvoidingPlacement`, whose result is
+already local; never convert it a second time for offset panes. Scrolling overflow
+states keep their original content origin. Tests: `UKMotionFoundationTests`.
+The owner may override this native-indicator variant.
+
 ## Known debt
 
 | Debt | Breaks | Plan |
@@ -89,8 +108,6 @@ Page spinner placement extends [empty-error-states](empty-error-states.md) R2/R7
 | Apple Full Rankings builds its in-list instrument title and ranked count inside the gate, so they re-reveal on a page change (#316 sweep). Its instrument and metric switches deliberately reload the title with the board (#294). | R4 | Move the title into a retained frame for page changes (`FestivalReloadGate(…retainingFrame:)`), keeping the switch behavior. |
 | Apple `SoloLeaderboardScreen` keeps the pinned footer and pager from the last shown page when a page change fails; R4 and the web hide them on failure (#283 Windows check). | R4 | Cross-platform check from #283's blast radius (Apple session). |
 | Android Full Rankings and Band Rankings keep the last page count through an in-place instrument, Rank By or band-size switch (#431 note below); Android song band and Player Bands size/group switches are unverified against the Windows rule; Windows hides the pager until the new board's count commits (#575 decision below). Apple boards are unverified. | R4 | Android and Apple follow-ups from #575's blast radius, unless the owner chooses the keep-the-count option. |
-
-UIKit: `UKReloadGate` (the shared `ReloadTransition` driven with `UIViewPropertyAnimator`), `UKFadeIn` and `UKListJump` in `UIKitPort/Common/UKLoadTransitions.swift`; the spinner is `UKLoadingView`.
 
 ## Guards (`tools/pattern_guard.py`)
 

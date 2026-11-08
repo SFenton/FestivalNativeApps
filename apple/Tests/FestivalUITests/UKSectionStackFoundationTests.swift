@@ -11,6 +11,7 @@
                 let originalAction = UIBarButtonItem(title: "Original", style: .plain, target: nil, action: nil)
                 let scroll = UIScrollView()
                 var disappearances = 0
+                var appeared = false
 
                 override func viewDidLoad() {
                     super.viewDidLoad()
@@ -23,7 +24,13 @@
 
                 override func viewDidDisappear(_ animated: Bool) {
                     super.viewDidDisappear(animated)
+                    appeared = false
                     disappearances += 1
+                }
+
+                override func viewDidAppear(_ animated: Bool) {
+                    super.viewDidAppear(animated)
+                    appeared = true
                 }
             }
 
@@ -47,17 +54,26 @@
                 func stackDidChangePath(_ stack: UKSectionStack) {}
             }
 
-            private func makeHost() throws -> (Host, UKSectionStack, UIWindow, () -> Void) {
+            private func makeHost() async throws -> (Host, UKSectionStack, UIWindow, () -> Void) {
                 let scene = try #require(
                     UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
                 )
                 let previous = scene.windows.first(where: \.isKeyWindow)
                 let host = Host()
-                let stack = UKSectionStack(section: .leaderboards, root: Page(), host: host)
+                let root = Page()
+                let stack = UKSectionStack(section: .leaderboards, root: root, host: host)
                 let window = UIWindow(windowScene: scene)
                 window.frame = CGRect(origin: .zero, size: host.stackLayout.size)
                 window.rootViewController = stack
                 window.makeKeyAndVisible()
+                do {
+                    try await UKHostedWindow.wait { root.appeared }
+                } catch {
+                    window.isHidden = true
+                    window.rootViewController = nil
+                    previous?.makeKeyAndVisible()
+                    throw error
+                }
                 stack.view.frame = window.bounds
                 stack.view.layoutIfNeeded()
                 return (
@@ -71,8 +87,26 @@
             }
 
             @Test
-            func geometryChangesDoNotRemoveAnUnchangedDetail() throws {
-                let (host, stack, window, restore) = try makeHost()
+            func dividerExistsOnlyWhileADetailIsOpen() async throws {
+                let (host, stack, _, restore) = try await makeHost()
+                defer { withExtendedLifetime(host) { restore() } }
+                let divider = try #require(stack.view.subviews.first {
+                    $0.accessibilityIdentifier == "fst.split.divider"
+                })
+                stack.setPath([.fullRankings(instrument: .lead, rankBy: "adjusted")], animated: false)
+                #expect(stack.isDetailOpen)
+                #expect(!divider.isHidden)
+                #expect(stack.trailing?.view.accessibilityIdentifier == "fst.split.trailing")
+
+                stack.popToRoot(animated: false)
+                #expect(!stack.isDetailOpen)
+                #expect(divider.isHidden)
+                #expect(stack.trailing?.view.accessibilityIdentifier == nil)
+            }
+
+            @Test
+            func geometryChangesDoNotRemoveAnUnchangedDetail() async throws {
+                let (host, stack, window, restore) = try await makeHost()
                 defer { restore() }
                 let route = AppRoute.fullRankings(instrument: .lead, rankBy: "adjusted")
                 stack.setPath([route], animated: false)
@@ -95,8 +129,8 @@
             }
 
             @Test
-            func collapsingRestoresFeatureChromeAndKeepsTheSameController() throws {
-                let (host, stack, window, restore) = try makeHost()
+            func collapsingRestoresFeatureChromeAndKeepsTheSameController() async throws {
+                let (host, stack, window, restore) = try await makeHost()
                 defer { restore() }
                 let route = AppRoute.fullRankings(instrument: .lead, rankBy: "adjusted")
                 stack.setPath([route], animated: false)

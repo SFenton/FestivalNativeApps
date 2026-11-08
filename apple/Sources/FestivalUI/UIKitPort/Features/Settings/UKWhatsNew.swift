@@ -10,7 +10,7 @@ import UIKit
 /// list scrolls above it. Pulling the list down past its top and letting go dismisses it too.
 /// The list shows a spinner while the install channel is still being detected.
 @MainActor
-final class UKWhatsNewViewController: UIViewController, UKModalScrollProviding {
+final class UKWhatsNewViewController: UKScreenViewController, UKModalScrollProviding {
     private let version: String
     private let onDismiss: () -> Void
     private let scroll = UIScrollView()
@@ -185,7 +185,9 @@ enum UKWhatsNew {
             ChangelogSeenStore().markSeen(version: WhatsNewGate.appVersion())
             sheet?.dismiss(animated: true)
         }
-        if let sheet { presenter.present(sheet, animated: true) }
+        if let sheet {
+            _ = UKPresentationCoordinator.shared(for: presenter).presentIndependent(sheet, from: presenter)
+        }
     }
 
     /// The Help menu's What's New sheet content (the shell presents it).
@@ -223,27 +225,25 @@ final class UKWhatsNewLaunch {
     init(session: FestivalSession, shell: UKRootViewController) {
         self.session = session
         self.shell = shell
-        Task { await presentWhenSettled() }
+        Task { [weak self] in
+            _ = await AppDistribution.current()
+            self?.presentWhenSettled()
+        }
         var first = true
         observations.observe { [weak self] in
             guard let self else { return }
             let key = session.firstRunCenter.activeKey
             if first { first = false; return }
             guard key == nil else { return }
-            Task { await self.presentWhenSettled() }
+            self.presentWhenSettled()
         }
     }
 
-    /// Wait for the launch carousel to claim the slot, then present if nothing else holds it.
-    private func presentWhenSettled() async {
-        // Detect the install channel at every launch, so the sheet and Settings' replay open with
-        // the right notes.
-        _ = await AppDistribution.current()
+    /// Requests the launch task through the window coordinator. If a first-run guide or a
+    /// user-owned sheet is active, the coordinator retains one bounded automatic request.
+    private func presentWhenSettled() {
         let launcher = WhatsNewLauncher.shared
         guard launcher.resolveIfNeeded(), !presented else { return }
-        try? await Task.sleep(for: WhatsNewGate.settleDelay)
-        guard !presented, let shell, shell.view.window != nil, launcher.claim(in: session.firstRunCenter) else { return }
-        presented = true
         var sheet: UKSheetNavigationController?
         let finish = { [weak self] in
             guard let self else { return }
@@ -253,8 +253,13 @@ final class UKWhatsNewLaunch {
                 presented = false
             }
         }
-        sheet = UKWhatsNew.make(layout: shell.layout, onDismiss: finish)
-        (shell.presentedViewController ?? shell).present(sheet!, animated: true)
+        guard let shell, shell.view.window != nil else { return }
+        _ = UKPresentationCoordinator.shared(for: shell).presentAutomatic(from: shell) { [weak self] in
+            guard let self, !self.presented, launcher.claim(in: self.session.firstRunCenter) else { return nil }
+            self.presented = true
+            sheet = UKWhatsNew.make(layout: shell.layout, onDismiss: finish)
+            return sheet
+        }
     }
 }
 

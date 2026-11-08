@@ -67,14 +67,16 @@ final class UKMarqueeLabel: UIView {
     private let trackLayer = CALayer()
     private let firstCopy = CALayer()
     private let secondCopy = CALayer()
+    #if DEBUG
+    private let perfMarqueeID = UUID()
+    #endif
     private var renderKey: String?
     private var textSize: CGSize = .zero
     private var plan: Plan?
     private var registered = false
     private weak var group: UKMarqueeSyncGroup?
     private var observer: UKAccessibilityObserver?
-    nonisolated(unsafe) private var sceneObservers: [NSObjectProtocol] = []
-
+    private var visibilityObserver: UKMotionVisibilityObserver?
     private struct Plan: Equatable {
         let distance: CGFloat
         let cycleDuration: Double
@@ -140,12 +142,7 @@ final class UKMarqueeLabel: UIView {
         accessibilityLabel = text
         applyText()
         observer = UKAccessibilityObserver { [weak self] in self?.refresh() }
-        let center = NotificationCenter.default
-        sceneObservers = [UIScene.didActivateNotification, UIScene.willDeactivateNotification].map { name in
-            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.refresh() }
-            }
-        }
+        visibilityObserver = UKMotionVisibilityObserver { [weak self] in self?.refresh() }
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKMarqueeLabel, _) in
             self.textChanged()
         }
@@ -154,21 +151,21 @@ final class UKMarqueeLabel: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    deinit { sceneObservers.forEach { NotificationCenter.default.removeObserver($0) } }
-
     // MARK: Layout
 
     private var wraps: Bool {
         wrapsAtAccessibilitySizes && UKFont.isAccessibilitySize(traitCollection)
     }
 
+    private var resolvedFont: UIFont { staticLabel.font ?? font }
+
     private var naturalWidth: CGFloat {
-        ceil((text as NSString).size(withAttributes: [.font: font]).width)
+        ceil((text as NSString).size(withAttributes: [.font: resolvedFont]).width)
     }
 
     override var intrinsicContentSize: CGSize {
         if wraps { return CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric) }
-        return CGSize(width: naturalWidth, height: ceil(font.lineHeight))
+        return CGSize(width: naturalWidth, height: ceil(resolvedFont.lineHeight))
     }
 
     override func layoutSubviews() {
@@ -182,6 +179,9 @@ final class UKMarqueeLabel: UIView {
         if window == nil {
             leaveGroup()
             trackLayer.removeAnimation(forKey: "marquee")
+            #if DEBUG
+            PerfComponentDebugState.shared.setMarquee(perfMarqueeID, active: false)
+            #endif
         } else {
             refresh()
         }
@@ -190,9 +190,12 @@ final class UKMarqueeLabel: UIView {
     // MARK: State
 
     private var mayScroll: Bool {
-        guard animationEnabled, !UKAccessibility.reduceMotion, !DebugAnimationOverride.stillBackground,
-              let scene = window?.windowScene else { return false }
-        return scene.activationState == .foregroundActive
+        #if DEBUG
+        let enabled = animationEnabled || PerfComponentDebugState.shared.marqueeRequested
+        #else
+        let enabled = animationEnabled
+        #endif
+        return enabled && UKMotionVisibility.permitsAnimation(in: self)
     }
 
     private func textChanged() {
@@ -220,15 +223,15 @@ final class UKMarqueeLabel: UIView {
     }
 
     private func currentKey() -> String {
-        "\(text)|\(font.fontName)|\(font.pointSize)|\(textColor.hash)|\(traitCollection.displayScale)"
+        "\(text)|\(resolvedFont.fontName)|\(resolvedFont.pointSize)|\(textColor.hash)|\(traitCollection.displayScale)"
     }
 
     private func renderIfNeeded() {
         let key = currentKey()
         guard key != renderKey else { return }
         renderKey = key
-        let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: textColor]
-        let size = CGSize(width: naturalWidth, height: ceil(font.lineHeight))
+        let attributes: [NSAttributedString.Key: Any] = [.font: resolvedFont, .foregroundColor: textColor]
+        let size = CGSize(width: naturalWidth, height: ceil(resolvedFont.lineHeight))
         let format = UIGraphicsImageRendererFormat()
         format.scale = max(traitCollection.displayScale, 1)
         format.opaque = false
@@ -249,7 +252,7 @@ final class UKMarqueeLabel: UIView {
         applyText()
         let scrolls = !wraps && mayScroll && bounds.width > 0
         let overflowing = scrolls && MarqueeTiming.overflows(textWidth: naturalWidth, available: bounds.width)
-        if scrolls { renderIfNeeded() }
+        if overflowing { renderIfNeeded() }
         if overflowing {
             if !registered, let group {
                 registered = true
@@ -273,6 +276,9 @@ final class UKMarqueeLabel: UIView {
         guard next != plan else { return }
         plan = next
         trackLayer.removeAnimation(forKey: "marquee")
+        #if DEBUG
+        PerfComponentDebugState.shared.setMarquee(perfMarqueeID, active: next != nil)
+        #endif
         guard let next else { return }
         let animation = CAKeyframeAnimation(keyPath: "transform.translation.x")
         animation.values = MarqueeTrackLayer.offsets(distance: next.distance).map { NSNumber(value: $0) }

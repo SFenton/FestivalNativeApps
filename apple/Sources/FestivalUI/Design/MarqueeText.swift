@@ -57,6 +57,10 @@ public struct MarqueeText: View {
     @Environment(\.displayScale) private var displayScale
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.colorScheme) private var colorScheme
+    #if DEBUG && os(iOS)
+    @Environment(\.perfComponentDebugState) private var perfDebug
+    @State private var perfMarqueeID = UUID()
+    #endif
 
     /// Create a marquee text view.
     ///
@@ -78,7 +82,12 @@ public struct MarqueeText: View {
 
     /// Whether an overflowing text may scroll in this environment.
     private var mayScroll: Bool {
-        animationEnabled && !reduceMotion && !appReduceMotion
+        #if DEBUG && os(iOS)
+        let enabled = animationEnabled || perfDebug.marqueeRequested
+        #else
+        let enabled = animationEnabled
+        #endif
+        return enabled && !reduceMotion && !appReduceMotion
             && AnimationActivity.sceneActive(scenePhase, windowVisible: windowVisible)
             && !DebugAnimationOverride.stillBackground
     }
@@ -117,6 +126,17 @@ public struct MarqueeText: View {
         // `.ignore` drops the inner Text's role; keep every branch static text like the
         // wrapped one, so an unwrapped marquee is not an unknown element (macOS AXUnknown).
         .accessibilityAddTraits(.isStaticText)
+        #if DEBUG && os(iOS)
+        .onChange(of: overflows) { _, value in
+            perfDebug.setMarquee(perfMarqueeID, active: value && mayScroll)
+        }
+        .onChange(of: perfDebug.marqueeRequested) { _, _ in
+            perfDebug.setMarquee(perfMarqueeID, active: overflows && mayScroll)
+        }
+        .onDisappear {
+            perfDebug.setMarquee(perfMarqueeID, active: false)
+        }
+        #endif
     }
 
     /// The Core Animation track, built only for text that overflows.

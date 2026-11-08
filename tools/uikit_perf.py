@@ -22,12 +22,15 @@ Examples::
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 import re
 import shlex
 import signal
 import subprocess
 import sys
 import time
+import urllib.request
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -75,11 +78,15 @@ class AppUnderTest:
     scheme: str
     executable: str
     bundle_id: str
+    bundle_path: Path | None = None
+    source_label: str = ""
 
 
 APPS = {
-    "swiftui": AppUnderTest("swiftui", "FestivalMobile", "FestivalMobile", ios_sim.BUNDLE_ID),
-    "uikit": AppUnderTest("uikit", "FestivalMobileUIKit", "FestivalMobileUIKit", ios_sim.UIKIT_BUNDLE_ID),
+    "swiftui": AppUnderTest("swiftui", "FestivalMobile", "FestivalMobile", ios_sim.BUNDLE_ID,
+                            source_label="current-worktree"),
+    "uikit": AppUnderTest("uikit", "FestivalMobileUIKit", "FestivalMobileUIKit", ios_sim.UIKIT_BUNDLE_ID,
+                          source_label="current-worktree"),
 }
 
 
@@ -96,6 +103,16 @@ class Surface:
     name: str
     env: dict[str, str] = field(default_factory=dict)
     section: str = "surfaces"
+    case_id: str = ""
+    mode: str = "scroll"
+    min_runs: int = 3
+    expect_content: bool = True
+    status: str = "measure"
+    status_reason: str = ""
+
+    def __post_init__(self):
+        if not self.case_id:
+            self.case_id = safe_name(self.name)
 
 # endregion
 
@@ -116,13 +133,17 @@ def parse_surfaces(text: str, only: list[str] | None = None) -> list[Surface]:
         ValueError: A line without a name, a pair without ``=``, or an unknown section.
     """
     surfaces, section = [], "surfaces"
+    sections = {
+        "surfaces": "scroll", "nav": "nav", "modal": "modal",
+        "component": "component", "components": "component",
+    }
     for number, raw in enumerate(text.splitlines(), 1):
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
         if line.startswith("[") and line.endswith("]"):
             section = line[1:-1]
-            if section not in ("surfaces", "nav"):
+            if section not in sections:
                 raise ValueError(f"line {number}: unknown section [{section}]")
             continue
         name, _, rest = line.partition("|")
@@ -134,8 +155,21 @@ def parse_surfaces(text: str, only: list[str] | None = None) -> list[Surface]:
             if not sep or not key:
                 raise ValueError(f"line {number}: {pair!r} is not KEY=value")
             env[key] = value
-        if only is None or name.strip() in only:
-            surfaces.append(Surface(name.strip(), env, section))
+        clean_name = name.strip()
+        mode = env.get("FST_PERF_MODE", sections[section])
+        try:
+            min_runs = max(1, int(env.get("FST_PERF_MIN_RUNS", "3")))
+        except ValueError as exc:
+            raise ValueError(f"line {number}: FST_PERF_MIN_RUNS is not an integer") from exc
+        case_id = env.get("FST_PERF_CASE_ID", safe_name(clean_name))
+        expect_content = env.get("FST_PERF_EXPECT_CONTENT", "1").lower() not in ("0", "false", "no")
+        status = env.get("FST_PERF_STATUS", "measure")
+        status_reason = env.get("FST_PERF_REASON", "")
+        if only is None or clean_name in only or case_id in only:
+            surfaces.append(Surface(clean_name, env, section, case_id, mode, min_runs, expect_content, status, status_reason))
+    ids = [surface.case_id for surface in surfaces]
+    if len(ids) != len(set(ids)):
+        raise ValueError("duplicate FST_PERF_CASE_ID in surfaces manifest")
     return surfaces
 
 
@@ -145,16 +179,35 @@ def safe_name(name: str) -> str:
 
 
 def app_order(round_number: int, apps: list[str]) -> list[str]:
-    """The apps in the order a round measures them: alternating so neither always runs first.
+    """The apps in the order a round measures them, rotating the first arm each round.
 
     Args:
         round_number: 1-based round.
         apps: App keys in the default order.
 
     Returns:
-        ``apps`` on odd rounds, reversed on even rounds.
+        A left rotation of ``apps`` by the 0-based round number.
     """
-    return list(apps) if round_number % 2 == 1 else list(reversed(apps))
+    if not apps:
+        return []
+    shift = (round_number - 1) % len(apps)
+    return list(apps[shift:] + apps[:shift])
+
+
+def parse_app_bundle_spec(spec: str) -> AppUnderTest:
+    """Parse ``LABEL|ABSOLUTE_APP_PATH|BUNDLE_ID|EXECUTABLE`` for an isolated arm."""
+    parts = spec.split("|")
+    if len(parts) != 4 or any(not part for part in parts):
+        raise ValueError("app bundle must be LABEL|ABSOLUTE_APP_PATH|BUNDLE_ID|EXECUTABLE")
+    label, path, bundle_id, executable = parts
+    if safe_name(label) != label:
+        raise ValueError(f"app arm label must contain only safe filename characters: {label!r}")
+    bundle = Path(path).expanduser()
+    if not bundle.is_absolute():
+        raise ValueError("app bundle path must be absolute")
+    if bundle.suffix != ".app":
+        raise ValueError("app bundle path must end in .app")
+    return AppUnderTest(label, "", executable, bundle_id, bundle, source_label=label)
 
 
 def run_paths(out: Path, round_number: int, app: str, name: str) -> tuple[Path, Path]:
@@ -194,6 +247,7 @@ def launch_env(surface: Surface, result: Path, settle: float, base_url: str | No
     env.update(surface.env)
     env.update({
         "FST_PERF_AUTORUN": f"{settle:g}", "FST_PERF_FILE": str(result), "FST_PERF_NAME": surface.name,
+        "FST_PERF_CASE_ID": surface.case_id, "FST_PERF_MODE": surface.mode,
         "FST_PERF_SECONDS": f"{seconds:g}", "FST_PERF_SPEED": f"{speed:g}",
     })
     return {f"SIMCTL_CHILD_{k}": v for k, v in env.items()}
@@ -211,8 +265,10 @@ def run_budget(surface: Surface, settle: float, seconds: float, cycles: int = 6)
     Returns:
         A generous upper bound.
     """
-    if surface.section == "nav":
+    if surface.mode in ("nav", "modal", "component"):
         return settle + cycles * 12 + RUN_MARGIN
+    if surface.mode == "latency":
+        return settle + seconds + RUN_MARGIN
     return settle + 3 * (seconds + 1.5) + RUN_MARGIN
 
 
@@ -239,10 +295,12 @@ def build_argv(app: AppUnderTest) -> list[str]:
 
 def app_bundle(app: AppUnderTest) -> Path:
     """Path of an app's optimized probe build."""
+    if app.bundle_path is not None:
+        return app.bundle_path
     return DERIVED_DATA / "Build" / "Products" / "Release-iphonesimulator" / f"{app.executable}.app"
 
 
-def fixture_args(large: bool = True) -> list[str]:
+def fixture_args(large: bool = True, long_titles: bool = False) -> list[str]:
     """Arguments of the fixture service.
 
     Args:
@@ -251,13 +309,112 @@ def fixture_args(large: bool = True) -> list[str]:
     Returns:
         ``mock_service.py`` arguments (an OS-assigned port).
     """
-    return ["--port", "0", *(["--large-catalogue", "--large-rankings"] if large else [])]
+    return [
+        "--port", "0",
+        *(["--large-catalogue", "--large-rankings"] if large else []),
+        *(["--long-titles"] if long_titles else []),
+    ]
 
 
 def parse_fixture_port(line: str) -> int | None:
     """The port in ``mock_service.py``'s ready line (``Local test fixture service on 127.0.0.1:<port>``)."""
     match = re.search(r"127\.0\.0\.1:(\d+)", line)
     return int(match.group(1)) if match else None
+
+
+def fixture_health(base_url: str) -> dict:
+    """Verify that the selected loopback listener is the requested large fixture.
+
+    The guard prevents an old listener or another lane's service from silently
+    becoming the source of a performance run.
+    """
+    with urllib.request.urlopen(f"{base_url}/__fixture__/health", timeout=5) as response:
+        health = json.load(response)
+    options = health.get("options", {})
+    if health.get("ready") is not True or not options.get("largeCatalogue") or not options.get("largeRankings"):
+        raise RuntimeError(f"fixture readiness/wrong-source guard failed: {health!r}")
+    with urllib.request.urlopen(f"{base_url}/api/publication", timeout=5) as response:
+        publication = json.load(response)
+    if publication.get("publicationId") != 7:
+        raise RuntimeError(f"fixture publication guard failed: {publication!r}")
+    with urllib.request.urlopen(f"{base_url}/api/songs?scenario=demo", timeout=5) as response:
+        songs = json.load(response)
+    if not any(song.get("songId") == "fixture-pulse" for song in songs.get("songs", [])):
+        raise RuntimeError("fixture song guard failed: fixture-pulse is missing")
+    return {
+        "health": health,
+        "publication": publication,
+        "songs_count": songs.get("count"),
+    }
+
+
+def sha256_file(path: Path) -> str:
+    """Return a content digest for a raw artifact or source file."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def sha256_tree(*roots: Path) -> str:
+    """Hash source paths in deterministic order for A/B matching."""
+    digest = hashlib.sha256()
+    files = sorted(path for root in roots for path in (root.rglob("*") if root.is_dir() else [root]) if path.is_file())
+    for path in files:
+        try:
+            relative = path.relative_to(REPO_ROOT).as_posix()
+        except ValueError:
+            relative = str(path)
+        digest.update(relative.encode("utf-8"))
+        digest.update(sha256_file(path).encode("ascii"))
+    return digest.hexdigest()
+
+
+def source_identity(surface_path: Path = DEFAULT_SURFACES) -> dict:
+    """Capture the exact worktree identity used for the app and tooling."""
+    def git(*args: str) -> str:
+        return subprocess.run(["git", *args], cwd=REPO_ROOT, capture_output=True, text=True, check=True).stdout.strip()
+
+    status = git("status", "--porcelain")
+    changed = [line[3:] for line in status.splitlines() if len(line) > 3]
+    app_prefixes = ("apple/Sources/", "apple/Apps/", "apple/Package.swift", "apple/project.yml")
+    instrumentation_prefix = "apple/Sources/FestivalUI/Diagnostics/"
+    return {
+        "commit": git("rev-parse", "HEAD"),
+        "dirty": any(path.startswith(app_prefixes) and not path.startswith(instrumentation_prefix) for path in changed),
+        "tooling_dirty": any(
+            not path.startswith(app_prefixes) or path.startswith(instrumentation_prefix)
+            for path in changed
+        ),
+        "tool_digests": {
+            path.relative_to(REPO_ROOT).as_posix(): sha256_file(path)
+            for path in (Path(__file__), TOOLS_DIR / "uikit_perf_report.py", TOOLS_DIR / "perf_sampler.py",
+                         surface_path)
+        },
+        "app_source_digest": sha256_tree(
+            APPLE_DIR / "Sources", APPLE_DIR / "Apps", APPLE_DIR / "Package.swift", APPLE_DIR / "project.yml"
+        ),
+    }
+
+
+def capacity_identity() -> dict:
+    """Capture shared admission state without stopping or inspecting other apps."""
+    try:
+        output = subprocess.run(
+            [sys.executable, str(TOOLS_DIR / "devcap.py"), "status"],
+            cwd=REPO_ROOT, capture_output=True, text=True, check=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return {"available": False}
+    match = re.search(r"simulator:\s+(\d+)/(\d+)\s+held", output)
+    held, slots = (int(match.group(1)), int(match.group(2))) if match else (None, None)
+    return {
+        "available": True,
+        "simulator_slots_held_before_run": held,
+        "simulator_slots": slots,
+        "other_simulator_workload_present": bool(held),
+    }
 
 # endregion
 
@@ -269,7 +426,7 @@ def log(message: str) -> None:
     print(message, file=sys.stderr, flush=True)
 
 
-def build_apps(apps: list[str]) -> int:
+def build_apps(apps: list[str], app_map: dict[str, AppUnderTest]) -> int:
     """Build the optimized probe flavour of each app, serialized on the cross-lane build lock.
 
     Args:
@@ -278,36 +435,39 @@ def build_apps(apps: list[str]) -> int:
     Returns:
         0, or the first failing build's exit code.
     """
+    if any(app_map[key].bundle_path is not None for key in apps):
+        raise ValueError("explicit app bundles require --no-build")
     subprocess.run(["xcodegen", "generate", "-q"], cwd=APPLE_DIR, check=True)
     for key in apps:
         with ios_sim.build_lock():
             log(f"building {key} (Release, -O, DEBUG hooks)")
-            result = subprocess.run(build_argv(APPS[key]), cwd=APPLE_DIR, env=ios_sim._env())
+            result = subprocess.run(build_argv(app_map[key]), cwd=APPLE_DIR, env=ios_sim._env())
         if result.returncode:
             return result.returncode
     return 0
 
 
 @contextmanager
-def fixture_service(enabled: bool):
+def fixture_service(enabled: bool, long_titles: bool = False):
     """Run the fixture service for a block.
 
     Args:
         enabled: False yields None (the public service is used).
 
     Yields:
-        The service origin (``http://127.0.0.1:<port>``) or None.
+        ``(origin, health)`` or ``(None, None)`` for live mode.
     """
     if not enabled:
-        yield None
+        yield None, None
         return
-    process = subprocess.Popen([sys.executable, str(TOOLS_DIR / "mock_service.py"), *fixture_args()],
+    process = subprocess.Popen([sys.executable, str(TOOLS_DIR / "mock_service.py"), *fixture_args(long_titles=long_titles)],
                                stdout=subprocess.PIPE, text=True)
     try:
         port = parse_fixture_port(process.stdout.readline())
         if port is None:
             raise RuntimeError("the fixture service did not report a port")
-        yield f"http://127.0.0.1:{port}"
+        origin = f"http://127.0.0.1:{port}"
+        yield origin, fixture_health(origin)
     finally:
         process.terminate()
         process.wait(timeout=10)
@@ -356,7 +516,11 @@ def run_one(udid: str, app: AppUnderTest, surface: Surface, round_number: int, o
             time.sleep(1)
     finally:
         sampler.send_signal(signal.SIGTERM)
-        sampler.wait(timeout=10)
+        try:
+            sampler.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            sampler.kill()
+            sampler.wait(timeout=5)
         simctl("terminate", udid, app.bundle_id, check=False)
     log(f"measured: round {round_number} {app.key} {surface.name}" + ("" if ok else "  (TIMED OUT)"))
     return ok
@@ -373,17 +537,54 @@ def run_all(args: argparse.Namespace, surfaces: list[Surface], out: Path) -> int
     Returns:
         0 when every run finished, 1 otherwise.
     """
-    udid = ios_sim.resolve_device(FAMILIES[args.family])
+    udid = args.udid or ios_sim.resolve_device(FAMILIES[args.family])
     apps = [a.strip() for a in args.apps.split(",") if a.strip()]
+    app_map: dict[str, AppUnderTest] = args.app_map
     failures = 0
-    with ios_sim.sim_lock(udid, f"uikit perf {args.family}"), fixture_service(not args.live) as base_url:
-        ios_sim.boot_exclusive(udid)
-        simctl("bootstatus", udid, "-b")
-        for round_number in range(1, args.rounds + 1):
-            for surface in surfaces:
-                for key in app_order(round_number, apps):
-                    if not run_one(udid, APPS[key], surface, round_number, out, args.settle, base_url, args.seconds):
-                        failures += 1
+    with ios_sim.sim_lock(udid, f"uikit perf {args.family}"), fixture_service(
+        not args.live, args.long_titles
+    ) as fixture:
+        base_url, fixture_info = fixture
+        manifest = {
+            "schema": 2,
+            "family": args.family,
+            "udid": udid,
+            "apps": apps,
+            "arms": [
+                {"label": app.key, "bundle": str(app_bundle(app)), "bundle_id": app.bundle_id,
+                 "executable": app.executable, "source_label": app.source_label,
+                 "bundle_digest": sha256_tree(app_bundle(app))}
+                for app in (app_map[key] for key in apps)
+            ],
+            "rounds": args.rounds,
+            "settle_seconds": args.settle,
+            "measurement_seconds": args.seconds,
+            "fixture": {
+                "mode": "live" if args.live else "loopback", "base_url": base_url,
+                "long_titles": args.long_titles, "health": fixture_info,
+            },
+            "source": source_identity(args.surfaces),
+            "capacity": capacity_identity(),
+            "surfaces": [
+                {"name": s.name, "case_id": s.case_id, "section": s.section, "mode": s.mode,
+                 "min_runs": s.min_runs, "expect_content": s.expect_content,
+                 "status": s.status, "status_reason": s.status_reason, "env": s.env}
+                for s in surfaces
+            ],
+        }
+        (out / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        # Boot only the explicitly leased FST simulator. Never shut down another
+        # project's device or use the legacy boot_exclusive helper.
+        simctl("boot", udid, check=False)
+        try:
+            simctl("bootstatus", udid, "-b")
+            for round_number in range(1, args.rounds + 1):
+                for surface in surfaces:
+                    for key in app_order(round_number, apps):
+                        if not run_one(udid, app_map[key], surface, round_number, out, args.settle, base_url, args.seconds):
+                            failures += 1
+        finally:
+            simctl("shutdown", udid, check=False)
     return 1 if failures else 0
 
 # endregion
@@ -404,12 +605,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--rounds", type=int, default=3)
     parser.add_argument("--only", help="comma-separated surface names to run")
     parser.add_argument("--apps", default="swiftui,uikit", help="comma-separated: swiftui, uikit")
+    parser.add_argument(
+        "--app-bundle", action="append", default=[],
+        metavar="LABEL|APP|BUNDLE_ID|EXECUTABLE",
+        help="isolated prebuilt Release arm; repeat for before/after/reference (requires --no-build)",
+    )
     parser.add_argument("--label", default=time.strftime("perf-%Y%m%d-%H%M"),
                         help="results folder name under apple/build/perf")
     parser.add_argument("--settle", type=float, default=DEFAULT_SETTLE, help="seconds before each measurement")
     parser.add_argument("--seconds", type=float, default=8.0, help="seconds per idle and scroll run")
     parser.add_argument("--no-build", action="store_true", help="measure the existing optimized builds")
     parser.add_argument("--live", action="store_true", help="keyless public service instead of the fixture service")
+    parser.add_argument("--long-titles", action="store_true", help="fixture variant for real overflowing marquee probes")
+    parser.add_argument("--udid", help="explicit owned simulator UDID (overrides --family alias)")
+    parser.add_argument("--allow-incomplete", action="store_true", help="keep a smoke run non-zero only for execution failures")
     parser.add_argument("--report", type=Path, help="only print the report of this results folder")
     args = parser.parse_args(argv)
     import uikit_perf_report  # sibling tool
@@ -420,19 +629,38 @@ def main(argv: list[str] | None = None) -> int:
     surfaces = parse_surfaces(args.surfaces.read_text(), only)
     if not surfaces:
         parser.error("no surface selected")
+    app_map = dict(APPS)
+    try:
+        for spec in args.app_bundle:
+            app = parse_app_bundle_spec(spec)
+            if app.key in app_map:
+                parser.error(f"duplicate app arm label: {app.key}")
+            if not app_bundle(app).exists():
+                parser.error(f"app bundle does not exist: {app.bundle_path}")
+            app_map[app.key] = app
+    except ValueError as exc:
+        parser.error(str(exc))
     apps = [a.strip() for a in args.apps.split(",") if a.strip()]
-    if any(a not in APPS for a in apps):
-        parser.error(f"--apps takes {sorted(APPS)}")
-    if not args.no_build and (code := build_apps(apps)):
+    if any(a not in app_map for a in apps):
+        parser.error(f"--apps takes {sorted(app_map)}")
+    if args.app_bundle and not args.no_build:
+        parser.error("--app-bundle requires --no-build")
+    args.app_map = app_map
+    if not args.no_build and (code := build_apps(apps, app_map)):
         return code
     out = RESULTS_DIR / args.label
     out.mkdir(parents=True, exist_ok=True)
     status = run_all(args, surfaces, out)
-    text, _ = uikit_perf_report.render(uikit_perf_report.collect(out))
+    collected = uikit_perf_report.collect(out)
+    manifest = uikit_perf_report.load_manifest(out)
+    text, _ = uikit_perf_report.render(collected)
+    qualification = uikit_perf_report.qualification_markdown(collected, manifest)
+    text = text + ("\n" if text and qualification else "") + qualification
     (out / "report.md").write_text(text + "\n")
     print(text)
     log(f"results: {out}")
-    return status
+    gate = bool(uikit_perf_report.qualify(collected, manifest))
+    return status if args.allow_incomplete else max(status, 2 if gate else 0)
 
 
 if __name__ == "__main__":

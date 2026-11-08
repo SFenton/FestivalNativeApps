@@ -98,6 +98,29 @@
 
 - **Slot sharing:** the launch What's New sheet claims `FirstRunCenter` slot `whats-new`, so a
   carousel and the changelog never present together ([whats-new](../whats-new/ios.md)).
+- **UIKit consumer lifecycle and admission:** the UIKit port uses `UKScreenViewController` for
+  Settings and modal pages. Its explicit `UKFirstRunHook.pageDidAppear` /
+  `pageDidDisappear` calls preserve the Core seen-state, gate and one-slot rules without
+  swizzling `UIViewController`. The root calls `rootDidAppear(_:)` for the launch What's New
+  flow. `UKPresentationCoordinator` admits one independent task per window; a first-run guide
+  that loses admission to a user-owned sheet waits in one bounded automatic slot and presents
+  after actual dismissal. A page appearing before scene activation waits for the actual
+  foreground event before claiming onboarding; it does not use a delayed presentation guess.
+  Each UIKit slide exposes one named static-text element, hides its decorative descendants,
+  and forwards assistive scrolling to its native scroller. Demo and explanation entrances
+  use the cancellable `UKFadeIn` owner with the existing `FirstRunMotion` delays; leaving a
+  slide settles its pending entrance rather than leaving delayed UIKit animations running.
+  Related alerts and system pickers
+  remain owned by the active task.
+  The guide leaves the sheet's native dismissal delegate owned by the common shell;
+  completion bookkeeping runs once through the coordinator. Rejected, cancelled queued,
+  and dismissed guides release their presentation association rather than retaining a
+  navigation-controller/presentation cycle. A cancelled queued guide marks no slides seen.
+  Launch-flow ownership is attached to its window root, not a process-global table that
+  retains sessions after their windows close.
+  HIG Modality: “Let people dismiss a modal before presenting another”; HIG Onboarding:
+  “If skipped initially, don’t show it on later launches; keep it easy to find in help, account,
+  or settings.”
 - **Stars:** demos use the web's `star_white`/`star_gold` images (shared `Design/StarRating.swift`, wrapped by
   `Demo/FirstRunStar.swift`), never SF Symbol stars. Text is primary white; position is announced
   only through VoiceOver's `accessibilityValue` beside the page dots (no visible "Slide x of y").
@@ -156,7 +179,7 @@ Every song-using demo (Songs, `statistics-top-songs`, `rivals-detail`,
 
 | Slide id | Demo | Real UI used |
 |---|---|---|
-| `songs-song-list` | `FirstRunNativeSongListDemo` | `SongRowView` ×3 |
+| `songs-song-list` | `FirstRunNativeSongListDemo` / UIKit `UKFirstRunNativeDemoView` | Native song rows ×3; catalogue-backed selection follows `FirstRunDemoSongs` |
 | `songs-sort` | `FirstRunNativeSortDemo` | `SongsSortSheet` (top, clipped) |
 | `songs-navigation` | `FirstRunNativeNavigationDemo` | System `TabView` tab bar (Liquid Glass on 26) with the shell's `FestivalSection` titles and symbols; it sets `.tabViewStyle(.automatic)` because the carousel's `.page` style is inherited by nested tab views and would leave a blank pager with no tab bar, and on iOS 26.1 turns off the inherited page-tools bottom accessory and the tab-bar backdrop; each tab shows `BrandTokens.appBackground` inside `firstRunPreviewCard()` (fixed in #380) |
 | `songs-filter` | `FirstRunNativeFilterDemo` | `SongsFilterSheet` (top, clipped) |
@@ -301,6 +324,24 @@ live demo; `FirstRunDemoContent.hasLiveDemo(id:)` is unit-tested
 (`FirstRunDemoCoverageTests.everyCatalogSlideHasALiveDemo`) against the full catalog so a future
 slide added without a demo fails the build instead of silently falling back to
 `FirstRunStaticIllustration`.
+
+The UIKit consumer maps all 42 ids to explicit native demo families and uses the same
+`FirstRunDemoPool`, `FirstRunSuggestionsCategoryCardDemo` templates and `FirstRunDemoSongs`
+policies in `UIKitPort/Features/Settings/UKFirstRunNativeDemo.swift`. Sort, Songs Filter,
+Suggestions Filter and Score History Sort embed their existing UIKit child controllers with
+proper add/remove ownership; Suggestions category cards use `UKSuggestionCardView`, Songs
+navigation uses the native tab primitive, and Songs/Shop demos use shared UIKit song-row,
+chart, artwork and shop-grid primitives. Ranking, rival and settings states use family-specific
+native controls. Catalogue reads start only while the
+slide is visible in an active scene, cancel on detach/inactivation, restart on reactivation and
+retain the latest eligible songs. Rows reconfigure from the actual available width and Dynamic
+Type traits. Demo rotation uses the Core timing policy, is visible-slide-only and settles under
+Reduce Motion. Unknown future IDs remain a deliberate fallback until catalog coverage requires a
+new native case; disabled or shelved feature policies are not fabricated as demos.
+Paths is the one deliberate selector-preview fallback: `UKSongPathsViewController` is a full
+viewer whose lifecycle owns path-artifact reads, while the first-run contract forbids live API
+loads. Until a selector-only UIKit component is extracted, the demo keeps the native selector
+choices inert and VoiceOver-hidden rather than instantiating the live viewer.
 
 Shared building blocks live in `Features/FirstRun/Demo/`:
 - `FirstRunDemoPool.swift` — hand-picked static sample numbers (rankings, rivals, score

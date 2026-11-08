@@ -8,6 +8,17 @@ Status: **current**, 2026-10-14. Provenance: #52, #72, #84, #92, #160, #271, #30
 
 Navigation preserves location; page tools act on the current content. The web is the behavior reference, while each native shell uses its platform's navigation and command placement rather than reproducing web pixels.
 
+UIKit's shared bottom search field gives the actual native text input a 44 pt target inside
+the existing capsule height, rather than exposing only its 22 pt default text line. The
+same placement policy aligns it with the Duo Search button while the keyboard is hidden;
+the native keyboard guide owns its movement when the keyboard appears.
+The decorative system magnifier retains its symbol size; the native text input, not the
+image view, takes the remaining horizontal space so typing/Clear does not clip a short query.
+The folded-Duo field journey distinguishes the SDK's explicit larger-size UITextField
+clipping prediction from observed clipping. It requires Vision to read both the placeholder
+and editable query whole at Large and AX5, with at least 1.35x measured glyph growth;
+all other scoped clipping, Dynamic Type, description and hit-region findings still fail.
+
 ## Web source (behavior reference)
 
 | Web | Behavior |

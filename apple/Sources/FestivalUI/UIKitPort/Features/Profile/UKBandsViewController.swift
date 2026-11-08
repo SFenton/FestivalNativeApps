@@ -26,6 +26,13 @@ final class UKBandsViewController: UKProfileScrollViewController {
         observations.observe { [weak self] in self?.rebuild() }
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        #if DEBUG
+        if built, !column.arrangedSubviews.isEmpty { FirstContentProbe.markFirstContent() }
+        #endif
+    }
+
     private var built = false
 
     private func rebuild() {

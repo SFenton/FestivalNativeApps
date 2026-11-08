@@ -69,20 +69,12 @@ enum UKSettingsRegistration {
 @MainActor
 enum UKFirstRunHook {
     private static var installed = false
-    private static var launches: [ObjectIdentifier: UKWhatsNewLaunch] = [:]
 
-    /// Swaps in the lifecycle observers once.
+    /// Retained as a source-compatible no-op for launch callers while lifecycle ownership moves to
+    /// ``UKScreenViewController`` and the root's explicit ``rootDidAppear(_:)`` seam.
     static func install() {
         guard !installed else { return }
         installed = true
-        swap(#selector(UIViewController.viewDidAppear(_:)), #selector(UIViewController.ukfrViewDidAppear(_:)))
-        swap(#selector(UIViewController.viewDidDisappear(_:)), #selector(UIViewController.ukfrViewDidDisappear(_:)))
-    }
-
-    private static func swap(_ original: Selector, _ replacement: Selector) {
-        guard let first = class_getInstanceMethod(UIViewController.self, original),
-              let second = class_getInstanceMethod(UIViewController.self, replacement) else { return }
-        method_exchangeImplementations(first, second)
     }
 
     /// The first-run page a controller shows, if any.
@@ -102,18 +94,21 @@ enum UKFirstRunHook {
         }
     }
 
-    fileprivate static func appeared(_ controller: UIViewController) {
-        if let shell = controller as? UKRootViewController {
-            if launches[ObjectIdentifier(shell)] == nil {
-                launches[ObjectIdentifier(shell)] = UKWhatsNewLaunch(session: shell.chromeSession, shell: shell)
-            }
-            return
+    static func rootDidAppear(_ root: UKRootViewController) {
+        if objc_getAssociatedObject(root, &launchKey) == nil {
+            let launch = UKWhatsNewLaunch(session: root.chromeSession, shell: root)
+            objc_setAssociatedObject(root, &launchKey, launch, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         }
+    }
+
+    /// Called by ``UKScreenViewController`` after a page actually appears.
+    static func pageDidAppear(_ controller: UIViewController) {
         guard let page = page(of: controller), let session = controller.ukShell?.chromeSession else { return }
         watcher(for: controller, page: page, session: session).appeared()
     }
 
-    fileprivate static func disappeared(_ controller: UIViewController) {
+    /// Called by ``UKScreenViewController`` after a page actually disappears.
+    static func pageDidDisappear(_ controller: UIViewController) {
         guard let watcher = objc_getAssociatedObject(controller, &watcherKey) as? UKFirstRunPageWatcher else { return }
         watcher.disappeared()
     }
@@ -127,17 +122,5 @@ enum UKFirstRunHook {
 }
 
 nonisolated(unsafe) private var watcherKey: UInt8 = 0
-
-extension UIViewController {
-    @objc fileprivate func ukfrViewDidAppear(_ animated: Bool) {
-        // Exchanged with `viewDidAppear(_:)`: this calls the original.
-        ukfrViewDidAppear(animated)
-        MainActor.assumeIsolated { UKFirstRunHook.appeared(self) }
-    }
-
-    @objc fileprivate func ukfrViewDidDisappear(_ animated: Bool) {
-        ukfrViewDidDisappear(animated)
-        MainActor.assumeIsolated { UKFirstRunHook.disappeared(self) }
-    }
-}
+nonisolated(unsafe) private var launchKey: UInt8 = 0
 #endif

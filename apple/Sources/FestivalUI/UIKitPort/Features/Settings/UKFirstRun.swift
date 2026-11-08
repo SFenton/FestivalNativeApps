@@ -11,16 +11,16 @@ import UIKit
 /// with Skip beneath it while pages remain. Only the pages actually shown are recorded in
 /// ``viewing``. Close, swiping down and tapping outside the sheet all dismiss.
 ///
-/// Each slide shows a page-themed illustration in place of the SwiftUI app's live mini-demo
-/// (``FirstRunStaticIllustration``, the SwiftUI app's own fallback); the slide's title and
-/// description carry the explanation.
+/// Each slide shows a native UIKit mini-demo backed by the shared first-run pools and catalogue
+/// selection policy; the slide's title and description carry the accessible explanation.
 @MainActor
-final class UKFirstRunCarouselViewController: UIViewController, UIScrollViewDelegate {
+final class UKFirstRunCarouselViewController: UKScreenViewController, UIScrollViewDelegate {
     /// Fraction of the screen height the carousel covers (``FirstRunSheetStyle``).
     static let heightFraction: CGFloat = 0.86
 
     private let page: FirstRunPageKey
     private let slides: [FirstRunSlide]
+    private weak var session: FestivalSession?
     private let onFinish: () -> Void
     private let scroll = UIScrollView()
     private let slideStack = UIStackView()
@@ -50,9 +50,13 @@ final class UKFirstRunCarouselViewController: UIViewController, UIScrollViewDele
     ///   - page: The page the guide explains.
     ///   - slides: The slides to show.
     ///   - onFinish: Called when the user closes via Done, Skip or Close; the caller dismisses.
-    init(page: FirstRunPageKey, slides: [FirstRunSlide], onFinish: @escaping () -> Void) {
+    init(
+        page: FirstRunPageKey, slides: [FirstRunSlide], session: FestivalSession?,
+        onFinish: @escaping () -> Void
+    ) {
         self.page = page
         self.slides = slides
+        self.session = session
         self.onFinish = onFinish
         viewing = FirstRunViewing(slides: slides)
         dots = UKFirstRunDots(count: slides.count)
@@ -80,7 +84,10 @@ final class UKFirstRunCarouselViewController: UIViewController, UIScrollViewDele
         slideStack.translatesAutoresizingMaskIntoConstraints = false
         scroll.addSubview(slideStack)
         for (position, slide) in slides.enumerated() {
-            let slideView = UKFirstRunSlideView(page: page, slide: slide, layout: { [weak self] in self?.ukWindowLayout ?? .standardPhone })
+            let slideView = UKFirstRunSlideView(
+                page: page, slide: slide, session: session,
+                layout: { [weak self] in self?.ukWindowLayout ?? .standardPhone }
+            )
             slideViews.append(slideView)
             slideStack.addArrangedSubview(slideView)
             slideView.setActive(position == 0, animated: false)
@@ -275,11 +282,11 @@ final class UKFirstRunDots: UIView {
 final class UKFirstRunSlideView: UIView {
     private let page: FirstRunPageKey
     private let slide: FirstRunSlide
+    private weak var session: FestivalSession?
     private let layoutProvider: () -> DeviceLayout
     private let scroll = UIScrollView()
     private let content = UIStackView()
-    private let demo = UKCardView(cornerRadius: 20)
-    private let icon = UIImageView()
+    private let demo: UKFirstRunNativeDemoView
     private let titleLabel: UKLabel
     private let descriptionLabel: UKLabel
     private var demoHeight: NSLayoutConstraint!
@@ -293,10 +300,15 @@ final class UKFirstRunSlideView: UIView {
     ///   - page: The guide's page.
     ///   - slide: The slide.
     ///   - layout: The window layout provider (compact height shortens the demo).
-    init(page: FirstRunPageKey, slide: FirstRunSlide, layout: @escaping () -> DeviceLayout) {
+    init(
+        page: FirstRunPageKey, slide: FirstRunSlide, session: FestivalSession?,
+        layout: @escaping () -> DeviceLayout
+    ) {
         self.page = page
         self.slide = slide
+        self.session = session
         layoutProvider = layout
+        demo = UKFirstRunNativeDemoView(slide: slide, session: session)
         titleLabel = UKLabel(slide.title, style: .title2, weight: .bold, alignment: .center)
         descriptionLabel = UKLabel(slide.description, style: .subheadline, alignment: .center)
         super.init(frame: .zero)
@@ -304,12 +316,6 @@ final class UKFirstRunSlideView: UIView {
         scroll.translatesAutoresizingMaskIntoConstraints = false
         scroll.alwaysBounceVertical = false
         addSubview(scroll)
-        icon.image = UIImage(systemName: page.firstRunSymbolName)
-        icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 64, weight: .semibold)
-        icon.tintColor = BrandUIColors.accentBlue
-        icon.contentMode = .center
-        icon.isAccessibilityElement = false
-        demo.embed(icon)
         demo.isAccessibilityElement = false
         demo.accessibilityElementsHidden = true
         let demoHolder = UIView()
@@ -349,11 +355,11 @@ final class UKFirstRunSlideView: UIView {
             content.trailingAnchor.constraint(equalTo: scroll.frameLayoutGuide.trailingAnchor),
             content.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -8),
         ])
-        isAccessibilityElement = false
-        scroll.isAccessibilityElement = true
-        scroll.accessibilityTraits = .staticText
-        scroll.accessibilityLabel = "\(slide.title). \(slide.description)"
-        accessibilityElements = [scroll]
+        isAccessibilityElement = true
+        accessibilityTraits = .staticText
+        accessibilityLabel = "\(slide.title). \(slide.description)"
+        scroll.isAccessibilityElement = false
+        scroll.accessibilityElementsHidden = true
         updateMetrics()
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self, UITraitVerticalSizeClass.self]) { (self: UKFirstRunSlideView, _) in
             self.updateMetrics()
@@ -375,6 +381,10 @@ final class UKFirstRunSlideView: UIView {
         updateMetrics()
     }
 
+    override func accessibilityScroll(_ direction: UIAccessibilityScrollDirection) -> Bool {
+        scroll.accessibilityScroll(direction)
+    }
+
     /// Marks the slide as the page on screen: it plays its entrance (title and description
     /// fade in after the demo cascade) and is exposed to VoiceOver.
     ///
@@ -384,14 +394,21 @@ final class UKFirstRunSlideView: UIView {
     func setActive(_ active: Bool, animated: Bool) {
         isActiveSlide = active
         accessibilityElementsHidden = !active
-        guard active else { return }
-        let animates = FirstRunMotion.entranceAnimates(reduceMotion: UKAccessibility.reduceMotion, stillBackground: DebugAnimationOverride.stillBackground)
+        demo.setActive(active, animated: animated)
+        guard active else {
+            UKFadeIn.finishAnimations(in: self)
+            return
+        }
+        let animates = FirstRunMotion.entranceAnimates(
+            reduceMotion: UKAccessibility.reduceMotion,
+            stillBackground: DebugAnimationOverride.stillBackground
+        ) && UKMotionVisibility.permitsAnimation(in: self)
         let delays = FirstRunMotion.textDelays(slideId: slide.id)
         for (label, delay) in [(titleLabel, delays.title), (descriptionLabel, delays.description)] {
             if animates && animated {
-                label.alpha = 0
-                UIView.animate(withDuration: 0.4, delay: delay, options: .curveEaseOut) { label.alpha = 1 }
+                UKFadeIn.fadeIn(label, rises: false, delay: delay)
             } else {
+                UKFadeIn.finishAnimations(in: label)
                 label.alpha = 1
             }
         }
@@ -403,12 +420,12 @@ final class UKFirstRunSlideView: UIView {
 /// One carousel presentation: the slides offered, the pages actually viewed, and the
 /// bookkeeping when it closes by any route (Done, Skip, Close, swipe or tap outside).
 @MainActor
-final class UKFirstRunPresentation: NSObject, UISheetPresentationControllerDelegate {
+final class UKFirstRunPresentation: NSObject {
     private let carousel: UKFirstRunCarouselViewController
     private let navigation: UKSheetNavigationController
-    private let slides: [FirstRunSlide]
     private var finished = false
     private let onClosed: ([FirstRunSlide]) -> Void
+    private(set) var admission: UKPresentationRequestResult = .rejected
 
     /// Presents a carousel.
     ///
@@ -416,12 +433,18 @@ final class UKFirstRunPresentation: NSObject, UISheetPresentationControllerDeleg
     ///   - page: The guide's page.
     ///   - slides: Slides offered.
     ///   - presenter: The controller to present from.
+    ///   - session: The shared session used by catalogue-backed demos.
+    ///   - automatic: Whether this is an automatic first-run request that may wait for the
+    ///     current independent task to dismiss.
     ///   - onClosed: Runs once with the slides actually viewed, however the sheet closed.
-    init(page: FirstRunPageKey, slides: [FirstRunSlide], presenter: UIViewController, onClosed: @escaping ([FirstRunSlide]) -> Void) {
-        self.slides = slides
+    init(
+        page: FirstRunPageKey, slides: [FirstRunSlide], presenter: UIViewController,
+        session: FestivalSession, automatic: Bool = false,
+        onClosed: @escaping ([FirstRunSlide]) -> Void
+    ) {
         self.onClosed = onClosed
         var finish: () -> Void = {}
-        carousel = UKFirstRunCarouselViewController(page: page, slides: slides) { finish() }
+        carousel = UKFirstRunCarouselViewController(page: page, slides: slides, session: session) { finish() }
         navigation = UKSheet.make(
             carousel, title: page.guideTitle, closeIdentifier: "fst.first-run.close", size: .large,
             regularWidth: presenter.traitCollection.horizontalSizeClass == .regular, onClose: { finish() }
@@ -433,21 +456,39 @@ final class UKFirstRunPresentation: NSObject, UISheetPresentationControllerDeleg
                 context.maximumDetentValue * UKFirstRunCarouselViewController.heightFraction
             }]
             sheet.prefersGrabberVisible = true
-            sheet.delegate = self
         }
         objc_setAssociatedObject(navigation, &presentationKey, self, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
-        (presenter.presentedViewController ?? presenter).present(navigation, animated: true)
+        if automatic {
+            admission = UKPresentationCoordinator.shared(for: presenter).presentAutomatic(
+                from: presenter, build: { [weak self] in self?.navigation },
+                onDismiss: { [weak self] in self?.closed() }
+            )
+        } else {
+            admission = UKPresentationCoordinator.shared(for: presenter).presentIndependent(
+                navigation, from: presenter, onDismiss: { [weak self] in self?.closed() }
+            )
+        }
+        if admission == .rejected {
+            objc_setAssociatedObject(navigation, &presentationKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        }
     }
 
     private func dismiss() {
         navigation.dismiss(animated: true) { [weak self] in self?.closed() }
     }
 
-    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) { closed() }
+    /// Releases a queued guide that lost its visible page before admission.
+    func cancelUnpresented() {
+        guard navigation.presentingViewController == nil, !finished else { return }
+        finished = true
+        objc_setAssociatedObject(navigation, &presentationKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        onClosed([])
+    }
 
     private func closed() {
         guard !finished else { return }
         finished = true
+        objc_setAssociatedObject(navigation, &presentationKey, nil, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         onClosed(carousel.viewedSlides)
     }
 }
@@ -504,11 +545,12 @@ final class UKFirstRunSettingsSection: UIView {
     /// its full, ungated slide catalog.
     private func replay(_ page: FirstRunPageKey) {
         guard let presenter = nearestViewController() else { return }
+        guard UKPresentationCoordinator.shared(for: presenter).canPresentIndependent(from: presenter) else { return }
         let slides = FirstRunCatalog.slides(for: page)
         session.firstRunCenter.store.resetPage(slides.map(\.id))
         let replay = FirstRunSettingsSection.replaySlides(page)
         let center = session.firstRunCenter
-        _ = UKFirstRunPresentation(page: page, slides: replay, presenter: presenter) { viewed in
+        _ = UKFirstRunPresentation(page: page, slides: replay, presenter: presenter, session: session) { viewed in
             center.store.markSeen(viewed)
         }
     }
@@ -540,8 +582,10 @@ final class UKFirstRunPageWatcher {
     private var shown: [FirstRunSlide] = []
     private let observations = UKObservationBag()
     nonisolated(unsafe) private var defaultsObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var foregroundObserver: NSObjectProtocol?
     private var lastGate: [Bool]?
     private var visible = false
+    private var waitsForForeground = false
 
     /// Creates the watcher.
     ///
@@ -565,10 +609,19 @@ final class UKFirstRunPageWatcher {
                 self.evaluate()
             }
         }
+        foregroundObserver = NotificationCenter.default.addObserver(
+            forName: UIScene.didActivateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.waitsForForeground else { return }
+                self.evaluate()
+            }
+        }
     }
 
     deinit {
         if let defaultsObserver { NotificationCenter.default.removeObserver(defaultsObserver) }
+        if let foregroundObserver { NotificationCenter.default.removeObserver(foregroundObserver) }
     }
 
     private func gateFlags() -> [Bool] {
@@ -588,6 +641,8 @@ final class UKFirstRunPageWatcher {
     /// The page went away: free the slot.
     func disappeared() {
         visible = false
+        waitsForForeground = false
+        presentation?.cancelUnpresented()
         session.firstRunCenter.release(page.rawValue)
     }
 
@@ -596,6 +651,11 @@ final class UKFirstRunPageWatcher {
         let center = session.firstRunCenter
         lastGate = gateFlags()
         guard visible, center.debugMode != .off, presentation == nil, let host, host.view.window != nil else { return }
+        guard host.view.window?.windowScene?.activationState == .foregroundActive else {
+            waitsForForeground = true
+            return
+        }
+        waitsForForeground = false
         let flags = gateFlags()
         let context = FirstRunPresentationPolicy.gateContext(
             hasPlayer: session.selectedPlayer != nil, hideShop: flags[0], disableShopHighlighting: flags[1],
@@ -604,13 +664,21 @@ final class UKFirstRunPageWatcher {
         let slides = FirstRunPresentationPolicy.slides(for: page, debugMode: center.debugMode, context: context, seen: center.store.load())
         guard !slides.isEmpty, center.claim(page.rawValue) else { return }
         shown = slides
-        presentation = UKFirstRunPresentation(page: page, slides: slides, presenter: host) { [weak self] viewed in
+        let made = UKFirstRunPresentation(
+            page: page, slides: slides, presenter: host, session: session, automatic: true
+        ) { [weak self] viewed in
             guard let self else { return }
             center.store.markSeen(viewed)
             center.release(page.rawValue)
             shown = []
             presentation = nil
         }
+        guard made.admission != .rejected else {
+            center.release(page.rawValue)
+            shown = []
+            return
+        }
+        presentation = made
     }
 }
 #endif

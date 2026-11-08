@@ -69,6 +69,9 @@ struct BandsScreen: View {
                     }
                 }
                 .festivalFadeIn(isLoaded: true, index: 1)
+                #if DEBUG && os(iOS)
+                .onAppear { FirstContentProbe.markFirstContent() }
+                #endif
                 FestivalFootnote("To find a band by a member's name, use Search.")
                 .padding(.horizontal, 4)
                 .festivalFadeIn(isLoaded: true, index: 2)

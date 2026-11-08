@@ -129,14 +129,21 @@ final class UKSongMetadataFieldView: UIView {
     /// - Parameters:
     ///   - field: The validated field.
     ///   - traits: The row's trait collection (Dynamic Type).
-    init(field: SongMetadataField, traits: UITraitCollection) {
+    init(field: SongMetadataField, traits: UITraitCollection, accessibilityIdentifier: String? = nil) {
         self.field = field
         isAX = traits.preferredContentSizeCategory.isAccessibilityCategory
         inset = UKFont.scaled(4, relativeTo: .body, traits: traits)
         badgeHeight = max(UKFont.scaled(28, relativeTo: .body, traits: traits), isAX ? 44 : 28)
         percentWidth = UKFont.scaled(66, relativeTo: .callout, traits: traits)
         super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
         isAccessibilityElement = false
+        if let accessibilityIdentifier {
+            isAccessibilityElement = true
+            self.accessibilityLabel = field.announcement
+            accessibilityTraits = .staticText
+            self.accessibilityIdentifier = accessibilityIdentifier
+        }
         label.numberOfLines = 0
         label.textColor = BrandUIColors.textPrimary
         build()
@@ -255,6 +262,10 @@ final class UKSongMetadataFieldView: UIView {
     }
 
     // MARK: Measure
+
+    override var intrinsicContentSize: CGSize {
+        fittedSize(maxWidth: .greatestFiniteMagnitude)
+    }
 
     /// The pill's size within `maxWidth`.
     ///
@@ -439,12 +450,16 @@ final class UKSongStatusChipsView: UIView {
     ///   - badges: Source-ordered statuses.
     ///   - keyboard: This song's Lead/Pro Lead use the keys icon.
     ///   - traits: The row's trait collection.
-    init(badges: [SongInstrumentBadge], keyboard: Bool, traits: UITraitCollection) {
+    init(
+        badges: [SongInstrumentBadge], keyboard: Bool, traits: UITraitCollection, accessibilityIdentifier: String? = nil
+    ) {
         let scaled = UKFont.scaled(34, relativeTo: .body, traits: traits)
         side = min(max(scaled, traits.preferredContentSizeCategory.isAccessibilityCategory ? 48 : 34), 64)
         announcement = badges.map(\.announcement).joined(separator: "; ")
         super.init(frame: .zero)
         isAccessibilityElement = false
+        accessibilityElementsHidden = true
+        self.accessibilityIdentifier = accessibilityIdentifier
         let scale = traits.displayScale > 0 ? traits.displayScale : 3
         for badge in badges {
             let usesKeys = keyboard && (badge.instrument == .lead || badge.instrument == .proLead)

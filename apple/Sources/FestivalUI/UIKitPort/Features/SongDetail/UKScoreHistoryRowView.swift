@@ -22,7 +22,7 @@ final class UKScoreHistoryRowView: UIView {
     init(entry: ScoreHistoryEntry, isBest: Bool, seasonColumn: Bool, currentSeason: Int?, grouped: Bool, scoreTemplate: String?) {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
-        let accessibilitySize = UKFont.isAccessibilitySize(UITraitCollection.current)
+        let accessibilitySize = UKFont.isAccessibilitySize(traitCollection)
         let season = seasonColumn ? entry.season.flatMap { $0 > 0 ? $0 : nil } : nil
         let dateText = entry.displayDate.map { $0.formatted(.dateTime.month(.abbreviated).day().year()) } ?? "\u{2014}"
 

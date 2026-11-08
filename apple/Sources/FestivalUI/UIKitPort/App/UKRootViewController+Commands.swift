@@ -47,7 +47,7 @@ extension UKRootViewController: UKShellCommands {
     @objc func ukChooseProfile() { presentProfile() }
     @objc func ukDeselectProfile() { session.deselectPlayer() }
     @objc func ukNotifications() { presentNotifications() }
-    @objc func ukWhatsNew() { present(UKShellSheets.whatsNew(session), animated: true) }
+    @objc func ukWhatsNew() { presentSheet(UKShellSheets.whatsNew(session), detents: nil) }
     @objc func ukLicenses() { perform(.push(.licenses)) }
     @objc func ukShowNavigation() { if presentation.navigation == .flyout { openDrawer() } }
     @objc func ukAppSettings() { select(.settings) }

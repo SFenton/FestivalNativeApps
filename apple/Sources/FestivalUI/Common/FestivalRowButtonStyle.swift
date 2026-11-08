@@ -17,12 +17,20 @@ import FestivalDesign
 struct FestivalRowButtonStyle: ButtonStyle {
     /// Corner radius of the row's card.
     var cornerRadius: CGFloat = 12
+    #if DEBUG && os(iOS)
+    @Environment(\.perfComponentDebugState) private var perfDebug
+    #endif
 
     func makeBody(configuration: Configuration) -> some View {
         #if os(macOS)
         MacRowButtonBody(configuration: configuration, cornerRadius: cornerRadius)
         #else
-        configuration.label.opacity(configuration.isPressed ? 0.7 : 1)
+        #if DEBUG
+        let pressed = configuration.isPressed || perfDebug.rowPressed
+        #else
+        let pressed = configuration.isPressed
+        #endif
+        configuration.label.opacity(pressed ? 0.7 : 1)
         #endif
     }
 }
@@ -78,7 +86,9 @@ struct MacRowInteractionEffect: ViewModifier {
                 Group {
                     if grouped { Rectangle() } else { shape }
                 }
-                .foregroundStyle(Color.white.opacity(MacRowInteraction.tint(hovered: isHovered, pressed: isPressed)))
+                .foregroundStyle(Color.white.opacity(
+                    MacRowInteraction.tint(hovered: isHovered, pressed: isPressed)
+                ))
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             }

@@ -63,11 +63,15 @@ enum UKRankingRowModels {
     ///   - model: The row's values.
     ///   - selectedBand: Draw the purple band.
     ///   - onTap: Opens the profile, or nil.
-    static func row(_ model: UKRankingRowView.Model, selectedBand: Bool, onTap: (() -> Void)?) -> UKLeaderboardRow {
+    ///   - detailSelection: The split detail represented by an interactive row.
+    static func row(
+        _ model: UKRankingRowView.Model, selectedBand: Bool,
+        detailSelection: (route: AppRoute, context: UKContext)? = nil, onTap: (() -> Void)?
+    ) -> UKLeaderboardRow {
         UKLeaderboardRow(
             kind: .ranking, make: { UKRankingRowView() },
             apply: { ($0 as? UKRankingRowView)?.apply(model) },
-            isSelectedBand: selectedBand, onTap: onTap
+            isSelectedBand: selectedBand, onTap: onTap, detailSelection: detailSelection
         )
     }
 

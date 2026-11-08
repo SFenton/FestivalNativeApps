@@ -13,7 +13,7 @@ import UIKit
 ///
 /// Page tools are Item Shop, Paths and Quick Links (all after the first load); the song's
 /// cover is the shared backdrop while the page is on screen (``UKBackgroundRegistration``).
-final class UKSongDetailViewController: UIViewController, UKPageToolsProviding, UIScrollViewDelegate {
+final class UKSongDetailViewController: UKPageViewController, UKPageToolsProviding, UIScrollViewDelegate {
     private let song: Song
     private let context: UKContext
     private var session: FestivalSession { context.session }
@@ -171,7 +171,7 @@ final class UKSongDetailViewController: UIViewController, UKPageToolsProviding, 
         scrollView.delegate = self
         scrollView.alwaysBounceVertical = true
         scrollView.contentInsetAdjustmentBehavior = .automatic
-        view.addSubview(scrollView)
+        installPageContent(scrollView, scrollView: scrollView)
         contentStack.axis = .vertical
         contentStack.spacing = 20
         contentStack.alignment = .fill
@@ -180,8 +180,6 @@ final class UKSongDetailViewController: UIViewController, UKPageToolsProviding, 
         contentStack.translatesAutoresizingMaskIntoConstraints = false
         scrollView.addSubview(contentStack)
         NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor), scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor), scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             contentStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
             contentStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
             contentStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
@@ -196,11 +194,7 @@ final class UKSongDetailViewController: UIViewController, UKPageToolsProviding, 
         loading.hingeProvider = { [weak self] in self?.ukLayout.splitHinge }
         loading.translatesAutoresizingMaskIntoConstraints = false
         loading.accessibilityIdentifier = "fst.song-detail.loading"
-        view.addSubview(loading)
-        NSLayoutConstraint.activate([
-            loading.leadingAnchor.constraint(equalTo: view.leadingAnchor), loading.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            loading.topAnchor.constraint(equalTo: view.topAnchor), loading.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-        ])
+        showPageState(loading, edgeToEdge: true)
         loadingFill = loading
     }
 
@@ -274,6 +268,10 @@ final class UKSongDetailViewController: UIViewController, UKPageToolsProviding, 
         )
         UKSheet.present(page, from: self, title: nil, closeIdentifier: "fst.paths.close", size: .large, sizing: .page, coverage: coverage)
     }
+
+    #if DEBUG
+    func perfPresentPaths() { presentPaths() }
+    #endif
 
     // MARK: Loading
 
@@ -380,7 +378,7 @@ final class UKSongDetailViewController: UIViewController, UKPageToolsProviding, 
     // MARK: Content
 
     private func showContent() {
-        loadingFill?.removeFromSuperview()
+        clearPageState()
         loadingFill = nil
         scrollView.isHidden = false
         rebuildContent()

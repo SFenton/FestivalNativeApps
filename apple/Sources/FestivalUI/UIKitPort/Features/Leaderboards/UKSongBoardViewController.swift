@@ -11,7 +11,7 @@ import UIKit
 /// split), rows in the one group-card cell, the player's pinned footer and the pager over
 /// the bottom edge, and the pinned bar title once the header scrolls away.
 @MainActor
-class UKSongBoardViewController: UIViewController, UKPageToolsProviding {
+class UKSongBoardViewController: UKPageViewController, UKPageToolsProviding {
     /// The screen's context.
     let context: UKContext
     /// The board's song.
@@ -82,10 +82,9 @@ class UKSongBoardViewController: UIViewController, UKPageToolsProviding {
 
     // MARK: Lifecycle
 
-    override func loadView() { view = boardView }
-
     override func viewDidLoad() {
         super.viewDidLoad()
+        installPageContent(boardView, scrollView: boardView.collectionView)
         view.backgroundColor = .clear
         ukInstallAccountItems()
         ukSetPageTitle(showsSongHeader ? song.title : boardTitle, mode: .inline)

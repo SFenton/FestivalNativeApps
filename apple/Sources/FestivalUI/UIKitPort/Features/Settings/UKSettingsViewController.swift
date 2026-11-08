@@ -40,6 +40,7 @@ final class UKSettingsViewController: UKSettingsScrollPage, UKPageToolsProviding
     private var feedbackTask: Task<Void, Never>?
     private var feedbackSent = FeedbackSentPresentation()
     private var feedbackRows: [FeedbackKind: UIView] = [:]
+    private weak var perfAccordion: UKSettingsAccordionRow?
 
     /// Creates the page.
     ///
@@ -127,6 +128,11 @@ final class UKSettingsViewController: UKSettingsScrollPage, UKPageToolsProviding
         super.viewDidAppear(animated)
         quickLinks?.didAppear()
         updateOpenDetail()
+        #if DEBUG
+        if topic != nil, didBuild, !column.arrangedSubviews.isEmpty {
+            FirstContentProbe.markFirstContent()
+        }
+        #endif
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -378,12 +384,25 @@ final class UKSettingsViewController: UKSettingsScrollPage, UKPageToolsProviding
             leeway = block
             return block
         }
+        perfAccordion = accordion
         refreshers.append { [weak accordion] in
             accordion?.follow(UKSettings.bool("fst.settings.filterInvalidScores", default: false))
             leeway?.sync()
         }
         return [filter, accordion]
     }
+
+    #if DEBUG
+    func perfPresentFeedback() { openFeedback(.bug) }
+
+    func perfPresentPrivacyPolicy() { UKPrivacyPolicyViewController.present(from: self) }
+
+    var perfAccordionIsOpen: Bool { perfAccordion?.isOpen == true }
+
+    func perfToggleAccordion() { perfAccordion?.setOpen(true, animated: true) }
+
+    func perfRestoreAccordion() { perfAccordion?.setOpen(false, animated: true) }
+    #endif
 
     private func pathRows() -> [UIView] {
         let choice = UKSettingsChoiceRow<PathDisplayMode>(
@@ -464,12 +483,12 @@ final class UKSettingsViewController: UKSettingsScrollPage, UKPageToolsProviding
     private func showFeedbackSent() {
         guard let notice = feedbackSent.shown else { return }
         let alert = UIAlertController(title: notice.title, message: notice.message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Done", style: .cancel) { [weak self] _ in
+        alert.addAction(alert.ukAction(title: "Done", style: .cancel) { [weak self] in
             guard let self, let kind = feedbackSent.acknowledge(), let row = feedbackRows[kind] else { return }
             UIAccessibility.post(notification: .layoutChanged, argument: row)
             AccessibilityFocusTrace.shared.record("fst.settings.feedback.\(kind.rawValue): \(row.accessibilityLabel ?? "")")
         })
-        present(alert, animated: true) {
+        _ = UKPresentationCoordinator.shared(for: self).presentRelated(alert, from: self) {
             UKAlertIdentifiers.apply(["Done": "fst.settings.feedback.done"], in: alert.view)
         }
     }
@@ -823,11 +842,11 @@ final class UKSettingsViewController: UKSettingsScrollPage, UKPageToolsProviding
                 + "Your profile, song filters and navigation history will remain.",
             preferredStyle: .actionSheet
         )
-        alert.addAction(UIAlertAction(title: "Reset App Settings", style: .destructive) { [weak self] _ in self?.resetAppSettings() })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(alert.ukAction(title: "Reset App Settings", style: .destructive) { [weak self] in self?.resetAppSettings() })
+        alert.addAction(alert.ukAction(title: "Cancel", style: .cancel))
         alert.popoverPresentationController?.sourceView = source
         alert.popoverPresentationController?.sourceRect = source.bounds
-        present(alert, animated: true)
+        _ = UKPresentationCoordinator.shared(for: self).presentRelated(alert, from: self)
     }
 
     /// Restore app settings only, never a selected profile or Songs navigation.

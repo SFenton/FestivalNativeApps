@@ -23,7 +23,7 @@ enum UKSongsItem: Hashable {
 /// of material row cards under a floating section bar, with the A–Z rail, Quick Links, the
 /// Sort and Filter tools, the Filter Songs field and the loading, failed, empty and paused
 /// states. All filtering, sorting, grouping and provenance rules come from ``SongsPipeline``.
-final class UKSongsViewController: UIViewController, UICollectionViewDelegate, UKPageToolsProviding {
+final class UKSongsViewController: UKPageViewController, UICollectionViewDelegate, UKPageToolsProviding {
     // MARK: State
 
     let context: UKContext
@@ -150,11 +150,7 @@ final class UKSongsViewController: UIViewController, UICollectionViewDelegate, U
         gate = UKReloadGate(key: reloadKey, isLoading: true, spinnerLabel: "Loading songs")
         gate.onReveal = { [weak self] in self?.revealList() }
         gate.translatesAutoresizingMaskIntoConstraints = false
-        view.insertSubview(gate, at: 0)
-        NSLayoutConstraint.activate([
-            gate.leadingAnchor.constraint(equalTo: view.leadingAnchor), gate.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            gate.topAnchor.constraint(equalTo: view.topAnchor), gate.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-        ])
+        installPageContent(gate, scrollView: collectionView)
         gate.contentView.addSubview(listContainer)
         listContainer.frame = gate.contentView.bounds
         listContainer.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -231,6 +227,7 @@ final class UKSongsViewController: UIViewController, UICollectionViewDelegate, U
         collectionView.backgroundColor = .clear
         collectionView.delegate = self
         collectionView.alwaysBounceVertical = true
+        collectionView.showsHorizontalScrollIndicator = false
         collectionView.contentInsetAdjustmentBehavior = .automatic
         collectionView.accessibilityIdentifier = "fst.songs.list"
         collectionView.keyboardDismissMode = .onDrag

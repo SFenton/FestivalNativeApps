@@ -143,7 +143,7 @@ final class UKLinkLabel: UILabel {
 /// The Privacy Policy sheet's page (``PrivacyPolicySheet``): the policy in a scroll view, a
 /// 680 pt column with 20 pt side padding.
 @MainActor
-final class UKPrivacyPolicyViewController: UIViewController, UKModalScrollProviding {
+final class UKPrivacyPolicyViewController: UKScreenViewController, UKModalScrollProviding {
     private let containment = FentonContentContainmentView()
     private let scrollView = UIScrollView()
     private let policy: PrivacyPolicy
@@ -181,6 +181,13 @@ final class UKPrivacyPolicyViewController: UIViewController, UKModalScrollProvid
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         if UKSettingsScrollPage.remeasureLabels(in: scrollView) { scrollView.setNeedsLayout() }
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        #if DEBUG
+        FirstContentProbe.markFirstContent()
+        #endif
     }
 
     /// Presents the policy as a large sheet.
@@ -230,7 +237,15 @@ final class UKLicensesViewController: UKSettingsScrollPage {
         } else {
             section.setRows(entries.map(licenseRow))
         }
+
         setCards([section])
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        #if DEBUG
+        if !column.arrangedSubviews.isEmpty { FirstContentProbe.markFirstContent() }
+        #endif
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -300,7 +315,7 @@ final class UKLicensesViewController: UKSettingsScrollPage {
 
 /// Full license text for one entry (``LicenseDetailSheet``).
 @MainActor
-final class UKLicenseDetailViewController: UIViewController, UKModalScrollProviding {
+final class UKLicenseDetailViewController: UKScreenViewController, UKModalScrollProviding {
     private let entry: SoftwareLicense
     private let text = UITextView()
     var ukModalScrollView: UIScrollView? { text }

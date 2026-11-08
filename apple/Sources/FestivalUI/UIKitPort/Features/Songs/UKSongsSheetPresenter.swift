@@ -36,14 +36,17 @@ extension UIViewController {
     func ukPresentSongsSheet(
         _ content: UIViewController, title: String, closeIdentifier: String, size: FestivalSheetSize, keep: (UKSongsSheetDismissObserver) -> Void
     ) {
+        let coordinator = UKPresentationCoordinator.shared(for: self)
+        guard coordinator.canPresentIndependent(from: self) else { return }
         let observer = UKSongsSheetDismissObserver { [weak self] in self?.ukPageToolsDidChange() }
-        keep(observer)
         let sheet = UKSheet.make(
             content, title: title, closeIdentifier: closeIdentifier, size: size,
             regularWidth: traitCollection.horizontalSizeClass == .regular
         )
         sheet.ukOnDismiss = { observer.notifyDismissal() }
-        present(sheet, animated: true)
+        if coordinator.presentIndependent(sheet, from: self) == .presented {
+            keep(observer)
+        }
     }
 }
 #endif

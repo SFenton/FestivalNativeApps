@@ -133,6 +133,12 @@ targets:
       - path: Tests/FestivalUITests/UKPageFoundationTests.swift
       - path: Tests/FestivalUITests/UKModalFoundationTests.swift
       - path: Tests/FestivalUITests/UKSectionStackFoundationTests.swift
+      - path: Tests/FestivalUITests/UKHostedWindow.swift
+      - path: Tests/FestivalUITests/UKMotionFoundationTests.swift
+      - path: Tests/FestivalUITests/UKRouteArchitectureTests.swift
+      - path: Tests/FestivalUITests/UKPresentationCoordinatorTests.swift
+      - path: Tests/FestivalUITests/UKFeatureComponentTests.swift
+      - path: Tests/FestivalUITests/UKFeedbackPhotoSelectionTests.swift
     dependencies:
       - target: FestivalMobileUIKit
       # Use the app host's package images instead of linking a second copy.

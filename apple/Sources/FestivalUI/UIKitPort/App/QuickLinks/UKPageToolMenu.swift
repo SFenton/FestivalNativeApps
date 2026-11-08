@@ -74,7 +74,7 @@ enum UKPageToolMenuMetrics {
 /// grabber that expands to large), lists and tables (44 pt rows) and accessibility
 /// (selected state, larger text).
 @MainActor
-final class UKPageToolMenuViewController: UIViewController, UICollectionViewDelegate, UKModalScrollProviding {
+final class UKPageToolMenuViewController: UKPageViewController, UICollectionViewDelegate, UKModalScrollProviding {
     /// Identifier of the sheet's Close button.
     static let closeIdentifier = "fst.page-tools.menu.close"
 
@@ -109,7 +109,7 @@ final class UKPageToolMenuViewController: UIViewController, UICollectionViewDele
         // where the glass is opaque and the title keeps its contrast; the medium detent stays as
         // the step down.
         sheet.sheetPresentationController?.selectedDetentIdentifier = .large
-        presenter.present(sheet, animated: true)
+        UKPresentationCoordinator.shared(for: presenter).presentIndependent(sheet, from: presenter)
     }
 
     override func viewDidLoad() {
@@ -120,10 +120,9 @@ final class UKPageToolMenuViewController: UIViewController, UICollectionViewDele
         configuration.showsSeparators = true
         let layout = UICollectionViewCompositionalLayout.list(using: configuration)
         collection = UICollectionView(frame: view.bounds, collectionViewLayout: layout)
-        collection.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         collection.backgroundColor = .clear
         collection.delegate = self
-        view.addSubview(collection)
+        installPageContent(collection, scrollView: collection)
         let choices = choices
         let registration = UICollectionView.CellRegistration<UKPageToolMenuCell, Int> { cell, _, index in
             cell.configure(choices[index])
@@ -150,7 +149,7 @@ final class UKPageToolMenuViewController: UIViewController, UICollectionViewDele
         guard !picked, choices.indices.contains(index) else { return }
         picked = true
         let action = choices[index].action
-        (navigationController ?? self).dismiss(animated: true) { action() }
+        UKPresentationCoordinator.shared(for: self).dismiss(navigationController ?? self) { action() }
     }
 }
 

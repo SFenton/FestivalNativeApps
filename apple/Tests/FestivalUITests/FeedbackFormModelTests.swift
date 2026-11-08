@@ -153,6 +153,23 @@ struct FeedbackFormModelTests {
         #expect(model.canSubmit)
     }
 
+    @Test("A cancelled native selection deletes its staged copy without admitting it")
+    func cancelledNativePhotoCopy() async throws {
+        let source = try sourceImage("cancelled.png")
+        defer { try? FileManager.default.removeItem(at: source.deletingLastPathComponent()) }
+        let staged = try FeedbackPickedMedia.stage(source)
+        let model = FeedbackFormModel(kind: .bug)
+        let task = Task { await model.importPickedMedia(staged) }
+        task.cancel()
+
+        let admitted = await task.value
+
+        #expect(admitted == nil)
+        #expect(model.attachments.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: staged.url.path))
+        #expect(FileManager.default.fileExists(atPath: source.path))
+    }
+
     @Test("A picked file is copied, typed and removable; the original is untouched")
     func importAndRemove() async throws {
         let source = try sourceImage("shot.png")

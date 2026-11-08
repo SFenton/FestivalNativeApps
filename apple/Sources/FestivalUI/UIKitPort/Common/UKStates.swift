@@ -190,10 +190,9 @@ final class UKStateSubtitleLabel: UILabel {
 
 // MARK: - Loading view
 
-/// The white arc spinner (``FestivalLoadingView``, ``FestivalArcProgressStyle``): a 10%
-/// white track (25% under increased contrast) and a quarter-circle white arc turning once
-/// per 0.8 s. With a `status` it sits beside a white label (small control size); without
-/// one it is spoken as "Loading" (or `accessibilityLabel`).
+/// The native white activity indicator in Festival's shared loading placement.
+/// With a `status` it sits beside a white label; otherwise the indicator itself
+/// is spoken as "Loading" (or `accessibilityLabel`).
 final class UKLoadingView: UIView {
     /// Spinner size (SwiftUI control size).
     enum Size {
@@ -236,10 +235,8 @@ final class UKLoadingView: UIView {
             stack.translatesAutoresizingMaskIntoConstraints = false
             addSubview(stack)
             pin(stack)
-            arc.isAccessibilityElement = false
-            stack.isAccessibilityElement = true
-            stack.accessibilityLabel = status
-            stack.accessibilityTraits = .updatesFrequently
+            arc.exposeAsActivityIndicator(label: status)
+            label.isAccessibilityElement = false
         } else {
             addSubview(arc)
             arc.exposeAsActivityIndicator(label: accessibilityLabel)
@@ -270,81 +267,56 @@ final class UKLoadingView: UIView {
     }
 }
 
-/// The spinning arc.
+/// A native activity indicator inside the shared loading metrics.
 final class UKArcView: UIView {
-    private let track = CAShapeLayer()
-    private let arc = CAShapeLayer()
-    private let metrics: FestivalArcMetrics.Size
+    private let indicator: UIActivityIndicatorView
+    private var visibilityObserver: UKMotionVisibilityObserver?
 
     /// Creates an arc of a size.
     init(size: UKLoadingView.Size) {
-        metrics = size.metrics
+        let metrics = size.metrics
+        indicator = UIActivityIndicatorView(style: size == .large ? .large : .medium)
         super.init(frame: CGRect(x: 0, y: 0, width: metrics.diameter, height: metrics.diameter))
         translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             widthAnchor.constraint(equalToConstant: metrics.diameter), heightAnchor.constraint(equalToConstant: metrics.diameter),
         ])
-        let inset = metrics.lineWidth / 2
-        let rect = CGRect(x: 0, y: 0, width: metrics.diameter, height: metrics.diameter).insetBy(dx: inset, dy: inset)
-        let circle = UIBezierPath(ovalIn: rect)
-        for shape in [track, arc] {
-            shape.fillColor = nil
-            shape.lineWidth = metrics.lineWidth
-            shape.frame = bounds
-            layer.addSublayer(shape)
-        }
-        track.path = circle.cgPath
-        arc.path = circle.cgPath
-        arc.strokeStart = 0
-        arc.strokeEnd = CGFloat(FestivalArcMetrics.sweep)
-        arc.strokeColor = UIColor.white.cgColor
-        arc.lineCap = .butt
-        registerForTraitChanges([UITraitAccessibilityContrast.self]) { (self: UKArcView, _) in self.applyTrack() }
-        applyTrack()
+        indicator.color = BrandUIColors.textPrimary
+        indicator.hidesWhenStopped = false
+        indicator.isAccessibilityElement = false
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(indicator)
+        NSLayoutConstraint.activate([
+            indicator.centerXAnchor.constraint(equalTo: centerXAnchor),
+            indicator.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+        visibilityObserver = UKMotionVisibilityObserver { [weak self] in self?.refreshActivity() }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    /// Speaks the arc as a busy indicator named `label`. XCUITest types an element by its
-    /// class, and only a `UIActivityIndicatorView` is an `activityIndicator` (SwiftUI's
-    /// `ProgressView` is one), so an invisible one carries the label over the drawn arc.
+    /// Exposes the actual system activity indicator as the one named busy element.
     ///
     /// - Parameter label: The spoken name ("Loading text path").
     func exposeAsActivityIndicator(label: String) {
         isAccessibilityElement = false
-        let indicator = UIActivityIndicatorView(style: .medium)
-        indicator.color = .clear
-        indicator.hidesWhenStopped = false
-        indicator.translatesAutoresizingMaskIntoConstraints = false
         indicator.isAccessibilityElement = true
         indicator.accessibilityLabel = label
         indicator.accessibilityTraits = .updatesFrequently
-        addSubview(indicator)
-        NSLayoutConstraint.activate([
-            indicator.leadingAnchor.constraint(equalTo: leadingAnchor), indicator.trailingAnchor.constraint(equalTo: trailingAnchor),
-            indicator.topAnchor.constraint(equalTo: topAnchor), indicator.bottomAnchor.constraint(equalTo: bottomAnchor),
-        ])
-        if !DebugAnimationOverride.stillBackground { indicator.startAnimating() }
-    }
-
-    private func applyTrack() {
-        let opacity = FestivalArcMetrics.trackOpacity(increasedContrast: UKAccessibility.systemIncreasedContrast(traitCollection))
-        track.strokeColor = UIColor.white.withAlphaComponent(CGFloat(opacity)).cgColor
     }
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
-        arc.removeAnimation(forKey: "spin")
-        guard window != nil, !DebugAnimationOverride.stillBackground else { return }
-        let start = -135.0 * .pi / 180
-        let spin = CABasicAnimation(keyPath: "transform.rotation.z")
-        spin.fromValue = start
-        spin.toValue = start + 2 * .pi
-        spin.duration = FestivalArcMetrics.period
-        spin.repeatCount = .infinity
-        spin.isRemovedOnCompletion = false
-        arc.add(spin, forKey: "spin")
+        refreshActivity()
+    }
+
+    private func refreshActivity() {
+        if window?.windowScene?.activationState == .foregroundActive && !DebugAnimationOverride.stillBackground {
+            indicator.startAnimating()
+        } else {
+            indicator.stopAnimating()
+        }
     }
 }
 
@@ -359,6 +331,9 @@ final class UKServiceStatusView: UIView {
     private let scope: String
     private let retry: () -> Void
     private let fallbackTitle: String
+    private let statusSymbol = UIImageView()
+    private var symbolAccessibilityObserver: UKAccessibilityObserver?
+    private var symbolVisibilityObserver: UKMotionVisibilityObserver?
     private let countdownLabel = UKLabel(style: .body, monospacedDigit: true, lines: 0, alignment: .center)
     private let retryButton = UIButton(type: .system)
     private let scroll = UIScrollView()
@@ -383,14 +358,12 @@ final class UKServiceStatusView: UIView {
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         let heading = issue.title ?? title
-        let symbol = UIImageView(image: UIImage(systemName: systemImage ?? ServiceStatusView.symbolName(for: issue)))
+        let symbol = statusSymbol
+        symbol.image = UIImage(systemName: systemImage ?? ServiceStatusView.symbolName(for: issue))
         symbol.preferredSymbolConfiguration = UIImage.SymbolConfiguration(font: UKFont.font(.largeTitle))
         symbol.tintColor = issue.retriesAutomatically ? BrandUIColors.gold : BrandUIColors.textPrimary
         symbol.contentMode = .scaleAspectFit
         symbol.isAccessibilityElement = false
-        if issue.retriesAutomatically && !UKAccessibility.reduceMotion && !DebugAnimationOverride.stillBackground {
-            symbol.addSymbolEffect(.pulse, options: .repeating)
-        }
         let titleLabel = UKLabel(heading, style: .title2, weight: .bold, alignment: .center).asHeader()
         titleLabel.accessibilityIdentifier = "fst.service-status.title"
         let message = UKLabel(issue.message, style: .body, alignment: .center)
@@ -426,6 +399,8 @@ final class UKServiceStatusView: UIView {
         ])
         retryButton.configuration = configuration
         updateRetryTitle()
+        symbolAccessibilityObserver = UKAccessibilityObserver { [weak self] in self?.refreshSymbolMotion() }
+        symbolVisibilityObserver = UKMotionVisibilityObserver { [weak self] in self?.refreshSymbolMotion() }
     }
 
     @available(*, unavailable)
@@ -451,6 +426,7 @@ final class UKServiceStatusView: UIView {
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
+        refreshSymbolMotion()
         task?.cancel()
         guard window != nil else { return }
         task = Task { @MainActor [weak self] in
@@ -459,6 +435,13 @@ final class UKServiceStatusView: UIView {
                 issue: self.issue, scope: self.scope, announcing: self.issue.title ?? self.fallbackTitle, clock: self.clock,
                 update: { [weak self] in self?.setRemaining($0) }, retry: { [weak self] in self?.retry() }
             )
+        }
+    }
+
+    private func refreshSymbolMotion() {
+        statusSymbol.removeAllSymbolEffects()
+        if issue.retriesAutomatically && UKMotionVisibility.permitsAnimation(in: self) {
+            statusSymbol.addSymbolEffect(.pulse, options: .repeating)
         }
     }
 

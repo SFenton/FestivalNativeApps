@@ -146,6 +146,37 @@ class ResolveDeviceTests(unittest.TestCase):
     def test_unknown_alias_passes_through_as_udid(self):
         self.assertEqual(resolve_device("SOME-OTHER-UDID"), "SOME-OTHER-UDID")
 
+    def test_owned_batch_releases_only_its_device_on_failure(self):
+        with unittest.mock.patch.object(ios_sim, "sim_lock", return_value=contextlib.nullcontext()), \
+             unittest.mock.patch.object(ios_sim, "_shutdown_simulator") as shutdown:
+            with self.assertRaisesRegex(RuntimeError, "test failure"):
+                with ios_sim._uitest_device("owned-uuid", True):
+                    raise RuntimeError("test failure")
+        shutdown.assert_called_once_with("owned-uuid")
+
+    def test_legacy_batch_does_not_claim_ownership_of_its_alias(self):
+        with unittest.mock.patch.object(ios_sim, "sim_lock", return_value=contextlib.nullcontext()), \
+             unittest.mock.patch.object(ios_sim, "_shutdown_simulator") as shutdown:
+            with ios_sim._uitest_device("shared-alias", False):
+                pass
+        shutdown.assert_not_called()
+
+    def test_owned_boot_timeout_never_preempts_others_and_releases_its_device(self):
+        with TemporaryDirectory() as temporary, \
+             unittest.mock.patch.object(ios_sim, "sim_lock", return_value=contextlib.nullcontext()), \
+             unittest.mock.patch.object(ios_sim, "_shutdown_simulator") as shutdown, \
+             unittest.mock.patch.object(ios_sim, "boot_exclusive") as exclusive, \
+             unittest.mock.patch.object(ios_sim, "_run", return_value=unittest.mock.Mock(stdout="")), \
+             unittest.mock.patch.object(ios_sim, "run_bounded", side_effect=[0, None]), \
+             unittest.mock.patch.object(ios_sim.tempfile, "gettempdir", return_value=temporary):
+            code, _, _, _ = ios_sim._run_uitest_batch(
+                udid="owned-uuid", derived=Path(temporary), selectors=["Journey/test"],
+                timeout=60, owned_device=True,
+            )
+        self.assertEqual(code, 124)
+        exclusive.assert_not_called()
+        shutdown.assert_called_once_with("owned-uuid")
+
 
 class CiDeviceTests(unittest.TestCase):
     """`ci-device` picks the newest iOS runtime for the iPhone and only runs in CI."""

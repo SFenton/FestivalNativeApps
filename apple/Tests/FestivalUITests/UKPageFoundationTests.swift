@@ -77,9 +77,11 @@
                 scroll.contentOffset = CGPoint(x: 0, y: 173)
                 let state = UIView()
                 page.showPageState(state)
+                #expect(page.pageContainment.isHidden)
                 page.clearPageState()
 
                 #expect(scroll.superview === page.pageContainment.contentView)
+                #expect(!page.pageContainment.isHidden)
                 #expect(scroll.contentOffset.y == 173)
                 #expect(scroll.contentInsetAdjustmentBehavior == .automatic)
             }

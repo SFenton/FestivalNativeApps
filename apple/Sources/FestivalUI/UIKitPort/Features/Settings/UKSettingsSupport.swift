@@ -60,7 +60,7 @@ enum UKSettingsStore {
 /// column of cards, 16 pt from the edges, 8 pt below the bar and 32 pt above the bottom, capped to
 /// the readable 680 pt column centred on wide windows (`ReadableWidthContainer`).
 @MainActor
-class UKSettingsScrollPage: UIViewController, UKModalScrollProviding {
+class UKSettingsScrollPage: UKPageViewController, UKModalScrollProviding {
     /// Settings' readable column width (`ReadableWidthContainer.columnWidth`).
     static let columnWidth: CGFloat = 680
     /// Space between cards.
@@ -93,18 +93,12 @@ class UKSettingsScrollPage: UIViewController, UKModalScrollProviding {
         scrollView.alwaysBounceVertical = true
         scrollView.keyboardDismissMode = .interactive
         scrollView.backgroundColor = .clear
-        view.addSubview(scrollView)
         column.axis = .vertical
         column.spacing = Self.cardSpacing
         column.alignment = .fill
         column.translatesAutoresizingMaskIntoConstraints = false
-        NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-        ])
         Self.install(column, in: scrollView, side: 16, top: 8, bottom: 32)
+        installPageContent(scrollView, scrollView: scrollView, viewport: .native)
     }
 
     /// Places `content` in `scrollView` as one centred column: `side` from each edge, at most
@@ -225,7 +219,7 @@ final class UKSettingLabel: UIStackView {
 /// element (a toggle button with value "1" or "0"); the system switch inside is decoration
 /// that follows it.
 @MainActor
-final class UKSettingsToggleRow: UIView, UIGestureRecognizerDelegate {
+final class UKSettingsToggleRow: UIView {
     private let switchView = UKRowSwitch()
     private let content = UKSettingLabel("")
     private let titleText: String
@@ -287,9 +281,7 @@ final class UKSettingsToggleRow: UIView, UIGestureRecognizerDelegate {
             row.topAnchor.constraint(equalTo: topAnchor), row.bottomAnchor.constraint(equalTo: bottomAnchor),
             heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
         ])
-        let tap = UITapGestureRecognizer(target: self, action: #selector(rowTapped))
-        tap.delegate = self
-        addGestureRecognizer(tap)
+        switchView.installRowTap(on: self)
         isAccessibilityElement = false
         accessibilityElements = [switchView]
         switchView.isAccessibilityElement = true
@@ -305,7 +297,7 @@ final class UKSettingsToggleRow: UIView, UIGestureRecognizerDelegate {
     func sync() {
         let stored = UKSettings.bool(key, default: fallback)
         let shown = inverted ? !stored : stored
-        if switchView.isOn != shown { switchView.setOn(shown, animated: window != nil) }
+        if switchView.isOn != shown { switchView.setOn(shown, animated: window != nil && !UKAccessibility.reduceMotion) }
         updateAccessibility()
     }
 
@@ -313,16 +305,6 @@ final class UKSettingsToggleRow: UIView, UIGestureRecognizerDelegate {
         UKSettingsStore.set(inverted ? !switchView.isOn : switchView.isOn, forKey: key)
         updateAccessibility()
         onChange?(switchView.isOn)
-    }
-
-    @objc private func rowTapped() {
-        guard isRowEnabled else { return }
-        switchView.setOn(!switchView.isOn, animated: true)
-        switchFlipped()
-    }
-
-    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-        !(touch.view is UISwitch)
     }
 
     private func updateAccessibility() {
@@ -614,12 +596,19 @@ final class UKSettingsAccordionRow: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
+    var isOpen: Bool { accordion.state.shown != nil }
+
     /// Opens or closes the block.
     ///
     /// - Parameter open: The wanted state.
     func follow(_ open: Bool) {
         if open { hairline.isHidden = false }
         accordion.follow(open ? true : nil)
+    }
+
+    func setOpen(_ open: Bool, animated: Bool) {
+        follow(open)
+        if animated { layoutIfNeeded() }
     }
 }
 #endif

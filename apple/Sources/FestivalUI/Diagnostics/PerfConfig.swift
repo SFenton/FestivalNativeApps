@@ -14,6 +14,9 @@ import Foundation
 /// | `FST_PERF_SPEED` | Scroll speed in points per second (default 900) |
 /// | `FST_PERF_AXIS=horizontal` | Drive the widest sideways scroller instead of the page |
 /// | `FST_PERF_NAV=<routes>` | `;`-separated `FST_DEBUG_ROUTE` tokens: measure push and pop of each instead of scrolling |
+/// | `FST_PERF_MODAL=<routes>` | `;`-separated modal/task tokens: measure present and dismiss of each |
+/// | `FST_PERF_COMPONENT=<classes>` | `;`-separated component probe tokens, dispatched by the app's narrow debug seam |
+/// | `FST_PERF_MODE` | `scroll`, `latency`, `nav`, `modal`, or `component` (the section defaults this when omitted) |
 /// | `FST_PERF_NAV_CYCLES` | Push/pop cycles per route (default 6: one cold, five warm) |
 struct PerfConfig: Equatable {
     /// Seconds to wait after launch before the first measurement.
@@ -30,6 +33,12 @@ struct PerfConfig: Equatable {
     var horizontal: Bool
     /// `FST_DEBUG_ROUTE` tokens to push and pop; empty for a scroll run.
     var navRoutes: [String]
+    /// Modal or task tokens to present and dismiss.
+    var modalRoutes: [String]
+    /// Animation/component probe tokens dispatched by the app's debug seam.
+    var componentRoutes: [String]
+    /// The measurement family selected by the surface manifest.
+    var mode: String
     /// Push/pop cycles per route.
     var navCycles: Int
 
@@ -46,6 +55,11 @@ struct PerfConfig: Equatable {
         speed = environment["FST_PERF_SPEED"].flatMap(Double.init) ?? 900
         horizontal = environment["FST_PERF_AXIS"] == "horizontal"
         navRoutes = (environment["FST_PERF_NAV"] ?? "").split(separator: ";").map { String($0) }
+        modalRoutes = (environment["FST_PERF_MODAL"] ?? "").split(separator: ";").map { String($0) }
+        componentRoutes = (environment["FST_PERF_COMPONENT"] ?? "").split(separator: ";").map { String($0) }
+        mode = environment["FST_PERF_MODE"] ?? (
+            !modalRoutes.isEmpty ? "modal" : (!componentRoutes.isEmpty ? "component" : (navRoutes.isEmpty ? "scroll" : "nav"))
+        )
         navCycles = environment["FST_PERF_NAV_CYCLES"].flatMap(Int.init).map { max($0, 1) } ?? 6
     }
 }

@@ -34,55 +34,42 @@ final class UKProfileInstrumentHeader: UIView {
 /// outline for the top 5%, a sheared gold outline for the top 1%, else a subtle fill.
 final class UKPercentilePillView: UIView {
     private let topPercent: Int
-    private let shape = CAShapeLayer()
-    private let label: UKLabel
+    private var fieldView: UKSongMetadataFieldView
 
     /// Creates the pill.
     ///
     /// - Parameter topPercent: The band's upper bound.
     init(topPercent: Int) {
         self.topPercent = topPercent
-        let isTopOne = topPercent <= 1
-        let isGold = topPercent <= 5
-        let font = UKFont.font(.subheadline, weight: isGold ? .bold : .semibold, monospacedDigit: true, italic: isTopOne)
-        label = UKLabel("Top \(topPercent)%", style: .subheadline, color: isGold ? BrandUIColors.gold : BrandUIColors.textPrimary, lines: 0, alignment: .center)
-        label.font = font
+        let tier: SongPercentileTier = topPercent <= 1 ? .topOne : (topPercent <= 5 ? .topFive : .ordinary)
+        fieldView = UKSongMetadataFieldView(
+            field: .percentile("Top \(topPercent)%", tier: tier), traits: .current
+        )
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
-        layer.addSublayer(shape)
-        shape.fillColor = isGold ? UIColor.clear.cgColor : UIColor.white.withAlphaComponent(0.1).cgColor
-        shape.strokeColor = isGold ? BrandUIColors.goldStroke.cgColor : nil
-        shape.lineWidth = isGold ? 2 : 0
-        ukPin(label, insets: UIEdgeInsets(top: 3, left: 8, bottom: 3, right: 8))
-        widthAnchor.constraint(greaterThanOrEqualToConstant: 76).isActive = true
+        fieldView.isUserInteractionEnabled = false
+        ukPin(fieldView)
         isUserInteractionEnabled = false
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (self: UKPercentilePillView, _) in
+            self.rebuildField()
+        }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        shape.frame = bounds
-        shape.path = Self.path(in: bounds, skewed: topPercent <= 1).cgPath
-    }
+    override var intrinsicContentSize: CGSize { fieldView.intrinsicContentSize }
 
-    /// The badge outline (``GoldSkewBadgeShape``): 8 pt corners, optionally sheared -8 degrees,
-    /// inset horizontally before shearing so it still fits the rect.
-    ///
-    /// - Parameters:
-    ///   - rect: The pill's bounds.
-    ///   - skewed: Apply the shear.
-    /// - Returns: The outline.
-    static func path(in rect: CGRect, skewed: Bool) -> UIBezierPath {
-        guard skewed, rect.width > 0, rect.height > 0 else {
-            return UIBezierPath(roundedRect: rect, cornerRadius: min(8, rect.height / 2))
-        }
-        let shift = tan(8 * CGFloat.pi / 180) * rect.height / 2
-        let local = CGRect(x: shift, y: 0, width: max(0, rect.width - 2 * shift), height: rect.height)
-        let path = UIBezierPath(roundedRect: local, cornerRadius: min(8, rect.height / 2))
-        path.apply(SongLeaderboardEntryRow.goldSkew(height: rect.height).concatenating(CGAffineTransform(translationX: rect.minX, y: rect.minY)))
-        return path
+    private func rebuildField() {
+        let tier: SongPercentileTier = topPercent <= 1 ? .topOne : (topPercent <= 5 ? .topFive : .ordinary)
+        let replacement = UKSongMetadataFieldView(
+            field: .percentile("Top \(topPercent)%", tier: tier), traits: traitCollection
+        )
+        replacement.isUserInteractionEnabled = false
+        fieldView.removeFromSuperview()
+        fieldView = replacement
+        ukPin(fieldView)
+        invalidateIntrinsicContentSize()
     }
 }
 

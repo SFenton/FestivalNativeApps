@@ -1896,6 +1896,12 @@ def cmd_uitest(args: argparse.Namespace) -> int:
     if code := scripting_preflight(bool(getattr(args, "set_pose", False))):
         return code
     udid = resolve_device(args.device)
+    if getattr(args, "owned_device", False):
+        try:
+            uuid.UUID(args.device)
+        except ValueError:
+            print("--owned-device requires an explicitly owned simulator UUID, not an alias", file=sys.stderr)
+            return 2
     if getattr(args, "rotate", None) and getattr(args, "set_pose", False):
         # Rotations are relative: start from a fresh boot so they land on the default
         # orientation (the Duo boots closed, in its default orientation).
@@ -1944,6 +1950,7 @@ def cmd_uitest(args: argparse.Namespace) -> int:
                 a11y=getattr(args, "a11y", None), pose=getattr(args, "pose", None),
                 set_pose=getattr(args, "set_pose", False), rotate=getattr(args, "rotate", None),
                 diagnostics=not getattr(args, "no_test_diagnostics", False),
+                owned_device=getattr(args, "owned_device", False),
             )
             if (returncode and not rebooted and getattr(args, "reboot_wedged", False)
                     and (wedge := simulator_wedged(log_path.read_text(encoding="utf-8", errors="replace")))):
@@ -2253,10 +2260,22 @@ def should_retry_batch(returncode: int, attempt: int, retries: int) -> bool:
     return returncode == EXIT_TEST_FAILED and attempt < retries
 
 
+@contextmanager
+def _uitest_device(udid: str, owned_device: bool) -> Iterator[None]:
+    """Release an explicitly owned device without touching any other simulator."""
+    with sim_lock(udid, "uitest batch"):
+        try:
+            yield
+        finally:
+            if owned_device:
+                _shutdown_simulator(udid)
+
+
 def _run_uitest_batch(
     *, udid: str, derived: Path, selectors: list[str], timeout: float,
     a11y: list[str] | None = None, pose: str | None = None, set_pose: bool = False,
     rotate: list[str] | None = None, diagnostics: bool = True,
+    owned_device: bool = False,
 ) -> tuple[int, float, Path, Path]:
     """Run one bounded batch of ``-only-testing:`` selectors under one lock hold.
 
@@ -2286,11 +2305,19 @@ def _run_uitest_batch(
     log_path = Path(tempfile.gettempdir()) / f"fst-uitest-log-{uuid.uuid4().hex}.txt"
 
     start = time.time()
-    with sim_lock(udid, "uitest batch"):
+    with _uitest_device(udid, owned_device):
         state = _run(["xcrun", "simctl", "list", "devices", udid], check=False, capture_output=True, text=True)
         was_booted = "(Booted)" in (state.stdout or "")
-        boot_exclusive(udid)
-        _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
+        if owned_device:
+            with log_path.open("w") as log:
+                run_bounded(["xcrun", "simctl", "boot", udid], 90, stdout=log, stderr=log)
+                ready = run_bounded(["xcrun", "simctl", "bootstatus", udid, "-b"],
+                                    min(timeout, 150), stdout=log, stderr=log)
+            if ready != 0:
+                return ready if ready is not None else 124, time.time() - start, log_path, result_bundle
+        else:
+            boot_exclusive(udid)
+            _run(["xcrun", "simctl", "bootstatus", udid, "-b"], capture_output=True)
         if pose:
             # Inside this batch's lock hold: another lane's run between batches shuts the
             # Duo down, and it boots closed in its default orientation.
@@ -2651,6 +2678,9 @@ def main(argv: list[str] | None = None) -> int:
     uitest.add_argument("--fail-on-skip", action="store_true",
                         help="fail a batch in which any test skipped or none ran (CI: a journey that "
                              "cannot find its fixture skips, and an all-skipped batch otherwise passes)")
+    uitest.add_argument("--owned-device", action="store_true",
+                        help="require an owned UUID, never stop other devices, and shut this device "
+                             "down after each batch, including failures")
     uitest.add_argument("--reboot-wedged", action="store_true",
                         default=os.environ.get("FST_UITEST_REBOOT_WEDGED") == "1",
                         help="CI: when a batch reached no verdict (its test runner failed to initialize, or it "

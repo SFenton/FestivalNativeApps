@@ -235,7 +235,7 @@ final class UKPlayerHistoryViewController: UKSongBoardViewController {
 
 /// Score History's sort choices (``PlayerHistorySortSheet``): Date, Score, Accuracy or
 /// Season, ascending or descending, applied as they are made, with a red reset.
-final class UKPlayerHistorySortViewController: UIViewController, UKModalScrollProviding {
+final class UKPlayerHistorySortViewController: UKPageViewController, UKModalScrollProviding {
     private var mode: PlayerScoreSortMode
     private var ascending: Bool
     private let onApply: (PlayerScoreSortMode, Bool) -> Void
@@ -274,10 +274,8 @@ final class UKPlayerHistorySortViewController: UIViewController, UKModalScrollPr
         stack.isLayoutMarginsRelativeArrangement = true
         stack.layoutMargins = UIEdgeInsets(top: 8, left: 16, bottom: 24, right: 16)
         scroll.addSubview(stack)
-        view.addSubview(scroll)
+        installPageContent(scroll, scrollView: scroll)
         NSLayoutConstraint.activate([
-            scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scroll.topAnchor.constraint(equalTo: view.topAnchor), scroll.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),
             stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor),

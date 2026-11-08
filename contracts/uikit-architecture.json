@@ -1,0 +1,3029 @@
+{
+  "schemaVersion": 1,
+  "scope": [
+    "ios",
+    "ipados",
+    "iphone-duo"
+  ],
+  "beforeRevision": "412e0370d8b3eba79ffaee445b205c9b8203b9b1",
+  "description": "Complete source-ownership review; not runtime, coverage or performance certification.",
+  "files": [
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Chrome/UKFloatingPageTools.swift",
+      "sourceHash": "9b9dda62389de04c3667d340ec6a0515b7b2f1cf0816e6f3684052a1abaf6339",
+      "classes": [
+        {
+          "name": "UKFloatingPageToolsView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 87,
+          "api": "UIView.animate"
+        },
+        {
+          "line": 91,
+          "api": "UIView.animate"
+        },
+        {
+          "line": 119,
+          "api": "UIView.animate"
+        }
+      ],
+      "disposition": "feature-composition",
+      "owner": "UKRootViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Chrome/commands retain Festival policy over native controls and the root/window presentation owner; domain route/tool choices remain app-owned. Full runtime/coverage/pose/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Chrome/UKMonogram.swift",
+      "sourceHash": "66a216cf89d7e3dcf67b157703cab516e0821c8df2d381fff144150ec1479647",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRootViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Chrome/commands retain Festival policy over native controls and the root/window presentation owner; domain route/tool choices remain app-owned. Full runtime/coverage/pose/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Chrome/UKPageTools.swift",
+      "sourceHash": "6153ab049ca9995be7b2656cc21eb4de63aff47dc18891d9941352c0a3dcaef9",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRootViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Chrome/commands retain Festival policy over native controls and the root/window presentation owner; domain route/tool choices remain app-owned. Full runtime/coverage/pose/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Chrome/UKRootChrome.swift",
+      "sourceHash": "e5815a37a2f49955804c333208af1a272eff06c5ae466a72b84f1a73702d5a98",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRootViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Chrome/commands retain Festival policy over native controls and the root/window presentation owner; domain route/tool choices remain app-owned. Full runtime/coverage/pose/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Layout/UKLayoutAccess.swift",
+      "sourceHash": "9fe203001b68e08963e8db0dbffc167485485ba419187e4463d210889e05f1d6",
+      "classes": [
+        {
+          "name": "UKHingeColumnsView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "DeviceLayout / OnDemandSplitPolicy",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Measured-width and reserved-region helpers consume the existing shared product layout policy, not new idiom/orientation heuristics. Full runtime/coverage/pose/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Layout/UKSectionStack.swift",
+      "sourceHash": "96dbd36a728767c9d24207ad26e8be4455393e25ebe71fe06c85be4fbb4ca5eb",
+      "classes": [
+        {
+          "name": "UKSectionStack",
+          "base": "UIViewController"
+        },
+        {
+          "name": "UKSplitPlaceholderViewController",
+          "base": "UKScreenViewController"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 337,
+          "api": "UIView.animate"
+        }
+      ],
+      "disposition": "native-container",
+      "owner": "UKSectionStack",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKSectionStackFoundationTests.swift"
+      ],
+      "note": "Stable route/controller partitions; geometry retains identity; actual detail owns focus, selection and divider. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Presentation/UKPresentationCoordinator.swift",
+      "sourceHash": "8cde64d59207c4cf6a98daa07c73fd98aaf1d4d6a0e850e79fbd21bc8dca7f5d",
+      "classes": [
+        {
+          "name": "UKPresentationCoordinator",
+          "base": "NSObject"
+        },
+        {
+          "name": "UKPresentationLifecycleProbe",
+          "base": "UIView"
+        },
+        {
+          "name": "UKPresentationDelegateProxy",
+          "base": "NSObject"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKPresentationCoordinator",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "One window task and bounded weak automatic slot; native completion, delegate forwarding and unmodified alert delegate. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/QuickLinks/UKPageToolMenu.swift",
+      "sourceHash": "e42f945d154b2168462f5760302b4ffdfe78b64c2a546d83f85c2d7a737efb51",
+      "classes": [
+        {
+          "name": "UKPageToolMenuViewController",
+          "base": "UKPageViewController"
+        },
+        {
+          "name": "UKPageToolMenuCell",
+          "base": "UICollectionViewListCell"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKPageViewController",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Actual detail/catalogue/search/tool content or a mixed-layout canvas is installed through the page host; native scroll ownership and feature route/load policy remain distinct. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/QuickLinks/UKQuickLinks.swift",
+      "sourceHash": "317b792850db2df30d61aa55d6a56464919cdedec12a10af4b709050a2b8df4c",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKQuickLinks",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Quick Links keeps one section/landing/action policy over native scrolling and the canonical tool sheet. Full runtime/coverage/pose/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Search/UKBottomSearchField.swift",
+      "sourceHash": "b43cac03edd724a1d4ee53ec3de448a1c06c20c1afbbe742f8e2ab6d75f54076",
+      "classes": [
+        {
+          "name": "UKBottomSearchField",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKBottomSearchField / BottomSearchFieldPlacement",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Actual native input has a full target; existing pose policy aligns the capsule and UIKit keyboard guide owns movement. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Search/UKGlobalSearchViewController.swift",
+      "sourceHash": "32cdc2f0200f2c305dc73d218e3a2b50dab86ea8e0824bef35dfcefa282aa91c",
+      "classes": [
+        {
+          "name": "UKGlobalSearchViewController",
+          "base": "UKPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKPageViewController",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Actual detail/catalogue/search/tool content or a mixed-layout canvas is installed through the page host; native scroll ownership and feature route/load policy remain distinct. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKDebugDuoWindowReadout.swift",
+      "sourceHash": "550a3edabc980607724720cdaed67b5c77930b446c2080b58b3f3198bac293ec",
+      "classes": [
+        {
+          "name": "UKDebugDuoWindowReadout",
+          "base": "UILabel"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "debug-only",
+      "owner": "UKDebugDuoWindowReadout",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Debug pose/window readout is diagnostic state, not actual hinge or form-factor qualification. Runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKDrawerViewController.swift",
+      "sourceHash": "d6636dfa4f21076efc1e53e37c6134a26a5b2f0bf4f40eeec9cc54b3854803e0",
+      "classes": [
+        {
+          "name": "UKDrawerViewController",
+          "base": "UKScreenViewController"
+        },
+        {
+          "name": "UKDrawerRow",
+          "base": "UIControl"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 476,
+          "api": "CADisplayLink"
+        },
+        {
+          "line": 539,
+          "api": "CADisplayLink"
+        }
+      ],
+      "disposition": "feature-composition",
+      "owner": "UKScreenViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift"
+      ],
+      "note": "Drawer retains Festival chrome with explicit screen lifetime, stopped display links and related native confirmations. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKMenuBar.swift",
+      "sourceHash": "184e054fe69195828f3e14023a95a7611f5f777dede0de9c2942ed4a5c118cf2",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRootViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Chrome/commands retain Festival policy over native controls and the root/window presentation owner; domain route/tool choices remain app-owned. Full runtime/coverage/pose/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKShellSheets.swift",
+      "sourceHash": "32da04f893aaac7fb9e34070c4e0a1653cba4d8a3addf6a439a2f3731cdf4c51",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKSheet / UKPresentationCoordinator",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Shell factories and Close helpers use canonical native sheet ownership; generic fallback also dismisses through the window coordinator. Source ownership does not certify every runtime state or benchmark."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKWindows.swift",
+      "sourceHash": "015f4a31622854df6a7076fbf4c634b7256ef2a9a504a1b527ea7252ae88a4ad",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "native-container",
+      "owner": "UKRootViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Window shell/extensions compose native tab/navigation containers, shared layout policy, preserved route identity and the central sheet lifecycle, not feature-local page wrappers. Full runtime/coverage/pose/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/UKApp.swift",
+      "sourceHash": "64c3e685031d8765559af0e7f831e68156551a14f4da792a8f998b0315cea4c5",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKApp",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        ".agents/testing/apple/uikit-perf.md"
+      ],
+      "note": "App-owned DEBUG registration installs the existing root navigation and modal performance hooks; it does not create a second presentation path or certify runtime results."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/UKRootViewController+Chrome.swift",
+      "sourceHash": "681fd1a6c96b937cd8d698f7a69cf1b00700aa6cfb2894042eb9051c86d6b4a0",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "native-container",
+      "owner": "UKRootViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Window shell/extensions compose native tab/navigation containers, shared layout policy, preserved route identity and the central sheet lifecycle, not feature-local page wrappers. Full runtime/coverage/pose/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/UKRootViewController+Commands.swift",
+      "sourceHash": "741ea43a9f525269b7d55250fa16984b76e0eefa042576e96261f4986edb993e",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "native-container",
+      "owner": "UKRootViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Window shell/extensions compose native tab/navigation containers, shared layout policy, preserved route identity and the central sheet lifecycle, not feature-local page wrappers. Full runtime/coverage/pose/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/UKRootViewController+Layout.swift",
+      "sourceHash": "f9f2dd92a75e6d443df646783d0a02864baf5e71509d937e7a26376434540f75",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "native-container",
+      "owner": "UKRootViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Window shell/extensions compose native tab/navigation containers, shared layout policy, preserved route identity and the central sheet lifecycle, not feature-local page wrappers. Full runtime/coverage/pose/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/UKRootViewController+Navigation.swift",
+      "sourceHash": "c6883a2c27c58495447bf79661d25afd0628dd98dc9aee7892bb419761fd423f",
+      "classes": [
+        {
+          "name": "SheetDismissHook",
+          "base": "NSObject"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "native-container",
+      "owner": "UKRootViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKSectionStackFoundationTests.swift"
+      ],
+      "note": "Window route owner publishes actual split selection and preserves section/navigation identity. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/UKRootViewController+Perf.swift",
+      "sourceHash": "ab22cd2725263979d4d6ec06df5ce3575fb1f936fca60897ebcf3648c761be67",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "native-container",
+      "owner": "UKRootViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        ".agents/testing/apple/uikit-perf.md"
+      ],
+      "note": "Root-controller extension routes component and modal probes through the existing window-owned navigation and presentation coordinator; source ownership is separate from runtime/performance completion."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/UKRootViewController.swift",
+      "sourceHash": "f8ba408db3a784ffc11525b1da64ae1a465f06a09a66e5156c9b2621dcd52ea2",
+      "classes": [
+        {
+          "name": "UKRootViewController",
+          "base": "UIViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "native-container",
+      "owner": "UKRootViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift"
+      ],
+      "note": "Root owns native tabs/window chrome and explicit first-run/focus seams; no feature-page ancestry substitution. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/UKRouteDestination.swift",
+      "sourceHash": "affea3d1f55a689f14b9c0f9a12e55b7df606406075fd16d63f0524aabdfb298",
+      "classes": [
+        {
+          "name": "UKRouteBox",
+          "base": "NSObject"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRouteDestination",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "The exhaustive route factory preserves identity and constructs real shared-screen/page families for all active routes and section roots. Full runtime/coverage/pose/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Background/UKArtworkTileView.swift",
+      "sourceHash": "b261275f2b80b840a384d3485f463d6ce4d0b984f1680adcb8e2a749e9aedd86",
+      "classes": [
+        {
+          "name": "UKArtworkTileView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKArtworkTileView / FestivalSession.preparedArtwork",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Canonical foreground thumbnails share bounded ephemeral byte/decoded caches and cancel on reuse/deinit; they do not create another background carousel. Full state/pose/performance acceptance remains independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Background/UKBackgroundHost.swift",
+      "sourceHash": "d603eca9fd1a439c1f1a1d53717451bc522795fc652e1015a98696c879729eea",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKBackgroundHost / ArtworkPlaybackPolicy",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "One root host applies shared session artwork policy and task keys; deactivation excludes the departing scene rather than pausing other active windows. Full state/pose/performance acceptance remains independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Background/UKBackgroundRegistration.swift",
+      "sourceHash": "0aa6a8dec59e41f9c3e7d1b7f8905075acab6762f361208d26edc98571082fe0",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKBackgroundRegistration / UKSheetCoverageToken",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Page declarations and sheet tokens balance shared background registration/coverage through explicit native lifecycle. Full state/pose/performance acceptance remains independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Background/UKBackgroundView.swift",
+      "sourceHash": "db1f261b328a2c61029e1c8785afcbb3eaf51293e9581a342889352f09d93664",
+      "classes": [
+        {
+          "name": "UKBackgroundView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKBackgroundProbeView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKCoverLayerView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 322,
+          "api": "CABasicAnimation"
+        }
+      ],
+      "disposition": "feature-composition",
+      "owner": "UKBackgroundView / FestivalBackgroundCoordinator",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Native render-server-backed slots/cover layers draw one root backdrop, with active-scene transition ownership and diagnostic probes. Full state/pose/performance acceptance remains independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKAlertActions.swift",
+      "sourceHash": "56e83b16b71e968526f1f7cb22c113d8c8964d262459c4c4ac32f10d0f0c37e5",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UIAlertController.ukAction",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Native actions wait for dismissal before domain callbacks; no private delegate replacement or modal probe. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKCarousel.swift",
+      "sourceHash": "503e8ef246155371babdd7319b55d67068667ffc21bc3150d9fdf8c8a61f62bb",
+      "classes": [
+        {
+          "name": "UKHorizontalCarouselView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKCarouselIndicatorView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKCarouselCell",
+          "base": "UICollectionViewCell"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKHorizontalCarouselView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Native collection paging, shared measured-width columns and adjustable page state remain one component. Source ownership only; full runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKControlScrollView.swift",
+      "sourceHash": "611109cc0938781cbf696f01ee8ab0253ca066260740545292c222d584c53f86",
+      "classes": [
+        {
+          "name": "UKControlScrollView",
+          "base": "UIScrollView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKControlScrollView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Native scrolling cancels held control touches so accessible slow drags still scroll. Source ownership only; full runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKDetailSelection.swift",
+      "sourceHash": "6b8078476eb893097f9c894e7e7d95f1452dee9d0eac82ca2c5f3f347576d368",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKDetailSelectionBinding",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Weak window/section-bound selection follows detail routes and clears reusable content bindings. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKLoadTransitions.swift",
+      "sourceHash": "b17ee8a8a2fc31418dcb9d0bcac505dbbe109cfbec23d18b143d8bab7443a3a8",
+      "classes": [
+        {
+          "name": "UKReloadGate",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 33,
+          "api": "UIViewPropertyAnimator"
+        },
+        {
+          "line": 286,
+          "api": "UIViewPropertyAnimator"
+        },
+        {
+          "line": 287,
+          "api": "UIViewPropertyAnimator"
+        },
+        {
+          "line": 363,
+          "api": "UIViewPropertyAnimator"
+        }
+      ],
+      "disposition": "shared-component",
+      "owner": "UKFadeIn / UKReloadGate / UKListJump",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift"
+      ],
+      "note": "Cancellable weak entrance owner, generation-safe gate and native-completion list jump preserve approved timing. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKMotionVisibility.swift",
+      "sourceHash": "4dbbb6e478dc6dbacaf80f0861cacf377428ce23263dec40082f143d858645ba",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKMotionVisibility",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        ".agents/testing/apple/uikit-perf.md"
+      ],
+      "note": "The existing motion-visibility observer owns DEBUG marquee-request observation with weak callbacks and RAII token removal, keeping lifecycle ownership in the shared native observer."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKPageChrome.swift",
+      "sourceHash": "6a7e88b0eb4763a767ab9195a329c85a776cf7efc70b67aa000a6e47e27804c2",
+      "classes": [
+        {
+          "name": "UKInstrumentPageTitleView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSongHeaderTextView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSongBoardLine",
+          "base": "UIView"
+        },
+        {
+          "name": "UKLeaderboardColumnSlot",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSelfSizingCell",
+          "base": "UICollectionViewCell"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKInstrumentPageTitleView",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift"
+      ],
+      "note": "Canonical native title signals actual layout to its pending screen focus owner without a timing guess. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKPageFoundation.swift",
+      "sourceHash": "98d596ea067e7b03289d631ee936618d967793cfe4309d8fb9aebefecf9d32eb",
+      "classes": [
+        {
+          "name": "UKPageViewController",
+          "base": "UKScreenViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKPageViewController",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Real page/body/state content is installed in the shared containment host with one inset owner and managed native scroller. Source ownership only; full runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKPlaceholderViewController.swift",
+      "sourceHash": "2f508a8429a88b8f248e7373841e209b6f47469baf014aa1d2022764f95199f5",
+      "classes": [
+        {
+          "name": "UKPlaceholderViewController",
+          "base": "UKPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "debug-only",
+      "owner": "UKPlaceholderViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Unimplemented-surface diagnostic remains excluded from all active section/route factories, checked exhaustively by hosted route tests. Runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKRowAccessibilityView.swift",
+      "sourceHash": "182f630307b4cb56bdcbc8ba7fcf886906ee79dd30af17ff6b4155a89a3387e5",
+      "classes": [
+        {
+          "name": "UKRowAccessibilityView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKRowAccessibilityView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "One touch-transparent row accessibility stop forwards activation to the owning row action. Source ownership only; full runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKRowSwitch.swift",
+      "sourceHash": "b3656bc20ffb8f4454dbeb888195786d23e57c404dcec0b8853b95be9247b667",
+      "classes": [
+        {
+          "name": "UKRowSwitch",
+          "base": "UISwitch"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKRowSwitch",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "One row-tap policy excludes every native switch descendant and respects enabled/Reduce Motion state. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKScoreRowParts.swift",
+      "sourceHash": "e76fa4f20eb827ce5b162b4a4c796e12745af17a7c499b4e906d080b0529a69d",
+      "classes": [
+        {
+          "name": "UKAccuracyBadgeView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSeasonPillView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKPurpleActionButton",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKLeaderboardNameView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSongLeaderboardEntryRowView",
+          "base": "UIButton"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKSongLeaderboardEntryRowView",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Canonical score row consumes real traits; cell owns touches when the inner row has no action. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKScreenFoundation.swift",
+      "sourceHash": "71b7725306ce816093c235cbcbe8f71dd4cea35e073230bfc30c35d1b135bae2",
+      "classes": [
+        {
+          "name": "UKScreenViewController",
+          "base": "UIViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKScreenViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Explicit appearance/cancellation seam caches the window owner and requests real pane heading focus. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKSongHeaderRow.swift",
+      "sourceHash": "46be263dcb7bef8902f38f0233f6e16404ee162d86afe33f417fb9eca19c155c",
+      "classes": [
+        {
+          "name": "UKSongHeaderRowView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSongBarTitleView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKSongHeaderRowView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Canonical song header and bar title are consumed by the leaderboard seam. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKStates.swift",
+      "sourceHash": "fb7f3936f53730bbb70e88d0a6252a77423daf67ea803e3acfd97fb171c416df",
+      "classes": [
+        {
+          "name": "UKCentredFillView",
+          "base": "UIScrollView"
+        },
+        {
+          "name": "UKEmptyStateView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKStateTitleLabel",
+          "base": "UILabel"
+        },
+        {
+          "name": "UKStateSubtitleLabel",
+          "base": "UILabel"
+        },
+        {
+          "name": "UKLoadingView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKArcView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKServiceStatusView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKServiceStatusInlineView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKFreshnessDisclosureView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKRefreshErrorBanner",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 444,
+          "api": "addSymbolEffect"
+        },
+        {
+          "line": 459,
+          "api": "UIView.transition"
+        }
+      ],
+      "disposition": "shared-component",
+      "owner": "UKLoadingView / UKCentredFillView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Native activity indicators and shared local fold placement serve page/inline states and status motion. Source ownership only; full runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKAccessibility.swift",
+      "sourceHash": "fd6cc8313bb5b630c35c266f8107477fafd09ef8daf310f938b2ffc11ab05142",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKAccessibility / UKAccessibilityObserver",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "System and app settings are combined once, with weakly captured notifications and observer cleanup. Source ownership only; full runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKAccordion.swift",
+      "sourceHash": "f9bd5c139d3b50ed83a871fbc3611a90978a5e61f32a1be3a15db072dbbe06e3",
+      "classes": [
+        {
+          "name": "UKAccordionView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKDisclosureGroupView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 95,
+          "api": "UIView.animate"
+        },
+        {
+          "line": 218,
+          "api": "UIView.animate"
+        }
+      ],
+      "disposition": "shared-component",
+      "owner": "UKAccordionView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Shared choreography remains native; Reduce Motion synchronously settles all phases. Source ownership only; full runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKDesignGalleryViewController.swift",
+      "sourceHash": "6e46748e47f8ce9f5efa1c5fe43a4272145027a490a8a7f8e72283d53de56afb",
+      "classes": [
+        {
+          "name": "UKDesignGalleryViewController",
+          "base": "UKScreenViewController"
+        },
+        {
+          "name": "UKGallerySheetContent",
+          "base": "UKScreenViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "debug-only",
+      "owner": "UKDesignGalleryViewController / UKSheet",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Offline native component gallery is an explicit lifecycle host for regression tests, not a production feature route. Runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKEdgeFades.swift",
+      "sourceHash": "088d72d1008c1117983ec6b748740b354326cea149e459fbabdb3501c9af3df7",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKEdgeFadeMask",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Shared scroll-driven masks use existing fade policies and disabled implicit layer actions, not per-page clocks. Source ownership only; full runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKFont.swift",
+      "sourceHash": "6032d0b9a16339e4090ef5193a9f81038254a78b086ee5871f716c408b5bde33",
+      "classes": [
+        {
+          "name": "UKLabel",
+          "base": "UILabel"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKFont",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Preferred system text-style descriptors retain Dynamic Type metadata while preserving requested font variants. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKGlyphs.swift",
+      "sourceHash": "c8f0eeb95b6a0dd0eb6073e82ab7a69f330645ac67ea484f63fee9c0c6611326",
+      "classes": [
+        {
+          "name": "UKInstrumentIconView",
+          "base": "UIImageView"
+        },
+        {
+          "name": "UKInstrumentIconRow",
+          "base": "UIStackView"
+        },
+        {
+          "name": "UKStarRatingView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKDifficultyMeterView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKInstrumentIconView / UKStarRatingView / UKDifficultyMeterView",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Shared native artwork/symbol/rating views retain Dynamic Type and decorative-versus-spoken roles. Runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKInstrumentSelector.swift",
+      "sourceHash": "c4599354497c7fed3a69f0d10868da7e85c9dfe6baf1030932ee7d95ad34c2c2",
+      "classes": [
+        {
+          "name": "UKInstrumentCircleButton",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKInstrumentSelectorView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 320,
+          "api": "UIView.animate"
+        }
+      ],
+      "disposition": "shared-component",
+      "owner": "UKInstrumentSelectorView / UKAccordionView",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "One measured-width selector uses shared selection rules, native controls, retargetable native state motion and canonical accordion panels. Runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKMarquee.swift",
+      "sourceHash": "defbc654956cc1661433da37ca3ca87318be84b16761e578774422cf3be4e9e9",
+      "classes": [
+        {
+          "name": "UKMarqueeLabel",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 283,
+          "api": "CAKeyframeAnimation"
+        }
+      ],
+      "disposition": "shared-component",
+      "owner": "UKMarqueeLabel",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        ".agents/testing/apple/uikit-perf.md"
+      ],
+      "note": "The canonical UIKit marquee renders the requested overflowing label and delegates DEBUG refresh observation to the existing motion observer; no probe-only renderer or lifetime bypass is introduced."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKSections.swift",
+      "sourceHash": "bb75406873786069a346c5b90513024351cd8ce9954253498ff379b35a69f3fe",
+      "classes": [
+        {
+          "name": "UKSectionHeaderView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKViewAllButton",
+          "base": "UIButton"
+        },
+        {
+          "name": "UKHairlineView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKGroupSectionView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKFootnoteLabel",
+          "base": "UILabel"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKGroupSectionView / UKSectionHeaderView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Sections, headers, View All controls and separators retain common geometry and reading roles. Source ownership only; full runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKSheet.swift",
+      "sourceHash": "17edb723e9837bd69ce809e5f1c90c6bbe2c5e4f4bc77748a06f4dc7c9c19488",
+      "classes": [
+        {
+          "name": "UKSheetNavigationController",
+          "base": "UINavigationController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKSheetNavigationController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKModalFoundationTests.swift"
+      ],
+      "note": "Shared native title/Close, Escape/Command-Period, search-safe dismissal and balanced coverage lifecycle. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKSurfaces.swift",
+      "sourceHash": "cafd971c4aba7deaa01bda7855af9ab9781da2dd044caf3d1d9e814ff6f42fbd",
+      "classes": [
+        {
+          "name": "UKRimView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKCardView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKGlassView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKGlassGroupView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKCardView / UKGlassView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "One material/rim family follows native blur and accessibility surface policy without feature-local material copies. Source ownership only; full runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKBandRankingsViewController.swift",
+      "sourceHash": "b52569abb2c70eb30d7b9d15439290ffc77a20341955ad722b33306220a5c7da",
+      "classes": [
+        {
+          "name": "UKBandRankingsViewController",
+          "base": "UKPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKPageViewController / UKBoardView",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
+      ],
+      "note": "Native board remains in the shared page body; canonical rows bind their actual band-detail routes. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKBoardChrome.swift",
+      "sourceHash": "0e9dca6da0e06b3ab4e8d9e15a01bd7eba046934170f2551c0e8036cedd83066",
+      "classes": [
+        {
+          "name": "UKRankingsCountHeader",
+          "base": "UIView"
+        },
+        {
+          "name": "UKPagerArrowButton",
+          "base": "UIButton"
+        },
+        {
+          "name": "UKPagerBadge",
+          "base": "UIView"
+        },
+        {
+          "name": "UKRankingsPagerView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKRankingsFloatingBar",
+          "base": "UIView"
+        },
+        {
+          "name": "UKPinnedFooterView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKRankingsPagerView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Board headers, footer and pager use canonical chrome. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKBoardSupport.swift",
+      "sourceHash": "fcde29f44c023911e6a8e0b68fe9556238fe638fa2d318459b1942c0922b07f4",
+      "classes": [],
+      "motionSites": [
+        {
+          "line": 160,
+          "api": "UIView.animate"
+        }
+      ],
+      "disposition": "shared-component",
+      "owner": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKBoardSupport.swift",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Board menus and pinned-title helpers keep shared visibility-safe transitions. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKBoardView.swift",
+      "sourceHash": "e8cc906b73f84e0d08661f5f5c8140feda16ba06716e7bf2d521a10f5ecd775b",
+      "classes": [
+        {
+          "name": "UKBoardHostCell",
+          "base": "UKSelfSizingCell"
+        },
+        {
+          "name": "UKBoardView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKBoardView / UKReloadGate",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "One native compositional collection/gate/footer scaffold serves all paginated board families with weak layout/data-source ownership. Runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKChartDateAxis.swift",
+      "sourceHash": "c11a8eff5d01bdc1637cd5a51d68d14685f130e607670ef2a015a727df95f67c",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKChartDateAxis",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "One edge-pinning, collision-thinning and newest-label policy serves both chart families. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKChartMath.swift",
+      "sourceHash": "664bef30d7f125e1a67910f63bf315dc2bd106d8b02d04ecbedec92d40bb4d67",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKChartMath",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "One monotone-interpolation implementation serves rank and score history plots. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKFullRankingsViewController.swift",
+      "sourceHash": "e35edeb56a00bd20cd648e9be94ead695be294e56b1dcffc5f40336450997bc4",
+      "classes": [
+        {
+          "name": "UKFullRankingsViewController",
+          "base": "UKPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKPageViewController / UKBoardView",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
+      ],
+      "note": "Rankings retain typed paging/filters and register the real board; interactive rows own split selection. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKLeaderboardKit.swift",
+      "sourceHash": "291336825eab7bccaf13c8d7b9e43dab7e1e2ec9e77f37caeb253030b74ab11e",
+      "classes": [
+        {
+          "name": "UKColumnSlot",
+          "base": "UIView"
+        },
+        {
+          "name": "UKRowHostView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKLeaderboardRowCell",
+          "base": "UKSelfSizingCell"
+        },
+        {
+          "name": "UKRankingRowView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKLeaderboardRowCell / UKRankingRowView",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Bare rows use a visible cell host; real traits size rows; reusable AX content releases old detail selection. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKLeaderboardsRoutes.swift",
+      "sourceHash": "37d35419faf52e05871f6c17ffbd25263b4399b87d0a9b604cef9816c387af36",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRouteDestination / app-owned route policy",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Feature route registration and typed links delegate to the exhaustive native destination factory and shared page families; domain navigation is not moved into FentonPlatform. Runtime acceptance remains separate."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKLeaderboardsViewController.swift",
+      "sourceHash": "6448023df9623d154aa2988ff758f623585daa5b1a774fc1be0c4e998096553e",
+      "classes": [
+        {
+          "name": "UKCardRowControl",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKLeaderboardsViewController",
+          "base": "UKPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKPageViewController / UKCardRowControl",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
+      ],
+      "note": "Hub uses one actual scroll/page host and canonical row/link selection; domain board routing stays local. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKPlayerHistoryViewController.swift",
+      "sourceHash": "87ac66a69e063651e7c3479580b9a0d586c777afbd97f96d84e95f99622d68f6",
+      "classes": [
+        {
+          "name": "UKPlayerHistoryViewController",
+          "base": "UKSongBoardViewController"
+        },
+        {
+          "name": "UKPlayerHistorySortViewController",
+          "base": "UKPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKSongBoardViewController",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Board controllers install their actual board/gate/scroller in UKPageViewController; song/band/history specializations retain shared board ownership and native controls. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKRankingRowModels.swift",
+      "sourceHash": "390438ce671a48add6d0a930daf7d7c23f814ccf40da56e23142539cb9f276f3",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKRankingRowModels",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Pure row formatting feeds the canonical cell, including an explicit optional route/context selection owner. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKSongBandLeaderboardViewController.swift",
+      "sourceHash": "a67f57ace16c2182c33093807035ba126c4679105a4367309166e72bb4c474ab",
+      "classes": [
+        {
+          "name": "UKSongBandLeaderboardViewController",
+          "base": "UKSongBoardViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKSongBoardViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
+      ],
+      "note": "Band board retains native paging and domain payloads through common board/page/selection components. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKSongBoardHeaderSeam.swift",
+      "sourceHash": "32a9e991f4fc7fe21a1a3f12ed180a59d6864cd48d45938f09f582550c131a89",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKSongHeaderRowView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Song-board headers compose the shared song header rather than a local drawing copy. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKSongBoardRows.swift",
+      "sourceHash": "7856e6581e399be01174ae8cd92522eeae988c1cd7c2e3df42c3870194aff97b",
+      "classes": [
+        {
+          "name": "UKSongScoreRowView",
+          "base": "UKRowHostView"
+        },
+        {
+          "name": "UKSongBandCardView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKBoardScoreHistoryRowView",
+          "base": "UKRowHostView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKRowHostView / UKSongLeaderboardEntryRowView",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Cell content reapplies the model on actual window attachment and forwards its real text-size traits. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKSongBoardViewController.swift",
+      "sourceHash": "37508ba07de948c646b6b1ecc77c64001e6ffa18fddb59807d2b290e51516480",
+      "classes": [
+        {
+          "name": "UKSongBoardViewController",
+          "base": "UKPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKSongBoardViewController",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Board controllers install their actual board/gate/scroller in UKPageViewController; song/band/history specializations retain shared board ownership and native controls. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKSongLeaderboardViewController.swift",
+      "sourceHash": "0d0994a3e2e52b523eaa761d33e6450191bb0feb78077a71e9884f57452ce41a",
+      "classes": [
+        {
+          "name": "UKSongLeaderboardViewController",
+          "base": "UKSongBoardViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKSongBoardViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
+      ],
+      "note": "Solo board keeps existing score/provenance policy; common rows bind their destination without local page plumbing. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKBandDetailViewController.swift",
+      "sourceHash": "f2de89aa94aaa1b969ca7fa405963d9cc46e63e6666efc292a4cb30ade0ed1e0",
+      "classes": [
+        {
+          "name": "UKBandDetailViewController",
+          "base": "UKProfileScrollViewController"
+        },
+        {
+          "name": "UKBandMemberCardView",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKBandSongRowView",
+          "base": "UIControl"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKProfileScrollViewController",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Profile, Statistics and Bands compose the shared profile/page parent; mixed Player Bands keeps controls/results in the page canvas, and percentile rows reuse canonical metadata. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKBandViews.swift",
+      "sourceHash": "0855f3e926d28f6ff491607c2eeb7d8bef5c7db734b9af077dcb1189e56393da",
+      "classes": [
+        {
+          "name": "UKPlayerBandRowView",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKProfilePagerView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKProfilePagerBadge",
+          "base": "UIView"
+        },
+        {
+          "name": "UKProfileArrowButton",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKPlayerBandsPreviewSectionView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKPlayerBandRowView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Band rows, pager and preview sections share layout and visibility-gated entrances. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKBandsViewController.swift",
+      "sourceHash": "c7315eb6ecbe3a36f6cfc234512fee2aff8c6f227ace973e542108c82be7751e",
+      "classes": [
+        {
+          "name": "UKBandsViewController",
+          "base": "UKProfileScrollViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKProfileScrollViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        ".agents/testing/apple/uikit-perf.md"
+      ],
+      "note": "Band rankings remain a feature page over the common profile scroll owner; its DEBUG first-content marker reads the inherited rendered column rather than a feature-local placeholder."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKPlayerBandsViewController.swift",
+      "sourceHash": "477da3346c984231ebbd315d79624ea3ce06a25b866d3d75a6aa1e1265f25f99",
+      "classes": [
+        {
+          "name": "UKPlayerBandsViewController",
+          "base": "UKPageViewController"
+        },
+        {
+          "name": "UKPlayerBandCell",
+          "base": "UKSelfSizingCell"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKPageViewController / pageBodyView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Profile, Statistics and Bands compose the shared profile/page parent; mixed Player Bands keeps controls/results in the page canvas, and percentile rows reuse canonical metadata. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKPlayerProfileComponents.swift",
+      "sourceHash": "91a15eab0ff4c6baab003bf3226626afc5deef54eb5959942196728af068cb50",
+      "classes": [
+        {
+          "name": "UKProfileInstrumentHeader",
+          "base": "UIView"
+        },
+        {
+          "name": "UKPercentilePillView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKPlayerPercentileTableCardView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKInstrumentStatsCardView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKSongMetadataFieldView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Profile percentile wrappers delegate styling and fitting to the canonical metadata field. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKPlayerProfileViewController.swift",
+      "sourceHash": "505b4897d0ea24699e2c95cb44060e7076f0ad1edcbbd9ad5c1d67a26d82d46e",
+      "classes": [
+        {
+          "name": "UKPlayerProfileViewController",
+          "base": "UKProfileScrollViewController"
+        },
+        {
+          "name": "UKStatisticsViewController",
+          "base": "UKPlayerProfileViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKProfileScrollViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Profile retains its domain actions but related confirmations use the native window coordinator/action completion. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKProfileLinks.swift",
+      "sourceHash": "a8f699d9aaf40957704ccb78e279aec79a37f7c2fd4eef63e7a532e365829b2b",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRouteDestination / app-owned route policy",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Feature route registration and typed links delegate to the exhaustive native destination factory and shared page families; domain navigation is not moved into FentonPlatform. Runtime acceptance remains separate."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKProfilePage.swift",
+      "sourceHash": "1c9db83cb1b9627c57a52eeddd63860e47071b55c63dea9dbe292b4151b9b1a6",
+      "classes": [
+        {
+          "name": "UKProfileScrollViewController",
+          "base": "UKPageViewController"
+        },
+        {
+          "name": "UKProfileColumnStack",
+          "base": "UIStackView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKProfileScrollViewController",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Profile, Statistics and Bands compose the shared profile/page parent; mixed Player Bands keeps controls/results in the page canvas, and percentile rows reuse canonical metadata. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKProfileRoutes.swift",
+      "sourceHash": "36ea23d72d66ede58a27bc56e3c8861934538b1e039e40db7ed4bd183939f67a",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRouteDestination / app-owned route policy",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Feature route registration and typed links delegate to the exhaustive native destination factory and shared page families; domain navigation is not moved into FentonPlatform. Runtime acceptance remains separate."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKProfileSupport.swift",
+      "sourceHash": "649f45d74557f409ddf6aa332e7ab25100a0b8821d3b8e617db86f2af82b0f4d",
+      "classes": [
+        {
+          "name": "UKProfileInset",
+          "base": "UIView"
+        },
+        {
+          "name": "UKProfileSection",
+          "base": "UIStackView"
+        },
+        {
+          "name": "UKProfileNoticeRow",
+          "base": "UIView"
+        },
+        {
+          "name": "UKProfileHost",
+          "base": "UIView"
+        },
+        {
+          "name": "UKProfileColumnGrid",
+          "base": "UIView"
+        },
+        {
+          "name": "UKProfilePurpleActionButton",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKProfileChevronRow",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKProfileRetryButton",
+          "base": "UIButton"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKProfileColumnGrid",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Profile section/grid/inset/action components retain measured-width composition. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKRankHistoryChart.swift",
+      "sourceHash": "d52799e123aef554492f99d15c19fbfdb972ceed4791c4d41bbba2bedb7496e5",
+      "classes": [
+        {
+          "name": "UKRankHistoryPlotView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKRankHistoryChartElement",
+          "base": "UIAccessibilityElement"
+        },
+        {
+          "name": "UKRoundGlyphButton",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKRankHistoryChartView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKRankHistoryPagingGesture",
+          "base": "NSObject"
+        },
+        {
+          "name": "UKPlayerRankHistoryCardView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKRotatedAxisTitle",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 535,
+          "api": "UIView.transition"
+        }
+      ],
+      "disposition": "shared-component",
+      "owner": "UKChartDateAxis / UKChartMath",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Rank charts share date geometry/interpolation and visibility-safe motion. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKStatTileViews.swift",
+      "sourceHash": "e01124388f8c0ae49ec1280e2d3b8cc20e89ea3cbbf23759e4544bf34113bd44",
+      "classes": [
+        {
+          "name": "UKStatTileView",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKStatGridView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 157,
+          "api": "UIView.animate"
+        }
+      ],
+      "disposition": "shared-component",
+      "owner": "UKStatGridView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Canonical stat grid and tiles retain shared metrics; press motion honors visibility and Reduce Motion. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKAllRivalsViewController.swift",
+      "sourceHash": "65f454f27e5a76ce356396f2a32774ff4231827a4d33b522c9ded27565cf57aa",
+      "classes": [
+        {
+          "name": "UKAllRivalsViewController",
+          "base": "UKRivalsPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRivalsPageViewController",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Rivals/Compete/Suggestions share page and explicit screen lifecycle; search/filter forms install actual native content, and list states hide retained stale content. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKCompeteViewController.swift",
+      "sourceHash": "19e7e1bdae2f4a2a89749e93acf8899d868d7be78bea0cc3539ec4b6d4a81415",
+      "classes": [
+        {
+          "name": "UKCompeteViewController",
+          "base": "UKRivalsPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRivalsPageViewController",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Rivals/Compete/Suggestions share page and explicit screen lifecycle; search/filter forms install actual native content, and list states hide retained stale content. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKFindRivalViewController.swift",
+      "sourceHash": "c1610adb868c2936f811066c8cebc35a9605d0de41dfdc2ab90c261be73fddc2",
+      "classes": [
+        {
+          "name": "UKSheetPathNavigator",
+          "base": "UKNavigating"
+        },
+        {
+          "name": "UKFindRivalViewController",
+          "base": "UKPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKPageViewController / UKPresentationCoordinator",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Rivals/Compete/Suggestions share page and explicit screen lifecycle; search/filter forms install actual native content, and list states hide retained stale content. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalCards.swift",
+      "sourceHash": "4e15ac1a8d2d2500ccb6ece27e5110de8326e84bc78b7e82902fcd19a2f5514e",
+      "classes": [
+        {
+          "name": "UKRivalLoadingSection",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKRivalCards",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Canonical rival preview rows bind their real detail route using the same window/section selection policy as boards. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalComparisonViewController.swift",
+      "sourceHash": "5cf86871319a41f193747cf5be79fe901ea2527264f2ccebcd10c9ff4b392e79",
+      "classes": [
+        {
+          "name": "UKRivalComparisonViewController",
+          "base": "UKRivalsPageViewController"
+        },
+        {
+          "name": "UKRivalDetailViewController",
+          "base": "UKRivalComparisonViewController"
+        },
+        {
+          "name": "UKRivalryViewController",
+          "base": "UKRivalComparisonViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRivalsPageViewController",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Rivals/Compete/Suggestions share page and explicit screen lifecycle; search/filter forms install actual native content, and list states hide retained stale content. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalsKit.swift",
+      "sourceHash": "6b9d3107c89d492de377e2059aec2f84daabae9034976b18829fcf362c9c098d",
+      "classes": [
+        {
+          "name": "UKProminentButton",
+          "base": "UIButton"
+        },
+        {
+          "name": "UKRivalStatusPill",
+          "base": "UIView"
+        },
+        {
+          "name": "UKFittingStack",
+          "base": "UIStackView"
+        },
+        {
+          "name": "UKRivalRowView",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKRivalSongRowView",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKInstrumentSectionHeaderView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKRivalsKit",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Rival status, rows, song rows and section headings remain shared components. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalsPage.swift",
+      "sourceHash": "92142f096dd3c6008a1a1b64f1f58047a73a053b67bceff4c3b5cf9585a731ce",
+      "classes": [
+        {
+          "name": "UKRivalsPageViewController",
+          "base": "UKPageViewController"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 416,
+          "api": "UIView.transition"
+        }
+      ],
+      "disposition": "feature-composition",
+      "owner": "UKRivalsPageViewController",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Rivals/Compete/Suggestions share page and explicit screen lifecycle; search/filter forms install actual native content, and list states hide retained stale content. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalsRoutes.swift",
+      "sourceHash": "faea3634ed097cc9f5e7f24417603ecc7c2baf5518b23beb08daba77394d66c3",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRouteDestination / app-owned route policy",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Feature route registration and typed links delegate to the exhaustive native destination factory and shared page families; domain navigation is not moved into FentonPlatform. Runtime acceptance remains separate."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalsViewController.swift",
+      "sourceHash": "17c48af63f12a4a91a4469d619f6f44ade3f3da527b434549e18940c88ea65bb",
+      "classes": [
+        {
+          "name": "UKRivalsViewController",
+          "base": "UKRivalsPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRivalsPageViewController",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Rivals/Compete/Suggestions share page and explicit screen lifecycle; search/filter forms install actual native content, and list states hide retained stale content. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKSuggestionCardView.swift",
+      "sourceHash": "3e454abd3ebdac6dc200dc5a97f4b838d01e4e3cef5c7bd5669fb03c8805b178",
+      "classes": [
+        {
+          "name": "UKSuggestionSongRowView",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKSuggestionCardView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKSongMetadataFieldView / UKSongStatusChipsView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Suggestions reuse Songs metadata/status primitives rather than parallel pill renderers. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKSuggestionsFilterViewController.swift",
+      "sourceHash": "a6f3f50a9fc7e448414209d8d6bdb0ebfaf942b6b629ba78b07722f5bf6c0491",
+      "classes": [
+        {
+          "name": "UKSuggestionsFilterViewController",
+          "base": "UKPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKPageViewController / UKRowSwitch",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Actual modal scroll content uses the shared page host and canonical switch tap/Reduce Motion behavior. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKSuggestionsViewController.swift",
+      "sourceHash": "09050d96b0fa9be3829a867108a062ca74763a0d7a8395ae9ed7aafcfe02bb31",
+      "classes": [
+        {
+          "name": "UKSuggestionCell",
+          "base": "UKSelfSizingCell"
+        },
+        {
+          "name": "UKSuggestionFooterCell",
+          "base": "UKSelfSizingCell"
+        },
+        {
+          "name": "UKSuggestionsListHolder",
+          "base": "UIScrollView"
+        },
+        {
+          "name": "UKSuggestionsViewController",
+          "base": "UKRivalsPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRivalsPageViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        ".agents/testing/apple/uikit-perf.md"
+      ],
+      "note": "Suggestions performance hooks use the existing rivals page and native modal/content paths, with settled content checks bound to the page owner rather than synthetic surfaces."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKFeedback.swift",
+      "sourceHash": "db0654cf2ed04058fe08795ecc44c9d82ba5e7437611eb36e0aa8d1187d7f4fc",
+      "classes": [
+        {
+          "name": "UKFeedbackFormViewController",
+          "base": "UKScreenViewController"
+        },
+        {
+          "name": "UKFocusTraceView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 587,
+          "api": "UIView.animate"
+        },
+        {
+          "line": 594,
+          "api": "UIView.animate"
+        }
+      ],
+      "disposition": "feature-composition",
+      "owner": "UKFeedbackFormViewController / UKPresentationCoordinator",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Native panes, pickers, model-owned media and guarded input task notify the host only after native dismissal. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKFeedbackPhotoSelection.swift",
+      "sourceHash": "fd3bbbc5dfc3643d2d79ddbc73a4fc24541bb3122be0d9abeec4963ea2a52fb5",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKFeedbackPhotoSelection / FeedbackPickerLinks",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeedbackPhotoSelectionTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "One token-bound native selection reconciler handles live ticks, removal, refusal and stale/canceled imports without duplicating model admission policy. Source ownership does not certify every runtime state or benchmark."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKFirstRun.swift",
+      "sourceHash": "099e199438ecc0b795352f4c093a07dc6d89e297ed57a1002eb0e5fdb4572539",
+      "classes": [
+        {
+          "name": "UKFirstRunCarouselViewController",
+          "base": "UKScreenViewController"
+        },
+        {
+          "name": "UKFirstRunDots",
+          "base": "UIView"
+        },
+        {
+          "name": "UKFirstRunSlideView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKFirstRunPresentation",
+          "base": "NSObject"
+        },
+        {
+          "name": "UKFirstRunSettingsSection",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKFirstRunPresentation / UKScreenViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Foreground admission, one inert spoken slide, native dismissal and released association preserve seen-state ownership. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKFirstRunNativeDemo.swift",
+      "sourceHash": "78b608ce443a8f3b7d2d9b66aa7e9aa1c4fac1d8548140d16a86053ad7e471a9",
+      "classes": [
+        {
+          "name": "UKFirstRunNativeDemoView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 866,
+          "api": "UIView.animate"
+        }
+      ],
+      "disposition": "shared-component",
+      "owner": "UKFirstRunNativeDemoView",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Explicit catalog families reuse canonical children; active-only loads/rotation and cancellable entrance remain decorative. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKNotifications.swift",
+      "sourceHash": "2e4a4131b7f8b08b55c61074a6148b79c5fc16f0ed466a7e5dd57d1e7346cbf3",
+      "classes": [
+        {
+          "name": "UKNotificationsViewController",
+          "base": "UKScreenViewController"
+        },
+        {
+          "name": "UKNotificationHeader",
+          "base": "UICollectionReusableView"
+        },
+        {
+          "name": "UKNotificationCell",
+          "base": "UKSelfSizingCell"
+        },
+        {
+          "name": "UKNotificationFlagsView",
+          "base": "UIStackView"
+        },
+        {
+          "name": "UKChipFlowView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKScreenViewController / UKSheet / NotificationsCenter",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Native collection content uses shared modal chrome, load/state views and existing notification route/model ownership. Full state/pose/performance acceptance remains independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKSettingsControls.swift",
+      "sourceHash": "d7823378e07c2415e944bd41445c0d77918bf9c543f3d2ec0d3995e85ffd230c",
+      "classes": [
+        {
+          "name": "UKSettingsValueRow",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSettingsChoiceRow",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSettingsReorderList",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSettingsLeewayBlock",
+          "base": "UIStackView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 260,
+          "api": "UIView.animate"
+        },
+        {
+          "line": 429,
+          "api": "UIView.animate"
+        },
+        {
+          "line": 448,
+          "api": "UIView.animate"
+        },
+        {
+          "line": 468,
+          "api": "UIView.animate"
+        }
+      ],
+      "disposition": "feature-composition",
+      "owner": "UKSettingsChoiceRow / UKSettingsReorderList / UKAccordionView",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Shared Settings controls remain canonical consumers of native switches/choices, common row metrics and accordion choreography. Full state/pose/performance acceptance remains independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKSettingsPages.swift",
+      "sourceHash": "c2032cfdbba40bc1b218e9c02ce8cae8868370eebf6fef672dbdc41c8705a99e",
+      "classes": [
+        {
+          "name": "UKPolicyColumn",
+          "base": "UIStackView"
+        },
+        {
+          "name": "UKLinkLabel",
+          "base": "UILabel"
+        },
+        {
+          "name": "UKPrivacyPolicyViewController",
+          "base": "UKScreenViewController"
+        },
+        {
+          "name": "UKLicensesViewController",
+          "base": "UKSettingsScrollPage"
+        },
+        {
+          "name": "UKLicenseDetailViewController",
+          "base": "UKScreenViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKScreenViewController / UKSettingsScrollPage / UKSheet",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        ".agents/testing/apple/uikit-perf.md"
+      ],
+      "note": "Settings modal/page hooks select existing native settings pages and sheet presenters; static latency markers are tied to built readable content, not page-shell appearance alone."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKSettingsRoutes.swift",
+      "sourceHash": "0477bbe1cd2f60ac1151aa34eb08aac64bbf445477d5249a2dc59fd409a8c506",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKFirstRunHook",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Explicit page/scene hooks replace swizzling; launch-flow lifetime is attached to its window root. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKSettingsServiceInfo.swift",
+      "sourceHash": "e213d0fda6619a003568049ccda5a8ed326ee23462e025b724a2b8d428fe3f56",
+      "classes": [
+        {
+          "name": "UKServiceProgressBar",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSettingsServiceInfoSection",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSettingsFixtureTools",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 77,
+          "api": "UIView.animate"
+        }
+      ],
+      "disposition": "feature-composition",
+      "owner": "UKSettingsServiceInfoSection",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Existing service-info polling/progress state remains app-owned and uses the shared native status/loading primitives. Full state/pose/performance acceptance remains independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKSettingsSupport.swift",
+      "sourceHash": "d5e5120f60df0f3c670b1f91181c8710863db3b1012431ba7583e76d8f3af75f",
+      "classes": [
+        {
+          "name": "UKSettingsScrollPage",
+          "base": "UKPageViewController"
+        },
+        {
+          "name": "UKSettingLabel",
+          "base": "UIStackView"
+        },
+        {
+          "name": "UKSettingsToggleRow",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSettingsLinkRow",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKSettingsShowRow",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKSettingsSection",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSettingsAccordionRow",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKSettingsScrollPage / UKSettingsToggleRow",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        ".agents/testing/apple/uikit-perf.md"
+      ],
+      "note": "Settings support retains the canonical scroll-page and accordion row owners; DEBUG settled markers observe rendered controls and real expansion state without introducing alternate components."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKSettingsViewController.swift",
+      "sourceHash": "e73e99589a4d545eceec85658a208f9ab4473810417d0d2dea9b69cc3e490b9a",
+      "classes": [
+        {
+          "name": "UKSettingsViewController",
+          "base": "UKSettingsScrollPage"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKSettingsScrollPage",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        ".agents/testing/apple/uikit-perf.md"
+      ],
+      "note": "Settings routing and performance hooks stay in the existing settings page hierarchy, distinguishing loaded static bodies from failed/loading shells for truthful latency evidence."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKWhatsNew.swift",
+      "sourceHash": "270ba214d6119d6c7304d2c1c181ebe9842003c1af49e1feca29cb08064fbe13",
+      "classes": [
+        {
+          "name": "UKWhatsNewViewController",
+          "base": "UKScreenViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKScreenViewController / UKSheet / UKPresentationCoordinator",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Native changelog content shares task/screen chrome and existing seen-state policy; automatic admission replaces guessed readiness sleeps. Full state/pose/performance acceptance remains independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/SongDetail/UKScoreHistoryChartView.swift",
+      "sourceHash": "c05e6aaa706a9d60e146ad7eac280a8fca1e39c323e00f8b6bbcc2ec685516bf",
+      "classes": [
+        {
+          "name": "UKScoreHistoryPlotView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKScoreHistoryChartView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 300,
+          "api": "UIView.animate"
+        },
+        {
+          "line": 321,
+          "api": "UIView.transition"
+        }
+      ],
+      "disposition": "shared-component",
+      "owner": "UKChartDateAxis / UKChartMath",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Score charts share date/math helpers and settle visibility-safe paging/selection motion. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/SongDetail/UKScoreHistoryRowView.swift",
+      "sourceHash": "179fff3cfd6bb680cfbc65dc2f5b3e27796ee6a5009f4ed40ccb6915f92c3140",
+      "classes": [
+        {
+          "name": "UKScoreHistoryRowView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKScoreHistoryRowView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Canonical score-history rows use their real trait environment. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/SongDetail/UKSongBandPreviewView.swift",
+      "sourceHash": "123efc3e720e0010f29574ca4d23200a0178ca9a6c76de6df2ea88c325506c67",
+      "classes": [
+        {
+          "name": "UKSongBandPreviewView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSongBandRowView",
+          "base": "UIControl"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKSongBandPreviewView",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Canonical preview rows/CTA bind the real split board destination while player emphasis stays separate. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/SongDetail/UKSongDetailCardGrid.swift",
+      "sourceHash": "e93224eb6824168816c01142703808b9ec47f35d8e144c0cf5c7fddd25b4cf37",
+      "classes": [
+        {
+          "name": "UKSongDetailCardGridView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKLayoutProbeView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKSongDetailCardGridView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Adaptive song-detail cards retain shared hinge/width layout policy. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/SongDetail/UKSongDetailDebug.swift",
+      "sourceHash": "1dc2e103e27d07abfad7b357993e6820c00e2bfba05bc7d95f67675a0ebca8ba",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "debug-only",
+      "owner": "UKSongDetailViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Song detail diagnostic hooks remain gated and separate from user-facing route behavior. Runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/SongDetail/UKSongDetailRoutes.swift",
+      "sourceHash": "39aef649ae25f82526705408350c3744a2d6d49b894bbad84847a9a1e1419abd",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRouteDestination / app-owned route policy",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Feature route registration and typed links delegate to the exhaustive native destination factory and shared page families; domain navigation is not moved into FentonPlatform. Runtime acceptance remains separate."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/SongDetail/UKSongDetailShop.swift",
+      "sourceHash": "170e5facbd4cf9b16c24851017b6b08ecdf3516fc86a05533c32c8dffeab499e",
+      "classes": [
+        {
+          "name": "UKShopBreathingGlyphView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 83,
+          "api": "CABasicAnimation"
+        }
+      ],
+      "disposition": "shared-component",
+      "owner": "UKShopBreathingGlyphView / UKMotionVisibility",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Shop offer content retains shared status policy; breathing decoration follows active scene and presentation visibility. Runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/SongDetail/UKSongDetailViewController.swift",
+      "sourceHash": "d425114b875c0bc6d07bde3a1b2b0145366f8a135b1b18d432ac266c5fd80b87",
+      "classes": [
+        {
+          "name": "UKSongDetailViewController",
+          "base": "UKPageViewController"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 496,
+          "api": "UIView.transition"
+        }
+      ],
+      "disposition": "feature-composition",
+      "owner": "UKPageViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        ".agents/testing/apple/uikit-perf.md"
+      ],
+      "note": "Song-detail modal and path hooks invoke the existing page and sheet presentation owners; completion and content probes remain source-bound and do not imply runtime certification."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/SongDetail/UKSongPathsViewController.swift",
+      "sourceHash": "2ff5998fe2ca2837efc9b15549ccbb351e61efcac4bfd6830a110420832bd034",
+      "classes": [
+        {
+          "name": "UKPathPane",
+          "base": "UIView"
+        },
+        {
+          "name": "UKPathImageScrollView",
+          "base": "UIScrollView"
+        },
+        {
+          "name": "UKSongPathsViewController",
+          "base": "UKPageViewController"
+        },
+        {
+          "name": "UKPathValuesView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKOverdriveBarView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 45,
+          "api": "UIView.animate"
+        },
+        {
+          "line": 49,
+          "api": "UIView.animate"
+        },
+        {
+          "line": 64,
+          "api": "UIView.animate"
+        },
+        {
+          "line": 68,
+          "api": "UIView.animate"
+        }
+      ],
+      "disposition": "feature-composition",
+      "owner": "UKPageViewController / UKSheet",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Paths keeps pose/selector/coverage policy and native related warning actions without modifying alert delegates. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/SongDetail/UKSongScoreHistoryView.swift",
+      "sourceHash": "94c4224ace69ca4ace393f4288f4fda1d20a42c028d6bf30b1bf301b0710eb44",
+      "classes": [
+        {
+          "name": "UKSongScoreHistoryView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 205,
+          "api": "UIView.animate"
+        },
+        {
+          "line": 221,
+          "api": "UIView.animate"
+        },
+        {
+          "line": 232,
+          "api": "UIView.animate"
+        },
+        {
+          "line": 238,
+          "api": "UIView.animate"
+        }
+      ],
+      "disposition": "shared-component",
+      "owner": "UKSongScoreHistoryView / ScoreHistorySwap",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift"
+      ],
+      "note": "One feature-owned chart swap uses generation/cancellation/visibility policy; the common CTA follows actual history selection. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/SongDetail/UKSongScorePreviewView.swift",
+      "sourceHash": "401438bd85bf893efe5a3239967b86eb67f8fd86895962b5996c889dc0333944",
+      "classes": [
+        {
+          "name": "UKSongScorePreviewView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKSongScorePreviewView",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Canonical score rows use live traits and visibility; board links/spotlights bind their native detail route. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKShopViewController.swift",
+      "sourceHash": "4ed48d4d2306f7e7735754a837151cdd44ddcb2cc292c34fb08d9af882df72f9",
+      "classes": [
+        {
+          "name": "UKShopGridCell",
+          "base": "UICollectionViewCell"
+        },
+        {
+          "name": "UKShopFilterSheetController",
+          "base": "UKFormViewController"
+        },
+        {
+          "name": "UKShopViewController",
+          "base": "UKPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKPageViewController",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Actual detail/catalogue/search/tool content or a mixed-layout canvas is installed through the page host; native scroll ownership and feature route/load policy remain distinct. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongMetadataViews.swift",
+      "sourceHash": "b9f8f29b2360bc947fd08e8b1385a1628c494e70ab25a3b9a7c159d6f6163447",
+      "classes": [
+        {
+          "name": "UKSongMetadataFieldView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSongMetadataFlowView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSongStatusChipsView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKSongMetadataFieldView / UKSongStatusChipsView",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "One intrinsically measured metadata view is reused; decorative status chips stay outside the row's spoken subtree. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongProfilePanelView.swift",
+      "sourceHash": "b04104b68392f533a356f5d7c6089eb690b1ae108ce9ebdfe242a3b2db6abf55",
+      "classes": [
+        {
+          "name": "UKSongProfilePanelView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKSongProfilePanelView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "The canonical selected-profile wide-row panel remains shared. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongRowCell.swift",
+      "sourceHash": "6624541a7a6cb848d3a584530b0c25a16ce89686a51dff3614bf0dad96725168",
+      "classes": [
+        {
+          "name": "UKRowPulseBorderView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSongRowCell",
+          "base": "UICollectionViewCell"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 81,
+          "api": "CAKeyframeAnimation"
+        }
+      ],
+      "disposition": "shared-component",
+      "owner": "UKSongRowCell",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Virtualized catalogue row owns canonical AX proxies, visibility-bound pulse and reusable detail binding. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongRowView.swift",
+      "sourceHash": "99eba5a82fe643dd443a4b583ca52177dc0cddd3f66da90c512b5620ce3950cf",
+      "classes": [
+        {
+          "name": "UKSongInfoView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSongRowView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [
+        {
+          "line": 386,
+          "api": "addSymbolEffect"
+        }
+      ],
+      "disposition": "shared-component",
+      "owner": "UKSongRowView",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Songs row content composes shared artwork, metadata and selected-profile parts. Source ownership review only; runtime/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsFilterSheet.swift",
+      "sourceHash": "35dcb633b72427b67dc24bcb0ef5eca0dfb5b807dc2c1f9eaf7989c68d923100",
+      "classes": [
+        {
+          "name": "UKSongsFilterSheetController",
+          "base": "UKFormViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKFormViewController",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Sort and Filter share the native form/page parent and existing canonical row/accordion controls. Constructor/ownership checks do not certify every runtime state."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsForm.swift",
+      "sourceHash": "beb4f4cd8823ab9579b4cb23e0ed529fa5b16483a7a0f1450c6004062000a7e6",
+      "classes": [
+        {
+          "name": "UKFormViewController",
+          "base": "UKPageViewController"
+        },
+        {
+          "name": "UKToggleRow",
+          "base": "UIView"
+        },
+        {
+          "name": "UKRadioRow",
+          "base": "UIControl"
+        },
+        {
+          "name": "UKSortDirectionControl",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSongsSortSheetController",
+          "base": "UKFormViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKFormViewController / UKToggleRow",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Form body uses native page hosting; actions and padded switch activation have real minimum targets. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsRoutes.swift",
+      "sourceHash": "60f570e3c8e0a19a4ccdb8a538d93e960eacaa52232006559a0f44ffa43c29f3",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKRouteDestination / app-owned route policy",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        ".agents/platforms/apple/uikit-architecture.md"
+      ],
+      "note": "Feature route registration and typed links delegate to the exhaustive native destination factory and shared page families; domain navigation is not moved into FentonPlatform. Runtime acceptance remains separate."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsSheetPresenter.swift",
+      "sourceHash": "53033f3998801c5d53bc109f31a28e13e65e245e56f8f9b92226e7b44907e023",
+      "classes": [
+        {
+          "name": "UKSongsSheetDismissObserver",
+          "base": "NSObject"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKPresentationCoordinator / UKSheet",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "The shared Songs sheet adapter checks native task admission before claiming a dismissal observer; rejection leaves caller state untouched. Runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsSupportViews.swift",
+      "sourceHash": "19c06c00071b738ea16947cfdb3b113611a02195bf8201f8f59afc9dbfccb35d",
+      "classes": [
+        {
+          "name": "UKSongsSectionHeaderView",
+          "base": "UICollectionReusableView"
+        },
+        {
+          "name": "UKSongsSectionBar",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSongsNoticeCell",
+          "base": "UICollectionViewCell"
+        },
+        {
+          "name": "UKSongsAdjustableView",
+          "base": "UIView"
+        },
+        {
+          "name": "UKSongSectionIndexView",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKSongsSectionHeaderView / UKSongsSectionBar",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Both native title copies expose actual label bounds and reserve the same current rail column. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsViewController+Chrome.swift",
+      "sourceHash": "b424f36c2a40ef8456dd229b45a78cc8a4d882b19f336dc9c81a39aff43e8ed6",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKPageViewController / UKSongsSectionBar",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
+      ],
+      "note": "Native adjusted insets position pinned title/rail; bottom input and row cuts retain one scroll owner. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsViewController+List.swift",
+      "sourceHash": "cf424b841949bb347a86168d0f40dc139b1b1f71adeb12c73001badfbb07de90",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKPageViewController / UKSongRowCell",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
+      ],
+      "note": "Real virtualized content remains in its native host; row and header geometry share current rail reservation. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsViewController+Sheets.swift",
+      "sourceHash": "e82e235856c976ad68bb9b5f5afb7c45e4bb9e4d555102345904c725231bca35",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKFormViewController / UKPresentationCoordinator",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
+        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+      ],
+      "note": "Songs Sort/Filter compose shared native forms and the single admitted sheet adapter. Runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsViewController.swift",
+      "sourceHash": "916193f6cc0af935948345285496a475297879749c65e806805532251aa36814",
+      "classes": [
+        {
+          "name": "UKSongsViewController",
+          "base": "UKPageViewController"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "feature-composition",
+      "owner": "UKPageViewController",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
+      ],
+      "note": "Catalogue owns its domain pipeline while the shared body/gate/lifecycle handles the real native collection. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Foundation/UKContext.swift",
+      "sourceHash": "27087372f4b261fbfb3afa138ddeed3eed49b6948f964b4100a29a64bad49696",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKContext / UKShellState",
+      "verification": [
+        ".agents/platforms/apple/uikit-architecture.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+      ],
+      "note": "Explicit window/session/section context publishes detail selection without a process-global route owner. Source review only; runtime, pose, coverage and performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Foundation/UKObservation.swift",
+      "sourceHash": "40e2bf65afb76de665928b1afe7b4818ae15862c8b0cc41779e9dd4cea75fa9b",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "FentonAppleCore.ObservationBinding / ObservationBag",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "Consumer API delegates observation tracking and lifetime to pinned shared-core bindings. Source ownership only; full runtime/coverage/performance gates remain independent."
+    },
+    {
+      "path": "apple/Sources/FestivalUI/UIKitPort/Foundation/UKSettings.swift",
+      "sourceHash": "bdb52d50d7fa5eff4d76ca73a926ee0dccaef11344adc43bc8617c95cbc892f5",
+      "classes": [],
+      "motionSites": [],
+      "disposition": "shared-component",
+      "owner": "UKSettings",
+      "verification": [
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Tests/FestivalUITests/UKMotionFoundationTests.swift",
+        ".agents/patterns/uikit-page-foundation.md"
+      ],
+      "note": "UIKit reads the same typed settings keys and change notification as the product models. Source ownership only; full runtime/coverage/performance gates remain independent."
+    }
+  ]
+}

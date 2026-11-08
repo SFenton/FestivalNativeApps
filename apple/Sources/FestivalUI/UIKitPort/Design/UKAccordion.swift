@@ -7,7 +7,7 @@ import UIKit
 /// Content that opens and closes in the accordion choreography (``FestivalAccordionContent``
 /// and ``FestivalAccordionState``): opening resizes first, then fades the content in;
 /// closing fades the content out, then resizes. Reduce Motion (system or in-app) drops the
-/// resize animation and settles in 20 ms; the fades always run.
+/// resize animation and fades, settling the requested state immediately.
 ///
 /// ``follow(_:)`` moves to a value or nil (closed); the view calls ``onLayoutChange``
 /// whenever its height changes so a self-sizing cell can re-measure.
@@ -58,6 +58,10 @@ final class UKAccordionView<Value: Equatable>: UIView {
         state.request(value)
         let reduceMotion = UKAccessibility.reduceMotion
         let steps = AccordionChoreography.plan(expanded: value != nil, from: state.phase, reduceMotion: reduceMotion)
+        if reduceMotion {
+            for step in steps { run(step.change, reduceMotion: true) }
+            return
+        }
         var remaining = steps[...]
         while let step = remaining.first, step.delay == 0 {
             run(step.change, reduceMotion: reduceMotion)
@@ -78,8 +82,8 @@ final class UKAccordionView<Value: Equatable>: UIView {
         let before = state.shown
         state.apply(change)
         let resizes = change == .open || change == .close
-        let duration: TimeInterval = resizes
-            ? (reduceMotion ? 0 : AccordionChoreography.resizeDuration) : AccordionChoreography.fadeDuration
+        let duration: TimeInterval = reduceMotion ? 0
+            : (resizes ? AccordionChoreography.resizeDuration : AccordionChoreography.fadeDuration)
         if state.shown != before || content == nil { rebuildContent() }
         let apply = { [self] in
             content?.alpha = state.showsContent ? 1 : 0

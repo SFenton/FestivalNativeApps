@@ -20,6 +20,14 @@ Section titles create stable visual and semantic landmarks. They sit above their
 
 The web has no sticky section header. Native sticky behavior is an approved addition in R5.
 
+UIKit Songs exposes the in-list heading's actual label bounds, matching the pinned title's
+text bounds rather than including the reusable header's decorative padding. Its A-Z rail
+reserves the pinned title below the native scroll view's adjusted top inset, including an
+enlarged search bar, and the
+vertical catalogue never exposes a horizontal scroll indicator.
+Both title copies reserve the same current rail width horizontally; moving the rail below
+the title does not justify letting a heading's bounds extend into its column.
+
 ## Rules
 
 1. **R1. Use the canonical heading.** A section title is white, bold/headline, Title Case, leading-aligned, and exposed as a level-two heading; callers supply the already-cased localized title. Global Search's All-scope Songs/Players/Bands titles are consumers too (R9, #348).

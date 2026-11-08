@@ -30,6 +30,7 @@ final class UKBottomSearchField: UIView, UITextFieldDelegate {
     private var leading: NSLayoutConstraint?
     private var trailing: NSLayoutConstraint?
     private var height: NSLayoutConstraint?
+    private var bottom: NSLayoutConstraint?
     private weak var host: UIViewController?
     private var layoutProvider: (() -> DeviceLayout)?
 
@@ -46,12 +47,17 @@ final class UKBottomSearchField: UIView, UITextFieldDelegate {
         glass.translatesAutoresizingMaskIntoConstraints = false
         addSubview(glass)
         icon.tintColor = BrandUIColors.textSecondary
+        icon.contentMode = .scaleAspectFit
+        icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(textStyle: .body)
+        icon.setContentHuggingPriority(.required, for: .horizontal)
+        icon.setContentCompressionResistancePriority(.required, for: .horizontal)
         icon.isAccessibilityElement = false
         field.attributedPlaceholder = NSAttributedString(
             string: prompt, attributes: [.foregroundColor: BrandUIColors.textSecondary]
         )
         field.font = .preferredFont(forTextStyle: .body)
         field.adjustsFontForContentSizeCategory = true
+        field.setContentHuggingPriority(UILayoutPriority(249), for: .horizontal)
         field.textColor = BrandUIColors.textPrimary
         field.returnKeyType = .search
         field.autocorrectionType = .no
@@ -80,7 +86,7 @@ final class UKBottomSearchField: UIView, UITextFieldDelegate {
         stack.alignment = .center
         stack.spacing = 8
         stack.isLayoutMarginsRelativeArrangement = true
-        stack.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 12)
+        stack.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 2, leading: 16, bottom: 2, trailing: 12)
         stack.translatesAutoresizingMaskIntoConstraints = false
         glass.contentView.addSubview(stack)
         NSLayoutConstraint.activate([
@@ -92,6 +98,7 @@ final class UKBottomSearchField: UIView, UITextFieldDelegate {
             stack.bottomAnchor.constraint(equalTo: glass.contentView.bottomAnchor),
             stack.leadingAnchor.constraint(equalTo: glass.contentView.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: glass.contentView.trailingAnchor),
+            field.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
             clearButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
             clearButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
         ])
@@ -137,6 +144,7 @@ final class UKBottomSearchField: UIView, UITextFieldDelegate {
         self.trailing = trailing
         self.height = height
         let bottom = bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor, constant: -BottomSearchFieldPlacement.rowPadding)
+        self.bottom = bottom
         NSLayoutConstraint.activate([leading, trailing, height, bottom])
         refreshPlacement()
     }
@@ -156,6 +164,16 @@ final class UKBottomSearchField: UIView, UITextFieldDelegate {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        if let host, let window, let layout = layoutProvider?(), let bottom {
+            let guideTop = host.view.convert(
+                CGPoint(x: 0, y: host.view.keyboardLayoutGuide.layoutFrame.minY), to: window
+            ).y
+            let padding = BottomSearchFieldPlacement.searchButtonAlignedBottomPadding(
+                chrome: layout.sectionChrome, rowBottom: guideTop, windowBottom: window.bounds.maxY,
+                fieldHeight: bounds.height, keyboardTop: guideTop
+            ) ?? BottomSearchFieldPlacement.rowPadding
+            if abs(bottom.constant + padding) > 0.5 { bottom.constant = -padding }
+        }
         onTopChange?(convert(bounds, to: nil).minY)
     }
 

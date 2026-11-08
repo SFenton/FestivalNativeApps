@@ -184,6 +184,7 @@ final class FeedbackSentJourneyTests: XCTestCase {
         // the Songs floating tools type cap.
         var alertIssues: [String] = []
         let alertFrame = alert.frame
+        SongsUITestSupport.record(app, name: "feedback-sent-alert-\(kind)")
         try app.performAccessibilityAudit(for: .all) { issue in
             guard let element = issue.element,
                   alertFrame.contains(CGPoint(x: element.frame.midX, y: element.frame.midY)) else { return true }

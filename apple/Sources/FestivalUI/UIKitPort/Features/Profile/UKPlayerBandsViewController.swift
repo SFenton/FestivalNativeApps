@@ -13,7 +13,7 @@ import UIKit
 /// `usePageTransition`); the cards stagger in on first reveal, fade out above the pinned pager
 /// and are not drawn beneath it (issue #305).
 @MainActor
-final class UKPlayerBandsViewController: UIViewController, UICollectionViewDelegate {
+final class UKPlayerBandsViewController: UKPageViewController, UICollectionViewDelegate {
     // MARK: Types
 
     private struct RequestKey: Hashable {
@@ -89,6 +89,7 @@ final class UKPlayerBandsViewController: UIViewController, UICollectionViewDeleg
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        installPageBody(scrollView: collection)
         view.backgroundColor = .clear
         buildPicker()
         buildContent()
@@ -135,27 +136,27 @@ final class UKPlayerBandsViewController: UIViewController, UICollectionViewDeleg
             self.page = 1
             self.load()
         }, for: .valueChanged)
-        view.addSubview(picker)
+        pageBodyView.addSubview(picker)
         NSLayoutConstraint.activate([
-            picker.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
-            picker.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 12),
-            picker.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -12),
+            picker.topAnchor.constraint(equalTo: pageBodyView.safeAreaLayoutGuide.topAnchor, constant: 12),
+            picker.leadingAnchor.constraint(equalTo: pageBodyView.safeAreaLayoutGuide.leadingAnchor, constant: 12),
+            picker.trailingAnchor.constraint(equalTo: pageBodyView.safeAreaLayoutGuide.trailingAnchor, constant: -12),
         ])
     }
 
     private func buildContent() {
         gate.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(gate)
+        pageBodyView.addSubview(gate)
         pager.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(pager)
+        pageBodyView.addSubview(pager)
         NSLayoutConstraint.activate([
             gate.topAnchor.constraint(equalTo: picker.bottomAnchor, constant: 12),
-            gate.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            gate.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            gate.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            pager.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
-            pager.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
-            pager.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            gate.leadingAnchor.constraint(equalTo: pageBodyView.leadingAnchor),
+            gate.trailingAnchor.constraint(equalTo: pageBodyView.trailingAnchor),
+            gate.bottomAnchor.constraint(equalTo: pageBodyView.bottomAnchor),
+            pager.leadingAnchor.constraint(equalTo: pageBodyView.safeAreaLayoutGuide.leadingAnchor),
+            pager.trailingAnchor.constraint(equalTo: pageBodyView.safeAreaLayoutGuide.trailingAnchor),
+            pager.bottomAnchor.constraint(equalTo: pageBodyView.safeAreaLayoutGuide.bottomAnchor),
         ])
         collection.backgroundColor = .clear
         collection.delegate = self

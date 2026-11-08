@@ -77,6 +77,8 @@ final class UKShellState {
     var drawerPresented = false
     /// Whether the section on screen has a split open beside its list page. Shell lane.
     var splitOpen = false
+    /// The route selected in the current section's trailing detail pane.
+    var detailSelection: AppRoute?
 
     init() {}
 }

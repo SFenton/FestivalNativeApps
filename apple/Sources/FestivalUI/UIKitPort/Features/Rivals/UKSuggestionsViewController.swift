@@ -183,8 +183,13 @@ final class UKSuggestionsViewController: UKRivalsPageViewController, UICollectio
             self.viewModel.filter = updated
             if let data = try? updated.encoded() { UserDefaults.standard.set(data, forKey: SuggestionFilterSettings.storageKey) }
         }
+
         UKSheet.present(sheet, from: self, title: "Filter Suggestions", closeIdentifier: "fst.suggestions.filter.done")
     }
+
+    #if DEBUG
+    func perfPresentFilter() { presentFilter() }
+    #endif
 
     // MARK: Build
 
@@ -270,7 +275,9 @@ final class UKSuggestionsViewController: UKRivalsPageViewController, UICollectio
             key: key ?? "", isLoading: isFirstPageLoading, spinnerLabel: "Loading Suggestions", spinnerIdentifier: "fst.suggestions.loading"
         )
         self.gate = gate
-        showFill(gate, edgeToEdge: true)
+        clearPageState()
+        scrollView.isHidden = true
+        installPageContent(gate, scrollView: collection)
         collection.backgroundColor = .clear
         collection.delegate = self
         collection.alwaysBounceVertical = true

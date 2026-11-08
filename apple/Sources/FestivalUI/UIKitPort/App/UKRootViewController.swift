@@ -108,6 +108,9 @@ final class UKRootViewController: UIViewController {
         focusAnchor.frame = .zero
         view.addSubview(focusAnchor)
         view.addSubview(tabs.view)
+        #if DEBUG
+        if let trace = UKFocusTraceView.makeIfEnabled() { view.addSubview(trace) }
+        #endif
         background.install(in: view) // Background lane: the one shared backdrop, beneath the tabs.
         tabs.didMove(toParent: self)
         if #available(iOS 26.0, *) { tabs.tabBarMinimizeBehavior = .onScrollDown }
@@ -146,6 +149,7 @@ final class UKRootViewController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        UKFirstRunHook.rootDidAppear(self)
         applyOpeningSheets()
         Task { await applyWindowRoute() }
     }
