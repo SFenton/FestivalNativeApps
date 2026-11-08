@@ -1940,15 +1940,15 @@ def cmd_uitest(args: argparse.Namespace) -> int:
                 rebooted = True
                 print(f"uitest {label}: simulator wedged ({wedge}) after {elapsed:.1f}s; rebooting it and "
                       f"running the batch again; result bundle (kept): {result_bundle}", file=sys.stderr)
-                _with_sim_lock(udid, _shutdown_simulator)
+                _with_sim_lock(udid, _restart_simulator)
                 continue
             if (returncode == EXIT_TEST_FAILED and getattr(args, "reboot_wedged", False)
                     and (stall := accessibility_stalled(_result_summary(result_bundle)))):
                 # A verdict, but the accessibility server may now hang: reboot so the retry and the
-                # next batch start on a fresh simulator (#689). This adds no attempt.
+                # next batch start on a fresh, warmed simulator (#689, #696). This adds no attempt.
                 print(f"uitest {label}: accessibility stalled ({stall}); rebooting the simulator before the "
                       f"next run; result bundle (kept): {result_bundle}", file=sys.stderr)
-                _with_sim_lock(udid, _shutdown_simulator)
+                _with_sim_lock(udid, _restart_simulator)
             if not should_retry_batch(returncode, attempt, retries):
                 break
             attempt += 1
@@ -2251,6 +2251,68 @@ def _shutdown_simulator(udid: str) -> int:
     if run_bounded(["xcrun", "simctl", "shutdown", udid], SHUTDOWN_TIMEOUT,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) is None:
         print(f"simctl shutdown did not return within {SHUTDOWN_TIMEOUT}s; continuing", file=sys.stderr)
+    return 0
+
+
+#: Seconds to wait for the warm-up `simctl launch` after a reboot. XCTest gives its own first
+#: launch about 148 s, which a just-booted CI iPad missed (#696).
+WARM_LAUNCH_TIMEOUT = 300
+
+#: Seconds the warm-up launch runs before it is terminated.
+WARM_SETTLE = 10
+
+#: The warm-up launch's service origin: an unreachable loopback port, so it never reads the
+#: production service (and never sends a selected profile anywhere).
+WARM_ORIGIN = "http://127.0.0.1:9"
+
+
+def warm_app(udid: str) -> bool:
+    """Launch the installed app once and terminate it, so the next XCTest launch is warm.
+
+    The first app launch on a just-booted simulator pays the system's post-boot work; on the
+    3-CPU CI runner it outlasted XCTest's launch deadline ("Timed out while launching
+    application via Xcode", #696). This launch has its own bounded wait, points the app at
+    ``WARM_ORIGIN`` and holds every animation still. A failure (no app installed yet) is fine.
+
+    Args:
+        udid: A booted simulator. Call under the simulator lock.
+
+    Returns:
+        Whether the app launched.
+    """
+    env = _env()
+    env["SIMCTL_CHILD_FST_API_BASE_URL"] = WARM_ORIGIN
+    env["SIMCTL_CHILD_FST_DEBUG_STILL_BACKGROUND"] = "1"
+    launched = run_bounded(["xcrun", "simctl", "launch", udid, product().bundle_id], WARM_LAUNCH_TIMEOUT,
+                           env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+    if launched:
+        time.sleep(WARM_SETTLE)
+        terminate_app(udid)
+    else:
+        print(f"warm-up launch failed or took over {WARM_LAUNCH_TIMEOUT}s; continuing", file=sys.stderr)
+    return launched
+
+
+def _restart_simulator(udid: str) -> int:
+    """Shut ``udid`` down, boot it fresh and warm the app (``warm_app``). Call under the simulator lock.
+
+    ``--reboot-wedged`` uses this after a hang or an accessibility stall, so the next run starts
+    on a fresh simulator whose first app launch already happened (#689, #696). A boot that
+    fails is left to the next batch's own ``boot_exclusive``.
+
+    Args:
+        udid: The simulator.
+
+    Returns:
+        0.
+    """
+    _shutdown_simulator(udid)
+    try:
+        boot_exclusive(udid)
+    except subprocess.CalledProcessError as error:
+        print(f"reboot did not finish ({error}); the next run boots it", file=sys.stderr)
+        return 0
+    warm_app(udid)
     return 0
 
 

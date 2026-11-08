@@ -412,7 +412,7 @@ class RebootWedgedTests(unittest.TestCase):
     def test_a_timed_out_batch_reboots_the_simulator_and_reruns(self):
         code, runs, locks = self._run(["\nTIMEOUT after 10s; killed.\n", "ok"], [124, 0])
         self.assertEqual((code, runs), (0, 2))
-        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._shutdown_simulator)])
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._restart_simulator)])
 
     def test_the_reboot_never_waits_on_a_stuck_shutdown(self):
         from unittest import mock
@@ -421,6 +421,53 @@ class RebootWedgedTests(unittest.TestCase):
                 contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(ios_sim._shutdown_simulator("UDID"), 0)
         self.assertEqual(bounded.call_args.args, (["xcrun", "simctl", "shutdown", "UDID"], ios_sim.SHUTDOWN_TIMEOUT))
+
+    def test_the_reboot_boots_and_warms_the_app_before_the_next_run(self):
+        # #696: the retry after a stall reboot timed out launching the app on the cold simulator.
+        from unittest import mock
+
+        calls = []
+        with mock.patch.object(ios_sim, "_shutdown_simulator", side_effect=lambda u: calls.append("shutdown")), \
+                mock.patch.object(ios_sim, "boot_exclusive", side_effect=lambda u: calls.append("boot")), \
+                mock.patch.object(ios_sim, "warm_app", side_effect=lambda u: calls.append("warm")):
+            self.assertEqual(ios_sim._restart_simulator("UDID"), 0)
+        self.assertEqual(calls, ["shutdown", "boot", "warm"])
+
+    def test_a_failed_boot_leaves_the_boot_to_the_next_run(self):
+        from unittest import mock
+
+        failed = ios_sim.subprocess.CalledProcessError(148, ["xcrun", "simctl", "bootstatus"])
+        with mock.patch.object(ios_sim, "_shutdown_simulator", return_value=0), \
+                mock.patch.object(ios_sim, "boot_exclusive", side_effect=failed), \
+                mock.patch.object(ios_sim, "warm_app") as warm, contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(ios_sim._restart_simulator("UDID"), 0)
+        warm.assert_not_called()
+
+    def test_the_warm_launch_is_bounded_offline_and_terminated(self):
+        from unittest import mock
+
+        with mock.patch.object(ios_sim, "run_bounded", return_value=0) as bounded, \
+                mock.patch.object(ios_sim.time, "sleep") as sleep, \
+                mock.patch.object(ios_sim, "terminate_app") as terminate:
+            self.assertTrue(ios_sim.warm_app("UDID"))
+        self.assertEqual(bounded.call_args.args,
+                         (["xcrun", "simctl", "launch", "UDID", ios_sim.product().bundle_id],
+                          ios_sim.WARM_LAUNCH_TIMEOUT))
+        env = bounded.call_args.kwargs["env"]
+        self.assertEqual(env["SIMCTL_CHILD_FST_API_BASE_URL"], "http://127.0.0.1:9")
+        self.assertEqual(env["SIMCTL_CHILD_FST_DEBUG_STILL_BACKGROUND"], "1")
+        sleep.assert_called_once_with(ios_sim.WARM_SETTLE)
+        terminate.assert_called_once_with("UDID")
+
+    def test_a_failed_or_stuck_warm_launch_is_not_fatal(self):
+        from unittest import mock
+
+        for result in (None, 1):
+            with mock.patch.object(ios_sim, "run_bounded", return_value=result), \
+                    mock.patch.object(ios_sim, "terminate_app") as terminate, \
+                    contextlib.redirect_stderr(io.StringIO()):
+                self.assertFalse(ios_sim.warm_app("UDID"))
+            terminate.assert_not_called()
 
     def _run(self, logs: list[str], codes: list[int], *, reboot: bool = True, retries: int = 0,
              summaries=None):
@@ -456,7 +503,7 @@ class RebootWedgedTests(unittest.TestCase):
     def test_a_hung_runner_reboots_the_simulator_and_reruns_the_batch(self):
         code, runs, locks = self._run([self.RUNNER, "ok"], [65, 0])
         self.assertEqual((code, runs), (0, 2))
-        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._shutdown_simulator)])
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._restart_simulator)])
 
     def test_a_second_hang_fails_the_batch(self):
         code, runs, locks = self._run([self.RUNNER, self.RUNNER], [65, 65])
@@ -490,13 +537,13 @@ class RebootWedgedTests(unittest.TestCase):
         code, runs, locks = self._run(["", "ok"], [65, 0], retries=1,
                                       summaries=[self.AUDIT_TIMEOUT, {"passedTests": 1}])
         self.assertEqual((code, runs), (0, 2))
-        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._shutdown_simulator)])
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._restart_simulator)])
 
     def test_a_last_stalled_failure_still_fails_but_leaves_a_fresh_simulator(self):
         code, runs, locks = self._run(["", ""], [65, 65], retries=1,
                                       summaries=[self.AUDIT_TIMEOUT, self.QUERY_TIMEOUT])
         self.assertEqual((code, runs), (65, 2))
-        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._shutdown_simulator)] * 2)
+        self.assertEqual([call.args for call in locks], [("UDID", ios_sim._restart_simulator)] * 2)
 
     def test_a_stalled_failure_is_never_rerun_without_retries(self):
         code, runs, locks = self._run([""], [65], summaries=[self.AUDIT_TIMEOUT])
