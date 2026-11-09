@@ -362,6 +362,13 @@ final class UKSuggestionsViewController: UKRivalsPageViewController, UICollectio
         snapshot.appendItems([.footer], toSection: .footer)
         snapshot.reconfigureItems([.footer])
         dataSource?.apply(snapshot, animatingDifferences: false)
+        #if DEBUG
+        let loadedCount = visibleList.count
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.collection.window != nil, !self.collection.isHidden else { return }
+            FirstContentProbe.markFirstContent(rows: loadedCount)
+        }
+        #endif
         if settledGeneration != generation {
             let count = viewModel.latestBatchIds.count
             runTask { [weak self] in

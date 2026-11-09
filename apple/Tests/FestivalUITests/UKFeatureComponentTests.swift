@@ -41,6 +41,57 @@ private final class UKTraitContentContainer: UIViewController {
 @Suite(.serialized)
 struct UKFeatureComponentTests {
     @Test
+    func marqueeDebugStopRestoresTheRequestWithoutDiscardingNormalAnimationState() {
+        let state = PerfComponentDebugState()
+        let id = UUID()
+        state.beginMarqueeComponent()
+
+        #expect(!state.marqueeComponentReady)
+        state.marqueeRequested = true
+        state.updateMarquee(
+            id, rendererClass: "MarqueeText", overflow: true, visible: true,
+            reduceMotion: false, sceneActive: true, animation: true,
+            textLength: 40, textWidth: 300, viewportWidth: 120
+        )
+        #expect(state.marqueeComponentReady)
+
+        state.marqueeRequested = false
+        #expect(!state.marqueeComponentRestored)
+        state.removeMarquee(id)
+        #expect(state.marqueeComponentRestored)
+
+        let normal = PerfComponentDebugState()
+        normal.updateMarquee(
+            id, rendererClass: "MarqueeText", overflow: true, visible: true,
+            reduceMotion: false, sceneActive: true, animation: true,
+            textLength: 40, textWidth: 300, viewportWidth: 120
+        )
+        normal.beginMarqueeComponent()
+        normal.marqueeRequested = true
+        normal.marqueeRequested = false
+        #expect(normal.marqueeComponentRestored)
+        #expect(normal.marqueeAnimating)
+    }
+
+    @Test
+    func explicitFirstContentMarkerReportsActualLoadedBodyCount() async throws {
+        FirstContentProbe.reset()
+        defer { FirstContentProbe.reset() }
+        FirstContentProbe.markFirstContent(rows: 4)
+        let probe = FirstContentProbe()
+        probe.start()
+        defer { probe.stop() }
+
+        for _ in 0..<10 where probe.contentMs == nil {
+            try await Task.sleep(for: .milliseconds(16))
+        }
+
+        #expect(probe.contentMs != nil)
+        #expect(probe.contentSource == "explicit")
+        #expect(probe.visibleRows == 4)
+    }
+
+    @Test
     func chartDateAxisKeepsNewestAndAvoidsOverlaps() {
         let centres: [CGFloat] = [8, 24, 40, 56, 72, 88]
         let widths: [CGFloat] = Array(repeating: 22, count: centres.count)
@@ -61,6 +112,25 @@ struct UKFeatureComponentTests {
         )
         #expect(frames.map(\.minX) == [0, 35, 70])
         #expect(frames.allSatisfy { $0.minY == 20 && $0.height == 24 })
+    }
+
+    @Test
+    func hostedMarqueeLayoutSettlesAfterApplyingUnchangedText() async throws {
+        let harness = try await UKHostedWindow.make()
+        defer { harness.close() }
+        let marquee = UKMarqueeLabel("A deliberately overflowing fixture title")
+        harness.root.view.addSubview(marquee)
+        NSLayoutConstraint.activate([
+            marquee.centerXAnchor.constraint(equalTo: harness.root.view.centerXAnchor),
+            marquee.topAnchor.constraint(equalTo: harness.root.view.safeAreaLayoutGuide.topAnchor, constant: 24),
+            marquee.widthAnchor.constraint(equalToConstant: 120),
+            marquee.heightAnchor.constraint(equalToConstant: 28),
+        ])
+        try await UKHostedWindow.wait { marquee.window === harness.window && marquee.bounds.width == 120 }
+        harness.window.layoutIfNeeded()
+
+        #expect(marquee.window === harness.window)
+        #expect(!marquee.layer.needsLayout())
     }
 
     @Test

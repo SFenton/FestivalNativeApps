@@ -30,6 +30,9 @@ final class UKFirstRunCarouselViewController: UKScreenViewController, UIScrollVi
     private let skipRow = UIView()
     private let skip = UIButton(type: .system)
     private var index = 0
+    #if DEBUG
+    private var performanceAdvancePending = false
+    #endif
     private(set) var viewing: FirstRunViewing
     private lazy var backItem: UIBarButtonItem = {
         let item = UIBarButtonItem(
@@ -146,6 +149,32 @@ final class UKFirstRunCarouselViewController: UKScreenViewController, UIScrollVi
         }
         updateControls()
     }
+
+    #if DEBUG
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if performanceAdvancePending {
+            performanceAdvancePending = false
+            advanceForPerformance()
+        }
+    }
+
+    var performancePageIndex: Int { index }
+
+    func advanceForPerformance() {
+        guard slides.count > 1, index == 0 else { return }
+        guard let window = viewIfLoaded?.window,
+              window.windowScene?.activationState == .foregroundActive else {
+            performanceAdvancePending = true
+            return
+        }
+        guard scroll.bounds.width > 0 else {
+            performanceAdvancePending = true
+            return
+        }
+        go(to: 1)
+    }
+    #endif
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
@@ -426,6 +455,14 @@ final class UKFirstRunPresentation: NSObject {
     private var finished = false
     private let onClosed: ([FirstRunSlide]) -> Void
     private(set) var admission: UKPresentationRequestResult = .rejected
+    var isPresented: Bool { navigation.presentingViewController != nil }
+    #if DEBUG
+    var performancePageIndex: Int { carousel.performancePageIndex }
+    var performanceIsVisible: Bool {
+        guard let window = carousel.viewIfLoaded?.window else { return false }
+        return window.windowScene?.activationState == .foregroundActive
+    }
+    #endif
 
     /// Presents a carousel.
     ///
@@ -476,6 +513,17 @@ final class UKFirstRunPresentation: NSObject {
     private func dismiss() {
         navigation.dismiss(animated: true) { [weak self] in self?.closed() }
     }
+
+    /// Dismiss the measured guide through the same UIKit completion path as Close and Done.
+    func dismissForPerformance() {
+        dismiss()
+    }
+
+    #if DEBUG
+    func advanceForPerformance() {
+        carousel.advanceForPerformance()
+    }
+    #endif
 
     /// Releases a queued guide that lost its visible page before admission.
     func cancelUnpresented() {

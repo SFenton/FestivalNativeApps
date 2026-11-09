@@ -71,6 +71,8 @@ Platform order: **iPhone (iOS 26.5) → iPhone Duo → iPadOS → macOS → iPho
 
 - **UIKit port (operator, 2026-10-31):** port iOS/iPadOS to Swift logic + UIKit, UX identical on iPhone, iPad and iPhone Duo, tests updated, performance measured A/B against the SwiftUI app as Fenton-HASS-Native did. macOS is sidelined meanwhile. Work runs on `claude/uikit-port` (lanes branch from it, the orchestrator merges); the port app `FestivalMobileUIKit` installs beside `FestivalMobile`. Rules, seams and lanes: [uikit-port.md](.agents/platforms/apple/uikit-port.md). Wave 1 (Design, Background, Shell, Perf) started 2026-10-31; wave 2 (Songs, Leaderboards, Profile, Rivals, Settings) follows.
 
+- **Current UIKit performance-repair checkpoint (2026-11-08):** The current v3+repairs hosted SDK build passes 65 tests / 68 invocations with 0 failures and 0 skips. The 54-active-case full inventory completed 108 n=1 trials without timeout, missing-content, event or component errors; its sole hard gate is rounds=1<3. Explicit app/FestivalUI coverage collection is separate and ongoing, with no archive or 95–90% claim. Full n=3 simulator/physical, state/AX/pose and coverage qualification remain pending; this is not a completion or release claim. The shared core remains pinned to `0b9592686a90a89181e442cdc0f5058bca9af001`, and macOS remains sidelined.
+
 ---
 
 ## 3. Testing phases

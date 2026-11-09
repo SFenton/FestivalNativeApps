@@ -241,6 +241,9 @@ final class UKRivalryViewController: UKRivalComparisonViewController {
         let padded = group.ukPadded()
         add(padded)
         UKFadeIn.fadeIn(padded)
+        #if DEBUG
+        FirstContentProbe.markFirstContent(rows: category.songs.count)
+        #endif
     }
 }
 #endif

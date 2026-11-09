@@ -149,7 +149,7 @@ final class FirstContentProbe {
     /// `explicit`, `collection`, `table`, `scroll` or `none`.
     private(set) var contentSource = "none"
     private let ticker = FrameTicker()
-    private static var explicit: Double?
+    private static var explicit: (time: Double, rows: Int)?
 
     /// Creates a probe, noting how far into the process's life it began.
     init() { readyMs = ProcessCPU.secondsSinceProcessStart() * 1000 }
@@ -159,9 +159,9 @@ final class FirstContentProbe {
         ticker.start { [weak self] _ in
             guard let self, self.contentMs == nil else { return }
             if let explicit = Self.explicit {
-                self.contentMs = explicit
+                self.contentMs = explicit.time
                 self.contentSource = "explicit"
-                self.visibleRows = 3
+                self.visibleRows = explicit.rows
                 self.contentHeight = Self.frontScrollContentHeight()
             } else if let observation = Self.contentObservation() {
                 self.contentMs = ProcessCPU.secondsSinceProcessStart() * 1000
@@ -178,7 +178,16 @@ final class FirstContentProbe {
 
     /// Lets page code declare its first content on screen (an explicit marker for pages the heuristic cannot judge).
     static func markFirstContent() {
-        if explicit == nil { explicit = ProcessCPU.secondsSinceProcessStart() * 1000 }
+        markFirstContent(rows: 3)
+    }
+
+    /// Marks a real loaded body with its actual rendered-item count.
+    ///
+    /// The count is diagnostic evidence, not a qualification override: failed,
+    /// loading and empty states must not call this method.
+    static func markFirstContent(rows: Int) {
+        guard rows > 0, explicit == nil else { return }
+        explicit = (ProcessCPU.secondsSinceProcessStart() * 1000, rows)
     }
 
     /// Clears a previous process-local marker before a new autorun.
@@ -584,8 +593,13 @@ enum ComponentCostRunner {
                 }) else {
                     pacer.finish()
                     _ = meter.finish()
+                    let diagnostic = token == "marquee"
+                        ? " " + PerfComponentDebugState.shared.marqueeDiagnosticSummary : ""
                     action.stop()
-                    output.write(name: config.name, kind: "component", summary: "component did not settle: \(token)")
+                    output.write(
+                        name: config.name, kind: "component",
+                        summary: "component did not settle: \(token)" + diagnostic
+                    )
                     break
                 }
                 let activeStart = CACurrentMediaTime()

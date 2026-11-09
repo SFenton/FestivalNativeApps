@@ -93,6 +93,7 @@ Native Close's visual frame is not its activation region. Probe inside the stand
 | Date | Scope | Result and limit |
 |---|---|---|
 | 2026-11-07 | Current full-pass implementation snapshot V17 over `412e0370`, [UIKit proposal](https://github.com/SFenton/FestivalNativeApps/pull/850) | Source ownership passes for all 134 UIKit files. Current phone-hosted suite passes 62 checks; three actual iPad default/AX5 pane focus, selection and native Close journeys and the real folded-Duo Large/AX5 input rendering journey pass with retained result bundles and zero skips. Full app/state/pose/coverage matrix and matched performance acceptance remain pending; these focused results do not certify the whole request or physical hardware. |
+| 2026-11-08 | Current repair checkpoint over the same frozen source family | Changed UIKit consumer ownership records remain bound to exact current source bytes. The current v3+repairs hosted SDK build passes 65 tests / 68 invocations with 0 failures and 0 skips; the 54-case inventory completed 108 n=1 trials without timeout, missing-content, event or component errors, with rounds=1<3 as its sole hard gate. Full n=3 simulator/physical, state/AX/pose and coverage qualification remain pending. The shared core pin is unchanged and macOS remains sidelined. |
 
 Bounded batches supply separate valid result bundles where a long batch times out; incomplete/zero-test runs are not acceptance evidence. Shared Swift compilation does not certify macOS UI.
 

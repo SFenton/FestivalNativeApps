@@ -69,6 +69,9 @@ final class UKRootViewController: UIViewController {
     var floatingBottom: NSLayoutConstraint?
     var expandedBarInset: CGFloat = 0
     var tabsSearchAsTab = false
+    #if DEBUG
+    var perfFirstRunPresentation: UKFirstRunPresentation?
+    #endif
 
     // MARK: Background lane
 

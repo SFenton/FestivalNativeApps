@@ -27,9 +27,9 @@ Band Rankings|FST_DEBUG_TAB=leaderboards FST_DEBUG_ROUTE=bandRankings:Band_Duets
 Song Band Leaderboard|FST_DEBUG_TAB=songs FST_DEBUG_SONG=fixture-pulse FST_DEBUG_ROUTE=songBandLeaderboard:fixture-pulse:Band_Duets
 Combo Full Rankings|FST_DEBUG_TAB=leaderboards FST_DEBUG_ROUTE=fullComboRankings:Solo_Guitar+Solo_Bass
 Compete|FST_DEBUG_TAB=leaderboards FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_DEBUG_ROUTE=compete
-All Rivals|FST_DEBUG_TAB=rivals FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_DEBUG_ROUTE=allRivals:song:Solo_Guitar
+All Rivals|FST_DEBUG_TAB=rivals FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_DEBUG_ROUTE=allRivals:song:Solo_Guitar FST_PERF_MODE=latency
 Rival Detail|FST_DEBUG_TAB=rivals FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_DEBUG_ROUTE=rivalDetail:f1c749eb07c32578cfa3e59ec38c03a8:song:Solo_Guitar
-Rivalry detail|FST_DEBUG_TAB=rivals FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_DEBUG_ROUTE=rivalry:f1c749eb07c32578cfa3e59ec38c03a8:closest_battles:song:Solo_Guitar
+Rivalry detail|FST_DEBUG_TAB=rivals FST_DEBUG_PROFILE=fixture-player-1:FixturePlayer FST_DEBUG_ROUTE=rivalry:f1c749eb07c32578cfa3e59ec38c03a8:closest_battles:song:Solo_Guitar FST_PERF_MODE=latency
 Licenses|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=licenses FST_PERF_MODE=latency
 Settings topic accessibility|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=settingsTopic:accessibility FST_PERF_MODE=latency
 Settings topic privacy|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=settingsTopic:privacyPolicy FST_PERF_MODE=latency
@@ -68,5 +68,5 @@ Scroll edge fade|FST_DEBUG_TAB=songs FST_PERF_COMPONENT=edge-fade
 Section stack reveal|FST_DEBUG_TAB=songs FST_PERF_COMPONENT=section-stack
 Row press animation|FST_DEBUG_TAB=songs FST_PERF_COMPONENT=row-press
 Accordion expand-collapse|FST_DEBUG_TAB=settings FST_PERF_COMPONENT=accordion
-Carousel page transition|FST_DEBUG_TAB=settings FST_PERF_COMPONENT=carousel FST_PERF_STATUS=na FST_PERF_REASON="dual-source carousel is dormant on the selected fixture route"
+Carousel page transition|FST_DEBUG_TAB=settings FST_DEBUG_ROUTE=settingsTopic:firstRun FST_DEBUG_FIRST_RUN=force FST_PERF_COMPONENT=carousel
 Marquee animation|FST_DEBUG_TAB=songs FST_DEBUG_SONG=fixture-pulse FST_PERF_COMPONENT=marquee

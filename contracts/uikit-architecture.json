@@ -319,7 +319,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/UKApp.swift",
-      "sourceHash": "64c3e685031d8765559af0e7f831e68156551a14f4da792a8f998b0315cea4c5",
+      "sourceHash": "0b4f4dbf3f97c1ea00ef19fc4cbc8b4bca715968ae8b2e81aa585909574e3cbf",
       "classes": [],
       "motionSites": [],
       "disposition": "feature-composition",
@@ -392,7 +392,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/UKRootViewController+Perf.swift",
-      "sourceHash": "ab22cd2725263979d4d6ec06df5ce3575fb1f936fca60897ebcf3648c761be67",
+      "sourceHash": "645dee04c1753670f9cb00951cc9575ccfcada81f04c31899583cd99ccf313d8",
       "classes": [],
       "motionSites": [],
       "disposition": "native-container",
@@ -405,7 +405,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/UKRootViewController.swift",
-      "sourceHash": "f8ba408db3a784ffc11525b1da64ae1a465f06a09a66e5156c9b2621dcd52ea2",
+      "sourceHash": "a7915f96d4119e9017e8ae1af6d777bc4c86528cd49b4f9d7fef5004baac760d",
       "classes": [
         {
           "name": "UKRootViewController",
@@ -1048,7 +1048,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Design/UKMarquee.swift",
-      "sourceHash": "defbc654956cc1661433da37ca3ca87318be84b16761e578774422cf3be4e9e9",
+      "sourceHash": "eece455c7c93eb26d6afaa2f19d8818e72cc94d83adc24a1608a4e22a9988ca3",
       "classes": [
         {
           "name": "UKMarqueeLabel",
@@ -1057,7 +1057,7 @@
       ],
       "motionSites": [
         {
-          "line": 283,
+          "line": 299,
           "api": "CAKeyframeAnimation"
         }
       ],
@@ -1809,7 +1809,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKAllRivalsViewController.swift",
-      "sourceHash": "65f454f27e5a76ce356396f2a32774ff4231827a4d33b522c9ded27565cf57aa",
+      "sourceHash": "6aa024179c993c39f7e7a6fb703217df7559a6f5ad982a5b7e06024452fb0e04",
       "classes": [
         {
           "name": "UKAllRivalsViewController",
@@ -1885,7 +1885,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalComparisonViewController.swift",
-      "sourceHash": "5cf86871319a41f193747cf5be79fe901ea2527264f2ccebcd10c9ff4b392e79",
+      "sourceHash": "5204626c84ba6e9a5106b2f54f73ece7ed2c267ee43d4f9040fe88cac9854e4e",
       "classes": [
         {
           "name": "UKRivalComparisonViewController",
@@ -2043,7 +2043,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKSuggestionsViewController.swift",
-      "sourceHash": "09050d96b0fa9be3829a867108a062ca74763a0d7a8395ae9ed7aafcfe02bb31",
+      "sourceHash": "4fe0aedbb0205cec6f360ae04f494451ad58ce8d0f7df7cd765f5d9518c7804d",
       "classes": [
         {
           "name": "UKSuggestionCell",
@@ -2117,7 +2117,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKFirstRun.swift",
-      "sourceHash": "099e199438ecc0b795352f4c093a07dc6d89e297ed57a1002eb0e5fdb4572539",
+      "sourceHash": "9ac0457aed717770e6a71dc84618c981e9b2f4bb921804cc9965ea5818e68350",
       "classes": [
         {
           "name": "UKFirstRunCarouselViewController",

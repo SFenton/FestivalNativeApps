@@ -131,11 +131,13 @@ public enum UKApp {
         PerfNavigationHooks.registerComponent(
             "marquee",
             start: {
-                rootBox.value?.select(.songs)
+                perfDebug.beginMarqueeComponent()
+                if rootBox.value?.selected != .songs { rootBox.value?.select(.songs) }
                 perfDebug.marqueeRequested = true
             },
-            stop: { perfDebug.marqueeRequested = false; perfDebug.clearMarquees() },
-            isReady: { perfDebug.marqueeAnimating }
+            stop: { perfDebug.marqueeRequested = false },
+            isReady: { perfDebug.marqueeComponentReady },
+            isRestored: { perfDebug.marqueeComponentRestored }
         )
         PerfNavigationHooks.registerComponent(
             "accordion",
@@ -143,6 +145,13 @@ public enum UKApp {
             stop: { rootBox.value?.perfRestoreAccordion() },
             isReady: { rootBox.value?.perfAccordionIsOpen == true },
             isRestored: { rootBox.value?.perfAccordionIsOpen == false }
+        )
+        PerfNavigationHooks.registerComponent(
+            "carousel",
+            start: { rootBox.value?.perfPresentFirstRunCarousel() },
+            stop: { rootBox.value?.perfStopFirstRunCarousel() },
+            isReady: { rootBox.value?.perfFirstRunCarouselReady == true },
+            isRestored: { rootBox.value?.perfFirstRunCarouselRestored == true }
         )
         // Song Detail lane: `FST_UIKIT_DEBUG_SONGDETAIL=<songId>` pushes a song's page.
         UKSongDetailDebug.openIfRequested(on: root)

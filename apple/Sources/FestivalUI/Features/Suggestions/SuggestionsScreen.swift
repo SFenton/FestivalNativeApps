@@ -256,6 +256,9 @@ struct SuggestionsScreen: View {
             .festivalFadeInScope(resetKey: viewModel.batchGeneration)
         }
         .scrollContentBackground(.hidden)
+        #if DEBUG && os(iOS)
+        .onAppear { FirstContentProbe.markFirstContent(rows: categories.count) }
+        #endif
         .task(id: viewModel.batchGeneration) {
             let generation = viewModel.batchGeneration
             await FadeStagger.settle(afterRevealing: viewModel.latestBatchIds.count) {

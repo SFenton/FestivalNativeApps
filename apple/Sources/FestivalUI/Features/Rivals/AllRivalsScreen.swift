@@ -204,6 +204,9 @@ struct AllRivalsScreen: View {
                 }
                 .padding(.horizontal, 16)
                 .festivalFadeIn(isLoaded: true)
+                #if DEBUG && os(iOS)
+                .onAppear { FirstContentProbe.markFirstContent(rows: rows.count) }
+                #endif
             }
             .padding(.vertical, 12)
         }

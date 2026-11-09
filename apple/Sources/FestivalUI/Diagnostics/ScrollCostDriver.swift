@@ -109,12 +109,18 @@ final class ScrollCostDriver {
                 else { continue }
             } else {
                 guard visible.width > 200, visible.height > 200 else { continue }
-                guard scroll.contentSize.height > scroll.bounds.height + 1 else { continue }
+                guard verticalScrollableRange(scroll) > 1 else { continue }
             }
             let area = visible.width * visible.height
             if best == nil || area > best!.area { best = (scroll, area) }
         }
         return best?.view
+    }
+
+    /// The actual vertical offset range after accounting for the viewport and adjusted insets.
+    static func verticalScrollableRange(_ scroll: UIScrollView) -> CGFloat {
+        max(0, scroll.contentSize.height - scroll.bounds.height
+            + scroll.adjustedContentInset.top + scroll.adjustedContentInset.bottom)
     }
 
     /// Every scroll view in the key window with the facts ``frontScrollView(horizontal:)`` judges, for a run that finds none.
@@ -126,7 +132,12 @@ final class ScrollCostDriver {
             stack.append(contentsOf: view.subviews)
             guard let scroll = view as? UIScrollView else { continue }
             let frame = scroll.convert(scroll.bounds, to: window)
-            found.append("\(type(of: scroll)) \(Int(frame.width))x\(Int(frame.height)) content=\(Int(scroll.contentSize.height)) alpha=\(scroll.alpha) hidden=\(scroll.isHidden)")
+            found.append(
+                "\(type(of: scroll)) \(Int(frame.width))x\(Int(frame.height)) "
+                    + "content=\(Int(scroll.contentSize.height)) range=\(Int(verticalScrollableRange(scroll))) "
+                    + "insets=\(Int(scroll.adjustedContentInset.top))/\(Int(scroll.adjustedContentInset.bottom)) "
+                    + "alpha=\(scroll.alpha) hidden=\(scroll.isHidden)"
+            )
         }
         let presented = window.rootViewController?.presentedViewController.map { "\(type(of: $0))" } ?? "none"
         return "presented=\(presented) " + found.joined(separator: "; ")

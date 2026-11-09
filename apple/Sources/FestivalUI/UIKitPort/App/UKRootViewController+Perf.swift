@@ -45,5 +45,35 @@ extension UKRootViewController {
     func perfRestoreAccordion() {
         (perfTopController as? UKSettingsViewController)?.perfRestoreAccordion()
     }
+
+    func perfPresentFirstRunCarousel() {
+        let slides = FirstRunSettingsSection.replaySlides(.songs)
+        let center = session.firstRunCenter
+        center.store.resetPage(slides.map(\.id))
+        let presentation = UKFirstRunPresentation(
+            page: .songs, slides: slides, presenter: perfTopController ?? self, session: session
+        ) { [weak self] viewed in
+            center.store.markSeen(viewed)
+            self?.perfFirstRunPresentation = nil
+        }
+        guard presentation.admission != .rejected else { return }
+        perfFirstRunPresentation = presentation
+        presentation.advanceForPerformance()
+    }
+
+    func perfStopFirstRunCarousel() {
+        perfFirstRunPresentation?.dismissForPerformance()
+    }
+
+    var perfFirstRunCarouselReady: Bool {
+        guard let presentation = perfFirstRunPresentation else { return false }
+        return presentation.isPresented
+            && presentation.performanceIsVisible
+            && presentation.performancePageIndex > 0
+    }
+
+    var perfFirstRunCarouselRestored: Bool {
+        perfFirstRunPresentation == nil
+    }
 }
 #endif

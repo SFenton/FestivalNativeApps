@@ -46,6 +46,11 @@ public struct FestivalRootView: View {
     @State private var windowRouteApplied = false
     #if DEBUG && os(iOS)
     @State private var motionReport = DebugMotionReport()
+    @State private var perfFirstRunPresentation: FirstRunPresentation?
+    @State private var perfFirstRunViewing = FirstRunViewing(slides: [])
+    @State private var perfFirstRunPresented = false
+    @State private var perfFirstRunAdvanceRequest = 0
+    @State private var perfFirstRunPage = 0
     #endif
     @AppStorage("fst.settings.showLead") private var showLead = true
     @AppStorage("fst.settings.showBass") private var showBass = true
@@ -195,6 +200,21 @@ public struct FestivalRootView: View {
                     .zIndex(1)
                 }
             }
+            #if DEBUG && os(iOS)
+            .sheet(item: $perfFirstRunPresentation, onDismiss: {
+                perfFirstRunPresented = false
+            }) { presentation in
+                FirstRunCarouselView(
+                    page: .songs, slides: presentation.slides,
+                    viewing: $perfFirstRunViewing,
+                    performanceAdvanceRequest: perfFirstRunAdvanceRequest,
+                    onPerformancePageChanged: { perfFirstRunPage = $0 },
+                    onFinish: { perfFirstRunPresentation = nil }
+                )
+                .environment(\.firstRunSession, session)
+                .onAppear { perfFirstRunPresented = true }
+            }
+            #endif
             .tint(moreContrast || systemContrast == .increased
                 ? BrandTokens.textPrimary : BrandTokens.accentBlue)
             .accessibilityFocusMove(drawerFocus)
@@ -273,11 +293,27 @@ public struct FestivalRootView: View {
                 PerfNavigationHooks.registerComponent(
                     "marquee",
                     start: {
-                        select(.songs)
+                        perfDebug.beginMarqueeComponent()
+                        if selected != .songs { select(.songs) }
                         perfDebug.marqueeRequested = true
                     },
-                    stop: { perfDebug.marqueeRequested = false; perfDebug.clearMarquees() },
-                    isReady: { perfDebug.marqueeAnimating }
+                    stop: { perfDebug.marqueeRequested = false },
+                    isReady: { perfDebug.marqueeComponentReady },
+                    isRestored: { perfDebug.marqueeComponentRestored }
+                )
+                PerfNavigationHooks.registerComponent(
+                    "carousel",
+                    start: {
+                        let slides = FirstRunSettingsSection.replaySlides(.songs)
+                        session.firstRunCenter.store.resetPage(slides.map(\.id))
+                        perfFirstRunViewing = FirstRunViewing(slides: slides)
+                        perfFirstRunPage = 0
+                        perfFirstRunAdvanceRequest += 1
+                        perfFirstRunPresentation = FirstRunPresentation(slides: slides)
+                    },
+                    stop: { perfFirstRunPresentation = nil },
+                    isReady: { perfFirstRunPresented && perfFirstRunPage > 0 },
+                    isRestored: { !perfFirstRunPresented && perfFirstRunPresentation == nil }
                 )
             }
             #endif

@@ -180,7 +180,7 @@ final class UKMarqueeLabel: UIView {
             leaveGroup()
             trackLayer.removeAnimation(forKey: "marquee")
             #if DEBUG
-            PerfComponentDebugState.shared.setMarquee(perfMarqueeID, active: false)
+            PerfComponentDebugState.shared.removeMarquee(perfMarqueeID)
             #endif
         } else {
             refresh()
@@ -208,10 +208,19 @@ final class UKMarqueeLabel: UIView {
     }
 
     private func applyText() {
-        staticLabel.text = text
-        staticLabel.font = font
-        staticLabel.textColor = textColor
-        staticLabel.numberOfLines = wraps ? 0 : 1
+        if staticLabel.text != text {
+            staticLabel.text = text
+        }
+        if staticLabel.font != font {
+            staticLabel.font = font
+        }
+        if staticLabel.textColor?.isEqual(textColor) != true {
+            staticLabel.textColor = textColor
+        }
+        let lineCount = wraps ? 0 : 1
+        if staticLabel.numberOfLines != lineCount {
+            staticLabel.numberOfLines = lineCount
+        }
     }
 
     func syncDistanceChanged() { refresh() }
@@ -273,12 +282,19 @@ final class UKMarqueeLabel: UIView {
         CATransaction.commit()
         let next = overflowing && cycleDuration > 0 && renderKey != nil
             ? Plan(distance: distance, cycleDuration: cycleDuration, renderKey: renderKey!) : nil
+        #if DEBUG
+        let visible = window != nil && !isHidden && alpha > 0.01
+        PerfComponentDebugState.shared.updateMarquee(
+            perfMarqueeID, rendererClass: "UKMarqueeLabel", overflow: overflowing,
+            visible: visible, reduceMotion: UKAccessibility.reduceMotion,
+            sceneActive: window?.windowScene?.activationState == .foregroundActive,
+            animation: next != nil, textLength: text.count,
+            textWidth: naturalWidth, viewportWidth: bounds.width
+        )
+        #endif
         guard next != plan else { return }
         plan = next
         trackLayer.removeAnimation(forKey: "marquee")
-        #if DEBUG
-        PerfComponentDebugState.shared.setMarquee(perfMarqueeID, active: next != nil)
-        #endif
         guard let next else { return }
         let animation = CAKeyframeAnimation(keyPath: "transform.translation.x")
         animation.values = MarqueeTrackLayer.offsets(distance: next.distance).map { NSNumber(value: $0) }

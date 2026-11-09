@@ -210,8 +210,11 @@ def collect(directory: Path) -> dict:
             if kind in ("idle", "scroll"):
                 metrics = scroll_metrics(summary, host)
             else:
-                pairs = parse_pairs(summary)
-                metrics = pairs if pairs else {"error": summary[:80]}
+                if kind == "component" and summary.startswith("component did not settle:"):
+                    metrics = {"error": summary[:80]}
+                else:
+                    pairs = parse_pairs(summary)
+                    metrics = pairs if pairs else {"error": summary[:80]}
             metrics["_round"] = round_number
             metrics["_file"] = path.name
             if route:

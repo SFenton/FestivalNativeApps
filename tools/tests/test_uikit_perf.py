@@ -71,10 +71,14 @@ class SurfaceFileTests(unittest.TestCase):
         marquee = next(s for s in surfaces if s.name == "Marquee animation")
         self.assertEqual(marquee.env["FST_DEBUG_SONG"], "fixture-pulse")
         self.assertEqual(marquee.env["FST_PERF_COMPONENT"], "marquee")
+        carousel = next(s for s in surfaces if s.name == "Carousel page transition")
+        self.assertEqual(carousel.env["FST_DEBUG_ROUTE"], "settingsTopic:firstRun")
+        self.assertEqual(carousel.env["FST_DEBUG_FIRST_RUN"], "force")
+        self.assertEqual(carousel.env["FST_PERF_COMPONENT"], "carousel")
         self.assertEqual(
             {s.name for s in surfaces if s.mode == "latency"},
             {
-                "Shop", "Global Search", "Bands landing", "Licenses",
+                "Shop", "Global Search", "Bands landing", "All Rivals", "Rivalry detail", "Licenses",
                 "Settings topic accessibility", "Settings topic privacy",
                 "Settings topic instruments", "Settings topic metadata",
                 "Settings topic paths", "Settings topic item shop",
@@ -225,6 +229,16 @@ class ReportParsingTests(unittest.TestCase):
 
     def test_scroll_line_without_a_window_is_an_error(self):
         self.assertIn("error", uikit_perf_report.scroll_metrics("no scroll view: presented=none", []))
+
+    def test_component_settle_failure_with_diagnostics_is_an_error_row(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            summary = "component did not settle: marquee requested=1 renderer_count=17 max_text_width=900"
+            (directory / "r1-swiftui-marquee.tsv").write_text(
+                f"FSTPERF\tMarquee animation\tcomponent\t{summary}\nFSTPERF_DONE\n"
+            )
+            metrics = uikit_perf_report.collect(directory)["runs"][("Marquee animation", "component", "swiftui")][0]
+            self.assertEqual(metrics, {"error": summary[:80], "_round": 1, "_file": "r1-swiftui-marquee.tsv"})
 
 
 class ReportRenderTests(unittest.TestCase):
