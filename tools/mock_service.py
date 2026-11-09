@@ -2076,8 +2076,17 @@ class FixtureHandler(BaseHTTPRequestHandler):
                 etag = '"fst-fixture-art-white-v1"'
             elif self.fixture.large_catalogue:
                 rows = DEMO_SONGS["songs"] + LARGE_CATALOGUE_SONGS
+                if self.fixture.long_titles:
+                    rows = [
+                        {**song, "title": LONG_TITLE} if song["songId"] == "fixture-pulse" else song
+                        for song in rows
+                    ]
                 songs = {**DEMO_SONGS, "count": len(rows), "songs": rows}
-                etag = '"fst-fixture-large-catalogue-v1"'
+                etag = (
+                    '"fst-fixture-large-catalogue-long-titles-v1"'
+                    if self.fixture.long_titles
+                    else '"fst-fixture-large-catalogue-v1"'
+                )
             elif self.fixture.long_titles:
                 rows = [
                     {**song, "title": LONG_TITLE} if song["songId"] == "fixture-pulse" else song
