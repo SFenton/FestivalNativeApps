@@ -50,10 +50,42 @@ from tools.ios_sim import (
     _coverage_source_digest,
     _coverage_source_manifest,
     _coverage_profile,
+    _result_device_identity,
     _parse_lcov,
     source_hash,
     write_driver_hash,
 )
+
+
+class ResultDeviceIdentityTests(unittest.TestCase):
+    """Coverage provenance follows the xcresult device, not the selected scheme."""
+
+    def _summary(self, model: str, udid: str) -> dict:
+        return {
+            "devicesAndConfigurations": [{
+                "device": {
+                    "platform": "iOS Simulator",
+                    "modelName": model,
+                    "deviceId": udid,
+                }
+            }]
+        }
+
+    def test_phone_app_on_ipad_uses_actual_ipad_family(self):
+        self.assertEqual(
+            _result_device_identity(self._summary("iPad Pro 11-inch (M5)", "ipad-1"), "ipad-1"),
+            ("iPad", "ipad-1"),
+        )
+
+    def test_ipad_test_target_on_phone_uses_actual_iphone_family(self):
+        self.assertEqual(
+            _result_device_identity(self._summary("iPhone 17 Pro", "phone-1"), "phone-1"),
+            ("iPhone", "phone-1"),
+        )
+
+    def test_mismatched_result_udid_fails_closed(self):
+        with self.assertRaisesRegex(RuntimeError, "device mismatch"):
+            _result_device_identity(self._summary("iPhone 17 Pro", "actual"), "owned")
 
 
 class ParseStepsTests(unittest.TestCase):
@@ -708,7 +740,16 @@ class DriveFlowTests(unittest.TestCase):
                     mock.patch.object(ios_sim.subprocess, "run",
                                       return_value=subprocess.CompletedProcess([], 0)), \
                     mock.patch.object(ios_sim, "_result_summary",
-                                      return_value={"startTime": 1, "finishTime": 2}), \
+                                      return_value={
+                                          "startTime": 1, "finishTime": 2,
+                                          "devicesAndConfigurations": [{
+                                              "device": {
+                                                  "platform": "iOS Simulator",
+                                                  "modelName": "iPhone 17 Pro",
+                                                  "deviceId": "UDID",
+                                              }
+                                          }],
+                                      }), \
                     mock.patch.object(ios_sim, "collect_llvm_coverage",
                                       return_value=(Path("export"), Path("lcov"), Path("prov"))) as collect, \
                     contextlib.redirect_stderr(io.StringIO()):

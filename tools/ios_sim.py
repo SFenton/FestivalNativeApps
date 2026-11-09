@@ -732,6 +732,27 @@ def collect_llvm_coverage(
     return export_path, line_map_path, provenance_path
 
 
+def _result_device_identity(summary: dict, expected_udid: str) -> tuple[str, str]:
+    """Derive the retained result's device family and verify its exact simulator ID."""
+    entries = summary.get("devicesAndConfigurations")
+    if not isinstance(entries, list) or len(entries) != 1:
+        raise RuntimeError("coverage result must identify exactly one simulator")
+    device = entries[0].get("device", {})
+    model = device.get("modelName")
+    identifier = device.get("deviceId")
+    if device.get("platform") != "iOS Simulator" or not isinstance(model, str):
+        raise RuntimeError("coverage result has no supported simulator model")
+    if identifier != expected_udid:
+        raise RuntimeError(
+            f"coverage result device mismatch: expected {expected_udid}, got {identifier}"
+        )
+    if model.startswith("iPhone"):
+        return "iPhone", identifier
+    if model.startswith("iPad"):
+        return "iPad", identifier
+    raise RuntimeError(f"coverage result has unsupported simulator model: {model}")
+
+
 def driver_build_stale(
     derived: Path, current_hash: str, coverage: bool = False,
     coverage_digest: str | None = None,
@@ -2162,9 +2183,9 @@ def cmd_drive(args: argparse.Namespace) -> int:
                 if process.returncode == 0 and coverage and product().app_name == "FestivalMobileUIKit":
                     summary = _result_summary(result_bundle)
                     try:
-                        family = "iPad" if "IPad" in product().scheme else "iPhone"
+                        family, result_udid = _result_device_identity(summary or {}, udid)
                         artifacts = collect_llvm_coverage(
-                            result_bundle, derived, summary or {}, (family, udid)
+                            result_bundle, derived, summary or {}, (family, result_udid)
                         )
                     except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as error:
                         process = subprocess.CompletedProcess(cmd, 1)
@@ -2729,9 +2750,9 @@ def _run_uitest_batch(
                 if returncode == 0:
                     summary = _result_summary(result_bundle)
                     try:
-                        family = "iPad" if "IPad" in product().scheme else "iPhone"
+                        family, result_udid = _result_device_identity(summary or {}, udid)
                         artifacts = collect_llvm_coverage(
-                            result_bundle, derived, summary or {}, (family, udid)
+                            result_bundle, derived, summary or {}, (family, result_udid)
                         )
                         print(
                             "coverage artifacts: " + " ".join(str(path) for path in artifacts),
