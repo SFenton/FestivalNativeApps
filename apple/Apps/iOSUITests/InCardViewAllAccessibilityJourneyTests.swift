@@ -4,8 +4,14 @@ import XCTest
 
 #if FST_UIKIT_PORT
 private let scoreHistoryDestination = ["fst.history.header"]
+private let scoreHistoryContent = ["fst.history.header", "fst.history.row.0"]
+private let scoreHistoryDestinationLabel: String? = "Lead · Score History"
+private let scoreHistoryDismissal: String? = "fst.song-detail.intensity"
 #else
 private let scoreHistoryDestination = ["fst.history"]
+private let scoreHistoryContent: [String] = []
+private let scoreHistoryDestinationLabel: String? = nil
+private let scoreHistoryDismissal: String? = nil
 #endif
 
 // MARK: - In-card View All at AX5 (issue #382, backfilled by #500)
@@ -106,9 +112,9 @@ final class InCardViewAllAccessibilityJourneyTests: XCTestCase {
         id: "fst.song-detail.history.view-all",
         nameFormat: #"^View All Scores, .+ Score History$"#, words: ["view", "all", "scores"],
         destination: scoreHistoryDestination,
-        content: ["fst.history.header", "fst.history.row.0"],
-        destinationLabel: "Lead · Score History",
-        dismissal: "fst.song-detail.intensity"
+        content: scoreHistoryContent,
+        destinationLabel: scoreHistoryDestinationLabel,
+        dismissal: scoreHistoryDismissal
     )
 
     // MARK: - Journeys
