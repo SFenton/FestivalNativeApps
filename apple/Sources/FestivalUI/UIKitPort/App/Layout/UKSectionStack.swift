@@ -45,6 +45,7 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
     private var cut: OnDemandSplitPolicy.Cut?
     private var placeholder: UIViewController?
     private let divider = UIView()
+    private let dividerLine = UIView()
     private var applyingPath = false
     /// Called when the trailing pane opens or closes (Escape and the menu bar's Close).
     var onSplitOpenChanged: ((Bool) -> Void)?
@@ -86,6 +87,9 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
         divider.accessibilityIdentifier = "fst.split.divider"
         divider.isHidden = true
         view.addSubview(divider)
+        dividerLine.isUserInteractionEnabled = false
+        dividerLine.isAccessibilityElement = false
+        divider.addSubview(dividerLine)
     }
 
     // MARK: Path
@@ -352,13 +356,19 @@ final class UKSectionStack: UIViewController, UINavigationControllerDelegate {
         let contrast = traitCollection.accessibilityContrast == .high
             || UKSettings.bool("fst.accessibility.moreContrast", default: false)
         divider.isHidden = false
-        divider.backgroundColor = OnDemandSplitPolicy.drawsDividerLine(geometry, increasedContrast: contrast)
+        divider.backgroundColor = .clear
+        let drawsLine = OnDemandSplitPolicy.drawsDividerLine(geometry, increasedContrast: contrast)
+        dividerLine.isHidden = !drawsLine
+        dividerLine.backgroundColor = drawsLine
             ? UIColor.white.withAlphaComponent(0.16) : .clear
-        let width = OnDemandSplitPolicy.midpointDividerWidth
         let band = geometry.dividerWidth
-        let x = rightToLeft ? view.bounds.width - geometry.leadingWidth - band / 2 - width / 2
-            : geometry.leadingWidth + band / 2 - width / 2
-        divider.frame = CGRect(x: x, y: 0, width: width, height: view.bounds.height)
+        let lineWidth = OnDemandSplitPolicy.midpointDividerWidth
+        let x = rightToLeft ? view.bounds.width - geometry.leadingWidth - band
+            : geometry.leadingWidth
+        divider.frame = CGRect(x: x, y: 0, width: band, height: view.bounds.height)
+        dividerLine.frame = CGRect(
+            x: (band - lineWidth) / 2, y: 0, width: lineWidth, height: view.bounds.height
+        )
     }
 
     override func viewDidLayoutSubviews() {

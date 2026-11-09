@@ -71,6 +71,8 @@ final class UKRootViewController: UIViewController {
     var tabsSearchAsTab = false
     #if DEBUG
     var perfFirstRunPresentation: UKFirstRunPresentation?
+    var debugMenuMirror: UKDebugMenuBarMirror?
+    var debugLastMenuDispatch: String?
     #endif
 
     // MARK: Background lane
@@ -147,6 +149,23 @@ final class UKRootViewController: UIViewController {
         session.acquireLiveUpdates(liveToken)
         #if DEBUG
         installDebugDuoWindow()
+        if ProcessInfo.processInfo.environment["FST_DEBUG_MENU_BAR"] == "1",
+           UIDevice.current.userInterfaceIdiom == .pad {
+            let mirror = UKDebugMenuBarMirror(root: self)
+            mirror.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(mirror)
+            NSLayoutConstraint.activate([
+                mirror.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 12),
+                mirror.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
+                mirror.widthAnchor.constraint(equalToConstant: 190),
+            ])
+            debugMenuMirror = mirror
+            mirror.update(
+                commands: currentPageMenuCommands, blocked: sheetOpen,
+                trace: (frontPage as? UKPageToolsProviding)?.ukDebugMenuTrace,
+                dispatch: debugLastMenuDispatch
+            )
+        }
         #endif
     }
 

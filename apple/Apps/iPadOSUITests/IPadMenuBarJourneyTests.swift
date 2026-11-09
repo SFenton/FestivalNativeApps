@@ -8,8 +8,9 @@ import XCTest
 /// The iPadOS 26 menu bar is not in the XCUITest tree (a top-edge swipe, pointer hover
 /// or held ⌘ exposes no menu bar or menu item to the runner, 2026-10-14), so the Debug
 /// launch flag `FST_DEBUG_MENU_BAR=1` lays the same items over the window
-/// (`DebugMenuBarMirror` → `PageToolMenuBarMirror`: the focused values and shared views
-/// `FestivalCommands` uses). Fixture-backed (`tools/mock_service.py` on 127.0.0.1:8765,
+/// (`DebugMenuBarMirror` → `PageToolMenuBarMirror` for SwiftUI, or the UIKit-only
+/// `UKDebugMenuBarMirror` using the same responder command identifiers). Fixture-backed
+/// (`tools/mock_service.py` on 127.0.0.1:8765,
 /// or the runner's `FST_FIXTURE_URL`), never production. Run with
 /// `python3 tools/ios_sim.py uitest --device ipad --only IPadMenuBarJourneyTests`.
 final class IPadMenuBarJourneyTests: XCTestCase {
@@ -69,6 +70,9 @@ final class IPadMenuBarJourneyTests: XCTestCase {
         let app = launch(["FST_DEBUG_ROUTE": "shop"])
         defer { app.terminate() }
         let mirror = self.mirror(app)
+        let mirrorFound = mirror.waitForExistence(timeout: 30)
+        attachDiagnosticState(app, mirror: mirror, name: "shop-before-menu-query")
+        XCTAssertTrue(mirrorFound, "the Debug menu-bar mirror")
         let asList = item("as List", in: mirror)
         let asGrid = item("as Grid", in: mirror)
         XCTAssertTrue(wait(for: asGrid, "isEnabled == true", timeout: 30), "as Grid on the Item Shop")
@@ -81,11 +85,13 @@ final class IPadMenuBarJourneyTests: XCTestCase {
         XCTAssertEqual(toggle.label, "List View")
 
         flip(asList)
+        attachTrace(app)
         XCTAssertTrue(wait(for: asList, "value == '1'", timeout: 10), "as List takes effect")
         XCTAssertFalse(isOn(asGrid))
         XCTAssertTrue(wait(for: toggle, "label == 'Grid View'", timeout: 10), "the page shows its list")
 
         flip(asGrid)
+        attachTrace(app)
         XCTAssertTrue(wait(for: asGrid, "value == '1'", timeout: 10), "as Grid takes effect")
         XCTAssertTrue(wait(for: toggle, "label == 'List View'", timeout: 10), "the page shows its grid")
     }
@@ -118,11 +124,20 @@ final class IPadMenuBarJourneyTests: XCTestCase {
         let select = item("Select This Profile", in: mirror)
         XCTAssertTrue(wait(for: select, "isEnabled == true", timeout: 30), "Select This Profile on the player page")
         XCTAssertFalse(item("View Rival's Profile", in: mirror).isEnabled)
-        let profile = element(app, "fst.shell.profile")
-        XCTAssertEqual(profile.label, "Choose Profile")
+        let nativeSelect = element(app, "fst.player.select")
+        XCTAssertEqual(nativeSelect.label, "Select Profile")
         select.tap()
-        XCTAssertTrue(wait(for: profile, "label != 'Choose Profile'", timeout: 15), "the shown player is selected")
-        XCTAssertTrue(wait(for: select, "isEnabled == false", timeout: 10), "nothing to select on your own page")
+        attachDiagnosticState(app, mirror: mirror, name: "profile-after-selection")
+        let selectedProfile = element(app, "fst.player.deselect")
+        XCTAssertTrue(
+            wait(for: selectedProfile, "label == 'Deselect Profile'", timeout: 15),
+            "the shown player is selected"
+        )
+        let selectedCommand = item("Select This Profile", in: mirror)
+        XCTAssertTrue(
+            wait(for: selectedCommand, "isEnabled == false", timeout: 10),
+            "nothing to select on your own page"
+        )
     }
 
     /// Rivalry: View Rival's Profile opens the rival's player page.
@@ -156,19 +171,118 @@ final class IPadMenuBarJourneyTests: XCTestCase {
         XCTAssertTrue(element(app, "fst.suggestions.filter.form").exists, "the page's filter form")
     }
 
+    /// Full Rankings' native command tree applies the Settings experimental-ranks gate.
+    @MainActor
+    func testFullRankingsRankByMenuHonorsExperimentalRanksFlag() throws {
+        for enabled in [false, true] {
+            let app = launch(
+                ["FST_DEBUG_ROUTE": "fullRankings:Solo_Guitar"],
+                experimentalRanks: enabled
+            )
+            let mirror = self.mirror(app)
+            XCTAssertTrue(mirror.waitForExistence(timeout: 30), "the Debug menu-bar mirror")
+            XCTAssertTrue(app.navigationBars["Lead Rankings"].waitForExistence(timeout: 20))
+            XCTAssertTrue(item("Rank By", in: mirror).exists, "Rank By remains a fixed submenu")
+            let expected = enabled
+                ? ["Total Score", "Adjusted", "Weighted", "FC Rate", "Max Score"]
+                : ["Total Score"]
+            for metric in ["Total Score", "Adjusted", "Weighted", "FC Rate", "Max Score"] {
+                XCTAssertEqual(
+                    item(metric, in: mirror).exists,
+                    expected.contains(metric),
+                    "\(metric) follows Experimental Ranks \(enabled ? "on" : "off")"
+                )
+            }
+            app.terminate()
+        }
+    }
+
+    /// Band Rankings' native command tree applies the same gate without exposing Max Score.
+    @MainActor
+    func testBandRankingsRankByMenuHonorsExperimentalRanksFlag() throws {
+        for enabled in [false, true] {
+            let app = launch(
+                ["FST_DEBUG_ROUTE": "bandRankings:Band_Duets"],
+                experimentalRanks: enabled
+            )
+            let mirror = self.mirror(app)
+            XCTAssertTrue(mirror.waitForExistence(timeout: 30), "the Debug menu-bar mirror")
+            XCTAssertTrue(app.navigationBars["Duos Rankings"].waitForExistence(timeout: 20))
+            let expected = enabled
+                ? ["Total Score", "Adjusted", "Weighted", "FC Rate"]
+                : ["Total Score"]
+            for metric in ["Total Score", "Adjusted", "Weighted", "FC Rate", "Max Score"] {
+                XCTAssertEqual(
+                    item(metric, in: mirror).exists,
+                    expected.contains(metric),
+                    "\(metric) follows Band Experimental Ranks \(enabled ? "on" : "off")"
+                )
+            }
+            app.terminate()
+        }
+    }
+
     // MARK: - Helpers
+
+    /// Capture the complete UIKit/XCUITest surface before a potentially failing query.
+    @MainActor
+    private func attachDiagnosticState(_ app: XCUIApplication, mirror: XCUIElement, name: String) {
+        XCTContext.runActivity(named: name) { activity in
+            let tree = XCTAttachment(string: app.debugDescription)
+            tree.name = "\(name)-accessibility-tree"
+            activity.add(tree)
+
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = "\(name)-screen"
+            activity.add(screenshot)
+
+            let trace = element(app, "fst.menu-bar-trace")
+            if trace.exists {
+                let traceAttachment = XCTAttachment(string: trace.value as? String ?? trace.label)
+                traceAttachment.name = "\(name)-menu-trace"
+                activity.add(traceAttachment)
+            }
+
+            let mirrorDescription = XCTAttachment(string: mirror.debugDescription)
+            mirrorDescription.name = "\(name)-mirror-tree"
+            activity.add(mirrorDescription)
+        }
+    }
+
+    /// Attach the durable trace projected from the actual UIKit command tree and page render state.
+    @MainActor
+    private func attachTrace(_ app: XCUIApplication) {
+        let trace = element(app, "fst.menu-bar-trace")
+        guard trace.exists else { return }
+        let attachment = XCTAttachment(string: trace.value as? String ?? trace.label)
+        attachment.name = "UIKit native menu render trace"
+        XCTContext.runActivity(named: "UIKit native menu render trace") { activity in
+            activity.add(attachment)
+        }
+    }
 
     /// Launch against the fixture service with the mirror, filling the screen.
     @MainActor
-    private func launch(_ extra: [String: String], profile: String? = nil) -> XCUIApplication {
+    private func launch(
+        _ extra: [String: String],
+        profile: String? = nil,
+        experimentalRanks: Bool? = nil
+    ) -> XCUIApplication {
         var env = [
             "FST_API_BASE_URL": Self.fixtureURL,
             "FST_UI_TEST_CLEAR_PROFILE": "1",
             "FST_DEBUG_MENU_BAR": "1",
+            "FST_DEBUG_MENU_TRACE": "1",
         ]
         if let profile { env["FST_DEBUG_PROFILE"] = profile }
         env.merge(extra) { $1 }
         let app = FestivalApp.makeApp(env)
+        if let experimentalRanks {
+            app.launchArguments += [
+                "-fst.settings.experimentalRanks",
+                experimentalRanks ? "YES" : "NO",
+            ]
+        }
         app.launch()
         WindowResize.fill(app)
         return app

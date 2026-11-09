@@ -147,6 +147,8 @@ class UKRivalsPageViewController: UKPageViewController, UKPageToolsProviding, UI
 
     /// Extra tools besides Quick Links, in any order.
     var pageTools: [UKPageTool] { [] }
+    var ukPageMenuCommands: [UKPageMenuCommand] { pageMenuCommands }
+    var pageMenuCommands: [UKPageMenuCommand] { [] }
 
     // MARK: Page tools
 

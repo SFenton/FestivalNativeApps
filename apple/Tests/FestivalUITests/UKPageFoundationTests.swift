@@ -1,4 +1,5 @@
 #if os(iOS)
+    import FestivalCore
     import UIKit
     import Testing
     @testable import FestivalUI
@@ -10,6 +11,30 @@
     @MainActor
     private final class UKPageFoundationRivalsProbe: UKRivalsPageViewController {
         override func build() {}
+    }
+
+    @MainActor
+    private final class UKPageFoundationRivalsMenuProbe: UKRivalsPageViewController {
+        override func build() {}
+        override var pageMenuCommands: [UKPageMenuCommand] {
+            [UKPageMenuCommand(identifier: "rivals-probe", title: "Rivals Probe")]
+        }
+    }
+
+    @MainActor
+    private final class UKPageFoundationProfileMenuProbe: UKProfileScrollViewController {
+        override var pageMenuCommands: [UKPageMenuCommand] {
+            [UKPageMenuCommand(identifier: "profile-probe", title: "Profile Probe")]
+        }
+    }
+
+    @MainActor
+    private final class UKPageMenuProbe: UIViewController, UKPageToolsProviding {
+        var ukPageTools: [UKPageTool] { [] }
+        var didPerform = false
+        var ukPageMenuCommands: [UKPageMenuCommand] {
+            [UKPageMenuCommand(identifier: "probe", title: "Probe", perform: { [weak self] in self?.didPerform = true })]
+        }
     }
 
     extension UKFoundationTests {
@@ -164,6 +189,69 @@
                 #expect(page.scrollView.superview === page.pageContainment.contentView)
                 #expect(!page.scrollView.isHidden)
                 #expect(page.scrollView.contentOffset.y == 211)
+            }
+
+            @Test
+            func pageMenuCommandsPreserveNativeStateAndActionOwnership() {
+                let page = UKPageMenuProbe()
+                let checked = UKPageMenuCommand(
+                    identifier: "checked", title: "Checked", state: .on,
+                    children: [UKPageMenuCommand(identifier: "probe", title: "Probe", perform: { page.didPerform = true })]
+                )
+
+                #expect(checked.isSubmenu)
+                #expect(checked.state == .on)
+                checked.children[0].perform?()
+                #expect(page.didPerform)
+                #expect(page.ukPageMenuCommands.first?.isEnabled == true)
+            }
+
+            @Test
+            func inheritedPageToolWitnessForwardsConcreteRivalsAndProfileCommands() {
+                let session = FestivalSession(factory: { fatalError("network is not used") })
+                let rivals: UKPageToolsProviding = UKPageFoundationRivalsMenuProbe(context: UKContext(session: session))
+                let profile: UKPageToolsProviding = UKPageFoundationProfileMenuProbe(context: UKContext(session: session))
+
+                #expect(rivals.ukPageMenuCommands.map(\.identifier) == ["rivals-probe"])
+                #expect(profile.ukPageMenuCommands.map(\.identifier) == ["profile-probe"])
+            }
+
+            @Test
+            func UIKitRankByCommandsHonorExperimentalRanksFlag() {
+                let key = ExperimentalRanks.storageKey
+                let previous = UserDefaults.standard.object(forKey: key)
+                defer {
+                    if let previous {
+                        UserDefaults.standard.set(previous, forKey: key)
+                    } else {
+                        UserDefaults.standard.removeObject(forKey: key)
+                    }
+                }
+
+                let session = FestivalSession(factory: { fatalError("network is not used") })
+                let context = UKContext(session: session)
+                let full = UKFullRankingsViewController(
+                    context: context, instrument: .lead, rankBy: "adjusted", page: 1, focusSelected: false
+                )
+                let band = UKBandRankingsViewController(
+                    context: context, bandType: BandType.duets.rawValue, rankBy: "adjusted", page: 1
+                )
+
+                UserDefaults.standard.set(false, forKey: key)
+                #expect(rankByChildren(of: full).map(\.identifier) == ["rank.totalscore"])
+                #expect(rankByChildren(of: band).map(\.identifier) == ["rank.totalscore"])
+
+                UserDefaults.standard.set(true, forKey: key)
+                #expect(rankByChildren(of: full).map(\.identifier) == [
+                    "rank.totalscore", "rank.adjusted", "rank.weighted", "rank.fcrate", "rank.maxscore",
+                ])
+                #expect(rankByChildren(of: band).map(\.identifier) == [
+                    "rank.totalscore", "rank.adjusted", "rank.weighted", "rank.fcrate",
+                ])
+            }
+
+            private func rankByChildren(of page: UKPageToolsProviding) -> [UKPageMenuCommand] {
+                page.ukPageMenuCommands.first { $0.identifier == "rankBy" }?.children ?? []
             }
         }
     }

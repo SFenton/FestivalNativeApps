@@ -54,6 +54,18 @@ class UKRivalComparisonViewController: UKRivalsPageViewController {
         }]
     }
 
+    override var pageMenuCommands: [UKPageMenuCommand] {
+        [
+            UKPageMenuCommand(
+                identifier: "profile.rival", title: "View Rival's Profile",
+                perform: { [weak self] in
+                    guard let self else { return }
+                    self.context.navigator?.push(.player(accountId: self.rivalId, displayName: self.displayName))
+                }
+            )
+        ]
+    }
+
     /// Reads the rival detail and the catalogue lookup, then calls ``didLoad(_:)``.
     ///
     /// - Parameters:

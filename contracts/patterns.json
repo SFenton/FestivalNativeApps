@@ -1244,8 +1244,13 @@
           "id": "apple-menu-bar-page-tools",
           "glob": "apple/Sources/**/*.swift",
           "regex": "Button\\(\"(Sort|Filter|Find Rival)…\"\\)|Toggle\\(\"as (List|Grid)\"|Menu\\(\"(Rank By|Instrument|Band Size)\"\\)|\"View Rival's Profile\"",
-          "allow": ["apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift"],
-          "message": "The macOS and iPadOS menu bars lay out page tools only through the shared PageToolViewMenuItems / PageToolProfileMenuItems, so both menu bars and their tested mirror stay one implementation (page-tools-and-nav-chrome R28, #633)."
+          "allow": [
+            "apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift",
+            "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKDebugMenuBarMirror.swift",
+            "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKMenuBar.swift",
+            "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalComparisonViewController.swift"
+          ],
+          "message": "SwiftUI and macOS page tools remain owned by PageToolViewMenuItems / PageToolProfileMenuItems. UIKit uses the explicit UKPageMenuCommand seam: these named UIKit owners may project the typed command tree and its DEBUG mirror, but may not create a second action registry (page-tools-and-nav-chrome R28, #633)."
         },
         {
           "id": "apple-title-display-mode",

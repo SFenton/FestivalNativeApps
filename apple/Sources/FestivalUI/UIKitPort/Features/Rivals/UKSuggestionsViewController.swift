@@ -175,6 +175,15 @@ final class UKSuggestionsViewController: UKRivalsPageViewController, UICollectio
         return [tool]
     }
 
+    override var pageMenuCommands: [UKPageMenuCommand] {
+        [
+            UKPageMenuCommand(
+                identifier: "filter", title: "Filter…", isEnabled: showsFilter,
+                perform: showsFilter ? { [weak self] in self?.presentFilter() } : nil
+            )
+        ]
+    }
+
     private func presentFilter() {
         let sheet = UKSuggestionsFilterViewController(
             applied: viewModel.filter, visibleInstruments: Instrument.allCases.filter(visibleInstruments.contains)

@@ -56,17 +56,18 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/Chrome/UKPageTools.swift",
-      "sourceHash": "6153ab049ca9995be7b2656cc21eb4de63aff47dc18891d9941352c0a3dcaef9",
+      "sourceHash": "b66cafda2dff917d226275e09474d2379954d2b70739f6b4510829420505a18d",
       "classes": [],
       "motionSites": [],
       "disposition": "feature-composition",
       "owner": "UKRootViewController",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
-        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
-        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+        ".agents/platforms/apple/uikit-port.md",
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift"
       ],
-      "note": "Chrome/commands retain Festival policy over native controls and the root/window presentation owner; domain route/tool choices remain app-owned. Full runtime/coverage/pose/performance gates remain independent."
+      "note": "Defines the typed page-command seam, responder action contract, and DEBUG trace contract. Qualified source-cohort evidence covers six native iPad menu selectors using matching 8c9 source/device/fixture archives (five v9 plus one v8); the v9 SpringBoard launch failure is excluded and retained. SDK/hosted 67 tests/70 invocations pass; this is not whole-app/other-form-factor/performance certification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/Chrome/UKRootChrome.swift",
@@ -103,7 +104,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/Layout/UKSectionStack.swift",
-      "sourceHash": "96dbd36a728767c9d24207ad26e8be4455393e25ebe71fe06c85be4fbb4ca5eb",
+      "sourceHash": "1cd61871d3b2c7af2bd98cc5638b650dd9430a00aa2b2d64368eab61050b2330",
       "classes": [
         {
           "name": "UKSectionStack",
@@ -116,17 +117,17 @@
       ],
       "motionSites": [
         {
-          "line": 337,
+          "line": 341,
           "api": "UIView.animate"
         }
       ],
       "disposition": "native-container",
       "owner": "UKSectionStack",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
+        ".agents/patterns/split-panes.md",
         "apple/Tests/FestivalUITests/UKSectionStackFoundationTests.swift"
       ],
-      "note": "Stable route/controller partitions; geometry retains identity; actual detail owns focus, selection and divider. Source review only; runtime, pose, coverage and performance gates remain independent."
+      "note": "Canonical split owner retains the full geometry divider width; only its centered hairline is decorative. Actual SDK/hosted 69 tests and 72 invocations plus original emulated landscape-iPad Flat and Book AX5/MoreContrast journeys pass with stable source 9bd6. This is emulated geometry evidence only; real Duo unfolded/book remains permission-gated."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/Presentation/UKPresentationCoordinator.swift",
@@ -246,6 +247,25 @@
       "note": "Debug pose/window readout is diagnostic state, not actual hinge or form-factor qualification. Runtime/coverage/performance gates remain independent."
     },
     {
+      "path": "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKDebugMenuBarMirror.swift",
+      "sourceHash": "c34751c50fcc00960c34341f541de12a87b47951c33b6062225810f9d719bed5",
+      "classes": [
+        {
+          "name": "UKDebugMenuBarMirror",
+          "base": "UIView"
+        }
+      ],
+      "motionSites": [],
+      "disposition": "debug-only",
+      "owner": "UKRootViewController",
+      "verification": [
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
+      ],
+      "note": "UIKit-only DEBUG projection recursively derives command identifiers, labels, enabled state and actions from the native typed tree, never a parallel action registry. Six original selectors have a source-matched passing 8c9 cohort; later exact source f1ad SDK and both Full/Band flag-off/on UI selectors pass. Hosted 68/71 and eleven pattern-guard tests pass separately. Whole-app, other-form-factor, coverage and performance gates remain independent."
+    },
+    {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKDrawerViewController.swift",
       "sourceHash": "d6636dfa4f21076efc1e53e37c6134a26a5b2f0bf4f40eeec9cc54b3854803e0",
       "classes": [
@@ -278,17 +298,17 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKMenuBar.swift",
-      "sourceHash": "184e054fe69195828f3e14023a95a7611f5f777dede0de9c2942ed4a5c118cf2",
+      "sourceHash": "22a02f2ed897980b3efba221d6a7e2bbf4fef6c3583fd4be90f2e08d3dde1484",
       "classes": [],
       "motionSites": [],
       "disposition": "feature-composition",
       "owner": "UKRootViewController",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
-        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
-        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift"
       ],
-      "note": "Chrome/commands retain Festival policy over native controls and the root/window presentation owner; domain route/tool choices remain app-owned. Full runtime/coverage/pose/performance gates remain independent."
+      "note": "Projects current page commands into fixed native UIMenu families, checkmarks, and visible-disabled leaves. Qualified source-cohort evidence covers six native iPad menu selectors using matching 8c9 source/device/fixture archives (five v9 plus one v8); the v9 SpringBoard launch failure is excluded and retained. SDK/hosted 67 tests/70 invocations pass; this is not whole-app/other-form-factor/performance certification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKShellSheets.swift",
@@ -332,31 +352,31 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/UKRootViewController+Chrome.swift",
-      "sourceHash": "681fd1a6c96b937cd8d698f7a69cf1b00700aa6cfb2894042eb9051c86d6b4a0",
+      "sourceHash": "38dca55168f21ab96b70f96f163c246bc487ae53b76f4474186eb88d2bc1ab3f",
       "classes": [],
       "motionSites": [],
       "disposition": "native-container",
       "owner": "UKRootViewController",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
-        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
-        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
       ],
-      "note": "Window shell/extensions compose native tab/navigation containers, shared layout policy, preserved route identity and the central sheet lifecycle, not feature-local page wrappers. Full runtime/coverage/pose/performance gates remain independent."
+      "note": "Maintains front-page chrome ownership and mirror/trace refresh through the shell. Qualified source-cohort evidence covers six native iPad menu selectors using matching 8c9 source/device/fixture archives (five v9 plus one v8); the v9 SpringBoard launch failure is excluded and retained. SDK/hosted 67 tests/70 invocations pass; this is not whole-app/other-form-factor/performance certification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/UKRootViewController+Commands.swift",
-      "sourceHash": "741ea43a9f525269b7d55250fa16984b76e0eefa042576e96261f4986edb993e",
+      "sourceHash": "b7bb027e980914c5f6137e082a9644142745523870801b23601ee91fdce90269",
       "classes": [],
       "motionSites": [],
       "disposition": "native-container",
       "owner": "UKRootViewController",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
-        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
-        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift"
       ],
-      "note": "Window shell/extensions compose native tab/navigation containers, shared layout policy, preserved route identity and the central sheet lifecycle, not feature-local page wrappers. Full runtime/coverage/pose/performance gates remain independent."
+      "note": "Routes native command identifiers through the actual responder chain and applies sheet/page eligibility. Qualified source-cohort evidence covers six native iPad menu selectors using matching 8c9 source/device/fixture archives (five v9 plus one v8); the v9 SpringBoard launch failure is excluded and retained. SDK/hosted 67 tests/70 invocations pass; this is not whole-app/other-form-factor/performance certification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/UKRootViewController+Layout.swift",
@@ -405,7 +425,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/UKRootViewController.swift",
-      "sourceHash": "a7915f96d4119e9017e8ae1af6d777bc4c86528cd49b4f9d7fef5004baac760d",
+      "sourceHash": "44965bd90655381180983c880d92f985493edb4272edaf954b00f97732be7f93",
       "classes": [
         {
           "name": "UKRootViewController",
@@ -416,10 +436,12 @@
       "disposition": "native-container",
       "owner": "UKRootViewController",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
-        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift"
+        ".agents/platforms/apple/uikit-port.md",
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
       ],
-      "note": "Root owns native tabs/window chrome and explicit first-run/focus seams; no feature-page ancestry substitution. Source review only; runtime, pose, coverage and performance gates remain independent."
+      "note": "Owns UIKit shell installation and refresh of the native menu projection and DEBUG mirror. Qualified source-cohort evidence covers six native iPad menu selectors using matching 8c9 source/device/fixture archives (five v9 plus one v8); the v9 SpringBoard launch failure is excluded and retained. SDK/hosted 67 tests/70 invocations pass; this is not whole-app/other-form-factor/performance certification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/App/UKRouteDestination.swift",
@@ -1155,7 +1177,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKBandRankingsViewController.swift",
-      "sourceHash": "b52569abb2c70eb30d7b9d15439290ffc77a20341955ad722b33306220a5c7da",
+      "sourceHash": "3912d423f3859356e6a41e0eb23a412d5f99ac71e36d9f99dc426db960df4a82",
       "classes": [
         {
           "name": "UKBandRankingsViewController",
@@ -1166,10 +1188,11 @@
       "disposition": "feature-composition",
       "owner": "UKPageViewController / UKBoardView",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift",
         "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
       ],
-      "note": "Native board remains in the shared page body; canonical rows bind their actual band-detail routes. Source review only; runtime, pose, coverage and performance gates remain independent."
+      "note": "Feature composition keeps the canonical page/board owners and uses the existing enabled ranking-metric APIs for the stored experimental gate rather than allCases. The local menu and typed page command children derive from the same enabled collection. Exact source f1ad SDK and Full/Band experimental flag-off/on UI selectors pass; registered hosted 68/71 and eleven pattern-guard tests pass independently. No whole-app or performance qualification implied."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKBoardChrome.swift",
@@ -1278,7 +1301,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKFullRankingsViewController.swift",
-      "sourceHash": "e35edeb56a00bd20cd648e9be94ead695be294e56b1dcffc5f40336450997bc4",
+      "sourceHash": "183dfc01cff21aa61536f04b9a52cbe80a2640d345ae359e96307074cf9819de",
       "classes": [
         {
           "name": "UKFullRankingsViewController",
@@ -1289,10 +1312,11 @@
       "disposition": "feature-composition",
       "owner": "UKPageViewController / UKBoardView",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift",
         "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
       ],
-      "note": "Rankings retain typed paging/filters and register the real board; interactive rows own split selection. Source review only; runtime, pose, coverage and performance gates remain independent."
+      "note": "Feature composition keeps the canonical page/board owners and uses the existing enabled ranking-metric APIs for the stored experimental gate rather than allCases. The local menu and typed page command children derive from the same enabled collection. Exact source f1ad SDK and Full/Band experimental flag-off/on UI selectors pass; registered hosted 68/71 and eleven pattern-guard tests pass independently. No whole-app or performance qualification implied."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKLeaderboardKit.swift",
@@ -1619,7 +1643,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKPlayerProfileViewController.swift",
-      "sourceHash": "505b4897d0ea24699e2c95cb44060e7076f0ad1edcbbd9ad5c1d67a26d82d46e",
+      "sourceHash": "35ca8fb3880f45cb52e93c69c8c3389e171c50c386df894bd962552bf070dc9e",
       "classes": [
         {
           "name": "UKPlayerProfileViewController",
@@ -1634,10 +1658,13 @@
       "disposition": "feature-composition",
       "owner": "UKProfileScrollViewController",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
-        "apple/Tests/FestivalUITests/UKPresentationCoordinatorTests.swift"
+        ".agents/pages/player-profile/ios.md",
+        ".agents/controls/profile-selection/ios.md",
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
       ],
-      "note": "Profile retains its domain actions but related confirmations use the native window coordinator/action completion. Source review only; runtime, pose, coverage and performance gates remain independent."
+      "note": "Owns real Select/Switch/Deselect identity state, page-menu witness, and native header projection; Deselect is restored in the header from the actual session selection. Qualified source-cohort evidence covers six native iPad menu selectors using matching 8c9 source/device/fixture archives (five v9 plus one v8); the v9 SpringBoard launch failure is excluded and retained. SDK/hosted 67 tests/70 invocations pass; this is not whole-app/other-form-factor/performance certification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKProfileLinks.swift",
@@ -1654,7 +1681,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKProfilePage.swift",
-      "sourceHash": "1c9db83cb1b9627c57a52eeddd63860e47071b55c63dea9dbe292b4151b9b1a6",
+      "sourceHash": "64c00275473a34178911335f93f325619f9774ef233608b124ac05835a091cdc",
       "classes": [
         {
           "name": "UKProfileScrollViewController",
@@ -1669,10 +1696,12 @@
       "disposition": "feature-composition",
       "owner": "UKProfileScrollViewController",
       "verification": [
-        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
-        ".agents/patterns/uikit-page-foundation.md"
+        ".agents/pages/player-profile/ios.md",
+        ".agents/platforms/apple/uikit-port.md",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift"
       ],
-      "note": "Profile, Statistics and Bands compose the shared profile/page parent; mixed Player Bands keeps controls/results in the page canvas, and percentile rows reuse canonical metadata. Constructor/ownership checks do not certify every runtime state."
+      "note": "Forwards inherited page-command witnesses and reapplies pushed-page bar items through the canonical page chrome owner. Qualified source-cohort evidence covers six native iPad menu selectors using matching 8c9 source/device/fixture archives (five v9 plus one v8); the v9 SpringBoard launch failure is excluded and retained. SDK/hosted 67 tests/70 invocations pass; this is not whole-app/other-form-factor/performance certification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Profile/UKProfileRoutes.swift",
@@ -1885,7 +1914,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalComparisonViewController.swift",
-      "sourceHash": "5204626c84ba6e9a5106b2f54f73ece7ed2c267ee43d4f9040fe88cac9854e4e",
+      "sourceHash": "a9d5c90285b03f345e9f93612f0ae4df88e93b227606b30a38292ab0256e849f",
       "classes": [
         {
           "name": "UKRivalComparisonViewController",
@@ -1904,10 +1933,11 @@
       "disposition": "feature-composition",
       "owner": "UKRivalsPageViewController",
       "verification": [
-        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
-        ".agents/patterns/uikit-page-foundation.md"
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
       ],
-      "note": "Rivals/Compete/Suggestions share page and explicit screen lifecycle; search/filter forms install actual native content, and list states hide retained stale content. Constructor/ownership checks do not certify every runtime state."
+      "note": "Provides rival-profile command ownership for the comparison page using its existing navigation closure. Qualified source-cohort evidence covers six native iPad menu selectors using matching 8c9 source/device/fixture archives (five v9 plus one v8); the v9 SpringBoard launch failure is excluded and retained. SDK/hosted 67 tests/70 invocations pass; this is not whole-app/other-form-factor/performance certification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalsKit.swift",
@@ -1949,7 +1979,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalsPage.swift",
-      "sourceHash": "92142f096dd3c6008a1a1b64f1f58047a73a053b67bceff4c3b5cf9585a731ce",
+      "sourceHash": "a4ac9668a886d360fe45d40adb2d57ce2efc732c537480df4b719d9468ed6f38",
       "classes": [
         {
           "name": "UKRivalsPageViewController",
@@ -1958,17 +1988,18 @@
       ],
       "motionSites": [
         {
-          "line": 416,
+          "line": 418,
           "api": "UIView.transition"
         }
       ],
       "disposition": "feature-composition",
       "owner": "UKRivalsPageViewController",
       "verification": [
-        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
-        ".agents/patterns/uikit-page-foundation.md"
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift"
       ],
-      "note": "Rivals/Compete/Suggestions share page and explicit screen lifecycle; search/filter forms install actual native content, and list states hide retained stale content. Constructor/ownership checks do not certify every runtime state."
+      "note": "Forwards inherited Rivals page-command ownership through the shared page foundation. Qualified source-cohort evidence covers six native iPad menu selectors using matching 8c9 source/device/fixture archives (five v9 plus one v8); the v9 SpringBoard launch failure is excluded and retained. SDK/hosted 67 tests/70 invocations pass; this is not whole-app/other-form-factor/performance certification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalsRoutes.swift",
@@ -1985,7 +2016,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalsViewController.swift",
-      "sourceHash": "17c48af63f12a4a91a4469d619f6f44ade3f3da527b434549e18940c88ea65bb",
+      "sourceHash": "6e2e0846a052bbcabe76a8a18a09ae53d6c9e4b4e2c1e8fc420ff150883c8280",
       "classes": [
         {
           "name": "UKRivalsViewController",
@@ -1996,10 +2027,11 @@
       "disposition": "feature-composition",
       "owner": "UKRivalsPageViewController",
       "verification": [
-        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
-        ".agents/patterns/uikit-page-foundation.md"
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
       ],
-      "note": "Rivals/Compete/Suggestions share page and explicit screen lifecycle; search/filter forms install actual native content, and list states hide retained stale content. Constructor/ownership checks do not certify every runtime state."
+      "note": "Adds the existing Rival navigation action to the typed native command family. Qualified source-cohort evidence covers six native iPad menu selectors using matching 8c9 source/device/fixture archives (five v9 plus one v8); the v9 SpringBoard launch failure is excluded and retained. SDK/hosted 67 tests/70 invocations pass; this is not whole-app/other-form-factor/performance certification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKSuggestionCardView.swift",
@@ -2043,7 +2075,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKSuggestionsViewController.swift",
-      "sourceHash": "4fe0aedbb0205cec6f360ae04f494451ad58ce8d0f7df7cd765f5d9518c7804d",
+      "sourceHash": "81b00ffe6965081a7e6ac6ce6793f304d2c99e19df0fe861e3d038a0619e997f",
       "classes": [
         {
           "name": "UKSuggestionCell",
@@ -2066,10 +2098,11 @@
       "disposition": "feature-composition",
       "owner": "UKRivalsPageViewController",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
-        ".agents/testing/apple/uikit-perf.md"
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
       ],
-      "note": "Suggestions performance hooks use the existing rivals page and native modal/content paths, with settled content checks bound to the page owner rather than synthetic surfaces."
+      "note": "Adds the existing Suggestions filter action and preserves sheet blocking/eligibility. Qualified source-cohort evidence covers six native iPad menu selectors using matching 8c9 source/device/fixture archives (five v9 plus one v8); the v9 SpringBoard launch failure is excluded and retained. SDK/hosted 67 tests/70 invocations pass; this is not whole-app/other-form-factor/performance certification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Settings/UKFeedback.swift",
@@ -2686,7 +2719,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKShopViewController.swift",
-      "sourceHash": "4ed48d4d2306f7e7735754a837151cdd44ddcb2cc292c34fb08d9af882df72f9",
+      "sourceHash": "7e320bd2b09d670a74d0f15b969cf28b7abc93d4dd82186c1a18212dec1fd8a3",
       "classes": [
         {
           "name": "UKShopGridCell",
@@ -2705,10 +2738,12 @@
       "disposition": "feature-composition",
       "owner": "UKPageViewController",
       "verification": [
-        "apple/Tests/FestivalUITests/UKRouteArchitectureTests.swift",
-        ".agents/patterns/uikit-page-foundation.md"
+        ".agents/pages/shop/ipados.md",
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
       ],
-      "note": "Actual detail/catalogue/search/tool content or a mixed-layout canvas is installed through the page host; native scroll ownership and feature route/load policy remain distinct. Constructor/ownership checks do not certify every runtime state."
+      "note": "Owns List/Grid command mutation and mode-bound diffable reload via applySnapshotUsingReloadData; same-mode reconfigure and queued in-flight serialization remain. Qualified source-cohort evidence covers six native iPad menu selectors using matching 8c9 source/device/fixture archives (five v9 plus one v8); the v9 SpringBoard launch failure is excluded and retained. SDK/hosted 67 tests/70 invocations pass; this is not whole-app/other-form-factor/performance certification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongMetadataViews.swift",
@@ -2968,7 +3003,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsViewController.swift",
-      "sourceHash": "916193f6cc0af935948345285496a475297879749c65e806805532251aa36814",
+      "sourceHash": "2e6abc8a8d7adc22a4725753ab0419b4b105af03145583286e23a3183b5ac47a",
       "classes": [
         {
           "name": "UKSongsViewController",
@@ -2979,10 +3014,12 @@
       "disposition": "feature-composition",
       "owner": "UKPageViewController",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
-        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift"
+        ".agents/patterns/page-tools-and-nav-chrome.md",
+        ".agents/pages/songs/ios.md",
+        "apple/Tests/FestivalUITests/UKPageFoundationTests.swift",
+        "apple/Apps/iPadOSUITests/IPadMenuBarJourneyTests.swift"
       ],
-      "note": "Catalogue owns its domain pipeline while the shared body/gate/lifecycle handles the real native collection. Source review only; runtime, pose, coverage and performance gates remain independent."
+      "note": "Adds typed Sort and Filter page commands while reusing the existing Songs sheet actions. Qualified source-cohort evidence covers six native iPad menu selectors using matching 8c9 source/device/fixture archives (five v9 plus one v8); the v9 SpringBoard launch failure is excluded and retained. SDK/hosted 67 tests/70 invocations pass; this is not whole-app/other-form-factor/performance certification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Foundation/UKContext.swift",

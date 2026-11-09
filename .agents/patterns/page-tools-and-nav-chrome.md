@@ -6,6 +6,56 @@ Status: **current**, 2026-10-14. Provenance: #52, #72, #84, #92, #160, #271, #30
 
 ## Intent
 
+### UIKit native menu projection
+
+The UIKit port keeps one fixed, visible page-command family in the native iPadOS
+menu bar. `UKPageToolsProviding.ukPageMenuCommands` is the page-owned seam; its
+closures are the same page actions used by the local `UIBarButtonItem` menus.
+`UKMenuBar` projects the current front top page into `UICommand`/`UIMenu` values,
+and `UKRootViewController` routes the identifier through the responder chain.
+Shared UIKit page bases forward the protocol witness through an overridable
+`pageMenuCommands` hook, so concrete profile and Rivals pages remain visible
+through inherited `UKPageToolsProviding` conformance.
+Unavailable leaf commands remain visible and disabled; fixed submenus remain
+available, and a covering sheet disables page commands rather than presenting a
+second sheet. Checkmarks and current page choices are rebuilt from page state.
+
+The `DEBUG`-only `FST_DEBUG_MENU_BAR=1` UIKit mirror is a test projection of the
+same command identifiers and responder action. It is not a second action registry,
+does not host SwiftUI, and must never be used as evidence that a command works
+unless the corresponding native responder command is also validated.
+Its recursive submenu projection exposes the actual typed children, including Rank
+By choices, rather than inventing a parallel metric list. Both the local UIKit
+menus and the typed page-command trees use `RankingMetric.enabled(experimentalRanks:)`
+and `BandRankingMetric.enabled(experimentalRanks:)`, reading the shared
+`ExperimentalRanks.storageKey` flag through the UIKit settings adapter; therefore
+flag-off and flag-on expose the same real choices in both surfaces.
+
+Menu qualification requires a source-matched passing archive for each declared
+`IPadMenuBarJourneyTests` selector on the owned iPad. Simulator launch failures
+are retained and excluded, never counted as passing behavior. The current
+six-selector cohort is qualified; whole-app state, other form factors, coverage
+and performance remain independent gates.
+The later v13 flag-off/on Full Rankings and Band Rankings journeys are a separate
+two-selector scope and do not retroactively change that six-selector cohort claim.
+
+For bounded UIKit diagnosis, `FST_DEBUG_MENU_TRACE=1` exposes an accessibility
+trace value on `fst.menu-bar-trace` and attaches it from the enrolled iPad journey.
+The JSON contains page state, requested/effective Shop mode, real
+collection-view layout class, visible data identifiers, cell classes and native
+view-toggle label. It is DEBUG-only and does not alter UI state.
+
+Shop mode transitions use UIKit's public reload-data snapshot path when the
+mode changes, so the new snapshot is rendered through the new cell
+registrations without an intermediate blank snapshot; ordinary same-mode
+updates may reconfigure existing cells. This is required because List and Grid
+use different native cell registrations. A pushed UIKit player page owns its local
+Select/Switch/Deselect header action; the global `fst.shell.profile` action is
+not present on that page. Its page-menu Select command remains visible but
+disabled when the shown player is already selected. Selection changes also
+refresh the pushed page's local identity bar immediately, even when its profile
+payload is already loaded.
+
 Navigation preserves location; page tools act on the current content. The web is the behavior reference, while each native shell uses its platform's navigation and command placement rather than reproducing web pixels.
 
 UIKit's shared bottom search field gives the actual native text input a 44 pt target inside
@@ -143,7 +193,7 @@ Agent decision (#639, 2026-10-14; owner may override with `/choose`). Question: 
 ## Guards (tools/pattern_guard.py)
 
 - `page-tools-and-nav-chrome/apple-tab-accessory` (R28, #632: no tab-bar accessory anywhere; iPhone page tools float through `FloatingPageToolsBar`)
-- `page-tools-and-nav-chrome/apple-menu-bar-page-tools` (R28, #633: menu-bar page-tool items only in `PageToolMenuItems.swift`, shared by the macOS and iPadOS menu bars)
+- `page-tools-and-nav-chrome/apple-menu-bar-page-tools` (R28, #633: SwiftUI/macOS menu-bar items remain in `PageToolMenuItems.swift`; named UIKit owners may only project the typed `UKPageMenuCommand` tree and its DEBUG mirror, never a parallel action registry)
 - `page-tools-and-nav-chrome/apple-title-display-mode` (R28, #632: pages use `festivalTitleDisplayMode(_:)`, so iPhone titles stay leading)
 - `page-tools-and-nav-chrome/android-floating-toolbar`
 - `page-tools-and-nav-chrome/android-floating-toolbar-stays-on-screen` (R7, #577: no hide-on-scroll behaviour or per-page pin opt-in)

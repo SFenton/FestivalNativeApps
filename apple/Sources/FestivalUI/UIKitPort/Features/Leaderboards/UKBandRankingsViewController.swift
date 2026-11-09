@@ -129,6 +129,27 @@ final class UKBandRankingsViewController: UKPageViewController, UKPageToolsProvi
         return tools
     }
 
+    var ukPageMenuCommands: [UKPageMenuCommand] {
+        let rankOptions = BandRankingMetric.enabled(experimentalRanks: experimental).map { metric in
+            UKPageMenuCommand(
+                identifier: "rank.\(metric.rawValue)", title: metric.label,
+                state: rankBy == metric ? .on : .off,
+                perform: { [weak self] in self?.select(rankBy: metric) }
+            )
+        }
+        let sizeOptions = BandType.allCases.map { size in
+            UKPageMenuCommand(
+                identifier: "bandSize.\(size.rawValue)", title: size.label,
+                state: bandType == size ? .on : .off,
+                perform: { [weak self] in self?.select(bandType: size) }
+            )
+        }
+        return [
+            UKPageMenuCommand(identifier: "rankBy", title: "Rank By", children: rankOptions),
+            UKPageMenuCommand(identifier: "bandSize", title: "Band Size", children: sizeOptions),
+        ]
+    }
+
     private func bandTypeMenu() -> UIMenu {
         UKBoardMenus.bandTypeMenu(selected: bandType, idPrefix: "fst.band-rankings.band-type") { [weak self] size in
             self?.select(bandType: size)

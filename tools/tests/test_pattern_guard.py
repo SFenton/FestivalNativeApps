@@ -92,6 +92,35 @@ class PatternGuardTests(unittest.TestCase):
         self.assertIn("[edge]", text)
         self.assertNotIn("[old]", text)
 
+    def test_named_uikit_page_tool_allowance_is_narrow(self):
+        entry = next(p for p in pg.load()["patterns"] if p["id"] == "page-tools-and-nav-chrome")
+        guard = next(g for g in entry["guards"] if g["id"] == "apple-menu-bar-page-tools")
+        allowed = set(guard["allow"])
+        self.assertEqual(
+            allowed,
+            {
+                "apple/Sources/FestivalUI/Mac/PageToolMenuItems.swift",
+                "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKDebugMenuBarMirror.swift",
+                "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKMenuBar.swift",
+                "apple/Sources/FestivalUI/UIKitPort/Features/Rivals/UKRivalComparisonViewController.swift",
+            },
+        )
+        self.assertNotIn("apple/Sources/FestivalUI/UIKitPort/**", allowed)
+
+    def test_uikit_page_tool_duplicate_outside_named_owners_is_rejected(self):
+        entry = next(p for p in pg.load()["patterns"] if p["id"] == "page-tools-and-nav-chrome")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            duplicate = "Button(\"Filter…\") {}\n"
+            _write(root, "apple/Sources/FestivalUI/UIKitPort/App/Shell/UKMenuBar.swift", duplicate)
+            _write(root, "apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsViewController.swift", duplicate)
+            report = pg.Report()
+            hits = pg.run_guards(entry, root, report)
+            self.assertEqual(
+                [path for _, path, _, _ in hits],
+                ["apple/Sources/FestivalUI/UIKitPort/Features/Songs/UKSongsViewController.swift"],
+            )
+
 
 class RepositoryRegistryTests(unittest.TestCase):
     """The committed registry passes its own checks (the web tree is optional in CI)."""

@@ -495,5 +495,17 @@ final class UKSongsViewController: UKPageViewController, UICollectionViewDelegat
     // MARK: UKPageToolsProviding
 
     var ukPageTools: [UKPageTool] { pageTools() }
+
+    var ukPageMenuCommands: [UKPageMenuCommand] {
+        let hasTools = !tools.isEmpty
+        let hasFilter = tools.contains {
+            $0.item.accessibilityIdentifier == "fst.songs.filter"
+                || $0.item.accessibilityIdentifier == "fst.songs.tools"
+        }
+        return [
+            UKPageMenuCommand(identifier: "sort", title: "Sort…", isEnabled: hasTools, perform: hasTools ? { [weak self] in self?.presentSort() } : nil),
+            UKPageMenuCommand(identifier: "filter", title: "Filter…", isEnabled: hasFilter, perform: hasFilter ? { [weak self] in self?.presentFilter() } : nil),
+        ]
+    }
 }
 #endif

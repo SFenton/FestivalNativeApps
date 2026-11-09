@@ -194,6 +194,27 @@ final class UKFullRankingsViewController: UKPageViewController, UKPageToolsProvi
         return tools
     }
 
+    var ukPageMenuCommands: [UKPageMenuCommand] {
+        let instruments = combo == nil ? visibleInstruments.map { chart in
+            UKPageMenuCommand(
+                identifier: "instrument.\(chart.rawValue)", title: chart.label,
+                state: instrument == chart ? .on : .off,
+                perform: { [weak self] in self?.select(instrument: chart) }
+            )
+        } : []
+        let metrics = RankingMetric.enabled(experimentalRanks: experimental).map { metric in
+            UKPageMenuCommand(
+                identifier: "rank.\(metric.rawValue)", title: metric.label,
+                state: rankBy == metric ? .on : .off,
+                perform: { [weak self] in self?.select(rankBy: metric) }
+            )
+        }
+        return [
+            UKPageMenuCommand(identifier: "instrument", title: "Instrument", children: instruments),
+            UKPageMenuCommand(identifier: "rankBy", title: "Rank By", children: metrics),
+        ]
+    }
+
     // MARK: Selection
 
     private var lastRankBy: RankingMetric?

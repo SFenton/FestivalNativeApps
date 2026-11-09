@@ -24,6 +24,7 @@ import UIKit
     func ukNextSection()
     func ukPreviousSection()
     func ukOpenWebsite()
+    func ukPageMenuCommand(_ sender: Any?)
 }
 
 extension UKRootViewController: UKShellCommands {
@@ -64,6 +65,21 @@ extension UKRootViewController: UKShellCommands {
     @objc func ukNextSection() { jumpQuickLink(offset: 1) }
     @objc func ukPreviousSection() { jumpQuickLink(offset: -1) }
 
+    /// Performs a page command published by the front top page.
+    @objc func ukPageMenuCommand(_ sender: Any?) {
+        guard let command = sender as? UICommand,
+              let identifier = command.propertyList as? String,
+              let page = frontPage as? UKPageToolsProviding,
+              !sheetOpen else { return }
+#if DEBUG
+        debugLastMenuDispatch = "\(identifier):\(String(describing: type(of: page)))"
+        if ProcessInfo.processInfo.environment["FST_DEBUG_MENU_TRACE"] == "1" {
+            print("[FST_MENU_TRACE] dispatch id=\(identifier) page=\(String(describing: type(of: page)))")
+        }
+#endif
+        findPageMenuCommand(identifier, in: page.ukPageMenuCommands)?.perform?()
+    }
+
     private func jumpQuickLink(offset: Int) {
         guard let controller = UKQuickLinksRegistry.shared.front else { return }
         let ids = controller.sections.map(\.id)
@@ -89,6 +105,11 @@ extension UKRootViewController: UKShellCommands {
             return drawer != nil || (!sheetOpen && splitOpenSections.contains(selected) && !searchActive)
         case #selector(ukNextSection), #selector(ukPreviousSection):
             return !sheetOpen && (UKQuickLinksRegistry.shared.front?.isAvailable ?? false)
+        case #selector(ukPageMenuCommand(_:)):
+            guard !sheetOpen, let command = sender as? UICommand,
+                  let identifier = command.propertyList as? String,
+                  let page = frontPage as? UKPageToolsProviding else { return false }
+            return findPageMenuCommand(identifier, in: page.ukPageMenuCommands)?.isEnabled == true
         default:
             return super.canPerformAction(action, withSender: sender)
         }
@@ -99,6 +120,15 @@ extension UKRootViewController: UKShellCommands {
         if command.action == #selector(ukSelectDestination(_:)),
            let raw = command.propertyList as? String, let section = FestivalSection(rawValue: raw) {
             command.attributes = sheetOpen || !sections.contains(section) ? .disabled : []
+        }
+        if command.action == #selector(ukPageMenuCommand(_:)),
+           let identifier = command.propertyList as? String,
+           let page = frontPage as? UKPageToolsProviding,
+           let source = findPageMenuCommand(identifier, in: page.ukPageMenuCommands) {
+           command.attributes = sheetOpen || !source.isEnabled ? .disabled : []
+           command.state = source.state
+        } else if command.action == #selector(ukPageMenuCommand(_:)) {
+            command.attributes = .disabled
         }
     }
 
@@ -123,6 +153,16 @@ extension UKRootViewController: UKShellCommands {
 
     private static func command(_ title: String, _ key: String, _ action: Selector) -> UIKeyCommand {
         UIKeyCommand(title: title, action: action, input: key, modifierFlags: .command)
+    }
+
+    private func findPageMenuCommand(
+        _ identifier: String, in commands: [UKPageMenuCommand]
+    ) -> UKPageMenuCommand? {
+        for command in commands {
+            if command.identifier == identifier { return command }
+            if let match = findPageMenuCommand(identifier, in: command.children) { return match }
+        }
+        return nil
     }
 }
 

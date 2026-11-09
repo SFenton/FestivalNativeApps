@@ -148,6 +148,33 @@
                 #expect(!page.navigationItem.hidesBackButton)
                 #expect(stack.path == [route])
             }
+
+            @Test
+            func hingeDividerExposesTheFoldBandAndKeepsContrastLineCentered() async throws {
+                let (host, stack, window, restore) = try await makeHost()
+                defer { restore() }
+                host.stackLayout = DeviceLayout.resolve(LayoutSignals(
+                    size: CGSize(width: 1210, height: 834), widthClass: .regular,
+                    hinge: .partiallyOpen,
+                    divisions: [CGRect(x: 593, y: 0, width: 24, height: 834)],
+                    usesSidebarShell: true
+                ))
+                window.frame = CGRect(origin: .zero, size: host.stackLayout.size)
+                stack.view.frame = window.bounds
+                stack.setPath([.fullRankings(instrument: .lead, rankBy: "adjusted")], animated: false)
+                stack.view.layoutIfNeeded()
+
+                let band = try #require(stack.view.subviews.first {
+                    $0.accessibilityIdentifier == "fst.split.divider"
+                })
+                let line = try #require(band.subviews.first)
+                #expect(abs(band.frame.width - 24) < 0.5)
+                #expect(abs(line.frame.width - 1) < 0.5)
+                #expect(abs(line.frame.midX - band.bounds.midX) < 0.5)
+                #expect(line.isHidden)
+                #expect(!band.isAccessibilityElement)
+                #expect(!line.isAccessibilityElement)
+            }
         }
     }
 #endif

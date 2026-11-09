@@ -51,6 +51,11 @@ class UKProfileScrollViewController: UKPageViewController, UIScrollViewDelegate,
     /// The window layout this page adapts to.
     var layout: DeviceLayout { ukLayout }
 
+    /// Page-owned iPadOS command families. Subclasses override the hook rather than
+    /// redeclaring the protocol witness, so the shell sees the concrete page's commands.
+    var ukPageMenuCommands: [UKPageMenuCommand] { pageMenuCommands }
+    var pageMenuCommands: [UKPageMenuCommand] { [] }
+
     // MARK: Lifecycle
 
     override func viewDidLoad() {
