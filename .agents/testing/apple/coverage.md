@@ -29,7 +29,25 @@ found). Regression tests: `tools/tests/test_coverage_gate.py`'s
 ## iOS app target (`FestivalUI` + mobile app on device)
 
 - SwiftPM does **not** measure `apple/Apps/iOS` or `apple/Apps/macOS`.
-- `DEVELOPER_DIR=… python3 tools/apple_xccov_gate.py --result <iphone.xcresult> --result <ipad.xcresult>` (default `--scope paired`); `--scope iphone` for the phone-only phase. It unions **unique executable lines** across passing shards from the same simulator per family; every result must contain both coverage targets and all source files with matching executable-line sets and source timestamps older than every result. Never add or average Xcode target summaries (they double-count SwiftUI specializations).
+- `DEVELOPER_DIR=… python3 tools/apple_xccov_gate.py --app-family swiftui --result <iphone.xcresult> --result <ipad.xcresult>` (default `--scope paired`); use `--app-family uikit` for the UIKit port and `--scope iphone` for the phone-only phase. SwiftUI maps `FestivalMobile.app` to `apple/Apps/iOS/**/*.swift`; UIKit maps `FestivalMobileUIKit.app` to `apple/Apps/iOSUIKit/**/*.swift`. A foreign app target or a missing target fails closed.
+- Coverage collection is opt-in. The serialized runner's `uitest --coverage` (or `drive --coverage`) passes `-enableCodeCoverage YES` to **both** `build-for-testing` and `test-without-building`, records the coverage mode in the DerivedData receipt, and retains each `.xcresult`. This prevents a non-instrumented cache from being reused. The iOS schemes explicitly list both their app target and `FestivalApple/FestivalUI` in `coverageTargets`; `ci_journeys.py --coverage` applies that option to the selected full-matrix workflow legs and binds it into the evidence provenance.
+- On the approved Mac, from the parent validation checkout with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`, use the existing capacity/hold runner only (one FST product simulator per host):
+  ```
+  python3 tools/ci_journeys.py --app uikit --coverage --out <evidence-dir> \
+    --device iphone=<owned-phone-udid> \
+    --device duo=<owned-duo-udid> \
+    --device ipad=<owned-ipad-udid>
+  DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer python3 tools/apple_xccov_gate.py \
+    --root <parent-validation-checkout> --app-family uikit --scope paired \
+    --result <iphone.xcresult> --result <ipad.xcresult>
+  DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer python3 tools/apple_xccov_gate.py \
+    --root <parent-validation-checkout> --app-family uikit --scope iphone \
+    --result <duo.xcresult>
+  ```
+  The collection command is a safe recipe, not evidence: replace each result path with
+  retained archives from distinct source-bound legs, and do not claim a percentage until
+  `xccov` reports actual per-line data. The Duo is an iPhone-family shard and must use the
+  same simulator identity for its iPhone shards; do not merge it with an unrelated phone.
 - Xcode sometimes omits `FestivalUI` from a passing `.xcresult`; the gate rejects such bundles. Timestamps are not hashes: freeze sources across shards.
 - `FestivalCore`/`FestivalDesign` are not Xcode coverage targets; macOS SwiftPM coverage does not certify their device lines.
 

@@ -11,10 +11,26 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET_SOURCES = {
-    "FestivalUI": "apple/Sources/FestivalUI/**/*.swift",
-    "FestivalMobile.app": "apple/Apps/iOS/**/*.swift",
+TARGET_SOURCES_BY_FAMILY = {
+    "swiftui": {
+        "FestivalUI": "apple/Sources/FestivalUI/**/*.swift",
+        "FestivalMobile.app": "apple/Apps/iOS/**/*.swift",
+    },
+    "uikit": {
+        "FestivalUI": "apple/Sources/FestivalUI/**/*.swift",
+        "FestivalMobileUIKit.app": "apple/Apps/iOSUIKit/**/*.swift",
+    },
 }
+# Backwards-compatible alias for callers that gate the established SwiftUI app.
+TARGET_SOURCES = TARGET_SOURCES_BY_FAMILY["swiftui"]
+
+
+def target_sources(app_family: str) -> dict[str, str]:
+    """Return the exact executable-source mapping for one iOS app family."""
+    try:
+        return TARGET_SOURCES_BY_FAMILY[app_family]
+    except KeyError as error:
+        raise ValueError(f"Unsupported iOS app family: {app_family}") from error
 
 
 def xcode_json(tool: str, arguments: list[str]) -> dict[str, Any]:
@@ -199,7 +215,7 @@ def validate_result_devices(
 
 
 def collect_result(
-    result: Path, root: Path
+    result: Path, root: Path, app_family: str = "swiftui"
 ) -> tuple[dict[str, dict[int, bool]], float, tuple[str, str]]:
     """Require one passing iOS result and read all app and shared-UI line hits.
 
@@ -227,7 +243,15 @@ def collect_result(
     report = xcode_json("xccov", ["view", "--report", "--json", str(result)])
     targets = {target.get("name"): target for target in report.get("targets", [])}
     measured: dict[str, dict[int, bool]] = {}
-    for name, pattern in TARGET_SOURCES.items():
+    expected_targets = target_sources(app_family)
+    foreign_apps = (
+        {"FestivalMobile.app", "FestivalMobileUIKit.app"} - set(expected_targets)
+    ) & set(targets)
+    if foreign_apps:
+        raise ValueError(
+            f"{result}: foreign app coverage target(s): {sorted(foreign_apps)}"
+        )
+    for name, pattern in expected_targets.items():
         target = targets.get(name)
         if not isinstance(target, dict) or not isinstance(target.get("files"), list):
             raise ValueError(f"{result}: missing {name} coverage target")
@@ -264,6 +288,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--result", type=Path, action="append", required=True)
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--scope", choices=("paired", "iphone", "ipad"), default="paired")
+    parser.add_argument("--app-family", choices=tuple(TARGET_SOURCES_BY_FAMILY), default="swiftui")
     parser.add_argument("--details", action="store_true")
     args = parser.parse_args(argv)
     try:
@@ -279,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
         if type(threshold) is not int or not 0 <= threshold <= 100:
             raise ValueError("Invalid iOS UX coverage threshold")
         reports, starts, devices = zip(
-            *(collect_result(result, root) for result in args.result)
+            *(collect_result(result, root, args.app_family) for result in args.result)
         )
         validate_result_devices(args.result, list(devices), args.scope)
         first_start = min(starts)

@@ -299,6 +299,12 @@ class UitestDiagnosticsTests(unittest.TestCase):
         self.assertEqual(cmd[index + 1], "never")
         self.assertLess(index, cmd.index("test-without-building"))
 
+    def test_coverage_flag_is_passed_to_the_test_action(self):
+        cmd = self.run_batch(coverage=True)
+        index = cmd.index("-enableCodeCoverage")
+        self.assertEqual(cmd[index + 1], "YES")
+        self.assertLess(index, cmd.index("test-without-building"))
+
 
 class RetryBatchTests(unittest.TestCase):
     """`uitest --retries` reruns only a batch whose test failed, at most N more times."""
@@ -574,6 +580,16 @@ class DriverBuildStaleTests(unittest.TestCase):
             self._runner_app(derived).mkdir(parents=True)
             write_driver_hash(derived, "same-hash")
             self.assertFalse(driver_build_stale(derived, "same-hash"))
+
+    def test_coverage_builds_do_not_reuse_uninstrumented_cache(self):
+        with TemporaryDirectory() as tmp:
+            derived = Path(tmp)
+            self._runner_app(derived).mkdir(parents=True)
+            write_driver_hash(derived, "same-hash")
+            self.assertTrue(driver_build_stale(derived, "same-hash", coverage=True))
+            write_driver_hash(derived, "same-hash", coverage=True)
+            self.assertFalse(driver_build_stale(derived, "same-hash", coverage=True))
+            self.assertTrue(driver_build_stale(derived, "same-hash", coverage=False))
 
 
 def _bmp(pixels: list[tuple[int, int, int]], bits: int = 32) -> bytes:

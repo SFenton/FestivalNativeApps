@@ -448,12 +448,13 @@ def source_hash(roots: Iterable[Path] | None = None) -> str:
     return digest.hexdigest()
 
 
-def driver_build_stale(derived: Path, current_hash: str) -> bool:
+def driver_build_stale(derived: Path, current_hash: str, coverage: bool = False) -> bool:
     """Decide whether the cached UI-test build can be reused.
 
     Args:
         derived: The driver's DerivedData directory.
         current_hash: Fresh ``source_hash()`` of the worktree.
+        coverage: Whether the cached product must be instrumented for coverage.
 
     Returns:
         True if a rebuild is needed (missing product, missing/mismatched marker).
@@ -465,18 +466,21 @@ def driver_build_stale(derived: Path, current_hash: str) -> bool:
     marker = derived / ".driver-source-hash"
     if not runner.exists() or not marker.exists():
         return True
-    return marker.read_text(encoding="utf-8").strip() != current_hash
+    expected = current_hash if not coverage else f"{current_hash}\ncoverage=1"
+    return marker.read_text(encoding="utf-8").strip() != expected
 
 
-def write_driver_hash(derived: Path, value: str) -> None:
+def write_driver_hash(derived: Path, value: str, coverage: bool = False) -> None:
     """Record the source hash a successful driver build was built from.
 
     Args:
         derived: The driver's DerivedData directory.
         value: ``source_hash()`` at build time.
+        coverage: Whether the successful build was instrumented for coverage.
     """
     derived.mkdir(parents=True, exist_ok=True)
-    (derived / ".driver-source-hash").write_text(value, encoding="utf-8")
+    marker = value if not coverage else f"{value}\ncoverage=1"
+    (derived / ".driver-source-hash").write_text(marker, encoding="utf-8")
 
 
 
@@ -1767,17 +1771,20 @@ def cmd_drive(args: argparse.Namespace) -> int:
     derived = driver_derived_data()
 
     current_hash = source_hash()
-    if args.rebuild or driver_build_stale(derived, current_hash):
+    coverage = getattr(args, "coverage", False)
+    if args.rebuild or driver_build_stale(derived, current_hash, coverage):
         _run(["xcodegen", "generate", "-q"], cwd=APPLE_DIR)
         with build_lock():
             build = _run([
                 "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", product().scheme,
                 "-configuration", "Debug", "-destination", "generic/platform=iOS Simulator",
-                "-derivedDataPath", str(derived), "build-for-testing", "-quiet",
+                "-derivedDataPath", str(derived),
+                *([ "-enableCodeCoverage", "YES"] if coverage else []),
+                "build-for-testing", "-quiet",
             ], cwd=APPLE_DIR, check=False)
         if build.returncode:
             return build.returncode
-        write_driver_hash(derived, current_hash)
+        write_driver_hash(derived, current_hash, coverage)
     else:
         print(f"driver build up to date ({current_hash[:12]}); skipping rebuild", file=sys.stderr)
 
@@ -1823,6 +1830,7 @@ def cmd_drive(args: argparse.Namespace) -> int:
                 "-destination", f"platform=iOS Simulator,id={udid}",
                 "-derivedDataPath", str(derived), "-resultBundlePath", str(result_bundle),
                 f"-only-testing:{product().uitest_target}/DriverTests/testDrive",
+                *([ "-enableCodeCoverage", "YES"] if coverage else []),
                 "test-without-building", "-quiet",
             ]
             print("+", " ".join(cmd), file=sys.stderr)
@@ -1853,7 +1861,8 @@ def cmd_drive(args: argparse.Namespace) -> int:
 
     print(f"drive OK in {elapsed:.1f}s ({len(steps)} step(s))", file=sys.stderr)
     log_path.unlink(missing_ok=True)
-    shutil.rmtree(result_bundle, ignore_errors=True)
+    if not coverage:
+        shutil.rmtree(result_bundle, ignore_errors=True)
     for out in outputs:
         print(f"{'ok' if Path(out).exists() else 'MISSING'}: {out}")
     return 0
@@ -1912,17 +1921,20 @@ def cmd_uitest(args: argparse.Namespace) -> int:
     derived = driver_derived_data()
 
     current_hash = source_hash()
-    if args.rebuild or driver_build_stale(derived, current_hash):
+    coverage = getattr(args, "coverage", False)
+    if args.rebuild or driver_build_stale(derived, current_hash, coverage):
         _run(["xcodegen", "generate", "-q"], cwd=APPLE_DIR)
         with build_lock():
             build = _run([
                 "xcodebuild", "-project", "FestivalNativeApple.xcodeproj", "-scheme", product().scheme,
                 "-configuration", "Debug", "-destination", "generic/platform=iOS Simulator",
-                "-derivedDataPath", str(derived), "build-for-testing", "-quiet",
+                "-derivedDataPath", str(derived),
+                *([ "-enableCodeCoverage", "YES"] if coverage else []),
+                "build-for-testing", "-quiet",
             ], cwd=APPLE_DIR, check=False)
         if build.returncode:
             return build.returncode
-        write_driver_hash(derived, current_hash)
+        write_driver_hash(derived, current_hash, coverage)
     else:
         print(f"driver build up to date ({current_hash[:12]}); skipping rebuild", file=sys.stderr)
 
@@ -1951,6 +1963,7 @@ def cmd_uitest(args: argparse.Namespace) -> int:
                 set_pose=getattr(args, "set_pose", False), rotate=getattr(args, "rotate", None),
                 diagnostics=not getattr(args, "no_test_diagnostics", False),
                 owned_device=getattr(args, "owned_device", False),
+                coverage=getattr(args, "coverage", False),
             )
             if (returncode and not rebooted and getattr(args, "reboot_wedged", False)
                     and (wedge := simulator_wedged(log_path.read_text(encoding="utf-8", errors="replace")))):
@@ -1993,7 +2006,7 @@ def cmd_uitest(args: argparse.Namespace) -> int:
         else:
             print(f"uitest {label} OK in {elapsed:.1f}s ({len(batch)} selector(s)){_result_counts(summary)}",
                   file=sys.stderr)
-            if os.environ.get("FST_UITEST_KEEP_RESULTS") == "1":
+            if coverage or os.environ.get("FST_UITEST_KEEP_RESULTS") == "1":
                 # Keep green evidence too (attachments, per-test results): an all-skipped
                 # or zero-test batch also exits 0.
                 print(f"kept: {log_path} {result_bundle}", file=sys.stderr)
@@ -2275,7 +2288,7 @@ def _run_uitest_batch(
     *, udid: str, derived: Path, selectors: list[str], timeout: float,
     a11y: list[str] | None = None, pose: str | None = None, set_pose: bool = False,
     rotate: list[str] | None = None, diagnostics: bool = True,
-    owned_device: bool = False,
+    owned_device: bool = False, coverage: bool = False,
 ) -> tuple[int, float, Path, Path]:
     """Run one bounded batch of ``-only-testing:`` selectors under one lock hold.
 
@@ -2296,6 +2309,7 @@ def _run_uitest_batch(
         diagnostics: Let ``xcodebuild`` collect its sysdiagnose-like failure
             diagnostics (False passes ``-collect-test-diagnostics never``: on a CI
             runner that collection alone has waited 600 s after a failure).
+        coverage: Add ``-enableCodeCoverage YES`` to this test action.
 
     Returns:
         ``(returncode, elapsed_seconds, log_path, result_bundle_path)``.
@@ -2347,6 +2361,8 @@ def _run_uitest_batch(
         ]
         for selector in selectors:
             cmd.append(f"-only-testing:{product().uitest_target}/{selector}")
+        if coverage:
+            cmd += ["-enableCodeCoverage", "YES"]
         if not diagnostics:
             cmd += ["-collect-test-diagnostics", "never"]
         cmd += ["test-without-building", "-quiet"]
@@ -2636,6 +2652,10 @@ def main(argv: list[str] | None = None) -> int:
     drive.add_argument(
         "--rebuild", action="store_true", help="force a fresh build-for-testing"
     )
+    drive.add_argument(
+        "--coverage", action="store_true",
+        help="instrument build and test actions; keep the .xcresult for xccov gating",
+    )
     drive.add_argument("--app", choices=sorted(PRODUCTS), default=None,
                        help="UI-test product (default: ipad for the ipad alias, else phone)")
     drive.set_defaults(func=cmd_drive)
@@ -2656,6 +2676,10 @@ def main(argv: list[str] | None = None) -> int:
                              "the lock is released between batches for other lanes")
     uitest.add_argument(
         "--rebuild", action="store_true", help="force a fresh build-for-testing"
+    )
+    uitest.add_argument(
+        "--coverage", action="store_true",
+        help="instrument build and test actions; keep the .xcresult for xccov gating",
     )
     uitest.add_argument(
         "--no-test-diagnostics", action="store_true",

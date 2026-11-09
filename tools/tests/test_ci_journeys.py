@@ -64,6 +64,17 @@ class StepsTests(unittest.TestCase):
         self.assertNotIn("ios_sim.py shutdown", legs)
         self.assertEqual(ci_journeys.local_alias("iPhone 17 Pro"), "iphone")
 
+    def test_coverage_localization_is_explicit_and_idempotent(self):
+        script = "python3 tools/ios_sim.py uitest --only A/test\n"
+        localized = ci_journeys.localize(script, coverage=True)
+        self.assertIn("uitest --fail-on-skip --coverage --only A/test", localized)
+        self.assertEqual(localized.count("--coverage"), 1)
+
+    def test_coverage_localization_preserves_shell_suffixes(self):
+        script = "python3 tools/ios_sim.py uitest --only A/test || false\n"
+        localized = ci_journeys.localize(script, coverage=True)
+        self.assertIn("uitest --fail-on-skip --coverage --only A/test || false", localized)
+
     def test_the_real_workflow_lists_iphone_ipad_and_duo_journeys(self):
         steps = ci_journeys.journey_steps(ci_journeys.load_workflow())
         self.assertGreater(len(steps), 5)

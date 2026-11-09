@@ -149,20 +149,29 @@ def local_alias(device_type: str) -> str:
     return "iphone"
 
 
-def localize(script: str, devices: dict[str, str] | None = None) -> str:
+def localize(
+    script: str, devices: dict[str, str] | None = None, *, coverage: bool = False
+) -> str:
     """Rewrite CI-only commands for this Mac.
 
     Args:
         script: A step's ``run`` script.
+
+        coverage: Add explicit coverage collection to every ios_sim uitest action.
 
     Returns:
         The script using local simulator aliases and no per-leg shutdowns.
     """
     devices = devices or {}
     script = script.replace("python3 tools/ios_sim.py ci-device", "fst_local_device")
+    suffix = " --fail-on-skip"
+    if devices:
+        suffix += " --owned-device"
+    if coverage:
+        suffix += " --coverage"
     script = script.replace(
         "python3 tools/ios_sim.py uitest",
-        "python3 tools/ios_sim.py uitest --fail-on-skip" + (" --owned-device" if devices else ""),
+        "python3 tools/ios_sim.py uitest" + suffix,
     )
     script = re.sub(r"python3 tools/ios_sim\.py shutdown[^\n]*", "true", script)
     script = re.sub(
@@ -249,7 +258,7 @@ def slug(text: str) -> str:
 
 def run_step(
     index: int, step: dict, out: Path, app: str, *, devices: dict[str, str] | None = None,
-    timeout: int = 7200,
+    timeout: int = 7200, coverage: bool = False,
 ) -> tuple[int, float, str]:
     """Run one step's script, logging to ``out``.
 
@@ -284,7 +293,8 @@ def run_step(
         from ios_sim import run_bounded
     with log.open("w") as handle:
         code = run_bounded(
-            ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", localize(step["run"], devices)],
+            ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c",
+             localize(step["run"], devices, coverage=coverage)],
             timeout,
             cwd=ROOT, env=env, stdout=handle, stderr=subprocess.STDOUT,
         )
@@ -307,6 +317,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--device", action="append", default=[], metavar="FAMILY=UDID",
                         help="use an explicitly owned iphone/ipad/duo device (repeatable)")
     parser.add_argument("--step-timeout", type=int, default=7200, help="bounded script lifetime in seconds")
+    parser.add_argument(
+        "--coverage", action="store_true",
+        help="request instrumented build/test actions and retain real .xcresult archives",
+    )
     args = parser.parse_args(argv)
     devices = {}
     for raw in args.device:
@@ -337,6 +351,7 @@ def main(argv: list[str] | None = None) -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     configuration = {
         "app": args.app, "devices": devices, "stepTimeout": args.step_timeout,
+        "coverage": args.coverage,
         "steps": steps,
     }
     bind_provenance(args.out, configuration)
@@ -355,6 +370,7 @@ def main(argv: list[str] | None = None) -> int:
         bind_provenance(args.out, configuration)
         code, seconds, last = run_step(
             index, step, args.out, args.app, devices=devices, timeout=args.step_timeout,
+            coverage=args.coverage,
         )
         bind_provenance(args.out, configuration)
         worst = worst or code

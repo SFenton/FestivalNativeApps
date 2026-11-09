@@ -143,6 +143,77 @@ class XcodeCoverageTests(unittest.TestCase):
                 {top.resolve()},
             )
 
+    def test_uikit_collection_selects_uikit_entry_and_unique_lines(self):
+        """UIKit evidence measures its entry source alongside shared UI lines."""
+        summary = {
+            "result": "Passed", "passedTests": 1, "startTime": 1,
+            "devicesAndConfigurations": [{
+                "device": {
+                    "platform": "iOS Simulator", "modelName": "iPhone 17 Pro",
+                    "deviceId": "iphone-1",
+                },
+            }],
+        }
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            shared = root / "apple/Sources/FestivalUI/Shared.swift"
+            entry = root / "apple/Apps/iOSUIKit/UKApp.swift"
+            shared.parent.mkdir(parents=True)
+            entry.parent.mkdir(parents=True)
+            shared.write_text("shared\n", encoding="utf-8")
+            entry.write_text("entry\n", encoding="utf-8")
+            result = root / "result.xcresult"
+            result.mkdir()
+            report = {"targets": [
+                {"name": "FestivalUI", "files": [{
+                    "path": str(shared), "coveredLines": 1, "executableLines": 2,
+                }]},
+                {"name": "FestivalMobileUIKit.app", "files": [{
+                    "path": str(entry), "coveredLines": 1, "executableLines": 1,
+                }]},
+            ]}
+            archives = [
+                {str(shared): [
+                    {"line": 4, "isExecutable": True, "executionCount": 2},
+                    {"line": 9, "isExecutable": True, "executionCount": 0},
+                ]},
+                {str(entry): [
+                    {"line": 7, "isExecutable": True, "executionCount": 1},
+                ]},
+            ]
+            with patch("tools.apple_xccov_gate.xcode_json",
+                       side_effect=[summary, report, *archives]):
+                measured, _, _ = collect_result(result, root, "uikit")
+            self.assertEqual(measured, {
+                "apple/Sources/FestivalUI/Shared.swift": {4: True, 9: False},
+                "apple/Apps/iOSUIKit/UKApp.swift": {7: True},
+            })
+
+    def test_foreign_app_target_is_rejected(self):
+        """A result containing the other app family is not a compatible shard."""
+        summary = {
+            "result": "Passed", "passedTests": 1, "startTime": 1,
+            "devicesAndConfigurations": [{
+                "device": {
+                    "platform": "iOS Simulator", "modelName": "iPhone 17 Pro",
+                    "deviceId": "iphone-1",
+                },
+            }],
+        }
+        with TemporaryDirectory() as temporary:
+            result = Path(temporary) / "result.xcresult"
+            result.mkdir()
+            with patch("tools.apple_xccov_gate.xcode_json", side_effect=[
+                summary,
+                {"targets": [
+                    {"name": "FestivalUI", "files": []},
+                    {"name": "FestivalMobile.app", "files": []},
+                    {"name": "FestivalMobileUIKit.app", "files": []},
+                ]},
+            ]):
+                with self.assertRaisesRegex(ValueError, "foreign app coverage"):
+                    collect_result(result, Path(temporary), "uikit")
+
     def test_rejects_missing_identity_and_coverage_target(self):
         """A passing but incomplete Xcode report cannot count as UX evidence."""
         summary = {

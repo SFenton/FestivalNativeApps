@@ -326,6 +326,9 @@ schemes:
         FestivalMobile: all
     test:
       gatherCoverageData: true
+      coverageTargets:
+        - FestivalMobile
+        - package: FestivalApple/FestivalUI
       targets:
         - name: FestivalMobileUITests
   FestivalMobileIPad:
@@ -334,6 +337,9 @@ schemes:
         FestivalMobile: all
     test:
       gatherCoverageData: true
+      coverageTargets:
+        - FestivalMobile
+        - package: FestivalApple/FestivalUI
       targets:
         - name: FestivalMobileIPadUITests
   FestivalMobileUIKit:
@@ -342,6 +348,9 @@ schemes:
         FestivalMobileUIKit: all
     test:
       gatherCoverageData: true
+      coverageTargets:
+        - FestivalMobileUIKit
+        - package: FestivalApple/FestivalUI
       targets:
         - name: FestivalMobileUIKitUITests
   FestivalMobileUIKitIPad:
@@ -350,6 +359,9 @@ schemes:
         FestivalMobileUIKit: all
     test:
       gatherCoverageData: true
+      coverageTargets:
+        - FestivalMobileUIKit
+        - package: FestivalApple/FestivalUI
       targets:
         - name: FestivalMobileUIKitIPadUITests
   FestivalMobileUIKitHosted:
