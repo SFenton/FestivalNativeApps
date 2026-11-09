@@ -296,6 +296,7 @@ final class UKLeaderboardRowCell: UKSelfSizingCell {
             }
             content.ukClearDetailSelection()
             row.apply(content)
+            (content as? UKSongScoreRowView)?.onTap = row.onTap
             if let selection = row.detailSelection {
                 content.ukBindDetailSelection(selection.route, context: selection.context)
             }

@@ -330,6 +330,76 @@ struct UKFeatureComponentTests {
     }
 
     @Test
+    func songBoardRowsExposeHostedAXStopAndActivateAtAX5() async throws {
+        let entry = LeaderboardEntry(
+            accountId: "fixture-player-25", displayName: "Fixture Player 25", score: 178_000_000,
+            rank: 1, localRank: nil, accuracy: 991_200, isFullCombo: false, stars: 5, season: 40, difficulty: 3
+        )
+        var activationCount = 0
+        let row = UKLeaderboardRow(
+            kind: .song,
+            make: { UKSongScoreRowView() },
+            apply: {
+                ($0 as? UKSongScoreRowView)?.apply(.init(
+                    entry: entry, columns: nil, identifier: "fst.song-leaderboard.row.fixture-player-25"
+                ))
+            },
+            onTap: { activationCount += 1 },
+            detailSelection: nil
+        )
+        let board = UKBoardView(
+            gateKey: "song-board-cell-hit-surface", isLoading: false,
+            spinnerLabel: "Loading", spinnerIdentifier: nil, retainsFrame: false
+        )
+        board.setContent(headViews: [], rowItems: [("row-1", row)])
+        let content = UIViewController()
+        content.view.addSubview(board)
+        board.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            board.leadingAnchor.constraint(equalTo: content.view.leadingAnchor),
+            board.trailingAnchor.constraint(equalTo: content.view.trailingAnchor),
+            board.topAnchor.constraint(equalTo: content.view.topAnchor),
+            board.bottomAnchor.constraint(equalTo: content.view.bottomAnchor),
+        ])
+        let hosted = try await UKHostedWindow.make()
+        defer { hosted.close() }
+        let container = UKTraitContentContainer(
+            child: content,
+            traits: UITraitCollection(preferredContentSizeCategory: .accessibilityExtraExtraExtraLarge)
+        )
+        try await hosted.present(container)
+        try await UKHostedWindow.wait {
+            board.collectionView.layoutIfNeeded()
+            return board.collectionView.visibleCells.contains {
+                ($0 as? UKLeaderboardRowCell)?.accessibilityElements?.first is UKSongScoreRowView
+            }
+        }
+
+        func hostedRow(in cell: UKLeaderboardRowCell) -> UKSongLeaderboardEntryRowView? {
+            (cell.accessibilityElements?.first as? UKSongScoreRowView)?.accessibilityElements?.first
+                as? UKSongLeaderboardEntryRowView
+        }
+        let visibleCells = board.collectionView.visibleCells.compactMap { $0 as? UKLeaderboardRowCell }
+        let targetIdentifier = "fst.song-leaderboard.row.fixture-player-25"
+        let visibleDump = visibleCells.map { cell in
+            let row = hostedRow(in: cell)
+            return "\(String(describing: type(of: cell))): id=\(row?.accessibilityIdentifier ?? "<nil>") frame=\(cell.frame) rowFrame=\(row?.frame ?? .zero) rowAX=\(row?.isAccessibilityElement ?? false) traits=\(row?.accessibilityTraits.rawValue ?? 0) onTap=\(row?.onTap != nil)"
+        }.joined(separator: " | ")
+        let match = visibleCells.first { hostedRow(in: $0)?.accessibilityIdentifier == targetIdentifier }
+        let cell = try #require(match, "No visible configured terminal row \(targetIdentifier); \(visibleDump)")
+        #expect(cell.bounds.height >= 44)
+        let terminalRow = try #require(hostedRow(in: cell), "\(visibleDump)")
+        #expect(terminalRow.accessibilityIdentifier == targetIdentifier)
+        #expect(terminalRow.isAccessibilityElement, "\(visibleDump)")
+        #expect(terminalRow.accessibilityTraits == .button, "\(visibleDump)")
+        #expect(terminalRow.accessibilityLabel?.contains("Fixture Player 25") == true, "\(visibleDump)")
+        #expect(terminalRow.bounds.height >= 44)
+        #expect(terminalRow.point(inside: CGPoint(x: terminalRow.bounds.midX, y: terminalRow.bounds.midY), with: nil))
+        #expect(terminalRow.accessibilityActivate())
+        #expect(activationCount == 1)
+    }
+
+    @Test
     func songLeaderboardRowsKeepAX5HeightAndCellOwnedInteraction() {
         let entry = LeaderboardEntry(
             accountId: "fixture-player-1", displayName: "Fixture Player 1", score: 178_000_000,
@@ -349,6 +419,28 @@ struct UKFeatureComponentTests {
         #expect(size.height >= 100)
         #expect(row.isEnabled)
         #expect(row.isUserInteractionEnabled)
+
+        var activationCount = 0
+        row.onTap = { activationCount += 1 }
+        #expect(row.isAccessibilityElement)
+        #expect(row.accessibilityLabel?.contains("Fixture Player 1") == true)
+        #expect(row.accessibilityTraits == .button)
+        #expect(row.accessibilityActivate())
+        #expect(activationCount == 1)
+
+        row.onTap = nil
+        #expect(!row.isAccessibilityElement)
+        #expect(row.accessibilityLabel == nil)
+        #expect(!row.accessibilityTraits.contains(.button))
+        #expect(!row.accessibilityActivate())
+        #expect(activationCount == 1)
+
+        row.onTap = { activationCount += 1 }
+        #expect(row.isAccessibilityElement)
+        #expect(row.accessibilityLabel?.contains("Fixture Player 1") == true)
+        #expect(row.accessibilityTraits == .button)
+        #expect(row.accessibilityActivate())
+        #expect(activationCount == 2)
     }
 
     @Test

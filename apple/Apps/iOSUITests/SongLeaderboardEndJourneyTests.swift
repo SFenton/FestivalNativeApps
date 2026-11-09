@@ -15,9 +15,9 @@ import XCTest
 /// portrait, iPad portrait and landscape, and the iPhone Duo outer display (the Debug
 /// `DebugDuoWindow` simulation, as `BoardFooterFadeJourneyTests`).
 ///
-/// Runs against `tools/mock_service.py` on `:8765` (the `apple-ci` simulator steps'
-/// `--large-catalogue` fixture); set `FST_SONG_BOARD_END_FIXTURE_URL` (as
-/// `TEST_RUNNER_FST_SONG_BOARD_END_FIXTURE_URL`) to use another port. Skips when the
+/// Runs against `tools/mock_service.py` on the shared Songs fixture origin (the `apple-ci`
+/// simulator steps' `--large-catalogue` fixture); set `FST_FIXTURE_URL` (as
+/// `TEST_RUNNER_FST_FIXTURE_URL`) to use another loopback port. Skips when the
 /// board never loads.
 final class SongLeaderboardEndJourneyTests: XCTestCase {
     private static let rowPrefix = "fst.song-leaderboard.row."
@@ -352,10 +352,13 @@ final class SongLeaderboardEndJourneyTests: XCTestCase {
             nextTop - frame.maxY, Self.rowGap, accuracy: Self.gapTolerance,
             "Last row does not rest one row gap above the next element: \(frame) vs \(nextTop)"
         )
-        let button = last.buttons.firstMatch.exists ? last.buttons.firstMatch : last
-        XCTAssertTrue(button.isHittable, "Last row is not reachable: \(frame)")
-        XCTAssertTrue(button.isEnabled, "Last row is not enabled")
-        XCTAssertTrue(button.label.contains("Fixture Player 25"), "Last row reads \(button.label)")
+        // The identifier resolves directly to the hosted score button; do not query for a
+        // nested button descendant of that already-resolved AX stop.
+        let button = last
+        XCTAssertEqual(button.elementType, .button, "Last row AX stop is not a button: \(frame)")
+        XCTAssertTrue(button.isHittable, "Last row AX stop is not reachable: \(frame)")
+        XCTAssertTrue(button.isEnabled, "Last row AX stop is not enabled")
+        XCTAssertTrue(last.label.contains("Fixture Player 25"), "Last row reads \(last.label)")
         XCTAssertTrue(app.buttons["fst.song-leaderboard.page-next"].isHittable, "Pager lost at the end of the page")
     }
 
@@ -370,7 +373,7 @@ final class SongLeaderboardEndJourneyTests: XCTestCase {
     /// - Throws: A skip when the board never loads.
     @MainActor
     private func launchBoard(withPlayer: Bool, duoWindow: String?) throws -> (XCUIApplication, CGRect) {
-        let base = ProcessInfo.processInfo.environment["FST_SONG_BOARD_END_FIXTURE_URL"] ?? "http://127.0.0.1:8765"
+        let base = SongsUITestSupport.fixtureURL
         var environment = [
             "FST_API_BASE_URL": base,
             "FST_UI_TEST_RESET_SONG_CARDS": "1",

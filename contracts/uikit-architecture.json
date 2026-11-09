@@ -772,7 +772,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKScoreRowParts.swift",
-      "sourceHash": "e76fa4f20eb827ce5b162b4a4c796e12745af17a7c499b4e906d080b0529a69d",
+      "sourceHash": "fb2365b4e9b5fcfb1735e324a5d9f9e41c174b2cef2a464a47782263448bc1e3",
       "classes": [
         {
           "name": "UKAccuracyBadgeView",
@@ -799,10 +799,11 @@
       "disposition": "shared-component",
       "owner": "UKSongLeaderboardEntryRowView",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
-        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+        ".agents/patterns/leaderboard-row.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        "apple/Apps/iOSUITests/SongLeaderboardEndJourneyTests.swift"
       ],
-      "note": "Canonical score row consumes real traits; cell owns touches when the inner row has no action. Source review only; runtime, pose, coverage and performance gates remain independent."
+      "note": "Canonical row/cell ownership propagates the real weak action, named single AX button and once-only activation; clearing/re-enabling preserves noninteractive separate-child policy. Actual v8 SDK and registered iPad hosted 69 tests/72 invocations plus original AX5 portrait/landscape terminal-row journeys pass with stable source 088e9 and verified source/test hashes. This is scoped row evidence, not whole-app/current-source coverage or performance qualification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Common/UKScreenFoundation.swift",
@@ -1320,7 +1321,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKLeaderboardKit.swift",
-      "sourceHash": "291336825eab7bccaf13c8d7b9e43dab7e1e2ec9e77f37caeb253030b74ab11e",
+      "sourceHash": "73fc2b7442719ae139f12440ce4b869638a7f59fa37b386bdb0e4d0172676211",
       "classes": [
         {
           "name": "UKColumnSlot",
@@ -1343,10 +1344,11 @@
       "disposition": "shared-component",
       "owner": "UKLeaderboardRowCell / UKRankingRowView",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
-        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+        ".agents/patterns/leaderboard-row.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        "apple/Apps/iOSUITests/SongLeaderboardEndJourneyTests.swift"
       ],
-      "note": "Bare rows use a visible cell host; real traits size rows; reusable AX content releases old detail selection. Source review only; runtime, pose, coverage and performance gates remain independent."
+      "note": "Canonical row/cell ownership propagates the real weak action, named single AX button and once-only activation; clearing/re-enabling preserves noninteractive separate-child policy. Actual v8 SDK and registered iPad hosted 69 tests/72 invocations plus original AX5 portrait/landscape terminal-row journeys pass with stable source 088e9 and verified source/test hashes. This is scoped row evidence, not whole-app/current-source coverage or performance qualification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKLeaderboardsRoutes.swift",
@@ -1451,7 +1453,7 @@
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKSongBoardRows.swift",
-      "sourceHash": "7856e6581e399be01174ae8cd92522eeae988c1cd7c2e3df42c3870194aff97b",
+      "sourceHash": "c949815ec277a051cb14b178bee2827e8566f1946a9b25966304eb785e9f7fa7",
       "classes": [
         {
           "name": "UKSongScoreRowView",
@@ -1470,10 +1472,11 @@
       "disposition": "shared-component",
       "owner": "UKRowHostView / UKSongLeaderboardEntryRowView",
       "verification": [
-        ".agents/platforms/apple/uikit-architecture.md",
-        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift"
+        ".agents/patterns/leaderboard-row.md",
+        "apple/Tests/FestivalUITests/UKFeatureComponentTests.swift",
+        "apple/Apps/iOSUITests/SongLeaderboardEndJourneyTests.swift"
       ],
-      "note": "Cell content reapplies the model on actual window attachment and forwards its real text-size traits. Source review only; runtime, pose, coverage and performance gates remain independent."
+      "note": "Canonical row/cell ownership propagates the real weak action, named single AX button and once-only activation; clearing/re-enabling preserves noninteractive separate-child policy. Actual v8 SDK and registered iPad hosted 69 tests/72 invocations plus original AX5 portrait/landscape terminal-row journeys pass with stable source 088e9 and verified source/test hashes. This is scoped row evidence, not whole-app/current-source coverage or performance qualification."
     },
     {
       "path": "apple/Sources/FestivalUI/UIKitPort/Features/Leaderboards/UKSongBoardViewController.swift",

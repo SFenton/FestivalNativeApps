@@ -22,6 +22,10 @@ final class UKSongScoreRowView: UKRowHostView {
     }
 
     private var model: Model?
+    var onTap: (() -> Void)? {
+        didSet { hostedRow?.onTap = onTap }
+    }
+    private weak var hostedRow: UKSongLeaderboardEntryRowView?
 
     /// Fills the row.
     ///
@@ -35,7 +39,9 @@ final class UKSongScoreRowView: UKRowHostView {
             chevron: true, hint: model.hint, separateParts: true, horizontalPadding: UKLeaderboardMetrics.horizontalPadding,
             traits: traitCollection
         )
+        row.onTap = onTap
         host(row)
+        hostedRow = row
         row.accessibilityContainerType = .semanticGroup
         row.accessibilityIdentifier = model.identifier
         accessibilityIdentifier = nil
