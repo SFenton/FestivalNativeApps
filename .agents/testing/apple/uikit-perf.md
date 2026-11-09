@@ -157,6 +157,11 @@ substituting another developer directory. Zero-test/destination failures from
 this gate are not product-test results. Older qualified evidence retains its
 original scope.
 
+A subsequent simulator-free Release attempt could not start because the pinned
+`/Applications/Xcode.app/Contents/Developer` directory was no longer present.
+Restore that approved installation and complete its setup before either SDK
+builds or runtime qualification resume; no alternate toolchain was selected.
+
 ## Last measured
 
 | Date | Family | Scope | Result |
