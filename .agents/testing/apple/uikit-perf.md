@@ -133,6 +133,30 @@ Evidence: retained session artifacts `native-phone-qualified-a9c4-n3-report.md`,
 
 `apple/Tests/FestivalUITests/PerfProbeTests.swift` (report math, percentiles, `HitchTally`, config parsing, result lines) and `tools/tests/test_uikit_perf.py` (surfaces file, run plan, launch environment, sampler and report parsing, table rendering).
 
+## Toolchain parity and runtime readiness
+
+Matched arms must use the same pinned Xcode build and SDK, not merely the same
+source and optimization flags. Retain each bundle's `DTXcodeBuild`, `DTSDKName`
+and `DTSDKBuild` with its byte/source receipts. Rebuild all required source arms
+under one toolchain before qualifying a comparison after an Xcode update; never
+rewrite older bundle metadata or reinterpret an earlier measurement as a new run.
+
+The retained a9 UIKit/SwiftUI, fitted-height, graph and before412 probe bundles
+record Xcode **27.1 (27A9269)** and **iphonesimulator27.1 (24A94403)**.
+The host subsequently changed to Xcode **27.2 (27B52)**; the current unaccepted
+Quick Links hosted build records **iphonesimulator27.2 (24B8118)**. Those are not
+matched-toolchain arms.
+
+Current simulator qualification is operator-gated: installed CoreSimulator
+**1174.9.2** is older than required **1174.21.0**,
+`xcodebuild -checkFirstLaunchStatus` returns **69**, and component installation
+reports that authorization is required. Complete the host's approved Xcode
+first-launch/component setup before resuming runtime validation. Do not recover
+by restarting shared simulator services, changing security settings or silently
+substituting another developer directory. Zero-test/destination failures from
+this gate are not product-test results. Older qualified evidence retains its
+original scope.
+
 ## Last measured
 
 | Date | Family | Scope | Result |
